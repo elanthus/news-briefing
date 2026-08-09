@@ -23,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -36,6 +37,13 @@ MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 DEFAULT_WINDOW_HOURS = 24
 DEFAULT_SOURCE_CAP = 25
 DEFAULT_CATEGORY_CAP = 60
+
+FETCH_WORKERS = 8
+SUMMARY_CHARS = 300  # per-item summary budget handed to the model
+HN_MIN_POINTS = 20  # below this a story hasn't cleared HN's noise floor
+HN_HITS_PER_PAGE = 25
+REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
+REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
 
 # category -> list of (source_name, feed_url)
 RSS_FEEDS = {
@@ -108,6 +116,15 @@ SOURCE_RELEVANCE_FILTERS = {
 }
 TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 
+# Whitespace, XML declarations and comments may legally precede the DOCTYPE.
+_XML_PROLOG = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<\?.*?\?>|<!--.*?-->)*", re.DOTALL)
+
+# Items and the number dropped because their timestamp could not be parsed.
+# Undated items are invisible in the corpus otherwise: they never reach the
+# category counters, so a feed that changes date format contributes nothing
+# while the run still reports itself healthy.
+FetchResult = namedtuple("FetchResult", "items undated")
+
 
 def http_get(url, user_agent=USER_AGENT, timeout=TIMEOUT):
     req = urllib.request.Request(url, headers={"User-Agent": user_agent})
@@ -116,6 +133,27 @@ def http_get(url, user_agent=USER_AGENT, timeout=TIMEOUT):
     if len(data) > MAX_RESPONSE_BYTES:
         raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
     return data
+
+
+def parse_feed_xml(data):
+    """Parse feed XML, refusing any DOCTYPE declaration.
+
+    ElementTree expands internal entities, so a few hundred bytes of nested
+    entity declarations expand to an unbounded string in memory — the
+    "billion laughs" pattern, which MAX_RESPONSE_BYTES does not stop because
+    the payload is tiny on the wire. Entity declarations and external entity
+    references both require a DOCTYPE, and real RSS/Atom feeds don't carry
+    one, so refusing it closes both without depending on defusedxml, which
+    would cost the project its stdlib-only property.
+
+    Only the prolog is inspected, so "<!DOCTYPE" appearing inside article
+    text is not mistaken for a declaration.
+    """
+    prolog = _XML_PROLOG.match(data)
+    remainder = data[prolog.end():] if prolog else data
+    if remainder[:9].upper() == b"<!DOCTYPE":
+        raise ValueError("XML DOCTYPE declarations are not accepted")
+    return ET.fromstring(data)
 
 
 def parse_feed_date(text):
@@ -144,20 +182,29 @@ def strip_html(text):
 
 
 def fetch_rss(source_name, url, cutoff):
-    """Return list of items newer than cutoff. Handles RSS 2.0 and Atom."""
+    """Return items newer than cutoff, plus a count of undated entries.
+
+    Handles RSS 2.0 and Atom. An entry whose timestamp won't parse is counted
+    rather than silently skipped: that is how a feed changing its date format
+    shows up, instead of quietly contributing nothing to a healthy-looking run.
+    """
     items = []
-    root = ET.fromstring(http_get(url))
+    undated = 0
+    root = parse_feed_xml(http_get(url))
     ns = {"atom": "http://www.w3.org/2005/Atom"}
 
     for item in root.iter("item"):  # RSS 2.0
         published = parse_feed_date(item.findtext("pubDate"))
-        if published is None or published < cutoff:
+        if published is None:
+            undated += 1
+            continue
+        if published < cutoff:
             continue
         items.append({
             "title": strip_html(item.findtext("title")),
             "url": (item.findtext("link") or "").strip(),
             "published": published.isoformat(),
-            "summary": strip_html(item.findtext("description"))[:300],
+            "summary": strip_html(item.findtext("description"))[:SUMMARY_CHARS],
             "source": source_name,
         })
 
@@ -165,17 +212,21 @@ def fetch_rss(source_name, url, cutoff):
         published = parse_feed_date(
             entry.findtext("atom:published", namespaces=ns)
             or entry.findtext("atom:updated", namespaces=ns))
-        if published is None or published < cutoff:
+        if published is None:
+            undated += 1
+            continue
+        if published < cutoff:
             continue
         link = entry.find("atom:link", ns)
         items.append({
             "title": strip_html(entry.findtext("atom:title", namespaces=ns)),
             "url": link.get("href", "") if link is not None else "",
             "published": published.isoformat(),
-            "summary": strip_html(entry.findtext("atom:summary", namespaces=ns) or "")[:300],
+            "summary": strip_html(
+                entry.findtext("atom:summary", namespaces=ns) or "")[:SUMMARY_CHARS],
             "source": source_name,
         })
-    return items
+    return FetchResult(items, undated)
 
 
 def fetch_hn(query, cutoff):
@@ -187,24 +238,28 @@ def fetch_hn(query, cutoff):
     ts = int(cutoff.timestamp())
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
            f"&query={urllib.request.quote(query)}"
-           f"&numericFilters=created_at_i%3E{ts}&hitsPerPage=25")
+           f"&numericFilters=created_at_i%3E{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
     data = json.loads(http_get(url))
     items = []
+    undated = 0
     for hit in data.get("hits", []):
-        if hit.get("points", 0) <= 20:
+        if hit.get("created_at_i") is None:
+            undated += 1
+            continue
+        if hit.get("points", 0) <= HN_MIN_POINTS:
             continue
         items.append({
             "title": hit.get("title", ""),
             "url": hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "discussion": f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "published": datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat(),
-            "summary": strip_html(hit.get("story_text") or "")[:300],
+            "summary": strip_html(hit.get("story_text") or "")[:SUMMARY_CHARS],
             "points": hit.get("points", 0),
             "comments": hit.get("num_comments", 0),
             "source": "Hacker News",
             "query": query,
         })
-    return items
+    return FetchResult(items, undated)
 
 
 def _reddit_md_text(atom_content):
@@ -224,7 +279,7 @@ def reddit_top_bucket(hours):
 def reddit_limit(hours):
     """Ask for proportionally more posts when the bucket over-covers the window.
 
-    Reddit ranks across the whole bucket, so a custom 48h window served by
+    Reddit ranks across the whole bucket, so a 48h window served by
     t=week returns only the few weekly-top posts that happen to land in range. Scale
     the request by how much the bucket overshoots so in-window coverage stays
     roughly constant as --hours grows.
@@ -236,6 +291,24 @@ def reddit_limit(hours):
     return min(REDDIT_MAX_LIMIT, math.ceil(REDDIT_BASE_LIMIT * span / hours))
 
 
+def retry_after_seconds(exc, fallback):
+    """Seconds to wait after a 429, preferring the server's own instruction.
+
+    Reddit sends Retry-After on rate limits. Backing off on our own guess
+    either wastes time or retries too early and earns another 429, so use the
+    server's number when it gives one — clamped, because the header is
+    attacker-influenced and an hour-long sleep would hang the run.
+    """
+    header = ""
+    try:
+        header = (exc.headers.get("Retry-After") or "").strip()
+    except AttributeError:
+        pass
+    if header.isdigit():
+        return max(0, min(int(header), REDDIT_RETRY_MAX_SLEEP))
+    return fallback
+
+
 def fetch_reddit(subreddit, cutoff, hours):
     """Fetch top posts via RSS. Reddit's anonymous JSON API is blocked (403);
     vote counts are unavailable without OAuth credentials."""
@@ -244,19 +317,23 @@ def fetch_reddit(subreddit, cutoff, hours):
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     for attempt in range(REDDIT_MAX_ATTEMPTS):
         try:
-            root = ET.fromstring(http_get(url, timeout=REDDIT_TIMEOUT))
+            root = parse_feed_xml(http_get(url, timeout=REDDIT_TIMEOUT))
             break
         except urllib.error.HTTPError as exc:
             if exc.code != 429 or attempt == REDDIT_MAX_ATTEMPTS - 1:
                 raise
-            time.sleep(5 * (attempt + 1))
+            time.sleep(retry_after_seconds(exc, 5 * (attempt + 1)))
 
     items = []
+    undated = 0
     for entry in root.findall("atom:entry", ns):
         published = parse_feed_date(
             entry.findtext("atom:updated", namespaces=ns)
             or entry.findtext("atom:published", namespaces=ns))
-        if published is None or published < cutoff:
+        if published is None:
+            undated += 1
+            continue
+        if published < cutoff:
             continue
         link = entry.find("atom:link", ns)
         raw_content = entry.findtext("atom:content", namespaces=ns) or ""
@@ -265,10 +342,10 @@ def fetch_reddit(subreddit, cutoff, hours):
             "url": link.get("href", "") if link is not None else "",
             "published": published.isoformat(),
             # atom:content has the post HTML; extract just the body text
-            "summary": _reddit_md_text(raw_content)[:300],
+            "summary": _reddit_md_text(raw_content)[:SUMMARY_CHARS],
             "source": f"r/{subreddit}",
         })
-    return items
+    return FetchResult(items, undated)
 
 
 def canonicalize_url(url):
@@ -337,11 +414,15 @@ def is_relevant_item(item):
 
 
 def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
-                     category_cap=DEFAULT_CATEGORY_CAP):
+                     category_cap=DEFAULT_CATEGORY_CAP, undated_dropped=0):
     """Filter, deduplicate, diversify, and bound one category for model input.
 
     Returns both the retained items and counts for observability. Caps are
     applied newest-first and never change an item's source data.
+
+    `undated_dropped` is counted by the fetchers, before an item ever reaches
+    this function, and is carried through so every reason an item is missing
+    from the corpus appears in one place.
     """
     fetched = len(items)
     relevant = [item for item in items if is_relevant_item(item)]
@@ -364,6 +445,7 @@ def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
         by_source[source] = by_source.get(source, 0) + 1
     stats = {
         "fetched": fetched,
+        "undated_dropped": undated_dropped,
         "relevance_dropped": fetched - len(relevant),
         "duplicates_dropped": len(relevant) - len(unique),
         "source_cap_dropped": source_cap_dropped,
@@ -411,8 +493,10 @@ def main():
         "errors": [],
     }
 
+    undated = dict.fromkeys(corpus["categories"], 0)
+
     jobs = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         for category, feeds in RSS_FEEDS.items():
             for name, url in feeds:
                 jobs.append((pool.submit(fetch_rss, name, url, cutoff), category, name))
@@ -421,24 +505,31 @@ def main():
 
         for future, category, name in jobs:
             try:
-                corpus["categories"][category].extend(future.result())
+                result = future.result()
             except Exception as exc:
                 corpus["errors"].append(f"{name}: {exc}")
+                continue
+            corpus["categories"][category].extend(result.items)
+            undated[category] += result.undated
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
     for index, sub in enumerate(SUBREDDITS):
         try:
-            corpus["categories"]["dev_community"].extend(fetch_reddit(sub, cutoff, args.hours))
+            result = fetch_reddit(sub, cutoff, args.hours)
         except Exception as exc:
             corpus["errors"].append(f"r/{sub}: {exc}")
+        else:
+            corpus["categories"]["dev_community"].extend(result.items)
+            undated["dev_community"] += result.undated
         if index < len(SUBREDDITS) - 1:
-            time.sleep(2)
+            time.sleep(REDDIT_PAUSE_SECONDS)
 
     for category in corpus["categories"]:
         items, stats = prepare_category(
             corpus["categories"][category],
             source_cap=args.source_cap,
             category_cap=args.category_cap,
+            undated_dropped=undated[category],
         )
         corpus["categories"][category] = items
         corpus["processing"][category] = stats
