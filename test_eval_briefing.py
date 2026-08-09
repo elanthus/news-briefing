@@ -264,18 +264,31 @@ class CommittedFixtureTest(unittest.TestCase):
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
 
-    def test_readme_sample_has_no_contract_errors(self):
-        """Abridging the showcase must not introduce citation-contract errors."""
+    def test_readme_full_result_matches_reference_fixture(self):
+        """The portfolio showcase must contain the complete frozen result."""
         readme = Path("README.md").read_text()
-        marker = "<summary><b>Click to expand sample briefing</b></summary>"
+        marker = "<summary><b>Click to expand full briefing</b></summary>"
         quoted = readme.split(marker, 1)[1].split("</details>", 1)[0]
         sample = "\n".join(
             line[1:].lstrip() for line in quoted.splitlines()
             if line.startswith(">")
-        )
+        ).strip()
+
+        reference = Path("fixtures/briefing-2026-08-08.md").read_text()
+        comment_start = reference.index("<!--")
+        comment_end = reference.index("-->", comment_start) + len("-->")
+        expected = (
+            reference[:comment_start].rstrip()
+            + "\n\n"
+            + reference[comment_end:].lstrip()
+        ).strip()
+        self.assertEqual(sample, expected, "README does not contain the full reference result")
+
         corpus = load_corpus("fixtures/corpus-2026-08-08.json")
-        errors = [finding for finding in evaluate(corpus, sample)
-                  if finding.level == ERROR]
+        errors = [
+            finding for finding in evaluate(corpus, sample)
+            if finding.level == ERROR
+        ]
         self.assertEqual(errors, [], f"README sample regressed: {errors}")
 
 
