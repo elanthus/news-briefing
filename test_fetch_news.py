@@ -1,22 +1,36 @@
 #!/usr/bin/env python3
-"""Unit tests for the pure (non-network) helpers in fetch_news.py.
+"""Offline unit and failure-mode tests for fetch_news.py.
 
-Everything under test here is deterministic and offline: date parsing, HTML
-stripping, deduplication, and Reddit window selection. The fetchers themselves
-are not covered — they are thin wrappers around live HTTP.
+Everything under test here is deterministic and offline. Network boundaries
+are patched only where the behavior at that boundary is itself the contract.
 
 Run:
     python3 -m unittest -v
 """
 
+import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import patch
 
+import fetch_news
 from fetch_news import (
+    DEFAULT_WINDOW_HOURS,
+    MAX_RESPONSE_BYTES,
     REDDIT_MAX_LIMIT,
     _reddit_md_text,
+    canonicalize_url,
     dedupe,
+    fetch_hn,
+    fetch_reddit,
+    is_relevant_item,
     parse_feed_date,
+    positive_int,
+    prepare_category,
     reddit_limit,
     reddit_top_bucket,
     sort_items,
@@ -134,9 +148,128 @@ class DedupeTest(unittest.TestCase):
         ]
         self.assertEqual(len(dedupe(items)), 2)
 
+    def test_tracking_parameters_do_not_defeat_url_deduplication(self):
+        items = [
+            {"title": "First title", "url": "https://Example.com/story?utm_source=rss&id=7#top"},
+            {"title": "Different title", "url": "https://example.com/story?id=7"},
+        ]
+        self.assertEqual(dedupe(items), [items[0]])
+
+
+class CanonicalizeUrlTest(unittest.TestCase):
+    def test_removes_tracking_and_fragment_but_preserves_meaningful_query(self):
+        url = "HTTPS://Example.COM/story/?b=2&utm_medium=rss&a=1&fbclid=x#comments"
+        self.assertEqual(canonicalize_url(url), "https://example.com/story?a=1&b=2")
+
+    def test_leaves_non_http_values_unchanged(self):
+        self.assertEqual(canonicalize_url("mailto:news@example.com"),
+                         "mailto:news@example.com")
+
+
+class RelevanceTest(unittest.TestCase):
+    def test_filters_obvious_noise_from_broad_ai_feed(self):
+        item = {"source": "Wired", "title": "Hotels.com coupon codes", "summary": "Save today"}
+        self.assertFalse(is_relevant_item(item))
+
+    def test_keeps_ai_story_from_broad_feed(self):
+        item = {"source": "Wired", "title": "A new chatbot", "summary": "An AI model launch"}
+        self.assertTrue(is_relevant_item(item))
+
+    def test_category_specific_feed_does_not_need_keywords(self):
+        item = {"source": "TechCrunch AI", "title": "Data centers and the grid", "summary": ""}
+        self.assertTrue(is_relevant_item(item))
+
+    def test_github_changelog_keeps_only_ai_tool_updates(self):
+        self.assertTrue(is_relevant_item({
+            "source": "GitHub Changelog", "title": "Copilot code review improves", "summary": ""}))
+        self.assertFalse(is_relevant_item({
+            "source": "GitHub Changelog", "title": "Repository sidebar redesign", "summary": ""}))
+
+    def test_hacker_news_query_match_must_still_be_topically_relevant(self):
+        self.assertFalse(is_relevant_item({
+            "source": "Hacker News", "title": "Dithered QR Codes", "summary": ""}))
+        self.assertTrue(is_relevant_item({
+            "source": "Hacker News", "title": "Code was never the hard part", "summary": ""}))
+
+
+class PrepareCategoryTest(unittest.TestCase):
+    @staticmethod
+    def item(n, source="A"):
+        return {
+            "title": f"Story {source} {n}",
+            "url": f"https://example.com/{source}/{n}",
+            "published": f"2026-08-08T{n:02d}:00:00+00:00",
+            "source": source,
+        }
+
+    def test_caps_each_source_and_the_whole_category(self):
+        items = [self.item(n, "A") for n in range(1, 6)]
+        items += [self.item(n, "B") for n in range(1, 6)]
+        kept, stats = prepare_category(items, source_cap=2, category_cap=3)
+        self.assertEqual(len(kept), 3)
+        self.assertLessEqual(sum(i["source"] == "A" for i in kept), 2)
+        self.assertLessEqual(sum(i["source"] == "B" for i in kept), 2)
+        self.assertEqual(stats["fetched"], 10)
+        self.assertEqual(stats["kept"], 3)
+        self.assertGreater(stats["source_cap_dropped"] + stats["category_cap_dropped"], 0)
+
+    def test_reports_relevance_and_duplicate_drops(self):
+        items = [
+            {**self.item(1, "Wired"), "title": "AI model release"},
+            {**self.item(2, "Wired"), "title": "Coupon codes"},
+            {**self.item(3, "Wired"), "title": "Another AI story",
+             "url": self.item(1, "Wired")["url"]},
+        ]
+        kept, stats = prepare_category(items)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(stats["relevance_dropped"], 1)
+        self.assertEqual(stats["duplicates_dropped"], 1)
+
+    def test_duplicate_keeps_newest_occurrence_not_source_completion_order(self):
+        older = self.item(1, "A")
+        newer = {**self.item(2, "B"), "url": older["url"]}
+        kept, _stats = prepare_category([older, newer])
+        self.assertEqual(kept, [newer])
+
+
+class HackerNewsTest(unittest.TestCase):
+    def test_carries_story_text_as_grounding_context(self):
+        payload = {"hits": [{
+            "objectID": "42", "title": "Ask HN", "url": None,
+            "story_text": "<p>Measured details</p>", "created_at_i": 1786204800,
+            "points": 21, "num_comments": 4,
+        }]}
+        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+            items = fetch_hn("agent", utc(2026, 8, 8))
+        self.assertEqual(items[0]["summary"], "Measured details")
+
+
+class PositiveIntTest(unittest.TestCase):
+    def test_accepts_positive_values(self):
+        self.assertEqual(positive_int("24"), 24)
+
+    def test_rejects_zero_negative_and_non_numeric_values(self):
+        for value in ("0", "-1", "nope"):
+            with (self.subTest(value=value),
+                  self.assertRaises(fetch_news.argparse.ArgumentTypeError)):
+                positive_int(value)
+
 
 class RedditTopBucketTest(unittest.TestCase):
     """`--hours` must reach Reddit too; pick the smallest bucket that covers it."""
+
+    def test_default_window_requests_reddit_day_bucket(self):
+        self.assertEqual(DEFAULT_WINDOW_HOURS, 24)
+        self.assertEqual(reddit_top_bucket(DEFAULT_WINDOW_HOURS), "day")
+        self.assertEqual(reddit_limit(DEFAULT_WINDOW_HOURS), 25)
+
+    def test_default_fetch_url_uses_day_bucket(self):
+        empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        with patch.object(fetch_news, "http_get", return_value=empty_feed) as get:
+            self.assertEqual(fetch_reddit("ClaudeAI", utc(2026, 8, 8), DEFAULT_WINDOW_HOURS), [])
+        url = get.call_args.args[0]
+        self.assertIn("t=day", url)
+        self.assertIn("limit=25", url)
 
     def test_selects_smallest_covering_bucket(self):
         cases = [
@@ -144,7 +277,7 @@ class RedditTopBucketTest(unittest.TestCase):
             (2, "day"),
             (24, "day"),
             (25, "week"),
-            (48, "week"),      # the default window — must not stay on t=day
+            (48, "week"),      # custom windows still choose a covering bucket
             (168, "week"),
             (169, "month"),
             (720, "month"),
@@ -229,6 +362,42 @@ class SortItemsTest(unittest.TestCase):
 
     def test_handles_an_empty_category(self):
         self.assertEqual(sort_items([]), [])
+
+
+class MainFailureModeTest(unittest.TestCase):
+    def test_empty_corpus_is_written_but_returns_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            argv = ["fetch_news.py", "-o", str(output)]
+            with (patch.object(fetch_news, "RSS_FEEDS", {}),
+                  patch.object(fetch_news, "HN_QUERIES", []),
+                  patch.object(fetch_news, "SUBREDDITS", []),
+                  patch.object(fetch_news.sys, "argv", argv),
+                  redirect_stdout(io.StringIO()),
+                  redirect_stderr(io.StringIO()) as stderr):
+                result = fetch_news.main()
+            self.assertEqual(result, 1)
+            self.assertIn("no usable items", stderr.getvalue())
+            corpus = json.loads(output.read_text())
+            self.assertEqual(sum(map(len, corpus["categories"].values())), 0)
+
+
+class HttpGetTest(unittest.TestCase):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, limit):
+            return b"x" * limit
+
+    def test_rejects_oversized_response(self):
+        with patch.object(fetch_news.urllib.request, "urlopen", return_value=self.Response()):
+            with self.assertRaisesRegex(ValueError, "response exceeded"):
+                fetch_news.http_get("https://example.com/feed")
+        self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
 
 
 if __name__ == "__main__":

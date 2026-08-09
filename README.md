@@ -6,15 +6,17 @@ A daily news briefing pipeline built around one constraint: **the model never de
 
 Retrieval is deterministic and happens in code. The LLM is given a closed corpus and allowed to do only the thing it's actually good at — ranking and summarizing — and it has to show its work on what it left out.
 
-1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls RSS feeds (NPR, Politico, The Hill, Axios, BBC, Al Jazeera, AP, The Verge, Ars Technica, Wired, TechCrunch), the Hacker News Algolia API, and Reddit (via public RSS) into a single JSON corpus. Everything older than a hard cutoff (default 48h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp.
+1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, including first-party OpenAI, Google DeepMind, and GitHub Changelog updates; the Hacker News Algolia API; and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp. The default maps directly to Reddit's `day` bucket before the exact cutoff is applied.
 2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
-3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the generated briefing back against the corpus it came from — every cited link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
+3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the generated briefing back against the corpus it came from — every topic and exclusion needs a citation, every cited link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
 
 Design notes worth calling out:
 
 - **Fixed slot allocation.** Without it, high-volume AI industry news crowds out the dev-tools and dev-practices content, which is most of why I read this.
 - **Exclusion accountability.** The model must name the next 5 stories it dropped per section, with a reason. Silent omission is the failure mode you can't otherwise detect.
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
+- **Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source/category caps prevent one noisy publisher from consuming the model's context window. The corpus records each filtering stage in `processing` metadata.
+- **Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools.
 
 No API keys or credentials. Python 3.11+, stdlib only — no `pip install`. Tests run offline on 3.11 through 3.14 in CI.
 
@@ -100,10 +102,15 @@ Then hand `corpus.json` and `briefing-prompt.md` to your agent (or paste the pro
 Options:
 
 ```
-python3 fetch_news.py --hours 24        # narrower window
+python3 fetch_news.py --hours 12        # narrower window
+python3 fetch_news.py --hours 48        # wider window (Reddit uses its week bucket)
 python3 fetch_news.py --markdown        # human-readable digest instead of JSON
 python3 fetch_news.py -o corpus.json    # write to file instead of stdout
+python3 fetch_news.py --source-cap 15   # retain at most 15 items from one source
+python3 fetch_news.py --category-cap 40 # retain at most 40 items in one category
 ```
+
+The command returns a non-zero status if every source fails or filtering leaves no usable items, while still writing the corpus and its error log for diagnosis. Partial source failures remain successful and are surfaced through `errors`.
 
 ## Tests
 
@@ -113,7 +120,7 @@ Stdlib `unittest`, no install step, no network:
 python3 -m unittest -v
 ```
 
-Coverage is on the parsing and filtering logic that's actually easy to get wrong — RFC 822 vs ISO 8601 date handling, timezone normalization, near-duplicate collapsing, and window selection. The fetchers themselves are thin HTTP wrappers and are deliberately not mocked.
+Coverage targets the logic that's easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL deduplication, source/category budgets, oversized responses, empty-run failure behavior, briefing structure, and corpus-grounded citations. Tests patch network boundaries and run without making live requests.
 
 ## Evaluating the LLM step
 
@@ -146,9 +153,9 @@ The reference briefing is a **regression baseline, not a golden answer**. Rankin
 
 ## Customizing sources
 
-Edit the `RSS_FEEDS`, `HN_QUERIES`, and `SUBREDDITS` constants at the top of `fetch_news.py`.
+Edit the `RSS_FEEDS`, `HN_QUERIES`, and `SUBREDDITS` constants at the top of `fetch_news.py`. Broad sources listed in `SOURCE_RELEVANCE_FILTERS` are keyword-filtered; category-specific sources pass through without keyword filtering.
 
-A note on Reddit: its `top` RSS endpoint accepts only coarse buckets (`hour`/`day`/`week`/…), not an arbitrary window. `fetch_news.py` picks the smallest bucket that fully covers `--hours` and then applies the exact cutoff in code, requesting proportionally more posts when the bucket overshoots so in-window coverage stays roughly constant. Reddit also rate-limits anonymous clients aggressively — 429s on some subreddits are normal and show up in the corpus-health section rather than failing the run.
+A note on Reddit: its `top` RSS endpoint accepts only coarse buckets (`hour`/`day`/`week`/…), not an arbitrary window. `fetch_news.py` picks the smallest bucket that fully covers `--hours` and then applies the exact cutoff in code, requesting proportionally more posts when the bucket overshoots so in-window coverage stays roughly constant. Reddit also rate-limits anonymous clients aggressively, so requests use a shorter timeout and a bounded two-attempt retry budget. A failed subreddit degrades coverage and appears in corpus health instead of holding the whole run open indefinitely.
 
 ## Automating it
 

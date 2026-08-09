@@ -6,6 +6,7 @@ summarizing step is not — but most of the ways it goes wrong are structural,
 not editorial, and structural failures can be checked exactly:
 
     * a link that isn't in the corpus (the model invented or recalled it)
+    * an included or excluded topic with no source citation
     * a story quietly present in both the briefing and the exclusion log
     * a sub-category crowded out of its reserved slots
     * a degraded run reported as if it were healthy
@@ -126,7 +127,8 @@ def parse_briefing(text):
                 in_excluded = matched == EXCLUDED
                 excluded_current = None
                 if current:
-                    sections.setdefault(current, {"topics": [], "links": [], "excluded": {}})
+                    sections.setdefault(current, {
+                        "topics": [], "topic_links": [], "links": [], "excluded": {}})
                 continue
             if in_excluded:
                 # Inside the exclusion log, bold labels are per-section
@@ -136,7 +138,8 @@ def parse_briefing(text):
                 continue
             if matched:
                 current = matched
-                sections.setdefault(current, {"topics": [], "links": [], "excluded": {}})
+                sections.setdefault(current, {
+                    "topics": [], "topic_links": [], "links": [], "excluded": {}})
                 continue
 
         if current is None:
@@ -149,9 +152,13 @@ def parse_briefing(text):
             topic = _TOPIC_LINE.match(line)
             if topic:
                 bucket["topics"].append(topic.group("title").strip())
+                bucket["topic_links"].append([])
 
         for link in _LINK.finditer(line):
-            bucket["links"].append(link.group("url").strip())
+            url = link.group("url").strip()
+            bucket["links"].append(url)
+            if not in_excluded and bucket["topic_links"]:
+                bucket["topic_links"][-1].append(url)
 
     return sections
 
@@ -174,6 +181,26 @@ def check_links_grounded(sections, allowed):
                 findings.append(Finding(
                     ERROR, "ungrounded_link",
                     f"{name}: cited link is not in the corpus — {url}"))
+    return findings
+
+
+def check_every_entry_cites_source(sections):
+    """Every included topic and excluded row must carry corpus provenance."""
+    findings = []
+    for name, bucket in sections.items():
+        if name == EXCLUDED:
+            for excluded_name, entries in bucket["excluded"].items():
+                for index, entry in enumerate(entries, 1):
+                    if not _LINK.search(entry):
+                        findings.append(Finding(
+                            ERROR, "excluded_topic_without_link",
+                            f"{excluded_name}: excluded entry {index} has no cited link"))
+            continue
+        for index, links in enumerate(bucket["topic_links"], 1):
+            if not links:
+                findings.append(Finding(
+                    ERROR, "topic_without_link",
+                    f"{name}: topic {index} has no cited link"))
     return findings
 
 
@@ -284,6 +311,7 @@ def evaluate(corpus, text):
     findings = []
     findings += check_sections_present(sections)
     findings += check_links_grounded(sections, corpus_links(corpus))
+    findings += check_every_entry_cites_source(sections)
     findings += check_no_double_listing(sections)
     findings += check_slot_allocation(sections)
     findings += check_no_repeated_topics(sections)

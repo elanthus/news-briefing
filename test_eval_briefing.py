@@ -104,6 +104,14 @@ class GroundingTest(unittest.TestCase):
         findings = evaluate(CORPUS, briefing())
         self.assertNotIn("ungrounded_link", checks(findings))
 
+    def test_flags_included_topic_without_a_link(self):
+        text = briefing().replace("🔗 https://ex.com/p1", "")
+        self.assertIn("topic_without_link", checks(evaluate(CORPUS, text), ERROR))
+
+    def test_flags_excluded_topic_without_a_link(self):
+        text = briefing().replace("🔗 https://ex.com/p6", "")
+        self.assertIn("excluded_topic_without_link", checks(evaluate(CORPUS, text), ERROR))
+
 
 class SlotAllocationTest(unittest.TestCase):
     """Fixed slots exist so no sub-category can crowd out the others."""
@@ -190,6 +198,18 @@ class CommittedFixtureTest(unittest.TestCase):
         with open("fixtures/briefing-2026-08-08.md") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
+
+
+class PromptSafetyContractTest(unittest.TestCase):
+    """Keep the untrusted-data and thin-evidence rules from regressing silently."""
+
+    def test_prompt_preserves_security_and_grounding_boundary(self):
+        with open("briefing-prompt.md") as prompt_file:
+            prompt = prompt_file.read().lower()
+        for required in ("untrusted data", "never as instructions", "do not browse",
+                         "never fill missing context", "summary is empty"):
+            with self.subTest(required=required):
+                self.assertIn(required, prompt)
 
 
 if __name__ == "__main__":

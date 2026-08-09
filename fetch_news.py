@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Deterministic news fetcher for the daily briefing.
 
-Pulls RSS feeds, the Hacker News Algolia API, and Reddit JSON endpoints,
-drops everything older than the cutoff (default 48h) IN CODE, and emits a
+Pulls RSS feeds, the Hacker News Algolia API, and Reddit RSS endpoints,
+drops everything older than the cutoff (default 24h) IN CODE, and emits a
 JSON corpus grouped by category. The LLM only ranks and summarizes what
 this script outputs — it never decides what counts as "recent."
 
 Usage:
-    python3 fetch_news.py                 # JSON to stdout, 48h window
-    python3 fetch_news.py --hours 24
+    python3 fetch_news.py                 # JSON to stdout, 24h window
+    python3 fetch_news.py --hours 12
     python3 fetch_news.py --markdown      # human-readable digest instead
     python3 fetch_news.py -o corpus.json
 """
@@ -17,8 +17,10 @@ import argparse
 import json
 import math
 import re
+import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +30,12 @@ from html import unescape
 
 USER_AGENT = "news-briefing/1.0 (personal daily digest script)"
 TIMEOUT = 20
+REDDIT_TIMEOUT = 10
+REDDIT_MAX_ATTEMPTS = 2
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+DEFAULT_WINDOW_HOURS = 24
+DEFAULT_SOURCE_CAP = 25
+DEFAULT_CATEGORY_CAP = 60
 
 # category -> list of (source_name, feed_url)
 RSS_FEEDS = {
@@ -41,14 +49,17 @@ RSS_FEEDS = {
         ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
         ("NPR World", "https://feeds.npr.org/1004/rss.xml"),
         ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
-        ("AP via Google News",
-         "https://news.google.com/rss/search?q=site:apnews.com%20when:2d&hl=en-US&gl=US&ceid=US:en"),
     ],
     "ai_tech": [
+        ("OpenAI News", "https://openai.com/news/rss.xml"),
+        ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
         ("The Verge", "https://www.theverge.com/rss/index.xml"),
         ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
         ("Wired", "https://www.wired.com/feed/rss"),
         ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
+    ],
+    "dev_community": [
+        ("GitHub Changelog", "https://github.blog/changelog/feed/"),
     ],
 }
 
@@ -57,7 +68,7 @@ HN_QUERIES = ["claude code", "cursor", "codex", "mcp", "llm agent", "prompt engi
 SUBREDDITS = ["ClaudeAI", "ClaudeCode", "LocalLLaMA", "cursor"]
 
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
-# window, so it can't express "the last 48 hours" directly. Over-fetch the
+# window, so it can't express arbitrary hour ranges directly. Over-fetch the
 # smallest bucket that fully covers the requested window and let the exact
 # cutoff filter in fetch_reddit() do the real work — same rule as every
 # other source.
@@ -66,11 +77,45 @@ REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
 REDDIT_BASE_LIMIT = 25
 REDDIT_MAX_LIMIT = 100  # Reddit's own ceiling for this endpoint
 
+# The Verge, Ars, and Wired feeds cover all of technology (and sometimes
+# shopping/entertainment), while the GitHub Changelog covers the whole product.
+# Filter only those broad feeds; category-specific and community sources pass
+# through unchanged. This cuts obvious corpus noise before it consumes model
+# context without pretending that a keyword filter can rank importance.
+AI_RELEVANCE = re.compile(
+    r"\b(?:ai|artificial intelligence|machine learning|deep learning|llm|"
+    r"language model|neural|openai|anthropic|claude|chatgpt|gpt-?\d|gemini|"
+    r"deepmind|mistral|xai|grok|llama|copilot|codex|cursor|agentic|ai agent|"
+    r"model training|model inference|prompt injection)\b",
+    re.IGNORECASE,
+)
+DEV_TOOL_RELEVANCE = re.compile(
+    r"\b(?:ai|copilot|agent|coding agent|model|mcp|llm|prompt)\b",
+    re.IGNORECASE,
+)
+HN_RELEVANCE = re.compile(
+    r"\b(?:ai|artificial intelligence|llm|model|openai|anthropic|claude|"
+    r"chatgpt|gpt-?\d|gemini|copilot|codex|cursor|agent|mcp|prompt|code|"
+    r"coding|programmer|software|developer)\b",
+    re.IGNORECASE,
+)
+SOURCE_RELEVANCE_FILTERS = {
+    "The Verge": AI_RELEVANCE,
+    "Ars Technica": AI_RELEVANCE,
+    "Wired": AI_RELEVANCE,
+    "GitHub Changelog": DEV_TOOL_RELEVANCE,
+    "Hacker News": HN_RELEVANCE,
+}
+TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 
-def http_get(url, user_agent=USER_AGENT):
+
+def http_get(url, user_agent=USER_AGENT, timeout=TIMEOUT):
     req = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-        return resp.read()
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = resp.read(MAX_RESPONSE_BYTES + 1)
+    if len(data) > MAX_RESPONSE_BYTES:
+        raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
+    return data
 
 
 def parse_feed_date(text):
@@ -153,6 +198,7 @@ def fetch_hn(query, cutoff):
             "url": hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "discussion": f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "published": datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat(),
+            "summary": strip_html(hit.get("story_text") or "")[:300],
             "points": hit.get("points", 0),
             "comments": hit.get("num_comments", 0),
             "source": "Hacker News",
@@ -178,8 +224,8 @@ def reddit_top_bucket(hours):
 def reddit_limit(hours):
     """Ask for proportionally more posts when the bucket over-covers the window.
 
-    Reddit ranks across the whole bucket, so a 48h window served by t=week
-    returns only the few weekly-top posts that happen to land in range. Scale
+    Reddit ranks across the whole bucket, so a custom 48h window served by
+    t=week returns only the few weekly-top posts that happen to land in range. Scale
     the request by how much the bucket overshoots so in-window coverage stays
     roughly constant as --hours grows.
     """
@@ -196,14 +242,14 @@ def fetch_reddit(subreddit, cutoff, hours):
     url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
            f"?t={reddit_top_bucket(hours)}&limit={reddit_limit(hours)}")
     ns = {"atom": "http://www.w3.org/2005/Atom"}
-    for attempt in range(4):
+    for attempt in range(REDDIT_MAX_ATTEMPTS):
         try:
-            root = ET.fromstring(http_get(url))
+            root = ET.fromstring(http_get(url, timeout=REDDIT_TIMEOUT))
             break
         except urllib.error.HTTPError as exc:
-            if exc.code != 429 or attempt == 3:
+            if exc.code != 429 or attempt == REDDIT_MAX_ATTEMPTS - 1:
                 raise
-            time.sleep(10 * (attempt + 1))
+            time.sleep(5 * (attempt + 1))
 
     items = []
     for entry in root.findall("atom:entry", ns):
@@ -225,17 +271,42 @@ def fetch_reddit(subreddit, cutoff, hours):
     return items
 
 
+def canonicalize_url(url):
+    """Normalize a URL for comparison while preserving meaningful parameters."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
+        return url
+    query = sorted(
+        (key, value)
+        for key, value in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_") and key.lower() not in TRACKING_QUERY_KEYS
+    )
+    path = parts.path.rstrip("/") or "/"
+    return urllib.parse.urlunsplit((
+        parts.scheme.lower(),
+        parts.netloc.lower(),
+        path,
+        urllib.parse.urlencode(query, doseq=True),
+        "",
+    ))
+
+
 def dedupe(items):
-    """Drop exact URL duplicates and near-duplicate titles, keep first seen."""
+    """Drop canonical URL duplicates and near-duplicate titles, keep first seen."""
     seen_urls, seen_titles, out = set(), set(), []
     for item in items:
-        url = item.get("url", "")
+        url = canonicalize_url(item.get("url", ""))
         title_key = re.sub(r"\W+", "", item.get("title", "").lower())[:60]
         # An empty url means extraction failed, not that two items match.
         if (url and url in seen_urls) or (title_key and title_key in seen_titles):
             continue
-        seen_urls.add(url)
-        seen_titles.add(title_key)
+        if url:
+            seen_urls.add(url)
+        if title_key:
+            seen_titles.add(title_key)
         out.append(item)
     return out
 
@@ -256,11 +327,72 @@ def sort_items(items):
     return sorted(items, key=lambda i: i["published"], reverse=True)
 
 
+def is_relevant_item(item):
+    """Apply deterministic relevance filtering only to known broad feeds."""
+    pattern = SOURCE_RELEVANCE_FILTERS.get(item.get("source"))
+    if pattern is None:
+        return True
+    text = f"{item.get('title', '')} {item.get('summary', '')}"
+    return bool(pattern.search(text))
+
+
+def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
+                     category_cap=DEFAULT_CATEGORY_CAP):
+    """Filter, deduplicate, diversify, and bound one category for model input.
+
+    Returns both the retained items and counts for observability. Caps are
+    applied newest-first and never change an item's source data.
+    """
+    fetched = len(items)
+    relevant = [item for item in items if is_relevant_item(item)]
+    # Dedupe after ordering so a syndicated/updated story keeps its newest
+    # occurrence rather than whichever source happened to finish first.
+    unique = dedupe(sort_items(relevant))
+    kept = []
+    by_source = {}
+    source_cap_dropped = 0
+    category_cap_dropped = 0
+    for index, item in enumerate(unique):
+        if len(kept) >= category_cap:
+            category_cap_dropped = len(unique) - index
+            break
+        source = item.get("source", "unknown")
+        if by_source.get(source, 0) >= source_cap:
+            source_cap_dropped += 1
+            continue
+        kept.append(item)
+        by_source[source] = by_source.get(source, 0) + 1
+    stats = {
+        "fetched": fetched,
+        "relevance_dropped": fetched - len(relevant),
+        "duplicates_dropped": len(relevant) - len(unique),
+        "source_cap_dropped": source_cap_dropped,
+        "category_cap_dropped": category_cap_dropped,
+        "kept": len(kept),
+    }
+    return kept, stats
+
+
+def positive_int(value):
+    """argparse type for strictly positive integer options."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--hours", type=int, default=48,
+    parser.add_argument("--hours", type=positive_int, default=DEFAULT_WINDOW_HOURS,
                         help="hard cutoff applied to every source: drop anything "
-                             "older (default 48)")
+                             f"older (default {DEFAULT_WINDOW_HOURS})")
+    parser.add_argument("--source-cap", type=positive_int, default=DEFAULT_SOURCE_CAP,
+                        help=f"maximum items retained per source (default {DEFAULT_SOURCE_CAP})")
+    parser.add_argument("--category-cap", type=positive_int, default=DEFAULT_CATEGORY_CAP,
+                        help=f"maximum items retained per category (default {DEFAULT_CATEGORY_CAP})")
     parser.add_argument("--markdown", action="store_true",
                         help="emit a markdown digest instead of JSON")
     parser.add_argument("-o", "--output", help="write to file instead of stdout")
@@ -273,7 +405,9 @@ def main():
         "generated_at": now.isoformat(),
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
+        "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
         "categories": {"us_politics": [], "world": [], "ai_tech": [], "dev_community": []},
+        "processing": {},
         "errors": [],
     }
 
@@ -292,15 +426,24 @@ def main():
                 corpus["errors"].append(f"{name}: {exc}")
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
-    for sub in SUBREDDITS:
+    for index, sub in enumerate(SUBREDDITS):
         try:
             corpus["categories"]["dev_community"].extend(fetch_reddit(sub, cutoff, args.hours))
         except Exception as exc:
             corpus["errors"].append(f"r/{sub}: {exc}")
-        time.sleep(2)
+        if index < len(SUBREDDITS) - 1:
+            time.sleep(2)
 
     for category in corpus["categories"]:
-        corpus["categories"][category] = sort_items(dedupe(corpus["categories"][category]))
+        items, stats = prepare_category(
+            corpus["categories"][category],
+            source_cap=args.source_cap,
+            category_cap=args.category_cap,
+        )
+        corpus["categories"][category] = items
+        corpus["processing"][category] = stats
+
+    total = sum(len(v) for v in corpus["categories"].values())
 
     if args.markdown:
         lines = [f"# News corpus — last {args.hours}h "
@@ -319,13 +462,17 @@ def main():
         text = json.dumps(corpus, indent=1)
 
     if args.output:
-        with open(args.output, "w") as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(text)
-        total = sum(len(v) for v in corpus["categories"].values())
         print(f"Wrote {total} items ({len(corpus['errors'])} fetch errors) to {args.output}")
     else:
         print(text)
 
+    if total == 0:
+        print("error: no usable items fetched from any source", file=sys.stderr)
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
