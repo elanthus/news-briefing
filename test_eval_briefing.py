@@ -11,6 +11,7 @@ Run:
 """
 
 import unittest
+from pathlib import Path
 
 from eval_briefing import ERROR, WARN, evaluate, load_corpus, parse_briefing
 
@@ -262,6 +263,20 @@ class CommittedFixtureTest(unittest.TestCase):
         with open("fixtures/briefing-2026-08-08.md") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
+
+    def test_readme_sample_has_no_contract_errors(self):
+        """Abridging the showcase must not introduce citation-contract errors."""
+        readme = Path("README.md").read_text()
+        marker = "<summary><b>Click to expand sample briefing</b></summary>"
+        quoted = readme.split(marker, 1)[1].split("</details>", 1)[0]
+        sample = "\n".join(
+            line[1:].lstrip() for line in quoted.splitlines()
+            if line.startswith(">")
+        )
+        corpus = load_corpus("fixtures/corpus-2026-08-08.json")
+        errors = [finding for finding in evaluate(corpus, sample)
+                  if finding.level == ERROR]
+        self.assertEqual(errors, [], f"README sample regressed: {errors}")
 
 
 class PromptSafetyContractTest(unittest.TestCase):

@@ -2,19 +2,20 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-A daily news briefing pipeline built around one boundary: **retrieval is deterministic, and every citation is checked against the corpus it came from.**
+A daily news briefing pipeline built around one boundary: **retrieval is deterministic, generation is corpus-bounded, and the output contract is checked in code.**
 
-The LLM is handed a closed corpus and does the thing it's actually good at — ranking and summarizing — and has to show its work on what it left out. It cannot introduce a source, invent a story, move the time window, or cite anything that wasn't retrieved.
+The LLM is handed a closed corpus and does the thing it's actually good at — ranking and summarizing — and has to show its work on what it left out. The prompt forbids outside knowledge; the checker then verifies the parts of that instruction that are mechanically decidable. It does not pretend that a Markdown parser can prove the model chose the right story or faithfully summarized it.
 
 It *can* still write a summary that overstates its source, and that is the part worth being precise about:
 
 | | Guarantee |
 |---|---|
 | What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
-| What is **eligible** | **Enforced.** Closed corpus; no source or story can be introduced. |
-| What may be **cited** | **Enforced.** Every link in the briefing must exist in the corpus, exclusion log included. |
+| What is **eligible** | **Prompt-constrained.** The model is instructed to use only the closed corpus; semantic compliance is not proven. |
+| What may be **cited** | **Enforced for the required `🔗` citation format.** Every parsed citation must exist in the corpus, exclusion log included. Arbitrary URLs elsewhere in the Markdown are outside this check. |
+| Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
 | What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
-| Whether the prose is **faithful to the source** | **Sampled, not proven.** Entailment can't be settled without a second model, so the checker verifies the parts that can be: figures, quotations, and prose that outgrew its evidence. |
+| Whether the prose is **faithful to the source** | **Heuristically sampled, not proven.** The checker warns on figures or quotations absent from the cited excerpt and on prose that substantially outgrows its evidence. |
 
 That last row is the honest limit. The corpus stores a truncated feed blurb, not the article — around a quarter of items are clipped at the 300-character cap and a few carry only a headline — so a faithful summary is still a summary of an excerpt someone else selected. Thin evidence should produce a terse topic or an excluded one; `claim_exceeds_evidence` is what catches it when it doesn't.
 
@@ -22,12 +23,12 @@ The pipeline is three stages:
 
 1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, including first-party OpenAI, Google DeepMind, and GitHub Changelog updates; the Hacker News Algolia API; and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp. The default maps directly to Reddit's `day` bucket before the exact cutoff is applied.
 2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
-3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the generated briefing back against the corpus it came from — every topic and exclusion needs a citation, every cited link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
+3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) parses the required briefing format and validates it back against the corpus it came from — every topic and exclusion needs a recognized citation, every parsed link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
 
 Design notes worth calling out:
 
 - **Fixed slot allocation.** Without it, high-volume AI industry news crowds out the dev-tools and dev-practices content, which is most of why I read this.
-- **Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a second model, so the checker doesn't pretend to. It checks what is decidable — a figure or quotation that appears nowhere in the cited item, and a summary that outgrew the evidence supporting it — all at WARN. Building this immediately caught three over-reaching summaries and one misattributed quotation in the committed reference briefing.
+- **Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a semantic judge, so the deterministic checker doesn't pretend to settle it. Its figure, quotation, and length checks are review signals, all at WARN. Building them immediately caught three over-reaching summaries and one misattributed quotation in the committed reference briefing.
 - **Exclusion accountability.** The model must name the next 5 stories it dropped per section, with a reason. Silent omission is the failure mode you can't otherwise detect.
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
 - **Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source/category caps prevent one noisy publisher from consuming the model's context window. The corpus records each filtering stage in `processing` metadata.
@@ -50,7 +51,7 @@ Abridged from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 catego
 >
 > ## US Politics
 >
-> **Senate confirms Todd Blanche as Attorney General** — The GOP-controlled Senate narrowly confirmed former Trump personal attorney Todd Blanche as U.S. Attorney General in an early-morning vote. All Senate Democrats voted against and were overridden by the GOP majority. NPR frames it as a significant win for the president's approach to keeping the Justice Department close to the White House.
+> **Senate confirms Todd Blanche as Attorney General** — The Senate confirmed former Trump personal attorney Todd Blanche as U.S. Attorney General in a 50–49 vote early Saturday morning.
 > 🔗 https://www.npr.org/2026/08/08/g-s1-137631/senate-confirms-todd-blanche-attorney-general
 >
 > **Iran publishes demands as Strait of Hormuz talks continue** — The secretary of Iran's Supreme National Security Council, Mohammad Bagher Zolghadr, laid out the country's key demands for the U.S. amid negotiations to reopen the Strait of Hormuz.
@@ -59,11 +60,11 @@ Abridged from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 catego
 > ## World Events
 >
 > **Gaza recovery crews pull 19 bodies from a destroyed building** — More than 8,000 people remain missing under rubble in Gaza, with recovery efforts hindered by a lack of heavy machinery.
-> 🔗 https://www.aljazeera.com/news/2026/8/8/crews-recover-19-bodies-from-rubble-of-destroyed-gaza-building
+> 🔗 https://www.aljazeera.com/news/2026/8/8/crews-recover-19-bodies-from-rubble-of-destroyed-gaza-building?traffic_source=rss
 >
 > **Wildfire evacuations in British Columbia and northern Italy** *(consolidated)* — The Bald Range wildfire in British Columbia has more than doubled in size to over 36 sq miles (95 sq km), remains out of control, and has forced thousands from their homes under new evacuation orders. Separately, at least 200 people were evacuated as a wildfire burned near Lake Garda.
-> 🔗 https://www.bbc.co.uk/news/articles/cx25dkwk3e3o
-> 🔗 https://www.aljazeera.com/news/2026/8/8/british-columbia-issues-evacuation-orders-ahead-of-fast-moving-wildfires
+> 🔗 https://www.bbc.co.uk/news/articles/cx25dkwk3e3o?at_medium=RSS&at_campaign=rss
+> 🔗 https://www.aljazeera.com/video/newsfeed/2026/8/8/at-least-200-people-evacuated-as-wildfire-rages-near-lake-garda?traffic_source=rss
 >
 > ## AI/Tech
 >
@@ -71,8 +72,9 @@ Abridged from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 catego
 >
 > **Amazon's planned Texas data center could become the largest US climate polluter** *(consolidated)* — Amazon is investing in an on-site power plant for a planned West Texas data center that, per the New York Times, could become the single largest source of greenhouse gas emissions in the United States. Reported independently by TechCrunch and The Verge.
 > 🔗 https://techcrunch.com/2026/08/08/planned-amazon-data-center-could-become-the-biggest-climate-polluter-in-the-u-s/
+> 🔗 https://www.theverge.com/ai-artificial-intelligence/977124/amazon-data-center-worst-polluting-power-plant
 >
-> **OpenAI acquires presentation startup NextSlide** — NextSlide says its team members are now working on ChatGPT, pointing at presentation generation as a first-party ChatGPT capability rather than a third-party integration.
+> **OpenAI acquires presentation startup NextSlide** — NextSlide says its team members are now working on ChatGPT.
 > 🔗 https://techcrunch.com/2026/08/08/openai-acquires-presentation-startup-nextslide/
 >
 > **AI Dev Tools (3 slots)**
@@ -154,10 +156,10 @@ Findings come at two levels, and the split is the interesting part:
 
 | Level | Meaning | Examples |
 |---|---|---|
-| **ERROR** | The briefing asserts something the corpus doesn't support. The run isn't trustworthy. | a cited link that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a degraded run reported as healthy |
+| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | a recognized citation that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
-That distinction is deliberate. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that's the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. Inventing a link is never acceptable. Use `--strict` to fail on warnings too.
+That distinction is deliberate. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that's the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A recognized citation outside the corpus is never acceptable. Use `--strict` to fail on warnings too.
 
 ### Regression-testing a prompt change
 
@@ -183,7 +185,7 @@ This works well as a scheduled task in an agent harness that supports cron-like 
 
 ## How this was built
 
-Vibe coded. The code here was written by AI coding agents — Claude Code and OpenAI Codex — from human direction and review, rather than typed by hand.
+AI-assisted, human-owned. I set the product goals, source policy, system boundaries, evaluation criteria, and acceptance tests; Claude Code and OpenAI Codex accelerated implementation. I reviewed the changes, investigated failures, and remain responsible for explaining and maintaining the result.
 
 The git history is the honest record of that, and a couple of the pull requests are worth reading as artifacts of the process:
 
