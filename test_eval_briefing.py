@@ -12,7 +12,8 @@ Run:
 
 import unittest
 
-from eval_briefing import ERROR, WARN, evaluate, parse_briefing, load_corpus
+from eval_briefing import ERROR, WARN, evaluate, load_corpus, parse_briefing
+
 
 def _items(prefix, count):
     return [{"title": f"{prefix}{n}".upper(), "url": f"https://ex.com/{prefix}{n}"}
