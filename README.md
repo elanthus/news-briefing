@@ -17,6 +17,7 @@ Design notes worth calling out:
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
 - **Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source/category caps prevent one noisy publisher from consuming the model's context window. The corpus records each filtering stage in `processing` metadata.
 - **Every dropped item is accounted for.** `processing` reports `fetched`, `undated_dropped`, `relevance_dropped`, `duplicates_dropped`, `source_cap_dropped`, `category_cap_dropped`, and `kept` per category, and they reconcile: the drops plus `kept` equal `fetched`. `undated_dropped` is the one that catches a feed silently changing its date format — those items never reach the other counters, so without it a dead source looks identical to a quiet one.
+- **The corpus has a written contract.** [`corpus_schema.py`](corpus_schema.py) is the single source of truth for the shape of `corpus.json` — field names, category set, counter semantics, and a `schema_version`. `fetch_news.py` validates against it before writing and exits non-zero on a violation; `eval_briefing.py` refuses a corpus newer than it understands rather than misreading it. Previously all three (fetcher, prompt, checker) agreed only by convention, so renaming a key produced no error anywhere — just a quietly worse briefing.
 - **Untrusted XML is parsed defensively.** Feeds are remote and unauthenticated, and `xml.etree` expands internal entities, so a few hundred bytes can expand without bound in memory. `parse_feed_xml` refuses any `DOCTYPE`, which is what entity declarations and external entity references both require. Real RSS/Atom feeds don't use one, and a rejection surfaces in `errors` like any other source failure.
 - **Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools.
 
@@ -121,6 +122,8 @@ Stdlib `unittest`, no install step, no network:
 ```bash
 python3 -m unittest -v
 ```
+
+The three pipeline modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not.
 
 Coverage targets the logic that's easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL deduplication, source/category budgets, oversized responses, empty-run failure behavior, briefing structure, and corpus-grounded citations. Tests patch network boundaries and run without making live requests.
 

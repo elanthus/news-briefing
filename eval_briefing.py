@@ -25,13 +25,26 @@ Usage:
     python3 eval_briefing.py --corpus c.json --briefing b.md --strict
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
 import sys
-from collections import Counter, namedtuple
+from collections import Counter
+from typing import Any, NamedTuple
 
-Finding = namedtuple("Finding", "level check message")
+import corpus_schema
+
+
+class Finding(NamedTuple):
+    level: str
+    check: str
+    message: str
+
+
+# One parsed briefing section: its topic headlines and the links they cite.
+Section = dict[str, Any]
 
 ERROR = "ERROR"
 WARN = "WARN"
@@ -65,12 +78,24 @@ _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 
 
-def load_corpus(path):
-    with open(path) as f:
-        return json.load(f)
+def load_corpus(path: str) -> dict[str, Any]:
+    """Load a corpus, refusing one this checker cannot read correctly.
+
+    An older corpus is fine — the fields read here have only been added to.
+    A newer one may have moved something, and misreading it would produce
+    confident findings about the wrong fields, which is worse than stopping.
+    """
+    with open(path, encoding="utf-8") as f:
+        corpus = json.load(f)
+    if not corpus_schema.is_readable(corpus):
+        raise ValueError(
+            f"corpus schema v{corpus_schema.corpus_version(corpus)} is newer than "
+            f"v{corpus_schema.SCHEMA_VERSION}, which is the newest this checker "
+            f"understands — upgrade eval_briefing.py")
+    return corpus
 
 
-def corpus_links(corpus):
+def corpus_links(corpus: dict[str, Any]) -> set[str]:
     """Every URL the briefing is allowed to cite, article and discussion alike."""
     links = set()
     for items in corpus.get("categories", {}).values():
@@ -82,7 +107,7 @@ def corpus_links(corpus):
     return links
 
 
-def hacker_news_links(corpus):
+def hacker_news_links(corpus: dict[str, Any]) -> dict[str, str]:
     """Article URL -> discussion URL, for items that carry engagement signal."""
     pairs = {}
     for items in corpus.get("categories", {}).values():
@@ -94,7 +119,7 @@ def hacker_news_links(corpus):
     return pairs
 
 
-def _match_section(label):
+def _match_section(label: str) -> str | None:
     """Map a heading or sub-header to a known section name, or None."""
     for name in list(SECTIONS) + [EXCLUDED, CORPUS_HEALTH]:
         if name.lower() in label.lower():
@@ -102,14 +127,14 @@ def _match_section(label):
     return None
 
 
-def parse_briefing(text):
+def parse_briefing(text: str) -> dict[str, Section]:
     """Split a briefing into sections.
 
     Deliberately tolerant: it keys off section labels and 🔗 lines rather than
     an exact template, so cosmetic prompt edits don't break the checker. It
     reports what it found; the checks decide whether that's acceptable.
     """
-    sections = {}
+    sections: dict[str, Section] = {}
     current = None
     in_excluded = False
     excluded_current = None
@@ -163,8 +188,8 @@ def parse_briefing(text):
     return sections
 
 
-def check_sections_present(sections):
-    findings = []
+def check_sections_present(sections: dict[str, Section]) -> list[Finding]:
+    findings: list[Finding] = []
     for name in list(SECTIONS) + [EXCLUDED]:
         if name not in sections:
             findings.append(Finding(ERROR, "missing_section",
@@ -172,9 +197,9 @@ def check_sections_present(sections):
     return findings
 
 
-def check_links_grounded(sections, allowed):
+def check_links_grounded(sections: dict[str, Section], allowed: set[str]) -> list[Finding]:
     """Every cited link must exist in the corpus. This is the core invariant."""
-    findings = []
+    findings: list[Finding] = []
     for name, bucket in sections.items():
         for url in bucket["links"]:
             if url not in allowed:
@@ -184,9 +209,9 @@ def check_links_grounded(sections, allowed):
     return findings
 
 
-def check_every_entry_cites_source(sections):
+def check_every_entry_cites_source(sections: dict[str, Section]) -> list[Finding]:
     """Every included topic and excluded row must carry corpus provenance."""
-    findings = []
+    findings: list[Finding] = []
     for name, bucket in sections.items():
         if name == EXCLUDED:
             for excluded_name, entries in bucket["excluded"].items():
@@ -204,8 +229,8 @@ def check_every_entry_cites_source(sections):
     return findings
 
 
-def check_slot_allocation(sections):
-    findings = []
+def check_slot_allocation(sections: dict[str, Section]) -> list[Finding]:
+    findings: list[Finding] = []
     for name, expected in SECTIONS.items():
         if name not in sections:
             continue
@@ -223,9 +248,9 @@ def check_slot_allocation(sections):
     return findings
 
 
-def check_no_double_listing(sections):
+def check_no_double_listing(sections: dict[str, Section]) -> list[Finding]:
     """A story counted as both included and excluded is an accounting error."""
-    findings = []
+    findings: list[Finding] = []
     if EXCLUDED not in sections:
         return findings
     included = {url for name, bucket in sections.items() if name != EXCLUDED
@@ -238,8 +263,8 @@ def check_no_double_listing(sections):
     return findings
 
 
-def check_no_repeated_topics(sections):
-    findings = []
+def check_no_repeated_topics(sections: dict[str, Section]) -> list[Finding]:
+    findings: list[Finding] = []
     included = [url for name, bucket in sections.items() if name != EXCLUDED
                 for url in bucket["links"]]
     for url, count in Counter(included).items():
@@ -250,8 +275,8 @@ def check_no_repeated_topics(sections):
     return findings
 
 
-def check_exclusion_log(sections):
-    findings = []
+def check_exclusion_log(sections: dict[str, Section]) -> list[Finding]:
+    findings: list[Finding] = []
     if EXCLUDED not in sections:
         return findings
     logged = sections[EXCLUDED]["excluded"]
@@ -269,9 +294,10 @@ def check_exclusion_log(sections):
     return findings
 
 
-def check_hn_discussion_links(sections, hn_pairs):
+def check_hn_discussion_links(sections: dict[str, Section],
+                              hn_pairs: dict[str, str]) -> list[Finding]:
     """Engagement signal is the reason HN is in the corpus; don't drop it."""
-    findings = []
+    findings: list[Finding] = []
     for name, bucket in sections.items():
         if name == EXCLUDED:
             continue
@@ -286,7 +312,8 @@ def check_hn_discussion_links(sections, hn_pairs):
     return findings
 
 
-def check_corpus_health_reported(sections, corpus, text):
+def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str, Any],
+                                 text: str) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
     errors = corpus.get("errors", [])
     if not errors:
@@ -295,7 +322,7 @@ def check_corpus_health_reported(sections, corpus, text):
         return [Finding(ERROR, "corpus_health_missing",
                         f"corpus recorded {len(errors)} fetch error(s) but the "
                         f"briefing has no {CORPUS_HEALTH!r} section")]
-    findings = []
+    findings: list[Finding] = []
     for error in errors:
         source = error.split(":")[0].strip()
         if source and source not in text:
@@ -305,10 +332,10 @@ def check_corpus_health_reported(sections, corpus, text):
     return findings
 
 
-def evaluate(corpus, text):
+def evaluate(corpus: dict[str, Any], text: str) -> list[Finding]:
     """Run every check and return findings, ERRORs first."""
     sections = parse_briefing(text)
-    findings = []
+    findings: list[Finding] = []
     findings += check_sections_present(sections)
     findings += check_links_grounded(sections, corpus_links(corpus))
     findings += check_every_entry_cites_source(sections)
@@ -321,7 +348,7 @@ def evaluate(corpus, text):
     return sorted(findings, key=lambda f: f.level != ERROR)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--corpus", required=True, help="corpus JSON the briefing came from")
