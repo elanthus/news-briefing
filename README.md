@@ -1,5 +1,7 @@
 # news-briefing
 
+[![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
+
 A daily news briefing pipeline built around one constraint: **the model never decides what's true or what's recent.**
 
 Retrieval is deterministic and happens in code. The LLM is given a closed corpus and allowed to do only the thing it's actually good at — ranking and summarizing — and it has to show its work on what it left out.
@@ -13,7 +15,7 @@ Design notes worth calling out:
 - **Exclusion accountability.** The model must name the next 5 stories it dropped per section, with a reason. Silent omission is the failure mode you can't otherwise detect.
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
 
-No API keys or credentials. Stdlib only — no `pip install`.
+No API keys or credentials. Python 3.11+, stdlib only — no `pip install`. Tests run offline on 3.11 through 3.14 in CI.
 
 ## Sample output
 

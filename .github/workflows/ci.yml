@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      # The project is stdlib-only by design, so there is nothing to install.
+      # The suite is offline: no network calls, no fixtures fetched at runtime.
+      - name: Run tests
+        run: python -m unittest --verbose
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: pip install ruff==0.14.2
+      - name: Lint
+        run: ruff check .
+
+  smoke:
+    name: end-to-end (live sources)
+    runs-on: ubuntu-latest
+    # Hits real feeds, so it can fail for reasons unrelated to the change.
+    # Informational only — it must never block a PR.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Fetch a corpus
+        run: python fetch_news.py --hours 24 -o corpus.json
+      - name: Assert the corpus is usable
+        run: |
+          python - <<'PY'
+          import json, sys
+          corpus = json.load(open("corpus.json"))
+          total = sum(len(v) for v in corpus["categories"].values())
+          print(f"{total} items, {len(corpus['errors'])} fetch error(s)")
+          for source in corpus["errors"]:
+              print(f"  degraded: {source}")
+          # Every source failing at once means the fetcher is broken, not that
+          # the news is slow. A partial failure is normal and is reported.
+          if total == 0:
+              sys.exit("no items fetched from any source")
+          PY

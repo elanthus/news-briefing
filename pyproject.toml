@@ -1,0 +1,22 @@
+# Config only — this project ships no package and has no dependencies.
+# It exists so `ruff check .` behaves identically locally and in CI.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes — unused imports and names
+    "W",   # pycodestyle warnings
+    "B",   # bugbear — likely bugs, not style
+    "I",   # import sorting
+    "UP",  # pyupgrade — syntax superseded by the minimum version
+]
+ignore = [
+    # `datetime.UTC` is a 3.11+ alias for `timezone.utc`. Both are correct;
+    # the explicit spelling reads better beside the tz-aware handling in
+    # parse_feed_date, and rewriting every call site buys nothing.
+    "UP017",
+]

@@ -14,12 +14,12 @@ from datetime import datetime, timezone
 
 from fetch_news import (
     REDDIT_MAX_LIMIT,
+    _reddit_md_text,
     dedupe,
     parse_feed_date,
     reddit_limit,
     reddit_top_bucket,
     strip_html,
-    _reddit_md_text,
 )
 
 
