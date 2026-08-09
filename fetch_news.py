@@ -240,6 +240,22 @@ def dedupe(items):
     return out
 
 
+def sort_items(items):
+    """Order a category newest first.
+
+    The previous key summed `points` with a never-populated `score` and used
+    the timestamp only as a tiebreak, which meant every Reddit post (no
+    points) sorted below every Hacker News post regardless of age — the dev
+    community sources were permanently buried under the HN ones.
+
+    Recency is the only ordering that means the same thing across RSS, HN and
+    Reddit. Engagement stays on the item for the model to weigh; it just
+    doesn't decide corpus order, which also stops this from quietly fighting
+    the prompt's instruction to rank by impact rather than virality.
+    """
+    return sorted(items, key=lambda i: i["published"], reverse=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours", type=int, default=48,
@@ -284,12 +300,10 @@ def main():
         time.sleep(2)
 
     for category in corpus["categories"]:
-        items = dedupe(corpus["categories"][category])
-        items.sort(key=lambda i: (i.get("points", 0) + i.get("score", 0), i["published"]), reverse=True)
-        corpus["categories"][category] = items
+        corpus["categories"][category] = sort_items(dedupe(corpus["categories"][category]))
 
     if args.markdown:
-        lines = [f"# News corpus — last {args.window_hours if hasattr(args, 'window_hours') else args.hours}h "
+        lines = [f"# News corpus — last {args.hours}h "
                  f"(generated {now:%Y-%m-%d %H:%M} UTC)\n"]
         for category, items in corpus["categories"].items():
             lines.append(f"\n## {category} ({len(items)} items)\n")
