@@ -10,6 +10,7 @@ Run:
 
 import io
 import json
+import re
 import tempfile
 import unittest
 import urllib.error
@@ -194,6 +195,59 @@ class RelevanceTest(unittest.TestCase):
             "source": "Hacker News", "title": "Dithered QR Codes", "summary": ""}))
         self.assertTrue(is_relevant_item({
             "source": "Hacker News", "title": "Code was never the hard part", "summary": ""}))
+
+    def test_keeps_ai_stories_that_never_say_ai(self):
+        """Infrastructure and autonomy are AI industry news without the word."""
+        for title in (
+            "An Amazon data center could have the worst polluting power plant",
+            "The first self-driving vehicle on Mars has proven a smashing success",
+            "Nvidia's next GPU pushes inference costs down",
+            "Chipmakers race to expand semiconductor capacity",
+        ):
+            with self.subTest(title=title):
+                self.assertTrue(is_relevant_item(
+                    {"source": "The Verge", "title": title, "summary": ""}))
+
+    def test_commerce_content_is_dropped_even_when_it_mentions_ai(self):
+        """The broadened vocabulary must not readmit deals pages."""
+        for title in (
+            "Best GPU Deals (2026): Nvidia, AMD, and More",
+            "The AI-powered HP OmniBook Is $550 Off Its Retail Price Today",
+            "Surfshark Promo Codes: 87% Off AI Tools | August 2026",
+            "Neural Earbuds Review (2026): Fun but Limited",
+        ):
+            with self.subTest(title=title):
+                self.assertFalse(is_relevant_item(
+                    {"source": "Wired", "title": title, "summary": ""}))
+
+    def test_industry_moves_are_not_mistaken_for_commerce(self):
+        """"Deal" is the standard word for an acquisition or contract."""
+        for title in (
+            "OpenAI signs multibillion-dollar cloud deal with Oracle",
+            "Anthropic strikes chip deal with Google",
+        ):
+            with self.subTest(title=title):
+                self.assertTrue(is_relevant_item(
+                    {"source": "The Verge", "title": title, "summary": ""}))
+
+
+class ReferenceBriefingCoverageTest(unittest.TestCase):
+    """The filter must not delete stories the reference briefing led with.
+
+    Ground truth without hand-labelling: every item cited in the committed
+    briefing was judged worth reporting, so the filter has to let all of them
+    reach the corpus. This is the check that caught the filter removing the
+    data-center and self-driving stories that were AI News topics #1 and #4.
+    """
+
+    def test_no_cited_item_would_be_filtered_out(self):
+        corpus = json.loads(Path("fixtures/corpus-2026-08-08.json").read_text())
+        briefing = Path("fixtures/briefing-2026-08-08.md").read_text()
+        cited = set(re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", briefing))
+        dropped = [item["title"]
+                   for items in corpus["categories"].values() for item in items
+                   if item.get("url") in cited and not is_relevant_item(item)]
+        self.assertEqual(dropped, [], f"filter removes cited stories: {dropped}")
 
 
 class PrepareCategoryTest(unittest.TestCase):

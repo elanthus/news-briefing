@@ -98,7 +98,26 @@ AI_RELEVANCE = re.compile(
     r"\b(?:ai|artificial intelligence|machine learning|deep learning|llm|"
     r"language model|neural|openai|anthropic|claude|chatgpt|gpt-?\d|gemini|"
     r"deepmind|mistral|xai|grok|llama|copilot|codex|cursor|agentic|ai agent|"
-    r"model training|model inference|prompt injection)\b",
+    r"model training|model inference|prompt injection|"
+    # Infrastructure and autonomy: the AI stories that never say "AI".
+    # Requiring the literal word dropped the data-center build-out and the
+    # self-driving results, both of which the reference briefing led with.
+    r"data ?cent(?:er|re)s?|gpus?|tpus?|nvidia|semiconductors?|compute|"
+    r"inference|training run|self-driving|autonomous|robotaxis?|robotics?|"
+    r"algorithmic|facial recognition|surveillance|agi|superintelligence)\b",
+    re.IGNORECASE,
+)
+# Consumer-tech feeds carry a lot of commerce: promo codes, coupon roundups,
+# buying guides. None of it is briefing material, and the vocabulary above
+# would otherwise readmit things like "Best GPU deals (2026)". Checked before
+# relevance, so one signal cannot rescue the other.
+#
+# Deliberately no bare "deal": it is the standard word for an industry move,
+# and it dropped "OpenAI signs cloud deal with Oracle" while catching no noise
+# that the more specific patterns miss.
+COMMERCE_NOISE = re.compile(
+    r"promo code|coupon|\d+%\s*off|\$\d[\d,.]*\s*off|on sale|"
+    r"\bbest\b[^.]*\(20\d\d\)|buying guide|review\s*\(20\d\d\)",
     re.IGNORECASE,
 )
 DEV_TOOL_RELEVANCE = re.compile(
@@ -418,11 +437,19 @@ def sort_items(items: list[Item]) -> list[Item]:
 
 
 def is_relevant_item(item: Item) -> bool:
-    """Apply deterministic relevance filtering only to known broad feeds."""
+    """Apply deterministic relevance filtering only to known broad feeds.
+
+    The filter removes noise; it does not decide importance. Ranking is the
+    model's job under the prompt, and over-filtering is the more expensive
+    mistake — an item dropped here cannot be ranked at all, and a starved
+    sub-category cannot fill its reserved slots.
+    """
     pattern = SOURCE_RELEVANCE_FILTERS.get(item.get("source", ""))
     if pattern is None:
         return True
     text = f"{item.get('title', '')} {item.get('summary', '')}"
+    if COMMERCE_NOISE.search(text):
+        return False
     return bool(pattern.search(text))
 
 
