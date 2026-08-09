@@ -6,6 +6,7 @@ Retrieval is deterministic and happens in code. The LLM is given a closed corpus
 
 1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls RSS feeds (NPR, Politico, The Hill, Axios, BBC, Al Jazeera, AP, The Verge, Ars Technica, Wired, TechCrunch), the Hacker News Algolia API, and Reddit (via public RSS) into a single JSON corpus. Everything older than a hard cutoff (default 48h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp.
 2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
+3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the generated briefing back against the corpus it came from — every cited link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
 
 Design notes worth calling out:
 
@@ -111,6 +112,35 @@ python3 -m unittest -v
 ```
 
 Coverage is on the parsing and filtering logic that's actually easy to get wrong — RFC 822 vs ISO 8601 date handling, timezone normalization, near-duplicate collapsing, and window selection. The fetchers themselves are thin HTTP wrappers and are deliberately not mocked.
+
+## Evaluating the LLM step
+
+The fetch step is deterministic, so it can be unit tested. The ranking step isn't — but most of the ways it goes wrong are *structural*, and structural failures can be checked exactly against the corpus the briefing was derived from. No second model required as a judge.
+
+```bash
+python3 eval_briefing.py --corpus corpus.json --briefing briefing.md
+```
+
+Findings come at two levels, and the split is the interesting part:
+
+| Level | Meaning | Examples |
+|---|---|---|
+| **ERROR** | The briefing asserts something the corpus doesn't support. The run isn't trustworthy. | a cited link that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a degraded run reported as healthy |
+| **WARN** | A quality target a thin corpus can legitimately miss. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link |
+
+That distinction is deliberate. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that's the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. Inventing a link is never acceptable. Use `--strict` to fail on warnings too.
+
+### Regression-testing a prompt change
+
+[`fixtures/`](fixtures) holds a frozen corpus and the briefing generated from it. To check whether an edit to `briefing-prompt.md` made things worse:
+
+```bash
+python3 eval_briefing.py --corpus fixtures/corpus-2026-08-08.json --briefing your-new-output.md
+```
+
+Run the agent against the frozen corpus, check the output, and diff it against [`fixtures/briefing-2026-08-08.md`](fixtures/briefing-2026-08-08.md). The frozen corpus is what makes this a controlled comparison — same input, so any difference is attributable to the prompt.
+
+The reference briefing is a **regression baseline, not a golden answer**. Ranking is judgment, and a prompt change that reorders two topics isn't automatically a regression. What the baseline catches is the silent structural stuff: a dropped exclusion log, a collapsed sub-category, links drifting away from the corpus.
 
 ## Customizing sources
 
