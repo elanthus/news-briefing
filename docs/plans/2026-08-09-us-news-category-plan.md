@@ -117,13 +117,14 @@ In `fetch_news.py`, add to `RSS_FEEDS` immediately after the `us_politics` block
 
 ```python
     "us_news": [
-        ("NPR National", "https://feeds.npr.org/1003/rss.xml"),
         ("CBS News US", "https://www.cbsnews.com/latest/rss/us"),
         ("The Guardian US", "https://www.theguardian.com/us-news/rss"),
+        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+        ("NPR National", "https://feeds.npr.org/1003/rss.xml"),
     ],
 ```
 
-These three were checked live and return healthy item counts. NBC and Fox US feeds return single-item stubs and the ABC US feed 301s, so they are deliberately excluded.
+All four were measured live over a 24-hour window: 26, 14, 10 and 5 items. That is roughly 45 against the 9 the category needs, so the fourth source is not there for volume — it is there so the category survives losing any two feeds. Rejected on measurement: NBC US (3), ABC US (1, behind a 301), CNN US (0 in-window; 17 undated), and USA Today, whose feed carries a DOCTYPE and is correctly refused by `parse_feed_xml`.
 
 Do **not** add these sources to `SOURCE_RELEVANCE_FILTERS`. Those filters exist for The Verge, Ars, Wired and the GitHub Changelog because those feeds carry high off-topic volume; curated hard-news feeds do not, and over-filtering is the more expensive mistake — a dropped item cannot be ranked at all (see the comment at `fetch_news.py:439-453`).
 
@@ -232,7 +233,12 @@ Expected: `Wrote N items (M fetch errors) to fixtures/corpus-2026-08-09.json` wi
 python3 -c "import json; c=json.load(open('fixtures/corpus-2026-08-09.json')); print({k: len(v) for k, v in c['categories'].items()}); print(c['errors'])"
 ```
 
-Expected: `us_news` holds enough items to fill 4 slots plus a 5-entry exclusion log — at least 9. If it is short, the run happened during a quiet window; re-fetch rather than proceeding with a fixture that cannot exercise the new contract.
+Expected: `us_news` holds well over the 9 items needed for 4 slots plus a 5-entry exclusion log — the four feeds measured ~45 in a 24-hour window.
+
+If it is short, read `errors` before doing anything else, because the cause determines the fix:
+
+- **A `us_news` source is listed in `errors`.** A timeout or a 429 is transient — re-run the fetch, which is the only case where re-running helps. A 403, a DNS failure or a `DOCTYPE` rejection is permanent: that feed needs replacing in `RSS_FEEDS`, and no number of retries will produce a usable fixture.
+- **No errors and still thin.** Then the corpus genuinely cannot support 4 US News topics, and re-fetching will return the same window. Do not paper over it — `CommittedFixtureTest` asserts zero findings including warnings, so an underfilled section fails the suite by design. Report it: it is evidence the slot count is wrong for the available sources, which is a decision to take back to the design rather than absorb here.
 
 **Step 3: Generate the briefing**
 
