@@ -16,7 +16,12 @@ from eval_briefing import ERROR, WARN, evaluate, load_corpus, parse_briefing
 
 
 def _items(prefix, count):
-    return [{"title": f"{prefix}{n}".upper(), "url": f"https://ex.com/{prefix}{n}"}
+    # Each item carries a plausible summary: claim-grounding checks compare
+    # briefing prose against it, so an evidence-free corpus would make even a
+    # faithful briefing look unsupported.
+    return [{"title": f"{prefix}{n}".upper(),
+             "url": f"https://ex.com/{prefix}{n}",
+             "summary": f"Reported summary text here for story {prefix}{n}."}
             for n in range(1, count + 1)]
 
 
@@ -188,6 +193,65 @@ class CorpusHealthTest(unittest.TestCase):
 
     def test_healthy_run_needs_no_health_section(self):
         self.assertNotIn("corpus_health_missing", checks(evaluate(CORPUS, briefing())))
+
+
+class ClaimGroundingTest(unittest.TestCase):
+    """Citations can be verified exactly; claims can only be sampled.
+
+    These checks do not attempt entailment — that needs a second model. They
+    cover the parts that are decidable: figures, quotations, and prose that
+    outgrew the evidence behind it. All WARN by design.
+    """
+
+    def test_figure_absent_from_the_cited_item_is_flagged(self):
+        text = briefing().replace("**Politics topic 1** — summary text here.",
+                                  "**Politics topic 1** — summary text here, up 47 percent.")
+        self.assertIn("unsupported_figure", checks(evaluate(CORPUS, text), WARN))
+
+    def test_figure_present_in_the_cited_item_is_accepted(self):
+        corpus = dict(CORPUS)
+        corpus["categories"] = dict(CORPUS["categories"])
+        corpus["categories"]["us_politics"] = [
+            dict(i, summary="Reported summary text here, up 47 percent.")
+            for i in CORPUS["categories"]["us_politics"]]
+        text = briefing().replace("**Politics topic 1** — summary text here.",
+                                  "**Politics topic 1** — summary text here, up 47 percent.")
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text)))
+
+    def test_quotation_not_in_the_cited_item_is_flagged(self):
+        """Attributing a real quote to the wrong source still misleads."""
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            '**Politics topic 1** — summary text here, calling it "a total disaster".')
+        self.assertIn("unsupported_quotation", checks(evaluate(CORPUS, text), WARN))
+
+    def test_prose_that_outgrows_its_evidence_is_flagged(self):
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — " + "elaboration well beyond the source. " * 5)
+        self.assertIn("claim_exceeds_evidence", checks(evaluate(CORPUS, text), WARN))
+
+    def test_claim_findings_never_escalate_to_errors(self):
+        """Claim grounding is a heuristic; only citation grounding is a contract."""
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — " + "unsupported padding 99 percent. " * 6)
+        findings = evaluate(CORPUS, text)
+        self.assertEqual(checks(findings, ERROR), set())
+        self.assertTrue(checks(findings, WARN))
+
+    def test_a_topic_with_no_resolvable_evidence_is_skipped(self):
+        """Ungrounded links are already an ERROR; don't double-report them."""
+        text = briefing(extra_link="https://ex.com/unknown")
+        self.assertNotIn("claim_exceeds_evidence", checks(evaluate(CORPUS, text), WARN))
+
+    def test_hacker_news_evidence_is_not_double_counted(self):
+        """url and discussion resolve to one item; counting it twice would
+        forgive twice as much unsupported prose."""
+        from eval_briefing import corpus_evidence
+        evidence = corpus_evidence(CORPUS)
+        hn = CORPUS["categories"]["dev_community"][0]
+        self.assertEqual(evidence[hn["url"]], evidence[hn["discussion"]])
 
 
 class CommittedFixtureTest(unittest.TestCase):
