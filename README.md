@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-A daily news briefing pipeline built around one boundary: **retrieval is deterministic, generation is corpus-bounded, and the output contract is checked in code.**
+A daily news briefing pipeline built around one boundary: **retrieval is deterministic, the model receives a closed corpus, and the output contract is checked in code.**
 
 The LLM is handed a closed corpus and does the thing it's actually good at — ranking and summarizing — and has to show its work on what it left out. The prompt forbids outside knowledge; the checker then verifies the parts of that instruction that are mechanically decidable. It does not pretend that a Markdown parser can prove the model chose the right story or faithfully summarized it.
 
