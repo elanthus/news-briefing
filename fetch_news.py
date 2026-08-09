@@ -15,8 +15,8 @@ Usage:
 
 import argparse
 import json
+import math
 import re
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -55,6 +55,16 @@ RSS_FEEDS = {
 # Dev tools / practices: engagement-bearing community sources
 HN_QUERIES = ["claude code", "cursor", "codex", "mcp", "llm agent", "prompt engineering"]
 SUBREDDITS = ["ClaudeAI", "ClaudeCode", "LocalLLaMA", "cursor"]
+
+# Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
+# window, so it can't express "the last 48 hours" directly. Over-fetch the
+# smallest bucket that fully covers the requested window and let the exact
+# cutoff filter in fetch_reddit() do the real work — same rule as every
+# other source.
+REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
+                      (720, "month"), (8760, "year"))
+REDDIT_BASE_LIMIT = 25
+REDDIT_MAX_LIMIT = 100  # Reddit's own ceiling for this endpoint
 
 
 def http_get(url, user_agent=USER_AGENT):
@@ -157,10 +167,34 @@ def _reddit_md_text(atom_content):
     return strip_html(m.group(1)).strip() if m else ""
 
 
-def fetch_reddit(subreddit, cutoff):
+def reddit_top_bucket(hours):
+    """Smallest Reddit `t=` bucket that fully covers `hours`."""
+    for span, name in REDDIT_TOP_BUCKETS:
+        if hours <= span:
+            return name
+    return "all"
+
+
+def reddit_limit(hours):
+    """Ask for proportionally more posts when the bucket over-covers the window.
+
+    Reddit ranks across the whole bucket, so a 48h window served by t=week
+    returns only the few weekly-top posts that happen to land in range. Scale
+    the request by how much the bucket overshoots so in-window coverage stays
+    roughly constant as --hours grows.
+    """
+    spans = {name: span for span, name in REDDIT_TOP_BUCKETS}
+    span = spans.get(reddit_top_bucket(hours))
+    if span is None or hours <= 0:
+        return REDDIT_MAX_LIMIT
+    return min(REDDIT_MAX_LIMIT, math.ceil(REDDIT_BASE_LIMIT * span / hours))
+
+
+def fetch_reddit(subreddit, cutoff, hours):
     """Fetch top posts via RSS. Reddit's anonymous JSON API is blocked (403);
     vote counts are unavailable without OAuth credentials."""
-    url = f"https://www.reddit.com/r/{subreddit}/top/.rss?t=day&limit=15"
+    url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
+           f"?t={reddit_top_bucket(hours)}&limit={reddit_limit(hours)}")
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     for attempt in range(4):
         try:
@@ -208,7 +242,8 @@ def dedupe(items):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours", type=int, default=48,
-                        help="hard cutoff: drop anything older (default 48)")
+                        help="hard cutoff applied to every source: drop anything "
+                             "older (default 48)")
     parser.add_argument("--markdown", action="store_true",
                         help="emit a markdown digest instead of JSON")
     parser.add_argument("-o", "--output", help="write to file instead of stdout")
@@ -242,7 +277,7 @@ def main():
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
     for sub in SUBREDDITS:
         try:
-            corpus["categories"]["dev_community"].extend(fetch_reddit(sub, cutoff))
+            corpus["categories"]["dev_community"].extend(fetch_reddit(sub, cutoff, args.hours))
         except Exception as exc:
             corpus["errors"].append(f"r/{sub}: {exc}")
         time.sleep(2)
