@@ -69,7 +69,16 @@ _SECTION_LINE = re.compile(
     r"^\s*(?:#{2,4}\s*(?P<heading>.+?)\s*$|\*\*(?P<bold>[^*]+?)\*\*\s*$)")
 # A topic entry: **Headline** — summary. The em dash is what separates a topic
 # from a bold sub-header like **AI News (4 slots)**.
-_TOPIC_LINE = re.compile(r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?[—-]\s*\S")
+_TOPIC_LINE = re.compile(
+    r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?[—-]\s*(?P<prose>\S.*)$")
+# High-risk assertions, checkable without a second model: a figure or a
+# quotation that does not appear in the evidence for the item being cited.
+_FIGURE = re.compile(r"\d[\d,.]*\s*(?:%|percent)?")
+_QUOTATION = re.compile(r"[\"\u201c\u201d]([^\"\u201c\u201d]{4,80})[\"\u201c\u201d]")
+# A summary meaningfully longer than the text supporting it has added
+# something. The corpus already holds a truncated blurb, not the article,
+# so prose outgrowing it by this much is elaboration rather than compression.
+CLAIM_EVIDENCE_RATIO = 2.0
 # Links appear on their own line in the body but inline in the exclusion log
 # ("- *Title* — reason. 🔗 url"), so scan anywhere in the line rather than
 # anchoring to the start. Anchoring here silently left the exclusion log
@@ -153,7 +162,8 @@ def parse_briefing(text: str) -> dict[str, Section]:
                 excluded_current = None
                 if current:
                     sections.setdefault(current, {
-                        "topics": [], "topic_links": [], "links": [], "excluded": {}})
+                        "topics": [], "topic_texts": [], "topic_links": [],
+                        "links": [], "excluded": {}})
                 continue
             if in_excluded:
                 # Inside the exclusion log, bold labels are per-section
@@ -164,7 +174,8 @@ def parse_briefing(text: str) -> dict[str, Section]:
             if matched:
                 current = matched
                 sections.setdefault(current, {
-                    "topics": [], "topic_links": [], "links": [], "excluded": {}})
+                    "topics": [], "topic_texts": [], "topic_links": [],
+                    "links": [], "excluded": {}})
                 continue
 
         if current is None:
@@ -177,6 +188,7 @@ def parse_briefing(text: str) -> dict[str, Section]:
             topic = _TOPIC_LINE.match(line)
             if topic:
                 bucket["topics"].append(topic.group("title").strip())
+                bucket["topic_texts"].append(topic.group("prose").strip())
                 bucket["topic_links"].append([])
 
         for link in _LINK.finditer(line):
@@ -332,6 +344,81 @@ def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str,
     return findings
 
 
+def _normalize(text: str) -> str:
+    """Collapse to comparable characters so punctuation can't hide a match."""
+    return re.sub(r"[^a-z0-9%]+", "", text.lower())
+
+
+def corpus_evidence(corpus: dict[str, Any]) -> dict[str, str]:
+    """Cited URL -> the text the briefing is entitled to draw claims from.
+
+    That is the item's title and summary, and nothing else. Notably it is not
+    the article: the fetcher stores a truncated feed blurb, so this is the
+    ceiling on what any claim about the story can be grounded in.
+    """
+    evidence = {}
+    for items in corpus.get("categories", {}).values():
+        for item in items:
+            support = f"{item.get('title', '')} {item.get('summary', '')}".strip()
+            for key in ("url", "discussion"):
+                url = (item.get(key) or "").strip()
+                if url:
+                    evidence[url] = support
+    return evidence
+
+
+def check_claims_supported(sections: dict[str, Section],
+                           evidence: dict[str, str]) -> list[Finding]:
+    """Flag prose that asserts more than its cited items can support.
+
+    Entailment can't be settled without a second model, so this does not try.
+    It checks the parts that can be settled exactly — figures and quotations —
+    and flags summaries that outgrew their evidence. All WARN: citation
+    grounding is a contract, claim grounding is a signal for a human to read.
+    """
+    findings = []
+    for name, bucket in sections.items():
+        if name == EXCLUDED:
+            continue
+        # Appended in lockstep by parse_briefing, so strict= documents that
+        # invariant and fails loudly if it is ever broken.
+        for title, prose, links in zip(bucket.get("topics", []),
+                                       bucket.get("topic_texts", []),
+                                       bucket.get("topic_links", []),
+                                       strict=True):
+            # A Hacker News item is reachable by both its article and its
+            # discussion URL; counting its text twice would forgive twice as
+            # much unsupported prose.
+            support = " ".join(dict.fromkeys(
+                evidence[url] for url in links if evidence.get(url))).strip()
+            if not support:
+                continue
+            normalized = _normalize(support)
+
+            for figure in _FIGURE.findall(prose):
+                token = _normalize(figure)
+                if token and token not in normalized:
+                    findings.append(Finding(
+                        WARN, "unsupported_figure",
+                        f"{name}: {title!r} states {figure.strip()!r}, which is not "
+                        f"in the cited item(s)"))
+
+            for quotation in _QUOTATION.findall(prose):
+                if _normalize(quotation) not in normalized:
+                    findings.append(Finding(
+                        WARN, "unsupported_quotation",
+                        f"{name}: {title!r} quotes \"{quotation}\", which does not "
+                        f"appear in the item(s) it cites"))
+
+            if len(prose) > CLAIM_EVIDENCE_RATIO * len(support):
+                findings.append(Finding(
+                    WARN, "claim_exceeds_evidence",
+                    f"{name}: {title!r} has {len(prose)} characters of summary "
+                    f"from {len(support)} characters of evidence — the surplus "
+                    f"is not grounded in the corpus"))
+    return findings
+
+
 def evaluate(corpus: dict[str, Any], text: str) -> list[Finding]:
     """Run every check and return findings, ERRORs first."""
     sections = parse_briefing(text)
@@ -344,6 +431,7 @@ def evaluate(corpus: dict[str, Any], text: str) -> list[Finding]:
     findings += check_no_repeated_topics(sections)
     findings += check_exclusion_log(sections)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
+    findings += check_claims_supported(sections, corpus_evidence(corpus))
     findings += check_corpus_health_reported(sections, corpus, text)
     return sorted(findings, key=lambda f: f.level != ERROR)
 

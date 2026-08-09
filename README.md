@@ -2,9 +2,23 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-A daily news briefing pipeline built around one constraint: **the model never decides what's true or what's recent.**
+A daily news briefing pipeline built around one boundary: **retrieval is deterministic, and every citation is checked against the corpus it came from.**
 
-Retrieval is deterministic and happens in code. The LLM is given a closed corpus and allowed to do only the thing it's actually good at — ranking and summarizing — and it has to show its work on what it left out.
+The LLM is handed a closed corpus and does the thing it's actually good at — ranking and summarizing — and has to show its work on what it left out. It cannot introduce a source, invent a story, move the time window, or cite anything that wasn't retrieved.
+
+It *can* still write a summary that overstates its source, and that is the part worth being precise about:
+
+| | Guarantee |
+|---|---|
+| What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
+| What is **eligible** | **Enforced.** Closed corpus; no source or story can be introduced. |
+| What may be **cited** | **Enforced.** Every link in the briefing must exist in the corpus, exclusion log included. |
+| What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
+| Whether the prose is **faithful to the source** | **Sampled, not proven.** Entailment can't be settled without a second model, so the checker verifies the parts that can be: figures, quotations, and prose that outgrew its evidence. |
+
+That last row is the honest limit. The corpus stores a truncated feed blurb, not the article — around a quarter of items are clipped at the 300-character cap and a few carry only a headline — so a faithful summary is still a summary of an excerpt someone else selected. Thin evidence should produce a terse topic or an excluded one; `claim_exceeds_evidence` is what catches it when it doesn't.
+
+The pipeline is three stages:
 
 1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, including first-party OpenAI, Google DeepMind, and GitHub Changelog updates; the Hacker News Algolia API; and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp. The default maps directly to Reddit's `day` bucket before the exact cutoff is applied.
 2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
@@ -13,6 +27,7 @@ Retrieval is deterministic and happens in code. The LLM is given a closed corpus
 Design notes worth calling out:
 
 - **Fixed slot allocation.** Without it, high-volume AI industry news crowds out the dev-tools and dev-practices content, which is most of why I read this.
+- **Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a second model, so the checker doesn't pretend to. It checks what is decidable — a figure or quotation that appears nowhere in the cited item, and a summary that outgrew the evidence supporting it — all at WARN. Building this immediately caught three over-reaching summaries and one misattributed quotation in the committed reference briefing.
 - **Exclusion accountability.** The model must name the next 5 stories it dropped per section, with a reason. Silent omission is the failure mode you can't otherwise detect.
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
 - **Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source/category caps prevent one noisy publisher from consuming the model's context window. The corpus records each filtering stage in `processing` metadata.
@@ -38,7 +53,7 @@ Abridged from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 catego
 > **Senate confirms Todd Blanche as Attorney General** — The GOP-controlled Senate narrowly confirmed former Trump personal attorney Todd Blanche as U.S. Attorney General in an early-morning vote. All Senate Democrats voted against and were overridden by the GOP majority. NPR frames it as a significant win for the president's approach to keeping the Justice Department close to the White House.
 > 🔗 https://www.npr.org/2026/08/08/g-s1-137631/senate-confirms-todd-blanche-attorney-general
 >
-> **Iran publishes demands as Strait of Hormuz talks continue** — The secretary of Iran's Supreme National Security Council, Mohammad Bagher Zolghadr, laid out the country's key demands for the U.S. amid negotiations to reopen the Strait of Hormuz. Vice President JD Vance said there has been "some progress over the last few days" in the Iran–Oman talks.
+> **Iran publishes demands as Strait of Hormuz talks continue** — The secretary of Iran's Supreme National Security Council, Mohammad Bagher Zolghadr, laid out the country's key demands for the U.S. amid negotiations to reopen the Strait of Hormuz.
 > 🔗 https://thehill.com/policy/international/6018858-iran-demands-us-hormuz-negotiations/
 >
 > ## World Events
@@ -62,14 +77,14 @@ Abridged from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 catego
 >
 > **AI Dev Tools (3 slots)**
 >
-> **Claude Code adds cross-session messaging** — Claude Code sessions can now message each other, enabling coordination between parallel agent sessions rather than running them as isolated processes.
+> **Claude Code adds cross-session messaging** — Claude Code sessions can now message each other.
 > 🔗 https://code.claude.com/docs/en/cross-session-messaging
 > 🔗 HN: https://news.ycombinator.com/item?id=49222824
 > `↑ 44 pts · 25 comments`
 >
 > **AI Dev Practices (3 slots)**
 >
-> **"Code was never the hard part" is an insult to all programmers** — A widely-discussed pushback on the claim that coding is the trivial part of software engineering, arguing the framing misreads where the difficulty actually lives. The comment volume relative to points suggests a genuinely contested thread rather than a consensus one.
+> **"Code was never the hard part" is an insult to all programmers** — A widely-discussed pushback on the claim that writing code is the easy part of programming.
 > 🔗 https://blog.senko.net/code-was-never-the-hard-part-is-an-insult-to-all-programmers
 > 🔗 HN: https://news.ycombinator.com/item?id=49222189
 > `↑ 526 pts · 345 comments`
@@ -140,7 +155,7 @@ Findings come at two levels, and the split is the interesting part:
 | Level | Meaning | Examples |
 |---|---|---|
 | **ERROR** | The briefing asserts something the corpus doesn't support. The run isn't trustworthy. | a cited link that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a degraded run reported as healthy |
-| **WARN** | A quality target a thin corpus can legitimately miss. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link |
+| **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
 That distinction is deliberate. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that's the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. Inventing a link is never acceptable. Use `--strict` to fail on warnings too.
 
