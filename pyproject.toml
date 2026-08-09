@@ -1,6 +1,16 @@
 # Config only — this project ships no package and has no dependencies.
 # It exists so `ruff check .` behaves identically locally and in CI.
 
+[tool.mypy]
+python_version = "3.11"
+# The three modules that make up the pipeline are fully annotated and checked.
+# The test modules are not: annotating assertions adds noise without catching
+# anything the tests themselves wouldn't.
+files = ["fetch_news.py", "eval_briefing.py", "corpus_schema.py"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+
 [tool.ruff]
 target-version = "py311"
 line-length = 120

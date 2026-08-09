@@ -13,6 +13,8 @@ Usage:
     python3 fetch_news.py -o corpus.json
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import math
@@ -23,11 +25,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from collections import namedtuple
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from typing import Any, NamedTuple
+
+import corpus_schema
 
 USER_AGENT = "news-briefing/1.0 (personal daily digest script)"
 TIMEOUT = 20
@@ -94,7 +98,26 @@ AI_RELEVANCE = re.compile(
     r"\b(?:ai|artificial intelligence|machine learning|deep learning|llm|"
     r"language model|neural|openai|anthropic|claude|chatgpt|gpt-?\d|gemini|"
     r"deepmind|mistral|xai|grok|llama|copilot|codex|cursor|agentic|ai agent|"
-    r"model training|model inference|prompt injection)\b",
+    r"model training|model inference|prompt injection|"
+    # Infrastructure and autonomy: the AI stories that never say "AI".
+    # Requiring the literal word dropped the data-center build-out and the
+    # self-driving results, both of which the reference briefing led with.
+    r"data ?cent(?:er|re)s?|gpus?|tpus?|nvidia|semiconductors?|compute|"
+    r"inference|training run|self-driving|autonomous|robotaxis?|robotics?|"
+    r"algorithmic|facial recognition|surveillance|agi|superintelligence)\b",
+    re.IGNORECASE,
+)
+# Consumer-tech feeds carry a lot of commerce: promo codes, coupon roundups,
+# buying guides. None of it is briefing material, and the vocabulary above
+# would otherwise readmit things like "Best GPU deals (2026)". Checked before
+# relevance, so one signal cannot rescue the other.
+#
+# Deliberately no bare "deal": it is the standard word for an industry move,
+# and it dropped "OpenAI signs cloud deal with Oracle" while catching no noise
+# that the more specific patterns miss.
+COMMERCE_NOISE = re.compile(
+    r"promo code|coupon|\d+%\s*off|\$\d[\d,.]*\s*off|on sale|"
+    r"\bbest\b[^.]*\(20\d\d\)|buying guide|review\s*\(20\d\d\)",
     re.IGNORECASE,
 )
 DEV_TOOL_RELEVANCE = re.compile(
@@ -119,14 +142,23 @@ TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 # Whitespace, XML declarations and comments may legally precede the DOCTYPE.
 _XML_PROLOG = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<\?.*?\?>|<!--.*?-->)*", re.DOTALL)
 
-# Items and the number dropped because their timestamp could not be parsed.
-# Undated items are invisible in the corpus otherwise: they never reach the
-# category counters, so a feed that changes date format contributes nothing
-# while the run still reports itself healthy.
-FetchResult = namedtuple("FetchResult", "items undated")
+# A corpus item. Field names are fixed by corpus_schema, not by convention.
+Item = dict[str, Any]
 
 
-def http_get(url, user_agent=USER_AGENT, timeout=TIMEOUT):
+class FetchResult(NamedTuple):
+    """Items, and the number dropped because their timestamp would not parse.
+
+    Undated items are invisible otherwise: they never reach the category
+    counters, so a feed that changes date format contributes nothing while
+    the run still reports itself healthy.
+    """
+
+    items: list[Item]
+    undated: int
+
+
+def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": user_agent})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = resp.read(MAX_RESPONSE_BYTES + 1)
@@ -135,7 +167,7 @@ def http_get(url, user_agent=USER_AGENT, timeout=TIMEOUT):
     return data
 
 
-def parse_feed_xml(data):
+def parse_feed_xml(data: bytes) -> ET.Element:
     """Parse feed XML, refusing any DOCTYPE declaration.
 
     ElementTree expands internal entities, so a few hundred bytes of nested
@@ -156,7 +188,7 @@ def parse_feed_xml(data):
     return ET.fromstring(data)
 
 
-def parse_feed_date(text):
+def parse_feed_date(text: str | None) -> datetime | None:
     """Parse RFC822 or ISO8601 dates; return aware UTC datetime or None."""
     if not text:
         return None
@@ -177,11 +209,11 @@ def parse_feed_date(text):
         return None
 
 
-def strip_html(text):
+def strip_html(text: str | None) -> str:
     return re.sub(r"<[^>]+>", "", unescape(text or "")).strip()
 
 
-def fetch_rss(source_name, url, cutoff):
+def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     """Return items newer than cutoff, plus a count of undated entries.
 
     Handles RSS 2.0 and Atom. An entry whose timestamp won't parse is counted
@@ -229,7 +261,7 @@ def fetch_rss(source_name, url, cutoff):
     return FetchResult(items, undated)
 
 
-def fetch_hn(query, cutoff):
+def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
     """HN Algolia API with an exact unix-timestamp cutoff — no fuzzy recency.
 
     Note: the Algolia API only supports numericFilters on created_at_i now;
@@ -237,7 +269,7 @@ def fetch_hn(query, cutoff):
     """
     ts = int(cutoff.timestamp())
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
-           f"&query={urllib.request.quote(query)}"
+           f"&query={urllib.parse.quote(query)}"
            f"&numericFilters=created_at_i%3E{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
     data = json.loads(http_get(url))
     items = []
@@ -262,13 +294,13 @@ def fetch_hn(query, cutoff):
     return FetchResult(items, undated)
 
 
-def _reddit_md_text(atom_content):
+def _reddit_md_text(atom_content: str) -> str:
     """Extract post body from Reddit's atom:content HTML (the <div class="md"> block)."""
     m = re.search(r'class="md">(.*?)</div>', atom_content, re.DOTALL | re.IGNORECASE)
     return strip_html(m.group(1)).strip() if m else ""
 
 
-def reddit_top_bucket(hours):
+def reddit_top_bucket(hours: int) -> str:
     """Smallest Reddit `t=` bucket that fully covers `hours`."""
     for span, name in REDDIT_TOP_BUCKETS:
         if hours <= span:
@@ -276,7 +308,7 @@ def reddit_top_bucket(hours):
     return "all"
 
 
-def reddit_limit(hours):
+def reddit_limit(hours: int) -> int:
     """Ask for proportionally more posts when the bucket over-covers the window.
 
     Reddit ranks across the whole bucket, so a 48h window served by
@@ -291,7 +323,7 @@ def reddit_limit(hours):
     return min(REDDIT_MAX_LIMIT, math.ceil(REDDIT_BASE_LIMIT * span / hours))
 
 
-def retry_after_seconds(exc, fallback):
+def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
     """Seconds to wait after a 429, preferring the server's own instruction.
 
     Reddit sends Retry-After on rate limits. Backing off on our own guess
@@ -309,7 +341,7 @@ def retry_after_seconds(exc, fallback):
     return fallback
 
 
-def fetch_reddit(subreddit, cutoff, hours):
+def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
     """Fetch top posts via RSS. Reddit's anonymous JSON API is blocked (403);
     vote counts are unavailable without OAuth credentials."""
     url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
@@ -348,7 +380,7 @@ def fetch_reddit(subreddit, cutoff, hours):
     return FetchResult(items, undated)
 
 
-def canonicalize_url(url):
+def canonicalize_url(url: str | None) -> str:
     """Normalize a URL for comparison while preserving meaningful parameters."""
     url = (url or "").strip()
     if not url:
@@ -371,7 +403,7 @@ def canonicalize_url(url):
     ))
 
 
-def dedupe(items):
+def dedupe(items: list[Item]) -> list[Item]:
     """Drop canonical URL duplicates and near-duplicate titles, keep first seen."""
     seen_urls, seen_titles, out = set(), set(), []
     for item in items:
@@ -388,7 +420,7 @@ def dedupe(items):
     return out
 
 
-def sort_items(items):
+def sort_items(items: list[Item]) -> list[Item]:
     """Order a category newest first.
 
     The previous key summed `points` with a never-populated `score` and used
@@ -404,17 +436,26 @@ def sort_items(items):
     return sorted(items, key=lambda i: i["published"], reverse=True)
 
 
-def is_relevant_item(item):
-    """Apply deterministic relevance filtering only to known broad feeds."""
-    pattern = SOURCE_RELEVANCE_FILTERS.get(item.get("source"))
+def is_relevant_item(item: Item) -> bool:
+    """Apply deterministic relevance filtering only to known broad feeds.
+
+    The filter removes noise; it does not decide importance. Ranking is the
+    model's job under the prompt, and over-filtering is the more expensive
+    mistake — an item dropped here cannot be ranked at all, and a starved
+    sub-category cannot fill its reserved slots.
+    """
+    pattern = SOURCE_RELEVANCE_FILTERS.get(item.get("source", ""))
     if pattern is None:
         return True
     text = f"{item.get('title', '')} {item.get('summary', '')}"
+    if COMMERCE_NOISE.search(text):
+        return False
     return bool(pattern.search(text))
 
 
-def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
-                     category_cap=DEFAULT_CATEGORY_CAP, undated_dropped=0):
+def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
+                     category_cap: int = DEFAULT_CATEGORY_CAP,
+                     undated_dropped: int = 0) -> tuple[list[Item], dict[str, int]]:
     """Filter, deduplicate, diversify, and bound one category for model input.
 
     Returns both the retained items and counts for observability. Caps are
@@ -429,8 +470,8 @@ def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
     # Dedupe after ordering so a syndicated/updated story keeps its newest
     # occurrence rather than whichever source happened to finish first.
     unique = dedupe(sort_items(relevant))
-    kept = []
-    by_source = {}
+    kept: list[Item] = []
+    by_source: dict[str, int] = {}
     source_cap_dropped = 0
     category_cap_dropped = 0
     for index, item in enumerate(unique):
@@ -455,7 +496,7 @@ def prepare_category(items, source_cap=DEFAULT_SOURCE_CAP,
     return kept, stats
 
 
-def positive_int(value):
+def positive_int(value: str) -> int:
     """argparse type for strictly positive integer options."""
     try:
         parsed = int(value)
@@ -466,7 +507,7 @@ def positive_int(value):
     return parsed
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours", type=positive_int, default=DEFAULT_WINDOW_HOURS,
                         help="hard cutoff applied to every source: drop anything "
@@ -483,7 +524,8 @@ def main():
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=args.hours)
 
-    corpus = {
+    corpus: dict[str, Any] = {
+        "schema_version": corpus_schema.SCHEMA_VERSION,
         "generated_at": now.isoformat(),
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
@@ -495,7 +537,7 @@ def main():
 
     undated = dict.fromkeys(corpus["categories"], 0)
 
-    jobs = []
+    jobs: list[tuple[Future[FetchResult], str, str]] = []
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         for category, feeds in RSS_FEEDS.items():
             for name, url in feeds:
@@ -535,6 +577,9 @@ def main():
         corpus["processing"][category] = stats
 
     total = sum(len(v) for v in corpus["categories"].values())
+    # Validate before writing: a corpus that violates its own contract is a
+    # bug in this script, and the prompt and checker both read it blind.
+    schema_problems = corpus_schema.validate_corpus(corpus)
 
     if args.markdown:
         lines = [f"# News corpus — last {args.hours}h "
@@ -559,6 +604,14 @@ def main():
     else:
         print(text)
 
+    # Written first either way: a malformed corpus is easier to diagnose from
+    # the file than from a description of it.
+    if schema_problems:
+        print(f"error: corpus violates schema v{corpus_schema.SCHEMA_VERSION}:",
+              file=sys.stderr)
+        for problem in schema_problems:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
     if total == 0:
         print("error: no usable items fetched from any source", file=sys.stderr)
         return 1
