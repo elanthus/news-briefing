@@ -18,6 +18,7 @@ from fetch_news import (
     parse_feed_date,
     reddit_limit,
     reddit_top_bucket,
+    sort_items,
     strip_html,
     _reddit_md_text,
 )
@@ -187,6 +188,47 @@ class RedditLimitTest(unittest.TestCase):
             with self.subTest(hours=hours):
                 self.assertLessEqual(reddit_limit(hours), REDDIT_MAX_LIMIT)
                 self.assertGreater(reddit_limit(hours), 0)
+
+
+class SortItemsTest(unittest.TestCase):
+    """Ordering must mean the same thing for every source in the corpus."""
+
+    def test_orders_newest_first(self):
+        items = [
+            {"title": "older", "published": "2026-08-07T10:00:00+00:00"},
+            {"title": "newest", "published": "2026-08-08T12:00:00+00:00"},
+            {"title": "middle", "published": "2026-08-08T09:00:00+00:00"},
+        ]
+        self.assertEqual([i["title"] for i in sort_items(items)],
+                         ["newest", "middle", "older"])
+
+    def test_engagement_does_not_outrank_recency(self):
+        """Regression: points used to dominate, burying every Reddit post
+        below every Hacker News post no matter how stale."""
+        items = [
+            {"title": "reddit today", "published": "2026-08-08T12:00:00+00:00"},
+            {"title": "hn last week", "published": "2026-08-01T12:00:00+00:00",
+             "points": 900, "comments": 400},
+        ]
+        self.assertEqual([i["title"] for i in sort_items(items)],
+                         ["reddit today", "hn last week"])
+
+    def test_items_without_engagement_are_not_demoted(self):
+        items = [
+            {"title": "no points", "published": "2026-08-08T12:00:00+00:00"},
+            {"title": "many points", "published": "2026-08-08T11:00:00+00:00",
+             "points": 500},
+        ]
+        self.assertEqual(sort_items(items)[0]["title"], "no points")
+
+    def test_does_not_mutate_the_input(self):
+        items = [{"title": "a", "published": "2026-08-07T10:00:00+00:00"},
+                 {"title": "b", "published": "2026-08-08T10:00:00+00:00"}]
+        sort_items(items)
+        self.assertEqual([i["title"] for i in items], ["a", "b"])
+
+    def test_handles_an_empty_category(self):
+        self.assertEqual(sort_items([]), [])
 
 
 if __name__ == "__main__":
