@@ -22,10 +22,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
 
-CATEGORIES = ("us_politics", "world", "ai_tech", "dev_community")
+CATEGORIES = ("us_politics", "us_news", "world", "ai_tech", "dev_community")
 
 # Fields the prompt and the checker are entitled to rely on.
 ITEM_REQUIRED_FIELDS = ("title", "url", "published", "source")
