@@ -231,7 +231,8 @@ def dedupe(items):
     for item in items:
         url = item.get("url", "")
         title_key = re.sub(r"\W+", "", item.get("title", "").lower())[:60]
-        if url in seen_urls or (title_key and title_key in seen_titles):
+        # An empty url means extraction failed, not that two items match.
+        if (url and url in seen_urls) or (title_key and title_key in seen_titles):
             continue
         seen_urls.add(url)
         seen_titles.add(title_key)
