@@ -181,6 +181,17 @@ A note on Reddit: its `top` RSS endpoint accepts only coarse buckets (`hour`/`da
 
 This works well as a scheduled task in an agent harness that supports cron-like triggers (e.g. Claude Code's scheduled tasks): run the fetch step, then have the agent read `briefing-prompt.md` and produce the briefing on a daily cadence.
 
+## How this was built
+
+Vibe coded. The code here was written by AI coding agents — Claude Code and OpenAI Codex — from human direction and review, rather than typed by hand.
+
+The git history is the honest record of that, and a couple of the pull requests are worth reading as artifacts of the process:
+
+- [#5](https://github.com/elanthus/news-briefing/pull/5) (Codex) added relevance filtering to cut corpus noise. [#8](https://github.com/elanthus/news-briefing/pull/8) (Claude) found it was deleting the two stories the reference briefing had led with, using the committed fixture as ground truth to prove it rather than arguing from taste.
+- [#9](https://github.com/elanthus/news-briefing/pull/9) narrowed this README's central claim. It previously said the model "never decides what's true"; a human pointed out that summarization is itself a judgment about truth. The checker now measures that gap instead of the README denying it.
+
+Agents produce plausible work quickly, which is exactly why this repo leans on things that fail loudly rather than on anyone's confidence: a schema the fetcher validates before writing, drop counters that must reconcile against what was fetched, a checker whose findings are diffed against a frozen corpus, and tests that run offline on every push.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
