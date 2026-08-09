@@ -12,6 +12,8 @@ import io
 import json
 import tempfile
 import unittest
+import urllib.error
+import xml.etree.ElementTree as ET
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,10 +31,12 @@ from fetch_news import (
     fetch_reddit,
     is_relevant_item,
     parse_feed_date,
+    parse_feed_xml,
     positive_int,
     prepare_category,
     reddit_limit,
     reddit_top_bucket,
+    retry_after_seconds,
     sort_items,
     strip_html,
 )
@@ -240,8 +244,130 @@ class HackerNewsTest(unittest.TestCase):
             "points": 21, "num_comments": 4,
         }]}
         with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
-            items = fetch_hn("agent", utc(2026, 8, 8))
-        self.assertEqual(items[0]["summary"], "Measured details")
+            result = fetch_hn("agent", utc(2026, 8, 8))
+        self.assertEqual(result.items[0]["summary"], "Measured details")
+
+    def test_counts_hits_with_no_usable_timestamp(self):
+        """A hit without created_at_i used to raise KeyError mid-loop."""
+        payload = {"hits": [
+            {"objectID": "1", "title": "No date", "points": 99},
+            {"objectID": "2", "title": "Dated", "url": "https://ex.com/a",
+             "created_at_i": 1786204800, "points": 99, "num_comments": 1},
+        ]}
+        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+            result = fetch_hn("agent", utc(2026, 8, 8))
+        self.assertEqual(len(result.items), 1)
+        self.assertEqual(result.undated, 1)
+
+
+class ParseFeedXmlTest(unittest.TestCase):
+    """ElementTree expands entities, so the DOCTYPE is the thing to refuse."""
+
+    BILLION_LAUGHS = (
+        b'<?xml version="1.0"?>\n'
+        b'<!DOCTYPE lolz [ <!ENTITY lol "lol">\n'
+        b' <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">\n'
+        b' <!ENTITY lol2 "&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;">\n'
+        b' <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">]>\n'
+        b'<rss><item><title>&lol3;</title></item></rss>'
+    )
+
+    def test_rejects_entity_expansion_payload(self):
+        with self.assertRaises(ValueError):
+            parse_feed_xml(self.BILLION_LAUGHS)
+
+    def test_rejects_external_entity_declaration(self):
+        payload = (b'<?xml version="1.0"?><!DOCTYPE r ['
+                   b'<!ENTITY x SYSTEM "file:///etc/passwd">]><r>&x;</r>')
+        with self.assertRaises(ValueError):
+            parse_feed_xml(payload)
+
+    def test_entity_reference_without_a_doctype_cannot_expand(self):
+        """Without a declaration expat rejects the reference outright."""
+        with self.assertRaises(ET.ParseError):
+            parse_feed_xml(b"<rss><item><title>&lol3;</title></item></rss>")
+
+    def test_parses_an_ordinary_feed(self):
+        payload = (b'<?xml version="1.0"?>\n'
+                   b'<rss><channel><item><title>Hi &amp; bye</title></item></channel></rss>')
+        self.assertEqual(parse_feed_xml(payload).find(".//title").text, "Hi & bye")
+
+    def test_tolerates_byte_order_mark_and_leading_comment(self):
+        payload = (b'\xef\xbb\xbf<?xml version="1.0"?><!-- generated -->'
+                   b'<rss><item><title>ok</title></item></rss>')
+        self.assertEqual(parse_feed_xml(payload).find(".//title").text, "ok")
+
+    def test_doctype_inside_article_text_is_not_a_declaration(self):
+        payload = b"<rss><item><title>The &lt;!DOCTYPE html&gt; tag</title></item></rss>"
+        self.assertIn("DOCTYPE", parse_feed_xml(payload).find(".//title").text)
+
+
+class RetryAfterTest(unittest.TestCase):
+    """Reddit tells us how long to wait; guessing wastes time or earns a 429."""
+
+    def _error(self, header):
+        headers = {} if header is None else {"Retry-After": header}
+        error = urllib.error.HTTPError("https://reddit.test", 429, "Too Many Requests",
+                                       headers, io.BytesIO(b""))
+        self.addCleanup(error.close)
+        return error
+
+    def test_uses_the_server_supplied_delay(self):
+        self.assertEqual(retry_after_seconds(self._error("7"), 5), 7)
+
+    def test_falls_back_when_the_header_is_absent_or_unparseable(self):
+        for header in (None, "", "  ", "Wed, 21 Oct 2026 07:28:00 GMT"):
+            with self.subTest(header=header):
+                self.assertEqual(retry_after_seconds(self._error(header), 5), 5)
+
+    def test_clamps_an_absurd_delay(self):
+        """The header is attacker-influenced; an hour-long sleep would hang."""
+        self.assertEqual(retry_after_seconds(self._error("99999"), 5),
+                         fetch_news.REDDIT_RETRY_MAX_SLEEP)
+
+
+class UndatedAccountingTest(unittest.TestCase):
+    """A feed that changes date format must not look like a healthy feed."""
+
+    FEED = (b'<rss><channel>'
+            b'<item><title>Good</title><link>https://ex.com/a</link>'
+            b'<pubDate>Sat, 08 Aug 2026 12:00:00 GMT</pubDate></item>'
+            b'<item><title>Broken date</title><link>https://ex.com/b</link>'
+            b'<pubDate>yesterday-ish</pubDate></item>'
+            b'<item><title>No date at all</title><link>https://ex.com/c</link></item>'
+            b'</channel></rss>')
+
+    def test_fetch_rss_counts_unparseable_dates_separately(self):
+        with patch.object(fetch_news, "http_get", return_value=self.FEED):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(len(result.items), 1)
+        self.assertEqual(result.undated, 2)
+
+    def test_stale_items_are_not_counted_as_undated(self):
+        """Too old and unparseable are different failures."""
+        with patch.object(fetch_news, "http_get", return_value=self.FEED):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 9, 1))
+        self.assertEqual(result.items, [])
+        self.assertEqual(result.undated, 2)
+
+    def test_undated_count_reaches_the_processing_stats(self):
+        _, stats = prepare_category([], undated_dropped=4)
+        self.assertEqual(stats["undated_dropped"], 4)
+
+    def test_every_fetched_item_is_accounted_for(self):
+        """kept plus every drop reason must equal what was fetched."""
+        items = [
+            {"title": f"Story {n}", "url": f"https://ex.com/{n}",
+             "published": f"2026-08-08T{n:02d}:00:00+00:00", "source": "NPR Politics"}
+            for n in range(1, 10)
+        ]
+        items.append(dict(items[0], title="Story 1"))  # duplicate title
+        kept, stats = prepare_category(items, source_cap=5, category_cap=8)
+        self.assertEqual(len(kept), stats["kept"])
+        self.assertEqual(
+            stats["kept"] + stats["relevance_dropped"] + stats["duplicates_dropped"]
+            + stats["source_cap_dropped"] + stats["category_cap_dropped"],
+            stats["fetched"])
 
 
 class PositiveIntTest(unittest.TestCase):
@@ -266,7 +392,8 @@ class RedditTopBucketTest(unittest.TestCase):
     def test_default_fetch_url_uses_day_bucket(self):
         empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
         with patch.object(fetch_news, "http_get", return_value=empty_feed) as get:
-            self.assertEqual(fetch_reddit("ClaudeAI", utc(2026, 8, 8), DEFAULT_WINDOW_HOURS), [])
+            self.assertEqual(fetch_reddit("ClaudeAI", utc(2026, 8, 8), DEFAULT_WINDOW_HOURS).items,
+                             [])
         url = get.call_args.args[0]
         self.assertIn("t=day", url)
         self.assertIn("limit=25", url)
