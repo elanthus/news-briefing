@@ -654,11 +654,36 @@ class HttpGetTest(unittest.TestCase):
         def read(self, limit):
             return b"x" * limit
 
+    class ShortResponse(Response):
+        def read(self, _limit):
+            return b"ok"
+
     def test_rejects_oversized_response(self):
         with patch.object(fetch_news.urllib.request, "urlopen", return_value=self.Response()):
             with self.assertRaisesRegex(ValueError, "response exceeded"):
                 fetch_news.http_get("https://example.com/feed")
         self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
+
+    def test_requests_identify_the_project_and_carry_a_contact_url(self):
+        """An operator seeing this traffic must be able to look up who is sending it.
+
+        Every clone polls the same public feeds from a different address, so the
+        User-Agent is the only thing tying that traffic back to a project. A bare
+        description gives a feed owner nothing to search for and no way to reach
+        anyone before resorting to a block.
+        """
+        captured = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured.append(request)
+            return self.ShortResponse()
+
+        with patch.object(fetch_news.urllib.request, "urlopen", fake_urlopen):
+            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+
+        agent = captured[0].get_header("User-agent")
+        self.assertIn("news-briefing/", agent)
+        self.assertRegex(agent, r"https://github\.com/\S+")
 
 
 class FeedConfigurationTest(unittest.TestCase):

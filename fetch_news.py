@@ -34,7 +34,10 @@ from typing import Any, NamedTuple
 
 import corpus_schema
 
-USER_AGENT = "news-briefing/1.0 (personal daily digest script)"
+# Feed operators see this traffic from every clone. Naming the project and
+# linking it gives them something to look up, and someone to reach, before a
+# block is their only option.
+USER_AGENT = "news-briefing/1.0 (personal daily digest; +https://github.com/elanthus/news-briefing)"
 TIMEOUT = 20
 REDDIT_TIMEOUT = 10
 REDDIT_MAX_ATTEMPTS = 2

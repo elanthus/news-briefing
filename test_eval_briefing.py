@@ -454,6 +454,16 @@ class CommandLineFailureTest(unittest.TestCase):
         self.assertIn("cannot load corpus", stderr)
         self.assertIn("does-not-exist.json", stderr)
 
+    def test_non_object_corpus_is_reported(self):
+        for value in (None, [], "not an object", 42):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                corpus = Path(directory) / "corpus.json"
+                corpus.write_text(json.dumps(value), encoding="utf-8")
+                code, stderr = self._run(str(corpus))
+            self.assertEqual(code, 2)
+            self.assertIn("corpus is not a JSON object", stderr)
+            self.assertNotIn("Traceback", stderr)
+
     def test_unreadable_briefing_path_is_reported(self):
         code, stderr = self._run("fixtures/corpus-2026-08-09.json",
                                  briefing_path="no-such-briefing.md")
