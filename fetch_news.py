@@ -50,7 +50,9 @@ HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
 REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
 
-DEFAULT_SOURCES_PATH = Path(__file__).with_name("sources.json")
+SOURCE_TREE_SOURCES_PATH = Path(__file__).with_name("sources.json")
+INSTALLED_SOURCES_PATH = Path(sys.prefix) / "share" / "news-briefing" / "sources.json"
+DEFAULT_SOURCES_PATH = SOURCE_TREE_SOURCES_PATH if SOURCE_TREE_SOURCES_PATH.exists() else INSTALLED_SOURCES_PATH
 
 
 class Sources(NamedTuple):
