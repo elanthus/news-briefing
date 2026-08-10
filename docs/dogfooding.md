@@ -1,6 +1,6 @@
 # Dogfooding log
 
-This is the pre-launch operating record for news-briefing. It records the first run of the day, including degraded runs, rather than keeping only successful reruns.
+This is the operating record for news-briefing. It records the first run of the day, including degraded runs, rather than keeping only successful reruns.
 
 For a complete daily run, record:
 

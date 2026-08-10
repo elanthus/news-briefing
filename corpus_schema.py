@@ -20,6 +20,7 @@ not know is not, and says so instead of guessing.
 from __future__ import annotations
 
 import re
+import urllib.parse
 from datetime import datetime
 from typing import Any
 
@@ -31,6 +32,10 @@ SCHEMA_VERSION = 3
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
 
 CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+
+# Query keys that identify a referral, not an article. `utm_*` is handled by
+# prefix alongside these.
+TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 
 # Fields the prompt and the checker are entitled to rely on.
 ITEM_REQUIRED_FIELDS = ("title", "url", "published", "source")
@@ -92,6 +97,50 @@ def _iso(value: Any) -> bool:
 def valid_category_name(value: Any) -> bool:
     """Whether a value can safely identify a corpus category."""
     return isinstance(value, str) and CATEGORY_NAME.fullmatch(value) is not None
+
+
+def canonicalize_url(url: str | None) -> str:
+    """Normalize a URL for comparison while preserving meaningful parameters.
+
+    Part of the contract rather than the fetcher, because two modules have to
+    agree on it: `fetch_news.py` deduplicates with it, and `eval_briefing.py`
+    decides whether a citation is in the corpus with it. When only the fetcher
+    knew the rule, the checker compared raw strings and reported a cited link
+    that differed by a trailing slash as one the corpus did not contain.
+    """
+    url = (url or "").strip()
+    if not url:
+        return ""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
+        return url
+    query = sorted(
+        (key, value)
+        for key, value in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_") and key.lower() not in TRACKING_QUERY_KEYS
+    )
+    path = parts.path.rstrip("/") or "/"
+    return urllib.parse.urlunsplit((
+        parts.scheme.lower(),
+        parts.netloc.lower(),
+        path,
+        urllib.parse.urlencode(query, doseq=True),
+        "",
+    ))
+
+
+def url_identity(url: str | None) -> str:
+    """Host and path alone — what a URL addresses, ignoring how it was reached.
+
+    Coarser than `canonicalize_url` on purpose, and never used to accept a
+    citation. It only separates two failures that look identical under string
+    comparison: an article the model invented, and a real corpus article whose
+    query string the model rewrote.
+    """
+    parts = urllib.parse.urlsplit(canonicalize_url(url))
+    if not parts.netloc:
+        return ""
+    return f"{parts.netloc}{parts.path}"
 
 
 def validate_corpus(corpus: Any) -> list[str]:
