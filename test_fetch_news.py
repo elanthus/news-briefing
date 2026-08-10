@@ -273,8 +273,8 @@ class ReferenceBriefingCoverageTest(unittest.TestCase):
     """
 
     def test_no_cited_item_would_be_filtered_out(self):
-        corpus = json.loads(Path("fixtures/corpus-2026-08-09.json").read_text())
-        briefing = Path("fixtures/briefing-2026-08-09.md").read_text()
+        corpus = json.loads(Path("fixtures/corpus-2026-08-09.json").read_text(encoding="utf-8"))
+        briefing = Path("fixtures/briefing-2026-08-09.md").read_text(encoding="utf-8")
         cited = set(re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", briefing))
         dropped = [item["title"]
                    for items in corpus["categories"].values() for item in items
@@ -591,7 +591,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "hn_queries": [],
                 "reddit_category": "empty",
                 "subreddits": [],
-            }))
+            }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(fetch_news, "fetch_rss",
@@ -601,7 +601,7 @@ class MainFailureModeTest(unittest.TestCase):
                 result = fetch_news.main()
             self.assertEqual(result, 1)
             self.assertIn("no usable items", stderr.getvalue())
-            corpus = json.loads(output.read_text())
+            corpus = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(sum(map(len, corpus["categories"].values())), 0)
 
     def test_community_sources_use_their_configured_destinations(self):
@@ -615,7 +615,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "hn_queries": ["agent tools"],
                 "reddit_category": "from_reddit",
                 "subreddits": ["LocalLLaMA"],
-            }))
+            }), encoding="utf-8")
             published = datetime.now(timezone.utc).isoformat()
             hn_result = fetch_news.FetchResult([{
                 "title": "AI coding agent",
@@ -636,7 +636,7 @@ class MainFailureModeTest(unittest.TestCase):
                   redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
             self.assertEqual(result, 0)
-            corpus = json.loads(output.read_text())
+            corpus = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual([item["source"] for item in corpus["categories"]["from_hn"]],
                              ["Hacker News"])
             self.assertEqual([item["source"] for item in corpus["categories"]["from_reddit"]],
@@ -692,7 +692,7 @@ class FeedConfigurationTest(unittest.TestCase):
 class SourcesConfigurationTest(unittest.TestCase):
     def write_sources(self, directory, value):
         path = Path(directory) / "sources.json"
-        path.write_text(json.dumps(value))
+        path.write_text(json.dumps(value), encoding="utf-8")
         return path
 
     def test_default_configuration_loads_all_source_types(self):

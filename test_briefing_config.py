@@ -12,7 +12,7 @@ from fetch_news import DEFAULT_SOURCES_PATH, load_sources
 
 
 def raw_config():
-    return json.loads(Path("briefing-config.json").read_text())
+    return json.loads(Path("briefing-config.json").read_text(encoding="utf-8"))
 
 
 class ValidConfigTest(unittest.TestCase):
@@ -78,7 +78,7 @@ class InvalidConfigTest(unittest.TestCase):
     def test_invalid_json_reports_its_location(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "briefing.json"
-            path.write_text('{"sections": [}')
+            path.write_text('{"sections": [}', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid JSON at line 1, column"):
                 briefing_config.load_config(path)
 

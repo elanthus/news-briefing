@@ -519,13 +519,23 @@ def main() -> int:
                         help="treat warnings as failures too")
     args = parser.parse_args()
 
-    corpus = load_corpus(args.corpus)
+    # A bad path or an unreadable corpus is a user error, not a crash: the one
+    # line worth reading is the message, not the stack that produced it.
+    try:
+        corpus = load_corpus(args.corpus)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot load corpus from {args.corpus}: {exc}")
     try:
         config = briefing_config.load_config(args.config)
     except (OSError, ValueError) as exc:
         parser.error(f"cannot load briefing config from {args.config}: {exc}")
-    with open(args.briefing) as f:
-        text = f.read()
+    # Briefings carry 🔗, em dashes and accented names, so the encoding is
+    # pinned rather than inherited from the platform's locale.
+    try:
+        with open(args.briefing, encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        parser.error(f"cannot read briefing from {args.briefing}: {exc}")
 
     findings = evaluate(corpus, text, config)
     for finding in findings:
