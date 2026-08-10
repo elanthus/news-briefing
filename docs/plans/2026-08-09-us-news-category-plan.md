@@ -534,7 +534,7 @@ Expected: exit status 0, `us_news` non-empty, no schema violations on stderr. Th
 **Step 3: Confirm nothing still references the deleted fixture**
 
 ```bash
-grep -rn "2026-08-08" --include="*.py" --include="*.md" . | grep -v docs/plans
+rg -n 'fixtures/(corpus|briefing)-2026-08-08' -g '*.py' -g '*.md' -g '!docs/plans/**' .
 ```
 
-Expected: no output. Design and plan docs legitimately mention the old date and are excluded.
+Expected: no output. Other uses of August 8 are legitimate timestamp fixtures in unit tests, and the implementation plan necessarily names the files it replaces; this check targets stale runtime and README references specifically.
