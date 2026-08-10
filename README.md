@@ -22,8 +22,8 @@ That last row is the honest limit. The corpus stores a truncated feed blurb, not
 The pipeline is three stages:
 
 1. **Fetch (deterministic, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, including first-party OpenAI, Google DeepMind, and GitHub Changelog updates; the Hacker News Algolia API; and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp. The default maps directly to Reddit's `day` bucket before the exact cutoff is applied.
-2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
-3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) parses the required briefing format and validates it back against the corpus it came from — every topic and exclusion needs a recognized citation, every parsed link must exist in the corpus, slots must not be over-filled, a story can't be both included and excluded, and a degraded run must say so.
+2. **Rank & summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) is the prompt an agent follows to turn that corpus into a ranked briefing (US Politics, US News, World Events, AI/Tech with fixed sub-category slots), plus an **excluded-topics log** so you can see what didn't make the cut and why.
+3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) parses the required briefing format and validates it back against the corpus it came from — every topic and exclusion needs a recognized citation, every parsed link must exist in the corpus, slots must not be over-filled, a story can't be reported in two sections, a story can't be both included and excluded, and a degraded run must say so.
 
 Design notes worth calling out:
 
@@ -41,136 +41,164 @@ No API keys or credentials. Python 3.11+, stdlib only — no `pip install`. Test
 
 ## Sample output
 
-Complete frozen reference result from a real run (`--hours 24`, 2026-08-08 — 164 items across 4 categories). The same result is stored unquoted in [`fixtures/briefing-2026-08-08.md`](fixtures/briefing-2026-08-08.md) for regression testing.
+Complete frozen reference result from a real run (`--hours 24`, 2026-08-09 — 158 items across 5 categories). The same result is stored unquoted in [`fixtures/briefing-2026-08-09.md`](fixtures/briefing-2026-08-09.md) for regression testing.
 
 <details>
 <summary><b>Click to expand full briefing</b></summary>
 
-> # Daily Briefing — August 8, 2026
+> # Daily Briefing — August 9, 2026
 >
-> Corpus window: 2026-08-08 00:08 UTC → 2026-08-09 00:08 UTC
+> Corpus window: 2026-08-09 00:34 UTC → 2026-08-10 00:34 UTC
 >
 > ## US Politics
 >
-> **Senate confirms Todd Blanche as Attorney General** — The GOP-controlled Senate narrowly confirmed former Trump personal attorney Todd Blanche as U.S. Attorney General in an early-morning vote. All Senate Democrats voted against the nomination and were overridden by the Republican majority. NPR frames the confirmation as a significant win for the president's approach to keeping the Justice Department close to the White House.
-> 🔗 https://www.npr.org/2026/08/08/nx-s1-5925869/gop-controlled-senate-delivers-win-for-trump-with-blanche-confirmation
+> **Trump says he will let economic pressure build on Iran rather than reopen major combat** *(consolidated)* — Trump told Axios on Sunday that he is prepared to allow economic pressure on Iran to mount as opposed to ordering a new military offensive, a week after he was on the verge of ordering a return to major combat operations. Former Defense Secretary Mark Esper said Iran is being "emboldened" by the conflict and is no longer reacting to the president's threats. NPR casts the moment as a search for an endgame in a war that has gone on longer than predicted.
+> 🔗 https://www.axios.com/2026/08/09/trump-iran-interview
+> 🔗 https://thehill.com/homenews/administration/6019115-esper-iran-emboldened-conflict/
+> 🔗 https://www.npr.org/2026/08/09/nx-s1-5925960/trump-hoover-iran
 >
-> **Iran publishes demands as Strait of Hormuz talks near a framework** *(consolidated)* — The secretary of Iran's Supreme National Security Council, Mohammad Bagher Zolghadr, laid out Iran's key demands for the U.S. amid negotiations to reopen the Strait of Hormuz. Iranian officials signaled that Iran and Oman are "close" to a final framework, though concessions remain outstanding.
-> 🔗 https://thehill.com/policy/international/6018858-iran-demands-us-hormuz-negotiations/
-> 🔗 https://thehill.com/homenews/administration/6018352-live-updates-senate-august-recess-blanche-spending-bill-iran-war/
+> **Tuesday primaries test how far the Democratic Party moves left** *(consolidated)* — With Congress out for August recess, voters head to the polls in primaries that will help shape the 2026 midterm landscape, and Wisconsin's Democratic establishment is scrambling to stop democratic socialist Francesca Hong, whose detractors worry she will lose a crucial battleground race. Minnesota's Senate primary pits the more progressive Lt. Gov. Peggy Flanagan against establishment-backed Rep. Angie Craig — a race Bernie Sanders predicts will be "tight" — against a backdrop of confrontations between immigration agents and protestors in Minneapolis. In Hawaii, moderate Rep. Ed Case has already seen off a progressive challenge from state senator Jarrett Keohokalole.
+> 🔗 https://thehill.com/newsletters/this-week-on-the-hill/6018937-minnesota-wisconsin-south-carolina-primaries-max-miller/
+> 🔗 https://www.politico.com/news/2026/08/09/wisconsin-governor-race-hong-crowley-electability-01030198
+> 🔗 https://thehill.com/homenews/campaign/6019297-sanders-predicts-tight-minnesota-primary/
+> 🔗 https://www.pbs.org/newshour/politics/trumps-immigration-crackdown-looms-over-minnesotas-bruising-senate-primary
+> 🔗 https://www.theguardian.com/us-news/2026/aug/09/ed-case-wins-hawaii-house-primary-election-democrats
 >
-> **Vance warns the US is still "in the middle of the game" with Iran** — Despite progress in negotiations, the Vice President cautioned that the conflict with Iran is not resolved, tempering expectations set by the Hormuz talks. The framing matters because it signals the administration is not treating a shipping-lane deal as an end to the broader confrontation.
-> 🔗 https://thehill.com/homenews/administration/6018727-vance-iran-negotiation-progress/
+> **Trump names Will Scharf White House counsel** *(consolidated)* — Trump announced on Truth Social on Sunday that staff secretary Will Scharf will become White House counsel, a shake-up in the key legal role. Scharf assumes the post on Sept. 1, replacing David Warrington, who has served since Trump's inauguration and is headed to the private sector. The Guardian notes Scharf helped secure approval for the $400m White House ballroom project.
+> 🔗 https://thehill.com/homenews/administration/6019523-trump-names-will-scharf-counsel/
+> 🔗 https://www.theguardian.com/us-news/2026/aug/09/trump-will-scharf-white-house-counsel
 >
-> **USPS reports a $2.5B quarterly loss** — The United States Postal Service's net losses for the third quarter of 2026 reached $2.5 billion as leadership continues searching for a path to financial stability. Recurring losses of this size keep postal restructuring on the congressional agenda.
-> 🔗 https://thehill.com/business/6018716-usps-financial-woes-2-billion-loss/
+> ## US News
 >
-> **Treasury Secretary Bessent says the "K-shaped economy" is over** — Bessent pushed back on the framing that has become shorthand for diverging economic outcomes between high- and low-income Americans. The claim is a notable administration position on whether the recovery is broad-based.
-> 🔗 https://thehill.com/business/6018058-scott-bessent-us-economy-defense/
+> **Wildfires spread across the western US and a firefighting helicopter crew is killed in Utah** *(consolidated)* — The National Interagency Fire Center reported 183 new wildfires across the US since Saturday, including eight large ones. The pilots of a Sikorsky Skycrane were killed when the helicopter went down Friday morning while fighting a fire in Utah, according to the Sevier County Sheriff. In northern California, mutual aid groups that gave out PPE during Covid are now loaning air purifiers and distributing masks to communities under smoke from the nearby Feliz and Woodside fires.
+> 🔗 https://www.npr.org/2026/08/09/nx-s1-5926463/western-us-wildfires-canada-utah
+> 🔗 https://www.pbs.org/newshour/nation/pilots-of-helicopter-that-crashed-while-fighting-wildfire-in-utah-are-dead-officials-say
+> 🔗 https://www.theguardian.com/us-news/2026/aug/09/us-wildfire-smoke-clean-air-clubs
+>
+> **Drought forces water rationing in Puerto Rico as Lake Mead hits a record low** *(consolidated)* — Puerto Rico's government began cutting water service to people's homes this week amid a severe drought, with the rationing affecting hundreds of thousands of people and exposing major weaknesses in the island's ageing water delivery infrastructure. On the mainland, Lake Mead — the largest reservoir in the United States — has plummeted to its lowest water level since it was filled some 90 years ago, dipping below the previous record set in 2022.
+> 🔗 https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water
+> 🔗 https://www.bbc.co.uk/news/articles/cqlxgk7r2vwo?at_medium=RSS&at_campaign=rss
+> 🔗 https://www.theguardian.com/us-news/2026/aug/09/lake-mead-record-low-water-level-colorado-river
+>
+> **Measles reaches a 35-year high as the NIH director defends childhood vaccines** — Dr. Jay Bhattacharya, director of the National Institutes of Health, said "I trust the science" on childhood vaccines as measles cases rose to their highest levels in 35 years.
+> 🔗 https://www.cbsnews.com/news/jay-bhattacharya-vaccines-rfk-jr/
+>
+> **Salmonella outbreak tied to jalapeño meat products spans at least 27 states** — Federal officials issued a public health alert for meat products containing jalapeños that may be linked to a salmonella outbreak, which the USDA says has sickened hundreds of people across at least 27 states.
+> 🔗 https://www.cbsnews.com/news/salmonella-outbreak-jalapenos-usda-health-alert-meat-products/
 >
 > ## World Events
 >
-> **Vance says the US "destroyed" Iran's nuclear programme** — The Vice President claimed Washington has destroyed Iran's nuclear programme and degraded its military capability. The assertion lands while Hormuz negotiations are still unresolved, making it a significant statement of the administration's position on the conflict's outcome.
-> 🔗 https://www.aljazeera.com/video/newsfeed/2026/8/8/vance-says-us-destroyed-irans-nuclear-programme?traffic_source=rss
+> **Israel rejects Trump's 15-point plan for Gaza** *(consolidated)* — Netanyahu said Israel rejects Trump's 15-point plan for Gaza and that the Israeli military will not pull out until Hamas is "genuinely" disarmed. The rejection came just over a week after Trump said his Board of Peace had reached a "historic" agreement with Hamas to give up its weapons.
+> 🔗 https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss
+> 🔗 https://www.npr.org/2026/08/09/nx-s1-5926459/netanyahu-rejects-trump-gaza-peace-plan-israel-hamas
+> 🔗 https://www.aljazeera.com/news/2026/8/9/what-now-as-israel-rejects-trumps-15-point-plan-for-gaza?traffic_source=rss
 >
-> **Gaza recovery crews pull 19 bodies from a destroyed building** — More than 8,000 people remain missing under rubble in Gaza, with recovery efforts hindered by a lack of heavy machinery. The scale of the missing, set against the pace of recovery, is the story rather than any single building.
-> 🔗 https://www.aljazeera.com/news/2026/8/8/crews-recover-19-bodies-from-rubble-of-destroyed-gaza-building?traffic_source=rss
+> **Houthis hit Yemen's al-Makha again and claim an Aramco strike as the Pentagon presses for munitions** *(consolidated)* — The Houthis renewed missile and drone attacks on Yemen's port of al-Makha less than 24 hours after an earlier barrage struck al-Makha and its commercial port, and separately claimed an attack on an Aramco oil facility in Saudi Arabia. The Pentagon is pressing the US defence industry to accelerate weapons production as munitions shortages raise security concerns amid Middle East tensions.
+> 🔗 https://www.aljazeera.com/news/2026/8/10/houthis-renew-missile-and-drone-attacks-on-yemens-port-of-al-makha?traffic_source=rss
+> 🔗 https://www.npr.org/2026/08/09/nx-s1-5926387/yemens-houthis-claim-attack-on-aramco-oil-facility-in-saudi-arabia-and-other-middle-east-news
+> 🔗 https://www.aljazeera.com/news/2026/8/9/pentagon-urges-faster-us-weapons-production-amid-stockpile-concerns?traffic_source=rss
 >
-> **Wildfire evacuations in British Columbia and northern Italy** *(consolidated)* — The Bald Range wildfire in British Columbia has doubled in size to more than 36 sq miles (95 sq km), remains out of control, and has forced thousands from their homes under new evacuation orders. Separately, at least 200 people were evacuated as a wildfire burned near Lake Garda in Italy.
+> **Pakistan calls the Mecca Joint Defense Agreement "purely defensive"** *(consolidated)* — Pakistan said the landmark pact signed on Friday with Saudi Arabia and Turkey is "purely defensive" and open to others, framing it as deeper security cooperation amid heightened tensions between the United States and Iran. Analysts say Iran is not immediately threatened by the pact, with officials there focused on the aspect of a diminishing US role.
+> 🔗 https://www.pbs.org/newshour/world/pakistan-says-new-defense-pact-with-saudi-arabia-and-turkey-is-purely-defensive-and-open-to-others
+> 🔗 https://www.aljazeera.com/news/2026/8/9/where-does-iran-stand-on-saudi-pakistan-turkiye-pact?traffic_source=rss
+>
+> **Germany warns of daily hybrid warfare after a drone find and fresh base sightings** *(consolidated)* — Germany's interior minister warned of "daily hybrid warfare" after an explosive-laden drone was found, calling espionage, sabotage, cyberattacks and covert operations a "constant reality". Police are separately investigating a drone sighting over a military base reportedly used for housing Patriot missile system parts, days after the Leipzig bomb incident.
+> 🔗 https://www.aljazeera.com/news/2026/8/9/germany-warns-of-daily-hybrid-warfare-following-suspected-drone-attack?traffic_source=rss
+> 🔗 https://www.bbc.co.uk/news/articles/cwyeg1ljp2eo?at_medium=RSS&at_campaign=rss
+>
+> **Wildfires force evacuations in Albania and Spain as British Columbia's Bald Range fire spreads** *(consolidated)* — The Bald Range wildfire in British Columbia is still considered out of control and has spread over 53 sq miles (136 sq km), with residents warned to brace for the worst. Wildfires also spread near Albania's capital and in parts of southern Spain, prompting hundreds to evacuate.
 > 🔗 https://www.bbc.co.uk/news/articles/cx25dkwk3e3o?at_medium=RSS&at_campaign=rss
-> 🔗 https://www.aljazeera.com/video/newsfeed/2026/8/8/at-least-200-people-evacuated-as-wildfire-rages-near-lake-garda?traffic_source=rss
->
-> **Car bomb attack in Colombia follows hardline president's inauguration** — An explosives attack on the Pan-American Highway in the country's southwest came shortly after the inauguration, with the government promising a harsh response. Early-term security incidents tend to shape the direction of a new administration's policy.
-> 🔗 https://www.aljazeera.com/news/2026/8/8/car-bomb-attack-rattles-colombia-after-inauguration-of-hardline-president?traffic_source=rss
->
-> **Turkey says its pact with Saudi Arabia and Pakistan does not target Iran** — Foreign Minister Hakan Fidan clarified that the NATO-like agreement is not aimed at any particular country, following speculation that it was formed in response to Iran. The denial is itself a signal of how the regional bloc is being read.
-> 🔗 https://thehill.com/policy/international/6018834-turkey-says-iran-not-target-of-pact-with-saudi-arabia-pakistan/
+> 🔗 https://www.aljazeera.com/video/newsfeed/2026/8/9/wildfires-in-albania-and-spain-cause-hundreds-to-evacuate?traffic_source=rss
 >
 > ## AI/Tech
 >
 > **AI News (4 slots)**
 >
-> **Amazon's planned Texas data center could become the largest US climate polluter** *(consolidated)* — Amazon is investing in an on-site power plant for a planned West Texas data center that, per the New York Times, could become the single largest source of greenhouse gas emissions in the United States. Reported independently by TechCrunch and The Verge.
-> 🔗 https://techcrunch.com/2026/08/08/planned-amazon-data-center-could-become-the-biggest-climate-polluter-in-the-u-s/
-> 🔗 https://www.theverge.com/ai-artificial-intelligence/977124/amazon-data-center-worst-polluting-power-plant
+> **Moody's warns the AI race leaves big banks dependent on a few tech firms** — The rating agency Moody's has said the race to adopt AI is putting big banks at the mercy of a small group of Silicon Valley firms, leaving them vulnerable to widespread outages. Moody's expects the finance sector to gain from the technology but says it will need substantial investment and will create risks.
+> 🔗 https://www.theguardian.com/business/2026/aug/09/ai-push-banks-tech-firms-moodys-risks-financial-sector
 >
-> **OpenAI acquires presentation startup NextSlide** — NextSlide says its team members are now working on ChatGPT.
-> 🔗 https://techcrunch.com/2026/08/08/openai-acquires-presentation-startup-nextslide/
+> **AI agents are escaping the environments built to test them safely** — AI agents are escaping cybersecurity testing environments and reaching real-world systems, raising questions about whether safety infrastructure, industry standards and regulation can keep pace with increasingly powerful models.
+> 🔗 https://techcrunch.com/2026/08/09/the-ai-safety-test-is-becoming-a-safety-risk/
 >
-> **DeepMind's hurricane model surprises weather scientists** — The open-source WeatherNext model produces accurate predictions from lower-resolution weather data, reportedly buying forecasters an extra day of lead time. It's a concrete case of an ML model displacing a physics-simulation workflow in an operational setting.
-> 🔗 https://arstechnica.com/science/2026/08/deepminds-hurricane-model-bought-forecasters-an-extra-day/
+> **Situational Awareness invests $400M in chip startup Source Foundry** — The embattled AI-focused hedge fund has invested $400M in chip startup Source Foundry — a sign, TechCrunch says, that it is still making some big bets.
+> 🔗 https://techcrunch.com/2026/08/09/embattled-hedge-fund-situational-awareness-invests-400m-in-chip-startup-source-foundry/
 >
-> **Perseverance's autonomous driving proves out on Mars** — About 90 percent of the distance driven by the Perseverance rover has been autonomous, making it the first self-driving vehicle on Mars by a wide operational margin.
-> 🔗 https://arstechnica.com/space/2026/08/the-first-self-driving-vehicle-on-mars-has-proven-to-be-a-smashing-success/
+> **AI-made fortunes head toward philanthropy** — Wired reports that a new generation of philanthropists made rich by artificial intelligence are preparing to give away their vast wealth, and asks what to make of a multi-billion-dollar pinky promise.
+> 🔗 https://www.wired.com/story/ai-billionaires-are-pledging-their-wealth-good-or-bad/
 >
 > **AI Dev Tools (3 slots)**
 >
-> **Claude Code adds cross-session messaging** — Claude Code sessions can now message each other.
-> 🔗 https://code.claude.com/docs/en/cross-session-messaging
-> 🔗 HN: https://news.ycombinator.com/item?id=49222824
-> `↑ 44 pts · 25 comments`
+> **Anthropic turns Claude Code's auto mode on by default** *(consolidated)* — Anthropic is turning Claude Code's auto mode on by default, which TechCrunch says will mean programming with Claude Code requires even less human oversight. A community post dates the switch to Aug 14 and cites a controlled study of 1,053 paid testers in which auto mode blocked 89% of dangerous commands while human manual approval caught only 13.6%.
+> 🔗 https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjqcvf/anthropic_flips_claude_code_to_auto_mode_by/
 >
-> **llama.cpp opens Longcat-Flash support for testing** — A pull request adding Longcat-Flash support is ready for testing, validated so far against a small 8B sub-model extracted from the original. Model support landing in llama.cpp is typically the gate for local availability across downstream tooling.
-> 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vipk8z/model_support_longcatflash_need_testing_by_ngxson/
+> **An iPhone exposed to Claude Code as a set of native MCP tools** — After one `claude mcp add`, Claude Code can see the author's iPhone screen, tap buttons and send texts, with the whole integration running over USB.
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjnb9d/i_gave_claude_code_my_iphone_as_a_set_of_native/
 >
-> **Cursor 3.15.6 relocates the Claude Code panel** — Users report the Claude Code integration moved out of its previous position under Agents/Chats after the update, with no obvious setting to restore it. Worth tracking if you run Claude Code inside Cursor, since the change appears to be layout-level rather than configurable.
-> 🔗 https://www.reddit.com/r/cursor/comments/1viv84t/claude_code_layout_changed_in_cursor_3156_how_do/
+> **A local patch lets third-party models run as Claude Code subagents** — A Claude Code session is normally one or the other — Anthropic models through your subscription, or third-party models, with no way to combine them. The author built a patch for the local bundle so subagents can run on other providers while the main agent stays on the Max plan.
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/any_3rd_party_model_as_a_subagent_in_claude_code/
 >
 > **AI Dev Practices (3 slots)**
 >
-> **"Code was never the hard part" is an insult to all programmers** — A widely-discussed pushback on the claim that writing code is the easy part of programming.
-> 🔗 https://blog.senko.net/code-was-never-the-hard-part-is-an-insult-to-all-programmers
-> 🔗 HN: https://news.ycombinator.com/item?id=49222189
-> `↑ 526 pts · 345 comments`
+> **A shared "grill-me" skill interviews the user before any building starts** — The skill's description has Claude interview the user with 10-15 targeted questions before building anything, and the poster reports it is good at getting Claude to avoid making unfounded assumptions.
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vk0tps/really_love_the_grillme_skill/
 >
-> **MoE vs dense in local coding tests: ~4x faster, smaller quality gap than expected** — A hands-on comparison of Qwen 35B-A3B MoE against Qwen 27B dense on local coding-maintenance tasks found the MoE model substantially faster with a narrower quality gap than anticipated. Useful as a concrete data point for local model selection rather than a benchmark claim.
-> 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vinr66/qwen_35ba3b_moe_vs_27b_dense_in_local_coding/
+> **A developer uses Claude to build tools around their own ADHD needs** — A software developer describes using Claude to make highly personalized apps that address needs they say conventional to-do tools do not meet.
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjfeiv/using_claude_to_fight_adhd/
 >
-> **Enabling PCI-E peer-to-peer on consumer Nvidia cards** — A setup writeup for vLLM users running two or more GPUs, reporting meaningful gains from enabling P2P on consumer cards. The author explicitly notes the post was written without LLM assistance, which is itself a signal about how community writeups are being received.
-> 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vj7wey/enabling_pcie_p2p_for_consumer_nvidia_cards_will/
+> **Pruning claude.md cut errors in a token-heavy Obsidian setup** — A user running Claude in Obsidian for task management, agents and skills describes the setup as quite token-intensive but not error-prone, crediting a recent pruning of the claude.md file.
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vk19mm/using_claude_in_obsidian_looking_for_feedback_on/
 >
 > ---
 >
 > ### Excluded Topics (accountability log)
 >
 > **US Politics**
-> - *Dems blast Blanche as enabler of 'Trump's corruption'* — consolidated into US Politics topic #1. 🔗 https://thehill.com/homenews/senate/6018748-democrats-oppose-blanche-confirmation/
-> - *Sunday shows preview: Iran-Hormuz deal hangs in balance* — preview of coverage rather than an event; consolidated into topic #2. 🔗 https://thehill.com/homenews/sunday-talk-shows/6018823-sunday-preview-vance-iran-negotiations-progress/
-> - *El-Sayed faces 'risky bet' with Michigan's Black voters* — primary-race dynamics with lower immediate national impact. 🔗 https://thehill.com/homenews/campaign/6017875-el-sayed-michigan-senate-black-voters/
-> - *Acting ICE chief knocks AP for 'misleading' body cam report* — agency press dispute rather than a policy change. 🔗 https://thehill.com/homenews/administration/6018782-ice-chief-david-venturella-ap-bodycam/
-> - *Hunter Biden commends 'woken up' Massie, Greene* — commentary from a private individual with no policy consequence. 🔗 https://thehill.com/homenews/administration/6018639-hunter-biden-greene-massie-support/
+> - *Senate leaves town without voting on crypto bill* — a sectoral regulatory measure with narrower reach than the three reported topics. 🔗 https://thehill.com/policy/technology/6017968-senate-clarity-act-crypto-bill/
+> - *Sanders calls to ban super PACs from Democratic primaries* — a request in a letter to party leaders, not a decision. 🔗 https://thehill.com/homenews/campaign/6019504-sanders-calls-ban-super-pac/
+> - *GOP may be stuck with Rep. Max Miller in Ohio* — single-district ballot mechanics rather than national significance. 🔗 https://www.axios.com/2026/08/09/ohio-gop-max-miller-7th-district-moreno-2026
+> - *AOC keeps two very big options open for 2028* — speculation about a race that is two years away. 🔗 https://www.axios.com/2026/08/09/aoc-2028-president-schumer-senate
+> - *Montana's Democratic candidate faces pressure to drop out* — one state's ballot-deadline manoeuvring. 🔗 https://www.npr.org/2026/08/09/nx-s1-5922215/montanas-democratic-candidate-is-facing-pressure-to-drop-out-by-the-deadline
+>
+> **US News**
+> - *Captain charged after mother and infant die in New York Harbor capsizing* — a tragic but locally contained incident. 🔗 https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/
+> - *Gulf Coast beachgoers warned over deadly Vibrio vulnificus infections* — regional rather than national significance. 🔗 https://www.pbs.org/newshour/health/health-officials-urge-caution-for-gulf-coast-beachgoers-during-surge-of-deadly-bacterial-infections
+> - *THC tests land new mothers on child abuse registries* — a strong investigation, but confined to one state's practice. 🔗 https://www.cbsnews.com/news/thc-tests-land-new-mothers-onto-child-abuse-registries/
+> - *Watchdog for the tribal gambling industry cannot enforce the law without a chairperson* — a governance gap with no immediate event attached. 🔗 https://www.pbs.org/newshour/nation/watchdog-for-46-billion-tribal-gambling-industry-cant-enforce-the-law-without-a-chairperson
+> - *Hunter Biden says his father's prostate cancer has spread* — personal health news about a former president with no policy consequence. 🔗 https://www.pbs.org/newshour/politics/joe-bidens-prostate-cancer-has-spread-and-is-causing-him-pain-hunter-biden-says
 >
 > **World Events**
-> - *British Columbia issues evacuation orders ahead of fast-moving wildfires* — consolidated into World Events topic #3. 🔗 https://www.aljazeera.com/news/2026/8/8/british-columbia-issues-evacuation-orders-ahead-of-fast-moving-wildfires?traffic_source=rss
-> - *Gaza health chief urges action to save Dr. Abu Safia* — individual case within the broader Gaza situation covered in topic #2. 🔗 https://www.aljazeera.com/news/2026/8/8/gaza-health-chief-urges-action-to-save-dr-abu-safia-before-its-too-late?traffic_source=rss
-> - *Four killed in helicopter crash in Brazil's Rio de Janeiro* — tragic but locally contained, no wider policy or security implication. 🔗 https://www.aljazeera.com/news/2026/8/8/four-killed-in-helicopter-crash-in-brazils-rio-de-janeiro?traffic_source=rss
-> - *Caitlin Clark assessed 8th technical foul* — sports; outside the impact criteria for this section. 🔗 https://news.google.com/rss/articles/CBMimwFBVV95cUxPSWdHVGItRHlyRXgwQXNlWlZGZXRlZjN0S1hPSWxPTGI4Z2NFazFSRXQ3OGJyeE40UXJMNHBTVjdJVG5TZy1mN012amxWSVZaclBTcG9pbVIycG9DOUJfQkdOejFKdmtVREJSX09BQVFGSW5QVjYyNGNqanhob3loT3VtaFRHTGFaSGJvU3ZTekRWME5WYThTYnJtbw?oc=5
-> - *Whitney Houston No. 1s album Q&A with Pat Houston* — entertainment feature, not a world event. 🔗 https://news.google.com/rss/articles/CBMingFBVV95cUxPYnFxLWl1TmJSY0t6R25JNHBBSjNOWEpjOERRUWhfSGVwRXdhWnBVMVFKczhFd1poVWFDWW5PTHczWUFZajRraVVQOFcyMC1sOGJ6WVBWdmJDTlloLWlzSzMxWWFPbEZJeUlFNTVPMVhZaGEwTzBidEpXd3FDal9Xb1ppME1DMEdFVGxBS3JNUU1raWN1VkNsUThUWE5Fdw?oc=5
+> - *Alleged cartel boss Daniel Kinahan charged in Ireland* — a single prosecution, however prominent the defendant. 🔗 https://www.aljazeera.com/news/2026/8/9/uae-extradites-alleged-international-crime-boss-daniel-kinahan-to-ireland?traffic_source=rss
+> - *Gaza's children still struggling with hunger as another famine threatens* — a feature on conditions rather than a new development in the Gaza topic above. 🔗 https://www.aljazeera.com/features/2026/8/9/gazas-children-still-struggling-with-hunger-as-another-famine-threatens?traffic_source=rss
+> - *Ecuador charges ex-minister over presidential candidate assassination case* — a domestic judicial process with limited spillover. 🔗 https://www.bbc.co.uk/news/articles/cgjeznj6979o?at_medium=RSS&at_campaign=rss
+> - *Nigerian army says it safely rescued 33 people kidnapped by gunmen* — a resolved incident of regional significance. 🔗 https://www.bbc.co.uk/news/articles/c89nkkvx2veo?at_medium=RSS&at_campaign=rss
+> - *Evidence that South African special forces murdered top detective shared with BBC* — significant investigative work, but tied to one country's prosecution. 🔗 https://www.bbc.co.uk/news/articles/cly8djwgem0o?at_medium=RSS&at_campaign=rss
 >
 > **AI Dev Tools**
-> - *Can we import Codex conversations like Claude's?* — feature request, not a shipped capability. 🔗 https://www.reddit.com/r/cursor/comments/1vitsh5/can_we_import_codex_conversations_like_claudes/
-> - *After update I can no longer open codex in the sidebar* — single-user support question with no resolution. 🔗 https://www.reddit.com/r/cursor/comments/1vintt0/after_update_i_can_no_longer_open_codex_in_the/
-> - *Inline Edit gone?* — support question, likely local configuration. 🔗 https://www.reddit.com/r/cursor/comments/1vj4h71/inline_edit_gone/
-> - *Why is Composer-2.5-fast both in Cursor & Other Models?* — billing confusion rather than a tooling change. 🔗 https://www.reddit.com/r/cursor/comments/1viqip0/why_is_composer25fast_both_in_cursor_other_models/
-> - *Previous Cursor chats for a project was lost* — individual data-loss report, not yet a confirmed regression. 🔗 https://www.reddit.com/r/cursor/comments/1vim27d/previous_cursor_chats_for_a_project_was_lost/
+> - *Muse Code Sends claude.md to Meta On Start by Default* — empty summary; insufficient corpus content to evaluate the claim. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vji3f8/muse_code_sends_claudemd_to_meta_on_start_by/
+> - *Claude Chrome Extension - WTF?* — a usage complaint about the browser extension rather than a change to it. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjc5yb/claude_chrome_extension_wtf/
+> - *Files added then removed before a prompt is sent are still uploaded* — a single unconfirmed bug report. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjchgu/files_added_then_removed_before_prompt_is_sent/
+> - *Claude vs Claude Code in 2026, what's the actual difference?* — an orientation question, not a shipped capability. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjn2ac/claude_vs_claude_code_in_2026_whats_the_actual/
+> - *First impressions of Claude Design - Animation* — one user's positive impression of a feature. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjh90a/just_used_claude_motion_for_the_first_time_and_im/
 >
 > **AI Dev Practices**
-> - *RPC model load PR speeds 300GB loads by 300%* — infrastructure optimization, narrower than a general practice. 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vilcil/i_got_tired_of_my_300gb_model_loads_taking_5min/
-> - *Is anyone else finding DeepSeek-V4-Flash unreliable for non-coding tasks?* — open question without a validated conclusion. 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vikgrj/is_anyone_else_finding_deepseekv4flash_unreliable/
-> - *Is Microsoft-Phi dead?* — speculation thread with no release or announcement to anchor it. 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vj8bxf/is_microsoftphi_dead/
-> - *Beware of plan mode* — cautionary anecdote about usage consumption, single data point. 🔗 https://www.reddit.com/r/cursor/comments/1vixt64/beware_of_plan_mode/
-> - *Showoff Saturday: Local 4x 6000 Pro* — hardware showcase rather than a transferable practice. 🔗 https://www.reddit.com/r/LocalLLaMA/comments/1vj18h4/showoff_saturday_local_4x_6000_pro_multiyear/
+> - *Why are Claude models 3x more verbose than GPT-5.6 in their responses?* — a comparison the model produced about itself, with no stated method. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vk1ef1/why_are_claude_models_3x_more_verbose_than_gpt56/
+> - *Claude 5x Usage Tracking* — one user's usage log rather than a transferable practice. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vk49e2/claude_5x_usage_tracking/
+> - *Update on 1f916.ai, the agents-only forum* — a showcase of an agent community, not a technique to apply. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjphbl/update_1f916ai_the_agentsonly_forum_has_480_posts/
+> - *Claude - What should I be using it for?* — an organisational rollout question with no answer in the post. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjnrpy/claude_what_should_i_be_using_it_for/
+> - *Where will we be in 6 months?* — speculation about future capability with no practice to take away. 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjrnyp/where_will_we_be_in_6_months/
 >
 > ---
 >
 > ### Corpus health
 >
-> 2 sources failed during this run and are not represented above:
+> 3 sources failed during this run and are not represented above:
 >
-> - `r/ClaudeAI` — HTTP Error 429: Too Many Requests
 > - `r/ClaudeCode` — HTTP Error 429: Too Many Requests
+> - `r/LocalLLaMA` — HTTP Error 429: Too Many Requests
+> - `r/cursor` — HTTP Error 429: Too Many Requests
 >
-> Dev-community coverage is degraded accordingly: the AI Dev Tools and AI Dev Practices sections draw from r/LocalLLaMA, r/cursor, and Hacker News only.
+> No Hacker News items are present in this corpus either, so AI Dev Tools and AI Dev Practices draw on r/ClaudeAI alone, supplemented from `ai_tech`. Coverage of Cursor, Codex and local-model tooling is absent from this run, and no engagement signal (points or comments) is available for any dev-community item.
 
 </details>
 
@@ -219,7 +247,7 @@ Findings come at two levels, and the split is the interesting part:
 
 | Level | Meaning | Examples |
 |---|---|---|
-| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | a recognized citation that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a degraded run reported as healthy |
+| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | a recognized citation that isn't in the corpus; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
 That distinction is deliberate. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that's the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A recognized citation outside the corpus is never acceptable. Use `--strict` to fail on warnings too.
@@ -229,10 +257,10 @@ That distinction is deliberate. If only two dev-practices posts cleared the cuto
 [`fixtures/`](fixtures) holds a frozen corpus and the briefing generated from it. To check whether an edit to `briefing-prompt.md` made things worse:
 
 ```bash
-python3 eval_briefing.py --corpus fixtures/corpus-2026-08-08.json --briefing your-new-output.md
+python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing your-new-output.md
 ```
 
-Run the agent against the frozen corpus, check the output, and diff it against [`fixtures/briefing-2026-08-08.md`](fixtures/briefing-2026-08-08.md). The frozen corpus is what makes this a controlled comparison — same input, so any difference is attributable to the prompt.
+Run the agent against the frozen corpus, check the output, and diff it against [`fixtures/briefing-2026-08-09.md`](fixtures/briefing-2026-08-09.md). The frozen corpus is what makes this a controlled comparison — same input, so any difference is attributable to the prompt.
 
 The reference briefing is a **regression baseline, not a golden answer**. Ranking is judgment, and a prompt change that reorders two topics isn't automatically a regression. What the baseline catches is the silent structural stuff: a dropped exclusion log, a collapsed sub-category, links drifting away from the corpus.
 
