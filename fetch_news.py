@@ -57,6 +57,23 @@ RSS_FEEDS = {
         ("The Hill", "https://thehill.com/homenews/feed/"),
         ("Axios", "https://api.axios.com/feed/"),
     ],
+    # The briefing needs 9 items a day here (4 slots plus a 5-entry exclusion
+    # log); these four measured 55 in a 24h window. So the fourth feed is
+    # redundancy, not volume — the category still clears 9 after losing any
+    # two. PBS files general headlines rather than US-domestic ones, so
+    # expect roughly two stories in ten to be world news.
+    #
+    # Feed URLs are disjoint from `us_politics` so no feed is fetched under two
+    # categories; the outlets are not, and are not meant to be (NPR files under
+    # both). A story reaching both categories stays in both — `dedupe` runs
+    # inside `prepare_category`, per category, and the once-per-briefing rule
+    # binds in the briefing, not here.
+    "us_news": [
+        ("CBS News US", "https://www.cbsnews.com/latest/rss/us"),
+        ("The Guardian US", "https://www.theguardian.com/us-news/rss"),
+        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+        ("NPR National", "https://feeds.npr.org/1003/rss.xml"),
+    ],
     "world": [
         ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
         ("NPR World", "https://feeds.npr.org/1004/rss.xml"),
@@ -530,7 +547,7 @@ def main() -> int:
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
         "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
-        "categories": {"us_politics": [], "world": [], "ai_tech": [], "dev_community": []},
+        "categories": {name: [] for name in corpus_schema.CATEGORIES},
         "processing": {},
         "errors": [],
     }

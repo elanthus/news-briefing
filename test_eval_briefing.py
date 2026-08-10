@@ -33,6 +33,7 @@ CORPUS = {
     "errors": [],
     "categories": {
         "us_politics": _items("p", 10),
+        "us_news": _items("n", 10),
         "world": _items("w", 10),
         "ai_tech": _items("a", 5),
         "dev_community": _items("t", 8) + _items("d", 8),
@@ -43,7 +44,7 @@ CORPUS["categories"]["dev_community"][0].update(
     discussion="https://news.ycombinator.com/item?id=1", points=40, comments=12)
 
 
-def briefing(politics=5, world=5, ai_news=4, tools=3, practices=3,
+def briefing(politics=3, us_news=4, world=5, ai_news=4, tools=3, practices=3,
              exclusions=5, health="", extra_link=None):
     """Build a briefing that satisfies the contract, with dials for breaking it."""
 
@@ -64,8 +65,9 @@ def briefing(politics=5, world=5, ai_news=4, tools=3, practices=3,
         return "\n".join(rows)
 
     parts = [
-        "# Daily Briefing — August 8, 2026",
+        "# Daily Briefing — August 9, 2026",
         "## US Politics", topics("Politics", politics, "p"),
+        "## US News", topics("US news", us_news, "n"),
         "## World Events", topics("World", world, "w"),
         "## AI/Tech",
         "**AI News (4 slots)**", topics("AI", ai_news, "a"),
@@ -73,7 +75,8 @@ def briefing(politics=5, world=5, ai_news=4, tools=3, practices=3,
         "**AI Dev Practices (3 slots)**", topics("Practices", practices, "d"),
         "---",
         "### Excluded Topics (accountability log)",
-        log("US Politics", "p", exclusions, 6),
+        log("US Politics", "p", exclusions, 4),
+        log("US News", "n", exclusions, 5),
         log("World Events", "w", exclusions, 6),
         log("AI Dev Tools", "t", exclusions, 4),
         log("AI Dev Practices", "d", exclusions, 4),
@@ -138,6 +141,14 @@ class SlotAllocationTest(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("AI News", messages[0])
 
+    def test_us_news_over_four_topics_is_an_error(self):
+        findings = evaluate(CORPUS, briefing(us_news=5))
+        self.assertIn("slots_overfilled", checks(findings, ERROR))
+
+    def test_us_politics_over_three_topics_is_an_error(self):
+        findings = evaluate(CORPUS, briefing(politics=4))
+        self.assertIn("slots_overfilled", checks(findings, ERROR))
+
 
 class StructureTest(unittest.TestCase):
     def test_missing_section_is_an_error(self):
@@ -151,18 +162,22 @@ class StructureTest(unittest.TestCase):
     def test_exclusion_subheaders_do_not_reopen_top_level_sections(self):
         """`**US Politics**` inside the log must not re-enter the real section."""
         sections = parse_briefing(briefing())
-        self.assertEqual(len(sections["US Politics"]["topics"]), 5)
-        self.assertEqual(len(sections["Excluded Topics"]["excluded"]), 4)
+        self.assertEqual(len(sections["US Politics"]["topics"]), 3)
+        self.assertEqual(len(sections["Excluded Topics"]["excluded"]), 5)
 
 
 class DoubleListingTest(unittest.TestCase):
     def test_story_in_both_briefing_and_exclusion_log_is_an_error(self):
-        text = briefing().replace("🔗 https://ex.com/p5", "🔗 https://ex.com/p6")
+        text = briefing().replace("🔗 https://ex.com/p3", "🔗 https://ex.com/p4")
         self.assertIn("included_and_excluded", checks(evaluate(CORPUS, text), ERROR))
 
-    def test_same_link_cited_twice_in_body_is_a_warning(self):
+    def test_same_link_cited_twice_in_body_is_an_error(self):
         text = briefing().replace("🔗 https://ex.com/w2", "🔗 https://ex.com/w1")
-        self.assertIn("repeated_link", checks(evaluate(CORPUS, text), WARN))
+        self.assertIn("repeated_topic", checks(evaluate(CORPUS, text), ERROR))
+
+    def test_a_story_reported_in_two_sections_is_an_error(self):
+        text = briefing().replace("🔗 https://ex.com/n1", "🔗 https://ex.com/p1")
+        self.assertIn("repeated_topic", checks(evaluate(CORPUS, text), ERROR))
 
 
 class EngagementSignalTest(unittest.TestCase):
@@ -259,8 +274,8 @@ class CommittedFixtureTest(unittest.TestCase):
     """The real regression guard: the shipped reference pair must stay consistent."""
 
     def test_reference_briefing_satisfies_its_corpus(self):
-        corpus = load_corpus("fixtures/corpus-2026-08-08.json")
-        with open("fixtures/briefing-2026-08-08.md") as f:
+        corpus = load_corpus("fixtures/corpus-2026-08-09.json")
+        with open("fixtures/briefing-2026-08-09.md") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
 
@@ -274,7 +289,7 @@ class CommittedFixtureTest(unittest.TestCase):
             if line.startswith(">")
         ).strip()
 
-        reference = Path("fixtures/briefing-2026-08-08.md").read_text()
+        reference = Path("fixtures/briefing-2026-08-09.md").read_text()
         comment_start = reference.index("<!--")
         comment_end = reference.index("-->", comment_start) + len("-->")
         expected = (
@@ -284,7 +299,7 @@ class CommittedFixtureTest(unittest.TestCase):
         ).strip()
         self.assertEqual(sample, expected, "README does not contain the full reference result")
 
-        corpus = load_corpus("fixtures/corpus-2026-08-08.json")
+        corpus = load_corpus("fixtures/corpus-2026-08-09.json")
         errors = [
             finding for finding in evaluate(corpus, sample)
             if finding.level == ERROR

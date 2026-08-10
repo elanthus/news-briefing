@@ -15,11 +15,13 @@ import tempfile
 import unittest
 import urllib.error
 import xml.etree.ElementTree as ET
+from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import corpus_schema
 import fetch_news
 from fetch_news import (
     DEFAULT_WINDOW_HOURS,
@@ -241,8 +243,8 @@ class ReferenceBriefingCoverageTest(unittest.TestCase):
     """
 
     def test_no_cited_item_would_be_filtered_out(self):
-        corpus = json.loads(Path("fixtures/corpus-2026-08-08.json").read_text())
-        briefing = Path("fixtures/briefing-2026-08-08.md").read_text()
+        corpus = json.loads(Path("fixtures/corpus-2026-08-09.json").read_text())
+        briefing = Path("fixtures/briefing-2026-08-09.md").read_text()
         cited = set(re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", briefing))
         dropped = [item["title"]
                    for items in corpus["categories"].values() for item in items
@@ -579,6 +581,27 @@ class HttpGetTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "response exceeded"):
                 fetch_news.http_get("https://example.com/feed")
         self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
+
+
+class FeedConfigurationTest(unittest.TestCase):
+    """The fetcher's categories must match the contract, or the corpus it
+    writes fails validation before it is ever read."""
+
+    def test_every_declared_category_has_a_source(self):
+        # `dev_community` is spelled out because HN and Reddit also feed it, so
+        # it stays sourced even if its one RSS entry goes away. Every other
+        # category has to earn its place in RSS_FEEDS.
+        sourced = set(fetch_news.RSS_FEEDS) | {"dev_community"}
+        self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
+
+    def test_no_feed_url_is_fetched_under_two_categories(self):
+        """The same feed under two categories duplicates every item it
+        carries, every run. Outlet overlap is a different thing and is
+        deliberate — NPR files under politics, national and world — and the
+        one-placement rule in the briefing is what resolves that.
+        """
+        urls = [url for feeds in fetch_news.RSS_FEEDS.values() for _, url in feeds]
+        self.assertEqual([u for u, n in Counter(urls).items() if n > 1], [])
 
 
 if __name__ == "__main__":

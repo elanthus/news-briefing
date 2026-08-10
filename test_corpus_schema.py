@@ -102,6 +102,18 @@ class TopLevelTest(unittest.TestCase):
 
 
 class CategoryTest(unittest.TestCase):
+    def test_us_news_is_a_declared_category(self):
+        """US News is a corpus category, not a model-side split of us_politics."""
+        self.assertIn("us_news", corpus_schema.CATEGORIES)
+
+    def test_a_corpus_without_us_news_is_reported(self):
+        """Mandatory, not optional: a fetcher shipped without it fails at write
+        time rather than quietly producing a briefing with a section missing."""
+        c = corpus()
+        del c["categories"]["us_news"]
+        del c["processing"]["us_news"]
+        self.assertTrue(only(validate_corpus(c), "categories should be exactly"))
+
     def test_unexpected_category_is_reported(self):
         c = corpus()
         c["categories"]["sports"] = []

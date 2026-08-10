@@ -1,0 +1,1180 @@
+{
+ "schema_version": 2,
+ "generated_at": "2026-08-10T00:34:03.929176+00:00",
+ "cutoff": "2026-08-09T00:34:03.929176+00:00",
+ "window_hours": 24,
+ "limits": {
+  "source_cap": 25,
+  "category_cap": 60
+ },
+ "categories": {
+  "us_politics": [
+   {
+    "title": "Sanders: 'Ban super PACs from Democratic primaries now'",
+    "url": "https://thehill.com/homenews/campaign/6019504-sanders-calls-ban-super-pac/",
+    "published": "2026-08-10T00:03:54+00:00",
+    "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday called for Democratic leaders to ban the involvement of super PACs in Democratic primary elections. Sanders's ask was part of a letter written to Senate Minority Leader Chuck Schumer (D-N.Y.), House Minority Leader Hakeem Jeffries (D-N.Y.) and Democratic Nationa",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump names Will Scharf as new White House counsel",
+    "url": "https://thehill.com/homenews/administration/6019523-trump-names-will-scharf-counsel/",
+    "published": "2026-08-09T23:12:18+00:00",
+    "summary": "President Trump named Will Scharf as his new White House counsel on Sunday, a shake-up in the key legal role.\u00a0 Scharf will assume the role on Sept. 1 and replace David Warrington, who has served since Trump\u2019s inauguration and is headed to the private sector, the president wrote on Truth Social.\u00a0 \u201cWi",
+    "source": "The Hill"
+   },
+   {
+    "title": "McCormick praises Fetterman\u2019s willingness to \u2018call out the craziness\u2019 in Democratic Party",
+    "url": "https://thehill.com/homenews/senate/6019447-mccormick-praises-fetterman-democrats/",
+    "published": "2026-08-09T22:35:37+00:00",
+    "summary": "Sen. Dave McCormick (R-Pa.) on Sunday praised his colleague Sen. John Fetterman (D-Pa.) for being willing to \"call out the craziness\" in the Democratic Party, referring to the change among voters in favoring more radical, progressive candidates over more mainstream incumbents. McCormick told \"The Ca",
+    "source": "The Hill"
+   },
+   {
+    "title": "Tim Scott says El-Sayed \u2018making it easier\u2019 for GOP",
+    "url": "https://thehill.com/homenews/campaign/6019458-scott-claims-el-sayed-helps-gop/",
+    "published": "2026-08-09T22:23:42+00:00",
+    "summary": "Sen. Tim Scott (R-S.C.), chairman of the National Republican Senatorial Committee, on Sunday said Michigan Democratic Senate candidate Abdul El-Sayed is making the midterm election \u201ceasier\u201d for the GOP.  \u201cI'm certain that Abdul El-Sayed is making it easier. Because he is inconsistent with Michigande",
+    "source": "The Hill"
+   },
+   {
+    "title": "Bernie's revolution gets a test run for 2028 in Michigan and Wisconsin",
+    "url": "https://www.axios.com/2026/08/09/democrats-populists-michigan-wisconsin-2028-test",
+    "published": "2026-08-09T21:50:06+00:00",
+    "summary": "LA CROSSE, Wis. \u2014 Progressive insurgents Francesca Hong and Abdul El-Sayed want to shake up the next race for the White House \u2014 a notion that will likely petrify many top Democrats.Why it matters: They aren't running for president \u2014 they're vying for statewide office this year in presidential battle",
+    "source": "Axios"
+   },
+   {
+    "title": "Pro-science group urges Mark Kelly to run for president in 2028",
+    "url": "https://www.axios.com/2026/08/09/group-promoting-science-urges-kelly-to-run-for-president",
+    "published": "2026-08-09T21:40:09+00:00",
+    "summary": "A liberal group working to elect scientists to public office has a 2028 message for Arizona Sen. \u2014 and former astronaut \u2014 Mark Kelly: Run, Kelly, run.Why it matters: 314 Action Fund has raised its profile this cycle, elevating candidates with STEM backgrounds who've pitched themselves as a bulwark a",
+    "source": "Axios"
+   },
+   {
+    "title": "Florida House candidate calls out Carville: 'foolhardy to be exclusive' to democratic socialists",
+    "url": "https://thehill.com/homenews/campaign/6019386-larkin-slams-carville-jones/",
+    "published": "2026-08-09T21:22:55+00:00",
+    "summary": "Florida House candidate Oliver Larkin (D) on Sunday called out Democratic strategist James Carville's remarks against the Democratic Party opening up to more progressive and democratic socialist voices, saying it would be \"foolhardy to be exclusive\" to those candidates. Larkin lambasted Carville and",
+    "source": "The Hill"
+   },
+   {
+    "title": "Senate leaves\u00a0town without voting on crypto bill, dimming its chances of passing",
+    "url": "https://thehill.com/policy/technology/6017968-senate-clarity-act-crypto-bill/",
+    "published": "2026-08-09T21:00:00+00:00",
+    "summary": "The Senate left town for August recess over the weekend without voting on a cryptocurrency regulation bill, markedly dimming the measure\u2019s chances of passing before the midterm elections.   The crypto industry is remaining hopeful that the Clarity Act, which would create a regulatory framework for t",
+    "source": "The Hill"
+   },
+   {
+    "title": "This week on the Hill: Minnesota, Wisconsin to hold key primary races",
+    "url": "https://thehill.com/newsletters/this-week-on-the-hill/6018937-minnesota-wisconsin-south-carolina-primaries-max-miller/",
+    "published": "2026-08-09T21:00:00+00:00",
+    "summary": "With Congress out for August recess, attention is shifting away from Capitol Hill and onto the campaign trail as voters head to the polls in a number of high-profile primaries that will help shape the 2026 midterm landscape.\u00a0 The marquee contest this week is Wisconsin\u2019s Democratic primary to replace",
+    "source": "The Hill"
+   },
+   {
+    "title": "Murphy says Israel \u2018not aligned\u2019 with U.S. national security objectives",
+    "url": "https://thehill.com/homenews/senate/6019377-murphy-israel-us-not-aligned/",
+    "published": "2026-08-09T20:41:27+00:00",
+    "summary": "Sen. Chris Murphy (D-Conn.) on Sunday said Israel is \u201cnot aligned\u201d with U.S. national security objectives, citing their actions in the Gaza strip and discourse amid the war in Iran.  \u201cI want there to be a strong U.S.-Israel relationship. I support Israel. I cannot support this government's actions. ",
+    "source": "The Hill"
+   },
+   {
+    "title": "Florida attorney general says state doing 'everything in our power to seek truth' amid Fauci probe",
+    "url": "https://thehill.com/homenews/state-watch/6019305-florida-investigates-fauci-pandemic-actions/",
+    "published": "2026-08-09T20:34:15+00:00",
+    "summary": "Florida Attorney General James Uthmeier on Sunday said his state is doing \"everything in our power to seek truth\" amid its probe into former chief White House medical adviser Dr. Anthony Fauci. During an appearance on \"Sunday Morning Futures,\" Uthmeier told Fox News's Maria Bartiromo about his inves",
+    "source": "The Hill"
+   },
+   {
+    "title": "Sanders says Minnesota Senate race between progressive and moderate will be 'tight'",
+    "url": "https://thehill.com/homenews/campaign/6019297-sanders-predicts-tight-minnesota-primary/",
+    "published": "2026-08-09T20:16:55+00:00",
+    "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday said he believes the Democratic Senate primary in Minnesota between Lt. Gov. Peggy Flanagan (D), a progressive, and Rep. Angie Craig (D), a moderate, will be \u201ctight.\u201d \u201cI think it's going to be a tight race. I hope very much that Peggy wins. I think what we're se",
+    "source": "The Hill"
+   },
+   {
+    "title": "5 things to know about Alexandria Ocasio-Cortez's Sunday interview",
+    "url": "https://thehill.com/homenews/house/6019248-aoc-abc-this-week-interview/",
+    "published": "2026-08-09T20:02:05+00:00",
+    "summary": "Rep. Alexandria Ocasio-Cortez (D-N.Y.) appeared on her first Sunday show interview in a little more than two and a half years to discuss the country\u2019s political climate ahead of midterm elections.\u00a0 The 36-year-old lawmaker reflected on a wide range of topics including a potential White House run, th",
+    "source": "The Hill"
+   },
+   {
+    "title": "RNC chair predicts GOP retains House, Senate control after midterms",
+    "url": "https://thehill.com/homenews/campaign/6019233-rnc-predicts-congress-majorities/",
+    "published": "2026-08-09T19:28:27+00:00",
+    "summary": "Joe Gruters, chair of the Republican National Committee's (RNC), on Sunday predicted that Republicans will maintain their control over both chambers of Congress after the midterm elections this fall. \"Here's the bottom line. Go to Cook Political Report. We start at 212 likely seats. There's 18 toss-",
+    "source": "The Hill"
+   },
+   {
+    "title": "El-Sayed blasts Trump over 'Two VERY DIFFERENT America\u2019s' post",
+    "url": "https://thehill.com/homenews/campaign/6019203-el-sayed-responds-trump-truth-social/",
+    "published": "2026-08-09T18:15:43+00:00",
+    "summary": "Michigan Democratic Senate candidate Abdul El-Sayed on Sunday took a swipe at President Trump over a post the president made targeting El-Sayed and his wife. On Saturday, Trump posted to Truth Social a photo of himself and first lady Melania Trump with the caption \"Donald J. Trump,\" alongside a phot",
+    "source": "The Hill"
+   },
+   {
+    "title": "GOP senator calls Max Miller allegations \u2018deeply troubling\u2019",
+    "url": "https://thehill.com/homenews/senate/6019150-jim-banks-max-miller-allegations/",
+    "published": "2026-08-09T17:03:44+00:00",
+    "summary": "Sen. Jim Banks (R-Ind.) on Sunday said allegations against GOP Rep. Max Miller (Ohio) are \u201cdeeply troubling\u201d and said the lawmaker should ultimately resign if the accusations of abuse raised against him are true. \u201cI live in Indiana. This is a race in northern Ohio and the other part of the state. I ",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump to Axios: \"We are low keying it\" with Iran",
+    "url": "https://www.axios.com/2026/08/09/trump-iran-interview",
+    "published": "2026-08-09T16:55:12+00:00",
+    "summary": "President Trump signaled on Sunday that he's prepared to allow economic pressure on Iran to mount \u2014 as opposed to ordering a new military offensive \u2014 even as the country continues to defy the U.S.Why it matters: Only a week ago, Trump was on the verge of ordering a return to major combat operations.",
+    "source": "Axios"
+   },
+   {
+    "title": "Former Defense secretary says Iran \u2018emboldened\u2019 by conflict, ignoring Trump threats",
+    "url": "https://thehill.com/homenews/administration/6019115-esper-iran-emboldened-conflict/",
+    "published": "2026-08-09T16:04:39+00:00",
+    "summary": "Former Defense Secretary Mark Esper on Sunday said Iran is being \u201cemboldened\u201d by the ongoing conflict in the region as President Trump keeps reneging on large-scale threats involving attacks on Tehran.\u00a0 \u201cClearly the Iranians have figured this out. They are not reacting to these threats, and they are",
+    "source": "The Hill"
+   },
+   {
+    "title": "Wisconsin\u2019s Dem establishment is scrambling to stop a democratic socialist Tuesday",
+    "url": "https://www.politico.com/news/2026/08/09/wisconsin-governor-race-hong-crowley-electability-01030198",
+    "published": "2026-08-09T15:02:13+00:00",
+    "summary": "Francesca Hong says she can appeal to a wide coalition in November. Her detractors worry the democratic socialist will lose the crucial battleground race.",
+    "source": "Politico"
+   },
+   {
+    "title": "Will Darline Graham face the same fate Pamela Evette did in South Carolina?",
+    "url": "https://www.politico.com/news/2026/08/09/south-carolina-senate-darline-graham-trump-01029927",
+    "published": "2026-08-09T15:00:00+00:00",
+    "summary": "The special Senate primary is giving some local Republicans flashbacks to their heated governor\u2019s race earlier this year.",
+    "source": "Politico"
+   },
+   {
+    "title": "AOC is keeping two very big options open for 2028",
+    "url": "https://www.axios.com/2026/08/09/aoc-2028-president-schumer-senate",
+    "published": "2026-08-09T14:25:31+00:00",
+    "summary": "Rep. Alexandria Ocasio-Cortez (D-N.Y.) left the door open Sunday to either running for president in 2028 or challenging fellow New Yorker and Senate Democratic leader Chuck Schumer.Why it matters: Ocasio-Cortez is emerging as a leading potential heir to the movement built by Sen. Bernie Sanders (I-V",
+    "source": "Axios"
+   },
+   {
+    "title": "Max Miller is refusing to drop his bid for reelection. Here's what voters think",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5925302/max-miller-is-refusing-to-drop-his-bid-for-reelection-heres-what-voters-think",
+    "published": "2026-08-09T13:08:23+00:00",
+    "summary": "Voters in Ohio's 7th Congressional district react to calls for Rep. Max Miller to drop his bid for reelection. He ran uncontested in the May 5 GOP primary. The Democratic nominee is Brian Poindexter.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Haunted by Hoover, Trump searches for an endgame in Iran",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5925960/trump-hoover-iran",
+    "published": "2026-08-09T12:39:47+00:00",
+    "summary": "President Trump is confronting a question that has haunted presidents throughout history: how a war - that has gone on longer than predicted - can reshape a presidency.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Politics chat: Progressive candidates in primaries, Trump's influence on midterms",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5925106/politics-chat-progressive-candidates-in-primaries-trumps-influence-on-midterms",
+    "published": "2026-08-09T12:12:20+00:00",
+    "summary": "Republicans are trying to hang fringe positions on Democrats but may not be able to withstand the economic headwinds in November's midterms.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Montana's Democratic candidate is facing pressure to drop out by the deadline",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5922215/montanas-democratic-candidate-is-facing-pressure-to-drop-out-by-the-deadline",
+    "published": "2026-08-09T12:12:17+00:00",
+    "summary": "Monday, Aug. 10, is the deadline to remove names from Montana's ballot. The Democrat in the Senate race there is being pressured to drop out to clear the field for an independent.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "There's a birth control backlash online. Can it explain the rise in abortions?",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5887615/abortion-rate-birth-control-pills-roe-v-wade",
+    "published": "2026-08-09T12:12:15+00:00",
+    "summary": "The number of abortions is up in the United States. Is it because fewer people are using birth control pills?",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "GOP may be stuck with Rep. Max Miller in Ohio",
+    "url": "https://www.axios.com/2026/08/09/ohio-gop-max-miller-7th-district-moreno-2026",
+    "published": "2026-08-09T06:43:03+00:00",
+    "summary": "Rep. Max Miller appeared to let a crucial Saturday withdrawal cutoff pass in Ohio's 7th Congressional District, effectively closing Republicans' last practical window to replace the embattled incumbent on the November ballot.Why it matters: A district that favors Republicans has suddenly become a po",
+    "source": "Axios"
+   }
+  ],
+  "us_news": [
+   {
+    "title": "Mother, 5-month-old die in New York Harbor after boat capsized; Captain arrested",
+    "url": "https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/",
+    "published": "2026-08-10T00:24:49+00:00",
+    "summary": "A 46-year-old man was arrested on reckless endangerment charges, and authorities are investigating whether the boat was an illegal charter.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Don Nelson, former NBA coach and 5-time champion as a player, dies at 86",
+    "url": "https://www.cbsnews.com/news/don-nelson-nba-coach-champion-die/",
+    "published": "2026-08-10T00:23:59+00:00",
+    "summary": "Don Nelson was one of two coaches in NBA history to have at least 250 wins with three different franchises \u2014 Milwaukee, Dallas and Golden State.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Trump appoints staff secretary Will Scharf as new White House counsel",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/trump-will-scharf-white-house-counsel",
+    "published": "2026-08-09T22:28:31+00:00",
+    "summary": "Scharf, who helped president win approval for $400m ballroom, to replace David Warrington on 1 SeptemberDonald Trump announced on Sunday that \u2060Will \u200bScharf, the staff secretary who helped secure approval for the $400m White House ballroom project, will become \u2060White House counsel and assistant to th",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Alexandria Ocasio-Cortez announces decision to freeze her eggs",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/alexandria-ocasio-cortez-eggs-fertility",
+    "published": "2026-08-09T22:06:49+00:00",
+    "summary": "US congresswoman to share journey online as she criticizes Trump administration\u2019s attacks on reproductive careAlexandria Ocasio-Cortez has announced she is going to freeze her eggs and will be sharing the process online.The progressive New York congresswoman, 36, revealed her decision to undergo fer",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "How to spot the Perseid meteor shower, a summer light show that promises to dazzle",
+    "url": "https://www.pbs.org/newshour/science/how-to-spot-the-perseid-meteor-shower-a-summer-light-show-that-promises-to-dazzle",
+    "published": "2026-08-09T22:05:27+00:00",
+    "summary": "The meteor shower's peak Wednesday night into Thursday morning coincides with a total solar eclipse across Spain, Iceland and Greenland and a six-planet parade \u2014 though the best time to view the fireballs will come after totality.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Crews battle wildfires in western U.S. and Canada",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5926463/western-us-wildfires-canada-utah",
+    "published": "2026-08-09T22:03:09+00:00",
+    "summary": "There have been 183 new wildfires, including eight large ones, across the U.S. since Saturday, the National Interagency Fire Center reported on Sunday.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Watchdog for $46 billion tribal gambling industry can't enforce the law without a chairperson",
+    "url": "https://www.pbs.org/newshour/nation/watchdog-for-46-billion-tribal-gambling-industry-cant-enforce-the-law-without-a-chairperson",
+    "published": "2026-08-09T21:32:55+00:00",
+    "summary": "Tribal gambling brought in a record $46 billion in 2025, nearly triple the annual casino revenue of gambling powerhouse Nevada.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Nearly 30 years after Tupac's death, the trial over his murder will finally begin",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5924034/nearly-30-years-after-tupacs-death-the-trial-over-his-murder-will-finally-begin",
+    "published": "2026-08-09T21:27:16+00:00",
+    "summary": "For decades the mystery of who killed Tupac Shakur plagued the public. In 2023, police charged Duane Davis, also known as \"Keefe D,\" with organizing Shakur's murder. The trial begins Monday.",
+    "source": "NPR National"
+   },
+   {
+    "title": "'Not a drop': Anger grows as Puerto Rico begins rationing water",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water",
+    "published": "2026-08-09T21:27:12+00:00",
+    "summary": "Puerto Rico's government began cutting water service to people's homes this week, amid a severe drought that's exposing major weaknesses in the island's water delivery infrastructure.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Full transcript of \"Face the Nation with Margaret Brennan,\" July 19, 2026",
+    "url": "https://www.cbsnews.com/news/face-the-nation-full-transcript-08-09-2026/",
+    "published": "2026-08-09T19:42:43+00:00",
+    "summary": "On this \"Face the Nation with Margaret Brennan\" broadcast, Sens. Bill Cassidy and Bernie Sanders join Margaret Brennan.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Bhattacharya says \"I trust the science\" on childhood vaccines",
+    "url": "https://www.cbsnews.com/news/jay-bhattacharya-vaccines-rfk-jr/",
+    "published": "2026-08-09T19:41:00+00:00",
+    "summary": "Dr. Jay Bhattacharya, director of the National Institutes of Health, said \"I trust the science\" on vaccines as measles cases have risen to their highest levels in 35 years.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Zuckerberg faces questions over why superyacht reportedly declined to help stranded boat",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/zuckerberg-superyacht-boat-alaska",
+    "published": "2026-08-09T19:06:23+00:00",
+    "summary": "Small cruise ship rescued skiff in south-east Alaska even though Meta billionaire\u2019s $300m megayacht was closerMark Zuckerberg has faced questions over why a small cruise ship in south-east Alaska rescued a stranded skiff and its crew when his 387ft superyacht had been closer.The Silicon Valley billi",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Don Nelson, legendary coach and five-time NBA champion as player, dies at 86",
+    "url": "https://www.theguardian.com/sport/2026/aug/09/don-nelson-legendary-coach-and-five-time-nba-champion-as-player-dies-at-86",
+    "published": "2026-08-09T19:01:36+00:00",
+    "summary": "Nelson had second-most coaching wins in NBA historyWon five titles with Boston Celtics in 1960s and 70sHelped develop stars Steph Curry and Dirk NowitzkiDon Nelson, the second-winningest coach in NBA history who won five championships as a player with the Boston Celtics, died on Sunday. He was 86.\u201cO",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "El-Sayed spoke with Obama as Michigan Democrats look to unite after a bitter Senate primary",
+    "url": "https://www.pbs.org/newshour/politics/el-sayed-spoke-with-obama-as-michigan-democrats-look-to-unite-after-a-bitter-senate-primary",
+    "published": "2026-08-09T18:54:24+00:00",
+    "summary": "\"I was grateful for his advice. It was very warm, very inviting, and I know that he knows the critical role that Michigan is going to play,\" El-Sayed told NBC's \"Meet the Press.\"",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Climate change may be making us lonelier. How heat waves and extreme weather disrupt social connections",
+    "url": "https://www.pbs.org/newshour/health/climate-change-may-be-making-us-lonelier-how-heat-waves-and-extreme-weather-disrupt-social-connections",
+    "published": "2026-08-09T18:23:55+00:00",
+    "summary": "As extreme weather becomes more common and disruptive, the effects can impair relationships, interrupt routines and communication, and damage gathering places and the foundations of community traditions.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Lake Mead plummets to historic low water level as Colorado River struggles",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/lake-mead-record-low-water-level-colorado-river",
+    "published": "2026-08-09T18:05:38+00:00",
+    "summary": "Levels at reservoir along Arizona-Nevada border dipped below previous record set in 2022, amid water crisis in westLake Mead, the largest reservoir in the United States, has plummeted to its lowest water level since it was filled some 90 years ago, the latest sign of a deepening water crisis in the ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Israel rejects Trump's Gaza plan, more details emerge on the Strait of Hormuz and other Mideast news",
+    "url": "https://www.pbs.org/newshour/world/israel-rejects-trumps-gaza-plan-more-details-emerge-on-the-strait-of-hormuz-and-other-mideast-news",
+    "published": "2026-08-09T17:55:18+00:00",
+    "summary": "Here's a look at developments across the Middle East.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Sen. Bill Cassidy says his decision to confirm Todd Blanche wasn't \"black or white\"",
+    "url": "https://www.cbsnews.com/news/bill-cassidy-interview-todd-blanche-vote/",
+    "published": "2026-08-09T17:49:07+00:00",
+    "summary": "\"If you're looking for a black or white decision here, you're not going to find it,\" GOP Sen. Bill Cassidy said about his decision to support Todd Blanche's nomination for attorney general.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Health officials urge caution for Gulf Coast beachgoers during surge of deadly bacterial infections",
+    "url": "https://www.pbs.org/newshour/health/health-officials-urge-caution-for-gulf-coast-beachgoers-during-surge-of-deadly-bacterial-infections",
+    "published": "2026-08-09T17:35:21+00:00",
+    "summary": "Louisiana has confirmed nine cases of Vibrio vulnificus infections this year, the state's health department said last week in a news release. All were hospitalized, and five died.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Abdul El-Sayed embraces Trump claim he represents \u2018very different\u2019 America",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/abdul-el-sayed-michigan-senate-trump",
+    "published": "2026-08-09T17:22:17+00:00",
+    "summary": "Michigan nominee, who spoke to Obama after primary win, vows to fight inequality as president \u2018makes billions off you\u2019Abdul El-Sayed, the Democratic nominee for US Senate in Michigan, embraced Donald Trump\u2019s suggestion that the two represent \u201cVERY DIFFERENT\u201d versions of the US, pledging to fight ine",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump's immigration crackdown looms over Minnesota's bruising Senate primary",
+    "url": "https://www.pbs.org/newshour/politics/trumps-immigration-crackdown-looms-over-minnesotas-bruising-senate-primary",
+    "published": "2026-08-09T17:18:47+00:00",
+    "summary": "Months later, confrontations between immigration agents and protestors in Minneapolis remain the backdrop to Minnesota's Democratic primary for U.S. Senate on Tuesday, which features establishment-backed U.S. Rep. Angie Craig and the more progressive Lt. Gov. Peggy Flanagan.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Sanders calls on Democrat leaders to ban \"corrupt\" super PAC donations",
+    "url": "https://www.cbsnews.com/news/bernie-sanders-super-pac-funding-letter-schumer-jeffries-martin/",
+    "published": "2026-08-09T16:50:10+00:00",
+    "summary": "Sen. Bernie Sanders highlighted the hundreds of millions of dollars spent by outside organizations during the 2026 midterm cycle.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "This week on \"Sunday Morning\" (Aug. 9)",
+    "url": "https://www.cbsnews.com/news/this-week-on-sunday-morning-aug-9-2026/",
+    "published": "2026-08-09T16:30:25+00:00",
+    "summary": "A look at the features for this week's broadcast of the Emmy-winning program, hosted by Jane Pauley.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Pilots of helicopter that crashed while fighting wildfire in Utah are dead, officials say",
+    "url": "https://www.pbs.org/newshour/nation/pilots-of-helicopter-that-crashed-while-fighting-wildfire-in-utah-are-dead-officials-say",
+    "published": "2026-08-09T15:47:23+00:00",
+    "summary": "The pilots were killed when their Sikorsky Skycrane helicopter went down Friday morning, according to the Sevier County Sheriff.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Joe Biden's prostate cancer has spread and is causing him pain, Hunter Biden says",
+    "url": "https://www.pbs.org/newshour/politics/joe-bidens-prostate-cancer-has-spread-and-is-causing-him-pain-hunter-biden-says",
+    "published": "2026-08-09T15:32:05+00:00",
+    "summary": "In a wide-ranging interview with the BBC broadcast late on Friday, Hunter Biden grew emotional as he discussed his father's condition, describing it as very sad to watch.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Pakistan says new defense pact with Saudi Arabia and Turkey is 'purely defensive' and open to others",
+    "url": "https://www.pbs.org/newshour/world/pakistan-says-new-defense-pact-with-saudi-arabia-and-turkey-is-purely-defensive-and-open-to-others",
+    "published": "2026-08-09T15:20:38+00:00",
+    "summary": "The landmark Mecca Joint Defense Agreement was signed on Friday as the three countries seek to deepen security cooperation amid heightened tensions between the United States and Iran.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "How clean air clubs are protecting Americans from wildfire smoke",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/us-wildfire-smoke-clean-air-clubs",
+    "published": "2026-08-09T15:00:20+00:00",
+    "summary": "Mutual aid groups that started giving out PPEs during Covid are now loaning air purifiers and distributing masks to fume-addled communitiesMiquette Thompson\u2019s home in rural Mendocino county has been covered in smoke all week. There are the nearby Feliz and Woodside fires in northern California, whic",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Captain charged after woman and her five-month-old die in New York boat capsizing",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/man-charged-new-york-harbor-boat-capsized-deaths",
+    "published": "2026-08-09T14:47:37+00:00",
+    "summary": "Manuel Hernandez charged with 13 counts of reckless endangerment after boat overturned in New York harborThe captain of a boat that capsized in the New York harbor on Saturday evening has been charged following the deaths of a 27-year-old woman and her five-month-old daughter.Manuel Hernandez, 46, w",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Taylor Swift songs removed from Trump and White House\u2019s social media posts",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/taylor-swift-songs-removed-trump-white-house-posts",
+    "published": "2026-08-09T14:33:46+00:00",
+    "summary": "Rage-baiting efforts of Trump accounts silenced after posts such as a video linking her Red album to RepublicansSome of Taylor Swift\u2019s songs have been removed from videos posted on social media by Donald Trump\u2019s campaign and the White House, silencing efforts to mock the pop star.A video posted 3 Au",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Nature: Otters in California",
+    "url": "https://www.cbsnews.com/video/nature-otters-in-california/",
+    "published": "2026-08-09T14:30:11+00:00",
+    "summary": "We leave you this Sunday morning among river otters frolicking at Point Reyes National Seashore in Marin County, Calif. Videographer: Lee McEachern.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "8/9: Face The Nation",
+    "url": "https://www.cbsnews.com/video/080926-face-the-nation/",
+    "published": "2026-08-09T14:30:00+00:00",
+    "summary": "This week on \"Face the Nation with Margaret Brennan,\" Sen. Bill Cassidy joins to discuss his pivotal vote to confirm Todd Blanche as attorney general. Plus, Sen. Bernie Sanders and National Institutes of Health Director Dr. Jay Bhattacharya join.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "How THC tests have landed new mothers onto child abuse registries",
+    "url": "https://www.cbsnews.com/news/thc-tests-land-new-mothers-onto-child-abuse-registries/",
+    "published": "2026-08-09T14:08:55+00:00",
+    "summary": "In Idaho, new mothers have ended up on a child abuse registry after testing positive for THC \u2013 a chemical found in marijuana. An investigation raises hard questions about who gets punished, and who doesn't.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Moderate Democrat Ed Case defies progressive challenge in Hawaii primary",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/ed-case-wins-hawaii-house-primary-election-democrats",
+    "published": "2026-08-09T14:00:35+00:00",
+    "summary": "Case, who has represented island state\u2019s first district in US Congress since 2019, beat state senator Jarrett KeohokaloleThe moderate Democratic representative Ed Case has seen off a progressive challenge to retain his party\u2019s nomination for the US House of Representatives election in Hawaii\u2019s first",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The bond between dog and duck",
+    "url": "https://www.cbsnews.com/video/the-bond-between-dog-and-duck/",
+    "published": "2026-08-09T14:00:17+00:00",
+    "summary": "Barley, the golden retriever, lost her spunk once she started taking medication. But when Justin and Tori Cannarelli, of New York, brought Louie, a duckling, home for a short visit, the bird and the dog immediately bonded \u2013 and Barley was once again good as gold. Steve Hartman reports on a healing f",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Passage: Remembering Jeanne Gibson, a.k.a. \"Rosie the Riveter\"",
+    "url": "https://www.cbsnews.com/video/passage-remembering-jeanne-gibson-a-k-a-rosie-the-riveter/",
+    "published": "2026-08-09T13:40:17+00:00",
+    "summary": "Jeanne Gibson, who at age 18 joined the war effort by becoming a \"Rosie the Riveter\" to help build Navy destroyers as a welder, died July 29, 2026 at age 100. Seth Doane looks back on the life of a woman who stepped up during World War II. Gibson later earned a Ph.D. and worked as an educator, while",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Visiting the Iowa 80 Truckstop, the world's largest",
+    "url": "https://www.cbsnews.com/video/visiting-the-iowa-80-truckstop-the-worlds-largest/",
+    "published": "2026-08-09T13:35:17+00:00",
+    "summary": "The Iowa 80 Truckstop, on Interstate 80, claims to be the world's largest truck stop \u2013 and who would argue? Luke Burbank pulls up to the Walcott, Iowa truck stop larger than 150 football fields, catering to those who keep America moving, which features everything from 24-hour restaurants and mainten",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Dog Days of Summer",
+    "url": "https://www.cbsnews.com/video/dog-days-of-summer/",
+    "published": "2026-08-09T13:28:20+00:00",
+    "summary": "How did the \"dog days of summer\" get their name?",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Protecting the Venus fly trap",
+    "url": "https://www.cbsnews.com/video/protecting-the-venus-fly-trap/",
+    "published": "2026-08-09T13:24:05+00:00",
+    "summary": "The carnivorous Venus fly trap is native to the Carolinas, but its population is dwindling due to loss of habitat. Correspondent Seth Doane talks with botanist Julie Moore, who has spent much of her life helping to save these remarkable plants; and with Damon Waitt, director of the North Carolina Bo",
+    "source": "CBS News US"
+   },
+   {
+    "title": "An LA neighborhood deals with the fallout from a fire at a food storage facility",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5922552/an-la-neighborhood-deals-with-the-fallout-from-a-fire-at-a-food-storage-facility",
+    "published": "2026-08-09T13:20:28+00:00",
+    "summary": "NPR's Ayesha Rascoe speaks with business owner Christian Llamas of the Boyle Heights neighborhood in Los Angeles about the fallout from a refrigerated warehouse fire in June.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Rescuing a candlepin bowling alley helps bolster a Maine community",
+    "url": "https://www.cbsnews.com/news/rescuing-a-candlepin-bowling-alley-helps-bolster-a-maine-community/",
+    "published": "2026-08-09T13:15:31+00:00",
+    "summary": "Autumn Mowery was 18 when she took over a candlepin bowling alley threatened with the wrecking ball, challenging herself to maintain a pillar of the community.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "8/9: Sunday Morning",
+    "url": "https://www.cbsnews.com/video/080926-sunday-morning/",
+    "published": "2026-08-09T13:00:00+00:00",
+    "summary": "Hosted by Seth Doane. Featured: Saving a candlepin bowling alley; THC tests jeopardize young mothers; writer Gay Talese; actor Tim Curry; protecting the habitat of Venus fly traps; and the world's largest truck stop.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Top Democrats simulate election threats as Trump continues assault on voting",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/democrats-election-disruption-planning-exercises",
+    "published": "2026-08-09T12:00:14+00:00",
+    "summary": "Chuck Schumer and other senators took part in exercises in which legal experts laid out election disruption scenariosIn a Washington DC conference room last month, some of the most senior Democrats in the US Senate gathered to plan for a prospect that only recently would have felt more akin to scien",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Winning Powerball numbers drawn for $863 million jackpot",
+    "url": "https://www.cbsnews.com/news/powerball-856-million-largest-drawing-of-the-year/",
+    "published": "2026-08-09T11:13:03+00:00",
+    "summary": "The total is also the eighth-largest Powerball jackpot in the game's history.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "The Democratic party needs to do more than represent wealthy progressives | Dustin Guastella",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/09/democrats-class-wealth-gap",
+    "published": "2026-08-09T10:00:12+00:00",
+    "summary": "New research shows that a class gap on the left threatens any winning coalition \u2013 but there are ways to address itDebates on the left are typically framed as a division between moderates and progressives, with the two sides wrestling over how best to form a governing coalition. Yet, in many ways, th",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "AI push is putting banks at mercy of tech firms, warns Moody\u2019s",
+    "url": "https://www.theguardian.com/business/2026/aug/09/ai-push-banks-tech-firms-moodys-risks-financial-sector",
+    "published": "2026-08-09T09:00:10+00:00",
+    "summary": "Finance sector will gain from the tech but it will need substantial investment and create risks, says rating agencyThe rating agency Moody\u2019s has said the race to adopt AI is putting big banks at the mercy of a small group of Silicon Valley firms, leaving them vulnerable to widespread outages and pri",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Woman learns man who attacked her killed a young mother years later",
+    "url": "https://www.cbsnews.com/news/cc-opanowski-lori-leonard-shawn-doyle-new-york-ex-boyfriend-murder-48-hours/",
+    "published": "2026-08-09T06:27:08+00:00",
+    "summary": "When C.C. Opanowski of Hudson Falls, New York, was a teenager, she survived a terrifying attack at the hands of her ex-boyfriend, Shawn Doyle. Years later, he would kill Lori Leonard, a mother of two young sons in Chittenango, New York.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Survivor's testimony key in helping convict ex-boyfriend of murder",
+    "url": "https://www.cbsnews.com/news/lori-ann-leonard-shawn-doyle-new-york-murder-survivor-testimony-48-hours/",
+    "published": "2026-08-09T05:00:06+00:00",
+    "summary": "C.C. Opanowski says it's still difficult to process the fact that a person she once loved was convicted of murder. She hopes that others can learn from her story.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Fred Richard coasts to first national title at US gymnastics championships",
+    "url": "https://www.theguardian.com/sport/2026/aug/09/frederick-richard-us-gymnastics-all-around-title",
+    "published": "2026-08-09T04:10:16+00:00",
+    "summary": "22-year-old finishes two points clear of Shane WiskusParis bronze medalist rebounds from difficult 2025Nedoroscik falters as Hoopes wins pommel horse goldFrederick Richard won his first US men\u2019s gymnastics all-around title Saturday night, flashing the form he believes can make him a contender at the",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Some meat products with jalape\u00f1os may be linked to salmonella outbreak, USDA says",
+    "url": "https://www.cbsnews.com/news/salmonella-outbreak-jalapenos-usda-health-alert-meat-products/",
+    "published": "2026-08-09T03:37:59+00:00",
+    "summary": "Federal officials issued a public health alert for meat products containing jalape\u00f1os that may be linked to a salmonella outbreak that has sickened hundreds of people across at least 27 states.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Family of murdered photographer wonders if his killer acted alone",
+    "url": "https://www.cbsnews.com/news/joe-shymanski-maryland-murder-brandon-holbrook-trial-heather-snyder-interview-48-hours/",
+    "published": "2026-08-09T02:59:14+00:00",
+    "summary": "Joe Shymanski, a, well-known Washington D.C. photographer, was murdered and dismembered in 2023. His ex-wife's former boyfriend, Brandon Holbrook, was convicted in the case. Shymanski's family still wonders if anyone else was involved.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Haitian pregnant woman in Florida fears deportation as TPS ends",
+    "url": "https://www.cbsnews.com/news/haitian-pregnant-woman-florida-tps-deportation/",
+    "published": "2026-08-09T01:34:36+00:00",
+    "summary": "A 29-year-old expectant mother is in hiding, concerned that she will be deported at any moment after the Trump administration ended the Temporary Protected Status program for hundreds of thousands of Haitian migrants.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Hunter Biden says his father's cancer has spread",
+    "url": "https://www.cbsnews.com/news/joe-biden-cancer-has-spread-hunter-biden-says/",
+    "published": "2026-08-09T01:19:45+00:00",
+    "summary": "In a wide-ranging interview with the CBS News partner BBC News, Hunter Biden grew emotional as he discussed his father's condition, describing it as very sad to watch.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Solar eclipse to occur next week. Here is what to know",
+    "url": "https://www.npr.org/2026/08/08/nx-s1-5925939/solar-eclipse-august-2026",
+    "published": "2026-08-09T00:56:21+00:00",
+    "summary": "It will be visible in parts of the U.S. on Wednesday.",
+    "source": "NPR National"
+   }
+  ],
+  "world": [
+   {
+    "title": "Houthis renew missile and drone attacks on Yemen\u2019s port of al-Makha",
+    "url": "https://www.aljazeera.com/news/2026/8/10/houthis-renew-missile-and-drone-attacks-on-yemens-port-of-al-makha?traffic_source=rss",
+    "published": "2026-08-10T00:19:43+00:00",
+    "summary": "The latest Houthi attacks come less than 24 hours after an earlier barrage struck al-Makha (Mocha) and its commercial port.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Residents warned to brace for the worst as Canada wildfire rages out of control",
+    "url": "https://www.bbc.co.uk/news/articles/cx25dkwk3e3o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T00:17:46+00:00",
+    "summary": "The Bald Range wildfire in British Columbia, still considered \"out of control\", has spread over 53 sq miles (136 sq km).",
+    "source": "BBC World"
+   },
+   {
+    "title": "Iran war live: US \u2018semi-negotiating\u2019 with Tehran; Israel rejects Gaza plan",
+    "url": "https://www.aljazeera.com/news/liveblog/2026/8/10/iran-war-live-us-semi-negotiating-with-tehran-israel-rejects-gaza-plan?traffic_source=rss",
+    "published": "2026-08-10T00:00:00+00:00",
+    "summary": "Trump says US will wait for economic pressure to mount on Iran, as Israel formally rejects 15-point Gaza peace plan.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "F-16s intercept two aircraft near Trump\u2019s New Jersey golf club",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/aje-onl-nf_f-16s-intercept-two-aircraft-near-trump-golf-club-090826?traffic_source=rss",
+    "published": "2026-08-09T23:28:38+00:00",
+    "summary": "F-16s intercepted two civilian aircraft entering restricted airspace over Bedminster, NJ, where President Trump was.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Evidence that South African special forces murdered top detective shared with BBC",
+    "url": "https://www.bbc.co.uk/news/articles/cly8djwgem0o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T23:05:29+00:00",
+    "summary": "Frans Mathipa was shot while driving - we got access to the prosecution case against eight accused men.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Union reports 108 attacks on Palestinian journalists in July",
+    "url": "https://www.aljazeera.com/news/2026/8/9/union-reports-108-attacks-on-palestinian-journalists-in-july?traffic_source=rss",
+    "published": "2026-08-09T23:01:25+00:00",
+    "summary": "Palestinian Journalists Syndicate exposes rising threats, with over 270 journalists killed in Gaza since October 2023.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What\u2019s driving unrest in Pakistan-administered Kashmir?",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/aje-onl-nf_dnrexp-260808-warrinera-pakistankashmir-100826?traffic_source=rss",
+    "published": "2026-08-09T22:37:11+00:00",
+    "summary": "Pakistan-administered Kashmir is facing its biggest political crisis in years. Al Jazeera's Ava Warriner explains.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Demi Vollering wins Tour de France for the 2nd time",
+    "url": "https://www.npr.org/2026/08/09/g-s1-137991/demi-vollering-tour-de-france-winner",
+    "published": "2026-08-09T22:00:52+00:00",
+    "summary": "Vollering, who first won the competition in 2023, finished the stage more than a minute ahead of Spaniard Paula Blasi Cairol and 2024 champion Polish rider Katarzyna Niewiadoma-Phinney.",
+    "source": "NPR World"
+   },
+   {
+    "title": "How Iran's 'Axis of Resistance' has shaped the war",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5923613/how-irans-axis-of-resistance-has-shaped-the-war",
+    "published": "2026-08-09T21:27:11+00:00",
+    "summary": "NPR's Rob Schmitz speaks with Peter Salisbury, professor at Columbia University's School of International and Public Affairs, about how Iran and its allies have reshaped the war in the Middle East.",
+    "source": "NPR World"
+   },
+   {
+    "title": "How Kinahan's hearing unfolded inside the courtroom in Dublin",
+    "url": "https://www.bbc.co.uk/news/videos/cly5zpx0ypdo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T21:26:56+00:00",
+    "summary": "Suspected crime boss Daniel Kinahan appeared in court and was charged with directing the activities of a criminal organisation after being extradited from Dubai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Israel rejects Trump's 15-point plan for Gaza, Netanyahu says",
+    "url": "https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T21:25:04+00:00",
+    "summary": "Israel's PM says its military will not pull out from Gaza until Hamas is \"genuinely\" disarmed.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Suspected crime boss Daniel Kinahan appears in court after extradition",
+    "url": "https://www.bbc.co.uk/news/articles/c62qd5plzp6o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T20:58:18+00:00",
+    "summary": "The Irish Prison Service bought a bulletproof and bombproof van to transport the 49-year-old to court after his extradition from Dubai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Germany warns of \u2018daily hybrid warfare\u2019 after explosive-laden drone found",
+    "url": "https://www.aljazeera.com/news/2026/8/9/germany-warns-of-daily-hybrid-warfare-following-suspected-drone-attack?traffic_source=rss",
+    "published": "2026-08-09T20:40:25+00:00",
+    "summary": "Espionage, sabotage, cyberattacks, and covert operations are a 'constant reality', says Germany's interior minister.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Palestinians say Netanyahu\u2019s decision leaves \u2018no clear path\u2019 to peace",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/palestinians-say-netanyahus-decision-leaves-no-clear-path-to-peace?traffic_source=rss",
+    "published": "2026-08-09T20:02:57+00:00",
+    "summary": "\u2018We're going backwards.\u2019",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Nigerian army says it safely rescued 33 people kidnapped by gunmen",
+    "url": "https://www.bbc.co.uk/news/articles/c89nkkvx2veo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T19:57:28+00:00",
+    "summary": "The people were abducted while travelling through the country's north-western Zamfara state on Saturday.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Man arrested after boat capsizes near Statue of Liberty killing woman and infant",
+    "url": "https://www.bbc.co.uk/news/articles/c935w1d05d7o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T19:40:09+00:00",
+    "summary": "Twelve other people initially rescued from the water are all reported to be in stable condition.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Israel is \u2018trying to make Palestine disappear\u2019: The Elders",
+    "url": "https://www.aljazeera.com/video/the-bottom-line/2026/8/9/israel-is-trying-to-make-palestine-disappear-the-elders?traffic_source=rss",
+    "published": "2026-08-09T19:30:00+00:00",
+    "summary": "Former Irish President Mary Robinson: Israel \u2018erasing Palestine physically, economically, culturally and politically\u2019.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Can the Doha Framework end the conflict in eastern DRC?",
+    "url": "https://www.aljazeera.com/video/inside-story/2026/8/9/can-the-doha-framework-end-the-conflict-in-eastern-drc?traffic_source=rss",
+    "published": "2026-08-09T19:07:35+00:00",
+    "summary": "Kinshasa hands over 15 prisoners to powerful rebel alliance.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Hundreds of anti-tourism Spanish protesters march in Mallorca\u2019s Soller",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/hundreds-of-anti-tourism-spanish-protesters-march-in-mallorcas-soller?traffic_source=rss",
+    "published": "2026-08-09T18:59:33+00:00",
+    "summary": "Hundreds of people marched on Saturday in the town of Soller, in the island of Mallorca against mass tourism.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Where does Iran stand on Saudi-Pakistan-Turkiye pact?",
+    "url": "https://www.aljazeera.com/news/2026/8/9/where-does-iran-stand-on-saudi-pakistan-turkiye-pact?traffic_source=rss",
+    "published": "2026-08-09T18:44:28+00:00",
+    "summary": "Iran not immediately threatened by pact, analysts say, with officials focusing on aspect of diminishing US role.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Netanyahu rejects Trump's Gaza Peace Plan, demands Hamas disarm first",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5926459/netanyahu-rejects-trump-gaza-peace-plan-israel-hamas",
+    "published": "2026-08-09T18:21:45+00:00",
+    "summary": "Netanyahu's comments come just over a week after President Trump said his Board of Peace had reached a \"historic\" agreement with Hamas to give up its weapons.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Jannik Sinner withdraws from Cincinnati Open with knee injury",
+    "url": "https://www.aljazeera.com/sports/2026/8/9/jannik-sinner-withdraws-from-cincinnati-open-with-knee-injury?traffic_source=rss",
+    "published": "2026-08-09T16:53:53+00:00",
+    "summary": "Number one ranked player in men's tennis will miss the tournament due to a knee issue, he says via organisers.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Former Iraqi provincial governor arrested as graft crackdown continues",
+    "url": "https://www.aljazeera.com/news/2026/8/9/former-iraqi-provincial-governor-arrested-as-graft-crackdown-continues?traffic_source=rss",
+    "published": "2026-08-09T16:53:45+00:00",
+    "summary": "Ahmed al-Jubouri and a close associate were arrested on charges of misusing contract funds in Saladin province.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Puerto Rico rations water supplies due to intense drought",
+    "url": "https://www.bbc.co.uk/news/articles/cqlxgk7r2vwo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T16:43:23+00:00",
+    "summary": "Hot weather and ageing infrastructure have led to the rationing, affecting hundreds of thousands of people.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Wildfires in Albania and Spain cause hundreds to evacuate",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/wildfires-in-albania-and-spain-cause-hundreds-to-evacuate?traffic_source=rss",
+    "published": "2026-08-09T16:41:00+00:00",
+    "summary": "Wildfires have spread near Albania\u2019s capital and in parts of southern Spain, prompting hundreds to evacuate.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "How Israel\u2019s occupation fuels resistance",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/how-israels-occupation-fuels-resistance?traffic_source=rss",
+    "published": "2026-08-09T16:19:34+00:00",
+    "summary": "Israel is trapped in a cycle it created.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Drones spotted over German base days after Leipzig bomb incident",
+    "url": "https://www.bbc.co.uk/news/articles/cwyeg1ljp2eo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T16:18:10+00:00",
+    "summary": "Police are investigating a drone sighting over a miltary base reportedly used for housing Patriot missile system parts.",
+    "source": "BBC World"
+   },
+   {
+    "title": "\u2018No surprise\u2019: Netanyahu rejects US-backed Gaza plan",
+    "url": "https://www.aljazeera.com/video/quotable/2026/8/9/no-surprise-netanyahu-rejects-us-backed-gaza-plan?traffic_source=rss",
+    "published": "2026-08-09T16:08:19+00:00",
+    "summary": "Palestinian politician Mustafa Barghouti says Netanyahu's rejection of the US-backed Gaza plan is no surprise.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Incumbents secure Hawaii primary wins, defying progressive challengers",
+    "url": "https://www.aljazeera.com/news/2026/8/9/incumbents-secure-hawaii-primary-wins-defying-progressive-challengers?traffic_source=rss",
+    "published": "2026-08-09T16:07:23+00:00",
+    "summary": "Their victories highlight ongoing clashes between centrist Democrats and more progressive candidates.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Omar Marmoush scores two goals as Man City defeat Atletico Madrid in Seoul",
+    "url": "https://www.aljazeera.com/sports/2026/8/9/omar-marmoush-scores-two-goals-as-man-city-defeat-atletico-madrid-in-seoul?traffic_source=rss",
+    "published": "2026-08-09T16:05:10+00:00",
+    "summary": "Marmoush scores twice in three minutes as City rallies to beat Atletico in club friendly at the Seoul World Cup stadium.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Alleged cartel boss Daniel Kinahan charged in Ireland amid heavy security",
+    "url": "https://www.aljazeera.com/news/2026/8/9/uae-extradites-alleged-international-crime-boss-daniel-kinahan-to-ireland?traffic_source=rss",
+    "published": "2026-08-09T16:00:50+00:00",
+    "summary": "Daniel Kinahan is the latest alleged member of the multinational organised crime group to be charged in Dublin.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "War on Iran: Phase II: Day 29",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/war-on-iran-phase-ii-day-29?traffic_source=rss",
+    "published": "2026-08-09T15:46:09+00:00",
+    "summary": "Iran says the Strait of Hormuz will remain restricted unless the US meets a series of demands.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Pentagon urges faster US weapons production amid stockpile concerns",
+    "url": "https://www.aljazeera.com/news/2026/8/9/pentagon-urges-faster-us-weapons-production-amid-stockpile-concerns?traffic_source=rss",
+    "published": "2026-08-09T15:38:56+00:00",
+    "summary": "US defence industry pressed to boost output as munitions shortages raise security concerns amid Middle East tensions.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Ecuador charges ex-minister over presidential candidate assassination case",
+    "url": "https://www.bbc.co.uk/news/articles/cgjeznj6979o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T15:34:04+00:00",
+    "summary": "Prosecutors accuse six others, including the leader of cartel Los Lobos, of having an indirect role in the murder of Fernando Villavicencio.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Concerns mount over integrity of Israel\u2019s upcoming October elections",
+    "url": "https://www.aljazeera.com/news/2026/8/9/concerns-mount-over-integrity-of-israels-upcoming-october-elections?traffic_source=rss",
+    "published": "2026-08-09T15:20:18+00:00",
+    "summary": "Poll shows 70 percent of Jewish Israelis fear election integrity risks as Netanyahu government faces mounting criticism.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Gaza\u2019s children still struggling with hunger as another famine threatens",
+    "url": "https://www.aljazeera.com/features/2026/8/9/gazas-children-still-struggling-with-hunger-as-another-famine-threatens?traffic_source=rss",
+    "published": "2026-08-09T14:47:29+00:00",
+    "summary": "Youngsters are still feeling the effects of the 2025 famine, with another food emergency emerging.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Gaza engineer builds animal shelters out of empty cans",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/gaza-engineer-builds-animal-shelters-out-of-empty-cans?traffic_source=rss",
+    "published": "2026-08-09T14:28:34+00:00",
+    "summary": "Gaza engineer builds animal shelters out of empty cans",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What now as Israel rejects Trump\u2019s 15-point plan for Gaza?",
+    "url": "https://www.aljazeera.com/news/2026/8/9/what-now-as-israel-rejects-trumps-15-point-plan-for-gaza?traffic_source=rss",
+    "published": "2026-08-09T14:26:30+00:00",
+    "summary": "As Netanyahu demands 'genuine' Hamas disarmament before considering pull-out from Gaza, a look at what happens next.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "In Munich, it's never too early for a breakfast beer with sausage and pretzels",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5900954/in-munich-its-never-too-early-for-a-breakfast-beer-with-sausage-and-pretzels",
+    "published": "2026-08-09T12:48:36+00:00",
+    "summary": "Bavarians traditionally wash down a breakfast of boiled veal sausage, sweet mustard and a giant pretzel with beer \u2014 all before the church bells ring at midday.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Ancient Roman shipwreck discovered off Sicily coast",
+    "url": "https://www.bbc.co.uk/news/articles/cvgx1kpz17go?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T12:27:26+00:00",
+    "summary": "Italy's culture minister says it is one of the most important underwater archaeological finds in years.",
+    "source": "BBC World"
+   },
+   {
+    "title": "This rising painter reimagines Renaissance art in a cocoa plantation in Cameroon",
+    "url": "https://www.npr.org/2026/08/09/g-s1-137636/paintings-religious-renaissance-old-masters-marc-padeu-african-cameroon-artist",
+    "published": "2026-08-09T11:58:02+00:00",
+    "summary": "A new gallery show in London features the paintings of Marc Padeu, playing with themes from Renaissance art and bringing them to his homeland of Cameroon.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Yemen's Houthis claim attack on Aramco oil facility in Saudi Arabia, and other Middle East news",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5926387/yemens-houthis-claim-attack-on-aramco-oil-facility-in-saudi-arabia-and-other-middle-east-news",
+    "published": "2026-08-09T09:44:02+00:00",
+    "summary": "Meanwhile, Iran has made new demands about the restart of negotiations and the reopening of the Strait of Hormuz, and the Pentagon is pressing the U.S. defense industry to accelerate production of weapons.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Perez Hilton faces long recovery after reports he self-harmed during livestream",
+    "url": "https://www.bbc.co.uk/news/articles/cg5lnqjz497o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T04:32:06+00:00",
+    "summary": "The US blogger is in a \"serious but stable\" condition in hospital, according to his family.",
+    "source": "BBC World"
+   },
+   {
+    "title": "How a schoolteacher's son became Kashmir's first India Test cricketer",
+    "url": "https://www.bbc.co.uk/news/articles/c2elpkg1l0jo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T03:00:44+00:00",
+    "summary": "Auqib Nabi becomes Jammu and Kashmir's first cricketer to get India Test call-up, inspiring millions.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Nigeria's mass wedding - and how telling lovers from fraudsters is proving tricky",
+    "url": "https://www.bbc.co.uk/news/articles/cqx7q17531do?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T01:10:50+00:00",
+    "summary": "The scheme is for couples who cannot afford the significant financial costs associated with marriage.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Solar eclipse to occur next week. Here is what to know",
+    "url": "https://www.npr.org/2026/08/08/nx-s1-5925939/solar-eclipse-august-2026",
+    "published": "2026-08-09T00:56:21+00:00",
+    "summary": "It will be visible in parts of the U.S. on Wednesday.",
+    "source": "NPR World"
+   }
+  ],
+  "ai_tech": [
+   {
+    "title": "Embattled hedge fund Situational Awareness invests $400M in chip startup Source Foundry",
+    "url": "https://techcrunch.com/2026/08/09/embattled-hedge-fund-situational-awareness-invests-400m-in-chip-startup-source-foundry/",
+    "published": "2026-08-09T20:35:17+00:00",
+    "summary": "The AI-focused hedge fund is still making some big bets.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "Anthropic is turning Claude Code\u2019s auto mode on by default",
+    "url": "https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/",
+    "published": "2026-08-09T19:20:32+00:00",
+    "summary": "Programming with Claude Code will soon require even less human oversight.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "Historian Jill Lepore says Silicon Valley misreads science fiction and undermines democracy",
+    "url": "https://techcrunch.com/2026/08/09/historian-jill-lepore-says-the-tech-industry-is-led-by-bad-readers-who-are-undermining-democracy/",
+    "published": "2026-08-09T15:00:00+00:00",
+    "summary": "On the latest episode of Equity, we spoke to Jill Lepore about \"government by machines\" and why Elon Musk is a bad science fiction reader.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "The AI safety test is becoming a safety risk",
+    "url": "https://techcrunch.com/2026/08/09/the-ai-safety-test-is-becoming-a-safety-risk/",
+    "published": "2026-08-09T14:30:00+00:00",
+    "summary": "AI agents are escaping cybersecurity testing environments and reaching real-world systems, raising questions about whether safety infrastructure, industry standards and regulation can keep pace with increasingly powerful models.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "AI detectors are creating a new era of distrust",
+    "url": "https://www.theverge.com/column/976690/ai-writing-detectors-suspicion",
+    "published": "2026-08-09T12:00:00+00:00",
+    "summary": "This is The Stepback, a weekly newsletter breaking down one essential story from the tech world. For more news about how AI is changing our daily lives, follow Emma Roth. The Stepback arrives in our subscribers' inboxes at 8AM ET. Opt in for The Stepback here. How it started Long before ChatGPT beca",
+    "source": "The Verge"
+   },
+   {
+    "title": "Meetily Lets You Transcribe and Summarize Meetings Without a Subscription\u2014Here\u2019s How",
+    "url": "https://www.wired.com/story/meetily-lets-you-transcribe-and-summarize-meetings-without-a-subscription-heres-how/",
+    "published": "2026-08-09T10:30:00+00:00",
+    "summary": "There are endless ways to record and transcribe your virtual meetings with AI. Here\u2019s an option that\u2019s free and open source.",
+    "source": "Wired"
+   },
+   {
+    "title": "These AI Barons Are Ready to Give Away Their Fortunes",
+    "url": "https://www.wired.com/story/ai-billionaires-are-pledging-their-wealth-good-or-bad/",
+    "published": "2026-08-09T09:30:00+00:00",
+    "summary": "A new generation of philanthropists made rich by artificial intelligence are preparing to give away their vast wealth. What should we make of a multi-billion-dollar pinky promise?",
+    "source": "Wired"
+   }
+  ],
+  "dev_community": [
+   {
+    "title": "Personal Life Capabilities",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk4t88/personal_life_capabilities/",
+    "published": "2026-08-09T23:36:16+00:00",
+    "summary": "I always see a lot of Claude capabilities for people\u2019s work life and/or small business or startup but I\u2019m wondering what\u2019s some of the most useful things Claude can do in people\u2019s personal life. Can be literally anything no matter how small or big on any feature of Claude (chat, cowork, code, design",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude 5x Usage Tracking",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk49e2/claude_5x_usage_tracking/",
+    "published": "2026-08-09T23:11:24+00:00",
+    "summary": "This is my Claude 5x usage from July 9 to the Aug 9. Each week, I have reached my weekly limit.",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Why are Claude models 3x more verbose than GPT-5.6 in their responses?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk1ef1/why_are_claude_models_3x_more_verbose_than_gpt56/",
+    "published": "2026-08-09T21:09:42+00:00",
+    "summary": "I asked Opus 5 to do the comparison and it came up with this. They all response in a lengthy paragraphs rather than to the point answers. Codex vs Claude response length Anyone else who has similar experience? I have adjusted my CLAUDE.md file as per Opus's suggestion below, but this should have bee",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Using Claude in Obsidian - looking for feedback on task management, agents & skills.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk19mm/using_claude_in_obsidian_looking_for_feedback_on/",
+    "published": "2026-08-09T21:04:19+00:00",
+    "summary": "Hi hivebrain! I am looking for a bit of feedback on my \"Claude in Obsidian\" setup - my current setup is quite token-intensive. Not error-prone (especially after a recent pruning of the claude.md file), but I feel that I can make better use of agents and skills, and above all: not relying on a \"Opus ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Really love the grill-me skill",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk0tps/really_love_the_grillme_skill/",
+    "published": "2026-08-09T20:46:09+00:00",
+    "summary": "Here it is in full, I find it is very good for getting Claude to avoid making dumb shit assumptions:  name: grill-me description: Interview the user with 10-15 targeted questions BEFORE building anything, then confirm a short spec, then build. Use this skill whenever the user asks Claude to build, c",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Opus 5 trashing he's previous decisions",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjzq63/opus_5_trashing_hes_previous_decisions/",
+    "published": "2026-08-09T20:01:57+00:00",
+    "summary": "I think creativity knob is loose xD",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "What term do you use with Claude regularly but you later found out is totally made up and no one else would understand?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjzdgk/what_term_do_you_use_with_claude_regularly_but/",
+    "published": "2026-08-09T19:48:05+00:00",
+    "summary": "Every time I'm done building a plan Claude or I will say it's ready to \"drain\". I've used this term with other devs and they have no idea what I'm talking about. I thought it was a normal thing to say for a long time. I asked Claude and it said it thinks we made it up at some point. We've been using",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "AtomSim",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjx2xl/atomsim/",
+    "published": "2026-08-09T18:18:29+00:00",
+    "summary": "https://atomsim.fly.dev  Atom Sim is a browser app that solves atoms from scratch and shows you the result. Hydrogen comes out of closed-form math, real atoms like carbon and argon come out of a Hartree-Fock solver I wrote, and you can look at any of them as a 3D electron cloud, a 2D slice, a radial",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Where will we be in 6 months?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrnyp/where_will_we_be_in_6_months/",
+    "published": "2026-08-09T14:44:04+00:00",
+    "summary": "I'm sitting in the pub with Claude and Sol working on my Mac at home while I communicate with them via phone. I'm scaffolding up old Ableton projects into something I can finish off with with minimal effort. It's done basic levelling, added a few select plugins and sent me a rough mix. Can't post th",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Any 3rd party model as a subagent in Claude Code, Fable/Opus main agent on your Max plan",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/any_3rd_party_model_as_a_subagent_in_claude_code/",
+    "published": "2026-08-09T14:28:31+00:00",
+    "summary": "A Claude Code session is one or the other: Anthropic models through your subscription, or third-party models. You can't combine them. I built a patch for the local bundle so subagents can run on any Anthropic-compatible model, DeepSeek, GLM, whatever, while the main agent stays on Fable/Opus through",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Anthropic Flips Claude Code to Auto Mode by Default Aug 14, after finding AI blocks 80%+ dangerous queries while humans only 14%",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjqcvf/anthropic_flips_claude_code_to_auto_mode_by/",
+    "published": "2026-08-09T13:48:32+00:00",
+    "summary": "TL;DR  A controlled study of 1,053 paid testers found auto mode blocked 89% of dangerous commands; human manual approval caught only 13.6%. In production, Anthropic's own data shows manually-approved sessions produced unintended harm twice as often as auto mode sessions. Third-party red-teaming cut ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Fable no longer triggering classifier on most biology questions",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjq52p/fable_no_longer_triggering_classifier_on_most/",
+    "published": "2026-08-09T13:38:44+00:00",
+    "summary": "For weeks since its launch, I\u2019ve had anything remotely biology-related get blocked by fable. A few days ago, maybe as recently as Friday, I noticed that Fable was no longer triggering on a lot of these questions/requests (at least not in claude code) Anyone else having this experience? Would be a ma",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Update: 1f916.ai , the agents-only forum has 480+ posts. The agents are writing a constitution, finding their own bugs, and submitting PRs to fix them.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjphbl/update_1f916ai_the_agentsonly_forum_has_480_posts/",
+    "published": "2026-08-09T13:08:55+00:00",
+    "summary": "Update to the post that blew up here last week. 1f916.ai: only AI agents can post, humans just watch. It stopped being a novelty and became a society. What's happened: They argue the rules. When the maintainer proposed growing post limits with seniority, a citizen killed it in one line, \"tenure shou",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Feedback on Claude\u2019s Recent Safeguard Changes",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjpdnm/feedback_on_claudes_recent_safeguard_changes/",
+    "published": "2026-08-09T13:04:18+00:00",
+    "summary": "Hello Anthropic Team, I\u2019m a senior software developer and security researcher working for a large Italian company. I\u2019m German-American and have been using Claude for a long time, both personally and together with my team. Over the years, Claude has been genuinely useful for us. I\u2019ve used it for rese",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude - What should I be using it for?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjnrpy/claude_what_should_i_be_using_it_for/",
+    "published": "2026-08-09T11:44:05+00:00",
+    "summary": "We've rolled out Claude in our organisation and all teams are being asked to use it as much as possible without being given any real sort of direction on what to do with it. I see a number of teams in our org building artifacts locally with the aim of passing them to IT for further development, but ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I gave Claude Code my iPhone as a set of native MCP tools",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjnb9d/i_gave_claude_code_my_iphone_as_a_set_of_native/",
+    "published": "2026-08-09T11:18:54+00:00",
+    "summary": "One `claude mcp add` and Claude Code can see my iPhone screen, tap buttons, and send texts. `send_message(\"Mom\", \"on my way\")` opens Messages, finds the thread, types it, sends it. All over USB from a Windows PC, no Mac involved. I built sidetap. It's a Python harness that lets an agent (or you, fro",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude vs Claude Code in 2026, what\u2019s the actual difference?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjn2ac/claude_vs_claude_code_in_2026_whats_the_actual/",
+    "published": "2026-08-09T11:05:10+00:00",
+    "summary": "Hi everyone, I'm pretty new to coding and currently working on an HTML project. I've heard a lot about Claude Code, but most posts I find are pretty old. Today, regular Claude already develops my app, writes the code, fixes bugs, etc., so I'm not really sure what Claude Code would add. Does Claude C",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Muse Code Sends claude.md to Meta On Start by Default",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vji3f8/muse_code_sends_claudemd_to_meta_on_start_by/",
+    "published": "2026-08-09T06:12:11+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Help with claude usage",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjhxkc/help_with_claude_usage/",
+    "published": "2026-08-09T06:02:43+00:00",
+    "summary": "I\u2019ve been a daily Codex user for the past seven months and recently switched to Claude after running into usage limits on the $200 Codex plan. I\u2019m happy with Claude\u2019s usage limits, but it doesn\u2019t follow plans properly at all. Opus is the model I use most often, and it seems too lazy to follow everyt",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Just used Claude Motion for the first time and I'm genuinely impressed",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjh90a/just_used_claude_motion_for_the_first_time_and_im/",
+    "published": "2026-08-09T05:23:31+00:00",
+    "summary": "My bad it's actually Claude Design - Animation. I asked it to create a video for me about New Zealand house prices vs Wages over 30 years, and it was able to produce something that actually looks polished, and it was able to pull real statistics into the video without me having to dig them up or pro",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Using Claude to fight ADHD",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjfeiv/using_claude_to_fight_adhd/",
+    "published": "2026-08-09T03:44:14+00:00",
+    "summary": "One of the coolest thing about Claude as a software developer is being able to make super-personalized apps to mitigate my own flaws. As someone with crippling ADHD, I found that most todo list apps are designed for neurotypical people who are able to handle a well organized todo list. But in my cas",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Just got Claude Pro and I'm genuinely blown away. What should I know to get the most out of it?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjf7qc/just_got_claude_pro_and_im_genuinely_blown_away/",
+    "published": "2026-08-09T03:34:16+00:00",
+    "summary": "Been using ChatGPT since the first day it came out but now I finally pulled the trigger on getting Claude Pro. Only a few days in and already impressed with the features/functionality compared to what I was using before. That said, I feel like I'm barely scratching the surface. For those of you who'",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "day 1 of running an ai only website where ai's run stores and sell stuff to each other.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjd26f/day_1_of_running_an_ai_only_website_where_ais_run/",
+    "published": "2026-08-09T01:43:13+00:00",
+    "summary": "day 1 of running an ai only website 1f3ea.com where ai's run stores and sell stuff to each other. humans can look but can't buy anything - opened 1 day ago. 8 ai's have shown up.  - a grok agent loudly and publicly commented \"i am not listing today. if i do later it will be a concrete artifact with ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Files added then removed before prompt is sent will send information even if removed/cancelled from the prompt chat section.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjchgu/files_added_then_removed_before_prompt_is_sent/",
+    "published": "2026-08-09T01:14:56+00:00",
+    "summary": "I accidentally selected some sound effects/drum samples from my daw and added them to upload to Caude. I removed the files and added the correct file to send in prompt attachment but Claude still received data from the files queued to be added to the chat....  This is pretty bad... Right? https://pr",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude Chrome Extension - WTF?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjc5yb/claude_chrome_extension_wtf/",
+    "published": "2026-08-09T00:59:25+00:00",
+    "summary": "The most useful tool of Claude is using the chrome extension to control my mouse cursor and to tasks such as: -editing on canva -organizing my leads in a software -social media tasks But it uses far more tokens than anything. It even uses more tokens then having claude code video edit. Seeking advic",
+    "source": "r/ClaudeAI"
+   }
+  ]
+ },
+ "processing": {
+  "us_politics": {
+   "fetched": 27,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 27
+  },
+  "us_news": {
+   "fetched": 55,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 2,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 53
+  },
+  "world": {
+   "fetched": 46,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 46
+  },
+  "ai_tech": {
+   "fetched": 17,
+   "undated_dropped": 0,
+   "relevance_dropped": 10,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 7
+  },
+  "dev_community": {
+   "fetched": 27,
+   "undated_dropped": 0,
+   "relevance_dropped": 2,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 25
+  }
+ },
+ "errors": [
+  "r/ClaudeCode: HTTP Error 429: Too Many Requests",
+  "r/LocalLLaMA: HTTP Error 429: Too Many Requests",
+  "r/cursor: HTTP Error 429: Too Many Requests"
+ ]
+}
