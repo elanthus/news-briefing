@@ -234,7 +234,7 @@ Expected: `Wrote N items (M fetch errors) to fixtures/corpus-2026-08-09.json` wi
 python3 -c "import json; c=json.load(open('fixtures/corpus-2026-08-09.json')); print({k: len(v) for k, v in c['categories'].items()}); print(c['errors'])"
 ```
 
-Expected: `us_news` holds well over the 9 items needed for 4 slots plus a 5-entry exclusion log — the four feeds measured ~45 in a 24-hour window.
+Expected: `us_news` holds well over the 9 items needed for 4 slots plus a 5-entry exclusion log — the four feeds measured 55 in a 24-hour window, and a live run during Task 2 kept 53.
 
 If it is short, read `errors` before doing anything else, because the cause determines the fix:
 
@@ -247,13 +247,37 @@ Follow `briefing-prompt.md` against `fixtures/corpus-2026-08-09.json` and write 
 
 Rank and summarize only what is in the corpus. Do not browse, do not open corpus URLs, do not fill gaps from memory.
 
-**Step 4: Check it against its corpus**
+**Step 4: Check it against its corpus — and do not trust the checker on US News**
 
 ```bash
-python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --strict
+python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md
 ```
 
-Expected at this point: `slots_overfilled` is **not** yet reported for US News (the checker still has the old `SECTIONS`), but `missing_section` for `US News` **is**. That is expected — the checker is updated in Task 5. What must be clean here: every link grounded, every topic and exclusion cited, nothing both included and excluded, and failed sources named. Fix the briefing, not the checker.
+Read what this run can and cannot tell you, because both are counter-intuitive at this point in the sequence:
+
+- **The `## US News` section is invisible to the parser.** `_match_section` matches a heading against the keys of `SECTIONS`, which does not learn about US News until Task 5, so the heading resolves to `None` and the whole section — topics, links, everything — is dropped. Verified: a fabricated URL placed in a US News body produces zero findings. A clean run here is therefore **not** evidence that the US News half of the briefing is grounded.
+- **`missing_section` cannot fire for US News either**, for the same reason: `check_sections_present` iterates `list(SECTIONS)`.
+- **Do not use `--strict` here.** US Politics at 3 topics against `SECTIONS["US Politics"] = 5` emits `slots_underfilled`, and `--strict` exits non-zero on any warning. That warning is correct-by-construction at this commit and disappears in Task 5.
+
+So verify US News independently before committing:
+
+```bash
+python3 - <<'PY'
+import json, re
+corpus = json.load(open("fixtures/corpus-2026-08-09.json"))
+allowed = {u for items in corpus["categories"].values() for i in items
+           for u in (i.get("url"), i.get("discussion")) if u}
+text = open("fixtures/briefing-2026-08-09.md").read()
+section = text.split("## US News", 1)[1].split("\n## ", 1)[0]
+cited = re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", section)
+print(f"{len(cited)} links cited in US News")
+print("ungrounded:", [u for u in cited if u not in allowed] or "none")
+PY
+```
+
+Expected: 4 links, none ungrounded. What must also be clean in the eval run itself: every link grounded, every topic and exclusion cited, nothing both included and excluded, and failed sources named. Fix the briefing, not the checker.
+
+Task 5 runs the authoritative `--strict` check once `SECTIONS` knows about US News. If that surfaces problems in the briefing, they are fixed there — the fixture only becomes the committed baseline in that same commit.
 
 **Step 5: Commit**
 
