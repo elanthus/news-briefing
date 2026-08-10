@@ -231,6 +231,20 @@ Stdlib `unittest`, no install step, no network:
 python3 -m unittest -v
 ```
 
+The optional development tools are declared in `pyproject.toml`. Run them
+without global installs using uv:
+
+```bash
+uv run ruff check .
+uv run mypy
+```
+
+Or install the same pinned tools with pip:
+
+```bash
+python3 -m pip install -e '.[dev]'
+```
+
 The three pipeline modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not.
 
 Coverage targets the logic that's easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL deduplication, source/category budgets, oversized responses, empty-run failure behavior, briefing structure, and corpus-grounded citations. Tests patch network boundaries and run without making live requests.

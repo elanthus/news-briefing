@@ -1,5 +1,31 @@
-# Config only — this project ships no package and has no dependencies.
-# It exists so `ruff check .` behaves identically locally and in CI.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "news-briefing"
+version = "0.1.0"
+description = "Deterministic news corpus fetcher and briefing contract checker"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "mypy==1.14.1",
+    "ruff==0.14.2",
+]
+
+# uv installs the dev group by default, enabling `uv run ruff check .` and
+# `uv run mypy` without globally installed tools. The optional extra above
+# provides the equivalent `pip install -e '.[dev]'` workflow.
+[dependency-groups]
+dev = [
+    "mypy==1.14.1",
+    "ruff==0.14.2",
+]
+
+[tool.setuptools]
+py-modules = ["corpus_schema", "eval_briefing", "fetch_news"]
 
 [tool.mypy]
 python_version = "3.11"
