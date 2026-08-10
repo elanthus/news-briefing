@@ -98,13 +98,19 @@ class FeedConfigurationTest(unittest.TestCase):
         sourced = set(fetch_news.RSS_FEEDS) | {"dev_community"}
         self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
 
-    def test_us_news_feeds_are_distinct_from_us_politics(self):
-        """Overlapping outlets are the duplication risk this change creates;
-        don't build it into the source list as well."""
-        politics = {url for _, url in fetch_news.RSS_FEEDS["us_politics"]}
-        news = {url for _, url in fetch_news.RSS_FEEDS["us_news"]}
-        self.assertEqual(politics & news, set())
+    def test_no_feed_url_is_fetched_under_two_categories(self):
+        """The same feed under two categories duplicates every item it
+        carries, every run. Outlet overlap is a different thing and is
+        deliberate — NPR files under politics, national and world — and the
+        one-placement rule in the briefing is what resolves that.
+        """
+        urls = [url for feeds in fetch_news.RSS_FEEDS.values() for _, url in feeds]
+        self.assertEqual([u for u, n in Counter(urls).items() if n > 1], [])
 ```
+
+The second test is deliberately the general property rather than a `us_news`/`us_politics` pairwise check. The general form passes today, is shorter, needs no edit when a sixth category arrives, and covers the next real overlap risk (`us_news`/`world`, since PBS's headlines feed carries world stories). `Counter` rather than a length comparison, so a failure names the offending URL.
+
+Note what this does **not** assert. Outlets are not disjoint across categories and are not meant to be — NPR files under politics (1014), national (1003) and world (1004). Cross-category *story* duplication is expected and is resolved in the briefing by the one-placement rule, not in the fetcher: `dedupe` runs inside `prepare_category`, which is per category, so an identical URL reaching two categories survives in both by design.
 
 **Step 2: Run test to verify it fails**
 
@@ -127,7 +133,7 @@ In `fetch_news.py`, add to `RSS_FEEDS` immediately after the `us_politics` block
     ],
 ```
 
-All four were measured live over a 24-hour window: 26, 14, 10 and 5 items. That is roughly 45 against the 9 the category needs, so the fourth source is not there for volume — it is there so the category survives losing any two feeds. Rejected on measurement: NBC US (3), ABC US (1, behind a 301), CNN US (0 in-window; 17 undated), and USA Today, whose feed carries a DOCTYPE and is correctly refused by `parse_feed_xml`.
+All four were measured live over a 24-hour window: 26, 14, 10 and 5 items — 55 against the 9 the category needs. The fourth source is therefore not there for volume; it is there so the category still clears 9 after losing any two feeds. Rejected on measurement: NBC US (3), ABC US (1, behind a 301), CNN US (0 in-window; 17 undated), and USA Today, whose feed carries a DOCTYPE and is correctly refused by `parse_feed_xml`.
 
 Do **not** add these sources to `SOURCE_RELEVANCE_FILTERS`. Those filters exist for The Verge, Ars, Wired and the GitHub Changelog because those feeds carry high off-topic volume; curated hard-news feeds do not, and over-filtering is the more expensive mistake — a dropped item cannot be ranked at all (see the comment at `fetch_news.py:439-453`).
 

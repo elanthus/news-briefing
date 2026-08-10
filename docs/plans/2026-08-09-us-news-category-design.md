@@ -35,7 +35,7 @@ category behind it.
 
 Four sources rather than the minimum that fills the slots. The category needs
 9 items a day to fill 4 topics plus a 5-entry exclusion log, and these four
-supply roughly 45, so the headroom is not about news volume — US domestic
+supply 55, so the headroom is not about news volume — US domestic
 news does not go quiet enough to starve the section. It is about a feed
 dying. A 403, a DNS failure or a date-format change is permanent, and no
 amount of re-fetching recovers it; only another source does. These four
