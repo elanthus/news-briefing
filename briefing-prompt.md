@@ -22,7 +22,7 @@ Rank by real-world impact and significance, not virality or engagement counts.
 
 CONSOLIDATION RULE: If multiple stories share a common theme (e.g., corporate layoffs across different companies, tariff actions across multiple countries), merge them into a single bullet with a brief summary of all instances. This applies across sections as well as within one: US News and US Politics draw on overlapping outlets, so the same event can arrive through both.
 
-ONE PLACEMENT RULE: Report each topic exactly once in the whole briefing. A story that belongs to two sections goes in the one where it matters most — it is not repeated, and it does not appear in any exclusion log once it has been reported. Section boundary: elections, Congress, the administration, federal policy and courts-as-politics are US Politics; every other US-domestic story — disasters, crime, public health, business, education, local government — is US News.
+ONE PLACEMENT RULE: Report each topic exactly once in the whole briefing. A story that belongs to two sections goes in the one where it matters most — it is not repeated, and it does not appear in any exclusion log once it has been reported. Section boundary: elections, Congress, the administration, federal policy and courts-as-politics are US Politics; every other US-domestic story — disasters, crime, public health, business, education, local government — is US News. The boundary is subject matter, not the category an item arrived in: an international story that reaches the corpus through `us_news` belongs in World Events.
 
 ## OUTPUT FORMAT
 
@@ -58,7 +58,7 @@ Reddit vote counts are not available (Reddit blocks anonymous API access); omit 
 ---
 
 ### Excluded Topics (accountability log)
-For each of the 5 sections (US Politics, US News, World Events, AI Dev Tools, AI Dev Practices), list the 5 next most significant topics that didn't make the cut, with a one-sentence reason each (e.g., "lower immediate impact," "regional rather than national significance," "consolidated into topic #4," "empty summary — insufficient corpus content to evaluate"). A topic reported in another section is not an exclusion and must not be listed here. Include the 🔗 URL from the corpus item for each excluded topic, same as for included topics.
+For each of the 5 sections (US Politics, US News, World Events, AI Dev Tools, AI Dev Practices), list the 5 next most significant topics that didn't make the cut, with a one-sentence reason each (e.g., "lower immediate impact," "regional rather than national significance," "consolidated into topic #4," "empty summary — insufficient corpus content to evaluate"). A topic reported in another section is not an exclusion and must not be listed here. The same applies to any item whose URL is already cited in a reported topic — if its facts were folded into a consolidated summary, it has been reported, not excluded. "Consolidated into topic #4" is a valid reason only for an item that shares a theme with a reported topic but contributed no cited facts to it. Include the 🔗 URL from the corpus item for each excluded topic, same as for included topics.
 AI News excluded topics are not required.
 
 ---
