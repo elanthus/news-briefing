@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-import corpus_schema
 import fetch_news
 from fetch_news import (
     DEFAULT_SOURCES_PATH,
@@ -584,12 +583,19 @@ class MainFailureModeTest(unittest.TestCase):
             output = Path(directory) / "corpus.json"
             sources = Path(directory) / "sources.json"
             sources.write_text(json.dumps({
-                "rss_feeds": {},
+                "categories": ["empty"],
+                "rss_feeds": {
+                    "empty": [["Empty Feed", "https://example.com/feed"]],
+                },
+                "hn_category": "empty",
                 "hn_queries": [],
+                "reddit_category": "empty",
                 "subreddits": [],
             }))
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_rss",
+                               return_value=fetch_news.FetchResult([], 0)),
                   redirect_stdout(io.StringIO()),
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -597,6 +603,44 @@ class MainFailureModeTest(unittest.TestCase):
             self.assertIn("no usable items", stderr.getvalue())
             corpus = json.loads(output.read_text())
             self.assertEqual(sum(map(len, corpus["categories"].values())), 0)
+
+    def test_community_sources_use_their_configured_destinations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["from_hn", "from_reddit"],
+                "rss_feeds": {},
+                "hn_category": "from_hn",
+                "hn_queries": ["agent tools"],
+                "reddit_category": "from_reddit",
+                "subreddits": ["LocalLLaMA"],
+            }))
+            published = datetime.now(timezone.utc).isoformat()
+            hn_result = fetch_news.FetchResult([{
+                "title": "AI coding agent",
+                "url": "https://example.com/hn",
+                "published": published,
+                "source": "Hacker News",
+            }], 0)
+            reddit_result = fetch_news.FetchResult([{
+                "title": "Local model release",
+                "url": "https://example.com/reddit",
+                "published": published,
+                "source": "r/LocalLLaMA",
+            }], 0)
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_hn", return_value=hn_result),
+                  patch.object(fetch_news, "fetch_reddit", return_value=reddit_result),
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                result = fetch_news.main()
+            self.assertEqual(result, 0)
+            corpus = json.loads(output.read_text())
+            self.assertEqual([item["source"] for item in corpus["categories"]["from_hn"]],
+                             ["Hacker News"])
+            self.assertEqual([item["source"] for item in corpus["categories"]["from_reddit"]],
+                             ["r/LocalLLaMA"])
 
 
 class HttpGetTest(unittest.TestCase):
@@ -626,11 +670,14 @@ class FeedConfigurationTest(unittest.TestCase):
         cls.sources = load_sources(DEFAULT_SOURCES_PATH)
 
     def test_every_declared_category_has_a_source(self):
-        # `dev_community` is spelled out because HN and Reddit also feed it, so
-        # it stays sourced even if its one RSS entry goes away. Every other
-        # category has to earn its place in the RSS configuration.
-        sourced = set(self.sources.rss_feeds) | {"dev_community"}
-        self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
+        sourced = {
+            category for category, feeds in self.sources.rss_feeds.items() if feeds
+        }
+        if self.sources.hn_queries:
+            sourced.add(self.sources.hn_category)
+        if self.sources.subreddits:
+            sourced.add(self.sources.reddit_category)
+        self.assertEqual(sourced, set(self.sources.categories))
 
     def test_no_feed_url_is_fetched_under_two_categories(self):
         """The same feed under two categories duplicates every item it
@@ -651,7 +698,9 @@ class SourcesConfigurationTest(unittest.TestCase):
     def test_default_configuration_loads_all_source_types(self):
         sources = load_sources(DEFAULT_SOURCES_PATH)
         self.assertIn("us_politics", sources.rss_feeds)
+        self.assertEqual(sources.hn_category, "dev_community")
         self.assertIn("codex", sources.hn_queries)
+        self.assertEqual(sources.reddit_category, "dev_community")
         self.assertIn("ClaudeCode", sources.subreddits)
 
     def test_rejects_missing_fields(self):
@@ -660,14 +709,92 @@ class SourcesConfigurationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing field.*subreddits"):
                 load_sources(path)
 
-    def test_rejects_unknown_categories(self):
+    def test_configuration_defines_category_order_and_destinations(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_sources(directory, {
+                # Deliberately differs from rss_feeds key order: the explicit
+                # list, not source-map insertion order, controls corpus order.
+                "categories": ["policy", "climate"],
+                "rss_feeds": {
+                    "climate": [["Climate News", "https://example.com/climate.xml"]],
+                    "policy": [["Policy News", "https://example.com/policy.xml"]],
+                },
+                "hn_category": "climate",
+                "hn_queries": ["climate tech"],
+                "reddit_category": "policy",
+                "subreddits": ["climate"],
+            })
+            sources = load_sources(path)
+            self.assertEqual(sources.categories, ("policy", "climate"))
+            self.assertEqual(sources.hn_category, "climate")
+            self.assertEqual(sources.reddit_category, "policy")
+
+    def test_rejects_undeclared_rss_category(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news"],
                 "rss_feeds": {"typo": []},
+                "hn_category": "news",
                 "hn_queries": [],
+                "reddit_category": "news",
                 "subreddits": [],
             })
-            with self.assertRaisesRegex(ValueError, "unknown categories: typo"):
+            with self.assertRaisesRegex(ValueError, "undeclared categories: typo"):
+                load_sources(path)
+
+    def test_rejects_undeclared_hacker_news_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news"],
+                "rss_feeds": {"news": []},
+                "hn_category": "dev_community",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            })
+            with self.assertRaisesRegex(ValueError, "hn_category references undeclared"):
+                load_sources(path)
+
+    def test_rejects_duplicate_categories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news", "news"],
+                "rss_feeds": {"news": []},
+                "hn_category": "news",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            })
+            with self.assertRaisesRegex(ValueError, "categories contains a duplicate"):
+                load_sources(path)
+
+    def test_rejects_category_without_a_source_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news", "ghost"],
+                "rss_feeds": {
+                    "news": [["News", "https://example.com/news.xml"]],
+                    "ghost": [],
+                },
+                "hn_category": "news",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            })
+            with self.assertRaisesRegex(ValueError, "without a source destination: ghost"):
+                load_sources(path)
+
+    def test_invalid_query_shape_is_reported_before_routing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news"],
+                "rss_feeds": {},
+                "hn_category": "news",
+                "hn_queries": "not-a-list",
+                "reddit_category": "news",
+                "subreddits": [],
+            })
+            with self.assertRaisesRegex(ValueError, "hn_queries must be a list"):
                 load_sources(path)
 
 

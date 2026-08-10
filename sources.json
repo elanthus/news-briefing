@@ -1,4 +1,11 @@
 {
+  "categories": [
+    "us_politics",
+    "us_news",
+    "world",
+    "ai_tech",
+    "dev_community"
+  ],
   "rss_feeds": {
     "us_politics": [
       ["NPR Politics", "https://feeds.npr.org/1014/rss.xml"],
@@ -29,6 +36,7 @@
       ["GitHub Changelog", "https://github.blog/changelog/feed/"]
     ]
   },
+  "hn_category": "dev_community",
   "hn_queries": [
     "claude code",
     "cursor",
@@ -37,6 +45,7 @@
     "llm agent",
     "prompt engineering"
   ],
+  "reddit_category": "dev_community",
   "subreddits": [
     "ClaudeAI",
     "ClaudeCode",
