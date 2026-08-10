@@ -480,4 +480,6 @@ Agents produce plausible work quickly, which is exactly why this repo leans on t
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Source code and project-authored documentation are licensed under the [MIT License](LICENSE).
+Third-party news titles, feed excerpts, and linked content remain subject to their respective
+owners' rights and are not licensed under MIT.
