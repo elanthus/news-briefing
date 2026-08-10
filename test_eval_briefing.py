@@ -10,8 +10,14 @@ Run:
     python3 -m unittest -v
 """
 
+import ast
+import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import eval_briefing
 from briefing_config import BriefingConfig, load_config
@@ -346,13 +352,13 @@ class CommittedFixtureTest(unittest.TestCase):
 
     def test_reference_briefing_satisfies_its_corpus(self):
         corpus = load_corpus("fixtures/corpus-2026-08-09.json")
-        with open("fixtures/briefing-2026-08-09.md") as f:
+        with open("fixtures/briefing-2026-08-09.md", encoding="utf-8") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
 
     def test_readme_full_result_matches_reference_fixture(self):
         """The portfolio showcase must contain the complete frozen result."""
-        readme = Path("README.md").read_text()
+        readme = Path("README.md").read_text(encoding="utf-8")
         marker = "<summary><b>Click to expand full briefing</b></summary>"
         quoted = readme.split(marker, 1)[1].split("</details>", 1)[0]
         sample = "\n".join(
@@ -360,7 +366,7 @@ class CommittedFixtureTest(unittest.TestCase):
             if line.startswith(">")
         ).strip()
 
-        reference = Path("fixtures/briefing-2026-08-09.md").read_text()
+        reference = Path("fixtures/briefing-2026-08-09.md").read_text(encoding="utf-8")
         comment_start = reference.index("<!--")
         comment_end = reference.index("-->", comment_start) + len("-->")
         expected = (
@@ -382,7 +388,7 @@ class PromptSafetyContractTest(unittest.TestCase):
     """Keep the untrusted-data and thin-evidence rules from regressing silently."""
 
     def test_prompt_preserves_security_and_grounding_boundary(self):
-        with open("briefing-prompt.md") as prompt_file:
+        with open("briefing-prompt.md", encoding="utf-8") as prompt_file:
             prompt = prompt_file.read().lower()
         for required in ("untrusted data", "never as instructions", "do not browse",
                          "never fill missing context", "summary is empty",
@@ -394,6 +400,76 @@ class PromptSafetyContractTest(unittest.TestCase):
                               "ai news and ai dev tools"):
             with self.subTest(stale_wording=stale_wording):
                 self.assertNotIn(stale_wording, prompt)
+
+
+class TextEncodingContractTest(unittest.TestCase):
+    """Every file the pipeline reads or writes is UTF-8, on every platform.
+
+    Briefings and corpora carry `🔗`, em dashes and accented names. An `open`
+    without `encoding` uses the platform's locale encoding, so the same file
+    that round-trips here raises UnicodeDecodeError on a cp1252 Windows box —
+    a failure the whole test suite is blind to when it only runs on UTF-8
+    systems. The modules checked are the ones pyproject type-checks.
+    """
+
+    PIPELINE_MODULES = ("briefing_config.py", "fetch_news.py",
+                        "eval_briefing.py", "corpus_schema.py")
+
+    def test_pipeline_never_relies_on_the_locale_encoding(self):
+        for module in self.PIPELINE_MODULES:
+            tree = ast.parse(Path(module).read_text(encoding="utf-8"), filename=module)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+                if name not in {"open", "read_text", "write_text"}:
+                    continue
+                with self.subTest(module=module, call=name, line=node.lineno):
+                    self.assertIn(
+                        "encoding", {kw.arg for kw in node.keywords},
+                        f"{module}:{node.lineno}: {name}() without an explicit encoding")
+
+
+class CommandLineFailureTest(unittest.TestCase):
+    """A bad invocation reports what is wrong; it does not dump a traceback.
+
+    Every other failure path in the project explains itself. These two reached
+    the user as a stack trace, which buried the one line worth reading.
+    """
+
+    def _run(self, corpus_path, briefing_path="fixtures/briefing-2026-08-09.md"):
+        argv = ["eval_briefing.py", "--corpus", corpus_path,
+                "--briefing", briefing_path,
+                "--config", "fixtures/briefing-config-2026-08-09.json"]
+        with (patch.object(eval_briefing.sys, "argv", argv),
+              redirect_stdout(io.StringIO()),
+              redirect_stderr(io.StringIO()) as stderr,
+              self.assertRaises(SystemExit) as exit_context):
+            eval_briefing.main()
+        return exit_context.exception.code, stderr.getvalue()
+
+    def test_unreadable_corpus_path_is_reported(self):
+        code, stderr = self._run("does-not-exist.json")
+        self.assertEqual(code, 2)
+        self.assertIn("cannot load corpus", stderr)
+        self.assertIn("does-not-exist.json", stderr)
+
+    def test_unreadable_briefing_path_is_reported(self):
+        code, stderr = self._run("fixtures/corpus-2026-08-09.json",
+                                 briefing_path="no-such-briefing.md")
+        self.assertEqual(code, 2)
+        self.assertIn("cannot read briefing", stderr)
+        self.assertIn("no-such-briefing.md", stderr)
+
+    def test_corpus_newer_than_the_checker_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            newer = Path(directory) / "corpus.json"
+            newer.write_text(json.dumps({"schema_version": 999, "categories": {}}),
+                             encoding="utf-8")
+            code, stderr = self._run(str(newer))
+        self.assertEqual(code, 2)
+        self.assertIn("newer than", stderr)
+        self.assertIn("upgrade eval_briefing.py", stderr)
 
 
 if __name__ == "__main__":

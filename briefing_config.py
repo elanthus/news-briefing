@@ -4,16 +4,13 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import corpus_schema
 
 SCHEMA_VERSION = 1
-SOURCE_TREE_CONFIG_PATH = Path(__file__).with_name("briefing-config.json")
-INSTALLED_CONFIG_PATH = Path(sys.prefix) / "share" / "news-briefing" / "briefing-config.json"
-DEFAULT_CONFIG_PATH = SOURCE_TREE_CONFIG_PATH if SOURCE_TREE_CONFIG_PATH.exists() else INSTALLED_CONFIG_PATH
+DEFAULT_CONFIG_PATH = Path(__file__).with_name("briefing-config.json")
 
 _TOP_LEVEL_FIELDS = {"schema_version", "sections"}
 _SECTION_FIELDS = {
