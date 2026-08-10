@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic news fetcher for the daily briefing.
+"""Code-enforced news corpus fetcher for the daily briefing.
 
 Pulls RSS feeds, the Hacker News Algolia API, and Reddit RSS endpoints,
 drops everything older than the cutoff (default 24h) IN CODE, and emits a

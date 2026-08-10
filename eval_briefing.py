@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Contract checker for a generated briefing.
 
-The fetch step is deterministic, so it can be unit tested. The ranking and
-summarizing step is not — but most of the ways it goes wrong are structural,
-not editorial, and structural failures can be checked exactly:
+The fetcher's rules are deterministic for fixed inputs, so they can be unit
+tested even though live source responses are not. The ranking and summarizing
+step is not deterministic either — but most of the ways it goes wrong are
+structural, not editorial, and structural failures can be checked exactly:
 
     * a link that isn't in the corpus (the model invented or recalled it)
     * an included or excluded topic with no source citation
