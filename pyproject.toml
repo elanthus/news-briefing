@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "news-briefing"
 version = "0.1.0"
-description = "Deterministic news corpus fetcher and briefing contract checker"
+description = "Code-enforced news corpus fetcher and briefing contract checker"
 requires-python = ">=3.11"
 dependencies = []
 
