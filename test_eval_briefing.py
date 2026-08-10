@@ -13,7 +13,20 @@ Run:
 import unittest
 from pathlib import Path
 
-from eval_briefing import ERROR, WARN, evaluate, load_corpus, parse_briefing
+import eval_briefing
+from briefing_config import BriefingConfig, load_config
+from eval_briefing import ERROR, WARN, load_corpus
+
+FIXTURE_CONFIG = load_config("fixtures/briefing-config-2026-08-09.json")
+
+
+def evaluate(corpus, text):
+    """Run unit fixtures against their frozen contract, not a user's config."""
+    return eval_briefing.evaluate(corpus, text, FIXTURE_CONFIG)
+
+
+def parse_briefing(text):
+    return eval_briefing.parse_briefing(text, FIXTURE_CONFIG)
 
 
 def _items(prefix, count):
@@ -178,6 +191,52 @@ class StructureTest(unittest.TestCase):
         self.assertEqual(len(sections["Excluded Topics"]["excluded"]), 5)
 
 
+class ConfigurationDrivenContractTest(unittest.TestCase):
+    def config_with(self, section_name, **changes):
+        sections = tuple(
+            section._replace(**changes) if section.name == section_name else section
+            for section in FIXTURE_CONFIG.sections
+        )
+        return BriefingConfig(FIXTURE_CONFIG.schema_version, sections)
+
+    def test_story_target_comes_from_config(self):
+        config = self.config_with("US Politics", target_stories=2)
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("slots_overfilled", checks(findings, ERROR))
+
+    def test_exclusion_target_comes_from_config(self):
+        config = self.config_with("US Politics", excluded_stories=3)
+        findings = eval_briefing.evaluate(CORPUS, briefing(exclusions=3), config)
+        politics_warnings = [
+            finding for finding in findings
+            if finding.check.startswith("exclusion_log") and "US Politics" in finding.message
+        ]
+        self.assertEqual(politics_warnings, [])
+
+    def test_section_name_comes_from_config(self):
+        config = self.config_with("US Politics", name="Public Policy")
+        text = briefing().replace("## US Politics", "## Public Policy")
+        text = text.replace("**US Politics**", "**Public Policy**")
+        findings = eval_briefing.evaluate(CORPUS, text, config)
+        self.assertNotIn("missing_section", checks(findings, ERROR))
+
+    def test_missing_configured_corpus_category_is_an_error(self):
+        config = self.config_with("US Politics", corpus_categories=("climate",))
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("config_category_missing", checks(findings, ERROR))
+
+    def test_story_must_come_from_a_category_eligible_for_its_section(self):
+        config = self.config_with("US Politics", corpus_categories=("world",))
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("category_ineligible", checks(findings, ERROR))
+
+    def test_exclusion_category_check_ignores_sentence_closing_parenthesis(self):
+        text = briefing().replace(
+            "🔗 https://ex.com/p4", "🔗 https://ex.com/w10).", 1)
+        findings = evaluate(CORPUS, text)
+        self.assertIn("category_ineligible", checks(findings, ERROR))
+
+
 class DoubleListingTest(unittest.TestCase):
     def test_story_in_both_briefing_and_exclusion_log_is_an_error(self):
         text = briefing().replace("🔗 https://ex.com/p3", "🔗 https://ex.com/p4")
@@ -326,9 +385,15 @@ class PromptSafetyContractTest(unittest.TestCase):
         with open("briefing-prompt.md") as prompt_file:
             prompt = prompt_file.read().lower()
         for required in ("untrusted data", "never as instructions", "do not browse",
-                         "never fill missing context", "summary is empty"):
+                         "never fill missing context", "summary is empty",
+                         "briefing-config.json", "overlapping corpus categories"):
             with self.subTest(required=required):
                 self.assertIn(required, prompt)
+
+        for stale_wording in ("two local files", "us news and us politics",
+                              "ai news and ai dev tools"):
+            with self.subTest(stale_wording=stale_wording):
+                self.assertNotIn(stale_wording, prompt)
 
 
 if __name__ == "__main__":

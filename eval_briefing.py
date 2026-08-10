@@ -23,7 +23,7 @@ that is the corpus's fault, not the model's.
 
 Usage:
     python3 eval_briefing.py --corpus corpus.json --briefing briefing.md
-    python3 eval_briefing.py --corpus c.json --briefing b.md --strict
+    python3 eval_briefing.py --corpus c.json --briefing b.md --config briefing-config.json --strict
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ import sys
 from collections import Counter
 from typing import Any, NamedTuple
 
+import briefing_config
 import corpus_schema
 
 
@@ -50,22 +51,8 @@ Section = dict[str, Any]
 ERROR = "ERROR"
 WARN = "WARN"
 
-# section label -> reserved topic slots (None = not slot-constrained)
-SECTIONS = {
-    "US Politics": 3,
-    "US News": 4,
-    "World Events": 5,
-    "AI News": 4,
-    "AI Dev Tools": 3,
-    "AI Dev Practices": 3,
-}
 EXCLUDED = "Excluded Topics"
 CORPUS_HEALTH = "Corpus health"
-
-# Sections the prompt requires an exclusion log for (AI News is exempt).
-EXCLUSION_SECTIONS = ("US Politics", "US News", "World Events",
-                      "AI Dev Tools", "AI Dev Practices")
-EXCLUSIONS_PER_SECTION = 5
 
 # A heading (## / ###) or a bold sub-header, either of which starts a section.
 _SECTION_LINE = re.compile(
@@ -88,6 +75,15 @@ CLAIM_EVIDENCE_RATIO = 2.0
 # unvalidated, which is exactly where an invented link would hide.
 _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
+_SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
+
+
+def _clean_link_url(value: str) -> str:
+    """Remove sentence punctuation without damaging balanced URL parentheses."""
+    url = value.strip().rstrip(".,;")
+    while url.endswith(")") and url.count(")") > url.count("("):
+        url = url[:-1].rstrip(".,;")
+    return url
 
 
 def load_corpus(path: str) -> dict[str, Any]:
@@ -119,6 +115,18 @@ def corpus_links(corpus: dict[str, Any]) -> set[str]:
     return links
 
 
+def corpus_link_categories(corpus: dict[str, Any]) -> dict[str, set[str]]:
+    """Map every article and discussion URL to its corpus categories."""
+    categories: dict[str, set[str]] = {}
+    for category, items in corpus.get("categories", {}).items():
+        for item in items:
+            for key in ("url", "discussion"):
+                value = (item.get(key) or "").strip()
+                if value:
+                    categories.setdefault(value, set()).add(category)
+    return categories
+
+
 def hacker_news_links(corpus: dict[str, Any]) -> dict[str, str]:
     """Article URL -> discussion URL, for items that carry engagement signal."""
     pairs = {}
@@ -131,21 +139,27 @@ def hacker_news_links(corpus: dict[str, Any]) -> dict[str, str]:
     return pairs
 
 
-def _match_section(label: str) -> str | None:
+def _match_section(label: str, config: briefing_config.BriefingConfig) -> str | None:
     """Map a heading or sub-header to a known section name, or None."""
-    for name in list(SECTIONS) + [EXCLUDED, CORPUS_HEALTH]:
-        if name.lower() in label.lower():
-            return name
+    normalized = _SLOT_SUFFIX.sub("", label.strip()).casefold()
+    for section in config.sections:
+        if normalized == section.name.casefold():
+            return section.name
+    if normalized.startswith(EXCLUDED.casefold()):
+        return EXCLUDED
+    if normalized == CORPUS_HEALTH.casefold():
+        return CORPUS_HEALTH
     return None
 
 
-def parse_briefing(text: str) -> dict[str, Section]:
+def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = None) -> dict[str, Section]:
     """Split a briefing into sections.
 
     Deliberately tolerant: it keys off section labels and 🔗 lines rather than
     an exact template, so cosmetic prompt edits don't break the checker. It
     reports what it found; the checks decide whether that's acceptable.
     """
+    config = config or briefing_config.load_config()
     sections: dict[str, Section] = {}
     current = None
     in_excluded = False
@@ -155,7 +169,7 @@ def parse_briefing(text: str) -> dict[str, Section]:
         marker = _SECTION_LINE.match(line)
         if marker:
             heading, bold = marker.group("heading"), marker.group("bold")
-            matched = _match_section(heading or bold)
+            matched = _match_section(heading or bold, config)
             if heading is not None:
                 # A real heading always ends the previous section. An
                 # unrecognized one (e.g. "AI/Tech", a container) parks the
@@ -195,11 +209,9 @@ def parse_briefing(text: str) -> dict[str, Section]:
                 bucket["topic_links"].append([])
 
         for link in _LINK.finditer(line):
-            url = link.group("url").strip().rstrip(".,;")
             # A sentence-closing parenthesis is not part of the citation, but
             # preserve balanced parentheses that genuinely belong to a URL.
-            while url.endswith(")") and url.count(")") > url.count("("):
-                url = url[:-1].rstrip(".,;")
+            url = _clean_link_url(link.group("url"))
             bucket["links"].append(url)
             if not in_excluded and bucket["topic_links"]:
                 bucket["topic_links"][-1].append(url)
@@ -207,9 +219,10 @@ def parse_briefing(text: str) -> dict[str, Section]:
     return sections
 
 
-def check_sections_present(sections: dict[str, Section]) -> list[Finding]:
+def check_sections_present(sections: dict[str, Section],
+                           config: briefing_config.BriefingConfig) -> list[Finding]:
     findings: list[Finding] = []
-    for name in list(SECTIONS) + [EXCLUDED]:
+    for name in [section.name for section in config.sections] + [EXCLUDED]:
         if name not in sections:
             findings.append(Finding(ERROR, "missing_section",
                                     f"required section {name!r} is absent"))
@@ -225,6 +238,37 @@ def check_links_grounded(sections: dict[str, Section], allowed: set[str]) -> lis
                 findings.append(Finding(
                     ERROR, "ungrounded_link",
                     f"{name}: cited link is not in the corpus — {url}"))
+    return findings
+
+
+def check_section_categories(sections: dict[str, Section], corpus: dict[str, Any],
+                             config: briefing_config.BriefingConfig) -> list[Finding]:
+    """Cited items must come from a category eligible for their section."""
+    findings: list[Finding] = []
+    link_categories = corpus_link_categories(corpus)
+    configured = {section.name: set(section.corpus_categories)
+                  for section in config.sections}
+
+    for name, eligible in configured.items():
+        for url in sections.get(name, {}).get("links", []):
+            actual = link_categories.get(url)
+            if actual is not None and actual.isdisjoint(eligible):
+                findings.append(Finding(
+                    ERROR, "category_ineligible",
+                    f"{name}: cited item belongs to {', '.join(sorted(actual))}, "
+                    f"not an eligible category — {url}"))
+
+    excluded = sections.get(EXCLUDED, {}).get("excluded", {})
+    for name, eligible in configured.items():
+        for entry in excluded.get(name, []):
+            for match in _LINK.finditer(entry):
+                url = _clean_link_url(match.group("url"))
+                actual = link_categories.get(url)
+                if actual is not None and actual.isdisjoint(eligible):
+                    findings.append(Finding(
+                        ERROR, "category_ineligible",
+                        f"{name} exclusion: cited item belongs to "
+                        f"{', '.join(sorted(actual))}, not an eligible category — {url}"))
     return findings
 
 
@@ -248,9 +292,12 @@ def check_every_entry_cites_source(sections: dict[str, Section]) -> list[Finding
     return findings
 
 
-def check_slot_allocation(sections: dict[str, Section]) -> list[Finding]:
+def check_slot_allocation(sections: dict[str, Section],
+                          config: briefing_config.BriefingConfig) -> list[Finding]:
     findings: list[Finding] = []
-    for name, expected in SECTIONS.items():
+    for section in config.sections:
+        name = section.name
+        expected = section.target_stories
         if name not in sections:
             continue
         actual = len(sections[name]["topics"])
@@ -299,22 +346,27 @@ def check_no_repeated_topics(sections: dict[str, Section]) -> list[Finding]:
     return findings
 
 
-def check_exclusion_log(sections: dict[str, Section]) -> list[Finding]:
+def check_exclusion_log(sections: dict[str, Section],
+                        config: briefing_config.BriefingConfig) -> list[Finding]:
     findings: list[Finding] = []
     if EXCLUDED not in sections:
         return findings
     logged = sections[EXCLUDED]["excluded"]
-    for name in EXCLUSION_SECTIONS:
+    for section in config.sections:
+        expected = section.excluded_stories
+        if expected == 0:
+            continue
+        name = section.name
         entries = logged.get(name, [])
         if not entries:
             findings.append(Finding(
                 WARN, "exclusion_log_missing",
                 f"exclusion log has no entries for {name!r}"))
-        elif len(entries) < EXCLUSIONS_PER_SECTION:
+        elif len(entries) < expected:
             findings.append(Finding(
                 WARN, "exclusion_log_short",
                 f"exclusion log for {name!r}: {len(entries)} entries, "
-                f"expected {EXCLUSIONS_PER_SECTION}"))
+                f"expected {expected}"))
     return findings
 
 
@@ -431,17 +483,24 @@ def check_claims_supported(sections: dict[str, Section],
     return findings
 
 
-def evaluate(corpus: dict[str, Any], text: str) -> list[Finding]:
+def evaluate(corpus: dict[str, Any], text: str,
+             config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
     """Run every check and return findings, ERRORs first."""
-    sections = parse_briefing(text)
+    config = config or briefing_config.load_config()
+    sections = parse_briefing(text, config)
     findings: list[Finding] = []
-    findings += check_sections_present(sections)
+    category_problems = briefing_config.validate_corpus_categories(
+        config, set(corpus.get("categories", {})))
+    findings += [Finding(ERROR, "config_category_missing", problem)
+                 for problem in category_problems]
+    findings += check_sections_present(sections, config)
     findings += check_links_grounded(sections, corpus_links(corpus))
+    findings += check_section_categories(sections, corpus, config)
     findings += check_every_entry_cites_source(sections)
     findings += check_no_double_listing(sections)
-    findings += check_slot_allocation(sections)
+    findings += check_slot_allocation(sections, config)
     findings += check_no_repeated_topics(sections)
-    findings += check_exclusion_log(sections)
+    findings += check_exclusion_log(sections, config)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
     findings += check_claims_supported(sections, corpus_evidence(corpus))
     findings += check_corpus_health_reported(sections, corpus, text)
@@ -453,15 +512,22 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--corpus", required=True, help="corpus JSON the briefing came from")
     parser.add_argument("--briefing", required=True, help="generated briefing markdown")
+    parser.add_argument("--config", default=briefing_config.DEFAULT_CONFIG_PATH,
+                        help="trusted briefing structure JSON "
+                             f"(default {briefing_config.DEFAULT_CONFIG_PATH})")
     parser.add_argument("--strict", action="store_true",
                         help="treat warnings as failures too")
     args = parser.parse_args()
 
     corpus = load_corpus(args.corpus)
+    try:
+        config = briefing_config.load_config(args.config)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot load briefing config from {args.config}: {exc}")
     with open(args.briefing) as f:
         text = f.read()
 
-    findings = evaluate(corpus, text)
+    findings = evaluate(corpus, text, config)
     for finding in findings:
         print(f"{finding.level:5} [{finding.check}] {finding.message}")
 

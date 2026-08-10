@@ -25,17 +25,17 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = ["corpus_schema", "eval_briefing", "fetch_news"]
+py-modules = ["briefing_config", "corpus_schema", "eval_briefing", "fetch_news"]
 
 [tool.setuptools.data-files]
-"share/news-briefing" = ["sources.json"]
+"share/news-briefing" = ["briefing-config.json", "sources.json"]
 
 [tool.mypy]
 python_version = "3.11"
-# The three modules that make up the pipeline are fully annotated and checked.
+# The four modules that make up the pipeline are fully annotated and checked.
 # The test modules are not: annotating assertions adds noise without catching
 # anything the tests themselves wouldn't.
-files = ["fetch_news.py", "eval_briefing.py", "corpus_schema.py"]
+files = ["briefing_config.py", "fetch_news.py", "eval_briefing.py", "corpus_schema.py"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 warn_unused_ignores = true
