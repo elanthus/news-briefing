@@ -310,6 +310,35 @@ Remove AI Dev Practices. Keep the first four sections ungrouped and group the tw
 Each section object has six fields: `name`, optional `group`, positive `target_stories`, one or more `corpus_categories`, editorial `guidance`, and a non-negative `excluded_stories` target. Invalid or duplicate fields, section names, counts, and category references fail explicitly. The checker also rejects a citation placed in a section that does not list the item's corpus category.
 
 <details>
+<summary><b>Change the briefing topics</b></summary>
+
+Changing the subjects themselves means updating the closed corpus and the briefing contract together. This hobbyist example uses topic-specific RSS feeds for sports and movies, while Hacker News and Reddit supply a smaller development section.
+
+```text
+Update only `sources.json` and `briefing-config.json` to turn this into a hobbyist briefing.
+
+In `sources.json`:
+
+- Replace the ordered categories with `sports`, `entertainment`, and `development`.
+- Replace `rss_feeds` with:
+  - `sports`: `["NCAA FBS", "https://www.ncaa.com/news/football/fbs/rss.xml"]` and `["ESPN MLB", "https://www.espn.com/espn/rss/mlb/news"]`.
+  - `entertainment`: `["Variety Film", "https://variety.com/v/film/feed/"]` and `["Hollywood Reporter Movies", "https://www.hollywoodreporter.com/c/movies/feed/"]`.
+- Route Hacker News to `development` with the queries `developer tools`, `software development`, and `coding`.
+- Route Reddit to `development` with the subreddits `programming`, `webdev`, and `learnprogramming`.
+- Remove the old categories and sources. Preserve the existing JSON field names.
+
+In `briefing-config.json`, preserve schema version 1 and replace the sections with this ordered mix:
+
+- Sports: 5 stories from `sports`; 5 excluded stories. Focus only on college football and Major League Baseball, prioritizing results, rankings, trades, injuries, and consequential team news.
+- Movies: 3 stories from `entertainment`; 3 excluded stories. Focus on US movies, including releases, casting, box office, reviews, and film-industry developments; exclude television and general celebrity coverage.
+- Developer Corner: 3 stories from `development`; 3 excluded stories. Favor approachable tools, releases, tutorials, and practices useful to a hobbyist developer; avoid dense enterprise coverage.
+
+Keep every section ungrouped. Do not edit Python, `briefing-prompt.md`, tests, or fixtures. Run `python3 -m unittest -v` and report the resulting categories, source routes, sections, and any failures.
+```
+
+</details>
+
+<details>
 <summary><b>Advanced: change the source mix</b></summary>
 
 Edit [`sources.json`](sources.json) to add corpus categories or change the RSS feeds, Hacker News queries, and subreddits without touching application code. The fetcher loads that file by default; pass `--sources path/to/another.json` to keep a separate configuration. Its `categories` list defines the corpus names and their order in both JSON and the `--markdown` digest; `rss_feeds` maps feeds to those names, while `hn_category` and `reddit_category` explicitly route the respective community sources. The remaining `hn_queries` and `subreddits` lists select what those source types fetch. Every declared category must have at least one configured feed, Hacker News query, or subreddit. Invalid fields, names, destinations, empty routes, and source entries fail fast with a specific error instead of silently reducing coverage.

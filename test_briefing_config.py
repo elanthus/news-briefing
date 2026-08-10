@@ -52,7 +52,8 @@ class InvalidConfigTest(unittest.TestCase):
 
     def test_duplicate_section_name_is_rejected_case_insensitively(self):
         self.assert_problem(
-            lambda raw: raw["sections"][1].update(name="us politics"),
+            lambda raw: raw["sections"][1].update(
+                name=raw["sections"][0]["name"].swapcase()),
             "section names must be unique")
 
     def test_target_must_be_positive(self):
@@ -67,7 +68,8 @@ class InvalidConfigTest(unittest.TestCase):
 
     def test_group_cannot_collide_with_a_section_name(self):
         self.assert_problem(
-            lambda raw: raw["sections"][0].update(group="US News"),
+            lambda raw: raw["sections"][0].update(
+                group=raw["sections"][1]["name"]),
             "group collides with a section or reserved heading")
 
     def test_corpus_category_names_are_validated(self):
@@ -86,8 +88,11 @@ class InvalidConfigTest(unittest.TestCase):
 class CorpusReferenceTest(unittest.TestCase):
     def test_missing_referenced_category_is_reported(self):
         config = briefing_config.load_config()
-        problems = briefing_config.validate_corpus_categories(config, {"us_politics"})
-        self.assertTrue(any("US News" in problem and "us_news" in problem
+        section = config.sections[0]
+        missing = section.corpus_categories[0]
+        available = set(load_sources(DEFAULT_SOURCES_PATH).categories) - {missing}
+        problems = briefing_config.validate_corpus_categories(config, available)
+        self.assertTrue(any(section.name in problem and missing in problem
                             for problem in problems))
 
 
