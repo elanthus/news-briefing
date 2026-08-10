@@ -57,6 +57,17 @@ RSS_FEEDS = {
         ("The Hill", "https://thehill.com/homenews/feed/"),
         ("Axios", "https://api.axios.com/feed/"),
     ],
+    # The briefing needs 9 items a day here (4 slots plus a 5-entry exclusion
+    # log); these four measured roughly 45 in a 24h window. So the fourth feed
+    # is redundancy, not volume — it keeps the category above 9 after any two
+    # of the others die or go quiet. Outlets are kept disjoint from
+    # `us_politics` so the same story can't arrive twice under two categories.
+    "us_news": [
+        ("CBS News US", "https://www.cbsnews.com/latest/rss/us"),
+        ("The Guardian US", "https://www.theguardian.com/us-news/rss"),
+        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+        ("NPR National", "https://feeds.npr.org/1003/rss.xml"),
+    ],
     "world": [
         ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
         ("NPR World", "https://feeds.npr.org/1004/rss.xml"),

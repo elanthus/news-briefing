@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import corpus_schema
 import fetch_news
 from fetch_news import (
     DEFAULT_WINDOW_HOURS,
@@ -579,6 +580,25 @@ class HttpGetTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "response exceeded"):
                 fetch_news.http_get("https://example.com/feed")
         self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
+
+
+class FeedConfigurationTest(unittest.TestCase):
+    """The fetcher's categories must match the contract, or the corpus it
+    writes fails validation before it is ever read."""
+
+    def test_every_declared_category_has_a_source(self):
+        # `dev_community` is spelled out because HN and Reddit also feed it, so
+        # it stays sourced even if its one RSS entry goes away. Every other
+        # category has to earn its place in RSS_FEEDS.
+        sourced = set(fetch_news.RSS_FEEDS) | {"dev_community"}
+        self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
+
+    def test_us_news_feeds_are_distinct_from_us_politics(self):
+        """Overlapping outlets are the duplication risk this change creates;
+        don't build it into the source list as well."""
+        politics = {url for _, url in fetch_news.RSS_FEEDS["us_politics"]}
+        news = {url for _, url in fetch_news.RSS_FEEDS["us_news"]}
+        self.assertEqual(politics & news, set())
 
 
 if __name__ == "__main__":
