@@ -1,0 +1,46 @@
+{
+  "rss_feeds": {
+    "us_politics": [
+      ["NPR Politics", "https://feeds.npr.org/1014/rss.xml"],
+      ["Politico", "https://rss.politico.com/politics-news.xml"],
+      ["The Hill", "https://thehill.com/homenews/feed/"],
+      ["Axios", "https://api.axios.com/feed/"]
+    ],
+    "us_news": [
+      ["CBS News US", "https://www.cbsnews.com/latest/rss/us"],
+      ["The Guardian US", "https://www.theguardian.com/us-news/rss"],
+      ["PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"],
+      ["NPR National", "https://feeds.npr.org/1003/rss.xml"]
+    ],
+    "world": [
+      ["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"],
+      ["NPR World", "https://feeds.npr.org/1004/rss.xml"],
+      ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"]
+    ],
+    "ai_tech": [
+      ["OpenAI News", "https://openai.com/news/rss.xml"],
+      ["Google DeepMind", "https://deepmind.google/blog/rss.xml"],
+      ["The Verge", "https://www.theverge.com/rss/index.xml"],
+      ["Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"],
+      ["Wired", "https://www.wired.com/feed/rss"],
+      ["TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"]
+    ],
+    "dev_community": [
+      ["GitHub Changelog", "https://github.blog/changelog/feed/"]
+    ]
+  },
+  "hn_queries": [
+    "claude code",
+    "cursor",
+    "codex",
+    "mcp",
+    "llm agent",
+    "prompt engineering"
+  ],
+  "subreddits": [
+    "ClaudeAI",
+    "ClaudeCode",
+    "LocalLLaMA",
+    "cursor"
+  ]
+}

@@ -217,6 +217,7 @@ python3 fetch_news.py --hours 12        # narrower window
 python3 fetch_news.py --hours 48        # wider window (Reddit uses its week bucket)
 python3 fetch_news.py --markdown        # human-readable digest instead of JSON
 python3 fetch_news.py -o corpus.json    # write to file instead of stdout
+python3 fetch_news.py --sources my-sources.json # use a custom source configuration
 python3 fetch_news.py --source-cap 15   # retain at most 15 items from one source
 python3 fetch_news.py --category-cap 40 # retain at most 40 items in one category
 ```
@@ -280,7 +281,9 @@ The reference briefing is a **regression baseline, not a golden answer**. Rankin
 
 ## Customizing sources
 
-Edit the `RSS_FEEDS`, `HN_QUERIES`, and `SUBREDDITS` constants at the top of `fetch_news.py`. Broad sources listed in `SOURCE_RELEVANCE_FILTERS` are keyword-filtered; category-specific sources pass through without keyword filtering.
+Edit [`sources.json`](sources.json) to change the RSS feeds, Hacker News queries, or subreddits without touching application code. The fetcher loads that file by default; pass `--sources path/to/another.json` to keep a separate configuration. The three required top-level fields are `rss_feeds`, `hn_queries`, and `subreddits`. Invalid fields, category names, and source entries fail fast with a specific error instead of silently reducing coverage.
+
+Broad sources listed in `SOURCE_RELEVANCE_FILTERS` in `fetch_news.py` are keyword-filtered; category-specific sources pass through without keyword filtering.
 
 A note on Reddit: its `top` RSS endpoint accepts only coarse buckets (`hour`/`day`/`week`/…), not an arbitrary window. `fetch_news.py` picks the smallest bucket that fully covers `--hours` and then applies the exact cutoff in code, requesting proportionally more posts when the bucket overshoots so in-window coverage stays roughly constant. Reddit also rate-limits anonymous clients aggressively, so requests use a shorter timeout and a bounded two-attempt retry budget. A failed subreddit degrades coverage and appears in corpus health instead of holding the whole run open indefinitely.
 
