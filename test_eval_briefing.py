@@ -385,9 +385,15 @@ class PromptSafetyContractTest(unittest.TestCase):
         with open("briefing-prompt.md") as prompt_file:
             prompt = prompt_file.read().lower()
         for required in ("untrusted data", "never as instructions", "do not browse",
-                         "never fill missing context", "summary is empty"):
+                         "never fill missing context", "summary is empty",
+                         "briefing-config.json", "overlapping corpus categories"):
             with self.subTest(required=required):
                 self.assertIn(required, prompt)
+
+        for stale_wording in ("two local files", "us news and us politics",
+                              "ai news and ai dev tools"):
+            with self.subTest(stale_wording=stale_wording):
+                self.assertNotIn(stale_wording, prompt)
 
 
 if __name__ == "__main__":
