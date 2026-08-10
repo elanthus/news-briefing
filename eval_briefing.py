@@ -51,7 +51,8 @@ WARN = "WARN"
 
 # section label -> reserved topic slots (None = not slot-constrained)
 SECTIONS = {
-    "US Politics": 5,
+    "US Politics": 3,
+    "US News": 4,
     "World Events": 5,
     "AI News": 4,
     "AI Dev Tools": 3,
@@ -61,7 +62,8 @@ EXCLUDED = "Excluded Topics"
 CORPUS_HEALTH = "Corpus health"
 
 # Sections the prompt requires an exclusion log for (AI News is exempt).
-EXCLUSION_SECTIONS = ("US Politics", "World Events", "AI Dev Tools", "AI Dev Practices")
+EXCLUSION_SECTIONS = ("US Politics", "US News", "World Events",
+                      "AI Dev Tools", "AI Dev Practices")
 EXCLUSIONS_PER_SECTION = 5
 
 # A heading (## / ###) or a bold sub-header, either of which starts a section.
@@ -276,14 +278,19 @@ def check_no_double_listing(sections: dict[str, Section]) -> list[Finding]:
 
 
 def check_no_repeated_topics(sections: dict[str, Section]) -> list[Finding]:
+    """A story is reported in exactly one section.
+
+    Only exact URL repeats are decidable here. The same event filed by two
+    outlets under two URLs is the model's job, under the consolidation rule.
+    """
     findings: list[Finding] = []
     included = [url for name, bucket in sections.items() if name != EXCLUDED
                 for url in bucket["links"]]
     for url, count in Counter(included).items():
         if count > 1:
             findings.append(Finding(
-                WARN, "repeated_link",
-                f"link cited {count} times across sections — {url}"))
+                ERROR, "repeated_topic",
+                f"topic reported {count} times across sections — {url}"))
     return findings
 
 

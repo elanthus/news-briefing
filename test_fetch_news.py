@@ -243,8 +243,8 @@ class ReferenceBriefingCoverageTest(unittest.TestCase):
     """
 
     def test_no_cited_item_would_be_filtered_out(self):
-        corpus = json.loads(Path("fixtures/corpus-2026-08-08.json").read_text())
-        briefing = Path("fixtures/briefing-2026-08-08.md").read_text()
+        corpus = json.loads(Path("fixtures/corpus-2026-08-09.json").read_text())
+        briefing = Path("fixtures/briefing-2026-08-09.md").read_text()
         cited = set(re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", briefing))
         dropped = [item["title"]
                    for items in corpus["categories"].values() for item in items
