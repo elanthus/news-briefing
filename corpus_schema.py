@@ -22,9 +22,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+# 2 added the `us_news` category. Bump whenever CATEGORIES changes: readers key
+# off the version, not off the category set, so a stale reader has nothing else
+# to notice the difference by.
 SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
 
+# Order is load-bearing: it sets key order in `corpus.json` and section order in
+# the markdown digest, so `us_news` sits beside `us_politics` to match the
+# briefing. Nothing enforces it — `validate_corpus` compares sets.
 CATEGORIES = ("us_politics", "us_news", "world", "ai_tech", "dev_community")
 
 # Fields the prompt and the checker are entitled to rely on.

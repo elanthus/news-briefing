@@ -530,7 +530,7 @@ def main() -> int:
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
         "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
-        "categories": {"us_politics": [], "world": [], "ai_tech": [], "dev_community": []},
+        "categories": {name: [] for name in corpus_schema.CATEGORIES},
         "processing": {},
         "errors": [],
     }

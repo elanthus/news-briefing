@@ -107,6 +107,8 @@ class CategoryTest(unittest.TestCase):
         self.assertIn("us_news", corpus_schema.CATEGORIES)
 
     def test_a_corpus_without_us_news_is_reported(self):
+        """Mandatory, not optional: a fetcher shipped without it fails at write
+        time rather than quietly producing a briefing with a section missing."""
         c = corpus()
         del c["categories"]["us_news"]
         del c["processing"]["us_news"]
