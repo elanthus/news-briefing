@@ -66,10 +66,22 @@ expensive mistake, since a dropped item cannot be ranked at all.
 
 ### `SCHEMA_VERSION` goes 1 to 2
 
-`validate_corpus` requires the category set to match exactly, so a v1 checker
-reading a v2 corpus would report `us_news` as a violation. `is_readable`
-already permits new code to read old corpora, so the bump only closes the
-direction where a stale reader would misread a newer file.
+The bump is precautionary, and it is worth being exact about why, because the
+obvious rationale is wrong. `validate_corpus` is strict about the category set,
+but nothing reads a corpus through it — it is called once, on the write path
+(`fetch_news.py`), against a corpus the same process just built. The read-side
+gate is `is_readable`, and `eval_briefing.py` iterates
+`corpus["categories"].values()` without ever keying by name, so a v1 checker
+handed a v2 corpus would in fact read it correctly. Left unbumped, nothing
+would break today.
+
+It is bumped anyway because the alternative is reasoning, per change, about
+which additive edits old readers happen to tolerate. That reasoning is cheap
+to get wrong and expensive to get wrong silently, and the version gate only
+works if the rule is mechanical: the category set is part of the contract, so
+changing it bumps the version. `is_readable` already permits new code to read
+old corpora, so the cost is one-directional — an old checkout refuses a new
+corpus instead of guessing at it.
 
 ### Duplication is enforced in the prompt and the checker, not the fetcher
 

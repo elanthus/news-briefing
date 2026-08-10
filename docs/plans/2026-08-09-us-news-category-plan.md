@@ -10,7 +10,10 @@
 
 **Design doc:** `docs/plans/2026-08-09-us-news-category-design.md`
 
-**Sequencing note:** Tasks 1–3 keep the whole suite green. Task 4 adds the new fixture pair alongside the old one (still green). Task 5 flips the eval contract, repoints tests at the new fixture, and deletes the old pair in a single commit — splitting it would leave a red `CommittedFixtureTest`, because the 2026-08-08 baseline cannot satisfy a contract that did not exist when it was generated.
+**Sequencing note:** every task leaves the suite green and the fetcher runnable. That constrains where two changes live:
+
+- Adding `us_news` to `CATEGORIES` immediately invalidates the hand-maintained category literal in `fetch_news.py`'s `main()`, so the fetcher cannot write a valid corpus until that literal is derived from the contract. Both belong in Task 1; Task 2 adds the feeds on top.
+- Task 4 adds the new fixture pair alongside the old one (still green). Task 5 flips the eval contract, repoints tests at the new fixture, and deletes the old pair in a single commit — splitting it would leave a red `CommittedFixtureTest`, because the 2026-08-08 baseline cannot satisfy a contract that did not exist when it was generated.
 
 ---
 
@@ -128,17 +131,9 @@ All four were measured live over a 24-hour window: 26, 14, 10 and 5 items. That 
 
 Do **not** add these sources to `SOURCE_RELEVANCE_FILTERS`. Those filters exist for The Verge, Ars, Wired and the GitHub Changelog because those feeds carry high off-topic volume; curated hard-news feeds do not, and over-filtering is the more expensive mistake — a dropped item cannot be ranked at all (see the comment at `fetch_news.py:439-453`).
 
-In `main()`, replace the hand-maintained literal:
+`main()` already derives its category dict from `corpus_schema.CATEGORIES` — that moved into Task 1, because adding a category to the contract breaks the fetcher until it does. Nothing to change here.
 
-```python
-        "categories": {"us_politics": [], "world": [], "ai_tech": [], "dev_community": []},
-```
-
-with one derived from the contract, so this list cannot drift again:
-
-```python
-        "categories": {name: [] for name in corpus_schema.CATEGORIES},
-```
+Note that this makes the ORDER of `CATEGORIES` load-bearing: it sets key order in `corpus.json` and section order in the `--markdown` digest (`fetch_news.py:587`). `us_news` sits second to match briefing order.
 
 **Step 4: Run the full suite**
 
@@ -146,7 +141,7 @@ with one derived from the contract, so this list cannot drift again:
 python3 -m unittest -v
 ```
 
-Expected: `FeedConfigurationTest` passes. `MainFailureModeTest` still passes — it patches `RSS_FEEDS` to `{}` and asserts an empty-but-valid corpus, which the derived dict still produces.
+Expected: `FeedConfigurationTest` passes and the suite is fully green. `MainFailureModeTest` still passes — it patches `RSS_FEEDS` to `{}` and asserts an empty-but-valid corpus, which the derived dict still produces.
 
 **Step 5: Commit**
 
