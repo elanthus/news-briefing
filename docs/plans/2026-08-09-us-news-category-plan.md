@@ -270,12 +270,12 @@ allowed = {u for items in corpus["categories"].values() for i in items
 text = open("fixtures/briefing-2026-08-09.md").read()
 section = text.split("## US News", 1)[1].split("\n## ", 1)[0]
 cited = re.findall(r"🔗\s*(?:HN:\s*)?(\S+)", section)
-print(f"{len(cited)} links cited in US News")
+print(f"{len(cited)} links cited across 4 US News topics")
 print("ungrounded:", [u for u in cited if u not in allowed] or "none")
 PY
 ```
 
-Expected: 4 links, none ungrounded. What must also be clean in the eval run itself: every link grounded, every topic and exclusion cited, nothing both included and excluded, and failed sources named. Fix the briefing, not the checker.
+Expected: at least 4 links across the 4 topics, none ungrounded. Consolidated topics can legitimately cite more than one corpus item, so the link count can exceed the slot count. What must also be clean in the eval run itself: every link grounded, every topic and exclusion cited, nothing both included and excluded, and failed sources named. Fix the briefing, not the checker.
 
 Task 5 runs the authoritative `--strict` check once `SECTIONS` knows about US News. If that surfaces problems in the briefing, they are fixed there — the fixture only becomes the committed baseline in that same commit.
 
