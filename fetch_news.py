@@ -155,6 +155,10 @@ SOURCE_RELEVANCE_FILTERS = {
     "Hacker News": HN_RELEVANCE,
 }
 TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
+FEED_NAMESPACES = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "content": "http://purl.org/rss/1.0/modules/content/",
+}
 
 # Whitespace, XML declarations and comments may legally precede the DOCTYPE.
 _XML_PROLOG = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<\?.*?\?>|<!--.*?-->)*", re.DOTALL)
@@ -215,7 +219,7 @@ def parse_feed_date(text: str | None) -> datetime | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError, IndexError):
         pass
     try:
         dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -230,6 +234,18 @@ def strip_html(text: str | None) -> str:
     return re.sub(r"<[^>]+>", "", unescape(text or "")).strip()
 
 
+def _feed_summary(element: ET.Element, *paths: str) -> str:
+    """Return the first non-empty summary/content element as plain text."""
+    for path in paths:
+        child = element.find(path, FEED_NAMESPACES)
+        if child is None:
+            continue
+        summary = strip_html("".join(child.itertext()))
+        if summary:
+            return summary[:SUMMARY_CHARS]
+    return ""
+
+
 def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     """Return items newer than cutoff, plus a count of undated entries.
 
@@ -240,7 +256,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     items = []
     undated = 0
     root = parse_feed_xml(http_get(url))
-    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    ns = FEED_NAMESPACES
 
     for item in root.iter("item"):  # RSS 2.0
         published = parse_feed_date(item.findtext("pubDate"))
@@ -253,7 +269,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             "title": strip_html(item.findtext("title")),
             "url": (item.findtext("link") or "").strip(),
             "published": published.isoformat(),
-            "summary": strip_html(item.findtext("description"))[:SUMMARY_CHARS],
+            "summary": _feed_summary(item, "description", "content:encoded"),
             "source": source_name,
         })
 
@@ -271,8 +287,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             "title": strip_html(entry.findtext("atom:title", namespaces=ns)),
             "url": link.get("href", "") if link is not None else "",
             "published": published.isoformat(),
-            "summary": strip_html(
-                entry.findtext("atom:summary", namespaces=ns) or "")[:SUMMARY_CHARS],
+            "summary": _feed_summary(entry, "atom:summary", "atom:content"),
             "source": source_name,
         })
     return FetchResult(items, undated)

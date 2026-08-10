@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install ruff and mypy
-        run: pip install ruff==0.14.2 mypy==1.14.1
+        run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check .
       - name: Type check

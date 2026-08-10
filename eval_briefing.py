@@ -194,7 +194,11 @@ def parse_briefing(text: str) -> dict[str, Section]:
                 bucket["topic_links"].append([])
 
         for link in _LINK.finditer(line):
-            url = link.group("url").strip()
+            url = link.group("url").strip().rstrip(".,;")
+            # A sentence-closing parenthesis is not part of the citation, but
+            # preserve balanced parentheses that genuinely belong to a URL.
+            while url.endswith(")") and url.count(")") > url.count("("):
+                url = url[:-1].rstrip(".,;")
             bucket["links"].append(url)
             if not in_excluded and bucket["topic_links"]:
                 bucket["topic_links"][-1].append(url)

@@ -113,6 +113,18 @@ class GroundingTest(unittest.TestCase):
         findings = evaluate(CORPUS, briefing())
         self.assertNotIn("ungrounded_link", checks(findings))
 
+    def test_ignores_sentence_punctuation_after_urls(self):
+        text = briefing().replace("🔗 https://ex.com/p1", "🔗 https://ex.com/p1.),")
+        sections = parse_briefing(text)
+        self.assertIn("https://ex.com/p1", sections["US Politics"]["links"])
+        self.assertNotIn("ungrounded_link", checks(evaluate(CORPUS, text), ERROR))
+
+    def test_preserves_balanced_parentheses_in_urls(self):
+        text = "## US Politics\n\n🔗 https://ex.com/wiki/Example_(topic)."
+        sections = parse_briefing(text)
+        self.assertEqual(sections["US Politics"]["links"],
+                         ["https://ex.com/wiki/Example_(topic)"])
+
     def test_flags_included_topic_without_a_link(self):
         text = briefing().replace("🔗 https://ex.com/p1", "")
         self.assertIn("topic_without_link", checks(evaluate(CORPUS, text), ERROR))

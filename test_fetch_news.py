@@ -81,6 +81,12 @@ class ParseFeedDateTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(parse_feed_date(text))
 
+    def test_malformed_rfc_dates_cannot_escape_parser_exceptions(self):
+        for error in (OverflowError, IndexError):
+            with (self.subTest(error=error.__name__),
+                  patch.object(fetch_news, "parsedate_to_datetime", side_effect=error)):
+                self.assertIsNone(parse_feed_date("malformed"))
+
     def test_result_is_always_timezone_aware(self):
         """Cutoff comparison is `published < cutoff`; a naive value would raise."""
         parsed = parse_feed_date("2026-08-08T14:30:00")
@@ -97,6 +103,29 @@ class StripHtmlTest(unittest.TestCase):
     def test_handles_missing_text(self):
         """findtext() returns None for absent elements; that must not raise."""
         self.assertEqual(strip_html(None), "")
+
+
+class FeedSummaryFallbackTest(unittest.TestCase):
+    def test_rss_uses_content_encoded_when_description_is_empty(self):
+        feed = (b'<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">'
+                b'<channel><item><title>Story</title><link>https://ex.com/story</link>'
+                b'<pubDate>Sat, 08 Aug 2026 12:00:00 GMT</pubDate>'
+                b'<description> </description>'
+                b'<content:encoded><![CDATA[<p>Full <b>technical</b> summary</p>]]>'
+                b'</content:encoded></item></channel></rss>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["summary"], "Full technical summary")
+
+    def test_atom_uses_content_when_summary_is_empty(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Story</title><link href="https://ex.com/story"/>'
+                b'<published>2026-08-08T12:00:00Z</published><summary />'
+                b'<content type="html">&lt;p&gt;Detailed Atom content&lt;/p&gt;</content>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["summary"], "Detailed Atom content")
 
 
 class RedditMdTextTest(unittest.TestCase):
