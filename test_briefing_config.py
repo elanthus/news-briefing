@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import briefing_config
-import corpus_schema
+from fetch_news import DEFAULT_SOURCES_PATH, load_sources
 
 
 def raw_config():
@@ -36,7 +36,7 @@ class ValidConfigTest(unittest.TestCase):
         config = briefing_config.load_config()
         self.assertEqual(
             briefing_config.validate_corpus_categories(
-                config, set(corpus_schema.CATEGORIES)),
+                config, set(load_sources(DEFAULT_SOURCES_PATH).categories)),
             [])
 
 

@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any, NamedTuple
+
+import corpus_schema
 
 SCHEMA_VERSION = 1
 SOURCE_TREE_CONFIG_PATH = Path(__file__).with_name("briefing-config.json")
@@ -23,7 +24,6 @@ _SECTION_FIELDS = {
     "guidance",
     "excluded_stories",
 }
-_CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 _RESERVED_SECTION_NAMES = {"excluded topics", "corpus health"}
 
 
@@ -97,7 +97,7 @@ def parse_config(raw: Any) -> BriefingConfig:
 
         categories = value["corpus_categories"]
         if (not isinstance(categories, list) or not categories
-                or any(not isinstance(category, str) or not _CATEGORY_NAME.fullmatch(category)
+                or any(not corpus_schema.valid_category_name(category)
                        for category in categories)):
             raise ValueError(
                 f"{where}.corpus_categories must be a non-empty list of category names")

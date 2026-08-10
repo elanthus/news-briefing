@@ -11,7 +11,6 @@ Run:
 import copy
 import unittest
 
-import corpus_schema
 from corpus_schema import (
     LEGACY_SCHEMA_VERSION,
     SCHEMA_VERSION,
@@ -19,6 +18,8 @@ from corpus_schema import (
     is_readable,
     validate_corpus,
 )
+
+DEFAULT_CATEGORIES = ("us_politics", "us_news", "world", "ai_tech", "dev_community")
 
 
 def item(n=1, **overrides):
@@ -53,8 +54,8 @@ def corpus(**overrides):
         "cutoff": "2026-08-07T12:00:00+00:00",
         "window_hours": 24,
         "limits": {"source_cap": 25, "category_cap": 60},
-        "categories": {name: [] for name in corpus_schema.CATEGORIES},
-        "processing": {name: stats(0, 0) for name in corpus_schema.CATEGORIES},
+        "categories": {name: [] for name in DEFAULT_CATEGORIES},
+        "processing": {name: stats(0, 0) for name in DEFAULT_CATEGORIES},
         "errors": [],
     }
     base["categories"]["us_politics"] = [item(1)]
@@ -102,23 +103,28 @@ class TopLevelTest(unittest.TestCase):
 
 
 class CategoryTest(unittest.TestCase):
-    def test_us_news_is_a_declared_category(self):
-        """US News is a corpus category, not a model-side split of us_politics."""
-        self.assertIn("us_news", corpus_schema.CATEGORIES)
-
-    def test_a_corpus_without_us_news_is_reported(self):
-        """Mandatory, not optional: a fetcher shipped without it fails at write
-        time rather than quietly producing a briefing with a section missing."""
+    def test_arbitrary_valid_category_is_allowed(self):
         c = corpus()
-        del c["categories"]["us_news"]
+        c["categories"] = {"climate_policy": [item()]}
+        c["processing"] = {"climate_policy": stats()}
+        self.assertEqual(validate_corpus(c), [])
+
+    def test_at_least_one_category_is_required(self):
+        c = corpus()
+        c["categories"] = {}
+        c["processing"] = {}
+        self.assertTrue(only(validate_corpus(c), "at least one category"))
+
+    def test_invalid_category_name_is_reported(self):
+        c = corpus()
+        c["categories"]["US News"] = []
+        c["processing"]["US News"] = stats(0, 0)
+        self.assertTrue(only(validate_corpus(c), "invalid name"))
+
+    def test_processing_categories_must_match_corpus_categories(self):
+        c = corpus()
         del c["processing"]["us_news"]
-        self.assertTrue(only(validate_corpus(c), "categories should be exactly"))
-
-    def test_unexpected_category_is_reported(self):
-        c = corpus()
-        c["categories"]["sports"] = []
-        c["processing"]["sports"] = stats(0, 0)
-        self.assertTrue(only(validate_corpus(c), "categories should be exactly"))
+        self.assertTrue(only(validate_corpus(c), "one entry per category"))
 
     def test_item_missing_a_required_field_is_reported(self):
         c = corpus()

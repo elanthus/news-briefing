@@ -56,8 +56,11 @@ DEFAULT_SOURCES_PATH = SOURCE_TREE_SOURCES_PATH if SOURCE_TREE_SOURCES_PATH.exis
 
 
 class Sources(NamedTuple):
+    categories: tuple[str, ...]
     rss_feeds: dict[str, list[tuple[str, str]]]
+    hn_category: str
     hn_queries: list[str]
+    reddit_category: str
     subreddits: list[str]
 
 
@@ -78,7 +81,14 @@ def load_sources(path: str | Path) -> Sources:
     if not isinstance(raw, dict):
         raise ValueError("top level must be a JSON object")
 
-    expected = {"rss_feeds", "hn_queries", "subreddits"}
+    expected = {
+        "categories",
+        "rss_feeds",
+        "hn_category",
+        "hn_queries",
+        "reddit_category",
+        "subreddits",
+    }
     missing = expected - raw.keys()
     unknown = raw.keys() - expected
     if missing:
@@ -86,13 +96,24 @@ def load_sources(path: str | Path) -> Sources:
     if unknown:
         raise ValueError(f"unknown field(s): {', '.join(sorted(unknown))}")
 
+    category_values = raw["categories"]
+    if (not isinstance(category_values, list) or not category_values
+            or any(not corpus_schema.valid_category_name(category)
+                   for category in category_values)):
+        raise ValueError("categories must be a non-empty list of category names")
+    if len(category_values) != len(set(category_values)):
+        raise ValueError("categories contains a duplicate")
+    categories = tuple(category_values)
+    category_set = set(categories)
+
     rss_raw = raw["rss_feeds"]
     if not isinstance(rss_raw, dict):
         raise ValueError("rss_feeds must be an object mapping categories to feeds")
 
-    invalid_categories = set(rss_raw) - set(corpus_schema.CATEGORIES)
+    invalid_categories = set(rss_raw) - category_set
     if invalid_categories:
-        raise ValueError(f"rss_feeds contains unknown categories: {', '.join(sorted(invalid_categories))}")
+        raise ValueError(
+            f"rss_feeds contains undeclared categories: {', '.join(sorted(invalid_categories))}")
 
     rss_feeds: dict[str, list[tuple[str, str]]] = {}
     for category, feeds in rss_raw.items():
@@ -108,9 +129,28 @@ def load_sources(path: str | Path) -> Sources:
             parsed_feeds.append((feed[0], feed[1]))
         rss_feeds[category] = parsed_feeds
 
+    destinations: dict[str, str] = {}
+    for field in ("hn_category", "reddit_category"):
+        destination = raw[field]
+        if not corpus_schema.valid_category_name(destination):
+            raise ValueError(f"{field} must be a category name")
+        if destination not in category_set:
+            raise ValueError(f"{field} references undeclared category: {destination}")
+        destinations[field] = destination
+
+    routed_categories = set(rss_feeds) | set(destinations.values())
+    unrouted = category_set - routed_categories
+    if unrouted:
+        raise ValueError(
+            "categories without a source destination: "
+            + ", ".join(sorted(unrouted)))
+
     return Sources(
+        categories=categories,
         rss_feeds=rss_feeds,
+        hn_category=destinations["hn_category"],
         hn_queries=_string_list(raw["hn_queries"], "hn_queries"),
+        reddit_category=destinations["reddit_category"],
         subreddits=_string_list(raw["subreddits"], "subreddits"),
     )
 
@@ -587,7 +627,7 @@ def main() -> int:
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
         "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
-        "categories": {name: [] for name in corpus_schema.CATEGORIES},
+        "categories": {name: [] for name in sources.categories},
         "processing": {},
         "errors": [],
     }
@@ -600,7 +640,7 @@ def main() -> int:
             for name, url in feeds:
                 jobs.append((pool.submit(fetch_rss, name, url, cutoff), category, name))
         for query in sources.hn_queries:
-            jobs.append((pool.submit(fetch_hn, query, cutoff), "dev_community", f"HN:{query}"))
+            jobs.append((pool.submit(fetch_hn, query, cutoff), sources.hn_category, f"HN:{query}"))
 
         for future, category, name in jobs:
             try:
@@ -618,8 +658,8 @@ def main() -> int:
         except Exception as exc:
             corpus["errors"].append(f"r/{sub}: {exc}")
         else:
-            corpus["categories"]["dev_community"].extend(result.items)
-            undated["dev_community"] += result.undated
+            corpus["categories"][sources.reddit_category].extend(result.items)
+            undated[sources.reddit_category] += result.undated
         if index < len(sources.subreddits) - 1:
             time.sleep(REDDIT_PAUSE_SECONDS)
 

@@ -19,19 +19,18 @@ not know is not, and says so instead of guessing.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
-# 2 added the `us_news` category. Bump whenever CATEGORIES changes: readers key
-# off the version, not off the category set, so a stale reader has nothing else
-# to notice the difference by.
-SCHEMA_VERSION = 2
+# 3 makes the category set configuration-defined. Older readers expect the
+# built-in v2 names, so the version changes even though the surrounding JSON
+# shape is unchanged: they should refuse a new corpus instead of misdiagnosing
+# a valid custom category as schema drift.
+SCHEMA_VERSION = 3
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
 
-# Order is load-bearing: it sets key order in `corpus.json` and section order in
-# the markdown digest, so `us_news` sits beside `us_politics` to match the
-# briefing. Nothing enforces it — `validate_corpus` compares sets.
-CATEGORIES = ("us_politics", "us_news", "world", "ai_tech", "dev_community")
+CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
 # Fields the prompt and the checker are entitled to rely on.
 ITEM_REQUIRED_FIELDS = ("title", "url", "published", "source")
@@ -90,6 +89,11 @@ def _iso(value: Any) -> bool:
     return True
 
 
+def valid_category_name(value: Any) -> bool:
+    """Whether a value can safely identify a corpus category."""
+    return isinstance(value, str) and CATEGORY_NAME.fullmatch(value) is not None
+
+
 def validate_corpus(corpus: Any) -> list[str]:
     """Return a list of contract violations; empty means the corpus conforms."""
     problems: list[str] = []
@@ -116,10 +120,13 @@ def validate_corpus(corpus: Any) -> list[str]:
 
     categories = corpus.get("categories")
     if isinstance(categories, dict):
-        if set(categories) != set(CATEGORIES):
+        if not categories:
+            problems.append("categories must define at least one category")
+        invalid = [name for name in categories if not valid_category_name(name)]
+        if invalid:
             problems.append(
-                f"categories should be exactly {sorted(CATEGORIES)}, "
-                f"got {sorted(categories)}")
+                "categories contains invalid name(s): "
+                + ", ".join(sorted(repr(name) for name in invalid)))
         for name, items in categories.items():
             problems += _validate_items(name, items)
 
