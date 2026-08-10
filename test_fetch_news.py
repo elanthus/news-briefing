@@ -24,6 +24,7 @@ from unittest.mock import patch
 import corpus_schema
 import fetch_news
 from fetch_news import (
+    DEFAULT_SOURCES_PATH,
     DEFAULT_WINDOW_HOURS,
     MAX_RESPONSE_BYTES,
     REDDIT_MAX_LIMIT,
@@ -33,6 +34,7 @@ from fetch_news import (
     fetch_hn,
     fetch_reddit,
     is_relevant_item,
+    load_sources,
     parse_feed_date,
     parse_feed_xml,
     positive_int,
@@ -580,11 +582,14 @@ class MainFailureModeTest(unittest.TestCase):
     def test_empty_corpus_is_written_but_returns_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "corpus.json"
-            argv = ["fetch_news.py", "-o", str(output)]
-            with (patch.object(fetch_news, "RSS_FEEDS", {}),
-                  patch.object(fetch_news, "HN_QUERIES", []),
-                  patch.object(fetch_news, "SUBREDDITS", []),
-                  patch.object(fetch_news.sys, "argv", argv),
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "rss_feeds": {},
+                "hn_queries": [],
+                "subreddits": [],
+            }))
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
                   redirect_stdout(io.StringIO()),
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -616,11 +621,15 @@ class FeedConfigurationTest(unittest.TestCase):
     """The fetcher's categories must match the contract, or the corpus it
     writes fails validation before it is ever read."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.sources = load_sources(DEFAULT_SOURCES_PATH)
+
     def test_every_declared_category_has_a_source(self):
         # `dev_community` is spelled out because HN and Reddit also feed it, so
         # it stays sourced even if its one RSS entry goes away. Every other
-        # category has to earn its place in RSS_FEEDS.
-        sourced = set(fetch_news.RSS_FEEDS) | {"dev_community"}
+        # category has to earn its place in the RSS configuration.
+        sourced = set(self.sources.rss_feeds) | {"dev_community"}
         self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
 
     def test_no_feed_url_is_fetched_under_two_categories(self):
@@ -629,8 +638,37 @@ class FeedConfigurationTest(unittest.TestCase):
         deliberate — NPR files under politics, national and world — and the
         one-placement rule in the briefing is what resolves that.
         """
-        urls = [url for feeds in fetch_news.RSS_FEEDS.values() for _, url in feeds]
+        urls = [url for feeds in self.sources.rss_feeds.values() for _, url in feeds]
         self.assertEqual([u for u, n in Counter(urls).items() if n > 1], [])
+
+
+class SourcesConfigurationTest(unittest.TestCase):
+    def write_sources(self, directory, value):
+        path = Path(directory) / "sources.json"
+        path.write_text(json.dumps(value))
+        return path
+
+    def test_default_configuration_loads_all_source_types(self):
+        sources = load_sources(DEFAULT_SOURCES_PATH)
+        self.assertIn("us_politics", sources.rss_feeds)
+        self.assertIn("codex", sources.hn_queries)
+        self.assertIn("ClaudeCode", sources.subreddits)
+
+    def test_rejects_missing_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {"rss_feeds": {}, "hn_queries": []})
+            with self.assertRaisesRegex(ValueError, "missing field.*subreddits"):
+                load_sources(path)
+
+    def test_rejects_unknown_categories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "rss_feeds": {"typo": []},
+                "hn_queries": [],
+                "subreddits": [],
+            })
+            with self.assertRaisesRegex(ValueError, "unknown categories: typo"):
+                load_sources(path)
 
 
 if __name__ == "__main__":

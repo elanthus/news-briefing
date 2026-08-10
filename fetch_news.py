@@ -29,6 +29,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import corpus_schema
@@ -49,52 +50,67 @@ HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
 REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
 
-# category -> list of (source_name, feed_url)
-RSS_FEEDS = {
-    "us_politics": [
-        ("NPR Politics", "https://feeds.npr.org/1014/rss.xml"),
-        ("Politico", "https://rss.politico.com/politics-news.xml"),
-        ("The Hill", "https://thehill.com/homenews/feed/"),
-        ("Axios", "https://api.axios.com/feed/"),
-    ],
-    # The briefing needs 9 items a day here (4 slots plus a 5-entry exclusion
-    # log); these four measured 55 in a 24h window. So the fourth feed is
-    # redundancy, not volume — the category still clears 9 after losing any
-    # two. PBS files general headlines rather than US-domestic ones, so
-    # expect roughly two stories in ten to be world news.
-    #
-    # Feed URLs are disjoint from `us_politics` so no feed is fetched under two
-    # categories; the outlets are not, and are not meant to be (NPR files under
-    # both). A story reaching both categories stays in both — `dedupe` runs
-    # inside `prepare_category`, per category, and the once-per-briefing rule
-    # binds in the briefing, not here.
-    "us_news": [
-        ("CBS News US", "https://www.cbsnews.com/latest/rss/us"),
-        ("The Guardian US", "https://www.theguardian.com/us-news/rss"),
-        ("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
-        ("NPR National", "https://feeds.npr.org/1003/rss.xml"),
-    ],
-    "world": [
-        ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
-        ("NPR World", "https://feeds.npr.org/1004/rss.xml"),
-        ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
-    ],
-    "ai_tech": [
-        ("OpenAI News", "https://openai.com/news/rss.xml"),
-        ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
-        ("The Verge", "https://www.theverge.com/rss/index.xml"),
-        ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
-        ("Wired", "https://www.wired.com/feed/rss"),
-        ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
-    ],
-    "dev_community": [
-        ("GitHub Changelog", "https://github.blog/changelog/feed/"),
-    ],
-}
+DEFAULT_SOURCES_PATH = Path(__file__).with_name("sources.json")
 
-# Dev tools / practices: engagement-bearing community sources
-HN_QUERIES = ["claude code", "cursor", "codex", "mcp", "llm agent", "prompt engineering"]
-SUBREDDITS = ["ClaudeAI", "ClaudeCode", "LocalLLaMA", "cursor"]
+
+class Sources(NamedTuple):
+    rss_feeds: dict[str, list[tuple[str, str]]]
+    hn_queries: list[str]
+    subreddits: list[str]
+
+
+def _string_list(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ValueError(f"{field} must be a list of non-empty strings")
+    return value
+
+
+def load_sources(path: str | Path) -> Sources:
+    """Load and validate source configuration from a JSON file."""
+    source_path = Path(path)
+    try:
+        raw = json.loads(source_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON at line {exc.lineno}, column {exc.colno}") from exc
+
+    if not isinstance(raw, dict):
+        raise ValueError("top level must be a JSON object")
+
+    expected = {"rss_feeds", "hn_queries", "subreddits"}
+    missing = expected - raw.keys()
+    unknown = raw.keys() - expected
+    if missing:
+        raise ValueError(f"missing field(s): {', '.join(sorted(missing))}")
+    if unknown:
+        raise ValueError(f"unknown field(s): {', '.join(sorted(unknown))}")
+
+    rss_raw = raw["rss_feeds"]
+    if not isinstance(rss_raw, dict):
+        raise ValueError("rss_feeds must be an object mapping categories to feeds")
+
+    invalid_categories = set(rss_raw) - set(corpus_schema.CATEGORIES)
+    if invalid_categories:
+        raise ValueError(f"rss_feeds contains unknown categories: {', '.join(sorted(invalid_categories))}")
+
+    rss_feeds: dict[str, list[tuple[str, str]]] = {}
+    for category, feeds in rss_raw.items():
+        if not isinstance(category, str) or not isinstance(feeds, list):
+            raise ValueError("rss_feeds must map category names to lists")
+        parsed_feeds: list[tuple[str, str]] = []
+        for index, feed in enumerate(feeds):
+            if (not isinstance(feed, list) or len(feed) != 2
+                    or any(not isinstance(part, str) or not part.strip() for part in feed)):
+                raise ValueError(
+                    f"rss_feeds.{category}[{index}] must be a [source name, URL] pair of non-empty strings"
+                )
+            parsed_feeds.append((feed[0], feed[1]))
+        rss_feeds[category] = parsed_feeds
+
+    return Sources(
+        rss_feeds=rss_feeds,
+        hn_queries=_string_list(raw["hn_queries"], "hn_queries"),
+        subreddits=_string_list(raw["subreddits"], "subreddits"),
+    )
 
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
 # window, so it can't express arbitrary hour ranges directly. Over-fetch the
@@ -541,6 +557,8 @@ def positive_int(value: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sources", type=Path, default=DEFAULT_SOURCES_PATH,
+                        help=f"source configuration JSON (default: {DEFAULT_SOURCES_PATH})")
     parser.add_argument("--hours", type=positive_int, default=DEFAULT_WINDOW_HOURS,
                         help="hard cutoff applied to every source: drop anything "
                              f"older (default {DEFAULT_WINDOW_HOURS})")
@@ -552,6 +570,11 @@ def main() -> int:
                         help="emit a markdown digest instead of JSON")
     parser.add_argument("-o", "--output", help="write to file instead of stdout")
     args = parser.parse_args()
+
+    try:
+        sources = load_sources(args.sources)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot load sources from {args.sources}: {exc}")
 
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=args.hours)
@@ -571,10 +594,10 @@ def main() -> int:
 
     jobs: list[tuple[Future[FetchResult], str, str]] = []
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-        for category, feeds in RSS_FEEDS.items():
+        for category, feeds in sources.rss_feeds.items():
             for name, url in feeds:
                 jobs.append((pool.submit(fetch_rss, name, url, cutoff), category, name))
-        for query in HN_QUERIES:
+        for query in sources.hn_queries:
             jobs.append((pool.submit(fetch_hn, query, cutoff), "dev_community", f"HN:{query}"))
 
         for future, category, name in jobs:
@@ -587,7 +610,7 @@ def main() -> int:
             undated[category] += result.undated
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
-    for index, sub in enumerate(SUBREDDITS):
+    for index, sub in enumerate(sources.subreddits):
         try:
             result = fetch_reddit(sub, cutoff, args.hours)
         except Exception as exc:
@@ -595,7 +618,7 @@ def main() -> int:
         else:
             corpus["categories"]["dev_community"].extend(result.items)
             undated["dev_community"] += result.undated
-        if index < len(SUBREDDITS) - 1:
+        if index < len(sources.subreddits) - 1:
             time.sleep(REDDIT_PAUSE_SECONDS)
 
     for category in corpus["categories"]:
