@@ -95,6 +95,8 @@ def load_corpus(path: str) -> dict[str, Any]:
     """
     with open(path, encoding="utf-8") as f:
         corpus = json.load(f)
+    if not isinstance(corpus, dict):
+        raise ValueError("corpus is not a JSON object")
     if not corpus_schema.is_readable(corpus):
         raise ValueError(
             f"corpus schema v{corpus_schema.corpus_version(corpus)} is newer than "
