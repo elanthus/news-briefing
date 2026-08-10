@@ -121,6 +121,13 @@ def parse_config(raw: Any) -> BriefingConfig:
             excluded_stories=exclusions,
         ))
 
+    heading_names = names | _RESERVED_SECTION_NAMES
+    for index, section in enumerate(sections):
+        if section.group is not None and section.group.casefold() in heading_names:
+            raise ValueError(
+                f"sections[{index}].group collides with a section or reserved heading: "
+                f"{section.group!r}")
+
     return BriefingConfig(schema_version=version, sections=tuple(sections))
 
 

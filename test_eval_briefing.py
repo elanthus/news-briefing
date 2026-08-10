@@ -230,6 +230,12 @@ class ConfigurationDrivenContractTest(unittest.TestCase):
         findings = eval_briefing.evaluate(CORPUS, briefing(), config)
         self.assertIn("category_ineligible", checks(findings, ERROR))
 
+    def test_exclusion_category_check_ignores_sentence_closing_parenthesis(self):
+        text = briefing().replace(
+            "🔗 https://ex.com/p4", "🔗 https://ex.com/w10).", 1)
+        findings = evaluate(CORPUS, text)
+        self.assertIn("category_ineligible", checks(findings, ERROR))
+
 
 class DoubleListingTest(unittest.TestCase):
     def test_story_in_both_briefing_and_exclusion_log_is_an_error(self):

@@ -65,6 +65,11 @@ class InvalidConfigTest(unittest.TestCase):
             lambda raw: raw["sections"][0].update(name="Corpus health"),
             "name is reserved")
 
+    def test_group_cannot_collide_with_a_section_name(self):
+        self.assert_problem(
+            lambda raw: raw["sections"][0].update(group="US News"),
+            "group collides with a section or reserved heading")
+
     def test_corpus_category_names_are_validated(self):
         self.assert_problem(
             lambda raw: raw["sections"][0].update(corpus_categories=["US Politics"]),

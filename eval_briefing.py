@@ -78,6 +78,14 @@ _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
 
+def _clean_link_url(value: str) -> str:
+    """Remove sentence punctuation without damaging balanced URL parentheses."""
+    url = value.strip().rstrip(".,;")
+    while url.endswith(")") and url.count(")") > url.count("("):
+        url = url[:-1].rstrip(".,;")
+    return url
+
+
 def load_corpus(path: str) -> dict[str, Any]:
     """Load a corpus, refusing one this checker cannot read correctly.
 
@@ -201,11 +209,9 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 bucket["topic_links"].append([])
 
         for link in _LINK.finditer(line):
-            url = link.group("url").strip().rstrip(".,;")
             # A sentence-closing parenthesis is not part of the citation, but
             # preserve balanced parentheses that genuinely belong to a URL.
-            while url.endswith(")") and url.count(")") > url.count("("):
-                url = url[:-1].rstrip(".,;")
+            url = _clean_link_url(link.group("url"))
             bucket["links"].append(url)
             if not in_excluded and bucket["topic_links"]:
                 bucket["topic_links"][-1].append(url)
@@ -256,7 +262,7 @@ def check_section_categories(sections: dict[str, Section], corpus: dict[str, Any
     for name, eligible in configured.items():
         for entry in excluded.get(name, []):
             for match in _LINK.finditer(entry):
-                url = match.group("url").strip().rstrip(".,;")
+                url = _clean_link_url(match.group("url"))
                 actual = link_categories.get(url)
                 if actual is not None and actual.isdisjoint(eligible):
                     findings.append(Finding(
