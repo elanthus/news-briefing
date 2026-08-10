@@ -8,10 +8,19 @@ The model receives a closed corpus and ranks and summarizes only what the fetche
 
 **The fetcher and checker need no API keys, credentials, or third-party packages.** Generating the final briefing requires access to an LLM agent such as Codex or Claude. The local code runs on Python 3.11+ and the standard library — no `pip install`.
 
+What that buys, and where it stops:
+
+- **Recency is enforced in code.** The cutoff is applied before the model sees anything.
+- **Citations are enforced against the corpus.** A required-format `🔗` link the fetcher didn't collect fails the run — which is how a fabricated citation in the reference run itself was caught, [logged with the correction](docs/dogfooding.md).
+- **Ranking and summary quality are not claimed.** The model ranks; the exclusion log makes that judgment auditable and claim-grounding checks sample it. [The full guarantee table](#what-is-actually-guaranteed) says where each check stops, and [Non-goals](#non-goals) says what this deliberately isn't.
+
 ## What you get
 
-> **An iPhone exposed to Claude Code as a set of native MCP tools** — After one `claude mcp add`, Claude Code can see the author's iPhone screen, tap buttons and send texts, with the whole integration running over USB.
-> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjnb9d/i_gave_claude_code_my_iphone_as_a_set_of_native/
+One topic from the reference run below — a trade publication and a community post consolidated into a single entry, each of them cited:
+
+> **Anthropic turns Claude Code's auto mode on by default** *(consolidated)* — Anthropic is turning Claude Code's auto mode on by default, which TechCrunch says will mean programming with Claude Code requires even less human oversight. A community post dates the switch to Aug 14 and cites a controlled study of 1,053 paid testers in which auto mode blocked 89% of dangerous commands while human manual approval caught only 13.6%.
+> 🔗 https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/
+> 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjqcvf/anthropic_flips_claude_code_to_auto_mode_by/
 
 Complete frozen reference result from a real run (`--hours 24`, 2026-08-09 — 158 items across 5 categories). The same result and its editorial contract are stored unquoted in [`fixtures/briefing-2026-08-09.md`](fixtures/briefing-2026-08-09.md) and [`fixtures/briefing-config-2026-08-09.json`](fixtures/briefing-config-2026-08-09.json) for regression testing.
 
@@ -343,6 +352,15 @@ The LLM is handed a closed corpus and does the thing it is good at — ranking a
 
 That last row is the honest limit. The corpus stores a truncated feed blurb, not the article — 61 of 158 items in the committed reference corpus (38.6%) hit the 300-character cap, and one carries only a headline — so a faithful summary is still a summary of an excerpt someone else selected. Thin evidence should produce a terse topic or an excluded one; `claim_exceeds_evidence` warns when the prose appears to outrun it.
 
+## Non-goals
+
+Each of these is a choice, not a gap, and each one costs something:
+
+- **It does not call an LLM API.** No keys, no vendor SDK, and no per-run bill beyond the agent subscription you already have — the summarizing step runs in Codex, Claude Code, or whatever agent is already open. The cost is real: you paste a prompt or schedule a task instead of running one command, and the summarizing step is the one part of the loop that isn't a single `python3` invocation.
+- **It does not fetch article bodies.** The corpus holds the truncated blurb a publisher chose to syndicate. Retrieving full text would change both the politeness posture toward the sources and the licensing question, and it is exactly because the evidence is that thin that the claim-grounding checks are warnings a human reads rather than assertions.
+- **It does not judge whether a story is true.** There is no fact-checking, no source-credibility score, and no attempt at balance across outlets. It ranks and summarizes the corpus you configured, and shows you what it dropped.
+- **It is not a reader, a feed service, or a product.** Output is Markdown for one person on one machine. No database, no web UI, no accounts.
+
 ## How it works
 
 1. **Fetch (code-enforced, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, including first-party OpenAI, Google DeepMind, and GitHub Changelog updates; the Hacker News Algolia API; and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped **in code**. Every item carries a parsed, timezone-normalized publish timestamp. The default maps directly to Reddit's `day` bucket before the exact cutoff is applied. Live retrieval can still vary with feed contents, timing, rate limits, and network failures; those failures are recorded in the corpus.
@@ -353,7 +371,7 @@ That last row is the honest limit. The corpus stores a truncated feed blurb, not
 <summary><b>Design notes</b></summary>
 
 - **Configured slot allocation.** The default reserves space for each section so high-volume AI industry news cannot crowd out dev tools and practices; a different mix can reserve that space differently without changing code.
-- **Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a semantic judge, so the deterministic checker does not pretend to settle it. Its figure, quotation, and length checks are review signals, all at WARN. Building them immediately caught three over-reaching summaries and one misattributed quotation in the committed reference briefing.
+- **Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a semantic judge, so the deterministic checker does not pretend to settle it. Its figure, quotation, and length checks are review signals, all at WARN. Building them immediately caught three over-reaching summaries and one misattributed quotation in the reference briefing committed at the time (2026-08-08, since replaced). The current reference pair evaluates clean, so run the checker on your own output rather than reading that as a settled result.
 - **Exclusion accountability.** The default asks for the next 5 stories dropped from each accountable section, with a reason; the configuration can change that target or exempt a section. Silent omission is the failure mode you cannot otherwise detect.
 - **Corpus health reporting.** Fetch failures are collected per-source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
 - **Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source/category caps prevent one noisy publisher from consuming the model's context window. The corpus records each filtering stage in `processing` metadata.
