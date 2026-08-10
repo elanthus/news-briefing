@@ -15,6 +15,7 @@ import tempfile
 import unittest
 import urllib.error
 import xml.etree.ElementTree as ET
+from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
@@ -593,12 +594,14 @@ class FeedConfigurationTest(unittest.TestCase):
         sourced = set(fetch_news.RSS_FEEDS) | {"dev_community"}
         self.assertEqual(sourced, set(corpus_schema.CATEGORIES))
 
-    def test_us_news_feeds_are_distinct_from_us_politics(self):
-        """Overlapping outlets are the duplication risk this change creates;
-        don't build it into the source list as well."""
-        politics = {url for _, url in fetch_news.RSS_FEEDS["us_politics"]}
-        news = {url for _, url in fetch_news.RSS_FEEDS["us_news"]}
-        self.assertEqual(politics & news, set())
+    def test_no_feed_url_is_fetched_under_two_categories(self):
+        """The same feed under two categories duplicates every item it
+        carries, every run. Outlet overlap is a different thing and is
+        deliberate — NPR files under politics, national and world — and the
+        one-placement rule in the briefing is what resolves that.
+        """
+        urls = [url for feeds in fetch_news.RSS_FEEDS.values() for _, url in feeds]
+        self.assertEqual([u for u, n in Counter(urls).items() if n > 1], [])
 
 
 if __name__ == "__main__":

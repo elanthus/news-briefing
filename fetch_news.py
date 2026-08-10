@@ -58,10 +58,16 @@ RSS_FEEDS = {
         ("Axios", "https://api.axios.com/feed/"),
     ],
     # The briefing needs 9 items a day here (4 slots plus a 5-entry exclusion
-    # log); these four measured roughly 45 in a 24h window. So the fourth feed
-    # is redundancy, not volume — it keeps the category above 9 after any two
-    # of the others die or go quiet. Outlets are kept disjoint from
-    # `us_politics` so the same story can't arrive twice under two categories.
+    # log); these four measured 55 in a 24h window. So the fourth feed is
+    # redundancy, not volume — the category still clears 9 after losing any
+    # two. PBS files general headlines rather than US-domestic ones, so
+    # expect roughly two stories in ten to be world news.
+    #
+    # Feed URLs are disjoint from `us_politics` so no feed is fetched under two
+    # categories; the outlets are not, and are not meant to be (NPR files under
+    # both). A story reaching both categories stays in both — `dedupe` runs
+    # inside `prepare_category`, per category, and the once-per-briefing rule
+    # binds in the briefing, not here.
     "us_news": [
         ("CBS News US", "https://www.cbsnews.com/latest/rss/us"),
         ("The Guardian US", "https://www.theguardian.com/us-news/rss"),
