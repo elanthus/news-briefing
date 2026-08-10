@@ -13,7 +13,20 @@ Run:
 import unittest
 from pathlib import Path
 
-from eval_briefing import ERROR, WARN, evaluate, load_corpus, parse_briefing
+import eval_briefing
+from briefing_config import BriefingConfig, load_config
+from eval_briefing import ERROR, WARN, load_corpus
+
+FIXTURE_CONFIG = load_config("fixtures/briefing-config-2026-08-09.json")
+
+
+def evaluate(corpus, text):
+    """Run unit fixtures against their frozen contract, not a user's config."""
+    return eval_briefing.evaluate(corpus, text, FIXTURE_CONFIG)
+
+
+def parse_briefing(text):
+    return eval_briefing.parse_briefing(text, FIXTURE_CONFIG)
 
 
 def _items(prefix, count):
@@ -176,6 +189,46 @@ class StructureTest(unittest.TestCase):
         sections = parse_briefing(briefing())
         self.assertEqual(len(sections["US Politics"]["topics"]), 3)
         self.assertEqual(len(sections["Excluded Topics"]["excluded"]), 5)
+
+
+class ConfigurationDrivenContractTest(unittest.TestCase):
+    def config_with(self, section_name, **changes):
+        sections = tuple(
+            section._replace(**changes) if section.name == section_name else section
+            for section in FIXTURE_CONFIG.sections
+        )
+        return BriefingConfig(FIXTURE_CONFIG.schema_version, sections)
+
+    def test_story_target_comes_from_config(self):
+        config = self.config_with("US Politics", target_stories=2)
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("slots_overfilled", checks(findings, ERROR))
+
+    def test_exclusion_target_comes_from_config(self):
+        config = self.config_with("US Politics", excluded_stories=3)
+        findings = eval_briefing.evaluate(CORPUS, briefing(exclusions=3), config)
+        politics_warnings = [
+            finding for finding in findings
+            if finding.check.startswith("exclusion_log") and "US Politics" in finding.message
+        ]
+        self.assertEqual(politics_warnings, [])
+
+    def test_section_name_comes_from_config(self):
+        config = self.config_with("US Politics", name="Public Policy")
+        text = briefing().replace("## US Politics", "## Public Policy")
+        text = text.replace("**US Politics**", "**Public Policy**")
+        findings = eval_briefing.evaluate(CORPUS, text, config)
+        self.assertNotIn("missing_section", checks(findings, ERROR))
+
+    def test_missing_configured_corpus_category_is_an_error(self):
+        config = self.config_with("US Politics", corpus_categories=("climate",))
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("config_category_missing", checks(findings, ERROR))
+
+    def test_story_must_come_from_a_category_eligible_for_its_section(self):
+        config = self.config_with("US Politics", corpus_categories=("world",))
+        findings = eval_briefing.evaluate(CORPUS, briefing(), config)
+        self.assertIn("category_ineligible", checks(findings, ERROR))
 
 
 class DoubleListingTest(unittest.TestCase):
