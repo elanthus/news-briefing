@@ -303,6 +303,25 @@ class ConfigurationDrivenContractTest(unittest.TestCase):
         findings = eval_briefing.evaluate(CORPUS, text, config)
         self.assertNotIn("missing_section", checks(findings, ERROR))
 
+    def test_exclusion_log_is_required_while_any_section_keeps_one(self):
+        """Exempting one section does not exempt the briefing."""
+        config = self.config_with("US Politics", excluded_stories=0)
+        text = briefing().replace("### Excluded Topics (accountability log)", "### Other")
+        self.assertIn("missing_section", checks(
+            eval_briefing.evaluate(CORPUS, text, config), ERROR))
+
+    def test_exclusion_log_is_not_required_when_every_section_is_exempt(self):
+        """`excluded_stories: 0` exempts a section, so exempting all of them
+        leaves nothing for the log to hold — demanding the heading anyway
+        contradicts the configuration it is supposed to enforce."""
+        config = BriefingConfig(
+            FIXTURE_CONFIG.schema_version,
+            tuple(section._replace(excluded_stories=0)
+                  for section in FIXTURE_CONFIG.sections))
+        text = briefing().split("### Excluded Topics")[0]
+        self.assertNotIn("missing_section",
+                         checks(eval_briefing.evaluate(CORPUS, text, config), ERROR))
+
     def test_missing_configured_corpus_category_is_an_error(self):
         config = self.config_with("US Politics", corpus_categories=("climate",))
         findings = eval_briefing.evaluate(CORPUS, briefing(), config)

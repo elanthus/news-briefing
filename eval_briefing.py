@@ -248,8 +248,18 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
 
 def check_sections_present(sections: dict[str, Section],
                            config: briefing_config.BriefingConfig) -> list[Finding]:
+    """Every configured section must appear, and so must the exclusion log.
+
+    The log is required only while some section still contributes to it.
+    `excluded_stories: 0` exempts a section, so a configuration that exempts
+    every section has nothing to put under the heading, and demanding it
+    anyway would contradict the configuration this check enforces.
+    """
+    required = [section.name for section in config.sections]
+    if any(section.excluded_stories > 0 for section in config.sections):
+        required.append(EXCLUDED)
     findings: list[Finding] = []
-    for name in [section.name for section in config.sections] + [EXCLUDED]:
+    for name in required:
         if name not in sections:
             findings.append(Finding(ERROR, "missing_section",
                                     f"required section {name!r} is absent"))
