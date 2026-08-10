@@ -56,6 +56,8 @@ DEFAULT_SOURCES_PATH = SOURCE_TREE_SOURCES_PATH if SOURCE_TREE_SOURCES_PATH.exis
 
 
 class Sources(NamedTuple):
+    # Preserved from configuration: this order drives both corpus JSON keys and
+    # the section order of the human-readable --markdown digest.
     categories: tuple[str, ...]
     rss_feeds: dict[str, list[tuple[str, str]]]
     hn_category: str
@@ -138,7 +140,16 @@ def load_sources(path: str | Path) -> Sources:
             raise ValueError(f"{field} references undeclared category: {destination}")
         destinations[field] = destination
 
-    routed_categories = set(rss_feeds) | set(destinations.values())
+    hn_queries = _string_list(raw["hn_queries"], "hn_queries")
+    subreddits = _string_list(raw["subreddits"], "subreddits")
+
+    routed_categories = {
+        category for category, feeds in rss_feeds.items() if feeds
+    }
+    if hn_queries:
+        routed_categories.add(destinations["hn_category"])
+    if subreddits:
+        routed_categories.add(destinations["reddit_category"])
     unrouted = category_set - routed_categories
     if unrouted:
         raise ValueError(
@@ -149,9 +160,9 @@ def load_sources(path: str | Path) -> Sources:
         categories=categories,
         rss_feeds=rss_feeds,
         hn_category=destinations["hn_category"],
-        hn_queries=_string_list(raw["hn_queries"], "hn_queries"),
+        hn_queries=hn_queries,
         reddit_category=destinations["reddit_category"],
-        subreddits=_string_list(raw["subreddits"], "subreddits"),
+        subreddits=subreddits,
     )
 
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
