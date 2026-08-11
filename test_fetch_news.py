@@ -368,6 +368,13 @@ class ParseFeedXmlTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_feed_xml(payload)
 
+    def test_rejects_utf16_doctype_declaration(self):
+        payload = ('<?xml version="1.0" encoding="UTF-16"?>'
+                   '<!DOCTYPE r [<!ENTITY x "expanded">]>'
+                   '<rss><item><title>&x;</title></item></rss>').encode("utf-16")
+        with self.assertRaises(ValueError):
+            parse_feed_xml(payload)
+
     def test_entity_reference_without_a_doctype_cannot_expand(self):
         """Without a declaration expat rejects the reference outright."""
         with self.assertRaises(ET.ParseError):
@@ -723,6 +730,31 @@ class SourcesConfigurationTest(unittest.TestCase):
     def test_default_configuration_loads(self):
         sources = load_sources(DEFAULT_SOURCES_PATH)
         self.assertGreater(len(sources.categories), 0)
+
+    def test_rejects_source_identifiers_that_collide_with_error_delimiter(self):
+        cases = (
+            ("rss delimiter", "rss", "News: AI", "reserved ': ' separator"),
+            ("rss newline", "rss", "News\nAI", "single-line"),
+            ("HN delimiter", "hn", "agent: coding", "reserved ': ' separator"),
+            ("HN newline", "hn", "agent\ncoding", "single-line"),
+        )
+        for label, route, bad_value, message in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                value = {
+                    "categories": ["news"],
+                    "rss_feeds": {"news": [["News", "https://example.com/feed.xml"]]},
+                    "hn_category": "news",
+                    "hn_queries": ["agent"],
+                    "reddit_category": "news",
+                    "subreddits": [],
+                }
+                if route == "rss":
+                    value["rss_feeds"]["news"][0][0] = bad_value
+                else:
+                    value["hn_queries"][0] = bad_value
+                path = self.write_sources(directory, value)
+                with self.assertRaisesRegex(ValueError, message):
+                    load_sources(path)
 
     def test_rejects_missing_fields(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -435,11 +435,47 @@ class CorpusHealthTest(unittest.TestCase):
         findings = evaluate(self.degraded, briefing())
         self.assertIn("corpus_health_missing", checks(findings, ERROR))
 
-    def test_unnamed_failed_source_is_a_warning(self):
+    def test_unnamed_failed_source_is_an_error(self):
         text = briefing(health="`r/ClaudeAI` failed.")
         findings = evaluate(self.degraded, text)
-        self.assertIn("failed_source_unnamed", checks(findings, WARN))
-        self.assertEqual(checks(findings, ERROR), set())
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
+
+    def test_hn_query_name_is_not_truncated_at_its_colon(self):
+        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
+        text = briefing(health="All sources healthy.")
+        findings = evaluate(degraded, text)
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
+        self.assertTrue(any("HN:agentic coding" in finding.message
+                            for finding in findings))
+
+    def test_named_hn_query_source_satisfies_the_check(self):
+        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
+        text = briefing(health="`HN:agentic coding` failed with HTTP 503.")
+        self.assertEqual(checks(evaluate(degraded, text), ERROR), set())
+
+    def test_cosmetic_source_variants_satisfy_the_check(self):
+        cases = (
+            ("subreddit slash", "r/ClaudeAI: HTTP Error 429", "/r/ClaudeAI failed."),
+            ("HN colon space", "HN:agentic coding: HTTP Error 503",
+             "HN: agentic coding failed."),
+            ("wrapped source", "Ars Technica: timed out", "Ars\n  Technica failed."),
+        )
+        for label, error, health in cases:
+            with self.subTest(label=label):
+                degraded = dict(CORPUS, errors=[error])
+                self.assertEqual(checks(evaluate(degraded, briefing(health=health)), ERROR), set())
+
+    def test_failed_sources_may_be_named_in_health_heading(self):
+        text = briefing(health="Failures are listed above.").replace(
+            "### Corpus health",
+            "### Corpus health — r/ClaudeAI and r/ClaudeCode failed")
+        self.assertEqual(checks(evaluate(self.degraded, text), ERROR), set())
+
+    def test_source_named_outside_health_section_does_not_count(self):
+        text = briefing(health="All sources healthy.").replace(
+            "summary text here.", "r/ClaudeAI reports summary text here.", 1)
+        findings = evaluate(self.degraded, text)
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
 
     def test_fully_reported_degradation_is_clean(self):
         text = briefing(health="`r/ClaudeAI` and `r/ClaudeCode` failed with HTTP 429.")

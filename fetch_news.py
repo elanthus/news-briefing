@@ -31,6 +31,7 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
 from typing import Any, NamedTuple
+from xml.parsers import expat
 
 import corpus_schema
 from corpus_schema import canonicalize_url
@@ -68,9 +69,23 @@ class Sources(NamedTuple):
     subreddits: list[str]
 
 
+def _source_id_problem(value: Any) -> str | None:
+    """Why a value cannot survive the ``<source>: <message>`` error format."""
+    if not isinstance(value, str) or not value.strip():
+        return "must be a non-empty string"
+    if "\n" in value or "\r" in value:
+        return "must be single-line"
+    if ": " in value:
+        return "must not contain the reserved ': ' separator"
+    return None
+
+
 def _string_list(value: Any, field: str) -> list[str]:
-    if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
-        raise ValueError(f"{field} must be a list of non-empty strings")
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a list")
+    for index, item in enumerate(value):
+        if problem := _source_id_problem(item):
+            raise ValueError(f"{field}[{index}] {problem}")
     return value
 
 
@@ -130,7 +145,11 @@ def load_sources(path: str | Path) -> Sources:
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] must be a [source name, URL] pair of non-empty strings"
                 )
-            parsed_feeds.append((feed[0], feed[1]))
+            name, url = feed
+            if problem := _source_id_problem(name):
+                raise ValueError(
+                    f"rss_feeds.{category}[{index}] source name {problem}")
+            parsed_feeds.append((name, url))
         rss_feeds[category] = parsed_feeds
 
     destinations: dict[str, str] = {}
@@ -230,9 +249,6 @@ FEED_NAMESPACES = {
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
 
-# Whitespace, XML declarations and comments may legally precede the DOCTYPE.
-_XML_PROLOG = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<\?.*?\?>|<!--.*?-->)*", re.DOTALL)
-
 # A corpus item. Field names are fixed by corpus_schema, not by convention.
 Item = dict[str, Any]
 
@@ -269,13 +285,33 @@ def parse_feed_xml(data: bytes) -> ET.Element:
     one, so refusing it closes both without depending on defusedxml, which
     would cost the project its stdlib-only property.
 
-    Only the prolog is inspected, so "<!DOCTYPE" appearing inside article
-    text is not mistaken for a declaration.
+    Expat recognizes the document's declared encoding before calling the DTD
+    handler, so UTF-16 and other supported encodings cannot hide a declaration
+    from this guard. A separate validation pass keeps ElementTree's convenient
+    tree API without relying on its private parser internals.
     """
-    prolog = _XML_PROLOG.match(data)
-    remainder = data[prolog.end():] if prolog else data
-    if remainder[:9].upper() == b"<!DOCTYPE":
+    def reject_doctype(_name: str, _system_id: str | None,
+                       _public_id: str | None, _has_internal_subset: int) -> None:
         raise ValueError("XML DOCTYPE declarations are not accepted")
+
+    class RootReached(Exception):
+        """A DOCTYPE cannot follow the root element, so the guard can stop."""
+
+    def stop_at_root(_name: str, _attributes: dict[str, str]) -> None:
+        raise RootReached
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = reject_doctype
+    parser.StartElementHandler = stop_at_root
+    try:
+        parser.Parse(data, True)
+    except RootReached:
+        pass
+    except expat.ExpatError as exc:
+        # Keep malformed prologs on the public exception type callers already
+        # handle, without swallowing a guard failure and hoping a second parser
+        # happens to reject the same bytes.
+        raise ET.ParseError(str(exc)) from exc
     return ET.fromstring(data)
 
 

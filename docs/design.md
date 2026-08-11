@@ -36,7 +36,7 @@ Category names and their order come from trusted source configuration rather tha
 
 **Exclusion accountability.** The default asks for the next five stories dropped from each accountable section, with a reason; the configuration can change that target or exempt a section with `0`. The log heading itself is required only while at least one section is still accountable, so a configuration that exempts every section is not asked for an empty one. Silent omission is the failure mode you cannot otherwise detect.
 
-**Corpus health reporting.** Fetch failures are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short.
+**Corpus health reporting.** Fetch failures are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short. The checker requires every failed source's identifier in the corpus-health section; it tolerates case, line wrapping, `HN:` spacing, and the common `/r/subreddit` spelling, but a generic health claim or a mention elsewhere cannot satisfy the requirement. Error records use `<source>: <message>`, so source names, HN queries, and subreddit names reserve the `: ` delimiter and must be single-line; rejecting ambiguous configuration keeps the identifier recoverable without changing the corpus schema.
 
 **Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools. The prompt is not the enforcement mechanism; citation grounding is. See the injection fixture described in the [README](../README.md#grounding-is-also-injection-containment).
 

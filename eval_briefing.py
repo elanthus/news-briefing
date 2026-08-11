@@ -197,9 +197,18 @@ def _match_section(label: str, config: briefing_config.BriefingConfig) -> str | 
             return section.name
     if normalized.startswith(EXCLUDED.casefold()):
         return EXCLUDED
-    if normalized == CORPUS_HEALTH.casefold():
+    health = CORPUS_HEALTH.casefold()
+    if (normalized == health
+            or any(normalized.startswith(f"{health}{separator}")
+                   for separator in (":", " —", " -"))):
         return CORPUS_HEALTH
     return None
+
+
+def _new_section() -> Section:
+    """Create one complete parser bucket so both section paths stay in sync."""
+    return {"topics": [], "topic_texts": [], "topic_links": [],
+            "links": [], "spelled": {}, "excluded": {}, "lines": []}
 
 
 def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = None) -> dict[str, Section]:
@@ -228,9 +237,9 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 in_excluded = matched == EXCLUDED
                 excluded_current = None
                 if current:
-                    sections.setdefault(current, {
-                        "topics": [], "topic_texts": [], "topic_links": [],
-                        "links": [], "spelled": {}, "excluded": {}})
+                    bucket = sections.setdefault(current, _new_section())
+                    if current == CORPUS_HEALTH:
+                        bucket["lines"].append(heading)
                 continue
             if in_excluded:
                 # Inside the exclusion log, bold labels are per-section
@@ -240,14 +249,16 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 continue
             if matched:
                 current = matched
-                sections.setdefault(current, {
-                    "topics": [], "topic_texts": [], "topic_links": [],
-                    "links": [], "spelled": {}, "excluded": {}})
+                sections.setdefault(current, _new_section())
                 continue
 
         if current is None:
             continue
         bucket = sections[current]
+        if current == CORPUS_HEALTH:
+            # Health matching is deliberately section-scoped. Retain only this
+            # small section rather than duplicating the whole briefing.
+            bucket["lines"].append(line)
 
         if in_excluded and _LIST_ITEM.match(line) and excluded_current:
             bucket["excluded"][excluded_current].append(line.strip())
@@ -474,8 +485,23 @@ def check_hn_discussion_links(sections: dict[str, Section],
     return findings
 
 
-def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str, Any],
-                                 text: str) -> list[Finding]:
+def _failed_source(error: str) -> str:
+    """Return the exact source ID from the fetcher's human-readable error.
+
+    Source configuration rejects the ``": "`` delimiter, while the ``HN:``
+    namespace deliberately uses a colon without a following space.
+    """
+    return error.split(": ", 1)[0].strip()
+
+
+def _normalize_source_mention(value: str) -> str:
+    """Ignore harmless case, wrapping, and HN colon-spacing differences."""
+    normalized = re.sub(r"\s+", " ", value.casefold()).strip()
+    return re.sub(r"\bhn:\s+", "hn:", normalized)
+
+
+def check_corpus_health_reported(sections: dict[str, Section],
+                                 corpus: dict[str, Any]) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
     errors = corpus.get("errors", [])
     if not errors:
@@ -485,11 +511,15 @@ def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str,
                         f"corpus recorded {len(errors)} fetch error(s) but the "
                         f"briefing has no {CORPUS_HEALTH!r} section")]
     findings: list[Finding] = []
+    health_text = _normalize_source_mention(
+        "\n".join(sections[CORPUS_HEALTH]["lines"]))
     for error in errors:
-        source = error.split(":")[0].strip()
-        if source and source not in text:
+        source = _failed_source(error)
+        normalized_source = _normalize_source_mention(source)
+        if source and not re.search(
+                rf"(?<!\w){re.escape(normalized_source)}(?![\w/])", health_text):
             findings.append(Finding(
-                WARN, "failed_source_unnamed",
+                ERROR, "failed_source_unnamed",
                 f"failed source {source!r} is not named in the briefing"))
     return findings
 
@@ -592,7 +622,7 @@ def evaluate(corpus: dict[str, Any], text: str,
     findings += check_exclusion_log(sections, config)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
     findings += check_claims_supported(sections, corpus_evidence(corpus))
-    findings += check_corpus_health_reported(sections, corpus, text)
+    findings += check_corpus_health_reported(sections, corpus)
     return sorted(findings, key=lambda f: f.level != ERROR)
 
 
