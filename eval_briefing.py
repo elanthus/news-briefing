@@ -475,6 +475,15 @@ def check_hn_discussion_links(sections: dict[str, Section],
     return findings
 
 
+def _failed_source(error: str) -> str:
+    """Return the exact source ID from the fetcher's human-readable error.
+
+    Source configuration rejects the ``": "`` delimiter, while the ``HN:``
+    namespace deliberately uses a colon without a following space.
+    """
+    return error.split(": ", 1)[0].strip()
+
+
 def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str, Any],
                                  text: str) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
@@ -488,9 +497,7 @@ def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str,
     findings: list[Finding] = []
     health_text = "\n".join(sections[CORPUS_HEALTH]["lines"])
     for error in errors:
-        # Fetch errors are serialized as "<source>: <message>". Split on the
-        # delimiter, not every colon: Hacker News source IDs are "HN:<query>".
-        source = error.split(": ", 1)[0].strip()
+        source = _failed_source(error)
         named = source and re.search(
             rf"(?<![\w/]){re.escape(source)}(?![\w/])", health_text)
         if source and not named:
