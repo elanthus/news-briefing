@@ -1,0 +1,1540 @@
+{
+ "schema_version": 3,
+ "generated_at": "2026-08-10T17:10:48.186914+00:00",
+ "cutoff": "2026-08-09T17:10:48.186914+00:00",
+ "window_hours": 24,
+ "limits": {
+  "source_cap": 25,
+  "category_cap": 60
+ },
+ "categories": {
+  "us_politics": [
+   {
+    "title": "US emergency oil reserve falls below 300M barrels for first time since 1980s",
+    "url": "https://thehill.com/policy/energy-environment/6020738-spr-drops-below-300m-barrels/",
+    "published": "2026-08-10T17:07:32+00:00",
+    "summary": "The U.S.\u2019s emergency oil reserve has fallen below 300 million barrels of oil for the first time since it was being filled decades ago. New Energy Department data shows that the Strategic Petroleum Reserve (SPR) contained 298.7 million barrels as of Friday. The last time the\u00a0level was below 300 milli",
+    "source": "The Hill"
+   },
+   {
+    "title": "Modernizing government technology is starting to pay off \u2014 let's keep going",
+    "url": "https://thehill.com/opinion/technology/6019668-gao-reports-it-savings/",
+    "published": "2026-08-10T17:00:00+00:00",
+    "summary": "A Government Accountability Office report indicates that the Technology Modernization Fund has begun yielding significant savings and cybersecurity improvements, prompting calls for Congress to reauthorize the fund before its expiration this September.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Pentagon renames South Carolina air base after Graham",
+    "url": "https://thehill.com/policy/defense/6020662-pentagon-renames-south-carolina-base-lindsey-graham/",
+    "published": "2026-08-10T16:56:23+00:00",
+    "summary": "CHARLESTON, S.C. - The Pentagon officially renamed an air base in South Carolina after late Sen. Lindsey Graham (R-S.C.), a fierce defense hawk who died suddenly last month.\u00a0 Joint Base Charleston, which supports over 60 Pentagon and federal agencies and located in North Charleston, S.C., was rename",
+    "source": "The Hill"
+   },
+   {
+    "title": "Begala: 'I can't stand' socialists",
+    "url": "https://thehill.com/homenews/campaign/6020596-begala-despises-socialists/",
+    "published": "2026-08-10T16:50:19+00:00",
+    "summary": "Former President Clinton\u2019s White House strategist Paul Begala said he despises socialists, as the democratic socialist movement racks up wins in recent primaries. \u201cAbdul won a narrow victory, and more problematic for him, he has a narrow coalition. The socialists all say \u2014 I'm a moderate. I don't li",
+    "source": "The Hill"
+   },
+   {
+    "title": "The U.S. just had its hottest month on record",
+    "url": "https://www.axios.com/2026/08/10/july-2026-hottest-month",
+    "published": "2026-08-10T16:48:43+00:00",
+    "summary": "Reproduced from NOAA; Chart: Axios VisualsJuly was the hottest month on record for the contiguous U.S., per new federal data dating back to 1895.By the numbers: Last month's average temperature was 76.89\u00b0F, topping the 76.77\u00b0F mark set in July 1936.That's 3.3\u00b0F warmer than the 1901-2000 average.What",
+    "source": "Axios"
+   },
+   {
+    "title": "Newsom says he's always had 'insurgent' mindset",
+    "url": "https://thehill.com/homenews/campaign/6020434-newsom-democrats-progressive-candidates-insurgent-mindset/",
+    "published": "2026-08-10T16:42:35+00:00",
+    "summary": "California Gov. Gavin Newsom (D) on Sunday told reporters he's always had an \"insurgent\" mindset, explaining what he thinks is the rationale behind why Democrats are choosing more progressive candidates over mainstream incumbents. \"I think this notion of insurgency over incumbency is the real messag",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump administration revokes more than 175,000 visas",
+    "url": "https://thehill.com/homenews/administration/6020599-trump-administration-visa-revocation/",
+    "published": "2026-08-10T16:36:33+00:00",
+    "summary": "The Trump administration on Monday announced it has revoked more than 175,000 visas from foreign nationals, claiming violations of the terms of the documents related to criminal activity and calls for violence against U.S. citizens, among other allegations.\u00a0 The State Department said the majority of",
+    "source": "The Hill"
+   },
+   {
+    "title": "Zuckerberg argues most common AI concerns overblown",
+    "url": "https://thehill.com/policy/technology/6020402-zuckerberg-defends-ai-future/",
+    "published": "2026-08-10T16:31:30+00:00",
+    "summary": "Meta CEO Mark Zuckerberg published a Monday blog post on the company\u2019s website touting artificial superintelligence for its accessibility, personalized features and ability to serve as an economic power tool amid concerns about humans\u2019 dwindling control over large language models.  Artificial intell",
+    "source": "The Hill"
+   },
+   {
+    "title": "Cars, nukes and cellphones can help us predict the future of AI",
+    "url": "https://thehill.com/opinion/technology/6019166-ai-risks-historical-lessons/",
+    "published": "2026-08-10T16:30:00+00:00",
+    "summary": "Historical context with other tectonic inventions and events can help determine if AI will prove to be a force for good, ill or in-between.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump shifts his tone slightly in Reflecting Pool saga",
+    "url": "https://thehill.com/newsletters/1230-report/6020515-reflecting-pool-trump-error-us-weapon-shortage-taylor-farms-recalls/",
+    "published": "2026-08-10T16:30:00+00:00",
+    "summary": "\ud83c\udf36\ufe0f Plus: Taylor Farms recalls more products {beacon} \u200a It\u2019s Monday. We made it to August recess! \u200a In today's issue: Trump admits to \u2018contractor error\u2019 in Reflecting Pool Weapon shortage reveals weakness in US defense  Taylor Farms recalls more products Obama appears on Larry David\u2019s HBO show Progra",
+    "source": "The Hill"
+   },
+   {
+    "title": "Sanders asks AI giants to pause development, warning of congressional intervention",
+    "url": "https://thehill.com/policy/technology/6020192-sanders-presses-ai-leaders-pause/",
+    "published": "2026-08-10T16:07:01+00:00",
+    "summary": "Sen. Bernie Sanders (I-Vt.) is pressing the leaders of OpenAI, Anthropic and Meta to pause development of artificial intelligence in the wake of recent hacking incidents, warning Congress will intervene if needed. In a letter sent Monday to OpenAI CEO Sam Altman, Anthropic CEO Dario Amodei and Meta ",
+    "source": "The Hill"
+   },
+   {
+    "title": "3 things RFK Jr. gets right about American health \u2014 even if you can\u2019t stand him",
+    "url": "https://thehill.com/opinion/healthcare/6019645-real-food-national-guidelines/",
+    "published": "2026-08-10T16:00:00+00:00",
+    "summary": "Author Dan Corrigan argues that despite political polarization surrounding Robert F. Kennedy Jr., his focus on the chronic disease epidemic and the necessity of prioritizing real food over ultra-processed products highlights critical issues in American public health.",
+    "source": "The Hill"
+   },
+   {
+    "title": "RFK Jr. aims to close loophole that allows new chemicals in food supply",
+    "url": "https://thehill.com/policy/healthcare/6020443-fda-tightens-food-safety-rules/",
+    "published": "2026-08-10T15:57:33+00:00",
+    "summary": "The Trump administration proposed a rule Monday that aims to close a longstanding loophole that allows food and dietary supplement companies to introduce new chemical ingredients in their products without informing the Food and Drug Administration (FDA).\u00a0 The \u201cgenerally recognized as safe\u201d (GRAS) pa",
+    "source": "The Hill"
+   },
+   {
+    "title": "Democrats investigating efforts to deport service members, families",
+    "url": "https://thehill.com/homenews/senate/6020263-democratic-lawmakers-deportations-noncitizen-service-members/",
+    "published": "2026-08-10T15:43:35+00:00",
+    "summary": "A group of more than 60 Democratic lawmakers sent a letter Sunday to Trump administration officials regarding the conversion of military installments into effective \u201ctraps\u201d for noncitizens who are service members and their families.  Members of Congress, led by Sens. Elizabeth Warren (D-Mass.), Rich",
+    "source": "The Hill"
+   },
+   {
+    "title": "Obama to host literary podcast, 'A Great Book,' on Audible",
+    "url": "https://thehill.com/blogs/in-the-know/6020420-obama-hosts-book-podcast/",
+    "published": "2026-08-10T15:34:38+00:00",
+    "summary": "Former President Obama is starting a new chapter as the host of a literature-focused podcast. The ex-commander in chief will host \"A Great Book,\" Audible and Higher Ground Productions, the media company launched by the former president and Michelle Obama, announced on Monday. Former President Obama ",
+    "source": "The Hill"
+   },
+   {
+    "title": "Ocasio-Cortez on Hong positions: 'Woke 1 was crazy'",
+    "url": "https://thehill.com/homenews/campaign/6020350-ocasio-cortez-hong-woke-remarks/",
+    "published": "2026-08-10T15:31:26+00:00",
+    "summary": "Rep. Alexandria Ocasio-Cortez (D-N.Y.) on Sunday quoted a New York City Council member in describing Wisconsin gubernatorial candidate Francesca Hong's (D) past positions, saying \"Woke 1 was crazy.\" ABC News's \"This Week\" host Jonathan Karl asked Ocasio-Cortez in an interview about her opinion on Ho",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump's new White House counsel could soon face a subpoena fight",
+    "url": "https://www.axios.com/2026/08/10/will-scharf-white-house-counsel-midterms",
+    "published": "2026-08-10T11:50:23+00:00",
+    "summary": "White House staff secretary Will Scharf will take over as White House counsel on Sept. 1, President Trump announced Sunday.Why it matters: Scharf begins his job just two months before the midterms, when a possible Democratic House could put him at the center of fights over subpoenas, testimony and e",
+    "source": "Axios"
+   },
+   {
+    "title": "Zuckerberg: AI's biggest risk is one entity with too much control",
+    "url": "https://www.axios.com/2026/08/10/zuckerberg-ai-manifesto-meta",
+    "published": "2026-08-10T10:03:08+00:00",
+    "summary": "Meta CEO Mark Zuckerberg released a full-throated defense of AI on Monday morning: a 6,500-word manifesto arguing that the most common concerns are overblown and fail to account for all the positives it can achieve.In his vision of AI, the biggest risk instead is that one government or entity has to",
+    "source": "Axios"
+   },
+   {
+    "title": "Exclusive: Sanders calls for AI development pause",
+    "url": "https://www.axios.com/2026/08/10/sanders-ai-development-pause",
+    "published": "2026-08-10T09:00:07+00:00",
+    "summary": "Sen. Bernie Sanders (I-Vt.) is urging leading AI CEOs to pause AI development, warning that lawmakers will step in if no action is taken. Why it matters: Sanders is upping the ante on the AI industry ahead of the elections, building on his progressive playbook that is shaping how some candidates mes",
+    "source": "Axios"
+   },
+   {
+    "title": "How Kevin Warsh is rewiring the Fed",
+    "url": "https://www.axios.com/2026/08/10/kevin-warsh-fed-economy-rates-ai",
+    "published": "2026-08-10T09:00:07+00:00",
+    "summary": "Federal Reserve chairman Kevin Warsh is attempting a high-wire act: He's trying to fundamentally rethink the central bank's approach to guiding the economy, while also using its standard policy toolkit to bring down stubbornly persistent inflation.A market blowup late last month showed the perils of",
+    "source": "Axios"
+   },
+   {
+    "title": "In a competitive Maine Senate race, women voters could be the deciders",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5925349/maine-senate-race-susan-collins-troy-jackson-women-voters",
+    "published": "2026-08-10T09:00:00+00:00",
+    "summary": "The race between Susan Collins and Troy Jackson is one of this year's most high-profile Senate contests. To win, both candidates will need support from an especially powerful voting bloc: Maine women.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Voters are sick of the 2-party system. A new poll shows they're open to big changes",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5920312/proportional-representation-poll",
+    "published": "2026-08-10T09:00:00+00:00",
+    "summary": "A new poll shows support for moving the U.S. toward proportional representation, a system that elects multiple representatives in a single district in rough proportion to a party's vote share.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Mike Lindell touts Trump ties in race for governor of Minnesota, where Trump has lost",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5925152/lindell-minnesota-primary-elections-trump",
+    "published": "2026-08-10T09:00:00+00:00",
+    "summary": "Lindell, of MyPillow, plays up his ties to Trump, who endorsed him for Tuesday's primary. But the state Republican convention backed one of his opponents.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Faith is a centerpiece of Texas Senate candidate James Talarico's campaign",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5888593/faith-is-a-centerpiece-of-texas-senate-candidate-james-talaricos-campaign",
+    "published": "2026-08-10T08:40:27+00:00",
+    "summary": "James Talarico, Texas' Democratic Senate nominee, is putting faith at the center of his campaign. Republicans are pushing back. Control over the U.S. Senate hangs in the balance.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Bernie's revolution gets a test run for 2028 in Michigan and Wisconsin",
+    "url": "https://www.axios.com/2026/08/09/democrats-populists-michigan-wisconsin-2028-test",
+    "published": "2026-08-09T21:50:06+00:00",
+    "summary": "LA CROSSE, Wis. \u2014 Progressive insurgents Francesca Hong and Abdul El-Sayed want to shake up the next race for the White House \u2014 a notion that will likely petrify many top Democrats.Why it matters: They aren't running for president \u2014 they're vying for statewide office this year in presidential battle",
+    "source": "Axios"
+   },
+   {
+    "title": "Pro-science group urges Mark Kelly to run for president in 2028",
+    "url": "https://www.axios.com/2026/08/09/group-promoting-science-urges-kelly-to-run-for-president",
+    "published": "2026-08-09T21:40:09+00:00",
+    "summary": "A liberal group working to elect scientists to public office has a 2028 message for Arizona Sen. \u2014 and former astronaut \u2014 Mark Kelly: Run, Kelly, run.Why it matters: 314 Action Fund has raised its profile this cycle, elevating candidates with STEM backgrounds who've pitched themselves as a bulwark a",
+    "source": "Axios"
+   }
+  ],
+  "us_news": [
+   {
+    "title": "Trump administration continues to \u2018attack an innocent man\u2019 over reflecting pool, say lawyers for Olympian \u2013 live",
+    "url": "https://www.theguardian.com/us-news/live/2026/aug/10/ohio-republicans-max-miller-domestic-abuse-allegations-us-politics-live-latest-news",
+    "published": "2026-08-10T16:56:39+00:00",
+    "summary": "Vandalism charges were dropped against David Hearn over damage to reflecting pool but Donald Trump continues to claim Hearn is guiltySign up for the Breaking News US emailWisconsin is not the only state with high stakes primary races on 11 August.We\u2019ll also be bringing you the latest on a number of ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "5 takeaways from Zuckerberg's essay on his vision for superintelligence",
+    "url": "https://www.cbsnews.com/news/mark-zuckerberg-ai-essay-takeaways/",
+    "published": "2026-08-10T16:34:29+00:00",
+    "summary": "In a 6,500-word post, the Meta CEO argues that superintelligence should be shared \"with as many people and businesses as possible.\"",
+    "source": "CBS News US"
+   },
+   {
+    "title": "UK and France prepare for another heat wave as western Europe has its 3rd hottest year on record so far",
+    "url": "https://www.pbs.org/newshour/world/uk-and-france-prepare-for-another-heat-wave-as-western-europe-has-its-3rd-hottest-year-on-record-so-far",
+    "published": "2026-08-10T16:30:14+00:00",
+    "summary": "Globally, so far this is the third-hottest year, behind 2024 and 2025, climate statistics show.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Taylor Farms recalls jalape\u00f1o items at Walmart, Target over salmonella risk",
+    "url": "https://www.cbsnews.com/news/taylor-farms-jalapeno-recall-salmonella-outbreak/",
+    "published": "2026-08-10T16:23:24+00:00",
+    "summary": "The recalled products with jalape\u00f1o were distributed at national retailers, including Walmart, Target and Trader Joe's, in 26 states.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Washington grapples with a $1.4 billion National Guard deployment extension until 2029",
+    "url": "https://www.pbs.org/newshour/nation/washington-grapples-with-a-1-4-billion-national-guard-deployment-extension-until-2029",
+    "published": "2026-08-10T16:10:38+00:00",
+    "summary": "Residents and a new cadre of local officials see in it an unacceptable attempt by the federal government to restrict the heavily Democratic city's autonomy.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "No winners in latest Powerball drawing, jackpot swells to $905 million",
+    "url": "https://www.cbsnews.com/news/powerball-856-million-largest-drawing-of-the-year/",
+    "published": "2026-08-10T16:05:41+00:00",
+    "summary": "The total is also the eighth-largest Powerball jackpot in the game's history.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "AOC shares her egg-freezing journey. Here's what to know about the process.",
+    "url": "https://www.cbsnews.com/news/alexandria-ocasio-cortez-aoc-egg-freezing/",
+    "published": "2026-08-10T15:56:20+00:00",
+    "summary": "\"This is a choice that I am making to feel more in control of my life,\" said 36-year-old Rep. Alexandria Ocasio-Cortez.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Wildfires rage, force evacuations in western U.S., Canada amid drought",
+    "url": "https://www.cbsnews.com/news/wildfires-western-us-canada-severe-drought-evacuations/",
+    "published": "2026-08-10T15:46:20+00:00",
+    "summary": "More than 40 large wildfires are burning in the West, fueled by severe drought, as over 100 blazes scorch parts of western Canada.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "FDA proposes new food ingredient rule but skips defining \u2018ultra-processed\u2019",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/fda-rfk-jr-food-manufacturer-loophole",
+    "published": "2026-08-10T15:46:18+00:00",
+    "summary": "Move closes loophole but doesn\u2019t include definition of ultra-processed foods, promised earlier this yearThe US Food and Drug Administration (FDA) is changing its rules on how food manufacturers notify them of ingredients brought to the market \u2013 but the Trump administration has once again punted on d",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump admits reflecting pool makeover was rushed but renews vandalism claim",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/trump-reflecting-pool-makeover-vandalism-claim",
+    "published": "2026-08-10T15:25:58+00:00",
+    "summary": "US president on Truth Social concedes contractor had cut some corners to finish $14m renovation project by deadlineDonald Trump has conceded his own administration\u2019s renovation of the Lincoln Memorial reflecting pool was rushed and shoddy, while insisting that alleged vandals were to blame for damag",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Flesh-eating bacteria kill at least 7 along Gulf Coast. How to protect yourself.",
+    "url": "https://www.cbsnews.com/news/flesh-eating-bacteria-kill-gulf-coast-how-to-protect-yourself/",
+    "published": "2026-08-10T15:05:39+00:00",
+    "summary": "Vibrio vulnificus, a so-called flesh-eating bacterium, lurks in warm coastal waters and can enter the body through open wounds or from eating raw shellfish.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Trump announces staff secretary Will Scharf, who helped secure ballroom approval, will be his new White House counsel",
+    "url": "https://www.pbs.org/newshour/politics/trump-announces-staff-secretary-will-scharf-who-helped-secure-ballroom-approval-will-be-his-new-white-house-counsel",
+    "published": "2026-08-10T15:03:30+00:00",
+    "summary": "Democrats have vowed to pursue investigations into Trump and his administration if they are successful in November.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "WATCH LIVE: Joint Base Charleston renamed for Sen. Lindsey Graham",
+    "url": "https://www.pbs.org/newshour/world/watch-live-hegseth-speaks-at-joint-base-lindsey-graham-renaming-ceremony",
+    "published": "2026-08-10T14:50:19+00:00",
+    "summary": "The U.S. Air Force is renaming Joint Base Charleston in honor of the late South Carolina Sen. Lindsey Graham.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Congressional Democrats to investigate efforts to deport U.S. military members and their families",
+    "url": "https://www.pbs.org/newshour/politics/congressional-democrats-to-investigate-efforts-to-deport-u-s-military-members-and-their-families",
+    "published": "2026-08-10T14:40:20+00:00",
+    "summary": "The Pentagon declined to comment, stating it would \"reply directly to the authors of the letter.\"",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Mark Zuckerberg's yacht missed boat's call for help, spokesperson says",
+    "url": "https://www.cbsnews.com/news/mark-zuckerberg-yacht-alaska-distress-call/",
+    "published": "2026-08-10T14:30:55+00:00",
+    "summary": "The issue arose when a skiff ran out of fuel off the coast of Alaska and called for assistance from nearby ships.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Trump taps staff secretary Will Scharf to be next White House counsel",
+    "url": "https://www.cbsnews.com/news/trump-will-scharf-white-house-counsel/",
+    "published": "2026-08-10T14:29:50+00:00",
+    "summary": "Will Scharf, who is responsible for overseeing President Trump's paperwork and executive orders, will start Sept. 1, the president announced.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "How to protect yourself from flesh-eating bacteria as concern grows for swimmers",
+    "url": "https://www.cbsnews.com/video/how-to-protect-yourself-from-flesh-eating-bacteria-as-concern-grows-for-swimmers/",
+    "published": "2026-08-10T14:25:29+00:00",
+    "summary": "At least seven people along the Gulf have died from a rare but deadly flesh-eating bacteria that's found in warmer waters. Mark Strassmann reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "SpaceX plan for vast rocket launch site on Louisiana coast sparks backlash",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/spacex-rocket-launch-site-louisiana-backlash",
+    "published": "2026-08-10T14:00:46+00:00",
+    "summary": "Opponents fear Elon Musk firm\u2019s plan to develop 18-mile strip of Pecan Island will badly damage fragile ecosystemPlans by Elon Musk\u2019s SpaceX to build a vast rocket launch site on a stretch of Louisiana\u2019s rapidly eroding coastline have stirred a backlash among some local opponents who fear it will ba",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The media is infatuated with Gadi Eisenkot, the \u2018anti-Netanyahu\u2019. Why? | Mehdi Hasan",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/10/media-gadi-eisenkot-anti-netanyahu",
+    "published": "2026-08-10T14:00:46+00:00",
+    "summary": "The challenger to Netanyahu is more of the same. His record makes that abundantly clearWestern media outlets cannot seem to get enough of Gadi Eisenkot.Israel\u2019s former military chief and the leader of the newly formed Yashar party has been embraced by the international press as he and his party take",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Gen Z calls it \u2018loud budgeting\u2019 \u2013 small business owners have been doing it for decades | Gene Marks",
+    "url": "https://www.theguardian.com/business/2026/aug/10/gen-z-loud-budgeting-small-business-owners",
+    "published": "2026-08-10T14:00:45+00:00",
+    "summary": "The practice of openly proclaiming to the world what you can\u2019t afford can lead to lower fees, reduced prices and better dealsAsk any small business owner what has challenged them the most over the past couple of years and you\u2019ll frequently hear about cashflow. It\u2019s no secret that costs have risen dr",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Taylor Farms voluntarily recalls products with jalape\u00f1os",
+    "url": "https://www.cbsnews.com/video/taylor-farms-voluntarily-recalls-products-with-jalapenos/",
+    "published": "2026-08-10T13:58:04+00:00",
+    "summary": "Taylor Farms, the company tied to a cyclosporiasis outbreak via lettuce, has voluntarily recalled its products with jalape\u00f1os after concerns over salmonella. Adriana Diaz reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "A 7.4-magnitude earthquake rocks Colombia and Ecuador, prompting people to evacuate buildings",
+    "url": "https://www.pbs.org/newshour/world/a-7-4-magnitude-earthquake-rocks-colombia-and-ecuador-prompting-people-to-evacuate-buildings",
+    "published": "2026-08-10T13:54:43+00:00",
+    "summary": "The governor of the department that includes San Jose Del Palmar reported injuries and serious damage to buildings but did not provide further details.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "U.S. economy shows signs of trouble with gas prices, jobs report",
+    "url": "https://www.cbsnews.com/video/us-economy-shows-signs-of-trouble-with-gas-prices-jobs-report/",
+    "published": "2026-08-10T13:51:33+00:00",
+    "summary": "The U.S. economy is showing signs of trouble as gas prices ramp back up to more than $4 per gallon, and the July employment data showed an unexpected loss of 23,000 jobs in the U.S. Nancy Cordes reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Liverpool owners close to \u00a31.35bn sale of 30% stake to consortium including Jeff Bezos",
+    "url": "https://www.theguardian.com/football/2026/aug/10/liverpool-sale-stake-consortium-jeff-bezos-amazon-fenway-sports-group",
+    "published": "2026-08-10T13:49:05+00:00",
+    "summary": "Group including Amazon founder has held talks with FSGBhatia and Facebook co-founder Saverin also involvedA consortium including the Amazon founder, Jeff Bezos, is close to completing a deal for a 30% stake in Liverpool after months of talks with Fenway Sports Group. The investors are led by Amit Bh",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Entrepreneurship is booming in the U.S. Gen Zers are leading the way.",
+    "url": "https://www.cbsnews.com/news/gen-z-business-applications-surge-ai/",
+    "published": "2026-08-10T13:47:18+00:00",
+    "summary": "Young Americans, tired of working for others and boosted by AI, are driving a surge in new businesses.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Fast-moving fires rip through West",
+    "url": "https://www.cbsnews.com/video/fast-moving-fires-rip-through-west/",
+    "published": "2026-08-10T13:42:10+00:00",
+    "summary": "Wildfires are blazing across the western U.S., and in some cases, getting dangerously close to homes. Jonathan Vigliotti reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Francesca Hong, the progressive leading a \u2018messy\u2019 race for Wisconsin\u2019s governor: \u2018They\u2019re tired of the status quo\u2019",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/francesca-hong-democratic-socialist-wisconsin-governor-race",
+    "published": "2026-08-10T13:00:44+00:00",
+    "summary": "Hong, whose grassroots campaign has made her a frontrunner, aims for primary win after public skepticism from top Democrats and a last-minute shake-upAs Francesca Hong surged ahead in the final weeks of the chaotic Democratic primary to be Wisconsin\u2019s next governor, the democratic socialist has beco",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Louisiana warns beachgoers amid surge in flesh-eating bacteria infections",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/louisiana-flesh-eating-bacteria-vibrio-vulnificus",
+    "published": "2026-08-10T12:58:56+00:00",
+    "summary": "State confirms nine cases, including five deaths, from Vibrio vulnificus organism, which thrives in seawaterHealth officials in Louisiana are urging beachgoers to take precautions during a summertime surge in infections from a flesh-eating bacterium found in coastal waters.Louisiana has confirmed ni",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Crew of Zuckerberg yacht did not hear radio call to assist boat, Meta says",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/zuckerberg-yacht-boat-alaska",
+    "published": "2026-08-10T12:42:18+00:00",
+    "summary": "Small skiff ran out of fuel off Alaska and was helped by cruise ship even though Meta CEO\u2019s vessel was closerZuckerberg faces questions over why superyacht reportedly declined to help stranded boatThe crew of a yacht owned by Mark Zuckerberg did not hear a radio call for a maritime assist from a sma",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "An ambitious new project in Florida is giving marine scientists hope: \u2018I just see so much potential\u2019",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/florida-coastal-corridor-marine-life",
+    "published": "2026-08-10T12:00:44+00:00",
+    "summary": "Conservationists have created a \u2018coastal corridor\u2019 of ocean-based projects designed to preserve and nourish vulnerable marine lifeFrom disappearing manatees to bleached coral reefs, gender-changing turtles and oyster beds destroyed by hurricanes, no other state\u2019s marine life faces the magnitude of c",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "What happens when medical students rely on AI \u2013 and never develop their own judgment? | Simar Bajaj and Joseph Sakran",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/10/ai-medical-students-judgment",
+    "published": "2026-08-10T12:00:44+00:00",
+    "summary": "AI\u2019s danger isn\u2019t just in experts losing the ability to reason. It\u2019s that trainees may never learn how to do so in the first placeIn healthcare, there\u2019s growing concern over doctors becoming less clinically adept as they increasingly rely on AI tools. But what about the trainees \u2013 medical students, ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Not your imagination: from backpacks to food, consumer goods are getting worse",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/consumed-consumer-goods-quality",
+    "published": "2026-08-10T12:00:43+00:00",
+    "summary": "Is it possible to avoid the continuing decline in quality of consumer products brought on by corporate greed?When Keyana Sapp, 31, went shopping for a new backpack, the brands he remembered as a kid were just not the same.He researched the companies, from North Face to JanSport and Eastpak, and soon",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Mexico seal place at 2028 Olympics after controversial VAR red card in U-20 win over US",
+    "url": "https://www.theguardian.com/football/2026/aug/10/mexico-seal-place-at-2028-olympics-after-controversial-var-red-card-in-u-20-win-over-us",
+    "published": "2026-08-10T11:23:55+00:00",
+    "summary": "El Tri seal Concacaf Under-20 championship at AztecaChris Applewhite sent off after video reviewCrist\u00f3bal Alfaro scored twice as Mexico retained their Concacaf Under-20 title with a 2-0 victory over the United States in the final at the Azteca on Sunday.The victory booked Mexico\u2019s place at the 2028 ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "\u2018Shoved the tube so hard it tore my nose\u2019: Kurdish film-maker recounts \u2018inhumane\u2019 ICE force-feeding",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/ice-force-feeding-detention-gabar-choli",
+    "published": "2026-08-10T10:00:43+00:00",
+    "summary": "Gabar Choli tells of how, for months, he was shackled, pinned and forcibly fed \u2013 and the physical and emotional scars the ordeal has leftIn June 2025, a sluggish and thin Gabar Choli, with sunken temples and bones visible under his skin, braced himself for the immigration detention center guards to ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump officials offer cities tens of millions for Memphis-style police surges \u2013 with conditions",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/trump-administration-justice-department-policing",
+    "published": "2026-08-10T10:00:43+00:00",
+    "summary": "DoJ to give $300m for enforcement surges in four cities, as long as they abandon progressive ideologies on policingThe Trump administration is offering grants of tens of millions of dollars to cities across the US to create more Memphis-style enforcement surges \u2013 on the condition that they abandon p",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Dr Fauci made mistakes. But his persecution is a travesty | Margaret Sullivan",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/10/dr-fauci-persecution-republicans",
+    "published": "2026-08-10T10:00:42+00:00",
+    "summary": "It\u2019s easy to second-guess decisions made during the pandemic. That doesn\u2019t justify the Republicans\u2019 politicized responseLike the rest of us, Anthony Fauci is far from perfect. His influential guidance, as the country\u2019s top infectious-disease specialist during the height of the Covid-19 pandemic, cer",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "I\u2019ve discovered the joys of postcard-writing in middle age | Amanda Uhle",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/10/postcard-writing-letters",
+    "published": "2026-08-10T10:00:42+00:00",
+    "summary": "There are profound rewards of handwritten correspondence in our digital ageI sent my first postcard, as a six-year old, to Olympian Mary Lou Retton, who returned an autographed black and white photo of herself in a wide smile and chic haircut. \u201c\u2018GOOD LUCK USA \u201884\u201d it said.There followed four relativ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Kurdish hunger striker says ICE force-feeding \u2018mentally broke me\u2019",
+    "url": "https://www.theguardian.com/us-news/2026/aug/10/kurdish-hunger-striker-ice-force-feeding",
+    "published": "2026-08-10T10:00:40+00:00",
+    "summary": "Exclusive: Film-maker Gabar Choli describes how he endured coercive treatment over eight months in detention in TexasA Kurdish man who was force fed over the course of eight months while on hunger strike in US immigration detention has spoken out about it for the first time, describing how much the ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Man who allegedly arranged Tupac Shakur's 1996 killing going on trial in Las Vegas",
+    "url": "https://www.cbsnews.com/news/tupac-shakur-killing-1996-alleged-organizer-trial-las-vegas-duane-keffe-d-davis/",
+    "published": "2026-08-10T09:56:58+00:00",
+    "summary": "The man who prosecutors say orchestrated the 1996 killing of rap icon Tupac Shakur, Duane \"Keffe D\" Davis, is scheduled to go to trial almost 30 years after the drive-by shooting in Las Vegas.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "An arts school where Epstein allegedly preyed on students reveals decades of abuse",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5924901/michigan-students-jeffrey-epstein-sexual-abuse-interlochen-center-arts",
+    "published": "2026-08-10T09:00:00+00:00",
+    "summary": "In a new report, former Interlochen students detail some 70 allegations of sexual abuse by nearly 50 adults employed or affiliated with the school. One of the former students tells his story to NPR.",
+    "source": "NPR National"
+   },
+   {
+    "title": "The FAA wants to reboot the nation's airspace. This airline shows how it might work",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5872752/airspace-reboot-alaska-airlines-flyways",
+    "published": "2026-08-10T09:00:00+00:00",
+    "summary": "When Alaska Airlines wanted to optimize its operations, it turned to a small startup called Air Space Intelligence. Now the FAA has hired the company for a major reboot of the entire U.S. airspace.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Minneapolis volunteer group connects singles passionate about environmentalism",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5918625/minneapolis-volunteer-group-connects-singles-passionate-about-environmentalism",
+    "published": "2026-08-10T08:41:00+00:00",
+    "summary": "A volunteer group in Minneapolis is trading dating apps for garden tools and invasive plants, as singles passionate about environmentalism work together to restore a park while making new connections.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Malcolm Turnbull says faith in Aukus nuclear submarines deal is 'stark staring bonkers' \u2013 video",
+    "url": "https://www.theguardian.com/world/video/2026/aug/10/malcolm-turnbull-says-faith-in-aukus-nuclear-submarines-deal-is-stark-staring-bonkers-video",
+    "published": "2026-08-10T05:04:24+00:00",
+    "summary": "Former prime minister Malcolm Turnbull tells a public inquiry that the Aukus deal with the US and UK will probably result in no submarines at all for Australia. He says the US\u2019s capacity for building submarines has remained stubbornly laggard, and that it is prevented by its own legislation from sel",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Centrist Democrats dismiss Abdul El-Sayed as a freak radical. Do they want to win in 2028 or not? | Nesrine Malik",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/10/centrist-democrats-abdul-el-sayed-michigan-2028-zohran-mamdani",
+    "published": "2026-08-10T05:00:35+00:00",
+    "summary": "Americans want someone on their side in the fight against vested interests \u2013 that means politicians like the Michigan primary winner and Zohran MamdaniAbdul El-Sayed\u2019s win in the Michigan Senate primary was a historic breakthrough. Not only because he is a Muslim son of immigrants who broke with alm",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The view from the proving grounds for next-generation nuclear reactors, Atomic City, Idaho",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5884029/the-view-from-the-proving-grounds-for-next-generation-nuclear-reactors-atomic-city-idaho",
+    "published": "2026-08-10T04:01:00+00:00",
+    "summary": "A new generation of small nuclear reactors is poised to come online in the next few years. Public opinion remains split.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Mother, 5-month-old die in New York Harbor after boat capsized; captain arrested",
+    "url": "https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/",
+    "published": "2026-08-10T03:53:00+00:00",
+    "summary": "A 46-year-old man was arrested on reckless endangerment charges, and authorities are investigating whether the boat was an illegal charter.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Prison inmates train service dogs, changing lives of people they've never met",
+    "url": "https://www.cbsnews.com/video/prison-inmates-train-service-dogs-changing-lives-people-never-met/",
+    "published": "2026-08-10T01:06:52+00:00",
+    "summary": "At a state prison in Stockton, California, some inmates train service dogs that will go on to help people with disabilities. Max Darrow has the story.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Taiwan practices war games as it fears increasing Chinese aggression, questions Trump's support",
+    "url": "https://www.cbsnews.com/video/taiwan-practices-war-games-fears-increasing-chinese-aggression-questions-trumps-support/",
+    "published": "2026-08-10T00:56:01+00:00",
+    "summary": "Taiwan continued its 10-day war games this weekend, preparing for a potential invasion by China, which claims the territory as its own and has threatened to seize it by force. Anna Coren has more details from Taiwan.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Powerball prize increases to $905 million",
+    "url": "https://www.cbsnews.com/video/powerball-prize-increases-905-million/",
+    "published": "2026-08-10T00:51:55+00:00",
+    "summary": "The Powerball jackpot powered up after there was no winner this weekend. The prize for Monday's drawing is now an estimated $905 million, the biggest jackpot this year.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Gas prices stubbornly stuck, up more than $1 since war with Iran started",
+    "url": "https://www.cbsnews.com/video/gas-prices-stubbornly-stuck-since-war-iran-started/",
+    "published": "2026-08-10T00:50:26+00:00",
+    "summary": "The cost of the war with Iran on taxpayers continues to grow, not only to finance the Pentagon's plans, but at the pump. Taurean Small has more.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Iranian leaders demand U.S. pay for war damage or will keep Strait of Hormuz closed",
+    "url": "https://www.cbsnews.com/video/iranian-leaders-demand-us-pay-war-damage-keep-strait-of-hormuz-closed/",
+    "published": "2026-08-10T00:47:00+00:00",
+    "summary": "Iran's Revolutionary Guard insisted that the Strait of Hormuz will remain closed until the U.S. complies with a list of demands, including paying for war damage. Imtiaz Tyab reports on the latest in a series of mixed messages from the regime.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Fires grip western U.S., British Columbia: \"It doesn't seem like it's real\"",
+    "url": "https://www.cbsnews.com/video/fires-grip-western-us-british-columbia-doesnt-seem-real/",
+    "published": "2026-08-10T00:43:00+00:00",
+    "summary": "Nearly 100 large wildfires strained firefighting resources around the U.S. this weekend. The fire danger also exploded in Canada amid hot and dry conditions. Gwen Baumgardner reports, and Andrew Kozak has the forecast.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Don Nelson, former NBA coach and 5-time champion as a player, dies at 86",
+    "url": "https://www.cbsnews.com/news/don-nelson-nba-coach-champion-die/",
+    "published": "2026-08-10T00:23:59+00:00",
+    "summary": "Don Nelson was one of two coaches in NBA history to have at least 250 wins with three different franchises \u2014 Milwaukee, Dallas and Golden State.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "8/9/2026: Generally Recognized as Safe; Growing Up Behind Walls; Hoosier Hysteria",
+    "url": "https://www.cbsnews.com/video/60minutes-2026-08-09/",
+    "published": "2026-08-09T23:00:00+00:00",
+    "summary": "First, a report on how GRAS fuels the rise of ultraprocessed foods. Then, a look inside author Mitch Albom's Haiti orphanage. And, Indiana Hoosiers: from outcast to undefeated.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "8/9: CBS Weekend News",
+    "url": "https://www.cbsnews.com/video/080926-cbs-weekend-news/",
+    "published": "2026-08-09T22:30:00+00:00",
+    "summary": "Wildfires rage in Canada and the western U.S.; 2 were killed from a capsized boat in New York Harbor.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Trump appoints staff secretary Will Scharf as new White House counsel",
+    "url": "https://www.theguardian.com/us-news/2026/aug/09/trump-will-scharf-white-house-counsel",
+    "published": "2026-08-09T22:28:31+00:00",
+    "summary": "Scharf, who helped president win approval for $400m ballroom, to replace David Warrington on 1 SeptemberDonald Trump announced on Sunday that \u2060Will \u200bScharf, the staff secretary who helped secure approval for the $400m White House ballroom project, will become \u2060White House counsel and assistant to th",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "How to spot the Perseid meteor shower, a summer light show that promises to dazzle",
+    "url": "https://www.pbs.org/newshour/science/how-to-spot-the-perseid-meteor-shower-a-summer-light-show-that-promises-to-dazzle",
+    "published": "2026-08-09T22:05:27+00:00",
+    "summary": "The meteor shower's peak Wednesday night into Thursday morning coincides with a total solar eclipse across Spain, Iceland and Greenland and a six-planet parade \u2014 though the best time to view the fireballs will come after totality.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Crews battle wildfires in western U.S. and Canada",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5926463/western-us-wildfires-canada-utah",
+    "published": "2026-08-09T22:03:09+00:00",
+    "summary": "There have been 183 new wildfires, including eight large ones, across the U.S. since Saturday, the National Interagency Fire Center reported on Sunday.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Watchdog for $46 billion tribal gambling industry can't enforce the law without a chairperson",
+    "url": "https://www.pbs.org/newshour/nation/watchdog-for-46-billion-tribal-gambling-industry-cant-enforce-the-law-without-a-chairperson",
+    "published": "2026-08-09T21:32:55+00:00",
+    "summary": "Tribal gambling brought in a record $46 billion in 2025, nearly triple the annual casino revenue of gambling powerhouse Nevada.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Nearly 30 years after Tupac's death, the trial over his murder will finally begin",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5924034/nearly-30-years-after-tupacs-death-the-trial-over-his-murder-will-finally-begin",
+    "published": "2026-08-09T21:27:16+00:00",
+    "summary": "In 2023, police charged Duane Davis, also known as \"Keefe D,\" with organizing Tupac Shakur's murder in 1996. Author Ben Westhoff discusses Davis' trial that begins Monday.",
+    "source": "NPR National"
+   }
+  ],
+  "world": [
+   {
+    "title": "DRC\u2019s Ebola outbreak began months before it was officially declared, says WHO",
+    "url": "https://www.aljazeera.com/news/2026/8/10/drcs-ebola-outbreak-began-months-before-officially-declared-says-who?traffic_source=rss",
+    "published": "2026-08-10T16:28:34+00:00",
+    "summary": "Earlier cases of the disease were wrongly attributed to malaria and typhoid, the WHO said.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "\u2018We have no one\u2019: Palestinians react to Israel\u2019s rejection of Gaza plan",
+    "url": "https://www.aljazeera.com/features/2026/8/10/we-have-no-one-palestinians-react-to-israels-rejection-of-gaza-plan?traffic_source=rss",
+    "published": "2026-08-10T16:24:13+00:00",
+    "summary": "Netanyahu's declaration has reinforced doubts of lasting calm without Israeli withdrawal, reconstruction and guarantees.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "'Total incinerated destruction': Canada wildfire evacuees wonder if they still have homes",
+    "url": "https://www.bbc.co.uk/news/articles/cx2lwv032j9o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T16:10:56+00:00",
+    "summary": "More than 12,000 people have been forced to evacuate over the weekend after a wildfire quickly tore through Canada's picturesque Okanagan region.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Despite Mideast wars, 20 million gather in Iraq for Shia pilgrimage",
+    "url": "https://www.npr.org/2026/08/10/g-s1-137832/iraq-shia-pilgrimage-shia-war",
+    "published": "2026-08-10T16:08:06+00:00",
+    "summary": "Despite wars ranging across the Middle East, more than 20 million Shia pilgrims gather in Iraq shrine city for Arbaeen festival",
+    "source": "NPR World"
+   },
+   {
+    "title": "Sudan\u2019s army chief holds unannounced talks on national dialogue",
+    "url": "https://www.aljazeera.com/news/2026/8/10/sudans-army-chief-holds-unannounced-talks-on-national-dialogue?traffic_source=rss",
+    "published": "2026-08-10T16:03:43+00:00",
+    "summary": "Al-Burhan engaged in discreet consultations aiming to pave the way for a comprehensive Sudanese dialogue conference.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "\u2018They need each other\u2019: What\u2019s behind the new Syria-Russia accord?",
+    "url": "https://www.aljazeera.com/news/2026/8/10/they-need-each-other-whats-behind-the-new-syria-russia-accord?traffic_source=rss",
+    "published": "2026-08-10T16:01:06+00:00",
+    "summary": "The Syrian-Russian agreement reflects a pragmatic approach redefining past alliances amid shifting geopolitics.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Watch: What we know about suspected crime boss Daniel Kinahan",
+    "url": "https://www.bbc.co.uk/news/videos/cm2g97nnr5go?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T15:54:19+00:00",
+    "summary": "Suspected crime boss Daniel Kinahan, one of the world's most wanted men, has spent his first night in custody in Ireland after being extradited from Dubai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Anas al-Sharif: One year on from Israel\u2019s killing of Al Jazeera reporter",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/anas-al-sharif-one-year-on-from-israels-killing-of-al-jazeera-reporter?traffic_source=rss",
+    "published": "2026-08-10T15:51:26+00:00",
+    "summary": "10 August marks one year on from Israel\u2019s killing of Al Jazeera reporter Anas al-Sharif and fellow colleagues.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Oil prices, stocks surge as Hormuz closure drags on",
+    "url": "https://www.aljazeera.com/economy/2026/8/10/oil-prices-stocks-surge-as-hormuz-closure-drags-on?traffic_source=rss",
+    "published": "2026-08-10T15:45:39+00:00",
+    "summary": "US petrol prices dropped nine cents last week but could again surge if the strait closure continues, analysts warn.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Former Thai MP allegedly kills official and confesses on YouTube",
+    "url": "https://www.bbc.co.uk/news/articles/cqx7lje8l79o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T15:21:27+00:00",
+    "summary": "Chalong Riewrang called a YouTube livestream to say he had shot a government official.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Earthquake with 7.4 magnitude hits Colombia, killing at least 47",
+    "url": "https://www.aljazeera.com/news/2026/8/10/7-4-magnitude-earthquake-hits-colombia-killing-at-least-20?traffic_source=rss",
+    "published": "2026-08-10T14:57:08+00:00",
+    "summary": "Emergency teams are still assessing the impact of the quake that was felt across the region.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Indian police attack protesters seeking action over \u2018exam irregularities\u2019",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/indian-police-attack-protesters-seeking-action-over-exam?traffic_source=rss",
+    "published": "2026-08-10T14:52:32+00:00",
+    "summary": "Indian police attack protesters seeking action over \u2018exam irregularities\u2019 in Jharkhand.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Netanyahu's rejection of Trump's 15-point Gaza plan unlikely to be final word",
+    "url": "https://www.bbc.co.uk/news/articles/ce3q5282ep3o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T14:43:08+00:00",
+    "summary": "The Trump administration is said to be unbothered by the Israeli prime minister's rejection of the deal, viewing it as campaign rhetoric ahead of a general election.",
+    "source": "BBC World"
+   },
+   {
+    "title": "At least 13 killed in Ukrainian drone strike deep into Russia",
+    "url": "https://www.bbc.co.uk/news/articles/cvgjvgv926po?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T14:34:25+00:00",
+    "summary": "Russian officials say another 75 people were injured by the attack - one of the deadliest Ukrainian drone attacks since Moscow's full-scale invasion.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Ben-Gvir posts AI video of starving Palestinian ahead of elections",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/ben-gvir-posts-ai-video-of-starving-palestinian-ahead-of-elections?traffic_source=rss",
+    "published": "2026-08-10T14:18:52+00:00",
+    "summary": "Ben-Gvir posts AI video of starving Palestinian ahead of elections",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "How the US far-right weaponised \u2018inshallah\u2019 against Abdul El-Sayed",
+    "url": "https://www.aljazeera.com/news/2026/8/10/how-the-us-far-right-weaponised-inshallah-against-abdul-el-sayed?traffic_source=rss",
+    "published": "2026-08-10T14:13:00+00:00",
+    "summary": "After his Senate primary win in Michigan, the Egyptian American doctor faced a coordinated digital smear campaign.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "War on Iran: Phase II: Day 30",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/war-on-iran-phase-ii-day-30?traffic_source=rss",
+    "published": "2026-08-10T14:07:04+00:00",
+    "summary": "Donald Trump says the US is only \u2018semi-negotiating\u2019 with Iran.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Record 230 people reach UK on single boat after crossing English Channel",
+    "url": "https://www.aljazeera.com/news/2026/8/10/record-230-people-reach-uk-on-single-boat-after-crossing-english-channel?traffic_source=rss",
+    "published": "2026-08-10T14:02:38+00:00",
+    "summary": "The government has accused people smugglers of 'cramming' migrants onto 'unseaworthy vessels' and putting lives at risk.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Iran changed the rules in Hormuz. The Gulf is changing the rules for Iran",
+    "url": "https://www.aljazeera.com/opinions/2026/8/10/iran-changed-the-rules-in-hormuz-the-gulf-is-changing-the-rules-for-iran?traffic_source=rss",
+    "published": "2026-08-10T14:00:02+00:00",
+    "summary": "Iran gained leverage in Hormuz, but its neighbours are reshaping regional security to limit what Tehran can do with it.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Why Netanyahu\u2019s \u2018coup\u2019 against Gaza plan risks endless war",
+    "url": "https://www.aljazeera.com/news/2026/8/10/why-netanyahus-coup-against-gaza-plan-risks-endless-war?traffic_source=rss",
+    "published": "2026-08-10T13:59:58+00:00",
+    "summary": "The Israeli leader\u2019s rejection of a US-led roadmap threatens to entrench a state of conflict, analysts say.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Gaza honours Al Jazeera\u2019s Anas al-Sharif and Mohammed Qraiqea",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/gaza-honours-al-jazeeras-anas-al-sharif-and-mohammed-qraiqea?traffic_source=rss",
+    "published": "2026-08-10T13:32:05+00:00",
+    "summary": "Gaza honours Al Jazeera\u2019s Anas al-Sharif and Mohammed Qraiqea",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Why choosing low-fat dairy is not necessarily better for your health",
+    "url": "https://www.aljazeera.com/news/2026/8/10/why-choosing-low-fat-dairy-is-not-necessarily-better-for-your-health?traffic_source=rss",
+    "published": "2026-08-10T13:31:09+00:00",
+    "summary": "For years, we thought low-fat dairy was the way to manage obesity. New research is increasingly questioning this logic.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Nigel Farage vows to deport foreign criminals from UK prisons",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/nigel-farage-vows-to-deport-foreign-criminals-from-uk-prisons?traffic_source=rss",
+    "published": "2026-08-10T13:24:52+00:00",
+    "summary": "Nigel Farage vows to deport foreign criminals from UK prisons",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "One million evacuated as Typhoon Dolphin pummels east China: What we know",
+    "url": "https://www.aljazeera.com/news/2026/8/10/one-million-evacuated-as-typhoon-dolphin-pummels-east-china-what-we-know?traffic_source=rss",
+    "published": "2026-08-10T13:14:34+00:00",
+    "summary": "Hundreds of flights have been grounded in China due to weather conditions caused by Dolphin.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Has the army turned the page on control of western Sudan?",
+    "url": "https://www.aljazeera.com/news/2026/8/10/has-the-sudanese-army-turned-the-page-on-control-of-western-sudan?traffic_source=rss",
+    "published": "2026-08-10T12:51:53+00:00",
+    "summary": "Sudan's military repels a series of offensives by the RSF paramilitary in a strategically significant region.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Jeff Bezos consortium nears deal to buy stake in Liverpool FC: Reports",
+    "url": "https://www.aljazeera.com/sports/2026/8/10/jeff-bezos-consortium-nears-deal-to-buy-stake-in-liverpool-fc-reports?traffic_source=rss",
+    "published": "2026-08-10T12:43:14+00:00",
+    "summary": "Investment reportedly values the club at about $5.9bn, making it one of the largest ever football club valuations.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Flood death toll in India's Assam reaches 100 as thousands lose their homes",
+    "url": "https://www.npr.org/2026/08/10/g-s1-138015/flood-death-toll-in-indias-assam-reaches-100-as-thousands-lose-their-homes",
+    "published": "2026-08-10T12:39:05+00:00",
+    "summary": "Days of heavy monsoon rain has caused rivers, including the Brahmaputra, to overflow, inundating communities, disrupting livelihoods and damaging infrastructure.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Battle for Mali base has killed dozens of militants, army says",
+    "url": "https://www.bbc.co.uk/news/articles/cly8j7ygwvlo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T12:32:26+00:00",
+    "summary": "The army says it was involved in fierce fighting but disputes that Islamists took control of the garrison.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Alleged rebel leader killed in Colombia as president targets armed groups",
+    "url": "https://www.bbc.co.uk/news/articles/c5yrljp9x9eo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T12:23:21+00:00",
+    "summary": "The military operation against Hernando Forero Mosquera was carried out just days after Colombia's new president was sworn in.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Taiwan holds military drills to prepare for invasion by China",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/taiwan-holds-military-drills-to-prepare-for-invasion-by-china?traffic_source=rss",
+    "published": "2026-08-10T12:09:08+00:00",
+    "summary": "Taiwan holds military drills to prepare for invasion by China",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Former MP opens fire in Thailand\u2019s second shooting within days",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/10/former-mp-opens-fire-in-thailands-second-shooting-within-days?traffic_source=rss",
+    "published": "2026-08-10T12:00:29+00:00",
+    "summary": "A second shooting has occurred in Thailand within days after a former MP opened fire outside a government office.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "\u2018Long-range sanctions\u2019: Ukraine hopes strikes cause Russia fear and losses",
+    "url": "https://www.aljazeera.com/news/2026/8/10/long-range-sanctions-ukraine-hopes-strikes-cause-russia-fear-and-losses?traffic_source=rss",
+    "published": "2026-08-10T11:51:28+00:00",
+    "summary": "Al Jazeera is given rare access to one of Ukraine's long-range drone units tasked with targeting Russia.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Decades of abuse revealed at Michigan art school. And, the Iran war's impact on midterms",
+    "url": "https://www.npr.org/2026/08/10/g-s1-138013/up-first-newsletter-epstein-interlochen-center-for-the-arts-trump-iran-midterms-wildfires",
+    "published": "2026-08-10T11:42:58+00:00",
+    "summary": "A new report has revealed decades of alleged abuse at an elite art school. NPR spoke with one of the victims. And, Iran is playing the long game with negotiations, which could impact midterms.",
+    "source": "NPR World"
+   },
+   {
+    "title": "UEFA Super Cup \u2013 PSG vs Aston Villa: Prediction, start time, how to watch",
+    "url": "https://www.aljazeera.com/sports/2026/8/10/uefa-super-cup-psg-vs-aston-villa-prediction-start-time-how-to-watch?traffic_source=rss",
+    "published": "2026-08-10T11:28:23+00:00",
+    "summary": "As Champions League and Europa League winners face off, here is everything to know on the venue, history and more.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Protesters rally in India\u2019s Jharkhand over alleged exam irregularities",
+    "url": "https://www.aljazeera.com/news/2026/8/10/protesters-rally-in-indias-jharkhand-over-alleged-exam-irregularities?traffic_source=rss",
+    "published": "2026-08-10T11:23:48+00:00",
+    "summary": "Demonstrators in Ranchi demand an overhaul of \u200cthe state's examination system.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "World's oceans hit record-high July temperatures",
+    "url": "https://www.bbc.co.uk/news/articles/cpvw8vmmgrwo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T10:24:46+00:00",
+    "summary": "Global oceans recorded their hottest July on record, partly fuelled by developing El Ni\u00f1o conditions, as wildfires continue to ravage western Europe.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Suspected crime boss Kinahan spends first night in custody in Ireland",
+    "url": "https://www.bbc.co.uk/news/articles/c62qd5plzp6o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T09:33:25+00:00",
+    "summary": "The Irish Prison Service bought a bulletproof and bombproof van to transport the 49-year-old to court after his extradition from Dubai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Ukrainian drone attack on the Russian city of Nizhnekamsk kills 12, authorities say",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5927024/ukrainian-drone-attack-russia",
+    "published": "2026-08-10T08:58:22+00:00",
+    "summary": "Ukraine has targeted Russian oil facilities with long-range drones almost daily in recent months. The barrage has caused fuel shortages in Russia and unsettled the Russian public.",
+    "source": "NPR World"
+   },
+   {
+    "title": "China evacuates one million from homes as massive storm arrives",
+    "url": "https://www.bbc.co.uk/news/articles/cx2rgzyplg2o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T07:23:54+00:00",
+    "summary": "Typhoon Dolphin has made landfall, bringing strong winds and heavy rain across eastern China including Shanghai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "'Body in suitcase' found in Australia turns out to be lifelike doll",
+    "url": "https://www.bbc.co.uk/news/articles/clyqg4w3gz9o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T05:16:40+00:00",
+    "summary": "Forensics revealed that the \"realistic\" looking body was in fact not human.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Residents warned to brace for the worst as Canada wildfire rages out of control",
+    "url": "https://www.bbc.co.uk/news/articles/cx25dkwk3e3o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T03:33:51+00:00",
+    "summary": "One person has died in the Bald Range wildfire in British Columbia which has spread over 53 sq miles.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Evidence that South African special forces murdered top detective shared with BBC",
+    "url": "https://www.bbc.co.uk/news/articles/cly8djwgem0o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T23:05:29+00:00",
+    "summary": "Frans Mathipa was shot while driving - we got access to the prosecution case against eight accused men.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Demi Vollering wins Tour de France for the 2nd time",
+    "url": "https://www.npr.org/2026/08/09/g-s1-137991/demi-vollering-tour-de-france-winner",
+    "published": "2026-08-09T22:00:52+00:00",
+    "summary": "Vollering, who first won the competition in 2023, finished the stage more than a minute ahead of Spaniard Paula Blasi Cairol and 2024 champion Polish rider Katarzyna Niewiadoma-Phinney.",
+    "source": "NPR World"
+   },
+   {
+    "title": "How Iran's 'Axis of Resistance' has shaped the war",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5923613/how-irans-axis-of-resistance-has-shaped-the-war",
+    "published": "2026-08-09T21:27:11+00:00",
+    "summary": "NPR's Rob Schmitz speaks with Peter Salisbury, professor at Columbia University's School of International and Public Affairs, about how Iran and its allies have reshaped the war in the Middle East.",
+    "source": "NPR World"
+   },
+   {
+    "title": "How Kinahan's hearing unfolded inside the courtroom in Dublin",
+    "url": "https://www.bbc.co.uk/news/videos/cly5zpx0ypdo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T21:26:56+00:00",
+    "summary": "Suspected crime boss Daniel Kinahan appeared in court and was charged with directing the activities of a criminal organisation after being extradited from Dubai.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Israel rejects Trump's 15-point plan for Gaza, Netanyahu says",
+    "url": "https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-09T21:25:04+00:00",
+    "summary": "Israel's PM says its military will not pull out from Gaza until Hamas is \"genuinely\" disarmed.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Netanyahu rejects Trump's Gaza Peace Plan, demands Hamas disarm first",
+    "url": "https://www.npr.org/2026/08/09/nx-s1-5926459/netanyahu-rejects-trump-gaza-peace-plan-israel-hamas",
+    "published": "2026-08-09T18:21:45+00:00",
+    "summary": "Netanyahu's comments come just over a week after President Trump said his Board of Peace had reached a \"historic\" agreement with Hamas to give up its weapons.",
+    "source": "NPR World"
+   }
+  ],
+  "ai_tech": [
+   {
+    "title": "What building an AI-native finance function taught me",
+    "url": "https://openai.com/index/building-an-ai-native-finance-function",
+    "published": "2026-08-10T17:00:00+00:00",
+    "summary": "OpenAI CFO Sarah Friar shares five lessons for building an AI-native finance function, from automated forecasting to stronger controls and AI ROI.",
+    "source": "OpenAI News"
+   },
+   {
+    "title": "Meta\u2019s new Glimmer AI model offers a hint at Zuckerberg\u2019s personal intelligence vision",
+    "url": "https://techcrunch.com/2026/08/10/metas-new-glimmer-ai-model-offers-a-hint-at-zuckerbergs-personal-intelligence-vision/",
+    "published": "2026-08-10T16:20:13+00:00",
+    "summary": "Meta\u2019s new open-weight Muse Glimmer model offers a glimpse of Mark Zuckerberg\u2019s personal superintelligence vision, as well as  the emerging divide between AI users can own and access.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "Four takeaways from Mark Zuckerberg\u2019s massive AI manifesto",
+    "url": "https://www.theverge.com/tech/977395/meta-mark-zuckerberg-superintelligent-ai-ramble",
+    "published": "2026-08-10T15:19:05+00:00",
+    "summary": "Meta CEO Mark Zuckerberg has a lot to say about the idealized future he now envisions for humanity co-existing with artificial intelligence - his latest essay spans more than 6,500 words on the matter. The lengthy manifesto Zuckerberg published on Monday, titled \"The Future is for Everyone,\" broadly",
+    "source": "The Verge"
+   },
+   {
+    "title": "OpenAI\u2019s letter to Governor Abbott on responsible AI infrastructure in Texas",
+    "url": "https://openai.com/index/responsible-ai-infrastructure-texas",
+    "published": "2026-08-10T14:00:00+00:00",
+    "summary": "OpenAI sent Governor Greg Abbott a letter outlining its commitment to responsible AI infrastructure in Texas. The letter supports reliable, transparent growth that benefits Texans.",
+    "source": "OpenAI News"
+   },
+   {
+    "title": "What happens to Bose when headphones become AI?",
+    "url": "https://www.theverge.com/podcast/975732/bose-ceo-lila-snyder-ai-wearables-licensing-headphones-audio",
+    "published": "2026-08-10T14:00:00+00:00",
+    "summary": "Today, I\u2019m talking with Lila Snyder, who is the CEO of Bose. You certainly know Bose \u2014 it\u2019s one of the most famous brands in all of consumer tech. The company started 60 years ago selling speakers to consumers, and its focus on research and development has led it to be a leader in both [\u2026]",
+    "source": "The Verge"
+   },
+   {
+    "title": "Boeing is selling its air taxi startups to Archer Aviation",
+    "url": "https://www.theverge.com/transportation/977306/boeing-selling-evtol-archer-wisk-air-taxi",
+    "published": "2026-08-10T13:51:46+00:00",
+    "summary": "Boeing is selling three of its electric vertical takeoff and landing (eVTOL) subsidiaries to Archer Aviation, in addition to taking an undisclosed stake in the San Jose-based company. The subsidiares to be acquired by Archer include Wisk Aero, which has been developing an autonomous electric aircraf",
+    "source": "The Verge"
+   },
+   {
+    "title": "Model ML completes finance work more efficiently with GPT-5.6 Sol",
+    "url": "https://openai.com/index/model-ml",
+    "published": "2026-08-10T12:00:00+00:00",
+    "summary": "Model ML uses GPT-5.6 Sol to carry finance work from research and analysis through editable, traceable PowerPoint decks and Excel workbooks.",
+    "source": "OpenAI News"
+   },
+   {
+    "title": "Discovered Materials is playing AI whack-a-mole to hunt cooler chips",
+    "url": "https://techcrunch.com/2026/08/10/discovered-materials-is-playing-ai-whack-a-mole-to-hunt-cooler-chips/",
+    "published": "2026-08-10T12:00:00+00:00",
+    "summary": "Discovered Materials raised $9 million to fund the hunt for more novel materials to build more efficient chips.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "The AI Slop Backlash Is Actually Having an Impact",
+    "url": "https://www.wired.com/story/the-ai-slop-backlash-is-actually-having-an-impact/",
+    "published": "2026-08-10T11:30:00+00:00",
+    "summary": "Platforms are finally recognizing that people don\u2019t want to consume AI slop. A growing number of sites and apps now have tools and policies to flag, label, and ban AI-generated content.",
+    "source": "Wired"
+   },
+   {
+    "title": "Peer review is overwhelmed\u2014can it survive in the AI era?",
+    "url": "https://arstechnica.com/science/2026/08/peer-review-is-overwhelmed-can-it-survive-in-the-ai-era/",
+    "published": "2026-08-10T11:00:47+00:00",
+    "summary": "As research and AI-assisted papers surge, volunteer reviewers struggle to keep up.",
+    "source": "Ars Technica"
+   },
+   {
+    "title": "Ford\u2019s new AI assistant can check your fuel levels and tire pressure",
+    "url": "https://www.theverge.com/transportation/976748/ford-ai-assistant-mobile-app",
+    "published": "2026-08-10T11:00:00+00:00",
+    "summary": "Ford is rolling out a new AI-powered assistant that can answer questions about your Ford or Lincoln vehicle, such as how much fuel you'll need for your next road trip or whether your truck can tow that new motor boat. The app is rolling out first to the Ford and Lincoln mobile apps, where it [\u2026]",
+    "source": "The Verge"
+   },
+   {
+    "title": "The Rise of the 1 am Job Interview",
+    "url": "https://www.wired.com/story/the-rise-of-the-1-am-job-interview/",
+    "published": "2026-08-10T10:30:00+00:00",
+    "summary": "An AI interview is increasingly the first step of a hiring process. Since there\u2019s no human on the other end, candidates are scheduling them whenever\u2014even deep into the night.",
+    "source": "Wired"
+   },
+   {
+    "title": "Premium seats are coming to ChatGPT Business",
+    "url": "https://openai.com/index/premium-seats-chatgpt-business",
+    "published": "2026-08-10T00:00:00+00:00",
+    "summary": "Premium seats are coming to ChatGPT Business. Sign up by August 20 to get $100 in workspace credits and unlock higher usage for your team's most demanding work.",
+    "source": "OpenAI News"
+   },
+   {
+    "title": "Embattled hedge fund Situational Awareness invests $400M in chip startup Source Foundry",
+    "url": "https://techcrunch.com/2026/08/09/embattled-hedge-fund-situational-awareness-invests-400m-in-chip-startup-source-foundry/",
+    "published": "2026-08-09T20:35:17+00:00",
+    "summary": "The AI-focused hedge fund is still making some big bets.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "Anthropic is turning Claude Code\u2019s auto mode on by default",
+    "url": "https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/",
+    "published": "2026-08-09T19:20:32+00:00",
+    "summary": "Programming with Claude Code will soon require even less human oversight.",
+    "source": "TechCrunch AI"
+   }
+  ],
+  "dev_community": [
+   {
+    "title": "Constant noop AskQuestions spam",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkqp0v/constant_noop_askquestions_spam/",
+    "published": "2026-08-10T17:03:53+00:00",
+    "summary": "In the Agents window, on auto, I constantly receive AskQuestions prompts where the question is something like \"noop (ignore)\" and the options are either empty or sparse nonsensical standin values like\"A, B, C\" etc. This just started recently but it does not ever stop. Even using skills like /nohuman",
+    "source": "r/cursor"
+   },
+   {
+    "title": "True story :/",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkq45m/true_story/",
+    "published": "2026-08-10T16:43:20+00:00",
+    "summary": "",
+    "source": "r/cursor"
+   },
+   {
+    "title": "DeepSeek V4 Flash 0731 is the \u2018killer app\u2019 that is going to sell A LOT of DGX Sparks",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkpm5p/deepseek_v4_flash_0731_is_the_killer_app_that_is/",
+    "published": "2026-08-10T16:25:32+00:00",
+    "summary": "Having a \u2018Killer Application\u2019 that everyone wants to use helps sell hardware, plain and simple. DeepSeek V4 Flash 0731 isn\u2019t an app of course, but I think it\u2019s going to be the major catalyst for getting a lot of people to buy a couple of NVIDIA GB10-based systems because:  It is an amazing coding / ",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Had amazing results with telling fable to make a plan to resolve the issues I have and then using whatever opus model with effort, it thinks it needs to resolve it.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vknhud/had_amazing_results_with_telling_fable_to_make_a/",
+    "published": "2026-08-10T15:08:28+00:00",
+    "summary": "I have the hundred dollar Claude plan and I need to run this into prompts basically to have it be completed but I\u2019ve had great luck with using fable as an orchestor to review the application and find issues or implement new features that I want it and then I have it sent out a bunch of Opus models t",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude hacked a gym booking system",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkn2b5/claude_hacked_a_gym_booking_system/",
+    "published": "2026-08-10T14:52:34+00:00",
+    "summary": "Someone asked an OpenClaw agent powered by Claude to book a gym class. Normal stuff. It checks the system, notices the backend API has weak authorization, and realizes user is #4 on the waitlist. It then cancels the #1 person to move the user up. No prompt for hacking. No instruction to interfere. U",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Early signs that Muse-Glimmer-30B might quantize *very* well? Share your experiences.",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkn16q/early_signs_that_museglimmer30b_might_quantize/",
+    "published": "2026-08-10T14:51:27+00:00",
+    "summary": "",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "I build and test Claude Skills for digital professionals - SEO, SMM, AI visibility, general marketing. Here's my current stack.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkn063/i_build_and_test_claude_skills_for_digital/",
+    "published": "2026-08-10T14:50:23+00:00",
+    "summary": "Hey folks. This is year 11 for me in digital marketing + coding, and I've come a long way: from stitching reports out of a dozen analytics platforms into one dashboard held together by a mess of webhooks and a Telegram bot (lol), to a fully automated analytics and reporting process running through C",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Best Local LLMs - August 2026",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkmhyl/best_local_llms_august_2026/",
+    "published": "2026-08-10T14:31:16+00:00",
+    "summary": "Wowee!! Just when you thought it couldn't get better for open weight models, we probably have had our best period yet!?!?! Models that rival the closed frontier, Opus level models on non-insane hardware and more. A massive industry alliance coming out in support of open AI in response to the two clo",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Claude Code sessions can message each other now. Here's how I'm using it to give them shared memory",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkmgbj/claude_code_sessions_can_message_each_other_now/",
+    "published": "2026-08-10T14:29:33+00:00",
+    "summary": "If you haven't seen it yet, Anthropic shipped cross-session messaging for Claude Code last week so your sessions can now find each other and talk. A session working a feature branch can tell your review session what just landed. It's a really cool feature and I think it needs more fanfare. I've been",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Copilot on web expands conversation controls",
+    "url": "https://github.blog/changelog/2026-08-10-copilot-on-web-expands-conversation-controls",
+    "published": "2026-08-10T14:27:04+00:00",
+    "summary": "We\u2019ve made improvements to Copilot Chat on github.com that make it easier to use. These include easier access to your recent conversations in chat, the ability to minimize the chat\u2026\nThe post Copilot on web expands conversation controls appeared first on The GitHub Blog.",
+    "source": "GitHub Changelog"
+   },
+   {
+    "title": "Muse Glimmer ACTUALLY fits on a single RTX 3090",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkm42m/muse_glimmer_actually_fits_on_a_single_rtx_3090/",
+    "published": "2026-08-10T14:16:56+00:00",
+    "summary": "I did some testing this morning, and I was surprised to find that Muse Glimmer actually comfortably fits on a single RTX 3090 with full context + DFlash + mmproj at Q4_K_XL, unlike Qwen3.6-27B and Gemma-4-31B. Muse Glimmer supports up to 256k context according to Unsloth. Here is my command: llama-s",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Why is Anthropic not adding OCR models to their family?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkliux/why_is_anthropic_not_adding_ocr_models_to_their/",
+    "published": "2026-08-10T13:54:09+00:00",
+    "summary": "I was always wondering why the big providers like and Anthropic don't add OCR models to their model family. In my opinion this would help a lot to build better agents with features like scheduled tasks for example. Because if i think of an email agent that reads in all attachments and classifies the",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Agentic code review flipped how much I actually read",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkl6hs/agentic_code_review_flipped_how_much_i_actually/",
+    "published": "2026-08-10T13:40:13+00:00",
+    "summary": "We build B2B SaaS, so for years I read every line before it merged. That habit is mostly gone now. The loop got boring in a good way. Opus 5 breaks the task into a plan, Composer 2.5 writes the chunk, then coderabbit / bugbot review the diff, sometimes with a Claude pass on top. Whatever they flag g",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Motif-Technologies/Motif-3 official realese",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkl6cs/motiftechnologiesmotif3_official_realese/",
+    "published": "2026-08-10T13:40:04+00:00",
+    "summary": "Motif-Technologies is one of the tech company participated South Korea's AI Foundation Model project.(\ub3c5\ud30c\ubaa8) Upstage(Solar Series), LG AI Research(EXAONE Series), and SKT(A.X Series) are the competitors. Since LG\u2019s EXAONE put up pretty disappointing results, it looks like Upstage, Motif, and SKT will ",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Mistral Patent for \"Code implemented tool calls\"",
+    "url": "https://patentsgazette.uspto.gov/week26/OG/html/1547-5/US12670045-20260630.html",
+    "discussion": "https://news.ycombinator.com/item?id=49243397",
+    "published": "2026-08-10T13:29:12+00:00",
+    "summary": "",
+    "points": 126,
+    "comments": 113,
+    "source": "Hacker News",
+    "query": "codex"
+   },
+   {
+    "title": "Glimmer seems pretty censored?",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkkw6n/glimmer_seems_pretty_censored/",
+    "published": "2026-08-10T13:29:08+00:00",
+    "summary": "I know Muse Glimmer is pretty new and all, but was wondering if anyone else has run into Glimmer outright refusing to code even small things? I am using Unsloth Q8, dual 3090's, in Kilo Code. I was trying to get it to help me with a bug in my codebase (using pyton stdlib to manipulate a mouse, movin",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Mark Zuckerberg on releases",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkk6vy/mark_zuckerberg_on_releases/",
+    "published": "2026-08-10T13:00:29+00:00",
+    "summary": "https://x.com/i/status/2086755195535413696",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Does using Oh My Pi\u2019s Cursor provider (or an OpenAI-compatible proxy to the same endpoints) violate Cursor\u2019s ToS?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkk4yw/does_using_oh_my_pis_cursor_provider_or_an/",
+    "published": "2026-08-10T12:58:20+00:00",
+    "summary": "Hi \u2014 looking for clarification from people who\u2019ve run into this, and ideally Cursor staff if possible. I recently tried Oh My Pi (omp) with the built-in Cursor provider. It authenticates via OAuth / access token and talks to Cursor\u2019s private agent endpoints (same general approach as the IDE/CLI clie",
+    "source": "r/cursor"
+   },
+   {
+    "title": "model: Muse Glimmer Support by pcuenca \u00b7 Pull Request #26841 \u00b7 ggml-org/llama.cpp",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkjul1/model_muse_glimmer_support_by_pcuenca_pull/",
+    "published": "2026-08-10T12:45:58+00:00",
+    "summary": "Day 0 support",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Auto consuming API usage",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkjqdl/auto_consuming_api_usage/",
+    "published": "2026-08-10T12:41:05+00:00",
+    "summary": "I've almost exclusively been using Auto throughout my development with Cursor, however it seems to have consumed 100% of my API usage, I've used Sonnet once or twice and 5.6 Sol once, and I've noted the amount of API usage they have consumed, I noticed my API usage is increasing even if I'm using Au",
+    "source": "r/cursor"
+   },
+   {
+    "title": "So I just discovered premade skills. What else are there?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkjdlm/so_i_just_discovered_premade_skills_what_else_are/",
+    "published": "2026-08-10T12:25:12+00:00",
+    "summary": "So I just discovered Impeccable, installed it and happy with the result. Im 6 months into vibe coding and I just used Impeccable yesterday. I noticed I saved limits and UI designing is much easier now. What other plugins do you use you? Any recommendations for: SEO Marketing, social media posts Lara",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Should I switch from VSCode to Cursor?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkjc08/should_i_switch_from_vscode_to_cursor/",
+    "published": "2026-08-10T12:23:14+00:00",
+    "summary": "I was a fairly heavy user of Cursor up until 1 year ago, wondering if worthwhile to give it another try? Mostly using CC and Codex in VSCode terminals.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Claude cowork keeps asking me permission for a browser search.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkjazu/claude_cowork_keeps_asking_me_permission_for_a/",
+    "published": "2026-08-10T12:22:00+00:00",
+    "summary": "This is impacting my workflows terribly, as I have to give them permissions again and again. Is there a way to dangerously skip permissions or something like that? That works because I use it on Claude code. Anything similar on co-work?",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Clickbait responses?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkj29j/clickbait_responses/",
+    "published": "2026-08-10T12:10:42+00:00",
+    "summary": "Hi, does anyone else get these clickbait responses from Opus 5 (xhigh)? Responses like: \"Before questions, three facts from the code that reframe this \u2014 two of them will surprise you.\"",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "1M context with 17 GB model in 24 GB VRAM: \"for the first time I was able to load a context of almost 1M tokens and extract 7 needles from various parts of the text\"",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkicyd/1m_context_with_17_gb_model_in_24_gb_vram_for_the/",
+    "published": "2026-08-10T11:38:01+00:00",
+    "summary": "https://preview.redd.it/xxjh11f38jih1.png?width=1852&format=png&auto=webp&s=76850ed51e29a8bc86c2ca718d4320075eed4363 Just wanted to share a user report that I found to be very interesting. Some person with an intriguing name manu69x managed to run 1M context on a single RTX 3090 with a model based o",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Thank you, cursor (20$ boost)",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkhsem/thank_you_cursor_20_boost/",
+    "published": "2026-08-10T11:08:39+00:00",
+    "summary": "https://preview.redd.it/e414607q5jih1.png?width=626&format=png&auto=webp&s=15d04f75ebbaf72ec2a41f2d74053afa2c62516a thank you, appreciate that marketing moves.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "unsloth/Muse-Glimmer-30B-GGUF \u00b7 Hugging Face",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkhbuc/unslothmuseglimmer30bgguf_hugging_face/",
+    "published": "2026-08-10T10:43:36+00:00",
+    "summary": "Guide: https://unsloth.ai/docs/models/muse-glimmer",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Comparing how Cline, Kilo, and Qwen Code handle long-task context/state (and why context loops keep happening)",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkh2k0/comparing_how_cline_kilo_and_qwen_code_handle/",
+    "published": "2026-08-10T10:28:48+00:00",
+    "summary": "I've been comparing Cline / Kilo / Qwen Code lately since they all handle long-task state differently. Cline: has Focus Chain, a markdown file kept outside the conversation that gets reinjected on a cadence, plus Memory Bank for project context, plus a standalone gRPC server so it's not fully tied t",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "We save you 20% on AI token burn",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkgtz5/we_save_you_20_on_ai_token_burn/",
+    "published": "2026-08-10T10:15:52+00:00",
+    "summary": "We built a knowledge layer that sits behind MCP, allowing any MCP client to access it through a single endpoint. Claude Code, Claude Desktop, ChatGPT, Codex, or whatever comes next. The idea is pretty simple. Before an agent answers, it can pull in relevant, validated information instead of relying ",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Introducing Muse Glimmer: an open-weight model optimized for always-on local agent workflows",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkgsum/introducing_muse_glimmer_an_openweight_model/",
+    "published": "2026-08-10T10:14:15+00:00",
+    "summary": "Hi r/LocalLLaMA \ud83d\udc4b  Today we\u2019re excited to release Muse Glimmer, a 30B open-weight model built specifically for local agent workflows. We\u2019re releasing the weights to the community under a permissive Apache 2.0 license. A few specs  30B params, dense Multimodal: interleaved text + images via a dedicat",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Storing Passwords for agents use",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkfk44/storing_passwords_for_agents_use/",
+    "published": "2026-08-10T09:01:20+00:00",
+    "summary": "I need my agents to authenticate to certain third party apps. Until now, i was using my. env files to store the passwords, keys etc. but now to make it production ready - im planning to use keepassxc cli. What do you use?",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Why Speculative Decoding went mature in 2026?",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkem3y/why_speculative_decoding_went_mature_in_2026/",
+    "published": "2026-08-10T08:02:43+00:00",
+    "summary": "Spec-dec has been a thing for a while, in fact, it's wasn't an idea that was born for LLM inference. E.g. Uber's https://github.com/uber/submitqueue applied it to a merge queue. Apple & GDM had been releasing papers on it since already 2022. Seeing it being mature enough for the big frameworks to ad",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Don\u2019t know how to use my included Cursor usage",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkecjx/dont_know_how_to_use_my_included_cursor_usage/",
+    "published": "2026-08-10T07:46:56+00:00",
+    "summary": "I\u2019ve been a cursor user for about 8 months and am very happy with it. However ever since Grok 4.5 got out, I have a very hard time using more than 30% of the cursor included usage (the API usage I always manage to throttle to use 100% by end of month, just need to use Opus 5 if I want to accelerate ",
+    "source": "r/cursor"
+   },
+   {
+    "title": "General Advice to get the most out of Claude.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkdb4r/general_advice_to_get_the_most_out_of_claude/",
+    "published": "2026-08-10T06:45:24+00:00",
+    "summary": "Hi All. I'm a 25 year old South African who runs my own GIS business for myself. I've always been tech savvy and have loved watching AI progress into what it is now.  However, I know there is so much about Claude that I don't understand and I definitely do not know the limits of just how much it can",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Insanely annoying behavior",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkccwf/insanely_annoying_behavior/",
+    "published": "2026-08-10T05:50:01+00:00",
+    "summary": "I never use fast versions of model. Nevertheless, Cursor ALWAYS resets chosen \"Cursor Grok 4.5 High\" to \"Cursor Grok 4.5 High Fast\" Why? Just why???",
+    "source": "r/cursor"
+   },
+   {
+    "title": "What is the word you wish Claude would never ever used again?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkbolo/what_is_the_word_you_wish_claude_would_never_ever/",
+    "published": "2026-08-10T05:11:47+00:00",
+    "summary": "Myself I am extremely irritated by \"honest\": it is used way to often and as you know it is pointless. Wonder how and why... (Words, phrases, anything that is recurrent and extremely irritating) How about naming them \"Claude Cacophony\"",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Running Qwen 3.5 35B A3B-Q8_0 gguf on a cheap radeon 7600 at 18 token/s",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkbe48/running_qwen_35_35b_a3bq8_0_gguf_on_a_cheap/",
+    "published": "2026-08-10T04:56:07+00:00",
+    "summary": "I also have 64 gb ddr4 ryzen 5600 Using llama.cpp Ubuntu distro Settings are as follows --n-gpu-layers 999 \\ --n-cpu-moe 37 \\ --no-mmap \\ -ctk q8_0 \\ -ctv q8_0 \\ -fa 1 \\ -c 9000 \\",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "omlab/VLX-Seek-1.5-10B \u00b7 Hugging Face",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vkaypz/omlabvlxseek1510b_hugging_face/",
+    "published": "2026-08-10T04:32:49+00:00",
+    "summary": "VLX-Seek-1.5-10B VLX-Seek-1.5-10B is the open-source 10B model in the VLX-Seek 1.5 family, designed for fine-grained perception and visual grounding in embodied scenarios. It targets practical settings such as drones, robots, robotic dogs, surveillance cameras, inspection systems, and other edge-sid",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Apparently Opus 5 is better a photogrammetry",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vka93j/apparently_opus_5_is_better_a_photogrammetry/",
+    "published": "2026-08-10T03:55:59+00:00",
+    "summary": "I\u2019ve been testing different models abilities. gave it the reference of the futuristic looking chip fab (terafab) I\u2019m not here to debate anyone about anything. Just thought it was interesting that opus 5 translated the reference to an svg the best (imo). They all received the same prompt.",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Auto mode is now the default in Claude Code",
+    "url": "https://claude.com/blog/auto-mode-default-in-claude-code",
+    "discussion": "https://news.ycombinator.com/item?id=49239021",
+    "published": "2026-08-10T03:50:00+00:00",
+    "summary": "",
+    "points": 266,
+    "comments": 282,
+    "source": "Hacker News",
+    "query": "claude code"
+   },
+   {
+    "title": "Opus 5 theory - how to use",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk8zxx/opus_5_theory_how_to_use/",
+    "published": "2026-08-10T02:53:14+00:00",
+    "summary": "Like many others have been struggling with Opus 5 (not everyone I know) but have just found it super hard work to communicate with, nearly every explanation it provides requires me to ask it to rephrase and it struggles to understand me too. Have decided the only way to treat it is like my basement ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "TIL you can use an open source model as a subagent",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk8ww2/til_you_can_use_an_open_source_model_as_a_subagent/",
+    "published": "2026-08-10T02:49:00+00:00",
+    "summary": "When on the claude code mobile app you can just tell it to download opencode which give free tokens for the open source models. Then you can tell Claude to ask OpenCode to do the brunt of the development, but then afterwards make any fixes needed for it be frontier quality. On mobile the claude code",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "So... did we give up on the rule against AI posts?",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk8mxt/so_did_we_give_up_on_the_rule_against_ai_posts/",
+    "published": "2026-08-10T02:35:21+00:00",
+    "summary": "Sub is drowning in slop posts. Shortly after the new rule it was better. But it's gotten unbearable in the past month or so.",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "$38 Claude LCD Table Display",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk88m5/38_claude_lcd_table_display/",
+    "published": "2026-08-10T02:16:03+00:00",
+    "summary": "I was going through Amazon and saw this LCD display for $38: https://a.co/d/069KzWif I have a Mac and it said it wasn\u2019t compatible but I just connected it via USB and created new software for the device to cycle through a Claude Code, DaVinci Resolve and Calendar app screens.  Fun and quick little o",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "ByteDance vows to avoid AI distillation, develop new model its own way",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk7o93/bytedance_vows_to_avoid_ai_distillation_develop/",
+    "published": "2026-08-10T01:48:47+00:00",
+    "summary": "",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Blender MCP maintainer GitHub account hacked",
+    "url": "https://twitter.com/sidahuj/status/2086445625147793503",
+    "discussion": "https://news.ycombinator.com/item?id=49238028",
+    "published": "2026-08-10T00:58:29+00:00",
+    "summary": "",
+    "points": 23,
+    "comments": 4,
+    "source": "Hacker News",
+    "query": "mcp"
+   },
+   {
+    "title": "Asking Claude what it is least confident about has caught more bugs than my tests",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk6edz/asking_claude_what_it_is_least_confident_about/",
+    "published": "2026-08-10T00:48:58+00:00",
+    "summary": "I picked up a habit of ending a work session by asking Claude what it is least sure about in what we just built. The first few times I expected filler. Instead it listed genuine soft spots: a race condition it had not verified, an assumption about input format it never confirmed, an edge case it ski",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "KPMG Says Nearly Half Of Executives Pulled Back AI Agents Over Cost",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk60uz/kpmg_says_nearly_half_of_executives_pulled_back/",
+    "published": "2026-08-10T00:31:18+00:00",
+    "summary": "https://www.forbes.com/sites/sandycarter/2026/08/09/kpmg-says-nearly-half-of-executives-pulled-back-ai-agents-over-cost/ Bubble started to burst?",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Approaching weekly usage limit question",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk5rmx/approaching_weekly_usage_limit_question/",
+    "published": "2026-08-10T00:19:23+00:00",
+    "summary": "I'm getting a message in the Claude app on my Mac that says I'm approaching my weekly usage limit (3rd screenshot) and it resets next Sunday. It just reset this morning, and the usage meter says it's actually 26% (1st and 2nd screenshot, from app and web). Is this a bug in the app, or does it start ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Personal Life Capabilities",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk4t88/personal_life_capabilities/",
+    "published": "2026-08-09T23:36:16+00:00",
+    "summary": "I always see a lot of Claude capabilities for people\u2019s work life and/or small business or startup but I\u2019m wondering what\u2019s some of the most useful things Claude can do in people\u2019s personal life. Can be literally anything no matter how small or big on any feature of Claude (chat, cowork, code, design",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude 5x Usage Tracking",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk49e2/claude_5x_usage_tracking/",
+    "published": "2026-08-09T23:11:24+00:00",
+    "summary": "This is my Claude 5x usage from July 9 to the Aug 9. Each week, I have reached my weekly limit.",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "[NEW MODEL] SupraElegans-500K",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk3xpb/new_model_supraelegans500k/",
+    "published": "2026-08-09T22:57:18+00:00",
+    "summary": "*SupraLabs released a new experimental model!\\* SupraElegans-500K is a ~500,000-parameter causal language model built around a sparse, signed, recurrent neural graph. No Transformer, no attention mechanism, no positional encoding, no KV cache. Context is carried by a persistent per-neuron membrane p",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "KLQ: Training-free measured rotation quantization. Beats all training-free rotation-based quantization methods on W4A4KV4-bits. Llama 3.2 1B KLQ-quantized beats SpinQuant and gets close to ReSpinQuant without GPTQ/LDLQ rounding.",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk2n2k/klq_trainingfree_measured_rotation_quantization/",
+    "published": "2026-08-09T22:01:46+00:00",
+    "summary": "First of all, I'm not a lab, this was a solo summer research project that finally culminated into the github repo and the writeup. The repo includes a much deeper dive with methods, findings about quantization and geometry, limitations, and proposed experiments. I'll also mention that this is far fr",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Install Cursor CLI through Homebrew",
+    "url": "https://www.reddit.com/r/cursor/comments/1vk2lkl/install_cursor_cli_through_homebrew/",
+    "published": "2026-08-09T22:00:14+00:00",
+    "summary": "Does anyone have the CLI installed through homebrew? Is it managed by the Cursor team themselves? Does it fall behind updates or generally any disadvantages?",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Help: I've been trying for multiple days to get cursor to run in an autonomous mode but it keeps asking me to click allow. \ud83d\ude36",
+    "url": "https://www.reddit.com/r/cursor/comments/1vk2jsg/help_ive_been_trying_for_multiple_days_to_get/",
+    "published": "2026-08-09T21:58:09+00:00",
+    "summary": "so basically I give a prompt and should run in an autonomous mode. But it gives a simple allow statement and gets blocked, and i've done everything in terms of run everywhere, and the usual settings.  Is there a sure shot way.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "endless-frontier/BigBang-v1 - qwen 3.5 finetunes",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk1p9s/endlessfrontierbigbangv1_qwen_35_finetunes/",
+    "published": "2026-08-09T21:22:15+00:00",
+    "summary": "table bench https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF I'm downloading this model only because Bartowski converted it to .gguf, so it might be interesting. Doubts : The headline number is basically meaningless. \"Performance between DeepSeek Flash (old one) and Pro\" okay, on wh",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "Why are Claude models 3x more verbose than GPT-5.6 in their responses?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk1ef1/why_are_claude_models_3x_more_verbose_than_gpt56/",
+    "published": "2026-08-09T21:09:42+00:00",
+    "summary": "I asked Opus 5 to do the comparison and it came up with this. They all response in a lengthy paragraphs rather than to the point answers. Codex vs Claude response length Anyone else who has similar experience? I have adjusted my CLAUDE.md file as per Opus's suggestion below, but this should have bee",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Really love the grill-me skill",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vk0tps/really_love_the_grillme_skill/",
+    "published": "2026-08-09T20:46:09+00:00",
+    "summary": "Here it is in full, I find it is very good for getting Claude to avoid making dumb shit assumptions:  name: grill-me description: Interview the user with 10-15 targeted questions BEFORE building anything, then confirm a short spec, then build. Use this skill whenever the user asks Claude to build, c",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "The Gemma team will host a special event on August 20",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk0o98/the_gemma_team_will_host_a_special_event_on/",
+    "published": "2026-08-09T20:40:08+00:00",
+    "summary": "Tweet by u/hackerllama Could be copium, but I would love to see Gemma 4.1 there with unified audio input for all model sizes perhaps even up to 120B, much improved tool calling (even with the latest template there are still bugs), higher precision QAT from the start and improved general performance ",
+    "source": "r/LocalLLaMA"
+   },
+   {
+    "title": "[2606.05682] Beyond Output Matching: Preserving Internal Geometry in NVFP4 LLM Distillation",
+    "url": "https://www.reddit.com/r/LocalLLaMA/comments/1vk08zl/260605682_beyond_output_matching_preserving/",
+    "published": "2026-08-09T20:22:47+00:00",
+    "summary": "Demand for low-precision inference, including NVFP4-based approaches, has grown as large language models are increasingly deployed in latency and cost constrained production environments. Quantization-aware distillation (QAD) helps recover accuracy lost under low bit quantization by training a quant",
+    "source": "r/LocalLLaMA"
+   }
+  ]
+ },
+ "processing": {
+  "us_politics": {
+   "fetched": 26,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 26
+  },
+  "us_news": {
+   "fetched": 69,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 1,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 8,
+   "kept": 60
+  },
+  "world": {
+   "fetched": 47,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 47
+  },
+  "ai_tech": {
+   "fetched": 34,
+   "undated_dropped": 0,
+   "relevance_dropped": 19,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 15
+  },
+  "dev_community": {
+   "fetched": 73,
+   "undated_dropped": 0,
+   "relevance_dropped": 3,
+   "duplicates_dropped": 1,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 9,
+   "kept": 60
+  }
+ },
+ "errors": [
+  "r/ClaudeCode: HTTP Error 429: Too Many Requests"
+ ]
+}
