@@ -637,9 +637,11 @@ class MainFailureModeTest(unittest.TestCase):
                 result = fetch_news.main()
             self.assertEqual(result, 1)
             corpus = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(corpus["errors"], ["Broken Feed: ValueError"])
+            self.assertEqual(corpus["errors"][0]["source_type"], "rss")
+            self.assertEqual(corpus["errors"][0]["source_id"], "Broken Feed")
+            self.assertEqual(corpus["errors"][0]["error_type"], "ValueError")
             self.assertEqual(corpus["sources"][0]["status"], "error")
-            self.assertEqual(corpus["sources"][0]["error"], "ValueError")
+            self.assertEqual(corpus["sources"][0]["message"], "ValueError")
 
     def test_empty_corpus_is_written_but_returns_failure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -685,6 +687,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "url": "https://example.com/hn",
                 "published": published,
                 "source": "Hacker News",
+                "query": "agent tools",
             }], 0)
             reddit_result = fetch_news.FetchResult([{
                 "title": "Local model release",
@@ -706,12 +709,39 @@ class MainFailureModeTest(unittest.TestCase):
                              ["r/LocalLLaMA"])
             self.assertGreaterEqual(corpus["fetch_duration_ms"], 0)
             self.assertEqual(
-                [(status["source"], status["status"], status["item_count"])
+                [(status["source_type"], status["source_id"], status["status"],
+                  status["retained_entries"])
                  for status in corpus["sources"]],
-                [("HN:agent tools", "ok", 1), ("r/LocalLLaMA", "ok", 1)],
+                [("hacker_news", "agent tools", "ok", 1),
+                 ("reddit", "LocalLLaMA", "ok", 1)],
             )
             self.assertTrue(all(status["duration_ms"] >= 0
                                 for status in corpus["sources"]))
+
+    def test_successful_but_unrecognized_feed_is_a_structured_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["empty"],
+                "rss_feeds": {"empty": [["Changed Feed", "https://example.com/feed"]]},
+                "hn_category": "empty",
+                "hn_queries": [],
+                "reddit_category": "empty",
+                "subreddits": [],
+            }), encoding="utf-8")
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "http_get", return_value=b"<html><body>ok</body></html>"),
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                self.assertEqual(fetch_news.main(), 1)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+            health = corpus["sources"][0]
+            self.assertTrue(health["http_success"])
+            self.assertEqual(health["parsed_entries"], 0)
+            self.assertEqual(health["status"], "empty")
+            self.assertEqual(health["error_type"], "EmptySource")
+            self.assertEqual(corpus["errors"][0]["source_id"], "Changed Feed")
 
 
 class HttpGetTest(unittest.TestCase):
@@ -795,11 +825,9 @@ class SourcesConfigurationTest(unittest.TestCase):
         sources = load_sources(DEFAULT_SOURCES_PATH)
         self.assertGreater(len(sources.categories), 0)
 
-    def test_rejects_source_identifiers_that_collide_with_error_delimiter(self):
+    def test_source_identifiers_are_single_line_but_may_contain_colons(self):
         cases = (
-            ("rss delimiter", "rss", "News: AI", "reserved ': ' separator"),
             ("rss newline", "rss", "News\nAI", "single-line"),
-            ("HN delimiter", "hn", "agent: coding", "reserved ': ' separator"),
             ("HN newline", "hn", "agent\ncoding", "single-line"),
         )
         for label, route, bad_value, message in cases:
@@ -818,6 +846,41 @@ class SourcesConfigurationTest(unittest.TestCase):
                     value["hn_queries"][0] = bad_value
                 path = self.write_sources(directory, value)
                 with self.assertRaisesRegex(ValueError, message):
+                    load_sources(path)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_sources(directory, {
+                "categories": ["news"],
+                "rss_feeds": {"news": [["News: AI", "https://example.com/feed.xml"]]},
+                "hn_category": "news",
+                "hn_queries": ["agent: coding"],
+                "reddit_category": "news",
+                "subreddits": [],
+            })
+            loaded = load_sources(path)
+            self.assertEqual(loaded.rss_feeds["news"][0][0], "News: AI")
+            self.assertEqual(loaded.hn_queries, ["agent: coding"])
+
+    def test_rejects_duplicate_source_ids_before_fetching(self):
+        cases = (
+            ("rss", {"rss_feeds": {"news": [["Same", "https://ex.com/a"],
+                                                 ["Same", "https://ex.com/b"]]}}),
+            ("hacker news", {"hn_queries": ["agent", "agent"]}),
+            ("reddit", {"subreddits": ["python", "python"]}),
+        )
+        for label, override in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                value = {
+                    "categories": ["news"],
+                    "rss_feeds": {"news": [["News", "https://example.com/feed.xml"]]},
+                    "hn_category": "news",
+                    "hn_queries": ["agent"],
+                    "reddit_category": "news",
+                    "subreddits": [],
+                }
+                value.update(override)
+                path = self.write_sources(directory, value)
+                with self.assertRaisesRegex(ValueError, "duplicate source ID"):
                     load_sources(path)
 
     def test_rejects_missing_fields(self):

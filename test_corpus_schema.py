@@ -57,6 +57,8 @@ def corpus(**overrides):
         "categories": {name: [] for name in DEFAULT_CATEGORIES},
         "processing": {name: stats(0, 0) for name in DEFAULT_CATEGORIES},
         "errors": [],
+        "sources": [],
+        "fetch_duration_ms": 0,
     }
     base["categories"]["us_politics"] = [item(1)]
     base["processing"]["us_politics"] = stats(1, 1)
@@ -103,11 +105,15 @@ class TopLevelTest(unittest.TestCase):
 
     def test_per_source_fetch_status_is_validated(self):
         c = corpus(sources=[{
-            "source": "NPR Politics",
+            "source_type": "rss",
+            "source_id": "NPR Politics",
             "category": "us_politics",
             "status": "ok",
-            "item_count": 1,
-            "undated_dropped": 0,
+            "requested": True,
+            "http_success": True,
+            "parsed_entries": 1,
+            "dated_entries": 1,
+            "retained_entries": 1,
             "duration_ms": 42,
         }], fetch_duration_ms=42)
         self.assertEqual(validate_corpus(c), [])
@@ -117,6 +123,21 @@ class TopLevelTest(unittest.TestCase):
 
     def test_non_string_error_entry_is_reported(self):
         self.assertTrue(only(validate_corpus(corpus(errors=[404])), "errors[0]"))
+
+    def test_duplicate_structured_error_is_reported(self):
+        error = {
+            "source_type": "rss", "source_id": "Broken", "status": "error",
+            "error_type": "HTTPError", "message": "503", "duration_ms": 4,
+        }
+        source = {
+            **error, "category": "us_politics", "requested": True,
+            "http_success": False, "parsed_entries": 0, "dated_entries": 0,
+            "retained_entries": 0,
+        }
+        del source["duration_ms"]
+        source["duration_ms"] = 4
+        c = corpus(sources=[source], errors=[error, dict(error)])
+        self.assertTrue(only(validate_corpus(c), "duplicate failure record"))
 
     def test_non_object_corpus_is_reported(self):
         self.assertEqual(validate_corpus([1, 2]), ["corpus is not a JSON object"])
@@ -161,6 +182,30 @@ class CategoryTest(unittest.TestCase):
         c = corpus()
         c["categories"]["us_politics"][0]["published"] = "yesterday"
         self.assertTrue(only(validate_corpus(c), "published is not an ISO"))
+
+    def test_item_field_types_and_urls_are_enforced(self):
+        bad_values = {
+            "title": 7,
+            "source": None,
+            "url": "javascript:alert(1)",
+            "summary": ["not", "text"],
+            "points": True,
+        }
+        for field, value in bad_values.items():
+            with self.subTest(field=field):
+                c = corpus()
+                c["categories"]["us_politics"][0][field] = value
+                self.assertTrue(only(validate_corpus(c), field))
+
+    def test_published_must_fall_inside_corpus_window(self):
+        for value, fragment in (
+            ("2026-08-07T11:59:59+00:00", "earlier than cutoff"),
+            ("2026-08-08T12:00:01+00:00", "later than generated_at"),
+        ):
+            with self.subTest(value=value):
+                c = corpus()
+                c["categories"]["us_politics"][0]["published"] = value
+                self.assertTrue(only(validate_corpus(c), fragment))
 
 
 class ProcessingTest(unittest.TestCase):

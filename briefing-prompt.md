@@ -69,4 +69,10 @@ Typical reasons: "lower immediate impact," "regional rather than national signif
 ---
 
 ### Corpus health
-If `errors` in corpus.json is non-empty, list every failed source inside this section so degraded coverage is visible. Reproduce each source identifier exactly as it appears before the first `: ` delimiter in its error entry — for example, `HN:agentic coding` or `r/ClaudeAI`, not a paraphrase.
+If `errors` in corpus.json is non-empty, explain the degraded coverage and then emit exactly one fenced `json` block with this shape:
+
+```json
+{"failed_sources":[{"source_type":"hacker_news","source_id":"agentic coding","status":"error"}]}
+```
+
+Copy `source_type`, `source_id`, and `status` exactly from every object in `errors`; include each failed or empty source once and no healthy sources. This JSON is a machine-readable audit record, not a prose example. A source with `status: "empty"` returned successfully but supplied zero recognized or dated entries, so describe that coverage gap as well. Do not paraphrase source IDs inside the JSON.

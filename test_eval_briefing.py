@@ -484,6 +484,36 @@ class CorpusHealthTest(unittest.TestCase):
     def test_healthy_run_needs_no_health_section(self):
         self.assertNotIn("corpus_health_missing", checks(evaluate(CORPUS, briefing())))
 
+    def test_current_schema_requires_exact_machine_readable_source_ids(self):
+        error = {
+            "source_type": "hacker_news",
+            "source_id": "agentic coding",
+            "status": "error",
+            "error_type": "HTTPError",
+            "message": "503 Service Unavailable",
+            "duration_ms": 812,
+        }
+        degraded = dict(CORPUS, schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION,
+                        errors=[error])
+        exact = ('```json\n{"failed_sources":[{"source_type":"hacker_news",'
+                 '"source_id":"agentic coding","status":"error"}]}\n```')
+        self.assertEqual(checks(evaluate(degraded, briefing(health=exact)), ERROR), set())
+
+        paraphrased = exact.replace("agentic coding", "HN agentic coding")
+        findings = evaluate(degraded, briefing(health=paraphrased))
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
+        self.assertIn("unexpected_failed_source", checks(findings, ERROR))
+
+    def test_current_schema_rejects_prose_only_health(self):
+        error = {
+            "source_type": "reddit", "source_id": "ClaudeAI", "status": "empty",
+            "error_type": "EmptySource", "message": "zero entries", "duration_ms": 12,
+        }
+        degraded = dict(CORPUS, schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION,
+                        errors=[error])
+        findings = evaluate(degraded, briefing(health="r/ClaudeAI returned no entries."))
+        self.assertIn("corpus_health_not_machine_readable", checks(findings, ERROR))
+
 
 class ClaimGroundingTest(unittest.TestCase):
     """Citations can be verified exactly; claims can only be sampled.
@@ -726,6 +756,20 @@ class CommandLineFailureTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("newer than", stderr)
         self.assertIn("upgrade eval_briefing.py", stderr)
+
+    def test_malformed_current_version_corpus_is_refused_before_evaluation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            malformed = Path(directory) / "corpus.json"
+            malformed.write_text(json.dumps({
+                "schema_version": eval_briefing.corpus_schema.SCHEMA_VERSION,
+                "generated_at": "2026-08-08",
+                "categories": {"news": [{"url": 7}]},
+            }), encoding="utf-8")
+            code, stderr = self._run(str(malformed))
+        self.assertEqual(code, 2)
+        self.assertIn("violates schema", stderr)
+        self.assertIn("missing top-level field", stderr)
+        self.assertNotIn("Traceback", stderr)
 
 
 if __name__ == "__main__":

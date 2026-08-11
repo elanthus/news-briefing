@@ -3,10 +3,11 @@
 
 [tool.mypy]
 python_version = "3.11"
-# The four modules that make up the pipeline are fully annotated and checked.
+# The five modules that make up the pipeline and model-eval harness are fully
+# annotated and checked.
 # The test modules are not: annotating assertions adds noise without catching
 # anything the tests themselves wouldn't.
-files = ["briefing_config.py", "fetch_news.py", "eval_briefing.py", "corpus_schema.py"]
+files = ["briefing_config.py", "fetch_news.py", "eval_briefing.py", "corpus_schema.py", "run_ai_eval.py"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 warn_unused_ignores = true

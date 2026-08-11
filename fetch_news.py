@@ -71,13 +71,11 @@ class Sources(NamedTuple):
 
 
 def _source_id_problem(value: Any) -> str | None:
-    """Why a value cannot survive the ``<source>: <message>`` error format."""
+    """Why a value cannot be used as an exact machine-readable source ID."""
     if not isinstance(value, str) or not value.strip():
         return "must be a non-empty string"
     if "\n" in value or "\r" in value:
         return "must be single-line"
-    if ": " in value:
-        return "must not contain the reserved ': ' separator"
     return None
 
 
@@ -87,6 +85,8 @@ def _string_list(value: Any, field: str) -> list[str]:
     for index, item in enumerate(value):
         if problem := _source_id_problem(item):
             raise ValueError(f"{field}[{index}] {problem}")
+    if len(value) != len(set(value)):
+        raise ValueError(f"{field} contains a duplicate source ID")
     return value
 
 
@@ -136,6 +136,7 @@ def load_sources(path: str | Path) -> Sources:
             f"rss_feeds contains undeclared categories: {', '.join(sorted(invalid_categories))}")
 
     rss_feeds: dict[str, list[tuple[str, str]]] = {}
+    rss_source_ids: set[str] = set()
     for category, feeds in rss_raw.items():
         if not isinstance(category, str) or not isinstance(feeds, list):
             raise ValueError("rss_feeds must map category names to lists")
@@ -150,6 +151,9 @@ def load_sources(path: str | Path) -> Sources:
             if problem := _source_id_problem(name):
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] source name {problem}")
+            if name in rss_source_ids:
+                raise ValueError(f"rss_feeds contains duplicate source ID {name!r}")
+            rss_source_ids.add(name)
             parsed_feeds.append((name, url))
         rss_feeds[category] = parsed_feeds
 
@@ -267,13 +271,18 @@ class Item(TypedDict):
 class SourceStatus(TypedDict):
     """Observable outcome for one configured source request."""
 
-    source: str
+    source_type: str
+    source_id: str
     category: str
     status: str
-    item_count: int
-    undated_dropped: int
+    requested: bool
+    http_success: bool
+    parsed_entries: int
+    dated_entries: int
+    retained_entries: int
     duration_ms: int
-    error: NotRequired[str]
+    error_type: NotRequired[str]
+    message: NotRequired[str]
 
 
 class FetchResult(NamedTuple):
@@ -286,27 +295,49 @@ class FetchResult(NamedTuple):
 
     items: list[Item]
     undated: int
+    parsed_entries: int | None = None
+    dated_entries: int | None = None
 
 
 class TimedFetchResult(NamedTuple):
     result: FetchResult | None
-    error: str | None
+    error_type: str | None
+    message: str | None
     duration_ms: int
+    http_success: bool
 
 
 def timed_fetch(fetcher: Callable[..., FetchResult], *args: Any) -> TimedFetchResult:
     """Run one source fetch and retain its outcome and wall-clock latency."""
     started = time.perf_counter()
-    error: str | None
+    error_type: str | None
+    message: str | None
     try:
         result = fetcher(*args)
     except Exception as exc:
-        error = str(exc) or exc.__class__.__name__
+        error_type = (exc.error_type if isinstance(exc, SourceDataError)
+                      else exc.__class__.__name__)
+        message = str(exc) or error_type
         result = None
+        http_success = isinstance(exc, SourceDataError)
     else:
-        error = None
+        error_type = None
+        message = None
+        http_success = True
     duration_ms = round((time.perf_counter() - started) * 1000)
-    return TimedFetchResult(result, error, duration_ms)
+    return TimedFetchResult(result, error_type, message, duration_ms, http_success)
+
+
+class SourceDataError(ValueError):
+    """A response arrived successfully but its payload could not be consumed."""
+
+    def __init__(self, cause: Exception):
+        self.error_type = cause.__class__.__name__
+        super().__init__(str(cause) or self.error_type)
+
+
+def _raise_data_error(exc: Exception) -> None:
+    raise SourceDataError(exc) from exc
 
 
 def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> bytes:
@@ -405,14 +436,24 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     """
     items: list[Item] = []
     undated = 0
-    root = parse_feed_xml(http_get(url))
+    data = http_get(url)
+    try:
+        root = parse_feed_xml(data)
+    except (ET.ParseError, ValueError) as exc:
+        _raise_data_error(exc)
     ns = FEED_NAMESPACES
 
-    for item in root.iter("item"):  # RSS 2.0
+    rss_entries = list(root.iter("item"))
+    atom_entries = root.findall("atom:entry", ns)
+    parsed_entries = len(rss_entries) + len(atom_entries)
+    dated_entries = 0
+
+    for item in rss_entries:  # RSS 2.0
         published = parse_feed_date(item.findtext("pubDate"))
         if published is None:
             undated += 1
             continue
+        dated_entries += 1
         if published < cutoff:
             continue
         items.append({
@@ -423,13 +464,14 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             "source": source_name,
         })
 
-    for entry in root.findall("atom:entry", ns):  # Atom
+    for entry in atom_entries:  # Atom
         published = parse_feed_date(
             entry.findtext("atom:published", namespaces=ns)
             or entry.findtext("atom:updated", namespaces=ns))
         if published is None:
             undated += 1
             continue
+        dated_entries += 1
         if published < cutoff:
             continue
         link = entry.find("atom:link", ns)
@@ -440,7 +482,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             "summary": _feed_summary(entry, "atom:summary", "atom:content"),
             "source": source_name,
         })
-    return FetchResult(items, undated)
+    return FetchResult(items, undated, parsed_entries, dated_entries)
 
 
 def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
@@ -453,13 +495,24 @@ def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
            f"&query={urllib.parse.quote(query)}"
            f"&numericFilters=created_at_i%3E{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
-    data = json.loads(http_get(url))
+    payload = http_get(url)
+    try:
+        data = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        _raise_data_error(exc)
+    if not isinstance(data, dict) or not isinstance(data.get("hits"), list):
+        raise SourceDataError(ValueError("Hacker News response has no hits array"))
     items: list[Item] = []
     undated = 0
-    for hit in data.get("hits", []):
+    dated_entries = 0
+    hits = data["hits"]
+    for hit in hits:
+        if not isinstance(hit, dict):
+            raise SourceDataError(ValueError("Hacker News hits array contains a non-object"))
         if hit.get("created_at_i") is None:
             undated += 1
             continue
+        dated_entries += 1
         if hit.get("points", 0) < HN_MIN_POINTS:
             continue
         items.append({
@@ -473,7 +526,7 @@ def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
             "source": "Hacker News",
             "query": query,
         })
-    return FetchResult(items, undated)
+    return FetchResult(items, undated, len(hits), dated_entries)
 
 
 def _reddit_md_text(atom_content: str) -> str:
@@ -531,7 +584,11 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     for attempt in range(REDDIT_MAX_ATTEMPTS):
         try:
-            root = parse_feed_xml(http_get(url, timeout=REDDIT_TIMEOUT))
+            payload = http_get(url, timeout=REDDIT_TIMEOUT)
+            try:
+                root = parse_feed_xml(payload)
+            except (ET.ParseError, ValueError) as exc:
+                _raise_data_error(exc)
             break
         except urllib.error.HTTPError as exc:
             if exc.code != 429 or attempt == REDDIT_MAX_ATTEMPTS - 1:
@@ -540,13 +597,16 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
 
     items: list[Item] = []
     undated = 0
-    for entry in root.findall("atom:entry", ns):
+    entries = root.findall("atom:entry", ns)
+    dated_entries = 0
+    for entry in entries:
         published = parse_feed_date(
             entry.findtext("atom:updated", namespaces=ns)
             or entry.findtext("atom:published", namespaces=ns))
         if published is None:
             undated += 1
             continue
+        dated_entries += 1
         if published < cutoff:
             continue
         link = entry.find("atom:link", ns)
@@ -559,7 +619,7 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
             "summary": _reddit_md_text(raw_content)[:SUMMARY_CHARS],
             "source": f"r/{subreddit}",
         })
-    return FetchResult(items, undated)
+    return FetchResult(items, undated, len(entries), dated_entries)
 
 
 def dedupe(items: list[Item]) -> list[Item]:
@@ -675,6 +735,63 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def source_status(source_type: str, source_id: str, category: str,
+                  outcome: TimedFetchResult) -> SourceStatus:
+    """Convert a fetch outcome into the stable, machine-readable health record."""
+    result = outcome.result
+    parsed = (result.parsed_entries if result and result.parsed_entries is not None
+              else len(result.items) + result.undated if result else 0)
+    dated = (result.dated_entries if result and result.dated_entries is not None
+             else len(result.items) if result else 0)
+    status: SourceStatus = {
+        "source_type": source_type,
+        "source_id": source_id,
+        "category": category,
+        "status": "ok",
+        "requested": True,
+        "http_success": outcome.http_success,
+        "parsed_entries": parsed,
+        "dated_entries": dated,
+        "retained_entries": 0,
+        "duration_ms": outcome.duration_ms,
+    }
+    if result is None:
+        status["status"] = "error"
+        status["error_type"] = outcome.error_type or "FetchError"
+        status["message"] = outcome.message or "unknown fetch error"
+    elif parsed == 0:
+        status["status"] = "empty"
+        status["error_type"] = "EmptySource"
+        status["message"] = "response contained zero recognized entries"
+    elif dated == 0:
+        status["status"] = "empty"
+        status["error_type"] = "NoDatedEntries"
+        status["message"] = "response contained zero entries with parseable dates"
+    return status
+
+
+def error_record(status: SourceStatus) -> dict[str, Any]:
+    """Project a non-healthy source outcome into the compact errors list."""
+    return {
+        "source_type": status["source_type"],
+        "source_id": status["source_id"],
+        "status": status["status"],
+        "error_type": status.get("error_type", "FetchError"),
+        "message": status.get("message", "unknown fetch error"),
+        "duration_ms": status["duration_ms"],
+    }
+
+
+def _item_belongs_to_source(item: Item, status: SourceStatus) -> bool:
+    source_type = status["source_type"]
+    source_id = status["source_id"]
+    if source_type == "rss":
+        return item.get("source") == source_id
+    if source_type == "hacker_news":
+        return item.get("source") == "Hacker News" and item.get("query") == source_id
+    return item.get("source") == f"r/{source_id}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sources", type=Path, default=DEFAULT_SOURCES_PATH,
@@ -714,29 +831,20 @@ def main() -> int:
 
     undated = dict.fromkeys(corpus["categories"], 0)
 
-    jobs: list[tuple[Future[TimedFetchResult], str, str]] = []
+    jobs: list[tuple[Future[TimedFetchResult], str, str, str]] = []
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         for category, feeds in sources.rss_feeds.items():
             for name, url in feeds:
-                jobs.append((pool.submit(timed_fetch, fetch_rss, name, url, cutoff), category, name))
+                jobs.append((pool.submit(timed_fetch, fetch_rss, name, url, cutoff),
+                             category, "rss", name))
         for query in sources.hn_queries:
             jobs.append((pool.submit(timed_fetch, fetch_hn, query, cutoff),
-                         sources.hn_category, f"HN:{query}"))
+                         sources.hn_category, "hacker_news", query))
 
-        for future, category, name in jobs:
+        for future, category, source_type, source_id in jobs:
             outcome = future.result()
-            status: SourceStatus = {
-                "source": name,
-                "category": category,
-                "status": "error" if outcome.result is None else "ok",
-                "item_count": len(outcome.result.items) if outcome.result else 0,
-                "undated_dropped": outcome.result.undated if outcome.result else 0,
-                "duration_ms": outcome.duration_ms,
-            }
+            status = source_status(source_type, source_id, category, outcome)
             if outcome.result is None:
-                error = outcome.error or "unknown fetch error"
-                status["error"] = error
-                corpus["errors"].append(f"{name}: {error}")
                 corpus["sources"].append(status)
                 continue
             result = outcome.result
@@ -746,21 +854,9 @@ def main() -> int:
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
     for index, sub in enumerate(sources.subreddits):
-        name = f"r/{sub}"
         outcome = timed_fetch(fetch_reddit, sub, cutoff, args.hours)
-        status = {
-            "source": name,
-            "category": sources.reddit_category,
-            "status": "error" if outcome.result is None else "ok",
-            "item_count": len(outcome.result.items) if outcome.result else 0,
-            "undated_dropped": outcome.result.undated if outcome.result else 0,
-            "duration_ms": outcome.duration_ms,
-        }
-        if outcome.result is None:
-            error = outcome.error or "unknown fetch error"
-            status["error"] = error
-            corpus["errors"].append(f"{name}: {error}")
-        else:
+        status = source_status("reddit", sub, sources.reddit_category, outcome)
+        if outcome.result is not None:
             result = outcome.result
             corpus["categories"][sources.reddit_category].extend(result.items)
             undated[sources.reddit_category] += result.undated
@@ -780,6 +876,13 @@ def main() -> int:
         corpus["categories"][category] = items
         corpus["processing"][category] = stats
 
+    for status in corpus["sources"]:
+        status["retained_entries"] = sum(
+            1 for item in corpus["categories"][status["category"]]
+            if _item_belongs_to_source(item, status))
+    corpus["errors"] = [error_record(status) for status in corpus["sources"]
+                        if status["status"] != "ok"]
+
     total = sum(len(v) for v in corpus["categories"].values())
     # Validate before writing: a corpus that violates its own contract is a
     # bug in this script, and the prompt and checker both read it blind.
@@ -796,7 +899,10 @@ def main() -> int:
                              f"  {item['url']}")
         if corpus["errors"]:
             lines.append("\n## Fetch errors\n")
-            lines.extend(f"- {e}" for e in corpus["errors"])
+            lines.extend(
+                f"- {e['source_type']}:{e['source_id']}: "
+                f"{e['error_type']}: {e['message']}"
+                for e in corpus["errors"])
         text = "\n".join(lines)
     else:
         text = json.dumps(corpus, indent=1)

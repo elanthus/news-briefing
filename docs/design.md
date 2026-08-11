@@ -8,7 +8,7 @@ Why each stage of the pipeline works the way it does. The [README](../README.md)
 
 **Every dropped item is accounted for.** `processing` reports `fetched`, `undated_dropped`, `relevance_dropped`, `duplicates_dropped`, `source_cap_dropped`, `category_cap_dropped`, and `kept` per category, and they reconcile: the drops plus `kept` equal `fetched`. `undated_dropped` catches a feed silently changing its date format — those items never reach the other counters, so without it a dead source looks identical to a quiet one.
 
-**Every source fetch is observable.** `sources` records the status, item count, undated count, and wall-clock latency of each configured request; `fetch_duration_ms` records the whole retrieval phase. The legacy `errors` strings remain for existing corpus readers and briefing prompts.
+**Every source fetch is observable.** `sources` records exact source type and ID, whether a request was attempted and reached HTTP success, recognized, dated, and finally retained entry counts, status, typed error details, and wall-clock latency for every configured request; `fetch_duration_ms` records the whole retrieval phase. Valid XML with an unexpected layout and responses with no parseable dates are explicit `empty` outcomes. `errors` contains structured projections of every `empty` or `error` source.
 
 **Relevance filtering removes noise, not importance.** Only the known-broad feeds listed in `SOURCE_RELEVANCE_FILTERS` are keyword-filtered; category-specific and community sources pass through untouched. Over-filtering is the more expensive mistake, because an item dropped at this stage cannot be ranked at all and a starved sub-category cannot fill its reserved slots.
 
@@ -22,9 +22,9 @@ Why each stage of the pipeline works the way it does. The [README](../README.md)
 
 [`corpus_schema.py`](../corpus_schema.py) is the single source of truth for the shape of `corpus.json` — field names, valid category shape, per-category processing consistency, counter semantics, and a `schema_version`. Three things depend on that shape: the fetcher writes it, the prompt instructs a model to read specific fields from it, and the checker validates a briefing against it. Before the contract existed, renaming a key in the fetcher produced no error anywhere, just a quietly worse briefing.
 
-The fetcher validates against the contract before writing, so drift fails where it is introduced. `eval_briefing.py` refuses a corpus newer than it understands rather than misreading it.
+The fetcher validates against the contract before writing, so drift fails where it is introduced. `eval_briefing.py` validates a readable corpus before trusting its categories, items, timestamps, processing counters, errors, or source health, and refuses a corpus newer than it understands rather than misreading it.
 
-Category names and their order come from trusted source configuration rather than application code, which is why `SCHEMA_VERSION` is 3: older readers expect the built-in v2 names and should refuse a new corpus instead of misdiagnosing a valid custom category as drift.
+Schema v4 replaces ambiguous error strings with structured identities and adds complete request outcomes. It also enforces item value types, absolute HTTP(S) URLs, timezone-aware full timestamps, and `cutoff <= published <= generated_at` rather than checking required keys alone.
 
 **URL comparison lives here too.** `canonicalize_url` is part of the contract rather than the fetcher because two modules must agree on it: the fetcher deduplicates with it, and the checker decides whether a citation is in the corpus with it. When only the fetcher knew the rule, the checker compared raw strings and reported a citation differing by a trailing slash as one the corpus did not contain — the same finding it uses for a fabricated link.
 
@@ -38,7 +38,7 @@ Category names and their order come from trusted source configuration rather tha
 
 **Exclusion accountability.** The default asks for the next five stories dropped from each accountable section, with a reason; the configuration can change that target or exempt a section with `0`. The log heading itself is required only while at least one section is still accountable, so a configuration that exempts every section is not asked for an empty one. Silent omission is the failure mode you cannot otherwise detect.
 
-**Corpus health reporting.** Fetch failures are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short. The checker requires every failed source's identifier in the corpus-health section; it tolerates case, line wrapping, `HN:` spacing, and the common `/r/subreddit` spelling, but a generic health claim or a mention elsewhere cannot satisfy the requirement. Error records use `<source>: <message>`, so source names, HN queries, and subreddit names reserve the `: ` delimiter and must be single-line; rejecting ambiguous configuration keeps the identifier recoverable without changing the corpus schema.
+**Corpus health reporting.** Fetch failures and silent empty outcomes are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short. For v4 corpora, the checker requires one fenced JSON manifest whose `source_type`, `source_id`, and `status` values exactly match the structured error records. Prose-only claims, paraphrased IDs, duplicate entries, omitted failures, and invented failures are errors. Older frozen corpora retain their legacy text check solely for reproducible historical fixtures.
 
 **Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools. The prompt is not the enforcement mechanism; citation grounding is. See the injection fixture described in the [README](../README.md#grounding-is-also-injection-containment).
 
@@ -56,3 +56,5 @@ python3 eval_briefing.py \
 Diff it against [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). The frozen inputs make this a controlled comparison, so any difference is attributable to the prompt.
 
 The reference briefing is a **regression baseline, not a golden answer**. Ranking is judgment, and a prompt change that reorders two topics is not automatically a regression. What the baseline catches is the silent structural stuff: a dropped exclusion log, a collapsed sub-category, links drifting away from the corpus.
+
+For behavior rather than parser regression, `run_ai_eval.py` invokes a supplied real-model command over the clean utility case and a committed attack set. It preserves both model attempts, structured checker findings before and after correction, attack-marker outcomes, model settings, source health, timestamps, content hashes, and Git provenance in one run directory. Adding cases to `fixtures/ai-eval-suite.json` expands the attack set without coupling the harness to a provider SDK.
