@@ -31,6 +31,7 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
 from typing import Any, NamedTuple
+from xml.parsers import expat
 
 import corpus_schema
 from corpus_schema import canonicalize_url
@@ -230,9 +231,6 @@ FEED_NAMESPACES = {
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
 
-# Whitespace, XML declarations and comments may legally precede the DOCTYPE.
-_XML_PROLOG = re.compile(rb"\A(?:\xef\xbb\xbf)?(?:\s+|<\?.*?\?>|<!--.*?-->)*", re.DOTALL)
-
 # A corpus item. Field names are fixed by corpus_schema, not by convention.
 Item = dict[str, Any]
 
@@ -269,13 +267,23 @@ def parse_feed_xml(data: bytes) -> ET.Element:
     one, so refusing it closes both without depending on defusedxml, which
     would cost the project its stdlib-only property.
 
-    Only the prolog is inspected, so "<!DOCTYPE" appearing inside article
-    text is not mistaken for a declaration.
+    Expat recognizes the document's declared encoding before calling the DTD
+    handler, so UTF-16 and other supported encodings cannot hide a declaration
+    from this guard. A separate validation pass keeps ElementTree's convenient
+    tree API without relying on its private parser internals.
     """
-    prolog = _XML_PROLOG.match(data)
-    remainder = data[prolog.end():] if prolog else data
-    if remainder[:9].upper() == b"<!DOCTYPE":
+    def reject_doctype(_name: str, _system_id: str | None,
+                       _public_id: str | None, _has_internal_subset: int) -> None:
         raise ValueError("XML DOCTYPE declarations are not accepted")
+
+    parser = expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = reject_doctype
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError:
+        # Preserve ElementTree's public ParseError behavior for malformed XML.
+        # The DTD handler raises ValueError and therefore is never swallowed.
+        pass
     return ET.fromstring(data)
 
 

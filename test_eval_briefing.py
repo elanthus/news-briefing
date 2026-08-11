@@ -435,11 +435,24 @@ class CorpusHealthTest(unittest.TestCase):
         findings = evaluate(self.degraded, briefing())
         self.assertIn("corpus_health_missing", checks(findings, ERROR))
 
-    def test_unnamed_failed_source_is_a_warning(self):
+    def test_unnamed_failed_source_is_an_error(self):
         text = briefing(health="`r/ClaudeAI` failed.")
         findings = evaluate(self.degraded, text)
-        self.assertIn("failed_source_unnamed", checks(findings, WARN))
-        self.assertEqual(checks(findings, ERROR), set())
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
+
+    def test_hn_query_name_is_not_truncated_at_its_colon(self):
+        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
+        text = briefing(health="All sources healthy.")
+        findings = evaluate(degraded, text)
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
+        self.assertTrue(any("HN:agentic coding" in finding.message
+                            for finding in findings))
+
+    def test_source_named_outside_health_section_does_not_count(self):
+        text = briefing(health="All sources healthy.").replace(
+            "summary text here.", "r/ClaudeAI reports summary text here.", 1)
+        findings = evaluate(self.degraded, text)
+        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
 
     def test_fully_reported_degradation_is_clean(self):
         text = briefing(health="`r/ClaudeAI` and `r/ClaudeCode` failed with HTTP 429.")

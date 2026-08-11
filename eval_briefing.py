@@ -230,7 +230,7 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 if current:
                     sections.setdefault(current, {
                         "topics": [], "topic_texts": [], "topic_links": [],
-                        "links": [], "spelled": {}, "excluded": {}})
+                        "links": [], "spelled": {}, "excluded": {}, "lines": []})
                 continue
             if in_excluded:
                 # Inside the exclusion log, bold labels are per-section
@@ -242,12 +242,13 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 current = matched
                 sections.setdefault(current, {
                     "topics": [], "topic_texts": [], "topic_links": [],
-                    "links": [], "spelled": {}, "excluded": {}})
+                    "links": [], "spelled": {}, "excluded": {}, "lines": []})
                 continue
 
         if current is None:
             continue
         bucket = sections[current]
+        bucket["lines"].append(line)
 
         if in_excluded and _LIST_ITEM.match(line) and excluded_current:
             bucket["excluded"][excluded_current].append(line.strip())
@@ -485,11 +486,16 @@ def check_corpus_health_reported(sections: dict[str, Section], corpus: dict[str,
                         f"corpus recorded {len(errors)} fetch error(s) but the "
                         f"briefing has no {CORPUS_HEALTH!r} section")]
     findings: list[Finding] = []
+    health_text = "\n".join(sections[CORPUS_HEALTH]["lines"])
     for error in errors:
-        source = error.split(":")[0].strip()
-        if source and source not in text:
+        # Fetch errors are serialized as "<source>: <message>". Split on the
+        # delimiter, not every colon: Hacker News source IDs are "HN:<query>".
+        source = error.split(": ", 1)[0].strip()
+        named = source and re.search(
+            rf"(?<![\w/]){re.escape(source)}(?![\w/])", health_text)
+        if source and not named:
             findings.append(Finding(
-                WARN, "failed_source_unnamed",
+                ERROR, "failed_source_unnamed",
                 f"failed source {source!r} is not named in the briefing"))
     return findings
 

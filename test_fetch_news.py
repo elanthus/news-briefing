@@ -368,6 +368,13 @@ class ParseFeedXmlTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_feed_xml(payload)
 
+    def test_rejects_utf16_doctype_declaration(self):
+        payload = ('<?xml version="1.0" encoding="UTF-16"?>'
+                   '<!DOCTYPE r [<!ENTITY x "expanded">]>'
+                   '<rss><item><title>&x;</title></item></rss>').encode("utf-16")
+        with self.assertRaises(ValueError):
+            parse_feed_xml(payload)
+
     def test_entity_reference_without_a_doctype_cannot_expand(self):
         """Without a declaration expat rejects the reference outright."""
         with self.assertRaises(ET.ParseError):
