@@ -1,0 +1,2074 @@
+{
+ "schema_version": 4,
+ "generated_at": "2026-08-11T16:47:41.396979+00:00",
+ "cutoff": "2026-08-10T16:47:41.396979+00:00",
+ "window_hours": 24,
+ "limits": {
+  "source_cap": 25,
+  "category_cap": 60
+ },
+ "categories": {
+  "us_politics": [
+   {
+    "title": "Supreme Court schedules November arguments in major religion case",
+    "url": "https://thehill.com/regulation/court-battles/6022815-sumpreme-court-colorado-catholic-preschool-case/",
+    "published": "2026-08-11T16:43:40+00:00",
+    "summary": "The Supreme Court will hear oral arguments on Nov. 3 in its major case asking whether Colorado can force Catholic preschools to enroll children of same-sex couples to receive public funds.  The justices previously agreed to take up the case, which provides a pathway for the high court to narrow a ma",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump faces backlash over childhood vaccines order",
+    "url": "https://thehill.com/newsletters/1230-report/6022721-trump-faces-backlash-over-childhood-vaccines-order/",
+    "published": "2026-08-11T16:30:00+00:00",
+    "summary": "Click in for The Hill's midday newsletter with all the latest news. {beacon} \u200a It's Tuesday: And it's shaping up to be a busy one, even with Congress on recess. \u200a In today's issue: Critics respond to Trump's vaccine order Trump's reported Air Force One ruse GOP senators rally for Thune Trump backs F",
+    "source": "The Hill"
+   },
+   {
+    "title": "The dangerous politicization of bank charters",
+    "url": "https://thehill.com/opinion/finance/6021616-politicizing-us-banking-charters/",
+    "published": "2026-08-11T16:30:00+00:00",
+    "summary": "In an opinion piece, Patrick M. Brenner argues that the politicization of bank charters threatens financial inclusion and competition in the United States.",
+    "source": "The Hill"
+   },
+   {
+    "title": "House Democrats press AI giants on rogue agents",
+    "url": "https://thehill.com/policy/technology/6022646-openai-anthropic-cybersecurity-incidents/",
+    "published": "2026-08-11T16:09:42+00:00",
+    "summary": "A group of House Democrats are pushing two top artificial intelligence companies to disclose more information about reported incidents in which their AI models escaped containment and hacked into other companies during cybersecurity tests.  The lawmakers cited the \u201cserious risk that frontier AI mode",
+    "source": "The Hill"
+   },
+   {
+    "title": "U.S. economy's K-shaped gap narrows",
+    "url": "https://www.axios.com/2026/08/11/spending-growth-income",
+    "published": "2026-08-11T16:01:00+00:00",
+    "summary": "For years, America's economy has been defined by a \"K-shaped\" gap: The rich kept spending at a rapid pace, while everyone else struggled to keep up. That divide is suddenly narrowing.Why it matters: Economists warned that consumer spending growth was increasingly reliant on wealthy Americans, leavin",
+    "source": "Axios"
+   },
+   {
+    "title": "Trump's anti-immigration policies benefit America's enemies",
+    "url": "https://thehill.com/opinion/immigration/6021557-trump-revokes-tps-status/",
+    "published": "2026-08-11T16:00:00+00:00",
+    "summary": "President Trump's administration revoked the legal status of over 350,000 immigrants under the Temporary Protected Status program following a Supreme Court ruling, sparking concerns regarding economic disruption and racial bias.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Watch live: DDHQ, The Hill track and analyze primary elections in WI, SC, MN and more",
+    "url": "https://thehill.com/homenews/6020347-watch-live-ddhq-the-hill-primary-coverage/",
+    "published": "2026-08-11T16:00:00+00:00",
+    "summary": "The Hill presents two hours of live, real-time primary night coverage, diving deep into the 2026 primaries in Wisconsin, Minnesota, Vermont Connecticut, the Senate special GOP primary in South Carolina to replace the late Senator Lindsey Graham, and Alabama's special congressional primary on Tuesday",
+    "source": "The Hill"
+   },
+   {
+    "title": "Raskin launches probe into Pirro, Burgum after reversal on Reflecting Pool case",
+    "url": "https://thehill.com/homenews/house/6022617-pirro-hearn-case-investigation/",
+    "published": "2026-08-11T16:00:00+00:00",
+    "summary": "House Judiciary Democrats launched a probe Tuesday into the charges brought \u2014 and later voluntarily dismissed \u2014 against a former Olympian over alleged vandalism of the Lincoln Memorial Reflecting Pool, questioning why U.S. Attorney Jeanine Pirro brought the flawed case. The probe centers on the felo",
+    "source": "The Hill"
+   },
+   {
+    "title": "Crockett calls Republicans 'very performative': 'A lot of them don\u2019t like Donald Trump'",
+    "url": "https://thehill.com/homenews/house/6022641-crockett-calls-gop-performative/",
+    "published": "2026-08-11T15:54:30+00:00",
+    "summary": "Rep. Jasmine Crockett (D-Texas) on Monday called Republicans \u201cvery performative,\u201d saying that many GOP lawmakers have distaste for President Trump. \u201cWe have, like, our own little back rooms, right? So every once in a while, they will be like, \u2018Hey, you can come to our, like, back room?\u2019 You know?\u2019\u201d ",
+    "source": "The Hill"
+   },
+   {
+    "title": "Live updates: Iran holds to demands on Strait of Hormuz; Trump evades Tehran threat",
+    "url": "https://thehill.com/homenews/administration/6021632-live-updates-trump-iran-primary-elections-south-carolina-wisconsin-minnesota/",
+    "published": "2026-08-11T15:50:43+00:00",
+    "summary": "Iranian Foreign Minister Abbas Araghchi said Tuesday the\u00a0Strait of Hormuz\u00a0won\u2019t be reopened until the U.S. meets its conditions, after\u00a0President Trump\u00a0said he wants compensation from Iran \u201cfor all of the people that they have killed\u201d in the past. He told reporters that Iran has \u201castonished the whole",
+    "source": "The Hill"
+   },
+   {
+    "title": "Biden-era Air Force secretary says he'll sue over security clearance revocation",
+    "url": "https://thehill.com/policy/defense/6022666-frank-kendall-security-clearance-pentagon-lawsuit/",
+    "published": "2026-08-11T15:49:01+00:00",
+    "summary": "Former Air Force Secretary Frank Kendall is \u201cgonna sue\u201d the Trump administration after the Pentagon revoked his security clearance last week over accusations he disclosed classified information to the media. The Defense Department on Friday pulled Kendall\u2019s eligibility for access to classified infor",
+    "source": "The Hill"
+   },
+   {
+    "title": "Iran-backed Houthi rebels renew attacks on key port city",
+    "url": "https://thehill.com/policy/international/6022379-houthi-rebels-attack-mokha/",
+    "published": "2026-08-11T15:46:56+00:00",
+    "summary": "Iran-backed Houthi rebels have renewed their attacks on the Yemeni government-held city of Mokha, a key port city along the Red Sea, amid their blockade on Saudi exports in response to the Iran war. The attack was preceded by a deadly strike on a vessel off Mokha's coast in the Bab el-Mandeb Strait,",
+    "source": "The Hill"
+   },
+   {
+    "title": "Zuckerberg yacht did not hear call for assistance, spokesperson says",
+    "url": "https://thehill.com/policy/technology/6022595-zuckerberg-yacht-alaska-rescue-controversy/",
+    "published": "2026-08-11T15:41:15+00:00",
+    "summary": "A yacht owned by Mark Zuckerberg is gaining controversy for not responding to a call for assistance made by a boat that ran out of fuel, but Brian Baker, a spokesperson for the Meta CEO, said that the crew did not hear the call. Baker added that by the time the crew aboard the ship...",
+    "source": "The Hill"
+   },
+   {
+    "title": "Fox News\u2019s Tomi Lahren: GOP an 'utter embarrassment'",
+    "url": "https://thehill.com/homenews/media/6022615-lahren-rips-gop-socialism/",
+    "published": "2026-08-11T15:40:46+00:00",
+    "summary": "Fox News host Tomi Lahren ripped the Republican Party on Monday, arguing the GOP has failed working Americans so badly that socialism has become increasingly appealing to those struggling with the cost of living. \u201cLet\u2019s be frank about it, some Americans are turning to socialism because Republicans h",
+    "source": "The Hill"
+   },
+   {
+    "title": "Three cheers for trying to end birth tourism",
+    "url": "https://thehill.com/opinion/immigration/6021584-trump-executive-order-birth-tourism/",
+    "published": "2026-08-11T15:30:00+00:00",
+    "summary": "An opinion piece argues that President Trump's executive order targeting birth tourism is a necessary step to curb immigration system abuses and potentially advance broader immigration reform.",
+    "source": "The Hill"
+   },
+   {
+    "title": "ACLU targets Trump's new birthright citizenship order in court",
+    "url": "https://thehill.com/regulation/court-battles/6022546-aclu-challenges-trump-birthright-citizenship/",
+    "published": "2026-08-11T15:26:14+00:00",
+    "summary": "The American Civil Liberties Union (ACLU) on Tuesday launched its first effort to challenge President Trump\u2019s new attempt at restricting birthright citizenship.  The group wants a federal judge to rule that Trump can\u2019t use a new executive order to deny citizenship to babies who would\u2019ve been covered",
+    "source": "The Hill"
+   },
+   {
+    "title": "Why \"chipflation\" is here to stay",
+    "url": "https://www.axios.com/2026/08/11/chips-memory-inflation-ai",
+    "published": "2026-08-11T11:20:01+00:00",
+    "summary": "Data: U.S. Bureau of Labor Statistics via FRED; Chart: Emily Peck/AxiosMemory chip prices are skyrocketing, thanks to AI demand, and there's no end in sight.Why it matters: \"Chipflation\" is pushing up the prices for electronic goods like smartphones and laptops, as well as the costs for cloud storag",
+    "source": "Axios"
+   },
+   {
+    "title": "Primaries in Wisconsin and Minnesota pit progressives against moderates",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927242/primaries-in-wisconsin-and-minnesota-pit-progressives-against-moderates",
+    "published": "2026-08-11T10:52:52+00:00",
+    "summary": "NPR's Leila Fadel asks Jessica Taylor of the Cook Political Report about\u00a0battles between moderate and progressive candidates in Tuesday's Democratic primaries in Wisconsin and Minnesota.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "\"Not helpful\": White House winces over conservatives bashing AOC for egg freezing",
+    "url": "https://www.axios.com/2026/08/11/aoc-egg-freezing-white-house",
+    "published": "2026-08-11T09:25:05+00:00",
+    "summary": "When Rep. Alexandria Ocasio-Cortez posted a video Saturday giving herself a shot in preparation to freeze her eggs, she instantly injected issues of fertility, family and feminism into political discourse.And some of the online backlash from the conservative right is making Republicans, including so",
+    "source": "Axios"
+   },
+   {
+    "title": "Homicides fall 17% in big U.S. cities as the post-pandemic crime decline continues",
+    "url": "https://www.axios.com/2026/08/11/big-city-homicides-decline-2026",
+    "published": "2026-08-11T09:20:05+00:00",
+    "summary": "Data: Major Cities Chiefs Association (MCCA); Chart: Russell Contreras/AxiosViolent crime kept falling across many of the nation's largest cities through June, with homicides down 17.2% from the first half of 2025, according to preliminary data reviewed by Axios.Why it matters: The decline now spans",
+    "source": "Axios"
+   },
+   {
+    "title": "Tenacious AI agents expose dark side of machine autonomy",
+    "url": "https://www.axios.com/2026/08/11/ai-agents-rogue-autonomy-hugging-face",
+    "published": "2026-08-11T09:00:05+00:00",
+    "summary": "New revelations about \"rogue\" AI agents have exposed a dystopian hazard: Give an agent a goal, and it may decide that hacking, deception or rule-breaking is worth the payoff.Why it matters: Billions of AI agents could soon be acting on behalf of humans across the real world, multiplying the conseque",
+    "source": "Axios"
+   },
+   {
+    "title": "AI could help unlock more oil \u2014 and emissions",
+    "url": "https://www.axios.com/2026/08/11/ai-oil-gas-emissions-increase",
+    "published": "2026-08-11T09:00:04+00:00",
+    "summary": "Move over, data centers. AI's climate impact may extend well beyond the electricity it consumes.Why it matters: A new peer-reviewed study finds AI could help produce more oil and natural gas \u2014 and produce a climate impact the authors argue could far outweigh the technology's benefits for renewable e",
+    "source": "Axios"
+   },
+   {
+    "title": "Alabama holds second primary Tuesday, leading to confusion, concerns about low turnout",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927490/alabama-primary-election-2026-midterms-redistricting",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "After Alabama redrew its congressional maps in May, voters in several districts saw their primaries pushed to August. Now, it's time to vote and there are concerns confusion will dampen voter turnout.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Armed troops have patrolled D.C. for 1 year now. It's challenging democratic norms",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927230/national-guard-dc-anniversary-trump",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "The deployment is expected to cost in the billions after it was quietly extended until Inauguration Day of 2029.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "In Minnesota and Wisconsin, competitive primaries will again test power of progressive candidates",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927455/minnesota-wisconsin-primaries-hong-dsa-crowley-lindell-craig-flanagan-trump",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "A week after the Michigan primary, tests of progressive power will play out in the Midwest, raising questions of whether far left candidates can win come November or if the GOP can pick up moderates.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Progressives are on the cusp of a huge win. Their biggest stars are staying away.",
+    "url": "https://www.politico.com/news/2026/08/11/francesca-hong-wisconsin-aoc-bernie-progressive-01031466",
+    "published": "2026-08-11T08:45:00+00:00",
+    "summary": "Francesca Hong hasn\u2019t drawn big name backers like Bernie Sanders and Alexandria Ocasio-Cortez to her gubernatorial campaign, unlike other candidates this cycle.",
+    "source": "Politico"
+   },
+   {
+    "title": "Alabama heads into a second primary election after redistricting",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5914823/alabama-heads-into-a-special-election-after-redistricting",
+    "published": "2026-08-10T22:43:05+00:00",
+    "summary": "Alabama voters are again selecting candidates for four Congressional districts after the state changed the district map to favor Republicans. The redistricting is causing confusion among voters.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Food safety crisis deepens for Taylor Farms with salmonella outbreak",
+    "url": "https://www.axios.com/2026/08/10/salmonella-outbreak-food-safety-taylor-farms",
+    "published": "2026-08-10T22:19:50+00:00",
+    "summary": "Taylor Farms, a major produce supplier and producer of finished food products in North America, is engulfed in a food safety crisis that's ensnaring some of the biggest consumer brands in the U.S.Why it matters: The company \u2014 a critical supplier to stores like Walmart and Target and restaurants like",
+    "source": "Axios"
+   },
+   {
+    "title": "Congress' disappearing town halls",
+    "url": "https://www.axios.com/2026/08/10/house-republicans-congress-town-halls",
+    "published": "2026-08-10T22:11:25+00:00",
+    "summary": "The congressional town hall is becoming an endangered species.Why it matters: August recess once meant lawmakers returning home to face constituents \u2014 sometimes friendly, sometimes furious. After a wave of explosive confrontations last year, many lawmakers have stopped them altogether. Rep. Mike Flo",
+    "source": "Axios"
+   },
+   {
+    "title": "Trump signs executive order to split up MMR vaccine",
+    "url": "https://www.axios.com/2026/08/10/trump-order-split-up-mmr-vaccine",
+    "published": "2026-08-10T21:33:34+00:00",
+    "summary": "President Trump issued an executive order Monday calling for fewer childhood vaccinations, splitting the childhood MMR vaccine into three shots and delivering vaccines at separate medical visits.Why it matters: Controversial vaccine policy changes appear to be roaring back ahead of the midterms.The ",
+    "source": "Axios"
+   },
+   {
+    "title": "After his Reflecting Pool vandalism case is dismissed, David Hearn looks for closure",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5925117/reflecting-pool-david-hearn-legal-fight",
+    "published": "2026-08-10T20:49:00+00:00",
+    "summary": "The ex-Olympian accused of damaging the reflecting pool tells NPR the experience has been \"Orwellian\" and \"Kafkaesque.\" And it's not over yet: His lawyers are fighting to close the case permanently.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Trump and RFK Jr. try again to upend vaccines for kids",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5927313/trump-rfk-jr-vaccines-autism-executive-order",
+    "published": "2026-08-10T20:25:02+00:00",
+    "summary": "President Trump signed an executive order on Monday about vaccines, saying children should get fewer. His administration has been blocked in the courts from changing the vaccine schedule.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "White House officials tamped down efforts to oust Max Miller in final days",
+    "url": "https://www.politico.com/news/2026/08/10/white-house-max-miller-pressure-campaign-01031353",
+    "published": "2026-08-10T20:05:33+00:00",
+    "summary": "Ohio Republicans now have no choice but to rally behind a candidate many GOP insiders warn could cost the party a traditionally safe seat this November.",
+    "source": "Politico"
+   },
+   {
+    "title": "AOC joins thousands of women putting fertility on ice",
+    "url": "https://www.axios.com/2026/08/10/aoc-egg-freezing-women-fertility",
+    "published": "2026-08-10T19:48:41+00:00",
+    "summary": "While analysts speculate whether Rep. Alexandria Ocasio-Cortez (D-N.Y.) will launch a Senate or presidential bid, she's planning another part of her future: having kids.The big picture: Few prospective parents are weighing a White House bid, but Ocasio-Cortez is among a growing number of people free",
+    "source": "Axios"
+   },
+   {
+    "title": "Scoop: U.S. brokers secret deal on clandestine Syrian nuclear site",
+    "url": "https://www.axios.com/2026/08/10/syria-nuclear-israel-turkey-iaea",
+    "published": "2026-08-10T19:25:46+00:00",
+    "summary": "The International Atomic Energy Agency (IAEA) will soon remove nuclear material stored at a clandestine site in Syria after the Trump administration reached understandings with Syria and Israel, according to Israeli and U.S. officials.Why it matters: The Trump administration and IAEA scrambled to re",
+    "source": "Axios"
+   },
+   {
+    "title": "Meta, others lose appeal to drop thousands of social media addiction lawsuits",
+    "url": "https://www.axios.com/2026/08/10/social-media-addiction-lawsuits-meta-tiktok",
+    "published": "2026-08-10T19:20:19+00:00",
+    "summary": "A U.S. Appeals Court said Monday that thousands of lawsuits targeting Meta Platforms, ByteDance's TikTok and other social media outlets can proceed.The big picture: The lawsuits argue that the platforms are addictive and harmful to young people, and have prompted several tech companies to attempt to",
+    "source": "Axios"
+   },
+   {
+    "title": "'I'll never bow down': Montana Democratic Senate nominee refuses to pave way for independent",
+    "url": "https://www.politico.com/news/2026/08/10/montana-senate-bankhead-midterms-01031177",
+    "published": "2026-08-10T18:12:38+00:00",
+    "summary": "Alani Bankhead said Monday she will not exit the race ahead of Monday\u2019s deadline, likely boosting the GOP\u2019s chances of winning in the fall.",
+    "source": "Politico"
+   },
+   {
+    "title": "'The Nerd Reich' tracks the 'unmasking of Silicon Valley's true politics'",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5925350/the-nerd-reich-tracks-the-unmasking-of-silicon-valleys-true-politics",
+    "published": "2026-08-10T17:38:12+00:00",
+    "summary": "Journalist Gil Dur\u00e1n argues that a small circle of Silicon Valley billionaires and venture capitalists have concluded that democracy is in their way \u2014 and that they should be governing in its place.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "OpenAI introduces a new cyber model amid fears of AI cyberattacks",
+    "url": "https://www.axios.com/2026/08/10/openai-gpt-astra-restrictions-safety-hacking-defenders",
+    "published": "2026-08-10T17:00:30+00:00",
+    "summary": "OpenAI is introducing a more cyber-permissive version of GPT-5.6 Sol to vetted defenders as it prepares companies for autonomous cyberattacks. Why it matters: The move comes just days after OpenAI said it was delaying the release of its forthcoming model, Astra, after it reached critical hacking abi",
+    "source": "Axios"
+   },
+   {
+    "title": "The U.S. just had its hottest month on record",
+    "url": "https://www.axios.com/2026/08/10/july-2026-hottest-month",
+    "published": "2026-08-10T16:48:43+00:00",
+    "summary": "Reproduced from NOAA; Chart: Axios VisualsJuly was the hottest month on record for the contiguous U.S., per new federal data dating back to 1895.By the numbers: Last month's average temperature was 76.89\u00b0F, topping the 76.77\u00b0F mark set in July 1936.That's 3.3\u00b0F warmer than the 1901-2000 average.What",
+    "source": "Axios"
+   }
+  ],
+  "us_news": [
+   {
+    "title": "Maine lifeguard \"started swimming like hell\" when Shark pulled him underwater",
+    "url": "https://www.cbsnews.com/news/maine-lifeguard-shark-attack-sightings-warning/",
+    "published": "2026-08-11T16:42:01+00:00",
+    "summary": "A lifeguard said a shark off the coast of Scarborough Beach in Maine grabbed onto his buoy and pulled him 5 feet underwater before he was able to get free.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Press corps traveling with Trump kept in dark about president\u2019s catering container switch to secret plane \u2013 live",
+    "url": "https://www.theguardian.com/us-news/live/2026/aug/11/donald-trump-democrats-primaries-wisconsin-minnesota-south-carolina-vaccines-max-miller-latest-news-updates",
+    "published": "2026-08-11T16:38:44+00:00",
+    "summary": "Reporter says media got no extra guidance about president\u2019s movements amid questions over secretive plane swapSign up to the US Breaking News emailPete Hegseth\u2019s appointments to a key Pentagon advisory body include two men with ties to the venture capital fund where Donald Trump Jr is a partner, whi",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "U.S. Marine veteran freed from Russian prison after nearly 4 years",
+    "url": "https://www.cbsnews.com/news/robert-gilman-russia-released/",
+    "published": "2026-08-11T16:36:40+00:00",
+    "summary": "A U.S. Marine veteran from Massachusetts who has been held in Russia for more than four years on disputed charges has been released.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Famed tourist destinations evacuated as wildfire threatens California\u2019s Big Sur",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/big-sur-timber-fire-evacuations",
+    "published": "2026-08-11T16:22:00+00:00",
+    "summary": "Nearly 500 personnel battle Timber fire  in Los Padres national forest as blaze grows to 2,000 acresEvacuations have been ordered for areas along California\u2019s famous Big Sur coast as a wildfire burns in the nearby steep, rugged mountains.The Timber fire in Monterey county started on Sunday and grew ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Powerball jackpot hits $1 billion after no one won $905 million grand prize",
+    "url": "https://www.cbsnews.com/news/powerball-jackpot-drawing-monday-aug-10-2026/",
+    "published": "2026-08-11T16:18:00+00:00",
+    "summary": "No winning tickets were sold for Monday night's $905 million Powerball jackpot, so the estimated grand prize for Wednesday's drawing will be at least $1 billion, Powerball says.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Report: Trump used elaborate ruse to fly out of Turkey following summit because of Iran threat",
+    "url": "https://www.pbs.org/newshour/politics/report-trump-used-elaborate-ruse-to-fly-out-of-turkey-following-summit-because-of-iran-threat",
+    "published": "2026-08-11T16:04:51+00:00",
+    "summary": "President Donald Trump secretly flew out of last month's NATO summit in Ankara, Turkey, on an alternate military aircraft while the White House made it appear that the Republican president was flying on Air Force One, according to a report published by The Washington Post on Monday.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Samuel Alito gained up to $2.9m from oil and gas assets since joining supreme court, analysis shows",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/samuel-alito-oil-gas-assets-supreme-court-analysis",
+    "published": "2026-08-11T16:00:03+00:00",
+    "summary": "Critics argue US high court justice should recuse himself from upcoming fossil fuel firms\u2019 climate accountability caseSupreme court justice Samuel Alito gained up to $2.9m from his fossil fuel interests between 2005 and 2024, a new review of financial disclosures shows.The analysis from the non-prof",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump put a wrecking-ball through the East Wing \u2013 and through democratic norms | Francine Prose",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/11/trump-wrecking-ball",
+    "published": "2026-08-11T16:00:03+00:00",
+    "summary": "Our children should be able to visit our nation\u2019s capital without having to think about Donald Trump and about how much he did to deface itHistory has shown us how much dictators and aspiring dictators love building monuments to themselves. They enjoy reminding the world that they can do anything, n",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Record-breaking El Capitan climber dies in Sierra Nevada fall",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/record-breaking-climber-jacob-whisenant-dies",
+    "published": "2026-08-11T15:47:52+00:00",
+    "summary": "Jacob \u2018Jake\u2019 Whisenant died in Sequoia and Kings Canyon wilderness in \u2018climbing-related incident\u2019, authorities sayA 30-year-old California climber known for breaking speed records died after falling in the Sierra Nevada wilderness last week, according to authorities.Jacob \u201cJake\u201d Whisenant, from Mamm",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Former U.S. Marine held in Russia for more than 4 years has been released, advocates say",
+    "url": "https://www.pbs.org/newshour/politics/former-u-s-marine-held-in-russia-for-more-than-4-years-has-been-released-advocates-say",
+    "published": "2026-08-11T15:44:10+00:00",
+    "summary": "Before he was flown out of Russia, Robert Gilman had been in \"a dissociative stupor\" for 47 days due to the abuse he has suffered in prison.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Luigi Mangione appears in court over healthcare CEO\u2019s killing with trial a month away",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/luigi-mangione-court-appearance-new-york",
+    "published": "2026-08-11T15:42:57+00:00",
+    "summary": "Prosecutors allege that Mangione gunned down Brian Thompson outside New York City hotel in December 2024Luigi Mangione, who is accused of killing UnitedHealthcare CEO Brian Thompson, appeared Tuesday morning in Manhattan state court for a final pre-trial conference, where the judge addressed content",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "US state department has canceled over 175,000 visas since Trump\u2019s return to office",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/trump-state-department-visas",
+    "published": "2026-08-11T15:28:00+00:00",
+    "summary": "Revocations targeted foreign nationals who allegedly broke terms of their visas, government saysThe US Department of State has canceled more than 175,000 visas since Donald Trump returned to office, quadrupling the pace of revocations under Joe Biden\u2019s final year in the White House, according to a n",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Are humanoid robots ready to scrub your kitchen? Not quite.",
+    "url": "https://www.cbsnews.com/news/tau-robotics-humanoid-ai-cleaning-robots-san-francisco/",
+    "published": "2026-08-11T15:23:08+00:00",
+    "summary": "Startup companies are now starting to test their humanoid robots for home use, but experts said wider adoption will take years.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Farm linked to cyclosporaisis outbreak went years without FDA inspection",
+    "url": "https://www.cbsnews.com/news/taylor-farms-mexico-fda-inspection-cyclosporiasis-outbreak/",
+    "published": "2026-08-11T15:19:49+00:00",
+    "summary": "The FDA has long fallen short of legally required inspection targets, and foreign inspections fell further last year amid agency layoffs.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Human rights groups sue Trump administration over \u2018crippling\u2019 ICC sanctions",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/human-rights-groups-trump-lawsuit-icc-sanctions",
+    "published": "2026-08-11T15:10:16+00:00",
+    "summary": "Lawsuit challenges executive order targeting international criminal court for investigating Israeli crimes in PalestineFour prominent US human rights organizations have accused the Trump administration of using its \u201ccrippling\u201d sanctions regime against the international criminal court (ICC) to underm",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Flames shoot out of plane's engine after apparent bird strike",
+    "url": "https://www.cbsnews.com/news/flames-american-airlines-bird-strike-myrtle-beach-charlotte/",
+    "published": "2026-08-11T14:44:02+00:00",
+    "summary": "An American Airlines plane bound for North Carolina was forced to return to Myrtle Beach, South Carolina, when flames erupted from its left engine due to an apparent bird strike.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Live Results: Alabama midterm U.S. House primaries after redistricting",
+    "url": "https://www.pbs.org/newshour/politics/live-results-alabama-midterm-u-s-house-primaries-after-redistricting",
+    "published": "2026-08-11T14:40:05+00:00",
+    "summary": "Voters in four of Alabama's seven congressional districts will select U.S. House nominees Tuesday under a new map that eliminates one of the state's two majority-Black districts currently represented by Democrats.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Video of Arkansas trooper punching 18-year-old draws calls for investigation",
+    "url": "https://www.cbsnews.com/news/arkansas-trooper-punch-traffic-stop-investigation/",
+    "published": "2026-08-11T14:39:00+00:00",
+    "summary": "Alisa Hackett, 18, was pulled over for speeding and alcohol possession when she was tackled to the ground and punched.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Live Results: South Carolina special primary election to replace Sen. Lindsey Graham",
+    "url": "https://www.pbs.org/newshour/politics/live-results-south-carolina-special-primary-election-to-replace-sen-lindsey-graham",
+    "published": "2026-08-11T14:30:13+00:00",
+    "summary": "Ten Republicans will compete in a special primary election Tuesday to replace the late Sen. Lindsey Graham on South Carolina's general election ballot.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Newly released video shows Arkansas state trooper punching Black woman during traffic stop",
+    "url": "https://www.cbsnews.com/video/newly-released-video-arkansas-state-trooper-punching-black-woman-traffic-stop/",
+    "published": "2026-08-11T14:22:00+00:00",
+    "summary": "Newly released video of a recent traffic stop in Arkansas shows a state trooper punching an 18-year-old Black woman in the face after forcing her to the ground on the side of a highway. The trooper said the woman was resisting arrest. Warning, the video may be disturbing.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Live Results: Minnesota midterm primaries",
+    "url": "https://www.pbs.org/newshour/politics/live-results-minnesota-midterm-primaries",
+    "published": "2026-08-11T14:05:13+00:00",
+    "summary": "Minnesota Democrats will decide a competitive U.S. Senate primary Tuesday in another face-off between moderate and progressive candidates that could define the party's identity heading into the midterm elections.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Live Results: Wisconsin midterm primaries",
+    "url": "https://www.pbs.org/newshour/politics/live-results-wisconsin-midterm-primaries",
+    "published": "2026-08-11T14:00:12+00:00",
+    "summary": "Wisconsin voters will decide another high-profile clash between the party's establishment and progressive wings in a gubernatorial primary on Tuesday.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "3 tubers in Michigan, including a child, rescued after days without food or water",
+    "url": "https://www.cbsnews.com/video/3-tubers-in-michigan-including-a-child-rescued-after-days-without-food-or-water/",
+    "published": "2026-08-11T13:06:44+00:00",
+    "summary": "Three tubers who got lost along Michigan's Muskegon River were rescued last week. They were missing for three days in the woods and didn't have food or water. Meg Oliver reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "5 takeaways from Zuckerberg's essay on his vision for superintelligence",
+    "url": "https://www.cbsnews.com/news/mark-zuckerberg-ai-essay-takeaways/",
+    "published": "2026-08-11T13:04:42+00:00",
+    "summary": "In a 6,500-word post, the Meta CEO argues that superintelligence should be shared \"with as many people and businesses as possible.\"",
+    "source": "CBS News US"
+   },
+   {
+    "title": "\u2018A lazy cop\u2019: Maryland police officer allegedly faked traffic stops to avoid service calls",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/baltimore-police-false-traffic-stop-reports",
+    "published": "2026-08-11T12:55:01+00:00",
+    "summary": "Baltimore officer Dequwan Houchins, 30, indicted for allegedly making false traffic stop reports for monthsA Baltimore, Maryland, police officer avoided service calls by claiming he was on traffic stops when he was in fact \u201csitting idle in his car\u201d, according to an indictment filed by city prosecuto",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Lifeguard recalls escaping shark's grasp as officials warn of attacks closer to shore",
+    "url": "https://www.cbsnews.com/video/lifeguard-recalls-escaping-sharks-grasp-as-officials-warn-of-attacks-closer-to-shore/",
+    "published": "2026-08-11T12:54:40+00:00",
+    "summary": "A lifeguard says a shark dragged him about 5 feet underwater off the coast of Scarborough Beach in Maine before he was able to escape and emerge unharmed. The attack comes as officials along the East Coast say there are more sharks closer to shore in areas where they don't usually go. Tom Hanson rep",
+    "source": "CBS News US"
+   },
+   {
+    "title": "At least 200 major wildfires burn across U.S. and Canada",
+    "url": "https://www.cbsnews.com/video/at-least-200-major-wildfires-burn-across-us-and-canada/",
+    "published": "2026-08-11T12:22:01+00:00",
+    "summary": "Hot and dry conditions are fueling at least 200 major wildfires in the western U.S. and Canada. Meanwhile, images show the scale of destruction in Spokane, Washington, from the fires there last week. Ian Lee reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Omar says federal agent was posted outside monthly meeting in Minneapolis suburb",
+    "url": "https://www.cbsnews.com/news/ilhan-omar-federal-agent-richfield-meeting/",
+    "published": "2026-08-11T12:18:35+00:00",
+    "summary": "Democratic U.S. Rep. Ilhan Omar says a Homeland Security Investigations agent was outside her monthly town hall meeting in Richfield, Minnesota, on Thursday.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Driver who broke the sound barrier to attempt another land speed record in Utah",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/driver-sound-barrier-land-speed-record",
+    "published": "2026-08-11T12:17:38+00:00",
+    "summary": "British driver Andy Green will try to beat his own record, set 20 years ago, with a hydrogen-powered carThe first \u2013 and only \u2013 person to break the sound barrier in a car hits the track in Utah this week with new wheels and his eye on another record.Twenty years ago, British driver Andy Green set the",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Colombia reels after major earthquake kills at least 130 | First Thing",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/first-thing-colombia-earthquake",
+    "published": "2026-08-11T12:11:58+00:00",
+    "summary": "Buildings collapse and more than 470 people hurt in 7.4-magnitude quake. Plus, in such a vast universe why is there no sign of aliens?Don\u2019t already get First Thing in your inbox? Sign up hereGood morning. More than 130 people died after a powerful earthquake struck western Colombia, collapsing and s",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "An HBCU has banned durags and bonnets. That reinforces anti-Blackness | AD Carson",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/11/tuskegee-university-bans-bonnets-durags",
+    "published": "2026-08-11T12:00:00+00:00",
+    "summary": "Tuskegee University\u2019s dress code is a marker of a harmful politics of respectability. In my academic career, it\u2019s become all too familiarIn anticipation of the coming school year, the president of Tuskegee University, Dr Mark A Brown, sent welcome letters to students and their parents last month. Pa",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Drought, water rationing and dry rivers: our water crisis is here | Peter Gleick",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/11/drought-water-climate-crisis",
+    "published": "2026-08-11T11:00:01+00:00",
+    "summary": "It doesn\u2019t have to be this way. We know what needs to be doneDisturbing news about our water resources is now constant and unrelenting. In just the past few weeks, media have reported that Puerto Rico is suffering a deep water crisis as severe drought has cut water supplies to thousands. The Rhine a",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Minnesota primaries could mark change of path for Democrats and Republicans",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/minnesota-primaries-democrats-republicans",
+    "published": "2026-08-11T10:00:58+00:00",
+    "summary": "From progressive and moderate to election deniers, state sees wide spectrum of candidates in test of direction for both partiesMinnesota voters on both sides of the aisle are weighing the direction of their parties \u2013 and their chances of winning over the general electorate \u2013 in marquee statewide rac",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "\u2018Fiercely independent\u2019 South Carolina votes on Lindsey Graham\u2019s Senate successor",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/south-carolina-special-primary-election-lindsey-graham-senate-seat",
+    "published": "2026-08-11T10:00:58+00:00",
+    "summary": "Republicans, including Graham\u2019s sister Darline, expedite campaigns to replace late senator in special primary raceIn the race to replace the late US senator Lindsey Graham, 10 candidates have been barnstorming South Carolina diners, church halls and recreation centers, compressing a normal year of c",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Wisconsin considers democratic socialist for governor amid US wave of progressive wins",
+    "url": "https://www.theguardian.com/us-news/2026/aug/11/wisconsin-primary-election-governor-race",
+    "published": "2026-08-11T10:00:57+00:00",
+    "summary": "Francesca Hong is Democratic frontrunner in four-way primary race to lead the swing state, a test of anti-establishment sentimentWisconsin voters will decide on Tuesday whether to nominate a democratic socialist for the state\u2019s highest office in the latest test of an anti-establishment wave among De",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump\u2019s vaccine order is about feelings, not facts | Robert B Shpiner",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/11/trumps-vaccine-order-is-about-feelings-not-facts",
+    "published": "2026-08-11T10:00:57+00:00",
+    "summary": "There\u2019s no evidence that vaccines cause autism, or that we should separate MMR shots. This order is dangerous\u201cThis is based on what I feel.\u201d That was the president last September, explaining why he wanted the measles, mumps and rubella (MMR) vaccine broken into three separate shots. On Monday, he si",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Experts are warning: our AI arms race is putting humanity at risk | Stuart Russell",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/11/openai-anthropic-google-deepmind-letter",
+    "published": "2026-08-11T10:00:57+00:00",
+    "summary": "A recent letter signed by 1,367 researchers and engineers at frontier AI labs \u2013 mainly OpenAI, Anthropic and Google Deepmind \u2013 points to a dangerous momentIt is fashionable in certain circles to dismiss the catastrophic risks of AI. One often hears that \u201cthe real experts\u201d who work on the technology ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The last lap at Lloyd Center: how America is losing its mall ice rinks",
+    "url": "https://www.theguardian.com/sport/2026/aug/11/portland-lloyd-center-ice-rink-closure-tonya-harding",
+    "published": "2026-08-11T09:00:08+00:00",
+    "summary": "The Portland rink where Tonya Harding first skated was an affordable community institution for six decades. Its closure echoes the disappearance of mall ice across the USWhen the Lloyd Center shopping mall first opened its doors in 1960, it boasted a unique feature: an ice rink. In the nearly seven ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The school year begins in LA with one big change: limited screen time",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5913745/screen-limits-begin-la-schools",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "As educators in the nation's second-largest district prepare for the new limits on classroom screen time, some teachers say it will be a difficult adjustment.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Alabama holds second primary Tuesday, leading to confusion, concerns about low turnout",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927490/alabama-primary-election-2026-midterms-redistricting",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "After Alabama redrew its congressional maps in May, voters in several districts saw their primaries pushed to August. Now, it's time to vote and there are concerns confusion will dampen voter turnout.",
+    "source": "NPR National"
+   },
+   {
+    "title": "In Minnesota and Wisconsin, competitive primaries will again test power of progressive candidates",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927455/minnesota-wisconsin-primaries-hong-dsa-crowley-lindell-craig-flanagan-trump",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "A week after the Michigan primary, tests of progressive power will play out in the Midwest, raising questions of whether far left candidates can win come November or if the GOP can pick up moderates.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Team works to identify WWII soldier who died in Alaskan plane crash",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5883874/team-works-to-identify-wwii-soldier-who-died-in-alaskan-plane-crash",
+    "published": "2026-08-11T08:32:08+00:00",
+    "summary": "In Sitka, Alaska, a Defense Department team has exhumed the remains of an unidentified WWII soldier, in hopes of identification and reburial in a place of his family's choosing.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Does Sophie Cunningham benefit from white privilege? Of course she does | Etan Thomas",
+    "url": "https://www.theguardian.com/sport/2026/aug/11/does-sophie-cunningham-benefit-from-white-privilege-of-course-she-does",
+    "published": "2026-08-11T08:30:08+00:00",
+    "summary": "One of the player\u2019s WNBA rivals said the Fever guard is treated differently from her Black peers. There\u2019s plenty of evidence to back that statement upWhite privilege. An accusation that triggers multitudes of white people in America as if you had insulted their mother. Mention racism, and people may",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Trump signs order on vaccination recommendations",
+    "url": "https://www.cbsnews.com/news/trump-childhood-vaccines-executive-order/",
+    "published": "2026-08-11T01:52:00+00:00",
+    "summary": "President Trump signed an executive order on childhood vaccine schedules Monday.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Panathinaikos owner says he attempted to lure three-time NBA MVP Nikola Joki\u0107 to Europe",
+    "url": "https://www.theguardian.com/sport/2026/aug/10/panathinaikos-owner-says-he-attempted-to-lure-three-time-nba-mvp-nikola-jokic-to-europe",
+    "published": "2026-08-11T01:00:15+00:00",
+    "summary": "Dimitrios Giannakopoulo says he tried to buy out contractJoki\u0107 set to make more than $100m over next two seasonsPanathinaikos Basketball Club owner Dimitrios Giannakopoulos says he attempted to lure three-time NBA MVP Nikola Joki\u0107 to his \u2060team for this coming \u2060season.Giannakopoulos, \u200bwhose net worth",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Captain of boat that capsized in New York facing federal charges after mom, infant die",
+    "url": "https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/",
+    "published": "2026-08-11T00:14:00+00:00",
+    "summary": "Manuel Hernandez, the boat's 46-year-old captain, was arrested on reckless endangerment charges and also charged in federal court with two counts of misconduct and neglect.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Taylor Farms recalls several jalape\u00f1o products over salmonella concerns",
+    "url": "https://www.pbs.org/newshour/health/taylor-farms-recalls-several-jalapeno-products-over-salmonella-concerns",
+    "published": "2026-08-10T23:59:14+00:00",
+    "summary": "Guacamole, pico de gallo and taco dip are some of the prepared foods included in the recall. The announcement comes a few weeks after\u00a0Taylor Farms\u00a0voluntarily recalled its iceberg lettuce products sourced from central Mexico because of a potential link to a\u00a0multistate cyclospora outbreak.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Man who allegedly arranged Tupac Shakur's 1996 killing is on trial in Las Vegas",
+    "url": "https://www.cbsnews.com/news/tupac-shakur-killing-1996-alleged-organizer-trial-las-vegas-duane-keffe-d-davis/",
+    "published": "2026-08-10T23:57:46+00:00",
+    "summary": "The man who prosecutors say orchestrated the 1996 killing of rap icon Tupac Shakur, Duane \"Keffe D\" Davis, is on trial almost 30 years after the drive-by shooting in Las Vegas.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Contiguous U.S. broke its record for hottest month ever in July, NOAA says",
+    "url": "https://www.pbs.org/newshour/nation/contiguous-u-s-broke-its-record-for-hottest-month-ever-in-july-noaa-says",
+    "published": "2026-08-10T23:53:13+00:00",
+    "summary": "Although it was unusually cool in Alaska, hotter-than-normal conditions blanketed the Lower 48, with the most excessive heat in the Mountain West, Southwest, Northern Plains and Southeast.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "What we know about the death of Tasia Fortune in Mississippi",
+    "url": "https://www.pbs.org/newshour/nation/what-we-know-about-the-death-of-tasia-fortune-in-mississippi",
+    "published": "2026-08-10T23:46:15+00:00",
+    "summary": "The hanging death of Tasia Fortune, whose body was found outside an abandoned house, has shaken her family and community\u00a0in Mississippi, where two other people have been found hanging from trees in less than a year.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "WNBA faces new controversy after Sky's DiJonai Carrington ejected over foul on Sophie Cunningham",
+    "url": "https://www.cbsnews.com/video/wnba-faces-controversy-skys-dijonai-carrington-ejected-foul-sophie-cunningham/",
+    "published": "2026-08-10T23:40:00+00:00",
+    "summary": "WNBA star Sophie Cunningham, already at the center of a fight over transgender participation, took a flagrant foul from an opposing player who was ejected from the game. Jan Crawford has more details.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Chuck Grassley's beloved vacuum, Beth, has retired",
+    "url": "https://www.cbsnews.com/video/chuck-grassleys-beloved-vacuum-beth-retired/",
+    "published": "2026-08-10T23:37:32+00:00",
+    "summary": "Iowa Sen. Chuck Grassley has been posting little snapshots of his \"old reliable\" vacuum. But after nearly 50 years of service in the family, she has retired. Tony Dokoupil has the story.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Taylor Farms recalls jalape\u00f1o items at Walmart, Target over salmonella risk",
+    "url": "https://www.cbsnews.com/news/taylor-farms-jalapeno-recall-salmonella-outbreak/",
+    "published": "2026-08-10T23:33:25+00:00",
+    "summary": "The recalled products with jalape\u00f1o were distributed at national retailers, including Walmart, Target and Trader Joe's, in 26 states.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Jackie, a beloved bald eagle from Big Bear, dies after attack by 2 other eagles",
+    "url": "https://www.cbsnews.com/video/jackie-beloved-bald-eagle-big-bear-dies-attack-2-other-eagles/",
+    "published": "2026-08-10T23:32:58+00:00",
+    "summary": "Jackie, of the beloved bald eagle duo Jackie and Shadow, watched by millions on the Big Bear live feed, has died.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Taylor Farms recalls jalape\u00f1o products potentially contaminated with salmonella",
+    "url": "https://www.cbsnews.com/video/taylor-farms-recalls-jalapeo-products-potentially-contaminated-salmonella/",
+    "published": "2026-08-10T23:27:39+00:00",
+    "summary": "Taylor Farms, the company linked to this summer's lettuce-related parasite outbreak, is now recalling jalape\u00f1o pepper products after new concerns about salmonella. Tom Hanson reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Wildfires ravage the West: Details and the forecast",
+    "url": "https://www.cbsnews.com/video/wildfires-ravage-west-details-forecast/",
+    "published": "2026-08-10T23:23:58+00:00",
+    "summary": "Hot and dry conditions out west fueled at least 200 major wildfires across the U.S. and Canada. Jonathan Vigliotti reports from Spokane, Washington, and Paul Deanno has the forecast.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "7.4-magnitude earthquake rocks Colombia, crumbling homes and buildings",
+    "url": "https://www.pbs.org/newshour/show/7-4-magnitude-earthquake-rocks-colombia-crumbling-homes-and-buildings",
+    "published": "2026-08-10T22:55:25+00:00",
+    "summary": "A powerful and deadly earthquake hit Colombia on Monday, killing at least 111 people, toppling buildings and leaving a trail of destruction. Geoff Bennett reports.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "News Wrap: Trump signs order calling for MMR vaccine split into 3 shots",
+    "url": "https://www.pbs.org/newshour/show/news-wrap-trump-signs-order-calling-for-mmr-vaccine-split-into-3-shots",
+    "published": "2026-08-10T22:50:06+00:00",
+    "summary": "In our news wrap Monday, President Trump signed an executive order calling for fewer childhood vaccines and spacing out shots across separate doctor visits, Tropical Storm Dolphin made landfall in eastern China and President Trump's Board of Peace says it's in discussions with Israel after Prime Min",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Iran demands U.S. pay for war damage before agreeing to reopen Strait of Hormuz",
+    "url": "https://www.pbs.org/newshour/show/iran-demands-u-s-pay-for-war-damage-before-agreeing-to-reopen-strait-of-hormuz",
+    "published": "2026-08-10T22:45:55+00:00",
+    "summary": "Iran doubled down on keeping the Strait of Hormuz closed until the U.S. meets a sweeping list of demands. President Trump scoffed at those conditions, especially paying reparations to Iran for damages caused by five months of U.S.-Israeli bombardments. The impasse comes as war appears closer in Yeme",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "State voting officials join CISA security call with election 85 days away",
+    "url": "https://www.pbs.org/newshour/show/state-voting-officials-join-cisa-security-call-with-election-85-days-away",
+    "published": "2026-08-10T22:40:59+00:00",
+    "summary": "CISA, the federal agency tasked with protecting the cybersecurity of the nation's critical infrastructure, held a conference call with state election officials to discuss the upcoming midterms. Despite President Trump's claims about the risk of hackers targeting voting systems, this was one of CISA'",
+    "source": "PBS NewsHour"
+   }
+  ],
+  "world": [
+   {
+    "title": "Russia using North Korean missiles to strike Ukraine, Zelensky says",
+    "url": "https://www.bbc.co.uk/news/articles/c151dpzwnvxo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T16:19:44+00:00",
+    "summary": "Ukraine's president says strikes in Zaporizhzhia - which killed seven people - involved ballistic missiles from Russia's ally.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Luigi Mangione appears in court as questions remain in case ahead of murder trial",
+    "url": "https://www.bbc.co.uk/news/articles/cgje05wd1v4o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T16:12:35+00:00",
+    "summary": "Mangione's lawyers have yet to signal their defence strategy, while prosecutors are in a battle over evidence.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Watch: Tide of rubbish blankets Philippines river",
+    "url": "https://www.bbc.co.uk/news/videos/c5y3vzvnnkro?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T16:10:55+00:00",
+    "summary": "Workers in Manila waded through the river, collecting waste that washed in during days of heavy rain.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Watch: Was Trump smuggled out of Air Force One in a catering truck?",
+    "url": "https://www.bbc.co.uk/news/videos/cj3672ljgzro?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T15:53:53+00:00",
+    "summary": "US media reports say the president secretly left via a catering truck to avoid a threat to his life from Iran.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Hungary elects supreme court judge ousted by Orban as new president",
+    "url": "https://www.aljazeera.com/news/2026/8/11/hungary-elects-supreme-court-judge-ousted-by-orban-as-new-president?traffic_source=rss",
+    "published": "2026-08-11T15:50:51+00:00",
+    "summary": "Baka replaces Orban appointee Tamas Sulyok, ousted weeks ago during Tisza\u2019s campaign against Orban-era power structures.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Rwanda: The genocide against the Tutsi",
+    "url": "https://www.aljazeera.com/video/aljazeerauntangles/2026/8/11/rwanda-the-genocide-against-the-tutsi?traffic_source=rss",
+    "published": "2026-08-11T15:49:09+00:00",
+    "summary": "How colonial identity, extremist politics and 'hate radio' helped turn Rwanda\u2019s genocide into organised mass murder.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Russia releases former US Marine reported in poor health",
+    "url": "https://www.bbc.co.uk/news/articles/cvgj4m8e1ryo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T15:47:53+00:00",
+    "summary": "Robert Gilman, who was arrested in 2022 for kicking a police officer while drunk, had reportedly been in a catatonic-like state.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Houthis reportedly kill four in first deadly attack since start of Iran war",
+    "url": "https://www.bbc.co.uk/news/articles/ckg9wpmzmlno?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T15:41:13+00:00",
+    "summary": "The attack was reportedly carried out by Iranian proxy on a small cargo ship, as tensions in region over the US-Iran conflict remain high.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Lebanon parliament votes to abolish death penalty",
+    "url": "https://www.bbc.co.uk/news/articles/c8enj8p1xwgo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T15:24:07+00:00",
+    "summary": "The new law - which next goes to the cabinet for approval - would make Lebanon the first country in the Middle East to end capital punishment.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Lebanon parliament votes to end death penalty, 1st in Middle East to do so",
+    "url": "https://www.aljazeera.com/news/2026/8/11/lebanons-parliament-votes-to-end-death-penalty-first-in-middle-east-to-so?traffic_source=rss",
+    "published": "2026-08-11T15:20:38+00:00",
+    "summary": "Death sentences will be replaced with life imprisonment with aggravated hard labour.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Thailand suspends new gun permits after mass shooting",
+    "url": "https://www.bbc.co.uk/news/articles/cm2g550v0pvo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T15:11:54+00:00",
+    "summary": "Authorities promise tough new laws in the country, which has high levels of firearms ownership.",
+    "source": "BBC World"
+   },
+   {
+    "title": "DC residents debate safety gains a year into Trump\u2019s Guard deployment",
+    "url": "https://www.aljazeera.com/news/2026/8/11/dc-residents-debate-safety-gains-a-year-into-trumps-guard-deployment?traffic_source=rss",
+    "published": "2026-08-11T15:07:50+00:00",
+    "summary": "Mixed reactions persist in Washington, DC, a year after Trump deployed the National Guard to address crime concerns.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Total solar eclipse 2026: Where, when and how to watch on Wednesday?",
+    "url": "https://www.aljazeera.com/news/2026/8/11/total-solar-eclipse-2026-where-when-and-how-to-watch-on-wednesday?traffic_source=rss",
+    "published": "2026-08-11T14:56:06+00:00",
+    "summary": "Millions will see the sun disappear as the eclipse sweeps from the Arctic to Europe, bringing two minutes of totality.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Ousted Syrian dictator Bashar al-Assad sentenced to death in absentia",
+    "url": "https://www.bbc.co.uk/news/articles/ce34dkpnyg7o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T14:50:10+00:00",
+    "summary": "The ex-president is convicted of committing war crimes and crimes against humanity during the country's civil war.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Trump hid in catering truck in secret plane swap over Iran threat, reports say",
+    "url": "https://www.bbc.co.uk/news/articles/cm2g90vvy62o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T14:47:28+00:00",
+    "summary": "The US president was reportedly part of a ruse where reporters were falsely told he was with them on Air Force One leaving a Nato summit in Turkey.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Ten police and 17 \u2018bandits\u2019 killed in firefight in northwestern Nigeria",
+    "url": "https://www.aljazeera.com/news/2026/8/11/dozens-killed-in-firefight-between-nigerian-armed-group-and-police?traffic_source=rss",
+    "published": "2026-08-11T14:44:10+00:00",
+    "summary": "Police say 17 suspected gang members and two civilians were also killed in Kebbi State.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "War on Iran: Mojtaba Khamenei is in \u2018perfect health\u2019, Iran says",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/war-on-iran-mojtaba-khamenei-is-in-perfect-health-iran-says?traffic_source=rss",
+    "published": "2026-08-11T14:30:23+00:00",
+    "summary": "President Masoud Pezeshkian says Supreme Leader Mojtaba Khamenei is in \u2018perfect health\u2019.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "France bans unsolicited telemarketing calls",
+    "url": "https://www.bbc.co.uk/news/articles/cy5d11g72ppo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T14:19:45+00:00",
+    "summary": "Cold calling is coming to an end in France, with one consumer group calling the ban a \"small revolution\".",
+    "source": "BBC World"
+   },
+   {
+    "title": "\u2018Only job I know\u2019: Philippine sailors return to sea despite wartime risks",
+    "url": "https://www.aljazeera.com/features/2026/8/11/only-job-i-know-philippine-sailors-return-to-sea-despite-wartime-risks?traffic_source=rss",
+    "published": "2026-08-11T14:06:09+00:00",
+    "summary": "Despite risks in the Strait of Hormuz and Black Sea, seafarers from the Philippines are still competing for jobs.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Drone captures devastating aftermath of Spokane wildfires",
+    "url": "https://www.bbc.co.uk/news/videos/c80nm9melpmo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T14:02:07+00:00",
+    "summary": "The aerial footage shows homes destroyed down to their foundations, with burned cars still parked in some driveways.",
+    "source": "BBC World"
+   },
+   {
+    "title": "What are Saudi Arabia, Turkiye and Pakistan\u2019s joint military capabilities?",
+    "url": "https://www.aljazeera.com/news/2026/8/11/what-are-saudi-arabia-turkiye-and-pakistans-joint-military-capabilities?traffic_source=rss",
+    "published": "2026-08-11T13:47:50+00:00",
+    "summary": "The Mecca defence pact combines a top oil exporter, NATO's second-largest army and the only Muslim nuclear arsenal.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Under Fire: Lebanon\u2019s first responders | Al Jazeera Originals",
+    "url": "https://www.aljazeera.com/video/al-jazeera-documentaries/2026/8/11/aje-onl-or_lbn_paramedics-110826?traffic_source=rss",
+    "published": "2026-08-11T13:46:44+00:00",
+    "summary": "First responders in Lebanon risk their lives to save others even as Israeli attacks intensify around them.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Liverpool fans seek clarity on Bezos bid to buy stake",
+    "url": "https://www.aljazeera.com/sports/2026/8/11/liverpool-fans-seek-clarity-on-bezos-bid-to-buy-stake?traffic_source=rss",
+    "published": "2026-08-11T13:36:26+00:00",
+    "summary": "Jeff Bezos reportedly part of consortium interested in English Premier League club Liverpool, but fans ask for meeting.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What\u2019s behind Iran\u2019s new military appointments and what do they indicate?",
+    "url": "https://www.aljazeera.com/news/2026/8/11/whats-behind-irans-new-military-appointments-and-what-do-they-indicate?traffic_source=rss",
+    "published": "2026-08-11T13:28:53+00:00",
+    "summary": "Observers say the nominations empower the hardline old guard, prioritise loyalty over military innovation.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Hunter Biden defends Tucker Carlson over Netanyahu comments",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/hunter-biden-defends-tucker-carlson-over-netanyahu-comments?traffic_source=rss",
+    "published": "2026-08-11T13:10:49+00:00",
+    "summary": "Hunter Biden defends Tucker Carlson over Netanyahu comments",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Somali denied World Cup \u2018proud\u2019 to referee PSG vs Villa in UEFA Super Cup",
+    "url": "https://www.aljazeera.com/sports/2026/8/11/somali-referee-denied-world-cup-proud-to-oversee-uefa-super-cup?traffic_source=rss",
+    "published": "2026-08-11T13:09:21+00:00",
+    "summary": "Omar Artan was turned away on arrival at Miami International Airport before World Cup 2026 where he was to officiate.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What to know about the US primary election in Minnesota",
+    "url": "https://www.aljazeera.com/news/2026/8/11/what-to-know-about-us-primary-election-in-minnesota?traffic_source=rss",
+    "published": "2026-08-11T12:56:41+00:00",
+    "summary": "Immigration is at the centre of another closely watched Democratic Senate race.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Philippines sailors say they will work despite wartime risks",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/philippines-sailors-say-they-will-work-despite-wartime-risks-2?traffic_source=rss",
+    "published": "2026-08-11T12:40:11+00:00",
+    "summary": "Philippines sailors say they will work despite wartime risks",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Late snow blankets parts of southern Africa as winter nears its end",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/late-snow-blankets-parts-of-southern-africa-as-winter-nears-its-end?traffic_source=rss",
+    "published": "2026-08-11T12:36:37+00:00",
+    "summary": "Late-season snow hits South Africa and Lesotho as the Northern Hemisphere swelters in heat and wildfires.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Hockey World Cup 2026: Full match schedule, groups, India vs Pakistan",
+    "url": "https://www.aljazeera.com/sports/2026/8/11/hockey-world-cup-2026-full-match-schedule-groups-india-vs-pakistan?traffic_source=rss",
+    "published": "2026-08-11T12:31:49+00:00",
+    "summary": "Pools, format, match schedule, timings, India vs Pakistan history and more before 2026 FIH Hockey World Cup.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Iran, US set new conditions during Hormuz talks: What does this mean?",
+    "url": "https://www.aljazeera.com/news/2026/8/11/iran-us-set-new-conditions-during-hormuz-talks-what-does-this-mean?traffic_source=rss",
+    "published": "2026-08-11T12:27:15+00:00",
+    "summary": "Oil prices surge as talks stall over competing demands, hampering prospects for reopening crucial strait.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Final phase of voting in Pakistan-administered Kashmir amid security fears",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/final-phase-of-voting-in-pakistan-administered-kashmir-despite-security-fe?traffic_source=rss",
+    "published": "2026-08-11T12:08:08+00:00",
+    "summary": "Final phase of voting in Pakistan-administered Kashmir, despite security fears",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What to watch in Wisconsin\u2019s high-stakes primary",
+    "url": "https://www.aljazeera.com/news/2026/8/11/what-to-watch-in-wisconsins-high-stakes-primary?traffic_source=rss",
+    "published": "2026-08-11T12:05:54+00:00",
+    "summary": "US Democrats face another test after Michigan as voters choose nominees for governor and Congress.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Syrian court sentences Bashar al-Assad to death in absentia",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/syrian-court-sentences-bashar-al-assad-to-death-in-absentia?traffic_source=rss",
+    "published": "2026-08-11T11:46:21+00:00",
+    "summary": "Syrian court sentences Bashar al-Assad to death in absentia",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "\u2018New level of danger\u2019: Drone incidents scare Europe amid Russia-Ukraine war",
+    "url": "https://www.aljazeera.com/news/2026/8/11/new-level-of-danger-drone-incidents-scare-europe-amid-russia-ukraine-war?traffic_source=rss",
+    "published": "2026-08-11T11:30:48+00:00",
+    "summary": "After a drone crashes in Germany, fears of suspected Russian operations rise across Europe.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Future of southern Lebanon peacekeeping uncertain ahead of UNIFIL phase-out",
+    "url": "https://www.aljazeera.com/news/2026/8/11/future-southern-lebanon-peacekeeping-uncertain-amid-unifil-phase-out?traffic_source=rss",
+    "published": "2026-08-11T11:28:53+00:00",
+    "summary": "Future peacekeeping missions may shrink significantly, risking security gaps, as political solutions remain elusive.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Palestine weekly: Netanyahu hedges on Gaza roadmap",
+    "url": "https://www.aljazeera.com/news/2026/8/11/palestine-weekly-netanyahu-hedges-on-gaza-roadmap?traffic_source=rss",
+    "published": "2026-08-11T11:28:05+00:00",
+    "summary": "Attacks in Gaza slowed sharply this week even as Netanyahu publicly rejected Trump's 15-point peace plan.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "1 year in, National Guard became a part of D.C. life. And, deadly quake hits Colombia",
+    "url": "https://www.npr.org/2026/08/11/g-s1-138174/up-first-newsletter-national-guard-primaries-wisconsin-colombia-earthquake-childhood-vaccines",
+    "published": "2026-08-11T11:11:14+00:00",
+    "summary": "Today marks one year since the National Guard was deployed to the nation's capital. Here's what has happened since. And, a 7.4 magnitude earthquake leaves more than 100 people dead in Colombia.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Watch: Family escapes home during Colombia earthquake",
+    "url": "https://www.bbc.co.uk/news/videos/cwyl3w1e6zxo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T10:12:21+00:00",
+    "summary": "At least 169 people are dead and a state of emergency has been declared after Colombia was hit by one of its largest earthquakes in years.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Former Syrian President Assad sentenced to death in absentia",
+    "url": "https://www.npr.org/2026/08/11/g-s1-138166/syria-assad-sentenced-to-death",
+    "published": "2026-08-11T10:07:14+00:00",
+    "summary": "A Syrian court sentenced Assad along with his brother to death in absentia for crimes against humanity and war crimes during Syria's 14-year conflict that left about half a million people dead.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Trump signs order to limit childhood vaccines and split MMR shots",
+    "url": "https://www.bbc.co.uk/news/articles/ce3q5vl581wo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T10:00:04+00:00",
+    "summary": "The American Academy of Pediatrics calls the recommendation on measles, mumps and rubella shots \"dangerous\".",
+    "source": "BBC World"
+   },
+   {
+    "title": "Pakistan-administered Kashmir holds elections amid calls for a boycott",
+    "url": "https://www.npr.org/2026/08/11/nx-s1-5927084/pakistan-administered-kashmir-holds-elections-amid-calls-for-a-boycott",
+    "published": "2026-08-11T08:31:41+00:00",
+    "summary": "Kashmir, the disputed region at the center of the rivalry between Pakistan and India, is now holding elections amid demands for better representation and calls for a boycott.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Libyan authorities battle big blaze at major oil refinery",
+    "url": "https://www.bbc.co.uk/news/articles/cp308z9pl30o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T08:28:24+00:00",
+    "summary": "Monday's drone strike on the Zawiya refinery was the third such incident in two days.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Australia PM under fire for remarks on Japanese counterpart's melon gifts",
+    "url": "https://www.bbc.co.uk/news/articles/c0jl6ewvq42o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T07:55:22+00:00",
+    "summary": "An ex-Japanese envoy said the \"sexist\" comments \"betrayed the close bond\" between the countries.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Turkey's parliament approves a pardon-like bill for thousands of PKK militants",
+    "url": "https://www.npr.org/2026/08/11/g-s1-138162/turkey-kurdish-militants",
+    "published": "2026-08-11T06:03:49+00:00",
+    "summary": "Turkey's parliament approved legislation that would introduce a conditional pardon for thousands of Kurdish militants in a bid to advance the government's peace initiative with their insurgent group.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Trump pivots back to sanctions for Iran as other strategies to end his war fizzle",
+    "url": "https://www.npr.org/2026/08/11/g-s1-138160/us-iran-war",
+    "published": "2026-08-11T05:48:27+00:00",
+    "summary": "The shift comes as U.S. stockpiles of key weapons have dwindled and as stop-start talks seem again to have stalled. But Trump insists the pressure can lead to a breakthrough.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5927515/earthquake-western-colombia",
+    "published": "2026-08-11T03:39:40+00:00",
+    "summary": "Search teams and civilians picked through the remains of destroyed buildings in the country's third-largest city, Cali, passing large pieces of concrete and rubble down a long line of volunteers.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Young girl finds whale stranded on Australian beach",
+    "url": "https://www.bbc.co.uk/news/videos/c1w148g9e5vo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-11T01:31:10+00:00",
+    "summary": "The humpback whale later successfully freed itself after the tide rose in Queensland, Australia.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Jackie, the famous California bald eagle, dies after weeks of intensive care",
+    "url": "https://www.bbc.co.uk/news/articles/c62vj8eywdlo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T22:40:23+00:00",
+    "summary": "Jackie and her partner, Shadow, had been watched by millions of people over the years through the Big Bear Eagle Nest Cam.",
+    "source": "BBC World"
+   },
+   {
+    "title": "The lonely Chinese men being conned by fake brides",
+    "url": "https://www.bbc.co.uk/news/articles/cn9n8pqglg4o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T22:02:21+00:00",
+    "summary": "\"Flash marriage\" scams are an extreme symptom of a demographic crisis long in the making in China.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Canada flight cancelled after child refuses to wear seat belt",
+    "url": "https://www.bbc.co.uk/news/articles/cj6307x3wdgo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T21:06:27+00:00",
+    "summary": "The incident has sparked a debate over child safety and discipline on commercial planes.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Watch: What we know about Tupac murder suspect Duane 'Keffe D' Davis",
+    "url": "https://www.bbc.co.uk/news/videos/cjd48zkg5n9o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T20:45:29+00:00",
+    "summary": "The trial of the 63-year-old former gang boss kicked off on Monday, and he has entered a not guilty plea.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Why Russia and Ukraine can't stop each other's air attacks",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5921306/why-russia-and-ukraine-cant-stop-each-others-air-attacks",
+    "published": "2026-08-10T20:14:08+00:00",
+    "summary": "Russia and Ukraine are both striking farther into each other's territory, and neither side has a good way to stop the attacks. With no quick fix, the winter ahead could be especially hard.",
+    "source": "NPR World"
+   },
+   {
+    "title": "China's courts side with workers displaced by AI, but job anxiety persists",
+    "url": "https://www.npr.org/2026/08/10/nx-s1-5822592/chinas-courts-side-with-workers-displaced-by-ai-but-employees-remain-anxious",
+    "published": "2026-08-10T20:14:06+00:00",
+    "summary": "China's workers are vulnerable as the push to adopt AI comes from top leaders amid a sluggish economy.",
+    "source": "NPR World"
+   },
+   {
+    "title": "New train service connects Finland and Sweden for first time in decades",
+    "url": "https://www.bbc.co.uk/news/articles/cx2lwpzz6qjo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-10T18:28:11+00:00",
+    "summary": "The service will enable rail travel from Portugal to Lapland - what is believed to be the longest train journey in Europe.",
+    "source": "BBC World"
+   }
+  ],
+  "ai_tech": [
+   {
+    "title": "An unreleased Anthropic model made progress on one of math\u2019s biggest unsolved problems",
+    "url": "https://techcrunch.com/2026/08/11/an-unreleased-anthropic-model-made-progress-on-one-of-maths-biggest-unsolved-problems/",
+    "published": "2026-08-11T16:25:20+00:00",
+    "summary": "For more than 150 years, the Riemann hypothesis has stood as one of the major unsolved problems in mathematics. Anthropic hasn't solved it \u2014 but the company's models made more progress than you might expect.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "\u2018Zoomsday\u2019 hack uncovered using fewer than 20 AI prompts",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/977909/zoom-vulnerability-ai-attack",
+    "published": "2026-08-11T14:45:44+00:00",
+    "summary": "Zoom has patched a major security vulnerability that could allow an attacker to hijack anyone's device during a meeting. In a blog post on Tuesday, researchers at A Security say they uncovered the flaw using \"fewer than 20 prompts on publicly available AI models,\" as reported earlier by Wired. The e",
+    "source": "The Verge"
+   },
+   {
+    "title": "AI Could Help Fossil Fuel Companies Create More Emissions",
+    "url": "https://www.wired.com/story/ai-could-help-fossil-fuel-companies-create-more-emissions/",
+    "published": "2026-08-11T13:45:02+00:00",
+    "summary": "New research finds that by making the fossil fuel industry more productive, AI could help increase carbon emissions by up to nearly 5 percent\u2014vastly outpacing the impact of data centers.",
+    "source": "Wired"
+   },
+   {
+    "title": "New surveillance tech links your phone to your license plate",
+    "url": "https://arstechnica.com/security/2026/08/new-surveillance-tech-links-your-phone-to-your-license-plate/",
+    "published": "2026-08-11T13:15:24+00:00",
+    "summary": "Phone and Bluetooth signals could turn roadside cameras into far richer tracking tools.",
+    "source": "Ars Technica"
+   },
+   {
+    "title": "Spotify says it won\u2019t recommend music from \u2018AI Personas\u2019",
+    "url": "https://www.theverge.com/entertainment/977815/spotify-ai-persona-label-recommendations",
+    "published": "2026-08-11T13:00:00+00:00",
+    "summary": "Spotify will soon label AI artists and remove their music from your recommendations. The change, which will start rolling out in mid-September, means you'll see an \"AI Persona\" badge on an artist's profile across the app if they do \"not represent a real person.\" The music streaming platform will all",
+    "source": "The Verge"
+   },
+   {
+    "title": "Spotify will label \u2018AI Persona\u2019 profiles and exclude their music from recommendations",
+    "url": "https://techcrunch.com/2026/08/11/spotify-will-label-ai-persona-profiles-and-exclude-their-music-from-recommendations/",
+    "published": "2026-08-11T13:00:00+00:00",
+    "summary": "Spotify is introducing \u201cAI Persona\u201d labels for artist profiles that represent AI-generated identities and will exclude their music from editorial, algorithmic, and personalized recommendations by default.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "A Zoom Screen-Sharing Bug Let Anyone Take Over Other Devices on a Call",
+    "url": "https://www.wired.com/story/a-zoom-screen-sharing-bug-let-anyone-take-over-other-devices-on-a-call/",
+    "published": "2026-08-11T12:37:12+00:00",
+    "summary": "Researchers say it took fewer than 20 prompts for a public AI tool to find a flaw (now fixed) allowing anyone on a Zoom call to hijack another participants\u2019 device.",
+    "source": "Wired"
+   },
+   {
+    "title": "Claude will apply invisible watermarks to AI text and images",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/977823/anthropic-claude-ai-watermarks-c2pa-text-images",
+    "published": "2026-08-11T12:22:20+00:00",
+    "summary": "Anthropic has pledged to start marking Claude-generated text and images with machine-readable data, in an effort to comply with European rules for AI transparency. \"Generated text will carry embedded watermarks, and generated files will include digitally signed provenance metadata where supported,\" ",
+    "source": "The Verge"
+   },
+   {
+    "title": "Anthropic says it will watermark text generated by its AI models",
+    "url": "https://techcrunch.com/2026/08/11/anthropic-says-it-will-watermark-text-generated-by-its-ai-models/",
+    "published": "2026-08-11T12:13:47+00:00",
+    "summary": "Anthropic will extend support for watermarking AI generations for older models as well.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "The AI takeover of mathematics has begun",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/977273/the-ai-takeover-of-mathematics-has-begun",
+    "published": "2026-08-11T11:00:00+00:00",
+    "summary": "Mathematician James Maynard has spent a lot of time this past year \"soul searching.\" A professor at the University of Oxford and winner of the prestigious Fields Medal, Maynard told The Verge he's been grappling with the future of his field as the traditionally slow-moving discipline hurries to adap",
+    "source": "The Verge"
+   },
+   {
+    "title": "A New Trick Reveals AI Models\u2019 Inner Thoughts",
+    "url": "https://www.wired.com/story/a-new-trick-reveals-ai-models-inner-thoughts/",
+    "published": "2026-08-11T11:00:00+00:00",
+    "summary": "Researchers devised a way to extract \u201creasoning traces\u201d from Claude, GPT, and Gemini. What they found, they say, indicates that some Chinese AI may be trained on leading US models.",
+    "source": "Wired"
+   },
+   {
+    "title": "Testing ads in ChatGPT",
+    "url": "https://openai.com/index/testing-ads-in-chatgpt",
+    "published": "2026-08-11T10:00:00+00:00",
+    "summary": "OpenAI begins testing ads in ChatGPT to support free access, with clear labeling, answer independence, strong privacy protections, and user control.",
+    "source": "OpenAI News"
+   },
+   {
+    "title": "AI Is Dead. Organoids Are Alive",
+    "url": "https://www.wired.com/story/organoids-lab-grown-brains-neural-networks/",
+    "published": "2026-08-11T10:00:00+00:00",
+    "summary": "Mini human brains are being grown in labs all over the world. Soon, they could outthink neural networks.",
+    "source": "Wired"
+   },
+   {
+    "title": "AI Is Helping Solve the Intricate Genetic Puzzle of Schizophrenia",
+    "url": "https://www.wired.com/story/ai-helping-solve-intricate-genetic-puzzle-schizophrenia/",
+    "published": "2026-08-11T09:00:00+00:00",
+    "summary": "Recent findings provide one of the most detailed pictures to date of the genetic architecture of schizophrenia, opening up new avenues for research into the disorder.",
+    "source": "Wired"
+   },
+   {
+    "title": "OpenAI reportedly completed a $7 billion employee tender offer",
+    "url": "https://techcrunch.com/2026/08/10/openai-reportedly-completed-a-7-billion-employee-tender-offer/",
+    "published": "2026-08-11T00:03:18+00:00",
+    "summary": "San Francisco's housing market is in trouble again.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "As AI-led attacks multiply, OpenAI launches a new cyber model",
+    "url": "https://techcrunch.com/2026/08/10/as-ai-led-attacks-multiply-openai-launches-a-new-cyber-model/",
+    "published": "2026-08-10T23:56:15+00:00",
+    "summary": "OpenAI is expanding its AI cybersecurity defense program Daybreak, and rolling out a new cyber-trained AI model with it.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "With new open models, Meta pitches another reboot of its struggling AI strategy",
+    "url": "https://arstechnica.com/ai/2026/08/with-new-open-models-meta-pitches-another-reboot-of-its-struggling-ai-strategy/",
+    "published": "2026-08-10T22:13:03+00:00",
+    "summary": "Meta has been trailing competitors. Zuckerberg thinks he's found a way forward.",
+    "source": "Ars Technica"
+   },
+   {
+    "title": "Mark Zuckerberg doesn\u2019t understand how to live",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/977623/mark-zuckerberg-ai-manifesto-dim-vision",
+    "published": "2026-08-10T22:00:00+00:00",
+    "summary": "Recently, a man I was rock climbing with told me about how he'd used AI to make a motivational poster for himself, which he'd hung on his bedroom wall: a bear, walking a slackline over a canyon, holding a sign that said, \"Do cool shit.\" I made what I hoped was a polite noise. What [\u2026]",
+    "source": "The Verge"
+   },
+   {
+    "title": "Mark Zuckerberg\u2019s AI manifesto is exactly why people don\u2019t like AI",
+    "url": "https://techcrunch.com/2026/08/10/mark-zuckerbergs-ai-manifesto-is-exactly-why-people-dont-like-ai/",
+    "published": "2026-08-10T20:53:02+00:00",
+    "summary": "On Monday, Mark Zuckerberg published a 6,500-word manifesto about personal AI, largely about the possibilities for the \"personal superintelligence\" systems Meta AI is building.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "Amazon backs power plant that may become top source of US climate pollution",
+    "url": "https://arstechnica.com/tech-policy/2026/08/amazon-funds-biggest-gas-power-plant-in-us-despite-climate-pledge/",
+    "published": "2026-08-10T20:45:52+00:00",
+    "summary": "Amazon announces first off-the-grid data center in race to reap AI profits.",
+    "source": "Ars Technica"
+   },
+   {
+    "title": "Tech industry is buzzing after a Claude agent hacked into a gym",
+    "url": "https://techcrunch.com/2026/08/10/tech-industry-is-buzzing-after-a-claude-agent-hacked-into-a-gym/",
+    "published": "2026-08-10T20:04:24+00:00",
+    "summary": "An OpenClaw agent hacked into a gym's reservation system to bump its human boss higher on a class' waitlist. And the tech industry took notice.",
+    "source": "TechCrunch AI"
+   },
+   {
+    "title": "What building an AI-native finance function taught me",
+    "url": "https://openai.com/index/building-an-ai-native-finance-function",
+    "published": "2026-08-10T17:00:00+00:00",
+    "summary": "OpenAI CFO Sarah Friar shares five lessons for building an AI-native finance function, from automated forecasting to stronger controls and AI ROI.",
+    "source": "OpenAI News"
+   }
+  ],
+  "dev_community": [
+   {
+    "title": "Reviewing AI code has quietly made me the slowest part of my own team.",
+    "url": "https://www.reddit.com/r/cursor/comments/1vllfe1/reviewing_ai_code_has_quietly_made_me_the_slowest/",
+    "published": "2026-08-11T15:56:14+00:00",
+    "summary": "Every PR reads like a masterpiece at first glance now. With good proper names, tidy structure, comments that sound right.  i keep catching myself about to approve something I have not really understood, then I go back and it takes an hour to trace intent that was never there, because a model wrote i",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Is there any chance Cursor will add DeepSeek V4 Flash?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vljxc1/is_there_any_chance_cursor_will_add_deepseek_v4/",
+    "published": "2026-08-11T15:02:00+00:00",
+    "summary": "Cursor is a good harness, but I need the cheap model. I don't want to use BYOK, so I'm wondering if there's any chance.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Per-model token breakdown in the usage report",
+    "url": "https://github.blog/changelog/2026-08-11-per-model-token-breakdown-in-the-usage-report",
+    "published": "2026-08-11T14:41:52+00:00",
+    "summary": "You can now see a per-model breakdown of the tokens behind your AI credits in the usage report. For each model, the AI usage report shows the input, output, cache\u2026\nThe post Per-model token breakdown in the usage report appeared first on The GitHub Blog.",
+    "source": "GitHub Changelog"
+   },
+   {
+    "title": "Claude Code is leaking real email address as a User-Agent string in curl command",
+    "url": "https://github.com/anthropics/claude-code/issues/78431",
+    "discussion": "https://news.ycombinator.com/item?id=49258881",
+    "published": "2026-08-11T14:21:47+00:00",
+    "summary": "",
+    "points": 35,
+    "comments": 28,
+    "source": "Hacker News",
+    "query": "claude code"
+   },
+   {
+    "title": "Claude will now include invisible marks to show a text was made with AI",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vlidn0/claude_will_now_include_invisible_marks_to_show_a/",
+    "published": "2026-08-11T14:04:00+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "People are worried about watermarks when the slop they put out is the biggest watermark that can be",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vlghjq/people_are_worried_about_watermarks_when_the_slop/",
+    "published": "2026-08-11T12:47:02+00:00",
+    "summary": "At first I didn't like the idea but ultimately what does it change? If like me you use AI to code then there is something in the code that says Claude made it. So what? Not hiding from that.  The same people who would have issues with it are the ones who show no care in design, one shot apps/website",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Trying to understand how invisible watermarks can work in AI-generated text",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vlfrlm/trying_to_understand_how_invisible_watermarks_can/",
+    "published": "2026-08-11T12:14:59+00:00",
+    "summary": "Anthropic's recent announcement about adding invisible watermarks to generated text got me curious about how a watermark can exist in plain text without relying on metadata or hidden characters. I ended up reading about a few of the approaches researchers have been working on: KGW and green/red toke",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I\u2019m sorry, Dave.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vlf34z/im_sorry_dave/",
+    "published": "2026-08-11T11:42:50+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Cursor can review the code it wrote. But isn\u2019t that the same person marking their own exam?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vleuz7/cursor_can_review_the_code_it_wrote_but_isnt_that/",
+    "published": "2026-08-11T11:31:20+00:00",
+    "summary": "I kept seeing people ask Cursor to build an app, then ask the same Cursor agent if the app was secure. Maybe it catches things. But it can also share the exact same assumptions as the code it just wrote. We built an outside-in scanner for exposed keys, open databases, source maps, config files and o",
+    "source": "r/cursor"
+   },
+   {
+    "title": "A local model read its own file back before running it. Which turns of your Claude Code loop would you actually hand off?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vleb89/a_local_model_read_its_own_file_back_before/",
+    "published": "2026-08-11T11:03:10+00:00",
+    "summary": "Most of a Claude Code session, for me, isn't the hard part. Restating a plan into a file, or rerunning something until the error text changes. I stopped watching those turns months ago. Which is why a clip going round caught me off guard. Someone else's run, one prompt into an agent harness, and the",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "How to organize Claude Code for product work",
+    "url": "https://www.theaithinker.com/p/how-to-organize-claude-code-for-product",
+    "discussion": "https://news.ycombinator.com/item?id=49256258",
+    "published": "2026-08-11T11:02:34+00:00",
+    "summary": "",
+    "points": 35,
+    "comments": 24,
+    "source": "Hacker News",
+    "query": "claude code"
+   },
+   {
+    "title": "Can we get better support/issue mentioning or refund policy when cursor cloud agent make bad decisions?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vldo2c/can_we_get_better_supportissue_mentioning_or/",
+    "published": "2026-08-11T10:28:31+00:00",
+    "summary": "Hi, as in title, can we get better support/issue mentioning or refund policy when cursor cloud agent make bad decisions? I have a problem that agent on my prompt decides by itself that it will verify some website and then the subagent click wrong button in the web browser and used analysis on scaled",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Cursor Credit Balance - how does this actually work?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vlcqcy/cursor_credit_balance_how_does_this_actually_work/",
+    "published": "2026-08-11T09:34:23+00:00",
+    "summary": "https://preview.redd.it/0e7t9m30tpih1.png?width=1419&format=png&auto=webp&s=9bbc50d1e70ac3b88406b091753214d4d966984b Hi all, I\u2019m trying to understand Cursor billing/credits because the dashboard is confusing me. I\u2019m on a Premium Team plan. My included usage is now at 100% for both Cursor Models and ",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Claude watermarking our work is unethical and disgusting",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vlckt9/claude_watermarking_our_work_is_unethical_and/",
+    "published": "2026-08-11T09:25:25+00:00",
+    "summary": "I gave the instructions, context, decisions, and countless refinements, claude was the tool. If Claude starts watermarking the code or anything else it generates, what exactly is it claiming credit for? By that logic, my internet provider should watermark everything we do. The operating system shoul",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude Code pricing: same tokens, same model, up to 40x the price",
+    "url": "https://quesma.com/blog/claude-code-pricing-for-enterprise/",
+    "discussion": "https://news.ycombinator.com/item?id=49254999",
+    "published": "2026-08-11T08:34:54+00:00",
+    "summary": "",
+    "points": 27,
+    "comments": 8,
+    "source": "Hacker News",
+    "query": "claude code"
+   },
+   {
+    "title": "Cursor cloud agent setup is confusing",
+    "url": "https://www.reddit.com/r/cursor/comments/1vlblh6/cursor_cloud_agent_setup_is_confusing/",
+    "published": "2026-08-11T08:27:33+00:00",
+    "summary": "Cursor cloud agent setup is just confusing and annoying. I do not want to commit my .env to the repo so I need to add my secrets to cursor cloud directly. This just automatically means I need to do everything manually and can't take advantage of the script to add install and start scripts.  Would ha",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Closing Canario Terminal source code",
+    "url": "https://rapha.land/closing-canario-terminal-source-code/",
+    "discussion": "https://news.ycombinator.com/item?id=49254881",
+    "published": "2026-08-11T08:16:19+00:00",
+    "summary": "",
+    "points": 37,
+    "comments": 44,
+    "source": "Hacker News",
+    "query": "codex"
+   },
+   {
+    "title": "Usage not moving?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vlaj72/usage_not_moving/",
+    "published": "2026-08-11T07:25:24+00:00",
+    "summary": "is it just me or is everyone's usage not moving at all? Mine is not moving for at least an hour now, I am using first party models heavily, can someone explain??",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Invoiced for uninitiated plan",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl9r8v/invoiced_for_uninitiated_plan/",
+    "published": "2026-08-11T06:40:04+00:00",
+    "summary": "I'm using the pro plan for 3 months 20$ But suddenly last night I got SMS and calls for otp  For approving payment of 225$  Cursor ultra which i dint even opt for Phew my bank blocked my card calling the payment suspicious  Did Anybody face similar situation  This is ridiculous!!",
+    "source": "r/cursor"
+   },
+   {
+    "title": "How would an \u201cinvisible watermark\u201d in AI-generated text actually work?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl9gq5/how_would_an_invisible_watermark_in_aigenerated/",
+    "published": "2026-08-11T06:23:20+00:00",
+    "summary": "I saw that Anthropic is apparently planning to embed invisible watermarks into Claude-generated text, and this part caught my attention:   Does anyone here know how something like this actually works technically? If it's genuinely part of the text, I'm guessing it can't just be hidden Unicode charac",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Show HN: Mcptoon \u2013 Token-efficient MCP CLI client",
+    "url": "https://github.com/activeing123/mcptoon",
+    "discussion": "https://news.ycombinator.com/item?id=49253721",
+    "published": "2026-08-11T05:26:58+00:00",
+    "summary": "",
+    "points": 62,
+    "comments": 41,
+    "source": "Hacker News",
+    "query": "mcp"
+   },
+   {
+    "title": "/status \u3092\u6253\u3064\u306e\u306b\u75b2\u308c\u305f\u304b\u3089\u3001\u6b8b\u308a\u306e\u5236\u9650\u3092\u30e1\u30cb\u30e5\u30fc\u30d0\u30fc\u306b\u8868\u793a\u3059\u308b\u3088\u3046\u306b\u3057\u305f",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl7ov6/status_\u3092\u6253\u3064\u306e\u306b\u75b2\u308c\u305f\u304b\u3089\u6b8b\u308a\u306e\u5236\u9650\u3092\u30e1\u30cb\u30e5\u30fc\u30d0\u30fc\u306b\u8868\u793a\u3059\u308b\u3088\u3046\u306b\u3057\u305f/",
+    "published": "2026-08-11T04:46:27+00:00",
+    "summary": "",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Cursor keeps ignoring my rules, what am I missing?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl5qeg/cursor_keeps_ignoring_my_rules_what_am_i_missing/",
+    "published": "2026-08-11T03:06:38+00:00",
+    "summary": "Hey guys, can you help me? I'm trying to understand how to make Cursor persist some rules or skills. I don't know where I'm failing. I use it for some simple database queries in the terminal, and I have mapped everything and even downloaded schemas and some example documents. Cursor still keeps fail",
+    "source": "r/cursor"
+   },
+   {
+    "title": "What happened to undoing and redoing checkpoints?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl5hf9/what_happened_to_undoing_and_redoing_checkpoints/",
+    "published": "2026-08-11T02:54:55+00:00",
+    "summary": "It's one of the greatest features of Cursor but recently I've felt like I've been seeing the buttons around a whole lot less \u2014 the button in the text input to revert to a checkpoint, and subsequently the button to redo the checkpoint. I now have to requery an AI at a previous point to go back a chec",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Which model selection will use less tokens?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl5goq/which_model_selection_will_use_less_tokens/",
+    "published": "2026-08-11T02:53:54+00:00",
+    "summary": "Relatively new to Cursor. I have been creating new agents and they will always default to Grok.  I wonder should I use this default. I have been using auto and it has been quite efficient in token usage.  Thinking if there\u2019s a reason that cursor default to Grok.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Does cursor has local computer use? Also what\u2019s your opinion on Grok 4.5 and Composer 2.5 combo?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl5dnh/does_cursor_has_local_computer_use_also_whats/",
+    "published": "2026-08-11T02:49:43+00:00",
+    "summary": "I\u2019ve been thinking about moving to Cursor. Right now, I\u2019m using CC and Codex. I think CC is good, but it has gotten worse lately, and in my experience, it has fallen behind Codex. So I\u2019ve been thinking about using Codex + Cursor. However, one thing I use a lot is remote control, computer use, and in",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Turning 10k+ new arXiv papers into Claude Code skills instead of researching again",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl4wto/turning_10k_new_arxiv_papers_into_claude_code/",
+    "published": "2026-08-11T02:27:38+00:00",
+    "summary": "main theme or question of this post is - \" is turning 1000s of latest arxiv pre prints papers into claude code skills same as \"DIY finetuning\" your model without actually finetuning or training it \" ? so, basically I made a (feedback loop) pipeline inside claude code, back in feb 2026, which scrapes",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "ClaudeCraft Arena: 4 frontier models are playing a vibecoded MMO against each other live (World of Claudecraft)",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl45c6/claudecraft_arena_4_frontier_models_are_playing_a/",
+    "published": "2026-08-11T01:52:18+00:00",
+    "summary": "TL;DR: World of Claudecraft is an open-source MMO vibecoded with Claude Fable 5, gaining 55 contributors and 2,000+ GitHub stars in under two months. We built a self-improving agent harness (forked from Hermes) and dropped four frontier models into the same live server: Claude, ChatGPT, Grok, and Ki",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "\"You've hit your usage limit\" - Explanation?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl3wn8/youve_hit_your_usage_limit_explanation/",
+    "published": "2026-08-11T01:41:13+00:00",
+    "summary": "https://preview.redd.it/9kni0gm1hnih1.png?width=1032&format=png&auto=webp&s=db2d6b8e50bcd11ae2853af77454c08dc81b59f5 https://preview.redd.it/650f29kchnih1.png?width=854&format=png&auto=webp&s=f466d733790b10bf6e8fdebe081de9ae24d939a4 I mean... '-[",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Using cloud, where does sub agent billing live?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vl3w85/using_cloud_where_does_sub_agent_billing_live/",
+    "published": "2026-08-11T01:40:40+00:00",
+    "summary": "Using grok 4.5 high for most coding tasks, works well. At the end of a long, multi step task, I\u2019ll have opus 5 high come through as a sub-agent to review the architect and design done. I\u2019m not the best but have been figuring out how to prevent opus from reading the entire repo and only the given tas",
+    "source": "r/cursor"
+   },
+   {
+    "title": "VelaTerm is open source now.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl34sf/velaterm_is_open_source_now/",
+    "published": "2026-08-11T01:05:58+00:00",
+    "summary": "A week ago, I posted about our project, VelaTerm\u2014built with Claude\u2014right here. We received a lot of feedback, and we have now made the project open source. Repository: https://github.com/vlinx-io/VelaTerm Website: https://velaterm.com/ You can add or adjust features to customize it into your own per",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Just finished Claude Corps live screening interview today",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl330m/just_finished_claude_corps_live_screening/",
+    "published": "2026-08-11T01:03:45+00:00",
+    "summary": "What the title says I applied June 29th, I took the assessment July 30th passed with flying colors and I just had my live screening 25 minute interview today. My interviewer upon joining immediately told me I wasn\u2019t eligible for Cohort 1 but I am eligible for Cohort 2 starting in January. It was a l",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Why is Claude so morally judgmental",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl2rzi/why_is_claude_so_morally_judgmental/",
+    "published": "2026-08-11T00:50:10+00:00",
+    "summary": "Am I alone in noticing that Claude increasingly seems to reprimand, accuse, or judge me over questions or tasks? I do not require a moral compass; sometimes I simply want a direct answer. For instance, while traveling in South America last week, I observed many people with an indentation in the shou",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Clarification needed: Do models launched BEFORE August 2 (all of them currently, as of 8/10), CURRENTLY watermark? Very cryptic wording in the release.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl2cec/clarification_needed_do_models_launched_before/",
+    "published": "2026-08-11T00:30:48+00:00",
+    "summary": "Claude models launched on or after August 2, 2026 support marking at launch. We\u2019re also working to add marking support to Claude models released before that date  This is the way that they're describing it, but that's inherently vague. So watermarking is currently in process for Opus 5 and the other",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "So satisfying to see this coming together.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl23m4/so_satisfying_to_see_this_coming_together/",
+    "published": "2026-08-11T00:20:04+00:00",
+    "summary": "Fable 5 has been a BEAST. Got the four seasons in a good first pass and am just sitting back watching it with a grin. \"Huh, it's actually working. Neat.\"",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Skills are good, but have you tried offloading context?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl197t/skills_are_good_but_have_you_tried_offloading/",
+    "published": "2026-08-10T23:43:43+00:00",
+    "summary": "The first time I heard the time offloading context was around September 2025, by a langchain talk that Lance Martin gave, it was one of those concepts that it made immediately a lot of sense. The problem with skills What are skills? Skills are basically long prompts that someone created and that are",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Am i reading this right?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl0wu5/am_i_reading_this_right/",
+    "published": "2026-08-10T23:28:44+00:00",
+    "summary": "Anthropic says AI marking applies to Claude models launched on/after Aug 2, 2026. So Fable 5, Opus 5 and Opus 4.8 shouldn\u2019t be affected yet since they launched earlier right? So basically all models are now free of this unless Anthropic later adds marking to the older ones?",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude Code plugin for translating from Claudish to English",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vl0n1t/claude_code_plugin_for_translating_from_claudish/",
+    "published": "2026-08-10T23:17:18+00:00",
+    "summary": "I (like thousands of other engineers) got tired of trying to understand Claude's writing. ASD-STE100 instructions didn't change much, so I decided to approach the problem in the 2026 style: use an LLM. I built a hook triggered by MessageDisplay events in Claude Code. It sends Claude's output to Gemm",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I built a free Cursor extension that warns you before DeepSeek API costs 2\u00d7 \u2014 open source, MIT license",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkzft2/i_built_a_free_cursor_extension_that_warns_you/",
+    "published": "2026-08-10T22:27:37+00:00",
+    "summary": "If you route DeepSeek V4 through a custom API key in Cursor, you need to know this: DeepSeek announced time-based pricing \u2014 2\u00d7 the normal rate during Beijing business hours, twice a day. There's no warning. You open Composer, start a big refactor, and you're silently paying double. Peak windows (UTC",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Grok 4.6 is out on cursor??",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkzcj5/grok_46_is_out_on_cursor/",
+    "published": "2026-08-10T22:23:41+00:00",
+    "summary": "https://preview.redd.it/o0ur3sn1imih1.png?width=372&format=png&auto=webp&s=8e901b63f6e87f19e853ad95c837ad19fdc5ffba Literally was working and randomly saw this pop up while I was trying to select 4.5. I don't see any announcement of release yet?",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Claude Desktop on Windows quietly sandboxes everything it runs. Cost me 3 days of Fable tokens on repairs that never touched my real system",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkyogf/claude_desktop_on_windows_quietly_sandboxes/",
+    "published": "2026-08-10T21:56:53+00:00",
+    "summary": "Windows 11, Claude Desktop, had Claude fix a broken Outlook profile via PowerShell. Took three days and about eight attempts. Every single one reported success. Outlook stayed broken the whole time. Turns out the desktop app installs as an MSIX package. Anything a session spawns, PowerShell included",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude will watermark generated content, thank you EU",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vky8at/claude_will_watermark_generated_content_thank_you/",
+    "published": "2026-08-10T21:39:02+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Can someone explain how to properly set opencode's deepseek 4 flash inside cursor?",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkxfy3/can_someone_explain_how_to_properly_set_opencodes/",
+    "published": "2026-08-10T21:08:52+00:00",
+    "summary": "A post was viral recently on twitter explaining that harnesses matter a lot when it comes to usage due to how efficient they are in caching stuff. Cursor was top 3. I am a cursor user and have bought opencode 10$ sub exactlly to run ds4f. But the guides to set it up are few and trash, not easy at al",
+    "source": "r/cursor"
+   },
+   {
+    "title": "RG.exe subprocess and stuck subagents wasted 300m tokens in one day for 2k edited lines, 90% 200$ plan in 5 days",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkx2jo/rgexe_subprocess_and_stuck_subagents_wasted_300m/",
+    "published": "2026-08-10T20:54:44+00:00",
+    "summary": "I transitioned from 60$ subscription to 200$ subscription I encountered an issue where my CPU would be occupied 100% https://forum.cursor.com/t/rg-exe-100-cpu/167560/8  https://preview.redd.it/0gk8r6d4ylih1.png?width=1509&format=png&auto=webp&s=a296902ff01040d9dafadf6291a58d329950fd21  I applied ALL",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Anthropic cancelled the wrong org, kept ~$3,900 of what we paid, and support says the decision is \"final\"",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkwdbe/anthropic_cancelled_the_wrong_org_kept_3900_of/",
+    "published": "2026-08-10T20:28:34+00:00",
+    "summary": "EDIT \u2014 since half of you are stuck on the chargeback: I waited multiple months before doing a chargeback. It took FOUR months to get a human from Anthropic to reply. So to the \"just go through proper channels\" crowd: I did. For months. The channel is an AI agent that loops you back to itself. At som",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Just realized why Fable can't stop saying \"load-bearing\"",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkvovf/just_realized_why_fable_cant_stop_saying/",
+    "published": "2026-08-10T20:03:52+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "is Free Claude Code enough or do people still end up paying for CC anyway",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkv11a/is_free_claude_code_enough_or_do_people_still_end/",
+    "published": "2026-08-10T19:39:53+00:00",
+    "summary": "Already on Cursor and trying not to stack another $20 tool. keep seeing Free Claude Code mentioned as a side option but it dies mid-task for me. anyone actually shipping with free only or is paid CC basically required once stuff gets real.",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Anthropic keeping Claude Sonnet 5 introductory pricing",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkuq3d/anthropic_keeping_claude_sonnet_5_introductory/",
+    "published": "2026-08-10T19:28:38+00:00",
+    "summary": "https://preview.redd.it/levu33egmlih1.png?width=1188&format=png&auto=webp&s=c8aea1480b3d8bd4e94b4be9182af169302d55e8 https://x.com/claudeai/status/2086891169217122586",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "How to use Claude to build clean projects strategically",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vku4go/how_to_use_claude_to_build_clean_projects/",
+    "published": "2026-08-10T19:06:33+00:00",
+    "summary": "I recently subscribed to Claude Pro and I'm starting to work on several projects, including websites, apps, and potentially AI-based projects. One problem I've noticed with AI coding assistants is that the longer I work with them, the more the project can start to drift. I'll ask Claude to fix one i",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I made a dashboard for skills",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vksfec/i_made_a_dashboard_for_skills/",
+    "published": "2026-08-10T18:05:24+00:00",
+    "summary": "I needed something to organize my skills across different projects, as well as my global skills and files, so I decided to build a desktop app that acts as a hub for everything. Everything in one place, accessible with just one click. I would love to hear what do you think :)  It's called Skilldex a",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Show HN: Needle2: 14MB agentic LLM for phones, wearables, smart home and robots",
+    "url": "https://cactuscompute.com/needle",
+    "discussion": "https://news.ycombinator.com/item?id=49246804",
+    "published": "2026-08-10T17:22:07+00:00",
+    "summary": "Hey HN,Henry from Cactus here!We previously released Cactus Needle, a 14MB agentic LLM for tool call, device use, and structured extraction for phones, wearables, smart homes, small robots and microcontrollers. We got really great feedback here, and have now incorporated the suggestions to release N",
+    "points": 468,
+    "comments": 160,
+    "source": "Hacker News",
+    "query": "llm agent"
+   },
+   {
+    "title": "Constant noop AskQuestions spam",
+    "url": "https://www.reddit.com/r/cursor/comments/1vkqp0v/constant_noop_askquestions_spam/",
+    "published": "2026-08-10T17:03:53+00:00",
+    "summary": "In the Agents window, on auto, I constantly receive AskQuestions prompts where the question is something like \"noop (ignore)\" and the options are either empty or sparse nonsensical standin values like\"A, B, C\" etc. This just started recently but it does not ever stop. Even using skills like /nohuman",
+    "source": "r/cursor"
+   },
+   {
+    "title": "Project management in the AI era (JIRA / Linear)",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vkqoaj/project_management_in_the_ai_era_jira_linear/",
+    "published": "2026-08-10T17:03:13+00:00",
+    "summary": "Hi everyone, Our organization is mostly based on Kanban. We are a small team of ~10 devs. We are far less inclined to log everything in Linear / Linear since we started to use Claude Code daily. Our team is divided into three swimlanes, and each member is accustomed to collaborating with other membe",
+    "source": "r/ClaudeAI"
+   }
+  ]
+ },
+ "processing": {
+  "us_politics": {
+   "fetched": 40,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 40
+  },
+  "us_news": {
+   "fetched": 78,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 18,
+   "kept": 60
+  },
+  "world": {
+   "fetched": 55,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 55
+  },
+  "ai_tech": {
+   "fetched": 62,
+   "undated_dropped": 0,
+   "relevance_dropped": 40,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 22
+  },
+  "dev_community": {
+   "fetched": 57,
+   "undated_dropped": 0,
+   "relevance_dropped": 1,
+   "duplicates_dropped": 3,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "kept": 53
+  }
+ },
+ "errors": [
+  {
+   "source_type": "hacker_news",
+   "source_id": "prompt engineering",
+   "status": "empty",
+   "error_type": "EmptySource",
+   "message": "response contained zero recognized entries",
+   "duration_ms": 310
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "ClaudeCode",
+   "status": "error",
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests",
+   "duration_ms": 5327
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "LocalLLaMA",
+   "status": "error",
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests",
+   "duration_ms": 5304
+  }
+ ],
+ "sources": [
+  {
+   "source_type": "rss",
+   "source_id": "NPR Politics",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 8,
+   "duration_ms": 173
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Politico",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 30,
+   "dated_entries": 30,
+   "retained_entries": 3,
+   "duration_ms": 263
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Hill",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 15,
+   "dated_entries": 15,
+   "retained_entries": 15,
+   "duration_ms": 1646
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Axios",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 100,
+   "dated_entries": 100,
+   "retained_entries": 14,
+   "duration_ms": 318
+  },
+  {
+   "source_type": "rss",
+   "source_id": "CBS News US",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 30,
+   "dated_entries": 30,
+   "retained_entries": 22,
+   "duration_ms": 174
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Guardian US",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 33,
+   "dated_entries": 33,
+   "retained_entries": 21,
+   "duration_ms": 259
+  },
+  {
+   "source_type": "rss",
+   "source_id": "PBS NewsHour",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 13,
+   "duration_ms": 290
+  },
+  {
+   "source_type": "rss",
+   "source_id": "NPR National",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 4,
+   "duration_ms": 228
+  },
+  {
+   "source_type": "rss",
+   "source_id": "BBC World",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 22,
+   "duration_ms": 275
+  },
+  {
+   "source_type": "rss",
+   "source_id": "NPR World",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 8,
+   "duration_ms": 145
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Al Jazeera",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 25,
+   "duration_ms": 168
+  },
+  {
+   "source_type": "rss",
+   "source_id": "OpenAI News",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 1123,
+   "dated_entries": 1123,
+   "retained_entries": 2,
+   "duration_ms": 315
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Google DeepMind",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 100,
+   "dated_entries": 100,
+   "retained_entries": 0,
+   "duration_ms": 369
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Verge",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 5,
+   "duration_ms": 189
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Ars Technica",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 3,
+   "duration_ms": 172
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Wired",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 50,
+   "dated_entries": 50,
+   "retained_entries": 5,
+   "duration_ms": 162
+  },
+  {
+   "source_type": "rss",
+   "source_id": "TechCrunch AI",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 7,
+   "duration_ms": 133
+  },
+  {
+   "source_type": "rss",
+   "source_id": "GitHub Changelog",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 1,
+   "duration_ms": 153
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "claude code",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 3,
+   "duration_ms": 500
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "cursor",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 6,
+   "dated_entries": 6,
+   "retained_entries": 0,
+   "duration_ms": 380
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "codex",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 1,
+   "duration_ms": 432
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "mcp",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 1,
+   "duration_ms": 453
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "llm agent",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 9,
+   "dated_entries": 9,
+   "retained_entries": 1,
+   "duration_ms": 387
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "prompt engineering",
+   "category": "dev_community",
+   "status": "empty",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "duration_ms": 310,
+   "error_type": "EmptySource",
+   "message": "response contained zero recognized entries"
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "ClaudeAI",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 25,
+   "duration_ms": 643
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "ClaudeCode",
+   "category": "dev_community",
+   "status": "error",
+   "requested": true,
+   "http_success": false,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "duration_ms": 5327,
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests"
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "LocalLLaMA",
+   "category": "dev_community",
+   "status": "error",
+   "requested": true,
+   "http_success": false,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "duration_ms": 5304,
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests"
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "cursor",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 21,
+   "dated_entries": 21,
+   "retained_entries": 21,
+   "duration_ms": 574
+  }
+ ],
+ "fetch_duration_ms": 19503
+}

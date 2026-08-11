@@ -63,3 +63,21 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
   ```bash
   python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
   ```
+
+### 2026-08-11 — Codex dogfood run and dated fixture sample
+
+The complete fetch → rank and summarize → check loop requested as a dated sample. Unlike the fixed 2026-08-09 regression pair, this run is preserved as a separate dated fixture set: [`corpus-2026-08-11.json`](../fixtures/corpus-2026-08-11.json), [`briefing-2026-08-11.md`](../fixtures/briefing-2026-08-11.md), and [`briefing-config-2026-08-11.json`](../fixtures/briefing-config-2026-08-11.json).
+
+- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Corpus window: 2026-08-10 16:47:41 UTC → 2026-08-11 16:47:41 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 230 items — 40 US politics, 60 US news, 55 world, 22 AI/tech, and 53 developer-community. Elapsed fetch time: 19.5 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode` and `r/LocalLLaMA` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all three coverage gaps.
+- Processing: 40 AI/tech items and 1 developer-community item failed the relevance filter; 3 developer-community duplicates were dropped; the 60-per-category cap bound on US news, dropping 18 items. No source cap bound, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
+- Checker, first result: 0 errors, 2 warnings — one `unsupported_figure` warning for adding the year 2026 to the homicide summary when that year was absent from its cited item, and one for spelling the emissions estimate as `5%` when the corpus used `5 percent`.
+- Correction made after checking: removed the unsupported year from the homicide summary and changed the emissions estimate to the corpus-supported words “five percent.” No topics or citations changed.
+- Checker, final result: 0 errors, 0 warnings. The full 197-test suite also passed. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus fixtures/corpus-2026-08-11.json --briefing fixtures/briefing-2026-08-11.md --config fixtures/briefing-config-2026-08-11.json
+  ```
