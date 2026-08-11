@@ -731,6 +731,20 @@ class SourcesConfigurationTest(unittest.TestCase):
         sources = load_sources(DEFAULT_SOURCES_PATH)
         self.assertGreater(len(sources.categories), 0)
 
+    def test_rejects_source_identifiers_that_collide_with_error_delimiter(self):
+        original = json.loads(Path(DEFAULT_SOURCES_PATH).read_text(encoding="utf-8"))
+        cases = (
+            ("rss source", lambda value: value["rss_feeds"]["us_news"][0].__setitem__(0, "News: AI")),
+            ("HN query", lambda value: value["hn_queries"].__setitem__(0, "agent: coding")),
+        )
+        for label, mutate in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                value = json.loads(json.dumps(original))
+                mutate(value)
+                path = self.write_sources(directory, value)
+                with self.assertRaisesRegex(ValueError, "': '"):
+                    load_sources(path)
+
     def test_rejects_missing_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_sources(directory, {"rss_feeds": {}, "hn_queries": []})

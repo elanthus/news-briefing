@@ -70,8 +70,12 @@ class Sources(NamedTuple):
 
 
 def _string_list(value: Any, field: str) -> list[str]:
-    if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
-        raise ValueError(f"{field} must be a list of non-empty strings")
+    if (not isinstance(value, list)
+            or any(not isinstance(item, str) or not item.strip()
+                   or ": " in item or "\n" in item or "\r" in item
+                   for item in value)):
+        raise ValueError(
+            f"{field} must be a list of non-empty, single-line strings without ': '")
     return value
 
 
@@ -131,6 +135,9 @@ def load_sources(path: str | Path) -> Sources:
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] must be a [source name, URL] pair of non-empty strings"
                 )
+            if ": " in feed[0] or "\n" in feed[0] or "\r" in feed[0]:
+                raise ValueError(
+                    f"rss_feeds.{category}[{index}] source name must be single-line and not contain ': '")
             parsed_feeds.append((feed[0], feed[1]))
         rss_feeds[category] = parsed_feeds
 
