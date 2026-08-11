@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "sections": [
+    {
+      "name": "US Politics",
+      "group": null,
+      "target_stories": 3,
+      "corpus_categories": ["us_politics", "us_news"],
+      "guidance": "Elections, Congress, the administration, federal policy, and court rulings on federal policy or the administration.",
+      "excluded_stories": 5
+    },
+    {
+      "name": "US News",
+      "group": null,
+      "target_stories": 4,
+      "corpus_categories": ["us_news", "us_politics", "world"],
+      "guidance": "Every other US-domestic story: disasters, crime, public health, business, education, and local government.",
+      "excluded_stories": 5
+    },
+    {
+      "name": "World Events",
+      "group": null,
+      "target_stories": 5,
+      "corpus_categories": ["world", "us_news"],
+      "guidance": "International developments, including international stories that reached the corpus through a US-news source.",
+      "excluded_stories": 5
+    },
+    {
+      "name": "AI News",
+      "group": "AI/Tech",
+      "target_stories": 4,
+      "corpus_categories": ["ai_tech", "us_news"],
+      "guidance": "Economic impact, industry moves, regulation, funding, and model announcements.",
+      "excluded_stories": 0
+    },
+    {
+      "name": "AI Dev Tools",
+      "group": "AI/Tech",
+      "target_stories": 3,
+      "corpus_categories": ["dev_community", "ai_tech"],
+      "guidance": "Releases and updates to Claude Code, Cursor, Codex, comparable agentic coding tools, and notable MCP servers or integrations.",
+      "excluded_stories": 5
+    },
+    {
+      "name": "AI Dev Practices",
+      "group": "AI/Tech",
+      "target_stories": 3,
+      "corpus_categories": ["dev_community"],
+      "guidance": "Prompting techniques, rules-file practices, agentic workflow patterns, and community-validated approaches.",
+      "excluded_stories": 5
+    }
+  ]
+}

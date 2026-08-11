@@ -11,7 +11,7 @@ For a complete daily run, record:
 - any correction made after checking; and
 - the final checker result.
 
-Generated corpora and briefings remain temporary. This log keeps only aggregate health information and review notes; the frozen regression pair in `fixtures/` remains the reproducible example.
+Generated corpora and briefings are archived per day under [`docs/runs/<date>/`](runs/) (corpus, briefing, and the `briefing-config.json` snapshot used), so each entry below can be re-derived instead of taken on trust. The frozen regression pair in `fixtures/` is separate: it is the fixed example the test suite pins to, and daily runs do not update it.
 
 ## Pre-launch verification
 
@@ -48,7 +48,7 @@ Note on the claim-grounding checks: the four problems they caught on arrival (th
 
 ### 2026-08-10 — scheduled daily-news-briefing task
 
-The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. Corpus and briefing were not committed (per this log's policy of keeping only aggregate health information), so unlike the 2026-08-09 pair this entry cannot be re-derived from a fixture — only reported here.
+The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/2026-08-10/), so this entry can be re-derived instead of taken on trust.
 
 - Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
 - Corpus window: 2026-08-09 17:10:48 UTC → 2026-08-10 17:10:48 UTC (24h), default caps of 25 items per source and 60 per category.
@@ -58,4 +58,8 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
 - Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the one failed source.
 - Checker, first result: 3 errors, 7 warnings — three `category_ineligible` errors because the AI News section (eligible categories: `ai_tech`, `us_news`) cited two `us_politics` items (the Zuckerberg manifesto's "biggest risk" framing and the Sanders AI-pause letter); plus warnings for two unsupported figures (the Will Scharf item's "$400m" figure and the gas-price item's "$1" increase, both true but cited against items that didn't contain them), two unsupported quotations (the Netanyahu item's "historic" quote and the Zuckerberg item's "with as many people..." quote, both cited against items that didn't contain them), and three `claim_exceeds_evidence` warnings on the AI Dev Tools items sourced from Hacker News posts with empty corpus summaries, where the drafted summaries added unsupported framing beyond the bare title.
 - Correction made after checking: moved the Sanders AI-pause letter into US Politics, where `us_politics` is an eligible category, dropping the progressive-primary-wins topic to the exclusion log to keep the section at 3; re-cited the Zuckerberg manifesto against eligible `ai_tech`/`us_news` sources and swapped in a Wired "AI slop backlash" item (from an eligible `ai_tech` source) to refill AI News's fourth slot; added the missing supporting citations for the Will Scharf and gas-price figures and the Netanyahu quote; and trimmed the three Hacker News-sourced AI Dev Tools items down to only what their (otherwise summary-less) titles support, per the empty-summary grounding rule.
-- Checker, final result: 0 errors, 0 warnings.
+- Checker, final result: 0 errors, 0 warnings — reproducible today:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
+  ```
