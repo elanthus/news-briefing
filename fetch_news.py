@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import corpus_schema
+from corpus_schema import canonicalize_url
 
 # Feed operators see this traffic from every clone. Naming the project and
 # linking it gives them something to look up, and someone to reach, before a
@@ -224,7 +225,6 @@ SOURCE_RELEVANCE_FILTERS = {
     "GitHub Changelog": DEV_TOOL_RELEVANCE,
     "Hacker News": HN_RELEVANCE,
 }
-TRACKING_QUERY_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
 FEED_NAMESPACES = {
     "atom": "http://www.w3.org/2005/Atom",
     "content": "http://purl.org/rss/1.0/modules/content/",
@@ -480,29 +480,6 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
             "source": f"r/{subreddit}",
         })
     return FetchResult(items, undated)
-
-
-def canonicalize_url(url: str | None) -> str:
-    """Normalize a URL for comparison while preserving meaningful parameters."""
-    url = (url or "").strip()
-    if not url:
-        return ""
-    parts = urllib.parse.urlsplit(url)
-    if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
-        return url
-    query = sorted(
-        (key, value)
-        for key, value in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
-        if not key.lower().startswith("utm_") and key.lower() not in TRACKING_QUERY_KEYS
-    )
-    path = parts.path.rstrip("/") or "/"
-    return urllib.parse.urlunsplit((
-        parts.scheme.lower(),
-        parts.netloc.lower(),
-        path,
-        urllib.parse.urlencode(query, doseq=True),
-        "",
-    ))
 
 
 def dedupe(items: list[Item]) -> list[Item]:

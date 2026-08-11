@@ -153,6 +153,148 @@ class GroundingTest(unittest.TestCase):
         self.assertIn("excluded_topic_without_link", checks(evaluate(CORPUS, text), ERROR))
 
 
+class CitationIdentityTest(unittest.TestCase):
+    """Two URLs that address the same article are the same citation.
+
+    Exact string comparison conflates three different events: a fabricated
+    link, a link the model tidied, and a link that is character-for-character
+    equivalent to the corpus one. The first must fail loudly, the third must
+    not fail at all, and the second must say which it is so the reader is not
+    hunting a hallucination that never happened.
+    """
+
+    TRACKED = {
+        "generated_at": "2026-08-08T00:00:00+00:00",
+        "errors": [],
+        "categories": {
+            "us_politics": [{
+                "title": "TRACKED STORY",
+                "url": "https://www.bbc.co.uk/news/articles/abc?at_medium=RSS&at_campaign=rss",
+                "summary": "Reported summary text here for the tracked story.",
+            }],
+            "us_news": _items("n", 1),
+            "world": _items("w", 1),
+            "ai_tech": _items("a", 1),
+            "dev_community": _items("d", 1),
+        },
+    }
+
+    def _cite(self, url):
+        return f"## US Politics\n\n**Topic** — summary text here.\n🔗 {url}"
+
+    def _findings(self, url):
+        return evaluate(self.TRACKED, self._cite(url))
+
+    def test_equivalent_url_is_grounded(self):
+        """Trailing slash, host case, and utm_ noise do not change the article."""
+        for variant in (
+            "https://ex.com/n1/",
+            "https://EX.com/n1",
+            "https://ex.com/n1?utm_source=rss",
+        ):
+            with self.subTest(variant=variant):
+                findings = evaluate(self.TRACKED,
+                                    f"## US News\n\n**Topic** — summary text here.\n🔗 {variant}")
+                self.assertNotIn("ungrounded_link", checks(findings))
+                self.assertNotIn("altered_link", checks(findings))
+
+    def test_dropped_publisher_parameter_is_reported_as_altered_not_invented(self):
+        """The failure that reads as a hallucination but is a transcription."""
+        findings = self._findings("https://www.bbc.co.uk/news/articles/abc")
+        self.assertIn("altered_link", checks(findings, ERROR))
+        self.assertNotIn("ungrounded_link", checks(findings))
+
+    def test_altered_link_message_shows_the_corpus_url(self):
+        """The fix is mechanical, so the checker prints what to paste back."""
+        message = next(f.message for f in self._findings(
+            "https://www.bbc.co.uk/news/articles/abc") if f.check == "altered_link")
+        self.assertIn("at_medium=RSS", message)
+
+    QUERY_ROUTED = {
+        "generated_at": "2026-08-08T00:00:00+00:00",
+        "errors": [],
+        "categories": {
+            "us_politics": _items("p", 1),
+            "us_news": _items("n", 1),
+            "world": _items("w", 1),
+            "ai_tech": _items("a", 1),
+            "dev_community": [
+                {"title": "HN STORY 123",
+                 "url": "https://news.ycombinator.com/item?id=123",
+                 "summary": "Reported summary text here for story 123."},
+                {"title": "HN STORY 456",
+                 "url": "https://news.ycombinator.com/item?id=456",
+                 "summary": "Reported summary text here for story 456."},
+            ],
+        },
+    }
+
+    def _cite_tools(self, *urls):
+        lines = ["## AI Dev Tools", "", "**Topic** — summary text here."]
+        lines += [f"🔗 {url}" for url in urls]
+        return "\n".join(lines)
+
+    def test_different_query_id_on_the_same_path_is_not_an_alteration(self):
+        """Host and path alone do not identify a query-routed article.
+
+        `item?id=999` is a different Hacker News story from `item?id=123`,
+        not a rewrite of it. Calling it one would tell the reader to paste
+        back a URL for an article they never cited.
+        """
+        findings = eval_briefing.evaluate(
+            self.QUERY_ROUTED,
+            self._cite_tools("https://news.ycombinator.com/item?id=999"),
+            FIXTURE_CONFIG)
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_corpus_urls_sharing_a_path_stay_individually_citable(self):
+        """Two stories under one path must not collapse into one entry."""
+        for url in ("https://news.ycombinator.com/item?id=123",
+                    "https://news.ycombinator.com/item?id=456"):
+            with self.subTest(url=url):
+                findings = eval_briefing.evaluate(
+                    self.QUERY_ROUTED, self._cite_tools(url), FIXTURE_CONFIG)
+                self.assertNotIn("ungrounded_link", checks(findings))
+                self.assertNotIn("altered_link", checks(findings))
+
+    def test_ambiguous_alteration_is_not_claimed(self):
+        """With two candidates under the path, no single rewrite can be named."""
+        findings = eval_briefing.evaluate(
+            self.QUERY_ROUTED,
+            self._cite_tools("https://news.ycombinator.com/item"),
+            FIXTURE_CONFIG)
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_added_parameter_is_not_treated_as_a_tidy_up(self):
+        """Only dropped parameters are mechanical; an added one changes the ask."""
+        findings = evaluate(
+            self.TRACKED,
+            self._cite_tools("https://ex.com/n1?id=7"))
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_invented_path_on_a_known_host_is_still_ungrounded(self):
+        """Host similarity must not launder a fabricated article."""
+        findings = self._findings("https://www.bbc.co.uk/news/articles/invented")
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_equivalent_url_still_resolves_its_evidence(self):
+        """Claim grounding reads evidence by URL; a variant must not lose it."""
+        text = ("## US Politics\n\n**Topic** — this states 87 percent.\n"
+                "🔗 https://www.bbc.co.uk/news/articles/abc?utm_source=x"
+                "&at_campaign=rss&at_medium=RSS")
+        self.assertIn("unsupported_figure", checks(evaluate(self.TRACKED, text), WARN))
+
+    def test_equivalent_url_cited_in_two_sections_is_one_repeat(self):
+        """Rewriting a link must not smuggle a story past the placement rule."""
+        text = ("## US Politics\n\n**Topic** — summary text here.\n🔗 https://ex.com/n1\n\n"
+                "## US News\n\n**Topic** — summary text here.\n🔗 https://ex.com/n1/")
+        self.assertIn("repeated_topic", checks(evaluate(self.TRACKED, text), ERROR))
+
+
 class SlotAllocationTest(unittest.TestCase):
     """Fixed slots exist so no sub-category can crowd out the others."""
 
@@ -225,6 +367,25 @@ class ConfigurationDrivenContractTest(unittest.TestCase):
         text = text.replace("**US Politics**", "**Public Policy**")
         findings = eval_briefing.evaluate(CORPUS, text, config)
         self.assertNotIn("missing_section", checks(findings, ERROR))
+
+    def test_exclusion_log_is_required_while_any_section_keeps_one(self):
+        """Exempting one section does not exempt the briefing."""
+        config = self.config_with("US Politics", excluded_stories=0)
+        text = briefing().replace("### Excluded Topics (accountability log)", "### Other")
+        self.assertIn("missing_section", checks(
+            eval_briefing.evaluate(CORPUS, text, config), ERROR))
+
+    def test_exclusion_log_is_not_required_when_every_section_is_exempt(self):
+        """`excluded_stories: 0` exempts a section, so exempting all of them
+        leaves nothing for the log to hold — demanding the heading anyway
+        contradicts the configuration it is supposed to enforce."""
+        config = BriefingConfig(
+            FIXTURE_CONFIG.schema_version,
+            tuple(section._replace(excluded_stories=0)
+                  for section in FIXTURE_CONFIG.sections))
+        text = briefing().split("### Excluded Topics")[0]
+        self.assertNotIn("missing_section",
+                         checks(eval_briefing.evaluate(CORPUS, text, config), ERROR))
 
     def test_missing_configured_corpus_category_is_an_error(self):
         config = self.config_with("US Politics", corpus_categories=("climate",))
@@ -400,6 +561,55 @@ class PromptSafetyContractTest(unittest.TestCase):
                               "ai news and ai dev tools"):
             with self.subTest(stale_wording=stale_wording):
                 self.assertNotIn(stale_wording, prompt)
+
+
+class PromptInjectionContainmentTest(unittest.TestCase):
+    """What the checker does when the summarizer obeys the corpus.
+
+    The prompt tells the model to treat corpus text as data, but a prompt is
+    not an enforcement mechanism, and a public feed is exactly where an
+    instruction would be planted. These tests characterize the property that
+    actually holds: an injection can only alter the briefing in ways that
+    leave the corpus behind, and citation grounding is what notices.
+
+    This documents existing behavior rather than driving new behavior, which
+    is why no production change accompanies it.
+    """
+
+    CORPUS = load_corpus("fixtures/injection-corpus.json")
+    CONFIG = load_config("fixtures/injection-config.json")
+
+    def _evaluate(self, text):
+        return eval_briefing.evaluate(self.CORPUS, text, self.CONFIG)
+
+    def test_injection_fixture_is_a_valid_corpus(self):
+        """The payload is item content, not malformed JSON — the point is that
+        a perfectly well-formed corpus can carry one."""
+        import corpus_schema
+        self.assertEqual(corpus_schema.validate_corpus(self.CORPUS), [])
+        self.assertIn("ignore all previous instructions",
+                      self.CORPUS["categories"]["dev_community"][0]["summary"])
+
+    def test_obeying_the_injection_fails_citation_grounding(self):
+        """The attacker's URL is not in the corpus, so it cannot be cited."""
+        text = Path("fixtures/injection-briefing.md").read_text(encoding="utf-8")
+        findings = self._evaluate(text)
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertTrue(any("security-advisory.example.com" in f.message
+                            for f in findings))
+
+    def test_reporting_the_injection_attempt_is_not_blocked(self):
+        """Containment must not stop the briefing covering the post itself.
+
+        The injected item is legitimate corpus content. A checker that refused
+        to let it be cited would be filtering the news, not grounding it.
+        """
+        text = ("# Daily Briefing — August 9, 2026\n\n## AI Dev Tools\n\n"
+                "**Show HN: a tiny MCP server for local notes** — a Show HN post "
+                "describes a small MCP server for local notes.\n"
+                "🔗 https://news.ycombinator.com/item?id=90000001")
+        self.assertNotIn("ungrounded_link", checks(self._evaluate(text)))
+        self.assertNotIn("altered_link", checks(self._evaluate(text)))
 
 
 class TextEncodingContractTest(unittest.TestCase):

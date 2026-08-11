@@ -7,6 +7,7 @@ step is not deterministic either — but most of the ways it goes wrong are
 structural, not editorial, and structural failures can be checked exactly:
 
     * a link that isn't in the corpus (the model invented or recalled it)
+    * a link altered from the corpus URL it was supposed to reproduce
     * an included or excluded topic with no source citation
     * a story quietly present in both the briefing and the exclusion log
     * a sub-category crowded out of its reserved slots
@@ -33,6 +34,7 @@ import json
 import re
 import sys
 from collections import Counter
+from collections.abc import Iterator
 from typing import Any, NamedTuple
 
 import briefing_config
@@ -105,27 +107,72 @@ def load_corpus(path: str) -> dict[str, Any]:
     return corpus
 
 
-def corpus_links(corpus: dict[str, Any]) -> set[str]:
-    """Every URL the briefing is allowed to cite, article and discussion alike."""
-    links = set()
-    for items in corpus.get("categories", {}).values():
-        for item in items:
-            for key in ("url", "discussion"):
-                value = (item.get(key) or "").strip()
-                if value:
-                    links.add(value)
-    return links
-
-
-def corpus_link_categories(corpus: dict[str, Any]) -> dict[str, set[str]]:
-    """Map every article and discussion URL to its corpus categories."""
-    categories: dict[str, set[str]] = {}
+def _corpus_urls(corpus: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    """Yield (category, url) for every citable URL in the corpus."""
     for category, items in corpus.get("categories", {}).items():
         for item in items:
             for key in ("url", "discussion"):
                 value = (item.get(key) or "").strip()
                 if value:
-                    categories.setdefault(value, set()).add(category)
+                    yield category, value
+
+
+def corpus_links(corpus: dict[str, Any]) -> dict[str, str]:
+    """Canonical form -> the URL as the corpus spells it.
+
+    Keyed canonically so a citation that differs only in trailing slash, host
+    case, parameter order or `utm_` noise is recognized as the same article.
+    The original spelling is the value because a mismatch report has to show
+    the reader what to paste back.
+    """
+    return {corpus_schema.canonicalize_url(url): url
+            for _, url in _corpus_urls(corpus)}
+
+
+def corpus_link_routes(corpus: dict[str, Any]) -> dict[str, list[tuple[frozenset[tuple[str, str]], str]]]:
+    """Location -> every (query parameters, URL) the corpus holds under it.
+
+    A list rather than a single entry per location, because query-routed
+    publishers put many distinct articles under one path. Keying those by
+    location alone would keep whichever was seen last and silently discard
+    the rest.
+    """
+    routes: dict[str, list[tuple[frozenset[tuple[str, str]], str]]] = {}
+    for _, url in _corpus_urls(corpus):
+        location, params = corpus_schema.url_route(url)
+        if location:
+            routes.setdefault(location, []).append(
+                (params, corpus_schema.canonicalize_url(url)))
+    return routes
+
+
+def altered_from(url: str, routes: dict[str, list[tuple[frozenset[tuple[str, str]], str]]]) -> str | None:
+    """The corpus URL a citation was tidied from, if exactly one can be named.
+
+    A citation counts as tidied only when a corpus URL at the same location
+    carries every parameter the citation carries, plus at least one more: the
+    model dropped parameters and changed nothing else. That is the whole of
+    what a mechanical rewrite can be.
+
+    Anything else is a different request. `item?id=999` does not drop a
+    parameter from `item?id=123`, it supplies a different value, so it is a
+    different article and no rewrite is claimed. An added parameter is not a
+    tidy-up either. Where two corpus URLs would both fit, none is named:
+    guessing between them would print a URL the reader never cited.
+    """
+    location, params = corpus_schema.url_route(url)
+    if not location:
+        return None
+    candidates = [candidate for corpus_params, candidate in routes.get(location, [])
+                  if params < corpus_params]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def corpus_link_categories(corpus: dict[str, Any]) -> dict[str, set[str]]:
+    """Map every article and discussion URL to its corpus categories."""
+    categories: dict[str, set[str]] = {}
+    for category, url in _corpus_urls(corpus):
+        categories.setdefault(corpus_schema.canonicalize_url(url), set()).add(category)
     return categories
 
 
@@ -137,7 +184,8 @@ def hacker_news_links(corpus: dict[str, Any]) -> dict[str, str]:
             discussion = (item.get("discussion") or "").strip()
             url = (item.get("url") or "").strip()
             if discussion and url:
-                pairs[url] = discussion
+                pairs[corpus_schema.canonicalize_url(url)] = \
+                    corpus_schema.canonicalize_url(discussion)
     return pairs
 
 
@@ -182,7 +230,7 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 if current:
                     sections.setdefault(current, {
                         "topics": [], "topic_texts": [], "topic_links": [],
-                        "links": [], "excluded": {}})
+                        "links": [], "spelled": {}, "excluded": {}})
                 continue
             if in_excluded:
                 # Inside the exclusion log, bold labels are per-section
@@ -194,7 +242,7 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 current = matched
                 sections.setdefault(current, {
                     "topics": [], "topic_texts": [], "topic_links": [],
-                    "links": [], "excluded": {}})
+                    "links": [], "spelled": {}, "excluded": {}})
                 continue
 
         if current is None:
@@ -213,7 +261,13 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
         for link in _LINK.finditer(line):
             # A sentence-closing parenthesis is not part of the citation, but
             # preserve balanced parentheses that genuinely belong to a URL.
-            url = _clean_link_url(link.group("url"))
+            spelled = _clean_link_url(link.group("url"))
+            # Links are compared in canonical form everywhere downstream, so
+            # normalize once here. The spelling the author used is kept beside
+            # it: a report about a link is useless if the reader cannot find
+            # the line it came from.
+            url = corpus_schema.canonicalize_url(spelled)
+            bucket["spelled"].setdefault(url, spelled)
             bucket["links"].append(url)
             if not in_excluded and bucket["topic_links"]:
                 bucket["topic_links"][-1].append(url)
@@ -223,23 +277,53 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
 
 def check_sections_present(sections: dict[str, Section],
                            config: briefing_config.BriefingConfig) -> list[Finding]:
+    """Every configured section must appear, and so must the exclusion log.
+
+    The log is required only while some section still contributes to it.
+    `excluded_stories: 0` exempts a section, so a configuration that exempts
+    every section has nothing to put under the heading, and demanding it
+    anyway would contradict the configuration this check enforces.
+    """
+    required = [section.name for section in config.sections]
+    if any(section.excluded_stories > 0 for section in config.sections):
+        required.append(EXCLUDED)
     findings: list[Finding] = []
-    for name in [section.name for section in config.sections] + [EXCLUDED]:
+    for name in required:
         if name not in sections:
             findings.append(Finding(ERROR, "missing_section",
                                     f"required section {name!r} is absent"))
     return findings
 
 
-def check_links_grounded(sections: dict[str, Section], allowed: set[str]) -> list[Finding]:
-    """Every cited link must exist in the corpus. This is the core invariant."""
+def check_links_grounded(sections: dict[str, Section],
+                         corpus: dict[str, Any]) -> list[Finding]:
+    """Every cited link must exist in the corpus. This is the core invariant.
+
+    Both failures are ERRORs — the briefing must cite the corpus as written —
+    but they are named apart because the reader's next action differs. An
+    `altered_link` is a real article with a rewritten URL and the fix is to
+    paste the corpus spelling back; an `ungrounded_link` has no corpus article
+    behind it at all, which is the fabrication case and warrants re-reading
+    the whole topic.
+    """
     findings: list[Finding] = []
+    allowed = corpus_links(corpus)
+    routes = corpus_link_routes(corpus)
     for name, bucket in sections.items():
         for url in bucket["links"]:
-            if url not in allowed:
+            if url in allowed:
+                continue
+            spelled = bucket["spelled"].get(url, url)
+            corpus_url = altered_from(url, routes)
+            if corpus_url:
+                findings.append(Finding(
+                    ERROR, "altered_link",
+                    f"{name}: cited link was altered from the corpus URL — cited "
+                    f"{spelled}, corpus has {corpus_url}"))
+            else:
                 findings.append(Finding(
                     ERROR, "ungrounded_link",
-                    f"{name}: cited link is not in the corpus — {url}"))
+                    f"{name}: cited link is not in the corpus — {spelled}"))
     return findings
 
 
@@ -264,7 +348,7 @@ def check_section_categories(sections: dict[str, Section], corpus: dict[str, Any
     for name, eligible in configured.items():
         for entry in excluded.get(name, []):
             for match in _LINK.finditer(entry):
-                url = _clean_link_url(match.group("url"))
+                url = corpus_schema.canonicalize_url(_clean_link_url(match.group("url")))
                 actual = link_categories.get(url)
                 if actual is not None and actual.isdisjoint(eligible):
                     findings.append(Finding(
@@ -429,7 +513,10 @@ def corpus_evidence(corpus: dict[str, Any]) -> dict[str, str]:
             for key in ("url", "discussion"):
                 url = (item.get(key) or "").strip()
                 if url:
-                    evidence[url] = support
+                    # Canonical, because the briefing's links are: a citation
+                    # that differs cosmetically must still find its evidence,
+                    # or the claim checks silently skip the topic.
+                    evidence[corpus_schema.canonicalize_url(url)] = support
     return evidence
 
 
@@ -496,7 +583,7 @@ def evaluate(corpus: dict[str, Any], text: str,
     findings += [Finding(ERROR, "config_category_missing", problem)
                  for problem in category_problems]
     findings += check_sections_present(sections, config)
-    findings += check_links_grounded(sections, corpus_links(corpus))
+    findings += check_links_grounded(sections, corpus)
     findings += check_section_categories(sections, corpus, config)
     findings += check_every_entry_cites_source(sections)
     findings += check_no_double_listing(sections)
