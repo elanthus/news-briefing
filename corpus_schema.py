@@ -84,14 +84,15 @@ def is_readable(corpus: dict[str, Any]) -> bool:
     return corpus_version(corpus) <= SCHEMA_VERSION
 
 
-def _iso(value: Any) -> bool:
+def _timestamp(value: Any) -> bool:
+    """Accept only full ISO timestamps with an explicit UTC offset."""
     if not isinstance(value, str):
         return False
     try:
-        datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         return False
-    return True
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
 def valid_category_name(value: Any) -> bool:
@@ -167,8 +168,9 @@ def validate_corpus(corpus: Any) -> list[str]:
                 f"this code writes {SCHEMA_VERSION}")
 
     for field in ("generated_at", "cutoff"):
-        if field in corpus and not _iso(corpus[field]):
-            problems.append(f"{field!r} is not an ISO 8601 timestamp")
+        if field in corpus and not _timestamp(corpus[field]):
+            problems.append(
+                f"{field!r} is not an ISO 8601 timestamp with a UTC offset")
 
     categories = corpus.get("categories")
     if isinstance(categories, dict):
@@ -191,6 +193,15 @@ def validate_corpus(corpus: Any) -> list[str]:
         problems += [f"errors[{i}] is not a string" for i, e in enumerate(errors)
                      if not isinstance(e, str)]
 
+    if "fetch_duration_ms" in corpus and (
+            not isinstance(corpus["fetch_duration_ms"], int)
+            or corpus["fetch_duration_ms"] < 0):
+        problems.append("'fetch_duration_ms' should be a non-negative integer")
+
+    sources = corpus.get("sources")
+    if sources is not None:
+        problems += _validate_sources(sources)
+
     return problems
 
 
@@ -210,8 +221,51 @@ def _validate_items(category: str, items: Any) -> list[str]:
         unknown = sorted(set(item) - allowed)
         if unknown:
             problems.append(f"{where} has unknown field(s) {unknown}")
-        if "published" in item and not _iso(item["published"]):
-            problems.append(f"{where}.published is not an ISO 8601 timestamp")
+        if "published" in item and not _timestamp(item["published"]):
+            problems.append(
+                f"{where}.published is not an ISO 8601 timestamp with a UTC offset")
+    return problems
+
+
+def _validate_sources(sources: Any) -> list[str]:
+    """Validate optional per-source fetch observability records."""
+    if not isinstance(sources, list):
+        return ["'sources' should be a list"]
+    required = {
+        "source": str,
+        "category": str,
+        "status": str,
+        "item_count": int,
+        "undated_dropped": int,
+        "duration_ms": int,
+    }
+    allowed = set(required) | {"error"}
+    problems: list[str] = []
+    for index, status in enumerate(sources):
+        where = f"sources[{index}]"
+        if not isinstance(status, dict):
+            problems.append(f"{where} is not an object")
+            continue
+        missing = set(required) - set(status)
+        unknown = set(status) - allowed
+        if missing:
+            problems.append(f"{where} is missing {sorted(missing)}")
+        if unknown:
+            problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
+        for field, expected in required.items():
+            if field in status and not isinstance(status[field], expected):
+                problems.append(f"{where}.{field} has the wrong type")
+        if status.get("status") not in {"ok", "error"}:
+            problems.append(f"{where}.status should be 'ok' or 'error'")
+        for field in ("item_count", "undated_dropped", "duration_ms"):
+            value = status.get(field)
+            if isinstance(value, int) and value < 0:
+                problems.append(f"{where}.{field} should be non-negative")
+        error = status.get("error")
+        if status.get("status") == "error" and not isinstance(error, str):
+            problems.append(f"{where}.error should describe the failure")
+        elif status.get("status") == "ok" and "error" in status:
+            problems.append(f"{where}.error is only valid for failed sources")
     return problems
 
 

@@ -95,6 +95,26 @@ class TopLevelTest(unittest.TestCase):
         c = corpus(generated_at="last Tuesday")
         self.assertTrue(only(validate_corpus(c), "ISO 8601"))
 
+    def test_timestamp_requires_time_and_utc_offset(self):
+        for value in ("2026-08-08", "2026-08-08T12:00:00"):
+            with self.subTest(value=value):
+                c = corpus(generated_at=value)
+                self.assertTrue(only(validate_corpus(c), "UTC offset"))
+
+    def test_per_source_fetch_status_is_validated(self):
+        c = corpus(sources=[{
+            "source": "NPR Politics",
+            "category": "us_politics",
+            "status": "ok",
+            "item_count": 1,
+            "undated_dropped": 0,
+            "duration_ms": 42,
+        }], fetch_duration_ms=42)
+        self.assertEqual(validate_corpus(c), [])
+
+        c["sources"][0]["duration_ms"] = -1
+        self.assertTrue(only(validate_corpus(c), "duration_ms"))
+
     def test_non_string_error_entry_is_reported(self):
         self.assertTrue(only(validate_corpus(corpus(errors=[404])), "errors[0]"))
 
