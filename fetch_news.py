@@ -25,12 +25,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, NotRequired, TypedDict
 from xml.parsers import expat
 
 import corpus_schema
@@ -50,7 +51,7 @@ DEFAULT_CATEGORY_CAP = 60
 
 FETCH_WORKERS = 8
 SUMMARY_CHARS = 300  # per-item summary budget handed to the model
-HN_MIN_POINTS = 20  # below this a story hasn't cleared HN's noise floor
+HN_MIN_POINTS = 20  # this many points clears HN's noise floor
 HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
 REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
@@ -249,8 +250,30 @@ FEED_NAMESPACES = {
     "content": "http://purl.org/rss/1.0/modules/content/",
 }
 
-# A corpus item. Field names are fixed by corpus_schema, not by convention.
-Item = dict[str, Any]
+class Item(TypedDict):
+    """A corpus item. Field names are fixed by corpus_schema."""
+
+    title: str
+    url: str
+    published: str
+    source: str
+    summary: NotRequired[str]
+    discussion: NotRequired[str]
+    points: NotRequired[int]
+    comments: NotRequired[int]
+    query: NotRequired[str]
+
+
+class SourceStatus(TypedDict):
+    """Observable outcome for one configured source request."""
+
+    source: str
+    category: str
+    status: str
+    item_count: int
+    undated_dropped: int
+    duration_ms: int
+    error: NotRequired[str]
 
 
 class FetchResult(NamedTuple):
@@ -263,6 +286,27 @@ class FetchResult(NamedTuple):
 
     items: list[Item]
     undated: int
+
+
+class TimedFetchResult(NamedTuple):
+    result: FetchResult | None
+    error: str | None
+    duration_ms: int
+
+
+def timed_fetch(fetcher: Callable[..., FetchResult], *args: Any) -> TimedFetchResult:
+    """Run one source fetch and retain its outcome and wall-clock latency."""
+    started = time.perf_counter()
+    error: str | None
+    try:
+        result = fetcher(*args)
+    except Exception as exc:
+        error = str(exc)
+        result = None
+    else:
+        error = None
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    return TimedFetchResult(result, error, duration_ms)
 
 
 def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> bytes:
@@ -359,7 +403,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     rather than silently skipped: that is how a feed changing its date format
     shows up, instead of quietly contributing nothing to a healthy-looking run.
     """
-    items = []
+    items: list[Item] = []
     undated = 0
     root = parse_feed_xml(http_get(url))
     ns = FEED_NAMESPACES
@@ -410,13 +454,13 @@ def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
            f"&query={urllib.parse.quote(query)}"
            f"&numericFilters=created_at_i%3E{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
     data = json.loads(http_get(url))
-    items = []
+    items: list[Item] = []
     undated = 0
     for hit in data.get("hits", []):
         if hit.get("created_at_i") is None:
             undated += 1
             continue
-        if hit.get("points", 0) <= HN_MIN_POINTS:
+        if hit.get("points", 0) < HN_MIN_POINTS:
             continue
         items.append({
             "title": hit.get("title", ""),
@@ -494,7 +538,7 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
                 raise
             time.sleep(retry_after_seconds(exc, 5 * (attempt + 1)))
 
-    items = []
+    items: list[Item] = []
     undated = 0
     for entry in root.findall("atom:entry", ns):
         published = parse_feed_date(
@@ -548,7 +592,11 @@ def sort_items(items: list[Item]) -> list[Item]:
     doesn't decide corpus order, which also stops this from quietly fighting
     the prompt's instruction to rank by impact rather than virality.
     """
-    return sorted(items, key=lambda i: i["published"], reverse=True)
+    return sorted(
+        items,
+        key=lambda item: datetime.fromisoformat(item["published"]),
+        reverse=True,
+    )
 
 
 def is_relevant_item(item: Item) -> bool:
@@ -646,6 +694,7 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=args.hours)
 
+    fetch_started = time.perf_counter()
     corpus: dict[str, Any] = {
         "schema_version": corpus_schema.SCHEMA_VERSION,
         "generated_at": now.isoformat(),
@@ -655,36 +704,62 @@ def main() -> int:
         "categories": {name: [] for name in sources.categories},
         "processing": {},
         "errors": [],
+        "sources": [],
     }
 
     undated = dict.fromkeys(corpus["categories"], 0)
 
-    jobs: list[tuple[Future[FetchResult], str, str]] = []
+    jobs: list[tuple[Future[TimedFetchResult], str, str]] = []
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         for category, feeds in sources.rss_feeds.items():
             for name, url in feeds:
-                jobs.append((pool.submit(fetch_rss, name, url, cutoff), category, name))
+                jobs.append((pool.submit(timed_fetch, fetch_rss, name, url, cutoff), category, name))
         for query in sources.hn_queries:
-            jobs.append((pool.submit(fetch_hn, query, cutoff), sources.hn_category, f"HN:{query}"))
+            jobs.append((pool.submit(timed_fetch, fetch_hn, query, cutoff),
+                         sources.hn_category, f"HN:{query}"))
 
         for future, category, name in jobs:
-            try:
-                result = future.result()
-            except Exception as exc:
-                corpus["errors"].append(f"{name}: {exc}")
+            outcome = future.result()
+            status: SourceStatus = {
+                "source": name,
+                "category": category,
+                "status": "error" if outcome.error else "ok",
+                "item_count": len(outcome.result.items) if outcome.result else 0,
+                "undated_dropped": outcome.result.undated if outcome.result else 0,
+                "duration_ms": outcome.duration_ms,
+            }
+            if outcome.error:
+                status["error"] = outcome.error
+                corpus["errors"].append(f"{name}: {outcome.error}")
+                corpus["sources"].append(status)
                 continue
+            result = outcome.result
+            assert result is not None
             corpus["categories"][category].extend(result.items)
             undated[category] += result.undated
+            corpus["sources"].append(status)
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
     for index, sub in enumerate(sources.subreddits):
-        try:
-            result = fetch_reddit(sub, cutoff, args.hours)
-        except Exception as exc:
-            corpus["errors"].append(f"r/{sub}: {exc}")
+        name = f"r/{sub}"
+        outcome = timed_fetch(fetch_reddit, sub, cutoff, args.hours)
+        status = {
+            "source": name,
+            "category": sources.reddit_category,
+            "status": "error" if outcome.error else "ok",
+            "item_count": len(outcome.result.items) if outcome.result else 0,
+            "undated_dropped": outcome.result.undated if outcome.result else 0,
+            "duration_ms": outcome.duration_ms,
+        }
+        if outcome.error:
+            status["error"] = outcome.error
+            corpus["errors"].append(f"{name}: {outcome.error}")
         else:
+            result = outcome.result
+            assert result is not None
             corpus["categories"][sources.reddit_category].extend(result.items)
             undated[sources.reddit_category] += result.undated
+        corpus["sources"].append(status)
         if index < len(sources.subreddits) - 1:
             time.sleep(REDDIT_PAUSE_SECONDS)
 
@@ -699,6 +774,7 @@ def main() -> int:
         corpus["processing"][category] = stats
 
     total = sum(len(v) for v in corpus["categories"].values())
+    corpus["fetch_duration_ms"] = round((time.perf_counter() - fetch_started) * 1000)
     # Validate before writing: a corpus that violates its own contract is a
     # bug in this script, and the prompt and checker both read it blind.
     schema_problems = corpus_schema.validate_corpus(corpus)

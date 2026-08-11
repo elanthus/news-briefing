@@ -235,7 +235,7 @@ python3 eval_briefing.py \
   --config fixtures/briefing-config-2026-08-09.json
 ```
 
-The fetch writes the last 24 hours of eligible source material to `corpus.json`. It fails if every source fails or filtering leaves no usable items, while still writing the corpus and its error log for diagnosis; partial source failures are successful runs and are surfaced through `errors`. The last command runs the checker against the committed frozen inputs and should report zero errors and zero warnings.
+The fetch writes the last 24 hours of eligible source material to `corpus.json`. It fails if every source fails or filtering leaves no usable items, while still writing the corpus and its error log for diagnosis; partial source failures are successful runs and are surfaced through `errors`. Each run also records total fetch duration plus per-source status, item count, undated count, and latency. The last command runs the checker against the committed frozen inputs and should report zero errors and zero warnings.
 
 ### 2. Generate one briefing now
 
@@ -372,8 +372,6 @@ python3 fetch_news.py --category-cap 40 # retain at most 40 items in one categor
 ```
 
 </details>
-
-Each section object has six fields: `name`, optional `group`, positive `target_stories`, one or more `corpus_categories`, editorial `guidance`, and a non-negative `excluded_stories` target. Invalid or duplicate fields, section names, counts, and category references fail explicitly. The checker also rejects a citation placed in a section that does not list the item's corpus category.
 
 ## Checker output
 

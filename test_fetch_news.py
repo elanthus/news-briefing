@@ -323,6 +323,16 @@ class PrepareCategoryTest(unittest.TestCase):
 
 
 class HackerNewsTest(unittest.TestCase):
+    def test_minimum_point_threshold_is_inclusive(self):
+        payload = {"hits": [{
+            "objectID": "20", "title": "At the threshold", "url": None,
+            "story_text": "", "created_at_i": 1786204800,
+            "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+        }]}
+        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+            result = fetch_hn("agent", utc(2026, 8, 8))
+        self.assertEqual(len(result.items), 1)
+
     def test_carries_story_text_as_grounding_context(self):
         payload = {"hits": [{
             "objectID": "42", "title": "Ask HN", "url": None,
@@ -368,12 +378,19 @@ class ParseFeedXmlTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_feed_xml(payload)
 
-    def test_rejects_utf16_doctype_declaration(self):
-        payload = ('<?xml version="1.0" encoding="UTF-16"?>'
-                   '<!DOCTYPE r [<!ENTITY x "expanded">]>'
-                   '<rss><item><title>&x;</title></item></rss>').encode("utf-16")
-        with self.assertRaises(ValueError):
-            parse_feed_xml(payload)
+    def test_rejects_encoded_doctype_declarations(self):
+        document = ('<?xml version="1.0" encoding="{encoding}"?>'
+                    '<!DOCTYPE r [<!ENTITY x "expanded">]>'
+                    '<rss><item><title>&x;</title></item></rss>')
+        cases = (
+            ("UTF-16", "utf-16"),
+            ("UTF-16", "utf-16-le"),
+            ("UTF-16", "utf-16-be"),
+            ("ISO-8859-1", "iso-8859-1"),
+        )
+        for declaration, codec in cases:
+            with self.subTest(encoding=declaration), self.assertRaises(ValueError):
+                parse_feed_xml(document.format(encoding=declaration).encode(codec))
 
     def test_entity_reference_without_a_doctype_cannot_expand(self):
         """Without a declaration expat rejects the reference outright."""
@@ -566,6 +583,14 @@ class SortItemsTest(unittest.TestCase):
         self.assertEqual([i["title"] for i in sort_items(items)],
                          ["reddit today", "hn last week"])
 
+    def test_orders_by_instant_not_iso_string_spelling(self):
+        items = [
+            {"title": "earlier", "published": "2026-08-08T10:00:00+02:00"},
+            {"title": "later", "published": "2026-08-08T09:30:00+00:00"},
+        ]
+        self.assertEqual([i["title"] for i in sort_items(items)],
+                         ["later", "earlier"])
+
     def test_items_without_engagement_are_not_demoted(self):
         items = [
             {"title": "no points", "published": "2026-08-08T12:00:00+00:00"},
@@ -648,6 +673,14 @@ class MainFailureModeTest(unittest.TestCase):
                              ["Hacker News"])
             self.assertEqual([item["source"] for item in corpus["categories"]["from_reddit"]],
                              ["r/LocalLLaMA"])
+            self.assertGreaterEqual(corpus["fetch_duration_ms"], 0)
+            self.assertEqual(
+                [(status["source"], status["status"], status["item_count"])
+                 for status in corpus["sources"]],
+                [("HN:agent tools", "ok", 1), ("r/LocalLLaMA", "ok", 1)],
+            )
+            self.assertTrue(all(status["duration_ms"] >= 0
+                                for status in corpus["sources"]))
 
 
 class HttpGetTest(unittest.TestCase):
