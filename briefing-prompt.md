@@ -69,4 +69,4 @@ Typical reasons: "lower immediate impact," "regional rather than national signif
 ---
 
 ### Corpus health
-If `errors` in corpus.json is non-empty, list the failed sources at the end so degraded coverage is visible.
+If `errors` in corpus.json is non-empty, list every failed source inside this section so degraded coverage is visible. Reproduce each source identifier exactly as it appears before the first `: ` delimiter in its error entry — for example, `HN:agentic coding` or `r/ClaudeAI`, not a paraphrase.

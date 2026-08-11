@@ -448,6 +448,29 @@ class CorpusHealthTest(unittest.TestCase):
         self.assertTrue(any("HN:agentic coding" in finding.message
                             for finding in findings))
 
+    def test_named_hn_query_source_satisfies_the_check(self):
+        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
+        text = briefing(health="`HN:agentic coding` failed with HTTP 503.")
+        self.assertEqual(checks(evaluate(degraded, text), ERROR), set())
+
+    def test_cosmetic_source_variants_satisfy_the_check(self):
+        cases = (
+            ("subreddit slash", "r/ClaudeAI: HTTP Error 429", "/r/ClaudeAI failed."),
+            ("HN colon space", "HN:agentic coding: HTTP Error 503",
+             "HN: agentic coding failed."),
+            ("wrapped source", "Ars Technica: timed out", "Ars\n  Technica failed."),
+        )
+        for label, error, health in cases:
+            with self.subTest(label=label):
+                degraded = dict(CORPUS, errors=[error])
+                self.assertEqual(checks(evaluate(degraded, briefing(health=health)), ERROR), set())
+
+    def test_failed_sources_may_be_named_in_health_heading(self):
+        text = briefing(health="Failures are listed above.").replace(
+            "### Corpus health",
+            "### Corpus health — r/ClaudeAI and r/ClaudeCode failed")
+        self.assertEqual(checks(evaluate(self.degraded, text), ERROR), set())
+
     def test_source_named_outside_health_section_does_not_count(self):
         text = briefing(health="All sources healthy.").replace(
             "summary text here.", "r/ClaudeAI reports summary text here.", 1)

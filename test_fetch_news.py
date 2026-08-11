@@ -732,17 +732,28 @@ class SourcesConfigurationTest(unittest.TestCase):
         self.assertGreater(len(sources.categories), 0)
 
     def test_rejects_source_identifiers_that_collide_with_error_delimiter(self):
-        original = json.loads(Path(DEFAULT_SOURCES_PATH).read_text(encoding="utf-8"))
         cases = (
-            ("rss source", lambda value: value["rss_feeds"]["us_news"][0].__setitem__(0, "News: AI")),
-            ("HN query", lambda value: value["hn_queries"].__setitem__(0, "agent: coding")),
+            ("rss delimiter", "rss", "News: AI", "reserved ': ' separator"),
+            ("rss newline", "rss", "News\nAI", "single-line"),
+            ("HN delimiter", "hn", "agent: coding", "reserved ': ' separator"),
+            ("HN newline", "hn", "agent\ncoding", "single-line"),
         )
-        for label, mutate in cases:
+        for label, route, bad_value, message in cases:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
-                value = json.loads(json.dumps(original))
-                mutate(value)
+                value = {
+                    "categories": ["news"],
+                    "rss_feeds": {"news": [["News", "https://example.com/feed.xml"]]},
+                    "hn_category": "news",
+                    "hn_queries": ["agent"],
+                    "reddit_category": "news",
+                    "subreddits": [],
+                }
+                if route == "rss":
+                    value["rss_feeds"]["news"][0][0] = bad_value
+                else:
+                    value["hn_queries"][0] = bad_value
                 path = self.write_sources(directory, value)
-                with self.assertRaisesRegex(ValueError, "': '"):
+                with self.assertRaisesRegex(ValueError, message):
                     load_sources(path)
 
     def test_rejects_missing_fields(self):

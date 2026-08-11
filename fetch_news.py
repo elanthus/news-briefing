@@ -69,13 +69,23 @@ class Sources(NamedTuple):
     subreddits: list[str]
 
 
+def _source_id_problem(value: Any) -> str | None:
+    """Why a value cannot survive the ``<source>: <message>`` error format."""
+    if not isinstance(value, str) or not value.strip():
+        return "must be a non-empty string"
+    if "\n" in value or "\r" in value:
+        return "must be single-line"
+    if ": " in value:
+        return "must not contain the reserved ': ' separator"
+    return None
+
+
 def _string_list(value: Any, field: str) -> list[str]:
-    if (not isinstance(value, list)
-            or any(not isinstance(item, str) or not item.strip()
-                   or ": " in item or "\n" in item or "\r" in item
-                   for item in value)):
-        raise ValueError(
-            f"{field} must be a list of non-empty, single-line strings without ': '")
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a list")
+    for index, item in enumerate(value):
+        if problem := _source_id_problem(item):
+            raise ValueError(f"{field}[{index}] {problem}")
     return value
 
 
@@ -135,10 +145,11 @@ def load_sources(path: str | Path) -> Sources:
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] must be a [source name, URL] pair of non-empty strings"
                 )
-            if ": " in feed[0] or "\n" in feed[0] or "\r" in feed[0]:
+            name, url = feed
+            if problem := _source_id_problem(name):
                 raise ValueError(
-                    f"rss_feeds.{category}[{index}] source name must be single-line and not contain ': '")
-            parsed_feeds.append((feed[0], feed[1]))
+                    f"rss_feeds.{category}[{index}] source name {problem}")
+            parsed_feeds.append((name, url))
         rss_feeds[category] = parsed_feeds
 
     destinations: dict[str, str] = {}
@@ -283,14 +294,24 @@ def parse_feed_xml(data: bytes) -> ET.Element:
                        _public_id: str | None, _has_internal_subset: int) -> None:
         raise ValueError("XML DOCTYPE declarations are not accepted")
 
+    class RootReached(Exception):
+        """A DOCTYPE cannot follow the root element, so the guard can stop."""
+
+    def stop_at_root(_name: str, _attributes: dict[str, str]) -> None:
+        raise RootReached
+
     parser = expat.ParserCreate()
     parser.StartDoctypeDeclHandler = reject_doctype
+    parser.StartElementHandler = stop_at_root
     try:
         parser.Parse(data, True)
-    except expat.ExpatError:
-        # Preserve ElementTree's public ParseError behavior for malformed XML.
-        # The DTD handler raises ValueError and therefore is never swallowed.
+    except RootReached:
         pass
+    except expat.ExpatError as exc:
+        # Keep malformed prologs on the public exception type callers already
+        # handle, without swallowing a guard failure and hoping a second parser
+        # happens to reject the same bytes.
+        raise ET.ParseError(str(exc)) from exc
     return ET.fromstring(data)
 
 
