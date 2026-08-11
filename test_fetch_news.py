@@ -591,6 +591,14 @@ class SortItemsTest(unittest.TestCase):
         self.assertEqual([i["title"] for i in sort_items(items)],
                          ["later", "earlier"])
 
+    def test_invalid_timestamps_sort_last_for_schema_validation(self):
+        items = [
+            {"title": "malformed", "published": "yesterday"},
+            {"title": "valid", "published": "2026-08-08T09:30:00+00:00"},
+            {"title": "naive", "published": "2026-08-08T10:00:00"},
+        ]
+        self.assertEqual(sort_items(items)[0], items[1])
+
     def test_items_without_engagement_are_not_demoted(self):
         items = [
             {"title": "no points", "published": "2026-08-08T12:00:00+00:00"},
@@ -610,6 +618,29 @@ class SortItemsTest(unittest.TestCase):
 
 
 class MainFailureModeTest(unittest.TestCase):
+    def test_empty_exception_message_is_recorded_as_a_source_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {"news": [["Broken Feed", "https://example.com/feed"]]},
+                "hn_category": "news",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_rss", side_effect=ValueError()),
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                result = fetch_news.main()
+            self.assertEqual(result, 1)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(corpus["errors"], ["Broken Feed: ValueError"])
+            self.assertEqual(corpus["sources"][0]["status"], "error")
+            self.assertEqual(corpus["sources"][0]["error"], "ValueError")
+
     def test_empty_corpus_is_written_but_returns_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "corpus.json"

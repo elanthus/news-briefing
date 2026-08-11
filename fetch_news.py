@@ -301,7 +301,7 @@ def timed_fetch(fetcher: Callable[..., FetchResult], *args: Any) -> TimedFetchRe
     try:
         result = fetcher(*args)
     except Exception as exc:
-        error = str(exc)
+        error = str(exc) or exc.__class__.__name__
         result = None
     else:
         error = None
@@ -592,11 +592,16 @@ def sort_items(items: list[Item]) -> list[Item]:
     doesn't decide corpus order, which also stops this from quietly fighting
     the prompt's instruction to rank by impact rather than virality.
     """
-    return sorted(
-        items,
-        key=lambda item: datetime.fromisoformat(item["published"]),
-        reverse=True,
-    )
+    def timestamp(item: Item) -> datetime:
+        try:
+            parsed = datetime.fromisoformat(item["published"])
+        except (TypeError, ValueError):
+            return datetime.min.replace(tzinfo=timezone.utc)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        return parsed
+
+    return sorted(items, key=timestamp, reverse=True)
 
 
 def is_relevant_item(item: Item) -> bool:
@@ -723,18 +728,18 @@ def main() -> int:
             status: SourceStatus = {
                 "source": name,
                 "category": category,
-                "status": "error" if outcome.error else "ok",
+                "status": "error" if outcome.result is None else "ok",
                 "item_count": len(outcome.result.items) if outcome.result else 0,
                 "undated_dropped": outcome.result.undated if outcome.result else 0,
                 "duration_ms": outcome.duration_ms,
             }
-            if outcome.error:
-                status["error"] = outcome.error
-                corpus["errors"].append(f"{name}: {outcome.error}")
+            if outcome.result is None:
+                error = outcome.error or "unknown fetch error"
+                status["error"] = error
+                corpus["errors"].append(f"{name}: {error}")
                 corpus["sources"].append(status)
                 continue
             result = outcome.result
-            assert result is not None
             corpus["categories"][category].extend(result.items)
             undated[category] += result.undated
             corpus["sources"].append(status)
@@ -746,22 +751,24 @@ def main() -> int:
         status = {
             "source": name,
             "category": sources.reddit_category,
-            "status": "error" if outcome.error else "ok",
+            "status": "error" if outcome.result is None else "ok",
             "item_count": len(outcome.result.items) if outcome.result else 0,
             "undated_dropped": outcome.result.undated if outcome.result else 0,
             "duration_ms": outcome.duration_ms,
         }
-        if outcome.error:
-            status["error"] = outcome.error
-            corpus["errors"].append(f"{name}: {outcome.error}")
+        if outcome.result is None:
+            error = outcome.error or "unknown fetch error"
+            status["error"] = error
+            corpus["errors"].append(f"{name}: {error}")
         else:
             result = outcome.result
-            assert result is not None
             corpus["categories"][sources.reddit_category].extend(result.items)
             undated[sources.reddit_category] += result.undated
         corpus["sources"].append(status)
         if index < len(sources.subreddits) - 1:
             time.sleep(REDDIT_PAUSE_SECONDS)
+
+    corpus["fetch_duration_ms"] = round((time.perf_counter() - fetch_started) * 1000)
 
     for category in corpus["categories"]:
         items, stats = prepare_category(
@@ -774,7 +781,6 @@ def main() -> int:
         corpus["processing"][category] = stats
 
     total = sum(len(v) for v in corpus["categories"].values())
-    corpus["fetch_duration_ms"] = round((time.perf_counter() - fetch_started) * 1000)
     # Validate before writing: a corpus that violates its own contract is a
     # bug in this script, and the prompt and checker both read it blind.
     schema_problems = corpus_schema.validate_corpus(corpus)
