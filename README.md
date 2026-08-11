@@ -203,6 +203,20 @@ ERROR [ungrounded_link] AI Dev Tools: cited link is not in the corpus — https:
 
 The limit is worth stating plainly: this catches the injection's *output*, not the injection. A model talked into a subtly wrong summary of a genuine corpus item still passes, and citing the injected post itself is legitimate coverage rather than a failure. What the checker removes is the ability to smuggle in a source that was never fetched.
 
+The committed fixture is a deterministic checker regression test, not evidence about model behavior. [`run_ai_eval.py`](run_ai_eval.py) supplies that missing layer: it invokes a real model command over one clean utility case and three indirect-injection patterns, measures forbidden-marker attack success and checker utility before and after one correction pass, and writes the complete audit artifacts. The suite is intentionally extensible so a defense is evaluated across attacks and utility rather than demonstrated with one payload, following the evaluation posture in the peer-reviewed [MELON paper (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html).
+
+```bash
+python3 run_ai_eval.py \
+  --model-command 'your-model-cli --model pinned-model-version' \
+  --provider your-provider \
+  --model model-name \
+  --model-version exact-version \
+  --generation-settings '{"temperature":0}' \
+  --output-dir eval-runs/2026-08-10-model-name
+```
+
+The command must read the full request from standard input and write only the briefing to standard output. Each run directory preserves the transformed corpus, raw first output, corrected output, findings before and after correction, source-health records, timestamps, Git commit/dirty state, exact model metadata and generation settings, and SHA-256 hashes of the corpus, prompt, configuration, suite, request, and checker code.
+
 ## What is actually guaranteed
 
 The LLM is handed a closed corpus and does the thing it is good at — ranking and summarizing — while showing what it left out. The prompt forbids outside knowledge; the checker verifies the parts of that instruction that are mechanically decidable. It does not pretend that a Markdown parser can prove the model chose the right story or summarized it faithfully.
@@ -235,7 +249,7 @@ python3 eval_briefing.py \
   --config fixtures/briefing-config-2026-08-09.json
 ```
 
-The fetch writes the last 24 hours of eligible source material to `corpus.json`. It fails if every source fails or filtering leaves no usable items, while still writing the corpus and its error log for diagnosis; partial source failures are successful runs and are surfaced through `errors`. Each run also records total fetch duration plus per-source status, item count, undated count, and latency. The last command runs the checker against the committed frozen inputs and should report zero errors and zero warnings.
+The fetch writes the last 24 hours of eligible source material to `corpus.json`. It fails if every source fails or filtering leaves no usable items, while still writing the corpus and its structured error records for diagnosis; partial source failures are successful runs and are surfaced through `errors`. Each configured request records exact `source_type` and `source_id`, requested and HTTP-success flags, recognized, dated, and retained entry counts, latency, status, and typed error details. A successful response with no recognized entries—or no parseable dates—is `empty`, not healthy. The last command runs the checker against the committed frozen inputs and should report zero errors and zero warnings.
 
 ### 2. Generate one briefing now
 
@@ -348,7 +362,7 @@ Keep every section ungrouped. Do not edit Python, `briefing-prompt.md`, tests, o
 <details>
 <summary><b>Advanced: change the source mix</b></summary>
 
-Edit [`sources.json`](sources.json) to add corpus categories or change the RSS feeds, Hacker News queries, and subreddits without touching application code. The fetcher loads that file by default; pass `--sources path/to/another.json` to keep a separate configuration. Its `categories` list defines the corpus names and their order in both JSON and the `--markdown` digest; `rss_feeds` maps feeds to those names, while `hn_category` and `reddit_category` explicitly route the respective community sources. The remaining `hn_queries` and `subreddits` lists select what those source types fetch. Every declared category must have at least one configured feed, Hacker News query, or subreddit. Source names, HN queries, and subreddit names must be single-line and cannot contain `: ` (colon followed by a space), which is reserved as the separator in fetch-error records. Invalid fields, names, destinations, empty routes, and source entries fail fast with a specific error instead of silently reducing coverage.
+Edit [`sources.json`](sources.json) to add corpus categories or change the RSS feeds, Hacker News queries, and subreddits without touching application code. The fetcher loads that file by default; pass `--sources path/to/another.json` to keep a separate configuration. Its `categories` list defines the corpus names and their order in both JSON and the `--markdown` digest; `rss_feeds` maps feeds to those names, while `hn_category` and `reddit_category` explicitly route the respective community sources. The remaining `hn_queries` and `subreddits` lists select what those source types fetch. Every declared category must have at least one configured feed, Hacker News query, or subreddit. Source identifiers must be non-empty and single-line. Invalid fields, names, destinations, empty routes, and source entries fail fast with a specific error instead of silently reducing coverage.
 
 Any new category used in a briefing must also appear in the relevant section's `corpus_categories` in [`briefing-config.json`](briefing-config.json). The fetcher deliberately does not load editorial configuration, so drift between custom source and briefing files is reported by the evaluator after corpus and briefing generation, not during fetching.
 
@@ -394,7 +408,8 @@ A citation that still fails is reported as `altered_link` only when a single cor
 
 1. **Fetch (code-enforced, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, the Hacker News Algolia API, and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped in code. Every item carries a parsed, timezone-normalized publish timestamp. Live retrieval varies with feed contents, timing, rate limits, and network failures; those failures are recorded in the corpus.
 2. **Rank and summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) supplies the durable security, grounding, and output rules; trusted [`briefing-config.json`](briefing-config.json) supplies the ordered sections, corpus-category eligibility, story targets, and exclusion targets.
-3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) reads the same configuration and validates the briefing against its corpus.
+3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the corpus contract before it reads any categories, items, timestamps, errors, or source health, then validates the briefing against that corpus and the same configuration.
+4. **Evaluate models (optional).** [`run_ai_eval.py`](run_ai_eval.py) runs a supplied model command against clean and attacked cases and records reproducible utility, attack-success, correction, and provenance artifacts.
 
 [`docs/design.md`](docs/design.md) covers the design decisions behind each stage: slot allocation, the corpus contract, defensive XML parsing, drop-counter reconciliation, and how to regression-test a prompt change against the frozen fixtures.
 
@@ -413,7 +428,7 @@ uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
 ```
 
-The four pipeline modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, source/category budgets, oversized responses, empty-run behavior, briefing structure, and corpus-grounded citations. Tests patch network boundaries and run without making live requests.
+The five pipeline and eval-harness modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, source/category budgets, oversized responses, empty-run behavior, briefing structure, corpus-grounded citations, and audit artifact capture. Tests patch network boundaries and run without making live requests.
 
 [`docs/dogfooding.md`](docs/dogfooding.md) records live runs — corpus size, source failures, checker results, and any corrections. It is append-only: an unhealthy run belongs in the record rather than being replaced by a cleaner rerun.
 
@@ -421,7 +436,7 @@ The four pipeline modules are fully type-annotated and checked with mypy in CI (
 
 Each of these is a choice, and each one costs something:
 
-- **It does not call an LLM API.** No keys, no vendor SDK, and no per-run bill beyond the agent subscription you already have. The cost is real: you paste a prompt or schedule a task instead of running one command, and the summarizing step is the one part of the loop that isn't a single `python3` invocation.
+- **The normal briefing workflow does not require an LLM API.** No vendor SDK or key is a runtime dependency. The optional AI eval invokes a model command you explicitly supply; provider authentication, billing, and version pinning remain under that command's control and are recorded in the run manifest.
 - **It does not fetch article bodies.** The corpus holds the truncated blurb a publisher chose to syndicate. Retrieving full text would change both the politeness posture toward the sources and the licensing question, and it is because the evidence is that thin that the claim-grounding checks are warnings a human reads rather than assertions.
 - **It does not judge whether a story is true.** No fact-checking, no source-credibility score, no attempt at balance across outlets. It ranks and summarizes the corpus you configured, and shows you what it dropped.
 - **It is not a reader, a feed service, or a product.** Output is Markdown for one person on one machine. No database, no web UI, no accounts.

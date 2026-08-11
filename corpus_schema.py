@@ -24,11 +24,11 @@ import urllib.parse
 from datetime import datetime
 from typing import Any
 
-# 3 makes the category set configuration-defined. Older readers expect the
-# built-in v2 names, so the version changes even though the surrounding JSON
-# shape is unchanged: they should refuse a new corpus instead of misdiagnosing
-# a valid custom category as schema drift.
-SCHEMA_VERSION = 3
+# 4 replaces string fetch errors with structured source identities and adds
+# complete per-request outcome counters. Older readers would silently miss an
+# empty-but-successful feed or truncate a Hacker News query ID, so they must
+# refuse this shape instead of guessing.
+SCHEMA_VERSION = 4
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
 
 CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -67,6 +67,11 @@ TOP_LEVEL_TYPES: dict[str, type | tuple[type, ...]] = {
     "errors": list,
 }
 
+V4_TOP_LEVEL_TYPES: dict[str, type] = {
+    "sources": list,
+    "fetch_duration_ms": int,
+}
+
 
 def corpus_version(corpus: dict[str, Any]) -> int:
     """Schema version of a loaded corpus, treating absence as legacy."""
@@ -84,15 +89,28 @@ def is_readable(corpus: dict[str, Any]) -> bool:
     return corpus_version(corpus) <= SCHEMA_VERSION
 
 
-def _timestamp(value: Any) -> bool:
+def _parse_timestamp(value: Any) -> datetime | None:
     """Accept only full ISO timestamps with an explicit UTC offset."""
     if not isinstance(value, str):
-        return False
+        return None
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed
+
+
+def _timestamp(value: Any) -> bool:
+    return _parse_timestamp(value) is not None
+
+
+def _http_url(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
         return False
-    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+    parts = urllib.parse.urlsplit(value)
+    return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
 
 
 def valid_category_name(value: Any) -> bool:
@@ -161,16 +179,45 @@ def validate_corpus(corpus: Any) -> list[str]:
                 f"{field!r} should be {getattr(expected, '__name__', expected)}, "
                 f"got {type(corpus[field]).__name__}")
 
+    version = corpus_version(corpus)
+    if version >= 4:
+        for field, expected in V4_TOP_LEVEL_TYPES.items():
+            if field not in corpus:
+                problems.append(f"missing top-level field {field!r}")
+            elif not isinstance(corpus[field], expected):
+                problems.append(f"{field!r} should be {expected.__name__}, "
+                                f"got {type(corpus[field]).__name__}")
+
     if isinstance(corpus.get("schema_version"), int):
-        if corpus["schema_version"] != SCHEMA_VERSION:
+        if corpus["schema_version"] > SCHEMA_VERSION:
             problems.append(
                 f"schema_version is {corpus['schema_version']}, "
-                f"this code writes {SCHEMA_VERSION}")
+                f"this code understands through {SCHEMA_VERSION}")
 
     for field in ("generated_at", "cutoff"):
         if field in corpus and not _timestamp(corpus[field]):
             problems.append(
                 f"{field!r} is not an ISO 8601 timestamp with a UTC offset")
+
+    generated_at = _parse_timestamp(corpus.get("generated_at"))
+    cutoff = _parse_timestamp(corpus.get("cutoff"))
+    if generated_at is not None and cutoff is not None and cutoff > generated_at:
+        problems.append("cutoff must not be later than generated_at")
+
+    window_hours = corpus.get("window_hours")
+    if (isinstance(window_hours, bool) or not isinstance(window_hours, int)
+            or window_hours <= 0):
+        if "window_hours" in corpus:
+            problems.append("'window_hours' should be a positive integer")
+
+    limits = corpus.get("limits")
+    if isinstance(limits, dict):
+        if set(limits) != {"source_cap", "category_cap"}:
+            problems.append("limits should contain source_cap and category_cap only")
+        for field in ("source_cap", "category_cap"):
+            value = limits.get(field)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                problems.append(f"limits.{field} should be a positive integer")
 
     categories = corpus.get("categories")
     if isinstance(categories, dict):
@@ -182,7 +229,7 @@ def validate_corpus(corpus: Any) -> list[str]:
                 "categories contains invalid name(s): "
                 + ", ".join(sorted(repr(name) for name in invalid)))
         for name, items in categories.items():
-            problems += _validate_items(name, items)
+            problems += _validate_items(name, items, cutoff, generated_at)
 
     processing = corpus.get("processing")
     if isinstance(processing, dict) and isinstance(categories, dict):
@@ -190,8 +237,11 @@ def validate_corpus(corpus: Any) -> list[str]:
 
     errors = corpus.get("errors")
     if isinstance(errors, list):
-        problems += [f"errors[{i}] is not a string" for i, e in enumerate(errors)
-                     if not isinstance(e, str)]
+        if version >= 4:
+            problems += _validate_errors(errors)
+        else:
+            problems += [f"errors[{i}] is not a string" for i, e in enumerate(errors)
+                         if not isinstance(e, str)]
 
     if "fetch_duration_ms" in corpus and (
             not isinstance(corpus["fetch_duration_ms"], int)
@@ -200,12 +250,17 @@ def validate_corpus(corpus: Any) -> list[str]:
 
     sources = corpus.get("sources")
     if sources is not None:
-        problems += _validate_sources(sources)
+        problems += (_validate_sources(sources) if version >= 4
+                     else _validate_legacy_sources(sources))
+    if (version >= 4 and isinstance(sources, list) and isinstance(errors, list)
+            and isinstance(categories, dict)):
+        problems += _validate_health_consistency(sources, errors, set(categories))
 
     return problems
 
 
-def _validate_items(category: str, items: Any) -> list[str]:
+def _validate_items(category: str, items: Any, cutoff: datetime | None,
+                    generated_at: datetime | None) -> list[str]:
     problems: list[str] = []
     if not isinstance(items, list):
         return [f"categories[{category!r}] is not a list"]
@@ -224,11 +279,92 @@ def _validate_items(category: str, items: Any) -> list[str]:
         if "published" in item and not _timestamp(item["published"]):
             problems.append(
                 f"{where}.published is not an ISO 8601 timestamp with a UTC offset")
+        published = _parse_timestamp(item.get("published"))
+        if published is not None and cutoff is not None and published < cutoff:
+            problems.append(f"{where}.published is earlier than cutoff")
+        if published is not None and generated_at is not None and published > generated_at:
+            problems.append(f"{where}.published is later than generated_at")
+        for field in ("title", "source"):
+            if field in item and (not isinstance(item[field], str) or not item[field].strip()):
+                problems.append(f"{where}.{field} should be a non-empty string")
+        if "url" in item and not _http_url(item["url"]):
+            problems.append(f"{where}.url should be an absolute HTTP(S) URL")
+        if "discussion" in item and not _http_url(item["discussion"]):
+            problems.append(f"{where}.discussion should be an absolute HTTP(S) URL")
+        for field in ("summary", "query"):
+            if field in item and not isinstance(item[field], str):
+                problems.append(f"{where}.{field} should be a string")
+        for field in ("points", "comments"):
+            value = item.get(field)
+            if field in item and (isinstance(value, bool) or not isinstance(value, int)
+                                  or value < 0):
+                problems.append(f"{where}.{field} should be a non-negative integer")
     return problems
 
 
 def _validate_sources(sources: Any) -> list[str]:
     """Validate optional per-source fetch observability records."""
+    if not isinstance(sources, list):
+        return ["'sources' should be a list"]
+    required = {
+        "source_type": str,
+        "source_id": str,
+        "category": str,
+        "status": str,
+        "requested": bool,
+        "http_success": bool,
+        "parsed_entries": int,
+        "dated_entries": int,
+        "retained_entries": int,
+        "duration_ms": int,
+    }
+    allowed = set(required) | {"error_type", "message"}
+    problems: list[str] = []
+    for index, status in enumerate(sources):
+        where = f"sources[{index}]"
+        if not isinstance(status, dict):
+            problems.append(f"{where} is not an object")
+            continue
+        missing = set(required) - set(status)
+        unknown = set(status) - allowed
+        if missing:
+            problems.append(f"{where} is missing {sorted(missing)}")
+        if unknown:
+            problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
+        for field, expected in required.items():
+            if field in status and not isinstance(status[field], expected):
+                problems.append(f"{where}.{field} has the wrong type")
+        if status.get("source_type") not in {"rss", "hacker_news", "reddit"}:
+            problems.append(f"{where}.source_type is not recognized")
+        if not isinstance(status.get("source_id"), str) or not status.get("source_id", "").strip():
+            problems.append(f"{where}.source_id should be a non-empty string")
+        if status.get("status") not in {"ok", "empty", "error"}:
+            problems.append(f"{where}.status should be 'ok', 'empty', or 'error'")
+        for field in ("parsed_entries", "dated_entries", "retained_entries", "duration_ms"):
+            value = status.get(field)
+            if isinstance(value, bool) or (isinstance(value, int) and value < 0):
+                problems.append(f"{where}.{field} should be non-negative")
+        parsed = status.get("parsed_entries")
+        dated = status.get("dated_entries")
+        retained = status.get("retained_entries")
+        if (isinstance(parsed, int) and not isinstance(parsed, bool)
+                and isinstance(dated, int) and not isinstance(dated, bool)
+                and isinstance(retained, int) and not isinstance(retained, bool)):
+            if not 0 <= retained <= dated <= parsed:
+                problems.append(f"{where} entry counts should satisfy retained <= dated <= parsed")
+        has_error = "error_type" in status or "message" in status
+        if status.get("status") in {"error", "empty"}:
+            if not isinstance(status.get("error_type"), str) or not status.get("error_type", "").strip():
+                problems.append(f"{where}.error_type should describe the failure")
+            if not isinstance(status.get("message"), str) or not status.get("message", "").strip():
+                problems.append(f"{where}.message should describe the failure")
+        elif has_error:
+            problems.append(f"{where} error fields are only valid for non-ok sources")
+    return problems
+
+
+def _validate_legacy_sources(sources: Any) -> list[str]:
+    """Validate v3 observability records so frozen historical runs stay readable."""
     if not isinstance(sources, list):
         return ["'sources' should be a list"]
     required = {
@@ -246,26 +382,73 @@ def _validate_sources(sources: Any) -> list[str]:
         if not isinstance(status, dict):
             problems.append(f"{where} is not an object")
             continue
-        missing = set(required) - set(status)
-        unknown = set(status) - allowed
-        if missing:
+        if missing := set(required) - set(status):
             problems.append(f"{where} is missing {sorted(missing)}")
-        if unknown:
+        if unknown := set(status) - allowed:
             problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
         for field, expected in required.items():
             if field in status and not isinstance(status[field], expected):
                 problems.append(f"{where}.{field} has the wrong type")
         if status.get("status") not in {"ok", "error"}:
             problems.append(f"{where}.status should be 'ok' or 'error'")
-        for field in ("item_count", "undated_dropped", "duration_ms"):
-            value = status.get(field)
-            if isinstance(value, int) and value < 0:
-                problems.append(f"{where}.{field} should be non-negative")
-        error = status.get("error")
-        if status.get("status") == "error" and not isinstance(error, str):
-            problems.append(f"{where}.error should describe the failure")
-        elif status.get("status") == "ok" and "error" in status:
-            problems.append(f"{where}.error is only valid for failed sources")
+    return problems
+
+
+def _validate_errors(errors: list[Any]) -> list[str]:
+    problems: list[str] = []
+    required = {"source_type", "source_id", "status", "error_type", "message", "duration_ms"}
+    for index, error in enumerate(errors):
+        where = f"errors[{index}]"
+        if not isinstance(error, dict):
+            problems.append(f"{where} is not an object")
+            continue
+        if set(error) != required:
+            problems.append(f"{where} should contain exactly {sorted(required)}")
+            continue
+        for field in required - {"duration_ms"}:
+            if not isinstance(error[field], str) or not error[field].strip():
+                problems.append(f"{where}.{field} should be a non-empty string")
+        if error.get("status") not in {"empty", "error"}:
+            problems.append(f"{where}.status should be 'empty' or 'error'")
+        duration = error.get("duration_ms")
+        if isinstance(duration, bool) or not isinstance(duration, int) or duration < 0:
+            problems.append(f"{where}.duration_ms should be a non-negative integer")
+    return problems
+
+
+def _validate_health_consistency(sources: list[Any], errors: list[Any],
+                                 categories: set[str]) -> list[str]:
+    """Cross-check the full outcomes against their compact error projections."""
+    problems: list[str] = []
+    valid_sources = [source for source in sources if isinstance(source, dict)]
+    identities = [(source.get("source_type"), source.get("source_id"))
+                  for source in valid_sources]
+    if len(identities) != len(set(identities)):
+        problems.append("sources contains a duplicate source_type/source_id identity")
+    for index, source in enumerate(valid_sources):
+        if source.get("category") not in categories:
+            problems.append(f"sources[{index}].category is not present in categories")
+        parsed = source.get("parsed_entries")
+        dated = source.get("dated_entries")
+        status = source.get("status")
+        if status == "ok" and (not isinstance(parsed, int) or not isinstance(dated, int)
+                               or parsed == 0 or dated == 0):
+            problems.append(f"sources[{index}] cannot be ok with zero parsed or dated entries")
+        if status == "empty" and source.get("http_success") is not True:
+            problems.append(f"sources[{index}] empty status requires HTTP success")
+
+    expected = {
+        (source.get("source_type"), source.get("source_id"), source.get("status"),
+         source.get("error_type"), source.get("message"), source.get("duration_ms"))
+        for source in valid_sources if source.get("status") in {"empty", "error"}
+    }
+    actual = {
+        (error.get("source_type"), error.get("source_id"), error.get("status"),
+         error.get("error_type"), error.get("message"), error.get("duration_ms"))
+        for error in errors if isinstance(error, dict)
+    }
+    if actual != expected:
+        problems.append("errors must exactly project every empty or failed source")
     return problems
 
 
@@ -284,6 +467,9 @@ def _validate_processing(processing: dict[str, Any],
             continue
         if any(not isinstance(stats[f], int) for f in PROCESSING_FIELDS):
             problems.append(f"processing[{name!r}] has a non-integer counter")
+            continue
+        if any(isinstance(stats[f], bool) or stats[f] < 0 for f in PROCESSING_FIELDS):
+            problems.append(f"processing[{name!r}] has a negative or boolean counter")
             continue
         accounted = (stats["kept"] + stats["relevance_dropped"]
                      + stats["duplicates_dropped"] + stats["source_cap_dropped"]

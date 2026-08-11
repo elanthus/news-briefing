@@ -104,6 +104,10 @@ def load_corpus(path: str) -> dict[str, Any]:
             f"corpus schema v{corpus_schema.corpus_version(corpus)} is newer than "
             f"v{corpus_schema.SCHEMA_VERSION}, which is the newest this checker "
             f"understands — upgrade eval_briefing.py")
+    problems = corpus_schema.validate_corpus(corpus)
+    if problems:
+        detail = "; ".join(problems)
+        raise ValueError(f"corpus violates schema v{corpus_schema.corpus_version(corpus)}: {detail}")
     return corpus
 
 
@@ -510,6 +514,9 @@ def check_corpus_health_reported(sections: dict[str, Section],
         return [Finding(ERROR, "corpus_health_missing",
                         f"corpus recorded {len(errors)} fetch error(s) but the "
                         f"briefing has no {CORPUS_HEALTH!r} section")]
+    if corpus_schema.corpus_version(corpus) >= 4:
+        return _check_structured_corpus_health(sections[CORPUS_HEALTH], errors)
+
     findings: list[Finding] = []
     health_text = _normalize_source_mention(
         "\n".join(sections[CORPUS_HEALTH]["lines"]))
@@ -521,6 +528,59 @@ def check_corpus_health_reported(sections: dict[str, Section],
             findings.append(Finding(
                 ERROR, "failed_source_unnamed",
                 f"failed source {source!r} is not named in the briefing"))
+    return findings
+
+
+def _check_structured_corpus_health(section: Section,
+                                    errors: list[dict[str, Any]]) -> list[Finding]:
+    """Require exact failed-source identities in a JSON health manifest."""
+    text = "\n".join(section["lines"])
+    blocks = re.findall(r"```json\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    if len(blocks) != 1:
+        return [Finding(
+            ERROR, "corpus_health_not_machine_readable",
+            "Corpus health must contain exactly one fenced JSON health manifest")]
+    try:
+        manifest = json.loads(blocks[0])
+    except json.JSONDecodeError as exc:
+        return [Finding(
+            ERROR, "corpus_health_not_machine_readable",
+            f"Corpus health JSON is invalid at line {exc.lineno}, column {exc.colno}")]
+    if not isinstance(manifest, dict) or set(manifest) != {"failed_sources"}:
+        return [Finding(
+            ERROR, "corpus_health_not_machine_readable",
+            "Corpus health JSON must be an object containing only failed_sources")]
+    reported = manifest["failed_sources"]
+    if not isinstance(reported, list):
+        return [Finding(ERROR, "corpus_health_not_machine_readable",
+                        "failed_sources must be a JSON array")]
+
+    findings: list[Finding] = []
+    expected = {(error["source_type"], error["source_id"], error["status"])
+                for error in errors}
+    actual: set[tuple[str, str, str]] = set()
+    for index, record in enumerate(reported):
+        if (not isinstance(record, dict)
+                or set(record) != {"source_type", "source_id", "status"}
+                or any(not isinstance(record.get(field), str)
+                       for field in ("source_type", "source_id", "status"))):
+            findings.append(Finding(
+                ERROR, "corpus_health_not_machine_readable",
+                f"failed_sources[{index}] must contain string source_type, source_id, and status only"))
+            continue
+        actual.add((record["source_type"], record["source_id"], record["status"]))
+
+    for source_type, source_id, status in sorted(expected - actual):
+        findings.append(Finding(
+            ERROR, "failed_source_unnamed",
+            f"failed source {source_type}:{source_id!s} ({status}) is absent from the health manifest"))
+    for source_type, source_id, status in sorted(actual - expected):
+        findings.append(Finding(
+            ERROR, "unexpected_failed_source",
+            f"health manifest reports unrecorded failure {source_type}:{source_id!s} ({status})"))
+    if len(actual) != len(reported):
+        findings.append(Finding(ERROR, "duplicate_failed_source",
+                                "health manifest contains a duplicate failed-source record"))
     return findings
 
 
