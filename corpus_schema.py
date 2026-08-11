@@ -442,11 +442,14 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
          source.get("error_type"), source.get("message"), source.get("duration_ms"))
         for source in valid_sources if source.get("status") in {"empty", "error"}
     }
-    actual = {
+    actual_records = [
         (error.get("source_type"), error.get("source_id"), error.get("status"),
          error.get("error_type"), error.get("message"), error.get("duration_ms"))
         for error in errors if isinstance(error, dict)
-    }
+    ]
+    actual = set(actual_records)
+    if len(actual_records) != len(actual):
+        problems.append("errors contains a duplicate failure record")
     if actual != expected:
         problems.append("errors must exactly project every empty or failed source")
     return problems

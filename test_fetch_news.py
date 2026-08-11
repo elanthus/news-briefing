@@ -861,6 +861,28 @@ class SourcesConfigurationTest(unittest.TestCase):
             self.assertEqual(loaded.rss_feeds["news"][0][0], "News: AI")
             self.assertEqual(loaded.hn_queries, ["agent: coding"])
 
+    def test_rejects_duplicate_source_ids_before_fetching(self):
+        cases = (
+            ("rss", {"rss_feeds": {"news": [["Same", "https://ex.com/a"],
+                                                 ["Same", "https://ex.com/b"]]}}),
+            ("hacker news", {"hn_queries": ["agent", "agent"]}),
+            ("reddit", {"subreddits": ["python", "python"]}),
+        )
+        for label, override in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                value = {
+                    "categories": ["news"],
+                    "rss_feeds": {"news": [["News", "https://example.com/feed.xml"]]},
+                    "hn_category": "news",
+                    "hn_queries": ["agent"],
+                    "reddit_category": "news",
+                    "subreddits": [],
+                }
+                value.update(override)
+                path = self.write_sources(directory, value)
+                with self.assertRaisesRegex(ValueError, "duplicate source ID"):
+                    load_sources(path)
+
     def test_rejects_missing_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_sources(directory, {"rss_feeds": {}, "hn_queries": []})

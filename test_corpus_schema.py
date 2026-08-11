@@ -124,6 +124,21 @@ class TopLevelTest(unittest.TestCase):
     def test_non_string_error_entry_is_reported(self):
         self.assertTrue(only(validate_corpus(corpus(errors=[404])), "errors[0]"))
 
+    def test_duplicate_structured_error_is_reported(self):
+        error = {
+            "source_type": "rss", "source_id": "Broken", "status": "error",
+            "error_type": "HTTPError", "message": "503", "duration_ms": 4,
+        }
+        source = {
+            **error, "category": "us_politics", "requested": True,
+            "http_success": False, "parsed_entries": 0, "dated_entries": 0,
+            "retained_entries": 0,
+        }
+        del source["duration_ms"]
+        source["duration_ms"] = 4
+        c = corpus(sources=[source], errors=[error, dict(error)])
+        self.assertTrue(only(validate_corpus(c), "duplicate failure record"))
+
     def test_non_object_corpus_is_reported(self):
         self.assertEqual(validate_corpus([1, 2]), ["corpus is not a JSON object"])
 

@@ -85,6 +85,8 @@ def _string_list(value: Any, field: str) -> list[str]:
     for index, item in enumerate(value):
         if problem := _source_id_problem(item):
             raise ValueError(f"{field}[{index}] {problem}")
+    if len(value) != len(set(value)):
+        raise ValueError(f"{field} contains a duplicate source ID")
     return value
 
 
@@ -134,6 +136,7 @@ def load_sources(path: str | Path) -> Sources:
             f"rss_feeds contains undeclared categories: {', '.join(sorted(invalid_categories))}")
 
     rss_feeds: dict[str, list[tuple[str, str]]] = {}
+    rss_source_ids: set[str] = set()
     for category, feeds in rss_raw.items():
         if not isinstance(category, str) or not isinstance(feeds, list):
             raise ValueError("rss_feeds must map category names to lists")
@@ -148,6 +151,9 @@ def load_sources(path: str | Path) -> Sources:
             if problem := _source_id_problem(name):
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] source name {problem}")
+            if name in rss_source_ids:
+                raise ValueError(f"rss_feeds contains duplicate source ID {name!r}")
+            rss_source_ids.add(name)
             parsed_feeds.append((name, url))
         rss_feeds[category] = parsed_feeds
 
