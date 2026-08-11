@@ -129,14 +129,43 @@ def corpus_links(corpus: dict[str, Any]) -> dict[str, str]:
             for _, url in _corpus_urls(corpus)}
 
 
-def corpus_link_identities(corpus: dict[str, Any]) -> dict[str, str]:
-    """Host and path -> the URL as the corpus spells it.
+def corpus_link_routes(corpus: dict[str, Any]) -> dict[str, list[tuple[frozenset[tuple[str, str]], str]]]:
+    """Location -> every (query parameters, URL) the corpus holds under it.
 
-    The fallback lookup behind `altered_link`: it answers "is there a real
-    corpus article here?" for a citation that failed canonical matching.
+    A list rather than a single entry per location, because query-routed
+    publishers put many distinct articles under one path. Keying those by
+    location alone would keep whichever was seen last and silently discard
+    the rest.
     """
-    return {corpus_schema.url_identity(url): url
-            for _, url in _corpus_urls(corpus) if corpus_schema.url_identity(url)}
+    routes: dict[str, list[tuple[frozenset[tuple[str, str]], str]]] = {}
+    for _, url in _corpus_urls(corpus):
+        location, params = corpus_schema.url_route(url)
+        if location:
+            routes.setdefault(location, []).append(
+                (params, corpus_schema.canonicalize_url(url)))
+    return routes
+
+
+def altered_from(url: str, routes: dict[str, list[tuple[frozenset[tuple[str, str]], str]]]) -> str | None:
+    """The corpus URL a citation was tidied from, if exactly one can be named.
+
+    A citation counts as tidied only when a corpus URL at the same location
+    carries every parameter the citation carries, plus at least one more: the
+    model dropped parameters and changed nothing else. That is the whole of
+    what a mechanical rewrite can be.
+
+    Anything else is a different request. `item?id=999` does not drop a
+    parameter from `item?id=123`, it supplies a different value, so it is a
+    different article and no rewrite is claimed. An added parameter is not a
+    tidy-up either. Where two corpus URLs would both fit, none is named:
+    guessing between them would print a URL the reader never cited.
+    """
+    location, params = corpus_schema.url_route(url)
+    if not location:
+        return None
+    candidates = [candidate for corpus_params, candidate in routes.get(location, [])
+                  if params < corpus_params]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def corpus_link_categories(corpus: dict[str, Any]) -> dict[str, set[str]]:
@@ -279,14 +308,13 @@ def check_links_grounded(sections: dict[str, Section],
     """
     findings: list[Finding] = []
     allowed = corpus_links(corpus)
-    identities = corpus_link_identities(corpus)
+    routes = corpus_link_routes(corpus)
     for name, bucket in sections.items():
         for url in bucket["links"]:
             if url in allowed:
                 continue
             spelled = bucket["spelled"].get(url, url)
-            identity = corpus_schema.url_identity(url)
-            corpus_url = identities.get(identity) if identity else None
+            corpus_url = altered_from(url, routes)
             if corpus_url:
                 findings.append(Finding(
                     ERROR, "altered_link",

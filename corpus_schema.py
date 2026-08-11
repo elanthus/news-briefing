@@ -129,18 +129,21 @@ def canonicalize_url(url: str | None) -> str:
     ))
 
 
-def url_identity(url: str | None) -> str:
-    """Host and path alone — what a URL addresses, ignoring how it was reached.
+def url_route(url: str | None) -> tuple[str, frozenset[tuple[str, str]]]:
+    """Split a canonical URL into its location and its query parameters.
 
-    Coarser than `canonicalize_url` on purpose, and never used to accept a
-    citation. It only separates two failures that look identical under string
-    comparison: an article the model invented, and a real corpus article whose
-    query string the model rewrote.
+    The location is scheme, host and path — everything that is the same for
+    two URLs differing only in query. It deliberately is *not* an article
+    identity: for query-routed publishers, `item?id=123` and `item?id=456`
+    share a location and are different articles. Callers must compare the
+    parameters too.
     """
     parts = urllib.parse.urlsplit(canonicalize_url(url))
     if not parts.netloc:
-        return ""
-    return f"{parts.netloc}{parts.path}"
+        return "", frozenset()
+    location = f"{parts.scheme}://{parts.netloc}{parts.path}"
+    return location, frozenset(
+        urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
 
 
 def validate_corpus(corpus: Any) -> list[str]:

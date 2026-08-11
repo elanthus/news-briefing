@@ -388,7 +388,9 @@ python3 eval_briefing.py --corpus corpus.json --briefing briefing.md --config br
 
 If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A citation the corpus does not contain is never acceptable. Use `--strict` to fail on warnings too.
 
-Citations are compared in canonical form, so a trailing slash, host casing, parameter order, or `utm_` noise does not turn a real citation into a false alarm. A link that no longer matches its corpus URL but still points at a corpus article is reported as `altered_link` with the corpus spelling, separately from `ungrounded_link`, which means no corpus article is behind it at all.
+Citations are compared in canonical form, so a trailing slash, host casing, parameter order, or `utm_` noise does not turn a real citation into a false alarm.
+
+A citation that still fails is reported as `altered_link` only when a single corpus URL at the same location carries every parameter the citation carries plus at least one more — the model dropped parameters and changed nothing else. The finding names the corpus spelling so the fix is a paste. Everything else is `ungrounded_link`: no corpus article is behind it. The rule is deliberately narrow because host and path do not identify an article for query-routed publishers — `item?id=999` is a different Hacker News story from `item?id=123`, not a rewrite of it, and reporting it as one would send you to an article you never cited.
 
 ## How it works
 

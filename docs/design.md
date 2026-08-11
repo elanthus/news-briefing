@@ -24,7 +24,9 @@ The fetcher validates against the contract before writing, so drift fails where 
 
 Category names and their order come from trusted source configuration rather than application code, which is why `SCHEMA_VERSION` is 3: older readers expect the built-in v2 names and should refuse a new corpus instead of misdiagnosing a valid custom category as drift.
 
-**URL identity lives here too.** `canonicalize_url` is part of the contract rather than the fetcher because two modules must agree on it: the fetcher deduplicates with it, and the checker decides whether a citation is in the corpus with it. When only the fetcher knew the rule, the checker compared raw strings and reported a citation differing by a trailing slash as one the corpus did not contain — the same finding it uses for a fabricated link.
+**URL comparison lives here too.** `canonicalize_url` is part of the contract rather than the fetcher because two modules must agree on it: the fetcher deduplicates with it, and the checker decides whether a citation is in the corpus with it. When only the fetcher knew the rule, the checker compared raw strings and reported a citation differing by a trailing slash as one the corpus did not contain — the same finding it uses for a fabricated link.
+
+`url_route` splits a canonical URL into a location (scheme, host, path) and its query parameters, and the name is a warning: a location is not an article identity. Query-routed publishers put many articles under one path, so `news.ycombinator.com/item` addresses every Hacker News story there is. The checker only calls a failed citation a rewrite when a corpus URL at the same location carries a strict superset of its parameters, and only when exactly one does. An earlier version compared location alone; it reported a citation of HN story 999 as a tidied version of story 123 and told the reader to paste 123 back, which is the opposite of what the distinction exists for.
 
 ## Ranking and checking
 

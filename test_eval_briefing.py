@@ -210,6 +210,71 @@ class CitationIdentityTest(unittest.TestCase):
             "https://www.bbc.co.uk/news/articles/abc") if f.check == "altered_link")
         self.assertIn("at_medium=RSS", message)
 
+    QUERY_ROUTED = {
+        "generated_at": "2026-08-08T00:00:00+00:00",
+        "errors": [],
+        "categories": {
+            "us_politics": _items("p", 1),
+            "us_news": _items("n", 1),
+            "world": _items("w", 1),
+            "ai_tech": _items("a", 1),
+            "dev_community": [
+                {"title": "HN STORY 123",
+                 "url": "https://news.ycombinator.com/item?id=123",
+                 "summary": "Reported summary text here for story 123."},
+                {"title": "HN STORY 456",
+                 "url": "https://news.ycombinator.com/item?id=456",
+                 "summary": "Reported summary text here for story 456."},
+            ],
+        },
+    }
+
+    def _cite_tools(self, *urls):
+        lines = ["## AI Dev Tools", "", "**Topic** — summary text here."]
+        lines += [f"🔗 {url}" for url in urls]
+        return "\n".join(lines)
+
+    def test_different_query_id_on_the_same_path_is_not_an_alteration(self):
+        """Host and path alone do not identify a query-routed article.
+
+        `item?id=999` is a different Hacker News story from `item?id=123`,
+        not a rewrite of it. Calling it one would tell the reader to paste
+        back a URL for an article they never cited.
+        """
+        findings = eval_briefing.evaluate(
+            self.QUERY_ROUTED,
+            self._cite_tools("https://news.ycombinator.com/item?id=999"),
+            FIXTURE_CONFIG)
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_corpus_urls_sharing_a_path_stay_individually_citable(self):
+        """Two stories under one path must not collapse into one entry."""
+        for url in ("https://news.ycombinator.com/item?id=123",
+                    "https://news.ycombinator.com/item?id=456"):
+            with self.subTest(url=url):
+                findings = eval_briefing.evaluate(
+                    self.QUERY_ROUTED, self._cite_tools(url), FIXTURE_CONFIG)
+                self.assertNotIn("ungrounded_link", checks(findings))
+                self.assertNotIn("altered_link", checks(findings))
+
+    def test_ambiguous_alteration_is_not_claimed(self):
+        """With two candidates under the path, no single rewrite can be named."""
+        findings = eval_briefing.evaluate(
+            self.QUERY_ROUTED,
+            self._cite_tools("https://news.ycombinator.com/item"),
+            FIXTURE_CONFIG)
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
+    def test_added_parameter_is_not_treated_as_a_tidy_up(self):
+        """Only dropped parameters are mechanical; an added one changes the ask."""
+        findings = evaluate(
+            self.TRACKED,
+            self._cite_tools("https://ex.com/n1?id=7"))
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+        self.assertNotIn("altered_link", checks(findings))
+
     def test_invented_path_on_a_known_host_is_still_ungrounded(self):
         """Host similarity must not launder a fabricated article."""
         findings = self._findings("https://www.bbc.co.uk/news/articles/invented")
