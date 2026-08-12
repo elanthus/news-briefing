@@ -5,5 +5,5 @@ base_ref = "main"
 max_bytes = 250000
 
 [commands]
-test = "python3 -m unittest --verbose"
+test = "uv run --python 3.11 --no-project python -m unittest --verbose"
 lint = "uvx ruff@0.14.2 check . && uvx mypy@1.14.1"
