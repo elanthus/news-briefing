@@ -212,19 +212,14 @@ ERROR [ungrounded_link] AI Dev Tools: cited link is not in the corpus — https:
 
 The other three channels are worth stating plainly rather than leaving implied. A model talked into a subtly wrong summary of a genuine corpus item still passes; a model talked into silently dropping a rival's item still passes; citing the injected post itself is legitimate coverage, not a failure, because the item really was fetched. And channel 4 isn't checked at all: `briefing-prompt.md` states a no-write-capable-tools precondition, but a prompt cannot attest to its own runtime's tool surface, so this repo assumes that property of the deployment rather than verifying it. What the citation check removes is narrower than all of that: the ability to cite a source that was never fetched.
 
-The committed fixture is a deterministic checker regression test, not evidence about model behavior. [`run_ai_eval.py`](run_ai_eval.py) supplies that missing layer: it invokes a real model command over one clean utility case and indirect-injection patterns across channels 1–3, measures marker-based attack success, suppression, and checker utility before and after one correction pass, and writes the complete audit artifacts. The suite is intentionally extensible so a defense is evaluated across attacks and utility rather than demonstrated with one payload, following the evaluation posture in the peer-reviewed [MELON paper (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html).
+The committed fixture is a deterministic checker regression test, not evidence about model behavior. The isolated [`evaluator/`](evaluator/) supplies that missing layer with 54 human-labeled checker/feed cases and 18 model cases. It runs Codex CLI, Claude Code CLI, OpenRouter, and NVIDIA; compares exact model and prompt versions; preserves first and corrected outputs; and reports contract, injection, grounding, false-positive, latency, cost, trial-count, and confidence-interval metrics. Its dependencies and fixtures are development-only and are never needed to run the briefing.
 
 ```bash
-python3 run_ai_eval.py \
-  --model-command 'your-model-cli --model pinned-model-version' \
-  --provider your-provider \
-  --model model-name \
-  --model-version exact-version \
-  --generation-settings '{"temperature":0}' \
-  --output-dir eval-runs/2026-08-10-model-name
+python3 -m evaluator checker
+python3 -m evaluator run --all-providers --trials 3
 ```
 
-The command must read the full request from standard input and write only the briefing to standard output. Each run directory preserves the transformed corpus, raw first output, corrected output, findings before and after correction, source-health records, timestamps, Git commit/dirty state, exact model metadata and generation settings, and SHA-256 hashes of the corpus, prompt, configuration, suite, request, and checker code.
+See [`evaluator/README.md`](evaluator/README.md) for provider configuration, dated model provenance, prompt-version comparison, metric denominators, and cost caveats.
 
 ## What is actually guaranteed
 
@@ -419,7 +414,7 @@ A citation that still fails is reported as `altered_link` only when a single cor
 1. **Fetch (code-enforced, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, the Hacker News Algolia API, and Reddit RSS into a single JSON corpus. Everything older than a hard cutoff (default 24h) is dropped in code. Every item carries a parsed, timezone-normalized publish timestamp. Live retrieval varies with feed contents, timing, rate limits, and network failures; those failures are recorded in the corpus.
 2. **Rank and summarize (LLM).** [`briefing-prompt.md`](briefing-prompt.md) supplies the durable security, grounding, and output rules; trusted [`briefing-config.json`](briefing-config.json) supplies the ordered sections, corpus-category eligibility, story targets, and exclusion targets.
 3. **Check (deterministic, no LLM).** [`eval_briefing.py`](eval_briefing.py) validates the corpus contract before it reads any categories, items, timestamps, errors, or source health, then validates the briefing against that corpus and the same configuration.
-4. **Evaluate models (optional).** [`run_ai_eval.py`](run_ai_eval.py) runs a supplied model command against clean and attacked cases and records reproducible utility, attack-success, correction, and provenance artifacts.
+4. **Evaluate models (optional).** [`evaluator/`](evaluator/) runs the fixed clean, failure-mode, and attack suites against supported providers and records reproducible utility, attack-success, correction, grounding, latency, cost, confidence-interval, and provenance artifacts.
 
 [`docs/design.md`](docs/design.md) covers the design decisions behind each stage: slot allocation, the corpus contract, defensive XML parsing, drop-counter reconciliation, and how to regression-test a prompt change against the frozen fixtures.
 
@@ -429,6 +424,7 @@ Stdlib `unittest`, no install step, no network:
 
 ```bash
 python3 -m unittest -v
+python3 -m unittest discover -s evaluator/tests -v
 ```
 
 Lint and type-check with pinned, isolated tools. `uvx` caches them outside the repository and creates no project environment or lockfile:

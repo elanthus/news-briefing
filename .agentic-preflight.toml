@@ -1,0 +1,6 @@
+[general]
+base_ref = "main"
+
+[commands]
+test = "python3 -m unittest --verbose"
+lint = "uvx ruff@0.14.2 check . && uvx mypy@1.14.1"
