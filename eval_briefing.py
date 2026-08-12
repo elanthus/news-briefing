@@ -30,6 +30,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -76,6 +77,15 @@ CLAIM_EVIDENCE_RATIO = 2.0
 # anchoring to the start. Anchoring here silently left the exclusion log
 # unvalidated, which is exactly where an invented link would hide.
 _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
+# Security validation is deliberately independent of the presentation parser.
+# The model controls the complete Markdown document, so every web destination
+# is checked whether it is bare, Markdown, an autolink, or in HTML. Scan raw
+# text first: unescaping the whole document alone would corrupt legitimate bare
+# query parameters such as ``&copy=1``. A second, masked/unescaped pass catches
+# entity-encoded schemes without reinterpreting URLs already found in raw text.
+_HTTP_URL = re.compile(r"\bhttps?://[^\s<>\"']+", re.IGNORECASE)
+_PROTOCOL_RELATIVE_URL = re.compile(r"(?<![:/])//[^\s<>\"']+")
+_WWW_URL = re.compile(r"(?<![\w@/.-])www\.[^\s<>\"']+", re.IGNORECASE)
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
@@ -86,6 +96,51 @@ def _clean_link_url(value: str) -> str:
     while url.endswith(")") and url.count(")") > url.count("("):
         url = url[:-1].rstrip(".,;")
     return url
+
+
+def _url_spellings(text: str) -> list[tuple[int, int, str, str]]:
+    """Return non-overlapping web destinations and their absolute forms."""
+    candidates: list[tuple[int, int, str, str]] = []
+    occupied: list[tuple[int, int]] = []
+    patterns = (
+        (_HTTP_URL, lambda value: value),
+        (_PROTOCOL_RELATIVE_URL, lambda value: f"https:{value}"),
+        (_WWW_URL, lambda value: f"https://{value}"),
+    )
+    for pattern, make_absolute in patterns:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if any(start < prior_end and prior_start < end
+                   for prior_start, prior_end in occupied):
+                continue
+            spelled = _clean_link_url(match.group())
+            candidates.append((start, end, spelled, make_absolute(spelled)))
+            occupied.append((start, end))
+    return candidates
+
+
+def output_urls(text: str) -> list[tuple[str, str]]:
+    """Return every distinct clickable web destination in model output.
+
+    Each pair is ``(canonical URL, output spelling)``. HTML character
+    references are decoded in a second pass because browsers decode them in
+    attributes. Raw destinations are masked first so semicolon-less legacy
+    entities inside a legitimate bare URL cannot change its identity.
+    """
+    found: dict[str, str] = {}
+    raw = _url_spellings(text)
+    for _start, _end, spelled, absolute in raw:
+        canonical = corpus_schema.canonicalize_url(absolute)
+        found.setdefault(canonical, spelled)
+
+    masked = list(text)
+    for start, end, _spelled, _absolute in raw:
+        masked[start:end] = " " * (end - start)
+    decoded = html.unescape("".join(masked))
+    for _start, _end, spelled, absolute in _url_spellings(decoded):
+        canonical = corpus_schema.canonicalize_url(absolute)
+        found.setdefault(canonical, spelled)
+    return list(found.items())
 
 
 def load_corpus(path: str) -> dict[str, Any]:
@@ -310,11 +365,11 @@ def check_sections_present(sections: dict[str, Section],
     return findings
 
 
-def check_links_grounded(sections: dict[str, Section],
+def check_links_grounded(sections: dict[str, Section], text: str,
                          corpus: dict[str, Any]) -> list[Finding]:
-    """Every cited link must exist in the corpus. This is the core invariant.
+    """Every web destination in the complete output must exist in the corpus.
 
-    Both failures are ERRORs — the briefing must cite the corpus as written —
+    Both failures are ERRORs — every output destination must come from the corpus —
     but they are named apart because the reader's next action differs. An
     `altered_link` is a real article with a rewritten URL and the fix is to
     paste the corpus spelling back; an `ungrounded_link` has no corpus article
@@ -324,21 +379,25 @@ def check_links_grounded(sections: dict[str, Section],
     findings: list[Finding] = []
     allowed = corpus_links(corpus)
     routes = corpus_link_routes(corpus)
-    for name, bucket in sections.items():
-        for url in bucket["links"]:
-            if url in allowed:
-                continue
-            spelled = bucket["spelled"].get(url, url)
-            corpus_url = altered_from(url, routes)
-            if corpus_url:
-                findings.append(Finding(
-                    ERROR, "altered_link",
-                    f"{name}: cited link was altered from the corpus URL — cited "
-                    f"{spelled}, corpus has {corpus_url}"))
-            else:
-                findings.append(Finding(
-                    ERROR, "ungrounded_link",
-                    f"{name}: cited link is not in the corpus — {spelled}"))
+    marked_sections = {
+        url: name
+        for name, bucket in sections.items()
+        for url in bucket["links"]
+    }
+    for url, spelled in output_urls(text):
+        if url in allowed:
+            continue
+        context = marked_sections.get(url, "complete output")
+        corpus_url = altered_from(url, routes)
+        if corpus_url:
+            findings.append(Finding(
+                ERROR, "altered_link",
+                f"{context}: HTTP(S) URL was altered from the corpus URL — "
+                f"output has {spelled}, corpus has {corpus_url}"))
+        else:
+            findings.append(Finding(
+                ERROR, "ungrounded_link",
+                f"{context}: HTTP(S) URL is not in the corpus — {spelled}"))
     return findings
 
 
@@ -673,7 +732,7 @@ def evaluate(corpus: dict[str, Any], text: str,
     findings += [Finding(ERROR, "config_category_missing", problem)
                  for problem in category_problems]
     findings += check_sections_present(sections, config)
-    findings += check_links_grounded(sections, corpus)
+    findings += check_links_grounded(sections, text, corpus)
     findings += check_section_categories(sections, corpus, config)
     findings += check_every_entry_cites_source(sections)
     findings += check_no_double_listing(sections)

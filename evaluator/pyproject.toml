@@ -1,0 +1,31 @@
+[project]
+name = "news-briefing-evaluator"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = []
+
+# Everything installable here is development-only. The news briefing itself
+# remains stdlib-only and never installs this project or these tools.
+[dependency-groups]
+dev = [
+  "mypy==1.14.1",
+  "pytest==8.4.2",
+  "pytest-cov==6.2.1",
+  "ruff==0.14.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["."]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

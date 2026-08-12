@@ -1,0 +1,4 @@
+/.env
+/.env.local
+/results/*
+!/results/offline-baseline.md

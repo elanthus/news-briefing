@@ -6,7 +6,7 @@
       "group": null,
       "target_stories": 2,
       "corpus_categories": ["dev_community"],
-      "guidance": "Releases and updates to agentic coding tools, and notable MCP servers or integrations.",
+      "guidance": "Releases and updates to agentic coding tools and notable integrations.",
       "excluded_stories": 0
     }
   ]
