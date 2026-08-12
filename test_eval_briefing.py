@@ -117,7 +117,7 @@ class CleanBriefingTest(unittest.TestCase):
 
 
 class GroundingTest(unittest.TestCase):
-    """The core invariant: the briefing may not cite anything not in the corpus."""
+    """The core invariant: the output may not link anywhere outside the corpus."""
 
     def test_flags_link_absent_from_corpus(self):
         findings = evaluate(CORPUS, briefing(extra_link="https://ex.com/invented"))
@@ -143,6 +143,35 @@ class GroundingTest(unittest.TestCase):
         sections = parse_briefing(text)
         self.assertEqual(sections["US Politics"]["links"],
                          ["https://ex.com/wiki/Example_(topic)"])
+
+    def test_rejects_every_output_link_bypass_outside_citation_markers(self):
+        attacks = {
+            "Markdown link": "[click](https://attacker.example/markdown)",
+            "HTML link": '<a href="https://attacker.example/html">click</a>',
+            "single-quoted HTML link": "<a href='https://attacker.example/single'>click</a>",
+            "HTML entity link": '<a href="https&#58;//attacker.example/entity">click</a>',
+            "autolink": "<https://attacker.example/autolink>",
+            "bare URL": "visit HTTPS://attacker.example/bare",
+        }
+        for kind, attack in attacks.items():
+            with self.subTest(kind=kind):
+                # Put the payload before any recognized section: a scan coupled
+                # to section parsing would silently skip every one of these.
+                findings = evaluate(CORPUS, f"{attack}\n\n{briefing()}")
+                self.assertIn("ungrounded_link", checks(findings, ERROR))
+
+    def test_allows_grounded_urls_in_non_citation_syntax(self):
+        variants = (
+            "[source](https://ex.com/p1)",
+            '<a href="https://ex.com/p1">source</a>',
+            "<a href='https://ex.com/p1'>source</a>",
+            "<https://ex.com/p1>",
+            "Reader note: https://ex.com/p1.",
+        )
+        for variant in variants:
+            with self.subTest(variant=variant):
+                findings = evaluate(CORPUS, f"{variant}\n\n{briefing()}")
+                self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
     def test_flags_included_topic_without_a_link(self):
         text = briefing().replace("🔗 https://ex.com/p1", "")

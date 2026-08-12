@@ -24,12 +24,27 @@ import urllib.parse
 from datetime import datetime
 from typing import Any
 
-# 4 replaces string fetch errors with structured source identities and adds
-# complete per-request outcome counters. Older readers would silently miss an
-# empty-but-successful feed or truncate a Hacker News query ID, so they must
-# refuse this shape instead of guessing.
-SCHEMA_VERSION = 4
+# 5 adds enforced context budgets and their truncation/drop telemetry. Older
+# readers would silently omit those controls when presenting corpus health, so
+# they must refuse this shape instead of guessing.
+SCHEMA_VERSION = 5
 LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
+
+ITEM_TITLE_MAX_BYTES = 512
+ITEM_TITLE_MAX_TOKENS = 128
+ITEM_URL_MAX_BYTES = 2048
+ITEM_URL_MAX_TOKENS = 512
+ITEM_SUMMARY_MAX_CHARS = 300
+ITEM_SUMMARY_MAX_BYTES = 1200
+ITEM_SUMMARY_MAX_TOKENS = 300
+ITEM_SOURCE_MAX_BYTES = 256
+ITEM_SOURCE_MAX_TOKENS = 64
+ITEM_QUERY_MAX_BYTES = 256
+ITEM_QUERY_MAX_TOKENS = 64
+SOURCE_CONTEXT_MAX_BYTES = 96 * 1024
+SOURCE_CONTEXT_MAX_TOKENS = 24_000
+GLOBAL_CONTEXT_MAX_BYTES = 512 * 1024
+GLOBAL_CONTEXT_MAX_TOKENS = 128_000
 
 CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -55,6 +70,15 @@ PROCESSING_FIELDS = (
     "category_cap_dropped",
     "kept",
 )
+V5_PROCESSING_FIELDS = (
+    "field_budget_dropped",
+    "source_budget_dropped",
+    "global_budget_dropped",
+    "title_truncated",
+    "summary_truncated",
+    "context_bytes",
+    "estimated_tokens",
+)
 
 TOP_LEVEL_TYPES: dict[str, type | tuple[type, ...]] = {
     "schema_version": int,
@@ -70,6 +94,10 @@ TOP_LEVEL_TYPES: dict[str, type | tuple[type, ...]] = {
 V4_TOP_LEVEL_TYPES: dict[str, type] = {
     "sources": list,
     "fetch_duration_ms": int,
+}
+
+V5_TOP_LEVEL_TYPES: dict[str, type] = {
+    "context_budget": dict,
 }
 
 
@@ -187,6 +215,13 @@ def validate_corpus(corpus: Any) -> list[str]:
             elif not isinstance(corpus[field], expected):
                 problems.append(f"{field!r} should be {expected.__name__}, "
                                 f"got {type(corpus[field]).__name__}")
+    if version >= 5:
+        for field, expected in V5_TOP_LEVEL_TYPES.items():
+            if field not in corpus:
+                problems.append(f"missing top-level field {field!r}")
+            elif not isinstance(corpus[field], expected):
+                problems.append(f"{field!r} should be {expected.__name__}, "
+                                f"got {type(corpus[field]).__name__}")
 
     if isinstance(corpus.get("schema_version"), int):
         if corpus["schema_version"] > SCHEMA_VERSION:
@@ -229,11 +264,11 @@ def validate_corpus(corpus: Any) -> list[str]:
                 "categories contains invalid name(s): "
                 + ", ".join(sorted(repr(name) for name in invalid)))
         for name, items in categories.items():
-            problems += _validate_items(name, items, cutoff, generated_at)
+            problems += _validate_items(name, items, cutoff, generated_at, version)
 
     processing = corpus.get("processing")
     if isinstance(processing, dict) and isinstance(categories, dict):
-        problems += _validate_processing(processing, categories)
+        problems += _validate_processing(processing, categories, version)
 
     errors = corpus.get("errors")
     if isinstance(errors, list):
@@ -250,17 +285,19 @@ def validate_corpus(corpus: Any) -> list[str]:
 
     sources = corpus.get("sources")
     if sources is not None:
-        problems += (_validate_sources(sources) if version >= 4
+        problems += (_validate_sources(sources, version) if version >= 4
                      else _validate_legacy_sources(sources))
     if (version >= 4 and isinstance(sources, list) and isinstance(errors, list)
             and isinstance(categories, dict)):
         problems += _validate_health_consistency(sources, errors, set(categories))
+    if version >= 5 and isinstance(corpus.get("context_budget"), dict):
+        problems += _validate_context_budget(corpus["context_budget"], processing)
 
     return problems
 
 
 def _validate_items(category: str, items: Any, cutoff: datetime | None,
-                    generated_at: datetime | None) -> list[str]:
+                    generated_at: datetime | None, version: int) -> list[str]:
     problems: list[str] = []
     if not isinstance(items, list):
         return [f"categories[{category!r}] is not a list"]
@@ -299,10 +336,27 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
             if field in item and (isinstance(value, bool) or not isinstance(value, int)
                                   or value < 0):
                 problems.append(f"{where}.{field} should be a non-negative integer")
+        if version >= 5:
+            byte_limits = {
+                "title": ITEM_TITLE_MAX_BYTES,
+                "url": ITEM_URL_MAX_BYTES,
+                "summary": ITEM_SUMMARY_MAX_BYTES,
+                "source": ITEM_SOURCE_MAX_BYTES,
+                "discussion": ITEM_URL_MAX_BYTES,
+                "query": ITEM_QUERY_MAX_BYTES,
+            }
+            for field, limit in byte_limits.items():
+                value = item.get(field)
+                if isinstance(value, str) and len(value.encode("utf-8")) > limit:
+                    problems.append(f"{where}.{field} exceeds {limit} UTF-8 bytes")
+            summary = item.get("summary")
+            if isinstance(summary, str) and len(summary) > ITEM_SUMMARY_MAX_CHARS:
+                problems.append(
+                    f"{where}.summary exceeds {ITEM_SUMMARY_MAX_CHARS} characters")
     return problems
 
 
-def _validate_sources(sources: Any) -> list[str]:
+def _validate_sources(sources: Any, version: int) -> list[str]:
     """Validate optional per-source fetch observability records."""
     if not isinstance(sources, list):
         return ["'sources' should be a list"]
@@ -319,6 +373,9 @@ def _validate_sources(sources: Any) -> list[str]:
         "duration_ms": int,
     }
     allowed = set(required) | {"error_type", "message"}
+    if version >= 5:
+        required.update({"retained_bytes": int, "estimated_tokens": int})
+        allowed = set(required) | {"error_type", "message"}
     problems: list[str] = []
     for index, status in enumerate(sources):
         where = f"sources[{index}]"
@@ -344,6 +401,12 @@ def _validate_sources(sources: Any) -> list[str]:
             value = status.get(field)
             if isinstance(value, bool) or (isinstance(value, int) and value < 0):
                 problems.append(f"{where}.{field} should be non-negative")
+        for field, limit in (("retained_bytes", SOURCE_CONTEXT_MAX_BYTES),
+                             ("estimated_tokens", SOURCE_CONTEXT_MAX_TOKENS)):
+            value = status.get(field)
+            if version >= 5 and (isinstance(value, bool) or not isinstance(value, int)
+                                 or value < 0 or value > limit):
+                problems.append(f"{where}.{field} should be between 0 and {limit}")
         parsed = status.get("parsed_entries")
         dated = status.get("dated_entries")
         retained = status.get("retained_entries")
@@ -455,8 +518,86 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
     return problems
 
 
+def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[str]:
+    """Validate global limits and reconcile their aggregate telemetry."""
+    required = {
+        "field_limits": dict,
+        "source_max_bytes": int,
+        "source_max_tokens": int,
+        "global_max_bytes": int,
+        "global_max_tokens": int,
+        "used_bytes": int,
+        "estimated_tokens": int,
+        "title_truncated": int,
+        "summary_truncated": int,
+        "field_budget_dropped": int,
+        "source_budget_dropped": int,
+        "global_budget_dropped": int,
+    }
+    problems: list[str] = []
+    if set(context) != set(required):
+        return [f"context_budget should contain exactly {sorted(required)}"]
+    for field, expected_type in required.items():
+        if not isinstance(context[field], expected_type) or isinstance(context[field], bool):
+            problems.append(f"context_budget.{field} has the wrong type")
+    field_limits = context.get("field_limits")
+    expected_fields = {
+        "title_bytes": ITEM_TITLE_MAX_BYTES,
+        "title_tokens": ITEM_TITLE_MAX_TOKENS,
+        "url_bytes": ITEM_URL_MAX_BYTES,
+        "url_tokens": ITEM_URL_MAX_TOKENS,
+        "summary_chars": ITEM_SUMMARY_MAX_CHARS,
+        "summary_bytes": ITEM_SUMMARY_MAX_BYTES,
+        "summary_tokens": ITEM_SUMMARY_MAX_TOKENS,
+        "source_bytes": ITEM_SOURCE_MAX_BYTES,
+        "source_tokens": ITEM_SOURCE_MAX_TOKENS,
+        "query_bytes": ITEM_QUERY_MAX_BYTES,
+        "query_tokens": ITEM_QUERY_MAX_TOKENS,
+    }
+    if field_limits != expected_fields:
+        problems.append("context_budget.field_limits does not match schema limits")
+    exact_limits = {
+        "source_max_bytes": SOURCE_CONTEXT_MAX_BYTES,
+        "source_max_tokens": SOURCE_CONTEXT_MAX_TOKENS,
+        "global_max_bytes": GLOBAL_CONTEXT_MAX_BYTES,
+        "global_max_tokens": GLOBAL_CONTEXT_MAX_TOKENS,
+    }
+    for field, expected_limit in exact_limits.items():
+        if context.get(field) != expected_limit:
+            problems.append(f"context_budget.{field} should be {expected_limit}")
+    for field in required.keys() - {"field_limits"}:
+        value = context.get(field)
+        if isinstance(value, int) and not isinstance(value, bool) and value < 0:
+            problems.append(f"context_budget.{field} should be non-negative")
+    if isinstance(context.get("used_bytes"), int) and context["used_bytes"] > GLOBAL_CONTEXT_MAX_BYTES:
+        problems.append("context_budget.used_bytes exceeds global_max_bytes")
+    if (isinstance(context.get("estimated_tokens"), int)
+            and context["estimated_tokens"] > GLOBAL_CONTEXT_MAX_TOKENS):
+        problems.append("context_budget.estimated_tokens exceeds global_max_tokens")
+    if isinstance(processing, dict):
+        aggregate_fields = (
+            "context_bytes", "estimated_tokens", "title_truncated",
+            "summary_truncated", "field_budget_dropped",
+            "source_budget_dropped", "global_budget_dropped",
+        )
+        expected_names = {
+            "context_bytes": "used_bytes",
+            **{field: field for field in aggregate_fields if field != "context_bytes"},
+        }
+        for processing_field, context_field in expected_names.items():
+            values = [stats.get(processing_field) for stats in processing.values()
+                      if isinstance(stats, dict)]
+            numeric_values = [value for value in values
+                              if isinstance(value, int) and not isinstance(value, bool)]
+            if len(numeric_values) == len(values):
+                if sum(numeric_values) != context.get(context_field):
+                    problems.append(
+                        f"context_budget.{context_field} does not match processing totals")
+    return problems
+
+
 def _validate_processing(processing: dict[str, Any],
-                         categories: dict[str, Any]) -> list[str]:
+                         categories: dict[str, Any], version: int) -> list[str]:
     problems: list[str] = []
     if set(processing) != set(categories):
         problems.append("processing should have one entry per category")
@@ -464,19 +605,22 @@ def _validate_processing(processing: dict[str, Any],
         if not isinstance(stats, dict):
             problems.append(f"processing[{name!r}] is not an object")
             continue
-        missing = [f for f in PROCESSING_FIELDS if f not in stats]
+        fields = PROCESSING_FIELDS + (V5_PROCESSING_FIELDS if version >= 5 else ())
+        missing = [f for f in fields if f not in stats]
         if missing:
             problems.append(f"processing[{name!r}] is missing {missing}")
             continue
-        if any(not isinstance(stats[f], int) for f in PROCESSING_FIELDS):
+        if any(not isinstance(stats[f], int) for f in fields):
             problems.append(f"processing[{name!r}] has a non-integer counter")
             continue
-        if any(isinstance(stats[f], bool) or stats[f] < 0 for f in PROCESSING_FIELDS):
+        if any(isinstance(stats[f], bool) or stats[f] < 0 for f in fields):
             problems.append(f"processing[{name!r}] has a negative or boolean counter")
             continue
         accounted = (stats["kept"] + stats["relevance_dropped"]
                      + stats["duplicates_dropped"] + stats["source_cap_dropped"]
-                     + stats["category_cap_dropped"])
+                     + stats["category_cap_dropped"]
+                     + (stats["field_budget_dropped"] + stats["source_budget_dropped"]
+                        + stats["global_budget_dropped"] if version >= 5 else 0))
         if accounted != stats["fetched"]:
             problems.append(
                 f"processing[{name!r}] does not reconcile: kept plus drops is "

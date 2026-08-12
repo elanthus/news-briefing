@@ -41,6 +41,13 @@ def stats(fetched=1, kept=1, **overrides):
         "duplicates_dropped": 0,
         "source_cap_dropped": 0,
         "category_cap_dropped": 0,
+        "field_budget_dropped": 0,
+        "source_budget_dropped": 0,
+        "global_budget_dropped": 0,
+        "title_truncated": 0,
+        "summary_truncated": 0,
+        "context_bytes": 0,
+        "estimated_tokens": 0,
         "kept": kept,
     }
     base.update(overrides)
@@ -48,6 +55,26 @@ def stats(fetched=1, kept=1, **overrides):
 
 
 def corpus(**overrides):
+    context_budget = {
+        "field_limits": {
+            "title_bytes": 512, "title_tokens": 128,
+            "url_bytes": 2048, "url_tokens": 512,
+            "summary_chars": 300, "summary_bytes": 1200, "summary_tokens": 300,
+            "source_bytes": 256, "source_tokens": 64,
+            "query_bytes": 256, "query_tokens": 64,
+        },
+        "source_max_bytes": 96 * 1024,
+        "source_max_tokens": 24_000,
+        "global_max_bytes": 512 * 1024,
+        "global_max_tokens": 128_000,
+        "used_bytes": 0,
+        "estimated_tokens": 0,
+        "title_truncated": 0,
+        "summary_truncated": 0,
+        "field_budget_dropped": 0,
+        "source_budget_dropped": 0,
+        "global_budget_dropped": 0,
+    }
     base = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": "2026-08-08T12:00:00+00:00",
@@ -59,6 +86,7 @@ def corpus(**overrides):
         "errors": [],
         "sources": [],
         "fetch_duration_ms": 0,
+        "context_budget": context_budget,
     }
     base["categories"]["us_politics"] = [item(1)]
     base["processing"]["us_politics"] = stats(1, 1)
@@ -114,6 +142,8 @@ class TopLevelTest(unittest.TestCase):
             "parsed_entries": 1,
             "dated_entries": 1,
             "retained_entries": 1,
+            "retained_bytes": 100,
+            "estimated_tokens": 25,
             "duration_ms": 42,
         }], fetch_duration_ms=42)
         self.assertEqual(validate_corpus(c), [])
@@ -133,6 +163,8 @@ class TopLevelTest(unittest.TestCase):
             **error, "category": "us_politics", "requested": True,
             "http_success": False, "parsed_entries": 0, "dated_entries": 0,
             "retained_entries": 0,
+            "retained_bytes": 0,
+            "estimated_tokens": 0,
         }
         del source["duration_ms"]
         source["duration_ms"] = 4
@@ -207,6 +239,17 @@ class CategoryTest(unittest.TestCase):
                 c["categories"]["us_politics"][0]["published"] = value
                 self.assertTrue(only(validate_corpus(c), fragment))
 
+    def test_current_schema_enforces_model_visible_field_budgets(self):
+        for field, value in (
+            ("title", "x" * 513),
+            ("url", "https://ex.com/" + "x" * 2048),
+            ("summary", "x" * 301),
+        ):
+            with self.subTest(field=field):
+                c = corpus()
+                c["categories"]["us_politics"][0][field] = value
+                self.assertTrue(only(validate_corpus(c), field))
+
 
 class ProcessingTest(unittest.TestCase):
     def test_counters_that_do_not_reconcile_are_reported(self):
@@ -235,6 +278,17 @@ class ProcessingTest(unittest.TestCase):
         c["processing"]["us_politics"] = stats(
             4, 1, relevance_dropped=1, duplicates_dropped=1, source_cap_dropped=1)
         self.assertEqual(validate_corpus(c), [])
+
+    def test_context_telemetry_must_match_processing_totals(self):
+        c = corpus()
+        c["processing"]["us_politics"]["title_truncated"] = 1
+        self.assertTrue(only(validate_corpus(c), "title_truncated"))
+
+    def test_global_usage_cannot_exceed_the_declared_budget(self):
+        c = corpus()
+        c["context_budget"]["used_bytes"] = 512 * 1024 + 1
+        c["processing"]["us_politics"]["context_bytes"] = 512 * 1024 + 1
+        self.assertTrue(only(validate_corpus(c), "exceeds global_max_bytes"))
 
 
 class VersionTest(unittest.TestCase):

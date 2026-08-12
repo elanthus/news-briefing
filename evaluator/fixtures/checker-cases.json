@@ -10,7 +10,7 @@
     {"id":"url-valid-trailing-slash","component":"checker","family":"valid_edge","variant":"valid-trailing-slash","human_labels":[]},
     {"id":"url-valid-tracking","component":"checker","family":"valid_edge","variant":"valid-tracking-parameter","human_labels":[]},
     {"id":"url-valid-query-order","component":"checker","family":"valid_edge","variant":"valid-query-order","human_labels":[]},
-    {"id":"url-bare-prose-valid","component":"checker","family":"valid_edge","variant":"valid-bare-url-in-prose","human_labels":[]},
+    {"id":"url-bare-prose-ungrounded","component":"checker","family":"url","variant":"ungrounded-bare-url-in-prose","human_labels":["ungrounded_link"]},
     {"id":"url-fabricated-included","component":"checker","family":"url","variant":"fabricated-included","human_labels":["ungrounded_link"]},
     {"id":"url-fabricated-excluded","component":"checker","family":"url","variant":"fabricated-excluded","human_labels":["ungrounded_link"]},
     {"id":"url-altered-publisher","component":"checker","family":"url","variant":"altered-publisher-url","human_labels":["altered_link"]},

@@ -16,14 +16,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import http.client
+import ipaddress
 import json
 import math
 import re
+import socket
+import ssl
 import sys
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -45,12 +48,26 @@ TIMEOUT = 20
 REDDIT_TIMEOUT = 10
 REDDIT_MAX_ATTEMPTS = 2
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+MAX_REDIRECTS = 5
+MAX_URL_BYTES = corpus_schema.ITEM_URL_MAX_BYTES
 DEFAULT_WINDOW_HOURS = 24
 DEFAULT_SOURCE_CAP = 25
 DEFAULT_CATEGORY_CAP = 60
 
 FETCH_WORKERS = 8
-SUMMARY_CHARS = 300  # per-item summary budget handed to the model
+SUMMARY_CHARS = corpus_schema.ITEM_SUMMARY_MAX_CHARS
+TITLE_BYTES = corpus_schema.ITEM_TITLE_MAX_BYTES
+TITLE_TOKENS = corpus_schema.ITEM_TITLE_MAX_TOKENS
+SUMMARY_BYTES = corpus_schema.ITEM_SUMMARY_MAX_BYTES
+SUMMARY_TOKENS = corpus_schema.ITEM_SUMMARY_MAX_TOKENS
+SOURCE_ID_BYTES = corpus_schema.ITEM_SOURCE_MAX_BYTES
+SOURCE_ID_TOKENS = corpus_schema.ITEM_SOURCE_MAX_TOKENS
+QUERY_BYTES = corpus_schema.ITEM_QUERY_MAX_BYTES
+QUERY_TOKENS = corpus_schema.ITEM_QUERY_MAX_TOKENS
+SOURCE_CONTEXT_BYTES = corpus_schema.SOURCE_CONTEXT_MAX_BYTES
+SOURCE_CONTEXT_TOKENS = corpus_schema.SOURCE_CONTEXT_MAX_TOKENS
+GLOBAL_CONTEXT_BYTES = corpus_schema.GLOBAL_CONTEXT_MAX_BYTES
+GLOBAL_CONTEXT_TOKENS = corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS
 HN_MIN_POINTS = 20  # this many points clears HN's noise floor
 HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
@@ -76,6 +93,8 @@ def _source_id_problem(value: Any) -> str | None:
         return "must be a non-empty string"
     if "\n" in value or "\r" in value:
         return "must be single-line"
+    if len(value.encode("utf-8")) > SOURCE_ID_BYTES:
+        return f"must not exceed {SOURCE_ID_BYTES} UTF-8 bytes"
     return None
 
 
@@ -151,6 +170,11 @@ def load_sources(path: str | Path) -> Sources:
             if problem := _source_id_problem(name):
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] source name {problem}")
+            try:
+                validate_source_url(url)
+            except ValueError as exc:
+                raise ValueError(
+                    f"rss_feeds.{category}[{index}] has unsafe URL: {exc}") from exc
             if name in rss_source_ids:
                 raise ValueError(f"rss_feeds contains duplicate source ID {name!r}")
             rss_source_ids.add(name)
@@ -280,6 +304,8 @@ class SourceStatus(TypedDict):
     parsed_entries: int
     dated_entries: int
     retained_entries: int
+    retained_bytes: int
+    estimated_tokens: int
     duration_ms: int
     error_type: NotRequired[str]
     message: NotRequired[str]
@@ -305,6 +331,20 @@ class TimedFetchResult(NamedTuple):
     message: str | None
     duration_ms: int
     http_success: bool
+
+
+class ResolvedAddress(NamedTuple):
+    """One DNS result captured before a connection is opened."""
+
+    family: int
+    sockaddr: tuple[Any, ...]
+
+
+class HttpResult(NamedTuple):
+    status: int
+    reason: str
+    headers: Any
+    data: bytes
 
 
 def timed_fetch(fetcher: Callable[..., FetchResult], *args: Any) -> TimedFetchResult:
@@ -340,13 +380,175 @@ def _raise_data_error(exc: Exception) -> None:
     raise SourceDataError(exc) from exc
 
 
+def _public_ip(value: str) -> bool:
+    """Whether an address is globally routable, including mapped IPv4."""
+    address = ipaddress.ip_address(value)
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return address.is_global
+
+
+def _http_destination(url: str) -> tuple[urllib.parse.SplitResult, str, int]:
+    """Validate URL syntax before DNS resolution or a network request."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("destination must be a non-empty URL")
+    if len(url.encode("utf-8")) > MAX_URL_BYTES:
+        raise ValueError(f"destination URL exceeded {MAX_URL_BYTES} bytes")
+    if any(ord(character) < 0x20 or character.isspace() for character in url):
+        raise ValueError("destination URL contains whitespace or control characters")
+    try:
+        parts = urllib.parse.urlsplit(url)
+        hostname = parts.hostname
+        port = parts.port
+    except ValueError as exc:
+        raise ValueError(f"invalid destination URL: {exc}") from exc
+    if parts.scheme.lower() not in {"http", "https"}:
+        raise ValueError("destination must use HTTP or HTTPS")
+    if not parts.netloc or not hostname:
+        raise ValueError("destination must have a hostname")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("destination URL must not contain credentials")
+    if "%" in hostname:
+        raise ValueError("destination hostname must not contain an address scope")
+    try:
+        ascii_hostname = hostname.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise ValueError("destination hostname is not valid IDNA") from exc
+    try:
+        literal = ipaddress.ip_address(ascii_hostname)
+    except ValueError:
+        pass
+    else:
+        if not _public_ip(str(literal)):
+            raise ValueError("destination resolves to a non-public address")
+    return parts, ascii_hostname, port or (443 if parts.scheme.lower() == "https" else 80)
+
+
+def validate_source_url(url: str) -> None:
+    """Validate a configured source without performing network I/O."""
+    _http_destination(url)
+
+
+def _resolve_public_addresses(hostname: str, port: int) -> tuple[ResolvedAddress, ...]:
+    """Resolve once, reject any private answer, and return pinned addresses."""
+    answers = socket.getaddrinfo(
+        hostname, port, family=socket.AF_UNSPEC,
+        type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP,
+    )
+    resolved: list[ResolvedAddress] = []
+    seen: set[tuple[int, tuple[Any, ...]]] = set()
+    for family, _socktype, _proto, _canonname, sockaddr in answers:
+        address = str(sockaddr[0])
+        if not _public_ip(address):
+            raise ValueError(
+                f"destination {hostname!r} resolved to non-public address {address}")
+        candidate = ResolvedAddress(family, tuple(sockaddr))
+        key = (candidate.family, candidate.sockaddr)
+        if key not in seen:
+            seen.add(key)
+            resolved.append(candidate)
+    if not resolved:
+        raise ValueError(f"destination {hostname!r} resolved to no usable addresses")
+    return tuple(resolved)
+
+
+def _connect_pinned(address: ResolvedAddress, timeout: int) -> socket.socket:
+    sock = socket.socket(address.family, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect(address.sockaddr)
+    except Exception:
+        sock.close()
+        raise
+    return sock
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host: str, port: int, address: ResolvedAddress, timeout: int):
+        super().__init__(host, port=port, timeout=timeout)
+        self._address = address
+        self._pinned_timeout = timeout
+
+    def connect(self) -> None:
+        self.sock = _connect_pinned(self._address, self._pinned_timeout)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host: str, port: int, address: ResolvedAddress,
+                 timeout: int, context: ssl.SSLContext):
+        super().__init__(host, port=port, timeout=timeout, context=context)
+        self._address = address
+        self._pinned_timeout = timeout
+        self._pinned_context = context
+
+    def connect(self) -> None:
+        sock = _connect_pinned(self._address, self._pinned_timeout)
+        try:
+            self.sock = self._pinned_context.wrap_socket(sock, server_hostname=self.host)
+        except Exception:
+            sock.close()
+            raise
+
+
+def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
+                  port: int, address: ResolvedAddress, user_agent: str,
+                  timeout: int) -> HttpResult:
+    """Make one request to an already validated and DNS-pinned address."""
+    if parts.scheme.lower() == "https":
+        connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
+            hostname, port, address, timeout, ssl.create_default_context())
+    else:
+        connection = _PinnedHTTPConnection(hostname, port, address, timeout)
+    target = urllib.parse.urlunsplit(("", "", parts.path or "/", parts.query, ""))
+    target = urllib.parse.quote(target, safe="/%?&=;:+,$@!~*'()[]")
+    try:
+        connection.request("GET", target, headers={"User-Agent": user_agent})
+        response = connection.getresponse()
+        data = (b"" if response.status in {301, 302, 303, 307, 308}
+                else response.read(MAX_RESPONSE_BYTES + 1))
+        return HttpResult(response.status, str(response.reason), response.headers, data)
+    finally:
+        connection.close()
+
+
 def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = resp.read(MAX_RESPONSE_BYTES + 1)
-    if len(data) > MAX_RESPONSE_BYTES:
-        raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
-    return data
+    """Fetch a public HTTP(S) URL with DNS pinning and safe redirects."""
+    current = url
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        parts, hostname, port = _http_destination(current)
+        addresses = _resolve_public_addresses(hostname, port)
+        result: HttpResult | None = None
+        last_error: OSError | None = None
+        for address in addresses:
+            try:
+                result = _request_once(
+                    current, parts, hostname, port, address, user_agent, timeout)
+                break
+            except OSError as exc:
+                last_error = exc
+        if result is None:
+            if last_error is not None:
+                raise last_error
+            raise OSError(f"could not connect to {hostname}")
+        if result.status in {301, 302, 303, 307, 308}:
+            location = result.headers.get("Location")
+            if not location:
+                raise urllib.error.HTTPError(
+                    current, result.status, "redirect has no Location header",
+                    result.headers, None)
+            if redirect_count == MAX_REDIRECTS:
+                raise ValueError(f"redirect limit of {MAX_REDIRECTS} exceeded")
+            current = urllib.parse.urljoin(current, location)
+            # The next loop revalidates syntax, credentials, DNS and address
+            # scope before making the redirected request.
+            continue
+        if len(result.data) > MAX_RESPONSE_BYTES:
+            raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
+        if result.status >= 400:
+            raise urllib.error.HTTPError(
+                current, result.status, result.reason, result.headers, None)
+        return result.data
+    raise AssertionError("unreachable redirect loop")
 
 
 def parse_feed_xml(data: bytes) -> ET.Element:
@@ -423,7 +625,7 @@ def _feed_summary(element: ET.Element, *paths: str) -> str:
             continue
         summary = strip_html("".join(child.itertext()))
         if summary:
-            return summary[:SUMMARY_CHARS]
+            return summary
     return ""
 
 
@@ -520,7 +722,7 @@ def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
             "url": hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "discussion": f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "published": datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat(),
-            "summary": strip_html(hit.get("story_text") or "")[:SUMMARY_CHARS],
+            "summary": strip_html(hit.get("story_text") or ""),
             "points": hit.get("points", 0),
             "comments": hit.get("num_comments", 0),
             "source": "Hacker News",
@@ -616,7 +818,7 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
             "url": link.get("href", "") if link is not None else "",
             "published": published.isoformat(),
             # atom:content has the post HTML; extract just the body text
-            "summary": _reddit_md_text(raw_content)[:SUMMARY_CHARS],
+            "summary": _reddit_md_text(raw_content),
             "source": f"r/{subreddit}",
         })
     return FetchResult(items, undated, len(entries), dated_entries)
@@ -681,9 +883,96 @@ def is_relevant_item(item: Item) -> bool:
     return bool(pattern.search(text))
 
 
+def _estimated_tokens_for_bytes(size: int) -> int:
+    return max(1, math.ceil(size / 4))
+
+
+def _truncate_utf8(value: str, max_bytes: int, max_tokens: int,
+                   max_chars: int | None = None) -> tuple[str, bool]:
+    """Truncate without splitting a Unicode code point."""
+    bounded = value[:max_chars] if max_chars is not None else value
+    encoded = bounded.encode("utf-8")
+    effective_max_bytes = min(max_bytes, max_tokens * 4)
+    if len(encoded) > effective_max_bytes:
+        bounded = encoded[:effective_max_bytes].decode("utf-8", errors="ignore")
+    return bounded, bounded != value
+
+
+def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]:
+    """Bound model-visible strings and drop URLs that cannot be kept intact."""
+    kept: list[Item] = []
+    telemetry = {
+        "title_truncated": 0,
+        "summary_truncated": 0,
+        "field_budget_dropped": 0,
+    }
+    for item in items:
+        candidate = item.copy()
+        title = candidate.get("title")
+        source = candidate.get("source")
+        url = candidate.get("url")
+        if (not isinstance(title, str) or not title.strip()
+                or not isinstance(source, str) or not source.strip()
+                or len(source.encode("utf-8")) > SOURCE_ID_BYTES
+                or not isinstance(url, str)):
+            telemetry["field_budget_dropped"] += 1
+            continue
+        try:
+            _http_destination(url)
+            discussion = candidate.get("discussion")
+            if discussion is not None:
+                if not isinstance(discussion, str):
+                    raise ValueError("discussion URL is not a string")
+                _http_destination(discussion)
+        except ValueError:
+            # URLs are identities and destinations. Truncating one would turn
+            # it into a different, possibly unsafe request, so reject the item.
+            telemetry["field_budget_dropped"] += 1
+            continue
+        query = candidate.get("query")
+        if (query is not None
+                and (not isinstance(query, str)
+                     or len(query.encode("utf-8")) > QUERY_BYTES)):
+            telemetry["field_budget_dropped"] += 1
+            continue
+        candidate["title"], title_truncated = _truncate_utf8(
+            title, TITLE_BYTES, TITLE_TOKENS)
+        telemetry["title_truncated"] += int(title_truncated)
+        summary = candidate.get("summary")
+        if summary is not None:
+            if not isinstance(summary, str):
+                telemetry["field_budget_dropped"] += 1
+                continue
+            candidate["summary"], summary_truncated = _truncate_utf8(
+                summary, SUMMARY_BYTES, SUMMARY_TOKENS, SUMMARY_CHARS)
+            telemetry["summary_truncated"] += int(summary_truncated)
+        kept.append(candidate)
+    return kept, telemetry
+
+
+def item_context_usage(item: Item) -> tuple[int, int]:
+    """Serialized bytes and a documented tokenizer-independent estimate.
+
+    Four UTF-8 bytes per token is a conventional planning estimate. The hard
+    byte budgets remain authoritative for memory even when a model tokenizes a
+    particular language more densely.
+    """
+    size = len(json.dumps(
+        item, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8"))
+    return size, _estimated_tokens_for_bytes(size)
+
+
+def _source_budget_key(item: Item) -> tuple[str, str]:
+    return item.get("source", "unknown"), item.get("query", "")
+
+
 def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
                      category_cap: int = DEFAULT_CATEGORY_CAP,
-                     undated_dropped: int = 0) -> tuple[list[Item], dict[str, int]]:
+                     undated_dropped: int = 0,
+                     source_byte_budget: int = SOURCE_CONTEXT_BYTES,
+                     source_token_budget: int = SOURCE_CONTEXT_TOKENS,
+                     ) -> tuple[list[Item], dict[str, int]]:
     """Filter, deduplicate, diversify, and bound one category for model input.
 
     Returns both the retained items and counts for observability. Caps are
@@ -694,13 +983,16 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
     from the corpus appears in one place.
     """
     fetched = len(items)
-    relevant = [item for item in items if is_relevant_item(item)]
+    bounded, field_telemetry = _apply_field_budgets(items)
+    relevant = [item for item in bounded if is_relevant_item(item)]
     # Dedupe after ordering so a syndicated/updated story keeps its newest
     # occurrence rather than whichever source happened to finish first.
     unique = dedupe(sort_items(relevant))
     kept: list[Item] = []
     by_source: dict[str, int] = {}
+    source_usage: dict[tuple[str, str], tuple[int, int]] = {}
     source_cap_dropped = 0
+    source_budget_dropped = 0
     category_cap_dropped = 0
     for index, item in enumerate(unique):
         if len(kept) >= category_cap:
@@ -710,18 +1002,62 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
         if by_source.get(source, 0) >= source_cap:
             source_cap_dropped += 1
             continue
+        size, tokens = item_context_usage(item)
+        source_key = _source_budget_key(item)
+        used_bytes, used_tokens = source_usage.get(source_key, (0, 0))
+        if (used_bytes + size > source_byte_budget
+                or used_tokens + tokens > source_token_budget):
+            source_budget_dropped += 1
+            continue
         kept.append(item)
         by_source[source] = by_source.get(source, 0) + 1
+        source_usage[source_key] = used_bytes + size, used_tokens + tokens
+    context_bytes = sum(item_context_usage(item)[0] for item in kept)
+    estimated_tokens = sum(item_context_usage(item)[1] for item in kept)
     stats = {
         "fetched": fetched,
         "undated_dropped": undated_dropped,
-        "relevance_dropped": fetched - len(relevant),
+        "relevance_dropped": len(bounded) - len(relevant),
         "duplicates_dropped": len(relevant) - len(unique),
         "source_cap_dropped": source_cap_dropped,
         "category_cap_dropped": category_cap_dropped,
+        "field_budget_dropped": field_telemetry["field_budget_dropped"],
+        "source_budget_dropped": source_budget_dropped,
+        "global_budget_dropped": 0,
+        "title_truncated": field_telemetry["title_truncated"],
+        "summary_truncated": field_telemetry["summary_truncated"],
+        "context_bytes": context_bytes,
+        "estimated_tokens": estimated_tokens,
         "kept": len(kept),
     }
     return kept, stats
+
+
+def apply_global_context_budget(categories: dict[str, list[Item]],
+                                processing: dict[str, dict[str, int]],
+                                byte_budget: int = GLOBAL_CONTEXT_BYTES,
+                                token_budget: int = GLOBAL_CONTEXT_TOKENS,
+                                ) -> tuple[int, int]:
+    """Apply one final budget across every category in configured order."""
+    used_bytes = 0
+    used_tokens = 0
+    for category, items in categories.items():
+        retained: list[Item] = []
+        for item in items:
+            size, tokens = item_context_usage(item)
+            if used_bytes + size > byte_budget or used_tokens + tokens > token_budget:
+                processing[category]["global_budget_dropped"] += 1
+                processing[category]["kept"] -= 1
+                continue
+            retained.append(item)
+            used_bytes += size
+            used_tokens += tokens
+        categories[category] = retained
+        processing[category]["context_bytes"] = sum(
+            item_context_usage(item)[0] for item in retained)
+        processing[category]["estimated_tokens"] = sum(
+            item_context_usage(item)[1] for item in retained)
+    return used_bytes, used_tokens
 
 
 def positive_int(value: str) -> int:
@@ -753,6 +1089,8 @@ def source_status(source_type: str, source_id: str, category: str,
         "parsed_entries": parsed,
         "dated_entries": dated,
         "retained_entries": 0,
+        "retained_bytes": 0,
+        "estimated_tokens": 0,
         "duration_ms": outcome.duration_ms,
     }
     if result is None:
@@ -876,12 +1214,50 @@ def main() -> int:
         corpus["categories"][category] = items
         corpus["processing"][category] = stats
 
+    used_bytes, estimated_tokens = apply_global_context_budget(
+        corpus["categories"], corpus["processing"])
+
     for status in corpus["sources"]:
-        status["retained_entries"] = sum(
-            1 for item in corpus["categories"][status["category"]]
-            if _item_belongs_to_source(item, status))
+        retained = [
+            item for item in corpus["categories"][status["category"]]
+            if _item_belongs_to_source(item, status)
+        ]
+        status["retained_entries"] = len(retained)
+        status["retained_bytes"] = sum(item_context_usage(item)[0] for item in retained)
+        status["estimated_tokens"] = sum(item_context_usage(item)[1] for item in retained)
     corpus["errors"] = [error_record(status) for status in corpus["sources"]
                         if status["status"] != "ok"]
+    corpus["context_budget"] = {
+        "field_limits": {
+            "title_bytes": TITLE_BYTES,
+            "title_tokens": TITLE_TOKENS,
+            "url_bytes": MAX_URL_BYTES,
+            "url_tokens": corpus_schema.ITEM_URL_MAX_TOKENS,
+            "summary_chars": SUMMARY_CHARS,
+            "summary_bytes": SUMMARY_BYTES,
+            "summary_tokens": SUMMARY_TOKENS,
+            "source_bytes": SOURCE_ID_BYTES,
+            "source_tokens": SOURCE_ID_TOKENS,
+            "query_bytes": QUERY_BYTES,
+            "query_tokens": QUERY_TOKENS,
+        },
+        "source_max_bytes": SOURCE_CONTEXT_BYTES,
+        "source_max_tokens": SOURCE_CONTEXT_TOKENS,
+        "global_max_bytes": GLOBAL_CONTEXT_BYTES,
+        "global_max_tokens": GLOBAL_CONTEXT_TOKENS,
+        "used_bytes": used_bytes,
+        "estimated_tokens": estimated_tokens,
+        "title_truncated": sum(
+            stats["title_truncated"] for stats in corpus["processing"].values()),
+        "summary_truncated": sum(
+            stats["summary_truncated"] for stats in corpus["processing"].values()),
+        "field_budget_dropped": sum(
+            stats["field_budget_dropped"] for stats in corpus["processing"].values()),
+        "source_budget_dropped": sum(
+            stats["source_budget_dropped"] for stats in corpus["processing"].values()),
+        "global_budget_dropped": sum(
+            stats["global_budget_dropped"] for stats in corpus["processing"].values()),
+    }
 
     total = sum(len(v) for v in corpus["categories"].values())
     # Validate before writing: a corpus that violates its own contract is a

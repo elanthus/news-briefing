@@ -150,7 +150,7 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
         text = _replace(text, "https://example.test/tool-three", "https://example.test/tool-three?utm_source=rss")
     elif variant == "valid-query-order":
         text = _replace(text, "id=2&output=1", "output=1&id=2")
-    elif variant == "valid-bare-url-in-prose":
+    elif variant == "ungrounded-bare-url-in-prose":
         text += "\nReader note: https://not-a-citation.example.test/context\n"
     elif variant == "valid-doctype-as-text":
         text = _replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")

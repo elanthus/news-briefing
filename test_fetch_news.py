@@ -28,6 +28,7 @@ from fetch_news import (
     MAX_RESPONSE_BYTES,
     REDDIT_MAX_LIMIT,
     _reddit_md_text,
+    apply_global_context_budget,
     canonicalize_url,
     dedupe,
     fetch_hn,
@@ -321,6 +322,49 @@ class PrepareCategoryTest(unittest.TestCase):
         kept, _stats = prepare_category([older, newer])
         self.assertEqual(kept, [newer])
 
+    def test_truncates_bounded_text_and_reports_telemetry(self):
+        item = {
+            **self.item(1),
+            "title": "é" * 400,
+            "summary": "x" * 500,
+        }
+        kept, stats = prepare_category([item])
+        self.assertLessEqual(len(kept[0]["title"].encode("utf-8")), fetch_news.TITLE_BYTES)
+        self.assertEqual(len(kept[0]["summary"]), fetch_news.SUMMARY_CHARS)
+        self.assertEqual(stats["title_truncated"], 1)
+        self.assertEqual(stats["summary_truncated"], 1)
+
+    def test_drops_overlong_urls_instead_of_changing_their_identity(self):
+        item = {**self.item(1), "url": "https://example.com/" + "x" * 3000}
+        kept, stats = prepare_category([item])
+        self.assertEqual(kept, [])
+        self.assertEqual(stats["field_budget_dropped"], 1)
+
+    def test_enforces_per_source_byte_and_token_budgets(self):
+        items = [
+            {**self.item(n), "summary": "x" * 200}
+            for n in range(1, 4)
+        ]
+        one_size, one_tokens = fetch_news.item_context_usage(items[0])
+        kept, stats = prepare_category(
+            items, source_byte_budget=one_size + 10,
+            source_token_budget=one_tokens + 10)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(stats["source_budget_dropped"], 2)
+
+    def test_enforces_one_global_budget_across_categories(self):
+        first, first_stats = prepare_category([self.item(1, "A")])
+        second, second_stats = prepare_category([self.item(2, "B")])
+        size, tokens = fetch_news.item_context_usage(first[0])
+        categories = {"first": first, "second": second}
+        processing = {"first": first_stats, "second": second_stats}
+        used = apply_global_context_budget(
+            categories, processing, byte_budget=size + 1, token_budget=tokens + 1)
+        self.assertEqual(used, (size, tokens))
+        self.assertEqual(len(categories["first"]), 1)
+        self.assertEqual(categories["second"], [])
+        self.assertEqual(processing["second"]["global_budget_dropped"], 1)
+
 
 class HackerNewsTest(unittest.TestCase):
     def test_minimum_point_threshold_is_inclusive(self):
@@ -476,7 +520,9 @@ class UndatedAccountingTest(unittest.TestCase):
         self.assertEqual(len(kept), stats["kept"])
         self.assertEqual(
             stats["kept"] + stats["relevance_dropped"] + stats["duplicates_dropped"]
-            + stats["source_cap_dropped"] + stats["category_cap_dropped"],
+            + stats["source_cap_dropped"] + stats["category_cap_dropped"]
+            + stats["field_budget_dropped"] + stats["source_budget_dropped"]
+            + stats["global_budget_dropped"],
             stats["fetched"])
 
 
@@ -717,6 +763,15 @@ class MainFailureModeTest(unittest.TestCase):
             )
             self.assertTrue(all(status["duration_ms"] >= 0
                                 for status in corpus["sources"]))
+            self.assertTrue(all(status["retained_bytes"] >= 0
+                                and status["estimated_tokens"] >= 0
+                                for status in corpus["sources"]))
+            self.assertEqual(
+                corpus["context_budget"]["used_bytes"],
+                sum(stats["context_bytes"] for stats in corpus["processing"].values()))
+            self.assertLessEqual(
+                corpus["context_budget"]["used_bytes"],
+                corpus["context_budget"]["global_max_bytes"])
 
     def test_successful_but_unrecognized_feed_is_a_structured_failure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -745,24 +800,18 @@ class MainFailureModeTest(unittest.TestCase):
 
 
 class HttpGetTest(unittest.TestCase):
-    class Response:
-        def __enter__(self):
-            return self
+    PUBLIC = (fetch_news.ResolvedAddress(2, ("93.184.216.34", 443)),)
 
-        def __exit__(self, *_args):
-            return False
-
-        def read(self, limit):
-            return b"x" * limit
-
-    class ShortResponse(Response):
-        def read(self, _limit):
-            return b"ok"
+    def get(self, results, url="https://example.com/feed"):
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           return_value=self.PUBLIC),
+              patch.object(fetch_news, "_request_once", side_effect=results)):
+            return fetch_news.http_get(url)
 
     def test_rejects_oversized_response(self):
-        with patch.object(fetch_news.urllib.request, "urlopen", return_value=self.Response()):
-            with self.assertRaisesRegex(ValueError, "response exceeded"):
-                fetch_news.http_get("https://example.com/feed")
+        result = fetch_news.HttpResult(200, "OK", {}, b"x" * (MAX_RESPONSE_BYTES + 1))
+        with self.assertRaisesRegex(ValueError, "response exceeded"):
+            self.get([result])
         self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
 
     def test_requests_identify_the_project_and_carry_a_contact_url(self):
@@ -775,16 +824,74 @@ class HttpGetTest(unittest.TestCase):
         """
         captured = []
 
-        def fake_urlopen(request, **_kwargs):
-            captured.append(request)
-            return self.ShortResponse()
+        def fake_request(*args):
+            captured.append(args)
+            return fetch_news.HttpResult(200, "OK", {}, b"ok")
 
-        with patch.object(fetch_news.urllib.request, "urlopen", fake_urlopen):
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           return_value=self.PUBLIC),
+              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
             self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
 
-        agent = captured[0].get_header("User-agent")
+        agent = captured[0][-2]
         self.assertIn("news-briefing/", agent)
         self.assertRegex(agent, r"https://github\.com/\S+")
+
+    def test_rejects_non_http_credentials_and_private_literal_destinations(self):
+        for url in (
+            "file:///etc/passwd",
+            "https://user:secret@example.com/feed",
+            "http://127.0.0.1/feed",
+            "http://169.254.169.254/latest/meta-data",
+            "http://[::1]/feed",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                fetch_news.http_get(url)
+
+    def test_dns_answers_must_all_be_public(self):
+        answers = [
+            (2, 1, 6, "", ("93.184.216.34", 443)),
+            (2, 1, 6, "", ("10.0.0.7", 443)),
+        ]
+        with patch.object(fetch_news.socket, "getaddrinfo", return_value=answers):
+            with self.assertRaisesRegex(ValueError, "non-public address 10.0.0.7"):
+                fetch_news._resolve_public_addresses("example.com", 443)
+
+    def test_request_uses_the_address_from_the_single_dns_resolution(self):
+        captured = []
+
+        def fake_request(*args):
+            captured.append(args)
+            return fetch_news.HttpResult(200, "OK", {}, b"ok")
+
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           return_value=self.PUBLIC) as resolve,
+              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
+            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+        resolve.assert_called_once_with("example.com", 443)
+        self.assertEqual(captured[0][4], self.PUBLIC[0])
+
+    def test_redirect_destination_is_revalidated_and_repinned(self):
+        redirect = fetch_news.HttpResult(
+            302, "Found", {"Location": "https://cdn.example.net/feed"}, b"")
+        ok = fetch_news.HttpResult(200, "OK", {}, b"ok")
+        first = self.PUBLIC
+        second = (fetch_news.ResolvedAddress(2, ("93.184.216.35", 443)),)
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           side_effect=[first, second]) as resolve,
+              patch.object(fetch_news, "_request_once", side_effect=[redirect, ok])):
+            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+        self.assertEqual(resolve.call_args_list[1].args, ("cdn.example.net", 443))
+
+    def test_redirect_to_private_destination_is_rejected_before_request(self):
+        redirect = fetch_news.HttpResult(
+            302, "Found", {"Location": "http://127.0.0.1/admin"}, b"")
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           return_value=self.PUBLIC),
+              patch.object(fetch_news, "_request_once", return_value=redirect) as request):
+            with self.assertRaisesRegex(ValueError, "non-public"):
+                fetch_news.http_get("https://example.com/feed")
+        self.assertEqual(request.call_count, 1)
 
 
 class FeedConfigurationTest(unittest.TestCase):
@@ -824,6 +931,22 @@ class SourcesConfigurationTest(unittest.TestCase):
     def test_default_configuration_loads(self):
         sources = load_sources(DEFAULT_SOURCES_PATH)
         self.assertGreater(len(sources.categories), 0)
+
+    def test_rejects_unsafe_feed_urls_before_fetching(self):
+        for url in (
+            "file:///etc/passwd",
+            "http://localhost@127.0.0.1/feed",
+            "http://169.254.169.254/latest/meta-data",
+        ):
+            with self.subTest(url=url), tempfile.TemporaryDirectory() as directory:
+                path = self.write_sources(directory, {
+                    "categories": ["news"],
+                    "rss_feeds": {"news": [["News", url]]},
+                    "hn_category": "news", "hn_queries": [],
+                    "reddit_category": "news", "subreddits": [],
+                })
+                with self.assertRaisesRegex(ValueError, "unsafe URL"):
+                    load_sources(path)
 
     def test_source_identifiers_are_single_line_but_may_contain_colons(self):
         cases = (
