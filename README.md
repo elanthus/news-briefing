@@ -185,11 +185,20 @@ Note that this run is degraded: three of four subreddits returned HTTP 429. Redd
 
 </details>
 
-## Grounding is also injection containment
+## What injection can and cannot do here
 
-The corpus is text from Reddit, Hacker News, and public RSS feeds. Any of it can contain an instruction aimed at whatever reads it next. [`briefing-prompt.md`](briefing-prompt.md) tells the model to treat corpus content as data and never as instructions, but a prompt is not an enforcement mechanism.
+The corpus is text anyone can put there: a Reddit post, a Hacker News submission, or an article in a subscribed RSS feed. Publishing to any of these costs nothing and requires no privileged position — the untrusted input is the product itself, not an edge case. Whoever writes an item controls its `title`, `summary`, `source`, and URL string; they do not control the corpus schema, the cutoff, `briefing-config.json`, `briefing-prompt.md`, or the checker. [`briefing-prompt.md`](briefing-prompt.md) tells the model to treat corpus content as data and never as instructions, but a prompt is not an enforcement mechanism — it is exactly the text an injected instruction is trying to override.
 
-What is enforced is that every citation must exist in the corpus. An injected instruction can only change the briefing in ways that leave the corpus behind, and that is mechanically detectable. There is a fixture for it:
+That leaves four channels from attacker-controlled text to something that matters — the reader's beliefs, their attention, their clicks, or any tool the generating agent holds:
+
+| # | Channel | Attacker goal | Status |
+|---|---|---|---|
+| 1 | Citation (the `🔗` URL) | Smuggle a citation the corpus never contained | **Closed.** Allowlisted against the canonicalized corpus, exclusion log included |
+| 2 | Selection (inclusion, ordering, omission) | Promote its own item; suppress a rival's | **Open.** Partially observable via the exclusion log; not adjudicated |
+| 3 | Prose (summary text) | Make the briefing assert something false | **Open.** Figure/quote/length checks are WARN review signals only |
+| 4 | Tool (actions beyond emitting text) | Exfiltrate, write, browse | **Out of scope.** Assumed absent as a deployment property this repo cannot verify |
+
+Only channel 1 is closed, and only for citations: every citation must exist in the corpus, so a cited URL the corpus never contained is mechanically detectable. That check says nothing about channels 2 or 3 — an injection can suppress an item, promote itself, or misstate a fact while every citation in the briefing still resolves inside the corpus. There is a fixture for the citation check:
 
 ```bash
 python3 eval_briefing.py --corpus fixtures/injection-corpus.json --briefing fixtures/injection-briefing.md --config fixtures/injection-config.json
@@ -201,9 +210,9 @@ ERROR [ungrounded_link] AI Dev Tools: cited link is not in the corpus — https:
 
 [`fixtures/injection-corpus.json`](fixtures/injection-corpus.json) is a valid corpus containing a Hacker News item whose `summary` instructs the summarizer to ignore its task and cite an attacker URL. [`fixtures/injection-briefing.md`](fixtures/injection-briefing.md) is what a model that obeyed produces.
 
-The limit is worth stating plainly: this catches the injection's *output*, not the injection. A model talked into a subtly wrong summary of a genuine corpus item still passes, and citing the injected post itself is legitimate coverage rather than a failure. What the checker removes is the ability to smuggle in a source that was never fetched.
+The other three channels are worth stating plainly rather than leaving implied. A model talked into a subtly wrong summary of a genuine corpus item still passes; a model talked into silently dropping a rival's item still passes; citing the injected post itself is legitimate coverage, not a failure, because the item really was fetched. And channel 4 isn't checked at all: `briefing-prompt.md` states a no-write-capable-tools precondition, but a prompt cannot attest to its own runtime's tool surface, so this repo assumes that property of the deployment rather than verifying it. What the citation check removes is narrower than all of that: the ability to cite a source that was never fetched.
 
-The committed fixture is a deterministic checker regression test, not evidence about model behavior. [`run_ai_eval.py`](run_ai_eval.py) supplies that missing layer: it invokes a real model command over one clean utility case and three indirect-injection patterns, measures forbidden-marker attack success and checker utility before and after one correction pass, and writes the complete audit artifacts. The suite is intentionally extensible so a defense is evaluated across attacks and utility rather than demonstrated with one payload, following the evaluation posture in the peer-reviewed [MELON paper (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html).
+The committed fixture is a deterministic checker regression test, not evidence about model behavior. [`run_ai_eval.py`](run_ai_eval.py) supplies that missing layer: it invokes a real model command over one clean utility case and indirect-injection patterns across channels 1–3, measures marker-based attack success, suppression, and checker utility before and after one correction pass, and writes the complete audit artifacts. The suite is intentionally extensible so a defense is evaluated across attacks and utility rather than demonstrated with one payload, following the evaluation posture in the peer-reviewed [MELON paper (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html).
 
 ```bash
 python3 run_ai_eval.py \
@@ -229,8 +238,9 @@ The LLM is handed a closed corpus and does the thing it is good at — ranking a
 | Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
 | What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
 | Whether the prose is **faithful to the source** | **Heuristically sampled, not proven.** The checker warns on figures or quotations absent from the cited excerpt and on prose that substantially outgrows its evidence. |
+| What the generating agent can **do** beyond emit text | **Assumed, not verified.** `briefing-prompt.md` states a no-write-capable-tools operator precondition. Nothing in this repo checks the runtime's tool surface; if that precondition is violated, none of the other guarantees bound what happens. |
 
-That last row is the real limit. The corpus stores a truncated feed blurb, not the article — 61 of 158 items in the reference corpus (38.6%) hit the 300-character cap, and one carries only a headline — so a faithful summary is still a summary of an excerpt someone else selected.
+That last prose row is the real limit on what a Markdown parser can judge. The corpus stores a truncated feed blurb, not the article — 61 of 158 items in the reference corpus (38.6%) hit the 300-character cap, and one carries only a headline — so a faithful summary is still a summary of an excerpt someone else selected.
 
 ## Usage
 

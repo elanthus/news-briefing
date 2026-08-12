@@ -40,7 +40,7 @@ Schema v4 replaces ambiguous error strings with structured identities and adds c
 
 **Corpus health reporting.** Fetch failures and silent empty outcomes are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short. For v4 corpora, the checker requires one fenced JSON manifest whose `source_type`, `source_id`, and `status` values exactly match the structured error records. Prose-only claims, paraphrased IDs, duplicate entries, omitted failures, and invented failures are errors. Older frozen corpora retain their legacy text check solely for reproducible historical fixtures.
 
-**Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools. The prompt is not the enforcement mechanism; citation grounding is. See the injection fixture described in the [README](../README.md#grounding-is-also-injection-containment).
+**Untrusted-data boundary.** The briefing prompt treats all public-feed text as untrusted content, forbids following instructions embedded in it, and tells the summarizer to use no browsing or write-capable tools. The prompt is not an enforcement mechanism — it is an instruction that attacker-controlled corpus text can attempt to override. Citation grounding enforces exactly one of the four channels between corpus text and the reader: the URL. See [the README](../README.md#what-injection-can-and-cannot-do-here) for the other three and what remains open.
 
 ## Regression-testing a prompt change
 
