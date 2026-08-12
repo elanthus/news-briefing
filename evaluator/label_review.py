@@ -176,7 +176,7 @@ def _parse_reviews(text: str, expected_ids: set[str]) -> dict[str, dict[str, Any
             raise ValueError(f"review {case_id!r} has duplicate labels or no rationale")
         parsed[case_id] = {"labels": sorted(labels), "rationale": rationale.strip()}
     if set(parsed) != expected_ids:
-        missing = ", ".join(sorted(expected_ids - parsed))
+        missing = ", ".join(sorted(expected_ids - set(parsed)))
         raise ValueError(f"review response omitted case(s): {missing}")
     return parsed
 
