@@ -42,9 +42,9 @@ Follow the configured guidance and corpus-category eligibility when placing stor
 
 ## OUTPUT FORMAT
 
-The checker allowlists every HTTP(S) URL anywhere in the complete output, not
-only the required `🔗` citation lines. Do not emit Markdown links, HTML links,
-autolinks, bare URLs, or example URLs unless the destination appears in the
+The checker allowlists every web destination anywhere in the complete output,
+not only the required `🔗` citation lines. Do not emit Markdown links, HTML
+links, autolinks, protocol-relative links, bare `www.` links, bare URLs, or example URLs unless the destination appears in the
 corpus. Use the required citation format below for corpus URLs.
 
 # Daily Briefing — [today's date]

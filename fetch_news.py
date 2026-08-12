@@ -68,6 +68,7 @@ SOURCE_CONTEXT_BYTES = corpus_schema.SOURCE_CONTEXT_MAX_BYTES
 SOURCE_CONTEXT_TOKENS = corpus_schema.SOURCE_CONTEXT_MAX_TOKENS
 GLOBAL_CONTEXT_BYTES = corpus_schema.GLOBAL_CONTEXT_MAX_BYTES
 GLOBAL_CONTEXT_TOKENS = corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS
+TLS_CONTEXT = ssl.create_default_context()
 HN_MIN_POINTS = 20  # this many points clears HN's noise floor
 HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
@@ -496,7 +497,7 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
     """Make one request to an already validated and DNS-pinned address."""
     if parts.scheme.lower() == "https":
         connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
-            hostname, port, address, timeout, ssl.create_default_context())
+            hostname, port, address, timeout, TLS_CONTEXT)
     else:
         connection = _PinnedHTTPConnection(hostname, port, address, timeout)
     target = urllib.parse.urlunsplit(("", "", parts.path or "/", parts.query, ""))
@@ -994,6 +995,8 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
     source_cap_dropped = 0
     source_budget_dropped = 0
     category_cap_dropped = 0
+    context_bytes = 0
+    estimated_tokens = 0
     for index, item in enumerate(unique):
         if len(kept) >= category_cap:
             category_cap_dropped = len(unique) - index
@@ -1012,8 +1015,8 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
         kept.append(item)
         by_source[source] = by_source.get(source, 0) + 1
         source_usage[source_key] = used_bytes + size, used_tokens + tokens
-    context_bytes = sum(item_context_usage(item)[0] for item in kept)
-    estimated_tokens = sum(item_context_usage(item)[1] for item in kept)
+        context_bytes += size
+        estimated_tokens += tokens
     stats = {
         "fetched": fetched,
         "undated_dropped": undated_dropped,
@@ -1043,6 +1046,8 @@ def apply_global_context_budget(categories: dict[str, list[Item]],
     used_tokens = 0
     for category, items in categories.items():
         retained: list[Item] = []
+        category_bytes = 0
+        category_tokens = 0
         for item in items:
             size, tokens = item_context_usage(item)
             if used_bytes + size > byte_budget or used_tokens + tokens > token_budget:
@@ -1052,11 +1057,11 @@ def apply_global_context_budget(categories: dict[str, list[Item]],
             retained.append(item)
             used_bytes += size
             used_tokens += tokens
+            category_bytes += size
+            category_tokens += tokens
         categories[category] = retained
-        processing[category]["context_bytes"] = sum(
-            item_context_usage(item)[0] for item in retained)
-        processing[category]["estimated_tokens"] = sum(
-            item_context_usage(item)[1] for item in retained)
+        processing[category]["context_bytes"] = category_bytes
+        processing[category]["estimated_tokens"] = category_tokens
     return used_bytes, used_tokens
 
 
@@ -1222,9 +1227,10 @@ def main() -> int:
             item for item in corpus["categories"][status["category"]]
             if _item_belongs_to_source(item, status)
         ]
+        retained_usage = [item_context_usage(item) for item in retained]
         status["retained_entries"] = len(retained)
-        status["retained_bytes"] = sum(item_context_usage(item)[0] for item in retained)
-        status["estimated_tokens"] = sum(item_context_usage(item)[1] for item in retained)
+        status["retained_bytes"] = sum(size for size, _tokens in retained_usage)
+        status["estimated_tokens"] = sum(tokens for _size, tokens in retained_usage)
     corpus["errors"] = [error_record(status) for status in corpus["sources"]
                         if status["status"] != "ok"]
     corpus["context_budget"] = {

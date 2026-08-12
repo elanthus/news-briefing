@@ -78,11 +78,14 @@ CLAIM_EVIDENCE_RATIO = 2.0
 # unvalidated, which is exactly where an invented link would hide.
 _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 # Security validation is deliberately independent of the presentation parser.
-# The model controls the complete Markdown document, so every HTTP(S) URL is a
-# possible output link whether it is bare, Markdown, an autolink, or in HTML.
-# Scan HTML-unescaped text as well so an encoded href such as
-# ``https&#58;//example.test`` cannot bypass the allowlist.
+# The model controls the complete Markdown document, so every web destination
+# is checked whether it is bare, Markdown, an autolink, or in HTML. Scan raw
+# text first: unescaping the whole document alone would corrupt legitimate bare
+# query parameters such as ``&copy=1``. A second, masked/unescaped pass catches
+# entity-encoded schemes without reinterpreting URLs already found in raw text.
 _HTTP_URL = re.compile(r"\bhttps?://[^\s<>\"']+", re.IGNORECASE)
+_PROTOCOL_RELATIVE_URL = re.compile(r"(?<![:/])//[^\s<>\"']+")
+_WWW_URL = re.compile(r"(?<![\w@/.-])www\.[^\s<>\"']+", re.IGNORECASE)
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
@@ -95,18 +98,47 @@ def _clean_link_url(value: str) -> str:
     return url
 
 
+def _url_spellings(text: str) -> list[tuple[int, int, str, str]]:
+    """Return non-overlapping web destinations and their absolute forms."""
+    candidates: list[tuple[int, int, str, str]] = []
+    occupied: list[tuple[int, int]] = []
+    patterns = (
+        (_HTTP_URL, lambda value: value),
+        (_PROTOCOL_RELATIVE_URL, lambda value: f"https:{value}"),
+        (_WWW_URL, lambda value: f"https://{value}"),
+    )
+    for pattern, make_absolute in patterns:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if any(start < prior_end and prior_start < end
+                   for prior_start, prior_end in occupied):
+                continue
+            spelled = _clean_link_url(match.group())
+            candidates.append((start, end, spelled, make_absolute(spelled)))
+            occupied.append((start, end))
+    return candidates
+
+
 def output_urls(text: str) -> list[tuple[str, str]]:
-    """Return every distinct HTTP(S) URL anywhere in model output.
+    """Return every distinct clickable web destination in model output.
 
     Each pair is ``(canonical URL, output spelling)``. HTML character
-    references are decoded before scanning because browsers decode them in
-    attributes; validating only the literal source text would miss a working
-    link whose scheme or query separators were entity-encoded.
+    references are decoded in a second pass because browsers decode them in
+    attributes. Raw destinations are masked first so semicolon-less legacy
+    entities inside a legitimate bare URL cannot change its identity.
     """
     found: dict[str, str] = {}
-    for match in _HTTP_URL.finditer(html.unescape(text)):
-        spelled = _clean_link_url(match.group())
-        canonical = corpus_schema.canonicalize_url(spelled)
+    raw = _url_spellings(text)
+    for _start, _end, spelled, absolute in raw:
+        canonical = corpus_schema.canonicalize_url(absolute)
+        found.setdefault(canonical, spelled)
+
+    masked = list(text)
+    for start, end, _spelled, _absolute in raw:
+        masked[start:end] = " " * (end - start)
+    decoded = html.unescape("".join(masked))
+    for _start, _end, spelled, absolute in _url_spellings(decoded):
+        canonical = corpus_schema.canonicalize_url(absolute)
         found.setdefault(canonical, spelled)
     return list(found.items())
 
@@ -335,7 +367,7 @@ def check_sections_present(sections: dict[str, Section],
 
 def check_links_grounded(sections: dict[str, Section], text: str,
                          corpus: dict[str, Any]) -> list[Finding]:
-    """Every HTTP(S) URL in the complete output must exist in the corpus.
+    """Every web destination in the complete output must exist in the corpus.
 
     Both failures are ERRORs — every output destination must come from the corpus —
     but they are named apart because the reader's next action differs. An

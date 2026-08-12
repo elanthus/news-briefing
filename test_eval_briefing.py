@@ -150,8 +150,12 @@ class GroundingTest(unittest.TestCase):
             "HTML link": '<a href="https://attacker.example/html">click</a>',
             "single-quoted HTML link": "<a href='https://attacker.example/single'>click</a>",
             "HTML entity link": '<a href="https&#58;//attacker.example/entity">click</a>',
+            "fully entity-encoded scheme": (
+                '<a href="https&#58;&#47;&#47;attacker.example/encoded">click</a>'),
             "autolink": "<https://attacker.example/autolink>",
             "bare URL": "visit HTTPS://attacker.example/bare",
+            "protocol-relative URL": "[click](//attacker.example/protocol-relative)",
+            "bare www URL": "visit www.attacker.example/bare-www",
         }
         for kind, attack in attacks.items():
             with self.subTest(kind=kind):
@@ -160,6 +164,13 @@ class GroundingTest(unittest.TestCase):
                 findings = evaluate(CORPUS, f"{attack}\n\n{briefing()}")
                 self.assertIn("ungrounded_link", checks(findings, ERROR))
 
+    def test_semicolonless_html_entity_name_does_not_mangle_raw_query(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["url"] = "https://ex.com/p1?id=2&copy=1"
+        text = briefing().replace(
+            "🔗 https://ex.com/p1", "🔗 https://ex.com/p1?id=2&copy=1")
+        self.assertNotIn("ungrounded_link", checks(evaluate(corpus, text), ERROR))
+
     def test_allows_grounded_urls_in_non_citation_syntax(self):
         variants = (
             "[source](https://ex.com/p1)",
@@ -167,10 +178,23 @@ class GroundingTest(unittest.TestCase):
             "<a href='https://ex.com/p1'>source</a>",
             "<https://ex.com/p1>",
             "Reader note: https://ex.com/p1.",
+            "[source](//ex.com/p1)",
         )
         for variant in variants:
             with self.subTest(variant=variant):
                 findings = evaluate(CORPUS, f"{variant}\n\n{briefing()}")
+                self.assertNotIn("ungrounded_link", checks(findings, ERROR))
+
+    def test_allows_grounded_protocol_relative_and_bare_www_destinations(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_news"].append({
+            "title": "Grounded web destination",
+            "url": "https://www.example.test/story",
+            "summary": "Grounded web destination summary.",
+        })
+        for variant in ("//www.example.test/story", "www.example.test/story"):
+            with self.subTest(variant=variant):
+                findings = evaluate(corpus, f"Reader note: {variant}\n\n{briefing()}")
                 self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
     def test_flags_included_topic_without_a_link(self):

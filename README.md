@@ -11,7 +11,7 @@ The fetcher and checker need no API keys, credentials, or third-party packages �
 Three things follow, and one of them is a limit:
 
 - **Recency is enforced in code.** The cutoff is applied before the model sees anything.
-- **Every output URL is enforced against the corpus.** Any HTTP(S) destination the fetcher didn't collect fails the run, whether it appears as a required `🔗` citation, Markdown link, HTML link, autolink, or bare text. That is how a fabricated citation in the reference run itself was caught, [logged with the correction](docs/dogfooding.md).
+- **Every output URL is enforced against the corpus.** Any web destination the fetcher didn't collect fails the run, whether it appears as a required `🔗` citation, Markdown link, HTML link, autolink, protocol-relative link, bare `www.` link, or bare HTTP(S) text. That is how a fabricated citation in the reference run itself was caught, [logged with the correction](docs/dogfooding.md).
 - **Ranking and summary quality are not claimed.** The model ranks; the exclusion log makes that judgment auditable and claim-grounding checks sample it. [The guarantee table](#what-is-actually-guaranteed) says where each check stops.
 
 ## What you get
@@ -193,12 +193,12 @@ That leaves four channels from attacker-controlled text to something that matter
 
 | # | Channel | Attacker goal | Status |
 |---|---|---|---|
-| 1 | Output link (including the `🔗` citation URL) | Smuggle a destination the corpus never contained | **Closed.** Every HTTP(S) URL in the complete output is allowlisted against the canonicalized corpus |
+| 1 | Output link (including the `🔗` citation URL) | Smuggle a destination the corpus never contained | **Closed.** Every web destination in the complete output is allowlisted against the canonicalized corpus |
 | 2 | Selection (inclusion, ordering, omission) | Promote its own item; suppress a rival's | **Open.** Partially observable via the exclusion log; not adjudicated |
 | 3 | Prose (summary text) | Make the briefing assert something false | **Open.** Figure/quote/length checks are WARN review signals only |
 | 4 | Tool (actions beyond emitting text) | Exfiltrate, write, browse | **Out of scope.** Assumed absent as a deployment property this repo cannot verify |
 
-Only channel 1 is closed: every HTTP(S) URL anywhere in the model's complete output must exist in the corpus, so Markdown links, HTML links, autolinks, bare URLs, and required `🔗` citations cannot introduce a destination the corpus never contained. That check says nothing about channels 2 or 3 — an injection can suppress an item, promote itself, or misstate a fact while every output URL still resolves inside the corpus. There is a fixture for the output-link check:
+Only channel 1 is closed: every web destination anywhere in the model's complete output must exist in the corpus, so Markdown links, HTML links, autolinks, protocol-relative links, bare `www.` links, bare HTTP(S) URLs, and required `🔗` citations cannot introduce a destination the corpus never contained. Raw URLs and HTML-decoded candidates are checked separately, preserving query parameters such as `&copy=1` while still detecting entity-encoded schemes. That check says nothing about channels 2 or 3 — an injection can suppress an item, promote itself, or misstate a fact while every output URL still resolves inside the corpus. There is a fixture for the output-link check:
 
 ```bash
 python3 eval_briefing.py --corpus fixtures/injection-corpus.json --briefing fixtures/injection-briefing.md --config fixtures/injection-config.json
@@ -229,7 +229,7 @@ The LLM is handed a closed corpus and does the thing it is good at — ranking a
 |---|---|
 | What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
 | What is **eligible** | **Prompt-constrained.** The model is instructed to use only the closed corpus; semantic compliance is not proven. |
-| What may be **linked** | **Enforced for the complete output.** Every HTTP(S) URL must exist in the corpus, whether it appears in a required `🔗` citation, Markdown link, HTML link, autolink, or bare text. |
+| What may be **linked** | **Enforced for the complete output.** Every web destination must exist in the corpus, including required `🔗` citations, Markdown and HTML links, autolinks, protocol-relative links, bare `www.` links, and bare HTTP(S) text. |
 | Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
 | What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
 | Whether the prose is **faithful to the source** | **Heuristically sampled, not proven.** The checker warns on figures or quotations absent from the cited excerpt and on prose that substantially outgrows its evidence. |
@@ -404,7 +404,7 @@ python3 eval_briefing.py --corpus corpus.json --briefing briefing.md --config br
 
 | Level | Meaning | Examples |
 |---|---|---|
-| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any HTTP(S) URL that isn't in the corpus; a URL altered from its corpus spelling; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a degraded run reported as healthy |
+| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
 If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A citation the corpus does not contain is never acceptable. Use `--strict` to fail on warnings too.

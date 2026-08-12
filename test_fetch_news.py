@@ -365,6 +365,19 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(categories["second"], [])
         self.assertEqual(processing["second"]["global_budget_dropped"], 1)
 
+    def test_budget_totals_serialize_each_item_once_per_budget_pass(self):
+        items = [self.item(n) for n in range(1, 4)]
+        real_usage = fetch_news.item_context_usage
+        with patch.object(fetch_news, "item_context_usage", wraps=real_usage) as usage:
+            kept, stats = prepare_category(items)
+        self.assertEqual(usage.call_count, len(items))
+
+        categories = {"news": kept}
+        processing = {"news": stats}
+        with patch.object(fetch_news, "item_context_usage", wraps=real_usage) as usage:
+            apply_global_context_budget(categories, processing)
+        self.assertEqual(usage.call_count, len(kept))
+
 
 class HackerNewsTest(unittest.TestCase):
     def test_minimum_point_threshold_is_inclusive(self):
