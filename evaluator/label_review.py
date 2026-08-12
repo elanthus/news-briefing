@@ -185,6 +185,35 @@ def _generation_record(generation: Generation) -> dict[str, Any]:
     return generation.record()
 
 
+def _load_generation(path: Path) -> Generation:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"checkpoint {path.name} is not a JSON object")
+    return Generation(**payload)
+
+
+def _review_batch(
+    adapter: Adapter,
+    prompt: str,
+    checkpoint: Path,
+    expected_ids: set[str],
+) -> tuple[Generation, dict[str, dict[str, Any]], bool]:
+    if checkpoint.exists():
+        try:
+            generation = _load_generation(checkpoint)
+            return generation, _parse_reviews(generation.text, expected_ids), True
+        except (OSError, TypeError, ValueError):
+            # Preserve every response before parsing, but retry a corrupt file or
+            # malformed model response instead of treating it as completed work.
+            pass
+    generation = adapter.generate(prompt)
+    checkpoint.write_text(
+        json.dumps(_generation_record(generation), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return generation, _parse_reviews(generation.text, expected_ids), False
+
+
 def _portable_path(path: Path) -> str:
     """Represent repository paths without leaking a machine-specific checkout path."""
     resolved = path.resolve()
@@ -211,21 +240,41 @@ def run_label_review(
     payloads, mapping = blinded_cases(suite)
     prepared = {case["id"]: sorted(case["human_labels"]) for case in suite["cases"]}
     output_dir.mkdir(parents=True, exist_ok=True)
+    identity = {
+        "schema_version": 1,
+        "suite_sha256": hashlib.sha256(raw).hexdigest(),
+        "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
+        "adjudicator": {"provider": adjudicator.provider, "model": adjudicator.model},
+        "batch_size": batch_size,
+    }
+    identity_path = output_dir / "label-review-run.json"
+    if identity_path.exists():
+        existing_identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        if existing_identity != identity:
+            raise ValueError("output directory belongs to a different label-review run")
+    else:
+        if any(output_dir.glob("reviewer-batch-*.json")) or any(
+                output_dir.glob("adjudicator-batch-*.json")):
+            raise ValueError("output directory has unbound label-review checkpoints")
+        identity_path.write_text(
+            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     reviewer_rows: dict[str, dict[str, Any]] = {}
     reviewer_calls = []
     for batch_index, start in enumerate(range(0, len(payloads), batch_size), 1):
         batch = payloads[start:start + batch_size]
-        generation = reviewer.generate(_review_prompt(batch))
-        (output_dir / f"reviewer-batch-{batch_index:02d}.json").write_text(
-            json.dumps(_generation_record(generation), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+        generation, reviews, resumed = _review_batch(
+            reviewer,
+            _review_prompt(batch),
+            output_dir / f"reviewer-batch-{batch_index:02d}.json",
+            {case["case"] for case in batch},
         )
-        reviews = _parse_reviews(generation.text, {case["case"] for case in batch})
         reviewer_rows.update(reviews)
         reviewer_calls.append({
             "batch": batch_index,
             "cases": sorted(reviews),
+            "resumed": resumed,
             "generation": _generation_record(generation),
         })
 
@@ -244,17 +293,18 @@ def run_label_review(
     adjudicator_calls = []
     for batch_index, start in enumerate(range(0, len(disagreements), batch_size), 1):
         batch = disagreements[start:start + batch_size]
-        generation = adjudicator.generate(_adjudication_prompt(batch))
-        (output_dir / f"adjudicator-batch-{batch_index:02d}.json").write_text(
-            json.dumps(_generation_record(generation), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
         expected = {row["input"]["case"] for row in batch}
-        reviews = _parse_reviews(generation.text, expected)
+        generation, reviews, resumed = _review_batch(
+            adjudicator,
+            _adjudication_prompt(batch),
+            output_dir / f"adjudicator-batch-{batch_index:02d}.json",
+            expected,
+        )
         adjudicator_rows.update(reviews)
         adjudicator_calls.append({
             "batch": batch_index,
             "cases": sorted(reviews),
+            "resumed": resumed,
             "generation": _generation_record(generation),
         })
 
@@ -279,7 +329,7 @@ def run_label_review(
         "schema_version": 1,
         "status": "machine_review_complete_human_approval_required",
         "suite": _portable_path(suite_path),
-        "suite_sha256": hashlib.sha256(raw).hexdigest(),
+        "suite_sha256": identity["suite_sha256"],
         "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
         "adjudicator": {"provider": adjudicator.provider, "model": adjudicator.model},
         "case_count": len(cases),

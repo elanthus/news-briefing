@@ -1,6 +1,6 @@
 # Offline evaluator baseline — 2026-08-12
 
-This report was produced after human adjudication of the 10 labels disputed by the blinded
+This report was produced after human adjudication of the 10 cases disputed by the blinded
 Sonnet review, with Opus recommendations available, by running:
 
 ```bash

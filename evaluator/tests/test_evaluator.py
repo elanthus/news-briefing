@@ -75,8 +75,10 @@ class LabelReviewAdapter(Adapter):
     def __init__(self, model: str, labels: dict[str, list[str]]):
         super().__init__(model)
         self.labels = labels
+        self.calls = 0
 
     def generate(self, prompt: str) -> Generation:
+        self.calls += 1
         self.last_prompt = prompt
         present = [case_id for case_id in self.labels if f'"case": "{case_id}"' in prompt]
         reviews = [
@@ -346,6 +348,12 @@ class LabelReviewTest(unittest.TestCase):
             self.assertTrue((temporary / "output" / "label-review.json").is_file())
             self.assertTrue((temporary / "output" / "reviewer-batch-01.json").is_file())
             self.assertTrue((temporary / "output" / "adjudicator-batch-01.json").is_file())
+
+            resumed = run_label_review(reviewer, adjudicator, temporary / "output", suite_path)
+            self.assertEqual(reviewer.calls, 1)
+            self.assertEqual(adjudicator.calls, 1)
+            self.assertTrue(resumed["reviewer_calls"][0]["resumed"])
+            self.assertTrue(resumed["adjudicator_calls"][0]["resumed"])
 
 
 if __name__ == "__main__":
