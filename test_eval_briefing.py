@@ -462,9 +462,17 @@ class DoubleListingTest(unittest.TestCase):
         text = briefing().replace("🔗 https://ex.com/p3", "🔗 https://ex.com/p4")
         self.assertIn("included_and_excluded", checks(evaluate(CORPUS, text), ERROR))
 
-    def test_same_link_cited_twice_in_body_is_an_error(self):
-        text = briefing().replace("🔗 https://ex.com/w2", "🔗 https://ex.com/w1")
+    def test_same_link_spelling_twice_in_one_topic_is_a_duplicate_citation(self):
+        text = briefing().replace(
+            "🔗 https://ex.com/w1", "🔗 https://ex.com/w1\n🔗 https://ex.com/w1", 1)
+        self.assertIn("duplicate_citation", checks(evaluate(CORPUS, text), ERROR))
+        self.assertNotIn("repeated_topic", checks(evaluate(CORPUS, text), ERROR))
+
+    def test_canonical_equivalent_spellings_remain_a_repeated_topic(self):
+        text = briefing().replace(
+            "🔗 https://ex.com/w1", "🔗 https://ex.com/w1\n🔗 https://EX.com/w1/", 1)
         self.assertIn("repeated_topic", checks(evaluate(CORPUS, text), ERROR))
+        self.assertNotIn("duplicate_citation", checks(evaluate(CORPUS, text), ERROR))
 
     def test_a_story_reported_in_two_sections_is_an_error(self):
         text = briefing().replace("🔗 https://ex.com/n1", "🔗 https://ex.com/p1")
@@ -556,6 +564,20 @@ class CorpusHealthTest(unittest.TestCase):
         findings = evaluate(degraded, briefing(health=paraphrased))
         self.assertIn("failed_source_unnamed", checks(findings, ERROR))
         self.assertIn("unexpected_failed_source", checks(findings, ERROR))
+
+    def test_current_schema_reports_a_status_mismatch_directly(self):
+        error = {
+            "source_type": "rss", "source_id": "Feed A", "status": "error",
+            "error_type": "HTTPError", "message": "503", "duration_ms": 12,
+        }
+        degraded = dict(CORPUS, schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION,
+                        errors=[error])
+        health = ('```json\n{"failed_sources":[{"source_type":"rss",'
+                  '"source_id":"Feed A","status":"empty"}]}\n```')
+        findings = checks(evaluate(degraded, briefing(health=health)), ERROR)
+        self.assertIn("failed_source_status_mismatch", findings)
+        self.assertNotIn("failed_source_unnamed", findings)
+        self.assertNotIn("unexpected_failed_source", findings)
 
     def test_current_schema_rejects_prose_only_health(self):
         error = {

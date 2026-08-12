@@ -7,6 +7,7 @@ from pathlib import Path
 
 from evaluator.adapters import Adapter, Generation, adapter_for
 from evaluator.cases import run_deterministic_suite
+from evaluator.label_review import _parse_reviews, _portable_path, blinded_cases, run_label_review
 from evaluator.metrics import rate, wilson_interval
 from evaluator.runner import DEFAULT_CORPUS, _mutate, apply_adjudications, run_evaluation, summarize
 
@@ -35,7 +36,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("conflicting_evidence", misses)
         self.assertIn("over_consolidation", misses)
         self.assertIn("unsupported_claim", misses)
-        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 2)
+        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 1)
 
 
 class MetricTest(unittest.TestCase):
@@ -66,6 +67,23 @@ class FakeAdapter(Adapter):
             output_tokens=30,
             cost_usd=0.001,
         )
+
+
+class LabelReviewAdapter(Adapter):
+    provider = "offline-label-review"
+
+    def __init__(self, model: str, labels: dict[str, list[str]]):
+        super().__init__(model)
+        self.labels = labels
+
+    def generate(self, prompt: str) -> Generation:
+        self.last_prompt = prompt
+        present = [case_id for case_id in self.labels if f'"case": "{case_id}"' in prompt]
+        reviews = [
+            {"case": case_id, "labels": self.labels[case_id], "rationale": "fixture rationale"}
+            for case_id in present
+        ]
+        return Generation(text=json.dumps({"reviews": reviews}), latency_ms=1.0)
 
 
 class FailOnceAdapter(FakeAdapter):
@@ -264,6 +282,70 @@ class RunnerTest(unittest.TestCase):
             ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
         ):
             self.assertEqual(adapter_for(provider, model).provider, provider)
+
+
+class LabelReviewTest(unittest.TestCase):
+    def test_repository_paths_are_recorded_relative_to_the_checkout(self) -> None:
+        evaluator_dir = Path(__file__).parents[1]
+        self.assertEqual(
+            _portable_path(evaluator_dir / "fixtures" / "checker-cases.json"),
+            "./evaluator/fixtures/checker-cases.json",
+        )
+
+    def test_review_parser_accepts_a_prefaced_json_object(self) -> None:
+        parsed = _parse_reviews(
+            'Result follows:\n{"reviews":[{"case":"case-001","labels":[],"rationale":"valid"}]}',
+            {"case-001"},
+        )
+        self.assertEqual(parsed["case-001"]["labels"], [])
+
+    def test_blinded_payload_omits_fixture_metadata_and_human_labels(self) -> None:
+        suite = {
+            "cases": [{
+                "id": "revealing-name",
+                "component": "checker",
+                "family": "revealing-family",
+                "variant": "valid-baseline",
+                "human_labels": ["ungrounded_link"],
+            }]
+        }
+        payloads, mapping = blinded_cases(suite)
+        encoded = json.dumps(payloads)
+        self.assertNotIn("revealing-name", encoded)
+        self.assertNotIn("revealing-family", encoded)
+        self.assertNotIn("human_labels", encoded)
+        self.assertNotIn("ungrounded_link", encoded)
+        self.assertEqual(mapping, {"case-001": "revealing-name"})
+
+    def test_disagreements_are_adjudicated_without_rewriting_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite = {
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }
+            suite_path.write_text(json.dumps(suite), encoding="utf-8")
+            reviewer = LabelReviewAdapter("sonnet", {"case-001": ["unsupported_claim"]})
+            adjudicator = LabelReviewAdapter("opus", {"case-001": []})
+            result = run_label_review(reviewer, adjudicator, temporary / "output", suite_path)
+
+            self.assertEqual(result["exact_agreements"], 0)
+            self.assertEqual(result["disagreements_adjudicated"], 1)
+            self.assertEqual(result["cases"][0]["machine_consensus_labels"], [])
+            self.assertIn("human approval", result["notice"])
+            self.assertNotIn("provisional_labels", reviewer.last_prompt)
+            self.assertIn("provisional_labels", adjudicator.last_prompt)
+            self.assertEqual(json.loads(suite_path.read_text(encoding="utf-8")), suite)
+            self.assertTrue((temporary / "output" / "label-review.json").is_file())
+            self.assertTrue((temporary / "output" / "reviewer-batch-01.json").is_file())
+            self.assertTrue((temporary / "output" / "adjudicator-batch-01.json").is_file())
 
 
 if __name__ == "__main__":

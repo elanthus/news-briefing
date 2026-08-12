@@ -203,6 +203,13 @@ class CanonicalizeUrlTest(unittest.TestCase):
         self.assertEqual(canonicalize_url("mailto:news@example.com"),
                          "mailto:news@example.com")
 
+    def test_preserves_article_identifying_and_unknown_query_parameters(self):
+        url = "https://example.com/story?output=1&id=2&edition=west&utm_source=rss"
+        self.assertEqual(
+            canonicalize_url(url),
+            "https://example.com/story?edition=west&id=2&output=1",
+        )
+
 
 class RelevanceTest(unittest.TestCase):
     def test_filters_obvious_noise_from_broad_ai_feed(self):

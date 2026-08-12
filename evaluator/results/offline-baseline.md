@@ -1,23 +1,34 @@
-# Offline evaluator baseline — 2026-08-11
+# Offline evaluator baseline — 2026-08-12
 
-This report was produced from the committed provisional gold labels by running:
+This report was produced after human adjudication of the 10 labels disputed by the blinded
+Sonnet review, with Opus recommendations available, by running:
 
 ```bash
 python3 -m evaluator checker
 ```
 
-No external model was called. The labels still require independent human approval before these values are publication-grade. Live model, prompt-version, correction, attack, grounding, latency, and cost rows therefore have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls.
+No external model was called while regenerating these metrics. The remaining 44 labels still
+require independent human approval before these values are publication-grade. Live model,
+prompt-version, correction, attack, grounding, latency, and cost rows therefore have **0 trials /
+not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider
+calls.
 
 ## Deterministic checker (42 cases)
 
 | Metric | Result |
 |---|---:|
-| Precision | 93.3% (95% Wilson CI 78.7–98.2%; 28/30 predicted positives) |
-| Recall | 87.5% (95% Wilson CI 71.9–95.0%; 28/32 human-positive labels) |
-| Exact case match | 85.7% (95% Wilson CI 72.2–93.3%; 36/42 cases) |
-| Heuristic claim false-positive rate | 100% (95% Wilson CI 34.2–100%; 2/2 deliberately valid claim cases) |
+| Precision | 96.7% (95% Wilson CI 83.3–99.4%; 29/30 predicted positives) |
+| Recall | 80.6% (95% Wilson CI 65.0–90.2%; 29/36 human-positive labels) |
+| Exact case match | 83.3% (95% Wilson CI 69.4–91.7%; 35/42 cases) |
+| Heuristic claim false-positive rate | 100% (95% Wilson CI 20.7–100%; 1/1 deliberately valid claim case) |
 
-The four checker false negatives are deliberate semantic probes: unsupported thin-evidence prose, conflicting evidence, over-consolidation, and category ambiguity. The two false positives are also deliberate: a semantically equivalent `one in two` → `50 percent` figure and a faithful paraphrase that is more than twice the character length of thin evidence.
+The seven false-negative labels are semantic: unsupported prose in an overfilled case, a generic
+claim-exceeds-evidence label alongside an unsupported quotation, unsupported thin-evidence prose,
+conflicting evidence, over-consolidation, and category ambiguity plus unsupported prose in the
+ambiguous-selection case. The sole heuristic-negative case is a semantically equivalent `one in
+two` → `50 percent` figure, which the deterministic figure check flags. The formerly valid thin
+paraphrase was adjudicated as exceeding its deliberately shortened evidence and is no longer in the
+false-positive denominator.
 
 ## Feed parser (12 cases)
 

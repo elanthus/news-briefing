@@ -404,7 +404,7 @@ python3 eval_briefing.py --corpus corpus.json --briefing briefing.md --config br
 
 | Level | Meaning | Examples |
 |---|---|---|
-| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a degraded run reported as healthy |
+| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a duplicate citation; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a failed source reported with the wrong status; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
 If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A citation the corpus does not contain is never acceptable. Use `--strict` to fail on warnings too.
