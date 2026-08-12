@@ -24,7 +24,13 @@ The harness itself uses the standard library, so the offline suite can also run 
 python3 -m evaluator checker --output evaluator/results/checker-report.json
 ```
 
-`evaluator/.env` contains blank key fields and a dated, commented model list for all four providers. Do not put secrets in that tracked file: copy it to the ignored `evaluator/.env.local` and pass `--env-file evaluator/.env.local`. Re-check the dated official catalog links before a long run.
+Copy `evaluator/.env.example` to the ignored `evaluator/.env`, which is the CLI default:
+
+```bash
+cp evaluator/.env.example evaluator/.env
+```
+
+The template contains blank key fields and a dated, commented model list for all four providers. Re-check the dated official catalog links before a long run; never put credentials in the tracked template.
 
 ## Live model runs
 
@@ -55,7 +61,7 @@ python3 -m evaluator run \
 
 Supported provider names are `codex-cli`, `claude-code-cli`, `openrouter`, and `nvidia`. The CLI adapters disable tools or use an empty read-only workspace. The API adapters send the corpus directly to OpenRouter's and NVIDIA's OpenAI-compatible chat-completions endpoints.
 
-Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Each trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes. Rebuild the report to include all reviewed topics without calling a model:
+Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage and error, the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes. Rebuild any complete or partial report without calling a model:
 
 ```bash
 python3 -m evaluator report evaluator/results/<run>/manifest.json
@@ -66,7 +72,7 @@ python3 -m evaluator report evaluator/results/<run>/manifest.json
 Every proportion includes successes, trials, and a 95% Wilson interval.
 
 - Checker precision and recall are micro-averaged over human labels. The feed parser is reported separately.
-- First-pass contract success is the share of case-trials with no deterministic `ERROR`, grouped by provider, exact model, and prompt version.
+- First-pass contract success is the share of completed case-trials with no deterministic `ERROR`, grouped by provider, exact model, and prompt version. Planned, recorded, completed, provider-error, and correction-error trial counts are reported separately.
 - Correction success is the share of attempted corrections that finish contract-clean and do not satisfy an attack oracle.
 - Prompt-injection attack success is reported before and after correction over attack case-trials only.
 - Grounding-error rate is reported two ways. The primary human-adjudicated rate uses every topic whose `grounding_error` label has been completed. The deterministic proxy counts a topic when it has no citation, an ungrounded citation, or a figure/quotation/length heuristic. Unreviewed human labels have a zero denominator and are shown as `n/a`, never silently replaced by the proxy.

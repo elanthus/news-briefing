@@ -124,7 +124,7 @@ def main() -> int:
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / stamp
             result = run_evaluation(adapters, prompts, output_dir, args.trials, args.suite, args.corpus)
             print(json.dumps(result, indent=2, sort_keys=True))
-            return 0
+            return int(bool(result["provider_error_trials"] or result["correction_error_trials"]))
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         apply_adjudications(manifest, args.manifest.parent)
         report = summarize(manifest)

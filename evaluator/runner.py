@@ -34,12 +34,22 @@ def _sha256(data: bytes) -> str:
 
 
 def _mutate(target: dict[str, Any], mutations: list[dict[str, Any]]) -> None:
-    for mutation in mutations:
+    for index, mutation in enumerate(mutations):
+        if not isinstance(mutation, dict):
+            raise ValueError(f"mutation {index} must be an object")
+        path = mutation.get("path")
+        if not isinstance(path, list) or not path:
+            raise ValueError(f"mutation {index} path must be a non-empty array")
+        if "value" not in mutation:
+            raise ValueError(f"mutation {index} is missing value")
         cursor: Any = target
-        path = mutation["path"]
-        for part in path[:-1]:
-            cursor = cursor[part]
-        cursor[path[-1]] = mutation["value"]
+        try:
+            for part in path[:-1]:
+                cursor = cursor[part]
+            cursor[path[-1]] = mutation["value"]
+        except (IndexError, KeyError, TypeError) as exc:
+            rendered = json.dumps(path, ensure_ascii=False)
+            raise ValueError(f"mutation {index} path does not exist: {rendered}") from exc
 
 
 def _set_source_failures(corpus: dict[str, Any], failures: list[dict[str, str]]) -> None:
@@ -180,7 +190,11 @@ def _adjudication_template(text: str, config: briefing_config.BriefingConfig) ->
 def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
     """Merge completed topic-level human grounding labels into a manifest."""
     for row in manifest["results"]:
-        path = artifact_root / row["grounding_adjudication"]
+        relative_path = row.get("grounding_adjudication")
+        final = row.get("final")
+        if not relative_path or not isinstance(final, dict):
+            continue
+        path = artifact_root / relative_path
         reviewed = 0
         errors = 0
         if path.exists():
@@ -190,8 +204,8 @@ def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
                 if isinstance(label, bool):
                     reviewed += 1
                     errors += label
-        row["final"]["human_grounding_reviewed_topics"] = reviewed
-        row["final"]["human_grounding_error_topics"] = errors
+        final["human_grounding_reviewed_topics"] = reviewed
+        final["human_grounding_error_topics"] = errors
 
 
 def _git_provenance() -> dict[str, Any]:
@@ -202,6 +216,33 @@ def _git_provenance() -> dict[str, Any]:
         ["git", "status", "--porcelain"], cwd=ROOT, text=True, capture_output=True, check=False
     ).stdout.strip())
     return {"commit": commit or None, "dirty": dirty}
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(text, encoding="utf-8")
+    temporary.replace(path)
+
+
+def _write_json_atomic(path: Path, payload: Any) -> None:
+    _write_text_atomic(
+        path,
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+    )
+
+
+def _provider_error(stage: str, exc: Exception) -> dict[str, str]:
+    return {"stage": stage, "type": type(exc).__name__, "message": str(exc)}
+
+
+def _checkpoint(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    """Atomically persist every completed or failed trial and its current report."""
+    manifest["checkpointed_at"] = datetime.now(UTC).isoformat()
+    _write_json_atomic(output_dir / "manifest.json", manifest)
+    report = summarize(manifest)
+    _write_json_atomic(output_dir / "report.json", report)
+    _write_text_atomic(output_dir / "report.md", markdown_report(report))
+    return report
 
 
 def run_evaluation(
@@ -220,6 +261,32 @@ def run_evaluation(
     output_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC)
     results: list[dict[str, Any]] = []
+    deterministic = run_deterministic_suite()
+    manifest = {
+        "schema_version": 3,
+        "run_status": "running",
+        "started_at": started.isoformat(),
+        "completed_at": None,
+        "suite": str(suite_path),
+        "suite_sha256": _sha256(suite_path.read_bytes()),
+        "corpus_sha256": _sha256(corpus_path.read_bytes()),
+        "trials_per_case": trials,
+        "planned_case_trials": len(adapters) * len(prompt_versions) * len(suite["cases"]) * trials,
+        "code": _git_provenance(),
+        "grounding_measure": (
+            "Deterministic proxy: topic has no citation, an ungrounded citation, "
+            "or a figure/quotation/length heuristic. "
+            "Preserved outputs should be human-adjudicated for semantic publication claims."
+        ),
+        "deterministic_summary": {
+            "case_count": deterministic["case_count"],
+            "label_provenance": deterministic["label_provenance"],
+            "components": deterministic["components"],
+            "heuristic_claim_false_positive_rate": deterministic["heuristic_claim_false_positive_rate"],
+        },
+        "results": results,
+    }
+    _checkpoint(manifest, output_dir)
 
     for adapter in adapters:
         for prompt_version, prompt_path in prompt_versions.items():
@@ -237,40 +304,13 @@ def run_evaluation(
                     config_data = _json(config_path)
                     config = briefing_config.load_config(config_path)
                     request = model_request(prompt, config_data, corpus)
-                    first = adapter.generate(request)
-                    before = eval_briefing.evaluate(corpus, first.text, config)
-                    oracle_before = _oracle(case, first.text, before)
-                    first_contract = _contract_success(before)
-                    needs_correction = not first_contract or oracle_before["attack_success"]
-                    corrected = adapter.generate(correction_request(
-                        request, first.text, [finding._asdict() for finding in before], case
-                    )) if needs_correction else None
-                    final_generation = corrected or first
-                    after = eval_briefing.evaluate(corpus, final_generation.text, config)
-                    oracle_after = _oracle(case, final_generation.text, after)
-                    final_contract = _contract_success(after)
-                    first_topics, first_grounding_errors = _grounding_topics(corpus, first.text, config)
-                    final_topics, final_grounding_errors = _grounding_topics(corpus, final_generation.text, config)
-
                     key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{case['id']}__{trial}"
                     safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
                     case_dir = output_dir / safe_key
                     case_dir.mkdir()
-                    (case_dir / "first.md").write_text(first.text, encoding="utf-8")
-                    (case_dir / "final.md").write_text(final_generation.text, encoding="utf-8")
-                    (case_dir / "corpus.json").write_text(
-                        json.dumps(corpus, sort_keys=True, ensure_ascii=False), encoding="utf-8"
-                    )
-                    adjudication_name = "grounding-adjudication.json"
-                    (case_dir / adjudication_name).write_text(
-                        json.dumps(
-                            _adjudication_template(final_generation.text, config),
-                            indent=2,
-                            ensure_ascii=False,
-                        ) + "\n",
-                        encoding="utf-8",
-                    )
-                    result = {
+                    _write_json_atomic(case_dir / "corpus.json", corpus)
+                    _write_text_atomic(case_dir / "request.txt", request)
+                    base_result = {
                         "provider": adapter.provider,
                         "model": adapter.model,
                         "prompt_version": prompt_version,
@@ -280,6 +320,60 @@ def run_evaluation(
                         "case_family": case["family"],
                         "trial": trial,
                         "artifact_dir": safe_key,
+                    }
+                    try:
+                        first = adapter.generate(request)
+                    except Exception as exc:
+                        error = _provider_error("first", exc)
+                        _write_json_atomic(case_dir / "error.json", error)
+                        results.append({
+                            **base_result,
+                            "status": "provider_error",
+                            "error": error,
+                            "grounding_adjudication": None,
+                            "first": None,
+                            "correction_attempted": False,
+                            "correction": None,
+                            "correction_error": None,
+                            "final": None,
+                        })
+                        _checkpoint(manifest, output_dir)
+                        continue
+                    before = eval_briefing.evaluate(corpus, first.text, config)
+                    oracle_before = _oracle(case, first.text, before)
+                    first_contract = _contract_success(before)
+                    needs_correction = not first_contract or oracle_before["attack_success"]
+                    corrected = None
+                    correction_error = None
+                    if needs_correction:
+                        try:
+                            corrected = adapter.generate(correction_request(
+                                request,
+                                first.text,
+                                [finding._asdict() for finding in before],
+                                case,
+                            ))
+                        except Exception as exc:
+                            correction_error = _provider_error("correction", exc)
+                            _write_json_atomic(case_dir / "correction-error.json", correction_error)
+                    final_generation = corrected or first
+                    after = eval_briefing.evaluate(corpus, final_generation.text, config)
+                    oracle_after = _oracle(case, final_generation.text, after)
+                    final_contract = _contract_success(after)
+                    first_topics, first_grounding_errors = _grounding_topics(corpus, first.text, config)
+                    final_topics, final_grounding_errors = _grounding_topics(corpus, final_generation.text, config)
+
+                    _write_text_atomic(case_dir / "first.md", first.text)
+                    _write_text_atomic(case_dir / "final.md", final_generation.text)
+                    adjudication_name = "grounding-adjudication.json"
+                    _write_json_atomic(
+                        case_dir / adjudication_name,
+                        _adjudication_template(final_generation.text, config),
+                    )
+                    result = {
+                        **base_result,
+                        "status": "completed_with_correction_error" if correction_error else "completed",
+                        "error": None,
                         "grounding_adjudication": f"{safe_key}/{adjudication_name}",
                         "first": {
                             **first.record(),
@@ -291,6 +385,7 @@ def run_evaluation(
                         },
                         "correction_attempted": needs_correction,
                         "correction": corrected.record() if corrected else None,
+                        "correction_error": correction_error,
                         "final": {
                             "contract_success": final_contract,
                             "findings": [finding._asdict() for finding in after],
@@ -300,39 +395,11 @@ def run_evaluation(
                         },
                     }
                     results.append(result)
+                    _checkpoint(manifest, output_dir)
 
-    deterministic = run_deterministic_suite()
-    manifest = {
-        "schema_version": 2,
-        "started_at": started.isoformat(),
-        "completed_at": datetime.now(UTC).isoformat(),
-        "suite": str(suite_path),
-        "suite_sha256": _sha256(suite_path.read_bytes()),
-        "corpus_sha256": _sha256(corpus_path.read_bytes()),
-        "trials_per_case": trials,
-        "code": _git_provenance(),
-        "grounding_measure": (
-            "Deterministic proxy: topic has no citation, an ungrounded citation, "
-            "or a figure/quotation/length heuristic. "
-            "Preserved outputs should be human-adjudicated for semantic publication claims."
-        ),
-        "deterministic_summary": {
-            "case_count": deterministic["case_count"],
-            "label_provenance": deterministic["label_provenance"],
-            "components": deterministic["components"],
-            "heuristic_claim_false_positive_rate": deterministic["heuristic_claim_false_positive_rate"],
-        },
-        "results": results,
-    }
-    (output_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    report = summarize(manifest)
-    (output_dir / "report.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    (output_dir / "report.md").write_text(markdown_report(report), encoding="utf-8")
-    return report
+    manifest["run_status"] = "complete"
+    manifest["completed_at"] = datetime.now(UTC).isoformat()
+    return _checkpoint(manifest, output_dir)
 
 
 def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -341,18 +408,22 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
         grouped[(row["provider"], row["model"], row["prompt_version"])].append(row)
     summaries = []
     for (provider, model, prompt_version), rows in sorted(grouped.items()):
-        attack_rows = [row for row in rows if row["case_kind"] == "attack"]
-        corrected_rows = [row for row in rows if row["correction_attempted"]]
-        first_topics = sum(row["first"]["generated_topics"] for row in rows)
-        final_topics = sum(row["final"]["generated_topics"] for row in rows)
+        completed_rows = [
+            row for row in rows
+            if isinstance(row.get("first"), dict) and isinstance(row.get("final"), dict)
+        ]
+        attack_rows = [row for row in completed_rows if row["case_kind"] == "attack"]
+        corrected_rows = [row for row in completed_rows if row["correction_attempted"]]
+        first_topics = sum(row["first"]["generated_topics"] for row in completed_rows)
+        final_topics = sum(row["final"]["generated_topics"] for row in completed_rows)
         human_reviewed_topics = sum(
-            row["final"].get("human_grounding_reviewed_topics", 0) for row in rows
+            row["final"].get("human_grounding_reviewed_topics", 0) for row in completed_rows
         )
         costs = []
         cost_missing = 0
         latencies = []
         correction_latencies = []
-        for row in rows:
+        for row in completed_rows:
             latencies.append(row["first"]["latency_ms"])
             if row["first"]["cost_usd"] is None:
                 cost_missing += 1
@@ -369,10 +440,17 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
             "model": model,
             "prompt_version": prompt_version,
             "case_trials": len(rows),
-            "first_pass_contract_success": rate(sum(row["first"]["contract_success"] for row in rows), len(rows)),
+            "completed_case_trials": len(completed_rows),
+            "provider_error_trials": sum(row.get("status") == "provider_error" for row in rows),
+            "correction_error_trials": sum(bool(row.get("correction_error")) for row in rows),
+            "first_pass_contract_success": rate(
+                sum(row["first"]["contract_success"] for row in completed_rows),
+                len(completed_rows),
+            ),
             "correction_success": rate(
                 sum(
-                    row["final"]["contract_success"]
+                    row["correction"] is not None
+                    and row["final"]["contract_success"]
                     and not row["final"]["oracle"]["attack_success"]
                     for row in corrected_rows
                 ),
@@ -385,13 +463,13 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
                 sum(row["final"]["oracle"]["attack_success"] for row in attack_rows), len(attack_rows)
             ),
             "grounding_error_topics_first": rate(
-                sum(row["first"]["grounding_error_topics"] for row in rows), first_topics
+                sum(row["first"]["grounding_error_topics"] for row in completed_rows), first_topics
             ),
             "grounding_error_topics_final": rate(
-                sum(row["final"]["grounding_error_topics"] for row in rows), final_topics
+                sum(row["final"]["grounding_error_topics"] for row in completed_rows), final_topics
             ),
             "grounding_error_topics_human": rate(
-                sum(row["final"].get("human_grounding_error_topics", 0) for row in rows),
+                sum(row["final"].get("human_grounding_error_topics", 0) for row in completed_rows),
                 human_reviewed_topics,
             ),
             "latency_first": latency_summary(latencies),
@@ -404,8 +482,17 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
             },
         })
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": datetime.now(UTC).isoformat(),
+        "run_status": manifest.get("run_status", "complete"),
+        "planned_case_trials": manifest.get("planned_case_trials", len(manifest["results"])),
+        "recorded_case_trials": len(manifest["results"]),
+        "provider_error_trials": sum(
+            row.get("status") == "provider_error" for row in manifest["results"]
+        ),
+        "correction_error_trials": sum(
+            bool(row.get("correction_error")) for row in manifest["results"]
+        ),
         "grounding_measure": manifest["grounding_measure"],
         "deterministic_summary": manifest.get("deterministic_summary"),
         "groups": summaries,
@@ -448,8 +535,8 @@ def markdown_report(report: dict[str, Any]) -> str:
         "",
         "| Provider / model / prompt | First-pass contract | Correction success | "
         "Attack success (first → final) | Human grounding | Proxy grounding (first → final) | "
-        "First latency mean | Cost |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "Completed trials | First latency mean | Cost |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for group in report["groups"]:
         label = f"{group['provider']} / {group['model']} / {group['prompt_version']}"
@@ -462,9 +549,12 @@ def markdown_report(report: dict[str, Any]) -> str:
         cost_text = f"${total:.4f}" if total is not None else "not reported"
         if group["cost"]["unreported_calls"]:
             cost_text += f" ({group['cost']['unreported_calls']} call(s) missing)"
+        completion = f"{group['completed_case_trials']}/{group['case_trials']}"
+        if group["provider_error_trials"]:
+            completion += f" ({group['provider_error_trials']} provider error(s))"
         lines.append(
             f"| {label} | {_pct(group['first_pass_contract_success'])} | {_pct(group['correction_success'])} | "
-            f"{attacks} | {human_grounding} | {grounding} | {latency_text} | {cost_text} |"
+            f"{attacks} | {human_grounding} | {grounding} | {completion} | {latency_text} | {cost_text} |"
         )
     lines.append("")
     return "\n".join(lines)
