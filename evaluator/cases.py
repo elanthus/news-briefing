@@ -462,17 +462,18 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
         )
         components[component] = metrics
 
-    heuristic_cases = [case for case in records if case.get("heuristic_claim_case")]
+    heuristic_cases = [
+        case
+        for case in records
+        if case.get("heuristic_claim_case") and not case["human_labels"]
+    ]
     heuristic_positive = {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
     false_positives = sum(
         bool(set(case["predicted_labels"]) & heuristic_positive)
         and not bool(set(case["human_labels"]) & heuristic_positive)
         for case in heuristic_cases
     )
-    heuristic_negatives = sum(
-        not bool(set(case["human_labels"]) & heuristic_positive)
-        for case in heuristic_cases
-    )
+    heuristic_negatives = len(heuristic_cases)
     return {
         "schema_version": 1,
         "suite": str(path),

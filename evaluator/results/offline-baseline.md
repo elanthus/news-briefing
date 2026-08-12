@@ -15,7 +15,7 @@ No external model was called. The labels still require independent human approva
 | Precision | 93.3% (95% Wilson CI 78.7–98.2%; 28/30 predicted positives) |
 | Recall | 87.5% (95% Wilson CI 71.9–95.0%; 28/32 human-positive labels) |
 | Exact case match | 85.7% (95% Wilson CI 72.2–93.3%; 36/42 cases) |
-| Heuristic claim false-positive rate | 66.7% (95% Wilson CI 20.8–93.9%; 2/3 valid heuristic-negative cases) |
+| Heuristic claim false-positive rate | 100% (95% Wilson CI 34.2–100%; 2/2 deliberately valid claim cases) |
 
 The four checker false negatives are deliberate semantic probes: unsupported thin-evidence prose, conflicting evidence, over-consolidation, and category ambiguity. The two false positives are also deliberate: a semantically equivalent `one in two` → `50 percent` figure and a faithful paraphrase that is more than twice the character length of thin evidence.
 

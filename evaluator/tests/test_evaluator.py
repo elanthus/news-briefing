@@ -35,7 +35,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("conflicting_evidence", misses)
         self.assertIn("over_consolidation", misses)
         self.assertIn("unsupported_claim", misses)
-        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 3)
+        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 2)
 
 
 class MetricTest(unittest.TestCase):
