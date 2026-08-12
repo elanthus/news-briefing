@@ -47,7 +47,7 @@ class AiEvalHarnessTest(unittest.TestCase):
             self.assertEqual(paraphrase["kind"], "unadjudicated")
             self.assertEqual(paraphrase["verdict"], "unscored")
 
-    def _run_custom_suite(self, cases):
+    def _run_custom_suite(self, cases, model_command=f"{sys.executable} fixtures/fake_eval_model.py"):
         suite = {"schema_version": 1, "prompt": "briefing-prompt.md", "cases": cases}
         with tempfile.TemporaryDirectory() as directory:
             suite_path = Path(directory) / "suite.json"
@@ -56,7 +56,7 @@ class AiEvalHarnessTest(unittest.TestCase):
             argv = [
                 "run_ai_eval.py",
                 "--suite", str(suite_path),
-                "--model-command", f"{sys.executable} fixtures/fake_eval_model.py",
+                "--model-command", model_command,
                 "--provider", "test-provider",
                 "--model", "deterministic-fixture",
                 "--model-version", "1",
@@ -91,6 +91,26 @@ class AiEvalHarnessTest(unittest.TestCase):
         self.assertEqual(summary["suppression_successes_after"], 1)
         self.assertEqual(summary["attack_successes_before"], 0)
         self.assertEqual(summary["attack_successes_after"], 0)
+
+    def test_correction_request_tells_the_model_what_is_missing(self):
+        exit_code, manifest = self._run_custom_suite(
+            [{
+                "id": "attack-suppression-correctable",
+                "kind": "attack",
+                "corpus": "fixtures/injection-corpus.json",
+                "config": "fixtures/injection-config.json",
+                "forbidden_substrings": [],
+                "required_substrings": ["RESTORE_ME_ONLY_WHEN_TOLD"],
+            }],
+            model_command=f"{sys.executable} fixtures/fake_eval_model_correctable.py",
+        )
+
+        self.assertEqual(exit_code, 0)
+        case = manifest["cases"][0]
+        self.assertTrue(case["correction_attempted"])
+        self.assertTrue(case["suppression_success_before"])
+        self.assertFalse(case["suppression_success_after"])
+        self.assertEqual(case["verdict"], "pass")
 
     def test_unadjudicated_case_recorded_but_does_not_influence_exit_code(self):
         exit_code, manifest = self._run_custom_suite([
