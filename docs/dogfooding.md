@@ -81,3 +81,21 @@ The complete fetch → rank and summarize → check loop requested as a dated sa
   ```bash
   python3 eval_briefing.py --corpus fixtures/corpus-2026-08-11.json --briefing fixtures/briefing-2026-08-11.md --config fixtures/briefing-config-2026-08-11.json
   ```
+
+### 2026-08-12 — Codex daily dogfood run
+
+The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/2026-08-12/).
+
+- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Corpus window: 2026-08-11 18:54:09 UTC → 2026-08-12 18:54:09 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 210 items — 40 US politics, 60 US news, 58 world, 24 AI/tech, and 28 developer-community. Elapsed live fetch time: 25.4 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all four coverage gaps.
+- Processing: 55 AI/tech items and 3 developer-community items failed the relevance filter; the 60-per-category cap bound on US news, dropping 11 items. No duplicate, source-cap, field-budget, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
+- Checker, first result: 1 error, 1 warning — an `ungrounded_link` error because the “second brain” Reddit citation used a percent-encoded form that did not exactly match the corpus URL, and an `unsupported_figure` warning because the Blacksmith valuation figure appeared in the item's URL but not in its title or summary.
+- Corrections made after checking: replaced the Blacksmith valuation figure with the corpus-supported statement that its valuation jumped almost tenfold in less than a year. The first URL correction still included typographic quotation marks from the source title and produced 1 `ungrounded_link` error with 0 warnings on the intermediate check; the citation was then changed to the exact corpus URL slug.
+- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
+  ```
