@@ -20,6 +20,7 @@ from evaluator.adapters import (
     Adapter,
     Generation,
     NvidiaAdapter,
+    OpenAiCompatibleAdapter,
     ProviderRequestError,
     _retry_after_seconds,
     adapter_for,
@@ -679,6 +680,7 @@ class RunnerTest(unittest.TestCase):
             temperature=0.2,
             seed=42,
         )
+        assert isinstance(adapter, OpenAiCompatibleAdapter)
 
         self.assertEqual(
             adapter._payload("request"),
@@ -693,6 +695,7 @@ class RunnerTest(unittest.TestCase):
 
     def test_api_sampling_control_defaults_remain_optional(self) -> None:
         adapter = adapter_for("openrouter", "openai/gpt-5.6-terra")
+        assert isinstance(adapter, OpenAiCompatibleAdapter)
 
         payload = adapter._payload("request")
         self.assertEqual(payload["temperature"], 0)
