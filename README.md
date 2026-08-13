@@ -436,9 +436,10 @@ Lint and type-check with pinned, isolated tools. `uvx` caches them outside the r
 ```bash
 uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
+uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
 ```
 
-The five pipeline and eval-harness modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, DNS pinning and redirect validation, field/source/global budgets, oversized responses, empty-run behavior, briefing structure, corpus-grounded citations, and audit artifact capture. Tests patch network boundaries and run without making live requests.
+The four pipeline modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the isolated [`evaluator/`](evaluator/) package is checked the same way, under its own config, in a separate CI step. The test modules deliberately are not annotated. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, DNS pinning and redirect validation, field/source/global budgets, oversized responses, empty-run behavior, briefing structure, corpus-grounded citations, and audit artifact capture. Tests patch network boundaries and run without making live requests.
 
 [`docs/dogfooding.md`](docs/dogfooding.md) records live runs — corpus size, source failures, checker results, and any corrections. It is append-only: an unhealthy run belongs in the record rather than being replaced by a cleaner rerun.
 
