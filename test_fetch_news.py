@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import corpus_schema
 import fetch_news
 from fetch_news import (
     DEFAULT_SOURCES_PATH,
@@ -341,10 +342,19 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(stats["title_truncated"], 1)
         self.assertEqual(stats["summary_truncated"], 1)
 
-    def test_text_budget_enforces_bytes_and_estimated_tokens_independently(self):
-        self.assertFalse(fetch_news._fits_text_budget("12345", 4, 10))
-        self.assertFalse(fetch_news._fits_text_budget("12345", 10, 1))
-        self.assertTrue(fetch_news._fits_text_budget("1234", 4, 1))
+    def test_per_field_token_ceilings_are_derived_telemetry(self):
+        limits = (
+            (corpus_schema.ITEM_TITLE_MAX_BYTES, corpus_schema.ITEM_TITLE_MAX_TOKENS),
+            (corpus_schema.ITEM_URL_MAX_BYTES, corpus_schema.ITEM_URL_MAX_TOKENS),
+            (corpus_schema.ITEM_SUMMARY_MAX_BYTES, corpus_schema.ITEM_SUMMARY_MAX_TOKENS),
+            (corpus_schema.ITEM_SOURCE_MAX_BYTES, corpus_schema.ITEM_SOURCE_MAX_TOKENS),
+            (corpus_schema.ITEM_QUERY_MAX_BYTES, corpus_schema.ITEM_QUERY_MAX_TOKENS),
+        )
+        for byte_limit, reported_tokens in limits:
+            with self.subTest(byte_limit=byte_limit):
+                self.assertEqual(
+                    corpus_schema.estimated_tokens_for_bytes(byte_limit),
+                    reported_tokens)
 
     def test_drops_overlong_urls_instead_of_changing_their_identity(self):
         item = {**self.item(1), "url": "https://example.com/" + "x" * 3000}
