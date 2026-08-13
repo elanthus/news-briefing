@@ -341,6 +341,11 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(stats["title_truncated"], 1)
         self.assertEqual(stats["summary_truncated"], 1)
 
+    def test_text_budget_enforces_bytes_and_estimated_tokens_independently(self):
+        self.assertFalse(fetch_news._fits_text_budget("12345", 4, 10))
+        self.assertFalse(fetch_news._fits_text_budget("12345", 10, 1))
+        self.assertTrue(fetch_news._fits_text_budget("1234", 4, 1))
+
     def test_drops_overlong_urls_instead_of_changing_their_identity(self):
         item = {**self.item(1), "url": "https://example.com/" + "x" * 3000}
         kept, stats = prepare_category([item])

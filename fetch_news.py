@@ -94,8 +94,9 @@ def _source_id_problem(value: Any) -> str | None:
         return "must be a non-empty string"
     if "\n" in value or "\r" in value:
         return "must be single-line"
-    if len(value.encode("utf-8")) > SOURCE_ID_BYTES:
-        return f"must not exceed {SOURCE_ID_BYTES} UTF-8 bytes"
+    if not _fits_text_budget(value, SOURCE_ID_BYTES, SOURCE_ID_TOKENS):
+        return (f"must not exceed {SOURCE_ID_BYTES} UTF-8 bytes or "
+                f"{SOURCE_ID_TOKENS} estimated tokens")
     return None
 
 
@@ -393,8 +394,11 @@ def _http_destination(url: str) -> tuple[urllib.parse.SplitResult, str, int]:
     """Validate URL syntax before DNS resolution or a network request."""
     if not isinstance(url, str) or not url.strip():
         raise ValueError("destination must be a non-empty URL")
-    if len(url.encode("utf-8")) > MAX_URL_BYTES:
-        raise ValueError(f"destination URL exceeded {MAX_URL_BYTES} bytes")
+    if not _fits_text_budget(
+            url, MAX_URL_BYTES, corpus_schema.ITEM_URL_MAX_TOKENS):
+        raise ValueError(
+            f"destination URL exceeded {MAX_URL_BYTES} bytes or "
+            f"{corpus_schema.ITEM_URL_MAX_TOKENS} estimated tokens")
     if any(ord(character) < 0x20 or character.isspace() for character in url):
         raise ValueError("destination URL contains whitespace or control characters")
     try:
@@ -888,6 +892,11 @@ def _estimated_tokens_for_bytes(size: int) -> int:
     return max(1, math.ceil(size / 4))
 
 
+def _fits_text_budget(value: str, max_bytes: int, max_tokens: int) -> bool:
+    size = len(value.encode("utf-8"))
+    return size <= max_bytes and _estimated_tokens_for_bytes(size) <= max_tokens
+
+
 def _truncate_utf8(value: str, max_bytes: int, max_tokens: int,
                    max_chars: int | None = None) -> tuple[str, bool]:
     """Truncate without splitting a Unicode code point."""
@@ -914,7 +923,8 @@ def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]
         url = candidate.get("url")
         if (not isinstance(title, str) or not title.strip()
                 or not isinstance(source, str) or not source.strip()
-                or len(source.encode("utf-8")) > SOURCE_ID_BYTES
+                or not _fits_text_budget(
+                    source, SOURCE_ID_BYTES, SOURCE_ID_TOKENS)
                 or not isinstance(url, str)):
             telemetry["field_budget_dropped"] += 1
             continue
@@ -933,7 +943,8 @@ def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]
         query = candidate.get("query")
         if (query is not None
                 and (not isinstance(query, str)
-                     or len(query.encode("utf-8")) > QUERY_BYTES)):
+                     or not _fits_text_budget(
+                         query, QUERY_BYTES, QUERY_TOKENS))):
             telemetry["field_budget_dropped"] += 1
             continue
         candidate["title"], title_truncated = _truncate_utf8(

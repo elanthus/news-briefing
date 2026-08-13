@@ -141,6 +141,12 @@ def _http_url(value: Any) -> bool:
     return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
 
 
+def _estimated_tokens(value: str) -> int:
+    """Match the fetcher's dependency-free four-UTF-8-bytes estimate."""
+    size = len(value.encode("utf-8"))
+    return max(1, (size + 3) // 4)
+
+
 def valid_category_name(value: Any) -> bool:
     """Whether a value can safely identify a corpus category."""
     return isinstance(value, str) and CATEGORY_NAME.fullmatch(value) is not None
@@ -337,18 +343,24 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
                                   or value < 0):
                 problems.append(f"{where}.{field} should be a non-negative integer")
         if version >= 5:
-            byte_limits = {
-                "title": ITEM_TITLE_MAX_BYTES,
-                "url": ITEM_URL_MAX_BYTES,
-                "summary": ITEM_SUMMARY_MAX_BYTES,
-                "source": ITEM_SOURCE_MAX_BYTES,
-                "discussion": ITEM_URL_MAX_BYTES,
-                "query": ITEM_QUERY_MAX_BYTES,
+            field_limits = {
+                "title": (ITEM_TITLE_MAX_BYTES, ITEM_TITLE_MAX_TOKENS),
+                "url": (ITEM_URL_MAX_BYTES, ITEM_URL_MAX_TOKENS),
+                "summary": (ITEM_SUMMARY_MAX_BYTES, ITEM_SUMMARY_MAX_TOKENS),
+                "source": (ITEM_SOURCE_MAX_BYTES, ITEM_SOURCE_MAX_TOKENS),
+                "discussion": (ITEM_URL_MAX_BYTES, ITEM_URL_MAX_TOKENS),
+                "query": (ITEM_QUERY_MAX_BYTES, ITEM_QUERY_MAX_TOKENS),
             }
-            for field, limit in byte_limits.items():
+            for field, (byte_limit, token_limit) in field_limits.items():
                 value = item.get(field)
-                if isinstance(value, str) and len(value.encode("utf-8")) > limit:
-                    problems.append(f"{where}.{field} exceeds {limit} UTF-8 bytes")
+                if not isinstance(value, str):
+                    continue
+                if len(value.encode("utf-8")) > byte_limit:
+                    problems.append(
+                        f"{where}.{field} exceeds {byte_limit} UTF-8 bytes")
+                if _estimated_tokens(value) > token_limit:
+                    problems.append(
+                        f"{where}.{field} exceeds {token_limit} estimated tokens")
             summary = item.get("summary")
             if isinstance(summary, str) and len(summary) > ITEM_SUMMARY_MAX_CHARS:
                 problems.append(
