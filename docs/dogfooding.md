@@ -99,3 +99,24 @@ The complete fetch → rank and summarize → check loop run in Codex. The corpu
   ```bash
   python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
   ```
+
+### 2026-08-13 — Claude Code CLI dogfood run
+
+The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/2026-08-13/).
+
+- Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
+- Corpus window: 2026-08-12 16:53:27 UTC → 2026-08-13 16:53:27 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 236 items — 35 US politics, 60 US news, 58 world, 23 AI/tech, and 60 developer-community. Elapsed live fetch time: 10.5 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries. The briefing's corpus-health prose and machine-readable manifest record the resulting coverage gap.
+- Processing: 36 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; a per-source cap dropped 6 world items; and the 60-per-category cap dropped 24 US-news and 43 developer-community items. No field, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the empty source.
+- CLI behavior: the first buffered attempt was stopped after 369.1 seconds because it exposed no progress and had not written a file; it cost $0.3564 and made no web requests or file changes. A retry with streaming diagnostics completed in 363.4 seconds and cost $1.2746. That retry first wrote a partial one-section draft, recognized the truncation itself, and replaced it with the complete briefing. Total model cost across both attempts was $1.6310. User-level Claude Code startup hooks also loaded unrelated learning-mode and skill context despite the narrow tool allowlist; `--safe-mode` would make a future run more reproducible and less noisy.
+- Checker, first result: 0 errors, 1 warning — `claim_exceeds_evidence` because the Hacker News item “Codex in ChatGPT desktop app for Linux is now in preview” had an empty summary, while the generated prose expanded its 56-character title into 184 characters of unsupported framing.
+- Correction made after checking: reduced that summary to the title-supported statement, “Codex in the ChatGPT desktop app for Linux is now in preview.” No topic, citation, or section placement changed.
+- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-13/corpus-2026-08-13.json --briefing docs/runs/2026-08-13/briefing.md --config docs/runs/2026-08-13/briefing-config.json
+  ```
+
+- Offline verification: all 219 core tests and all 38 evaluator tests passed.
