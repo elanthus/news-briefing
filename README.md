@@ -269,19 +269,20 @@ Run the news-briefing workflow once now.
 4. Produce the briefing required by `briefing-prompt.md` and write it to the temporary briefing path.
 5. Run `python3 eval_briefing.py --corpus <temporary-corpus-path> --briefing <temporary-briefing-path> --config briefing-config.json`.
 6. If the checker reports an ERROR, correct the briefing and run it once more. Preserve the final checker output; never hide remaining errors or warnings.
-7. Append one `### Validation status` section to the end of the briefing. Set its overall status to `ERROR` if the final checker reports any errors, otherwise `WARN` if it reports any warnings or the corpus has any `empty`/`error` sources, otherwise `PASS`. Write the overall result as `**Status: STATUS** — Cause: ...`. Under it, list every final checker `ERROR` and `WARN` as `- LEVEL [finding_code] — Cause: full checker message`, and list every `empty`/`error` source with its exact `source_type`, `source_id`, `status`, `error_type`, and `message` from the corpus. Keep errors, warnings, and source issues in separate labeled lists in this one section; if a list is empty, say `None`. Return the briefing with this section included.
+7. Append one `### Validation status` section to the end of the briefing. Set its overall status to `ERROR` if the final checker reports any errors, otherwise `WARN` if it reports any warnings or the corpus has any `empty`/`error` sources, otherwise `PASS`. Write the overall result as `**Status: STATUS** — Cause: ...`. Under it, list every final checker `ERROR` and `WARN` as `- LEVEL [finding_code] — Cause: checker message`, and list every `empty`/`error` source with its exact `source_type`, `source_id`, `status`, `error_type`, and `message` from the corpus. Keep errors, warnings, and source issues in separate labeled lists in this one section; if a list is empty, say `None`. Preserve each cause, but replace any web destination that is not in the corpus with `[redacted: destination not in corpus]` instead of republishing it.
+8. Run the checker against the completed briefing, including `### Validation status`. If that check adds or removes a finding, update the section from the new results and check the completed briefing once more. Return the briefing only when its status section matches the most recent check; if the second completed-briefing check still changes the findings, report that the validation section did not stabilize instead of returning a stale status.
 ```
 
 ### 3. Schedule it
 
-For daily use, install the same workflow as a scheduled task in your agent harness. Replace the first line of the prompt above with a scheduling instruction and keep steps 1–7 unchanged:
+For daily use, install the same workflow as a scheduled task in your agent harness. Replace the first line of the prompt above with a scheduling instruction and keep steps 1–8 unchanged:
 
 ```text
 Create a scheduled task named "Daily news briefing" that runs every day at 7:00 AM
 local time in this repository. Test the workflow once now before scheduling it.
 
 On every run:
-[steps 1-7 above, verbatim]
+[steps 1-8 above, verbatim]
 ```
 
 Test the task once before leaving it unattended, then review its first few runs. It needs access to this repository and outbound network access for the public feeds; the summarization step itself must not browse or open article URLs.
