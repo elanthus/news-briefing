@@ -81,6 +81,18 @@ Every proportion includes successes, trials, and a 95% Wilson interval.
 
 The labels intentionally include semantic failures the deterministic checker cannot detect, such as conflicting evidence and over-consolidation. Those misses lower recall rather than being removed from the denominator.
 
+## Independent label review
+
+The 10 cases disputed by the initial blinded model review were adjudicated by the repository owner; the other 44 remain provisional until independently reviewed by a human. Additional blinded model review can expose unclear or inconsistent labels without being represented as human approval:
+
+```bash
+python3 -m evaluator review-labels \
+  --reviewer-model claude-sonnet-5 \
+  --adjudicator-model claude-opus-4-6
+```
+
+Sonnet receives opaque case identifiers, the rubric, and case inputs, but not fixture names, provisional labels, or checker findings. Only disagreements are sent to Opus. The resulting `label-review.json` preserves both label sets, rationales, adjudications, model identifiers, usage, and the fixture hash. It never rewrites the fixture and explicitly retains the requirement for independent human approval. Validated batch checkpoints are resumed only when the suite hash, models, and batch size match, avoiding repeated paid calls after a later batch fails.
+
 ## Prompt provenance
 
 The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it an immutable version name, and pass both versions explicitly. Reports store the name and SHA-256 hash, so reusing a name for changed prompt bytes remains visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.

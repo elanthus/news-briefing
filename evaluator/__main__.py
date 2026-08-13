@@ -13,6 +13,7 @@ from pathlib import Path
 from evaluator.adapters import adapter_for, load_dotenv
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
+from evaluator.label_review import run_label_review
 from evaluator.runner import (
     DEFAULT_CORPUS,
     DEFAULT_SUITE,
@@ -88,6 +89,16 @@ def main() -> int:
     checker.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
     checker.add_argument("--output", type=Path)
 
+    label_review = subparsers.add_parser(
+        "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
+    )
+    label_review.add_argument("--reviewer-model", default="claude-sonnet-5")
+    label_review.add_argument("--adjudicator-model", default="claude-opus-4-6")
+    label_review.add_argument("--batch-size", type=int, default=10)
+    label_review.add_argument("--timeout", type=int, default=600)
+    label_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
+    label_review.add_argument("--output-dir", type=Path)
+
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
     run.add_argument("--all-providers", action="store_true")
@@ -125,6 +136,25 @@ def main() -> int:
             result = run_evaluation(adapters, prompts, output_dir, args.trials, args.suite, args.corpus)
             print(json.dumps(result, indent=2, sort_keys=True))
             return int(bool(result["provider_error_trials"] or result["correction_error_trials"]))
+        if args.command == "review-labels":
+            _preflight([("claude-code-cli", args.reviewer_model)])
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+            output_dir = args.output_dir or EVALUATOR_DIR / "results" / f"label-review-{stamp}"
+            result = run_label_review(
+                adapter_for("claude-code-cli", args.reviewer_model, args.timeout),
+                adapter_for("claude-code-cli", args.adjudicator_model, args.timeout),
+                output_dir,
+                args.suite,
+                args.batch_size,
+            )
+            print(json.dumps({
+                "status": result["status"],
+                "case_count": result["case_count"],
+                "exact_agreements": result["exact_agreements"],
+                "disagreements_adjudicated": result["disagreements_adjudicated"],
+                "report": str(output_dir / "label-review.json"),
+            }, indent=2, sort_keys=True))
+            return 0
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         apply_adjudications(manifest, args.manifest.parent)
         report = summarize(manifest)

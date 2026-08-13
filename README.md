@@ -404,7 +404,7 @@ python3 eval_briefing.py --corpus corpus.json --briefing briefing.md --config br
 
 | Level | Meaning | Examples |
 |---|---|---|
-| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a degraded run reported as healthy |
+| **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a duplicate citation; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a failed source reported with the wrong status; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
 If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A citation the corpus does not contain is never acceptable. Use `--strict` to fail on warnings too.
@@ -436,9 +436,10 @@ Lint and type-check with pinned, isolated tools. `uvx` caches them outside the r
 ```bash
 uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
+uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
 ```
 
-The five pipeline and eval-harness modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the test modules deliberately are not. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, DNS pinning and redirect validation, field/source/global budgets, oversized responses, empty-run behavior, briefing structure, corpus-grounded citations, and audit artifact capture. Tests patch network boundaries and run without making live requests.
+The four pipeline modules are fully type-annotated and checked with mypy in CI (`disallow_untyped_defs`); the isolated [`evaluator/`](evaluator/) package is checked the same way, under its own config, in a separate CI step. The test modules deliberately are not annotated. Coverage targets the logic that is easy to get subtly wrong: date normalization, cutoff selection, relevance filtering, canonical URL handling, DNS pinning and redirect validation, field/source/global budgets, oversized responses, empty-run behavior, briefing structure, corpus-grounded citations, and audit artifact capture. Tests patch network boundaries and run without making live requests.
 
 [`docs/dogfooding.md`](docs/dogfooding.md) records live runs — corpus size, source failures, checker results, and any corrections. It is append-only: an unhealthy run belongs in the record rather than being replaced by a cleaner rerun.
 

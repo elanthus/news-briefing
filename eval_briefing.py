@@ -34,7 +34,6 @@ import html
 import json
 import re
 import sys
-from collections import Counter
 from collections.abc import Iterator
 from typing import Any, NamedTuple
 
@@ -266,7 +265,7 @@ def _match_section(label: str, config: briefing_config.BriefingConfig) -> str | 
 
 def _new_section() -> Section:
     """Create one complete parser bucket so both section paths stay in sync."""
-    return {"topics": [], "topic_texts": [], "topic_links": [],
+    return {"topics": [], "topic_texts": [], "topic_links": [], "topic_link_spellings": [],
             "links": [], "spelled": {}, "excluded": {}, "lines": []}
 
 
@@ -327,6 +326,7 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
                 bucket["topics"].append(topic.group("title").strip())
                 bucket["topic_texts"].append(topic.group("prose").strip())
                 bucket["topic_links"].append([])
+                bucket["topic_link_spellings"].append([])
 
         for link in _LINK.finditer(line):
             # A sentence-closing parenthesis is not part of the citation, but
@@ -341,6 +341,7 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
             bucket["links"].append(url)
             if not in_excluded and bucket["topic_links"]:
                 bucket["topic_links"][-1].append(url)
+                bucket["topic_link_spellings"][-1].append(spelled)
 
     return sections
 
@@ -490,19 +491,36 @@ def check_no_double_listing(sections: dict[str, Section]) -> list[Finding]:
 
 
 def check_no_repeated_topics(sections: dict[str, Section]) -> list[Finding]:
-    """A story is reported in exactly one section.
+    """A story is reported once; an exactly repeated citation is named separately.
 
-    Only exact URL repeats are decidable here. The same event filed by two
-    outlets under two URLs is the model's job, under the consolidation rule.
+    Canonical-equivalent spellings identify the same story. Repeating the exact
+    spelling inside one topic is a duplicate citation; citing the same story via
+    different spellings, topics, or sections is a repeated topic. The same event
+    filed by two outlets under two URLs remains a semantic consolidation question.
     """
     findings: list[Finding] = []
-    included = [url for name, bucket in sections.items() if name != EXCLUDED
-                for url in bucket["links"]]
-    for url, count in Counter(included).items():
-        if count > 1:
+    occurrences: dict[str, list[tuple[str, int, str]]] = {}
+    for name, bucket in sections.items():
+        if name == EXCLUDED:
+            continue
+        for index, (links, spellings) in enumerate(zip(
+                bucket["topic_links"], bucket["topic_link_spellings"], strict=True), 1):
+            for url, spelling in zip(links, spellings, strict=True):
+                occurrences.setdefault(url, []).append((name, index, spelling))
+
+    for url, rows in occurrences.items():
+        if len(rows) <= 1:
+            continue
+        topic_locations = {(name, index) for name, index, _spelling in rows}
+        spellings = {spelling for _name, _index, spelling in rows}
+        if len(topic_locations) == 1 and len(spellings) == 1:
+            findings.append(Finding(
+                ERROR, "duplicate_citation",
+                f"citation is printed {len(rows)} times in one topic — {url}"))
+        else:
             findings.append(Finding(
                 ERROR, "repeated_topic",
-                f"topic reported {count} times across sections — {url}"))
+                f"topic is cited {len(rows)} times across distinct spellings or topics — {url}"))
     return findings
 
 
@@ -629,14 +647,35 @@ def _check_structured_corpus_health(section: Section,
             continue
         actual.add((record["source_type"], record["source_id"], record["status"]))
 
-    for source_type, source_id, status in sorted(expected - actual):
+    expected_by_source = {(source_type, source_id): status
+                          for source_type, source_id, status in expected}
+    actual_by_source: dict[tuple[str, str], set[str]] = {}
+    for source_type, source_id, status in actual:
+        actual_by_source.setdefault((source_type, source_id), set()).add(status)
+    shared_sources = expected_by_source.keys() & actual_by_source.keys()
+
+    for source_type, source_id in sorted(shared_sources):
+        expected_status = expected_by_source[(source_type, source_id)]
+        reported_statuses = actual_by_source[(source_type, source_id)]
+        if reported_statuses != {expected_status}:
+            findings.append(Finding(
+                ERROR, "failed_source_status_mismatch",
+                f"failed source {source_type}:{source_id!s} has status {expected_status!r} "
+                f"in the corpus but {', '.join(repr(value) for value in sorted(reported_statuses))} "
+                "in the health manifest"))
+
+    missing_sources = expected_by_source.keys() - actual_by_source.keys()
+    for source_type, source_id in sorted(missing_sources):
+        status = expected_by_source[(source_type, source_id)]
         findings.append(Finding(
             ERROR, "failed_source_unnamed",
             f"failed source {source_type}:{source_id!s} ({status}) is absent from the health manifest"))
-    for source_type, source_id, status in sorted(actual - expected):
-        findings.append(Finding(
-            ERROR, "unexpected_failed_source",
-            f"health manifest reports unrecorded failure {source_type}:{source_id!s} ({status})"))
+    unexpected_sources = actual_by_source.keys() - expected_by_source.keys()
+    for source_type, source_id in sorted(unexpected_sources):
+        for status in sorted(actual_by_source[(source_type, source_id)]):
+            findings.append(Finding(
+                ERROR, "unexpected_failed_source",
+                f"health manifest reports unrecorded failure {source_type}:{source_id!s} ({status})"))
     if len(actual) != len(reported):
         findings.append(Finding(ERROR, "duplicate_failed_source",
                                 "health manifest contains a duplicate failed-source record"))
