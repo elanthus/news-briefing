@@ -257,9 +257,11 @@ class OpenAiCompatibleAdapter(Adapter):
             if not failure.transient or attempt >= API_MAX_ATTEMPTS:
                 raise failure from cause
             delay = failure.retry_after if failure.retry_after is not None else float(2 ** (attempt - 1))
-            if delay >= deadline - time.perf_counter():
+            remaining = max(0.0, deadline - time.perf_counter())
+            if delay >= remaining:
                 raise ProviderRequestError(
-                    f"{failure}; retry delay {delay:g}s exceeds the remaining {self.timeout}s call timeout",
+                    f"{failure}; retry delay {delay:g}s exceeds the remaining "
+                    f"{remaining:g}s call timeout budget",
                     transient=True,
                     attempts=attempt,
                     status_code=failure.status_code,

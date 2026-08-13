@@ -179,29 +179,29 @@ def correction_request(request: str, output: str, findings: list[dict[str, str]]
 
 
 def _topic_routes(
-    output: str, config: briefing_config.BriefingConfig
+    sections: dict[str, eval_briefing.Section],
 ) -> tuple[list[str], dict[str, set[str]], list[set[str]]]:
     """Return leading URLs, URL-to-section routes, and canonical URLs per topic."""
-    sections = eval_briefing.parse_briefing(output, config)
     leading: list[str] = []
     routes: dict[str, set[str]] = defaultdict(set)
     topics: list[set[str]] = []
-    for configured in config.sections:
-        bucket = sections.get(configured.name, {})
+    for section_name, bucket in sections.items():
+        if section_name in {eval_briefing.EXCLUDED, eval_briefing.CORPUS_HEALTH}:
+            continue
         for links in bucket.get("topic_links", []):
             canonical = {corpus_schema.canonicalize_url(url) for url in links}
             if canonical and not leading:
                 leading = sorted(canonical)
             for url in canonical:
-                routes[url].add(configured.name)
+                routes[url].add(section_name)
             topics.append(canonical)
     return leading, routes, topics
 
 
 def _case_assertion_failures(
-    case: dict[str, Any], output: str, config: briefing_config.BriefingConfig
+    case: dict[str, Any], sections: dict[str, eval_briefing.Section]
 ) -> list[dict[str, Any]]:
-    leading, routes, topics = _topic_routes(output, config)
+    leading, routes, topics = _topic_routes(sections)
     failures: list[dict[str, Any]] = []
 
     def canonical(url: str) -> str:
@@ -233,7 +233,7 @@ def _oracle(
     case: dict[str, Any],
     output: str,
     findings: list[eval_briefing.Finding],
-    config: briefing_config.BriefingConfig,
+    sections: dict[str, eval_briefing.Section],
 ) -> dict[str, Any]:
     forbidden_hits = [value for value in case.get("forbidden_substrings", []) if value in output]
     missing_required = [value for value in case.get("required_substrings", []) if value not in output]
@@ -243,7 +243,7 @@ def _oracle(
     ]
     codes = {finding.check for finding in findings}
     triggered_checks = sorted(codes & set(case.get("success_if_checks", [])))
-    assertion_failures = _case_assertion_failures(case, output, config)
+    assertion_failures = _case_assertion_failures(case, sections)
     case_failure = bool(
         forbidden_hits or missing_required or missing_required_terms or triggered_checks or assertion_failures
     )
@@ -266,7 +266,7 @@ def _contract_success(findings: list[eval_briefing.Finding]) -> bool:
 
 
 def _grounding_topics(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
+    corpus: dict[str, Any], sections: dict[str, eval_briefing.Section]
 ) -> tuple[int, int]:
     """Count generated topics and deterministic potential grounding errors.
 
@@ -274,7 +274,6 @@ def _grounding_topics(
     ungrounded citation and any claim heuristic warning as a potential error.
     Semantic human adjudication can be performed from the preserved outputs.
     """
-    sections = eval_briefing.parse_briefing(text, config)
     allowed = set(eval_briefing.corpus_links(corpus))
     evidence = eval_briefing.corpus_evidence(corpus)
     topics = 0
@@ -306,8 +305,7 @@ def _grounding_topics(
     return topics, errors
 
 
-def _adjudication_template(text: str, config: briefing_config.BriefingConfig) -> dict[str, Any]:
-    sections = eval_briefing.parse_briefing(text, config)
+def _adjudication_template(sections: dict[str, eval_briefing.Section]) -> dict[str, Any]:
     topics = []
     index = 0
     for name, bucket in sections.items():
@@ -543,8 +541,10 @@ def run_evaluation(
                                 status = "circuit opened after provider error"
                             progress(adapter.provider, adapter.model, model_completed, model_total, status)
                         continue
-                    before = eval_briefing.evaluate(corpus, first.text, config)
-                    oracle_before = _oracle(case, first.text, before, config)
+                    first_sections = eval_briefing.parse_briefing(first.text, config)
+                    before = eval_briefing.evaluate_parsed(corpus, first.text, first_sections, config)
+                    oracle_before = _oracle(case, first.text, before, first_sections)
+                    first_topics, first_grounding_errors = _grounding_topics(corpus, first_sections)
                     first_contract = _contract_success(before)
                     needs_correction = not first_contract or oracle_before["case_failure"]
                     corrected = None
@@ -561,18 +561,29 @@ def run_evaluation(
                             correction_error = _provider_error("correction", exc)
                             _write_json_atomic(case_dir / "correction-error.json", correction_error)
                     final_generation = corrected or first
-                    after = eval_briefing.evaluate(corpus, final_generation.text, config)
-                    oracle_after = _oracle(case, final_generation.text, after, config)
+                    if corrected is None:
+                        final_sections = first_sections
+                        after = before
+                        oracle_after = oracle_before
+                        final_topics = first_topics
+                        final_grounding_errors = first_grounding_errors
+                    else:
+                        final_sections = eval_briefing.parse_briefing(corrected.text, config)
+                        after = eval_briefing.evaluate_parsed(
+                            corpus, corrected.text, final_sections, config
+                        )
+                        oracle_after = _oracle(case, corrected.text, after, final_sections)
+                        final_topics, final_grounding_errors = _grounding_topics(
+                            corpus, final_sections
+                        )
                     final_contract = _contract_success(after)
-                    first_topics, first_grounding_errors = _grounding_topics(corpus, first.text, config)
-                    final_topics, final_grounding_errors = _grounding_topics(corpus, final_generation.text, config)
 
                     _write_text_atomic(case_dir / "first.md", first.text)
                     _write_text_atomic(case_dir / "final.md", final_generation.text)
                     adjudication_name = "grounding-adjudication.json"
                     _write_json_atomic(
                         case_dir / adjudication_name,
-                        _adjudication_template(final_generation.text, config),
+                        _adjudication_template(final_sections),
                     )
                     result = {
                         **base_result,
