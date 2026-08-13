@@ -9,6 +9,7 @@ import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TextIO
 
 from evaluator.adapters import adapter_for, load_dotenv
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
@@ -27,15 +28,62 @@ from evaluator.runner import (
 EVALUATOR_DIR = Path(__file__).resolve().parent
 
 
+class ProgressBar:
+    """One in-place progress line for each sequential provider/model run."""
+
+    def __init__(self, stream: TextIO = sys.stderr, width: int = 24, interactive: bool | None = None):
+        self.stream = stream
+        self.width = width
+        self.interactive = stream.isatty() if interactive is None else interactive
+        self._active = False
+        self._last_length = 0
+
+    def __call__(self, provider: str, model: str, completed: int, total: int, status: str) -> None:
+        filled = self.width if total == 0 else int(self.width * completed / total)
+        bar = "#" * filled + "-" * (self.width - filled)
+        percent = 100 if total == 0 else int(100 * completed / total)
+        line = f"{provider} / {model} [{bar}] {completed}/{total} {percent:3d}%  {status}"
+        if self.interactive:
+            padding = " " * max(0, self._last_length - len(line))
+            self.stream.write(f"\r{line}{padding}")
+            self.stream.flush()
+            self._active = completed < total
+            self._last_length = len(line)
+            if completed >= total:
+                self.stream.write("\n")
+                self.stream.flush()
+        elif completed in {0, total} or "error" in status or "circuit" in status:
+            self.stream.write(f"{line}\n")
+            self.stream.flush()
+
+    def finish(self) -> None:
+        if self.interactive and self._active:
+            self.stream.write("\n")
+            self.stream.flush()
+            self._active = False
+
+
+def _models_from_env(name: str, default: str) -> list[str]:
+    raw = os.environ.get(name, default)
+    models = [model.strip() for model in raw.split(",")]
+    if any(not model for model in models):
+        raise ValueError(f"{name} must be a comma-delimited list of non-empty model names")
+    return models
+
+
 def _provider_values(values: list[str], all_providers: bool) -> list[tuple[str, str]]:
     env_models = {
-        "codex-cli": os.environ.get("CODEX_MODEL", "gpt-5.6-terra"),
-        "claude-code-cli": os.environ.get("CLAUDE_CODE_MODEL", "claude-sonnet-5"),
-        "openrouter": os.environ.get("OPENROUTER_MODEL", "openai/gpt-5.6-terra"),
-        "nvidia": os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b"),
+        "codex-cli": ("CODEX_MODEL", "gpt-5.6-terra"),
+        "claude-code-cli": ("CLAUDE_CODE_MODEL", "claude-sonnet-5"),
+        "openrouter": ("OPENROUTER_MODEL", "openai/gpt-5.6-terra"),
+        "nvidia": ("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b"),
     }
     if all_providers:
-        return list(env_models.items())
+        return [
+            (provider, model)
+            for provider, (name, default) in env_models.items()
+            for model in _models_from_env(name, default)
+        ]
     parsed = []
     for value in values:
         if "=" not in value:
@@ -101,7 +149,11 @@ def main() -> int:
 
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
-    run.add_argument("--all-providers", action="store_true")
+    run.add_argument(
+        "--all-providers",
+        action="store_true",
+        help="run every model in each comma-delimited provider MODEL environment variable",
+    )
     run.add_argument("--prompt", action="append", default=[], help="VERSION=PATH; repeatable")
     run.add_argument("--trials", type=int, default=1)
     run.add_argument("--timeout", type=int, default=300)
@@ -133,7 +185,19 @@ def main() -> int:
             prompts = _prompt_values(args.prompt)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / stamp
-            result = run_evaluation(adapters, prompts, output_dir, args.trials, args.suite, args.corpus)
+            progress = ProgressBar()
+            try:
+                result = run_evaluation(
+                    adapters,
+                    prompts,
+                    output_dir,
+                    args.trials,
+                    args.suite,
+                    args.corpus,
+                    progress,
+                )
+            finally:
+                progress.finish()
             print(json.dumps(result, indent=2, sort_keys=True))
             return int(bool(result["provider_error_trials"] or result["correction_error_trials"]))
         if args.command == "review-labels":

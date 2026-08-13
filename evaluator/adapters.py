@@ -10,8 +10,13 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
+
+API_MAX_ATTEMPTS = 3
+RETRYABLE_HTTP_STATUSES = {408, 425, 429}
 
 
 @dataclass(frozen=True)
@@ -24,6 +29,7 @@ class Generation:
     cost_note: str | None = None
     provider_request_id: str | None = None
     usage: dict[str, Any] | None = None
+    attempts: int = 1
 
     def record(self) -> dict[str, Any]:
         return asdict(self)
@@ -38,6 +44,49 @@ class Adapter:
 
     def generate(self, prompt: str) -> Generation:
         raise NotImplementedError
+
+
+class ProviderRequestError(RuntimeError):
+    """A provider failure with enough structure for retry and circuit-breaker policy."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        transient: bool,
+        attempts: int = 1,
+        status_code: int | None = None,
+        retry_after: float | None = None,
+    ):
+        super().__init__(message)
+        self.transient = transient
+        self.attempts = attempts
+        self.status_code = status_code
+        self.retry_after = retry_after
+
+
+def is_transient_provider_error(exc: Exception) -> bool:
+    if isinstance(exc, ProviderRequestError):
+        return exc.transient
+    return isinstance(exc, (TimeoutError, subprocess.TimeoutExpired))
+
+
+def _retry_after_seconds(value: str | None, now: datetime | None = None) -> float | None:
+    """Parse Retry-After delta-seconds or an HTTP date, returning a nonnegative delay."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value.strip()))
+    except ValueError:
+        pass
+    try:
+        target = parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=UTC)
+    current = now or datetime.now(UTC)
+    return max(0.0, (target - current).total_seconds())
 
 
 def _run(
@@ -164,13 +213,60 @@ class OpenAiCompatibleAdapter(Adapter):
             method="POST",
         )
         started = time.perf_counter()
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                response_body = response.read()
-                request_id = response.headers.get("x-request-id")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"{self.provider} HTTP {exc.code}: {detail[:500]}") from exc
+        deadline = started + self.timeout
+        attempt = 0
+        while True:
+            attempt += 1
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                raise ProviderRequestError(
+                    f"{self.provider} timed out after {self.timeout}s across {attempt - 1} attempt(s)",
+                    transient=True,
+                    attempts=attempt - 1,
+                )
+            failure: ProviderRequestError | None = None
+            cause: Exception | None = None
+            try:
+                with urllib.request.urlopen(request, timeout=remaining) as response:
+                    response_body = response.read()
+                    request_id = response.headers.get("x-request-id")
+                break
+            except urllib.error.HTTPError as exc:
+                retry_after = _retry_after_seconds(exc.headers.get("Retry-After"))
+                try:
+                    detail = exc.read().decode("utf-8", errors="replace")
+                finally:
+                    exc.close()
+                transient = exc.code in RETRYABLE_HTTP_STATUSES or 500 <= exc.code <= 599
+                failure = ProviderRequestError(
+                    f"{self.provider} HTTP {exc.code}: {detail[:500]}",
+                    transient=transient,
+                    attempts=attempt,
+                    status_code=exc.code,
+                    retry_after=retry_after,
+                )
+                cause = exc
+            except (TimeoutError, urllib.error.URLError) as exc:
+                failure = ProviderRequestError(
+                    f"{self.provider} request failed: {exc}",
+                    transient=True,
+                    attempts=attempt,
+                )
+                cause = exc
+
+            if not failure.transient or attempt >= API_MAX_ATTEMPTS:
+                raise failure from cause
+            delay = failure.retry_after if failure.retry_after is not None else float(2 ** (attempt - 1))
+            if delay >= deadline - time.perf_counter():
+                raise ProviderRequestError(
+                    f"{failure}; retry delay {delay:g}s exceeds the remaining {self.timeout}s call timeout",
+                    transient=True,
+                    attempts=attempt,
+                    status_code=failure.status_code,
+                    retry_after=delay,
+                ) from cause
+            if delay:
+                time.sleep(delay)
         latency_ms = (time.perf_counter() - started) * 1000
         try:
             payload = json.loads(response_body)
@@ -188,6 +284,7 @@ class OpenAiCompatibleAdapter(Adapter):
             cost_note=None if cost is not None else self._cost_note(usage),
             provider_request_id=payload.get("id") or request_id,
             usage=usage,
+            attempts=attempt,
         )
 
     def _estimated_cost(self, usage: dict[str, Any]) -> float | None:
