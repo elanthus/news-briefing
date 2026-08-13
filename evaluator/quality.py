@@ -16,6 +16,7 @@ label_review.py, and reads its inputs from the artifacts a completed
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from collections import defaultdict
@@ -216,10 +217,25 @@ def _pct(metric: dict[str, Any]) -> str:
     return f"{metric['rate'] * 100:.1f}% ({low * 100:.1f}–{high * 100:.1f}%; {metric['successes']}/{metric['trials']})"
 
 
-def _identity(manifest_path: Path, judge: Adapter, sample: int | None, seed: int) -> dict[str, Any]:
+def _sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _identity(
+    manifest_path: Path,
+    manifest_content: bytes,
+    suite_path: Path,
+    suite_content: bytes,
+    judge: Adapter,
+    sample: int | None,
+    seed: int,
+) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "manifest": str(manifest_path.resolve()),
+        "manifest_sha256": _sha256(manifest_content),
+        "suite": str(suite_path.resolve()),
+        "suite_sha256": _sha256(suite_content),
         "judge": {"provider": judge.provider, "model": judge.model},
         "sample": sample,
         "seed": seed,
@@ -234,10 +250,12 @@ def run_quality_judging(
     sample: int | None = None,
     seed: int = 0,
 ) -> dict[str, Any]:
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_content = manifest_path.read_bytes()
+    manifest = json.loads(manifest_content)
     run_dir = manifest_path.parent
     resolved_suite_path = suite_path or Path(manifest["suite"])
-    suite = json.loads(resolved_suite_path.read_text(encoding="utf-8"))
+    suite_content = resolved_suite_path.read_bytes()
+    suite = json.loads(suite_content)
     configs = _case_configs(suite, resolved_suite_path)
 
     all_pairs = matched_pairs(manifest, run_dir, configs)
@@ -246,7 +264,15 @@ def run_quality_judging(
         pairs = random.Random(seed).sample(pairs, sample)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    identity = _identity(manifest_path, judge, sample, seed)
+    identity = _identity(
+        manifest_path,
+        manifest_content,
+        resolved_suite_path,
+        suite_content,
+        judge,
+        sample,
+        seed,
+    )
     identity_path = output_dir / "quality-judging-run.json"
     if identity_path.exists():
         existing = json.loads(identity_path.read_text(encoding="utf-8"))

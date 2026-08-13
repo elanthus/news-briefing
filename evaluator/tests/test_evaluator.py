@@ -1122,6 +1122,21 @@ class QualityJudgeTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "different judge-quality run"):
                 run_quality_judging(manifest_path, FakeJudgeAdapter("judge-two"), temporary / "quality")
 
+    def test_rerunning_after_the_suite_changes_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeJudgeAdapter("fixture-judge")
+            run_quality_judging(manifest_path, judge, temporary / "quality")
+
+            suite_path = temporary / "suite.json"
+            suite = json.loads(suite_path.read_text(encoding="utf-8"))
+            suite["description"] = "changed after checkpoints were recorded"
+            suite_path.write_text(json.dumps(suite), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "different judge-quality run"):
+                run_quality_judging(manifest_path, judge, temporary / "quality")
+
     def test_resumed_run_reuses_checkpoints_without_a_second_paid_call(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
