@@ -45,6 +45,16 @@ class Adapter:
     def generate(self, prompt: str) -> Generation:
         raise NotImplementedError
 
+    def generation_controls(self) -> dict[str, Any]:
+        return {
+            "temperature": None,
+            "seed": None,
+            "disclosure": (
+                "This CLI exposes no evaluator control for temperature or seed; repeated trials are "
+                "stochastic and are not directly comparable to API runs made with temperature=0."
+            ),
+        }
+
 
 class ProviderRequestError(RuntimeError):
     """A provider failure with enough structure for retry and circuit-breaker policy."""
@@ -203,6 +213,16 @@ class OpenAiCompatibleAdapter(Adapter):
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
             "max_tokens": int(os.environ.get("EVALUATOR_MAX_TOKENS", "8192")),
+        }
+
+    def generation_controls(self) -> dict[str, Any]:
+        return {
+            "temperature": 0,
+            "seed": None,
+            "disclosure": (
+                "The evaluator sends temperature=0 but no seed; exact reproducibility is not guaranteed, "
+                "and these runs are not directly comparable to CLI runs without temperature control."
+            ),
         }
 
     def generate(self, prompt: str) -> Generation:

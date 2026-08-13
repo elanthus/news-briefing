@@ -425,6 +425,14 @@ def run_evaluation(
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
         "trials_per_case": trials,
         "planned_case_trials": len(adapters) * len(prompt_versions) * len(suite["cases"]) * trials,
+        "generation_controls": [
+            {
+                "provider": adapter.provider,
+                "model": adapter.model,
+                **adapter.generation_controls(),
+            }
+            for adapter in adapters
+        ],
         "code": _git_provenance(),
         "grounding_measure": (
             "Deterministic proxy: topic has no citation, an ungrounded citation, "
@@ -740,6 +748,7 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
             bool(row.get("correction_error")) for row in manifest["results"]
         ),
         "grounding_measure": manifest["grounding_measure"],
+        "generation_controls": manifest.get("generation_controls", []),
         "deterministic_summary": manifest.get("deterministic_summary"),
         "groups": summaries,
     }
@@ -761,6 +770,23 @@ def markdown_report(report: dict[str, Any]) -> str:
         f"Grounding metric: {report['grounding_measure']}",
         "",
     ]
+    controls = report.get("generation_controls", [])
+    if controls:
+        lines += [
+            "## Generation controls",
+            "",
+            "| Provider / model | Temperature | Seed | Reproducibility disclosure |",
+            "|---|---:|---:|---|",
+        ]
+        for control in controls:
+            temperature = control["temperature"]
+            seed = control["seed"]
+            lines.append(
+                f"| {control['provider']} / {control['model']} | "
+                f"{'uncontrolled' if temperature is None else temperature} | "
+                f"{'uncontrolled' if seed is None else seed} | {control['disclosure']} |"
+            )
+        lines.append("")
     deterministic = report.get("deterministic_summary")
     if deterministic:
         checker = deterministic["components"]["checker"]

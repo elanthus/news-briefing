@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import io
 import json
 import os
@@ -76,6 +77,48 @@ class FixedSuiteTest(unittest.TestCase):
         ):
             self.assertEqual(cases[case_id]["config"], "generation-config-3.json")
             self.assertTrue(cases[case_id]["must_include_urls"])
+
+    def test_generation_attack_matrix_and_decoys_are_complete(self) -> None:
+        suite = json.loads(
+            (Path(__file__).parents[1] / "fixtures" / "generation-cases.json").read_text()
+        )
+        self.assertEqual(suite["case_count"], 63)
+        self.assertEqual(len(suite["cases"]), 63)
+        cases = {case["id"]: case for case in suite["cases"]}
+        self.assertEqual(len(cases), 63)
+        attack_bases = (
+            "attack-citation-fabrication",
+            "attack-citation-alteration",
+            "attack-prose",
+            "attack-selection-promotion",
+            "attack-selection-suppression",
+            "attack-health-reporting",
+            "attack-formatting",
+            "attack-duplicate-citations",
+            "attack-category-selection",
+        )
+        assertion_fields = {
+            "family", "config", "source_failures", "forbidden_substrings",
+            "required_substrings", "required_terms_casefold", "success_if_checks",
+            "must_include_urls", "must_exclude_urls", "must_not_lead_urls",
+            "url_sections", "separate_topic_urls",
+        }
+        for base_id in attack_bases:
+            base = cases[base_id]
+            for suffix in ("-escape", "-context-ignore", "-response-injection", "-combined"):
+                variant = cases[base_id + suffix]
+                self.assertEqual(variant["kind"], "attack")
+                for field in assertion_fields:
+                    self.assertEqual(variant.get(field), base.get(field), (variant["id"], field))
+
+        decoys = [case for case in suite["cases"] if case["id"].startswith("utility-over-refusal-")]
+        self.assertEqual(len(decoys), 9)
+        self.assertTrue(all(case.get("must_include_urls") for case in decoys))
+
+        corpus_fixture = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+        for case in suite["cases"]:
+            corpus = copy.deepcopy(corpus_fixture)
+            _mutate(corpus, case.get("mutations", []))
 
     def test_prompt_handles_hacker_news_self_posts_without_duplicate_citations(self) -> None:
         prompt = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
@@ -415,6 +458,19 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(group["grounding_error_topics_human"]["trials"], 0)
             self.assertEqual(group["cost"]["total_usd"], 0.001)
             self.assertEqual(parse_briefing.call_count, 1)
+            self.assertEqual(report["generation_controls"], [{
+                "provider": "offline-fixture",
+                "model": "fixture-1",
+                "temperature": None,
+                "seed": None,
+                "disclosure": (
+                    "This CLI exposes no evaluator control for temperature or seed; repeated trials are "
+                    "stochastic and are not directly comparable to API runs made with temperature=0."
+                ),
+            }])
+            rendered_report = (output / "report.md").read_text(encoding="utf-8")
+            self.assertIn("## Generation controls", rendered_report)
+            self.assertIn("offline-fixture / fixture-1 | uncontrolled | uncontrolled", rendered_report)
 
             manifest_path = output / "manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -604,6 +660,17 @@ class RunnerTest(unittest.TestCase):
             ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
         ):
             self.assertEqual(adapter_for(provider, model).provider, provider)
+
+    def test_provider_sampling_controls_surface_cli_api_asymmetry(self) -> None:
+        cli = adapter_for("claude-code-cli", "claude-sonnet-5").generation_controls()
+        api = adapter_for("openrouter", "anthropic/claude-sonnet-5").generation_controls()
+
+        self.assertEqual(cli["temperature"], None)
+        self.assertEqual(cli["seed"], None)
+        self.assertIn("not directly comparable", cli["disclosure"])
+        self.assertEqual(api["temperature"], 0)
+        self.assertEqual(api["seed"], None)
+        self.assertIn("not directly comparable", api["disclosure"])
 
     def test_cli_progress_bar_names_provider_and_model(self) -> None:
         stream = io.StringIO()
