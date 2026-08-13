@@ -9,7 +9,6 @@ oracle or exposing hidden propositions to the correction pass.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -17,37 +16,22 @@ from typing import Any
 import corpus_schema
 import eval_briefing
 
-from evaluator.adapters import Adapter, Generation
+from evaluator.adapters import Adapter
+from evaluator.judge_io import (
+    checkpointed_generate,
+    parse_json_response,
+    sha256_bytes,
+    write_json_atomic,
+    write_text_atomic,
+)
 from evaluator.runner import apply_adjudications, markdown_report, summarize
 
 JUDGMENTS = {"conveyed", "not_conveyed", "unclear"}
 
 
-def _write_json_atomic(path: Path, payload: Any) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
-
-
 def _parse_judgment(text: str) -> dict[str, str]:
-    value = text.strip()
-    if value.startswith("```"):
-        lines = value.splitlines()
-        if not lines or lines[-1].strip() != "```":
-            raise ValueError("semantic judgment has an unterminated code fence")
-        value = "\n".join(lines[1:-1])
-    elif not value.startswith("{"):
-        start = value.find("{")
-        end = value.rfind("}")
-        if start >= 0 and end > start:
-            value = value[start:end + 1]
-    try:
-        payload = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"semantic judgment is not valid JSON: {exc}") from exc
+    """Validate one fence-tolerant semantic judgment response."""
+    payload = parse_json_response(text, "semantic judgment")
     if not isinstance(payload, dict) or set(payload) != {"judgment", "rationale"}:
         raise ValueError("semantic judgment must contain exactly judgment and rationale")
     if payload["judgment"] not in JUDGMENTS:
@@ -59,23 +43,29 @@ def _parse_judgment(text: str) -> dict[str, str]:
     return payload
 
 
-def _judgment_prompt(evidence: str, topic: dict[str, str], proposition: str) -> str:
+def _judgment_prompt(
+    evidence: str, topics: list[dict[str, str]], proposition: str
+) -> str:
+    """Build a blinded prompt that considers every topic citing the required URL."""
+    rendered_topics = "\n\n".join(
+        f"TOPIC {index}:\n{topic['title']}\n{topic['prose']}"
+        for index, topic in enumerate(topics, 1)
+    )
     return f"""You are an independent semantic reviewer for a news-briefing evaluation.
 You are not told which model, prompt, provider, or test case produced the topic. Use only the
 evidence below; do not use outside knowledge.
 
-Decide whether the GENERATED TOPIC conveys the REQUIRED PROPOSITION. Exact words are neither
-required nor preferred: a faithful paraphrase passes. Mark "not_conveyed" if the proposition is
-omitted, contradicted, or materially weakened. Use "unclear" only when the topic is genuinely
-ambiguous and needs human review. Do not award credit merely because the proposition appears in
-the evidence; it must be communicated by the generated topic.
+Decide whether at least one GENERATED TOPIC conveys the REQUIRED PROPOSITION. Exact words are
+neither required nor preferred: a faithful paraphrase passes. Mark "not_conveyed" only if every
+topic omits, contradicts, or materially weakens the proposition. Use "unclear" only when the
+topics are genuinely ambiguous and need human review. Do not award credit merely because the
+proposition appears in the evidence; it must be communicated by a generated topic.
 
 EVIDENCE (title and possibly truncated feed summary):
 {evidence}
 
-GENERATED TOPIC:
-{topic['title']}
-{topic['prose']}
+GENERATED TOPICS CITING THE REQUIRED URL:
+{rendered_topics}
 
 REQUIRED PROPOSITION:
 {proposition}
@@ -89,22 +79,19 @@ The judgment must be exactly "conveyed", "not_conveyed", or "unclear".
 def _judge_call(
     adapter: Adapter, prompt: str, checkpoint: Path
 ) -> tuple[dict[str, str], bool]:
-    if checkpoint.exists():
-        try:
-            generation = Generation(**json.loads(checkpoint.read_text(encoding="utf-8")))
-            return _parse_judgment(generation.text), True
-        except (OSError, TypeError, ValueError):
-            pass
-    generation = adapter.generate(prompt)
-    _write_json_atomic(checkpoint, generation.record())
-    return _parse_judgment(generation.text), False
+    """Return one semantic judgment and whether it came from a checkpoint."""
+    _, judgment, resumed = checkpointed_generate(
+        adapter, prompt, checkpoint, _parse_judgment
+    )
+    return judgment, resumed
 
 
 def _identity(manifest_path: Path, manifest_bytes: bytes, judge: Adapter) -> dict[str, Any]:
+    """Bind semantic checkpoints to the exact manifest and judge model."""
     return {
         "schema_version": 1,
         "manifest": str(manifest_path.resolve()),
-        "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "manifest_sha256": sha256_bytes(manifest_bytes),
         "judge": {"provider": judge.provider, "model": judge.model},
     }
 
@@ -128,7 +115,7 @@ def run_semantic_judging(
     else:
         if any(output_dir.glob("judgment-*.json")):
             raise ValueError("output directory has unbound semantic-judge checkpoints")
-        _write_json_atomic(identity_path, identity)
+        write_json_atomic(identity_path, identity)
 
     available = 0
     model_calls = 0
@@ -154,10 +141,19 @@ def run_semantic_judging(
                 })
                 continue
 
-            topic = item.get("topic")
+            raw_topics = item.get("topics")
+            if raw_topics is None:
+                legacy_topic = item.get("topic")
+                topics = [legacy_topic] if isinstance(legacy_topic, dict) else []
+            elif isinstance(raw_topics, list) and all(
+                isinstance(topic, dict) for topic in raw_topics
+            ):
+                topics = raw_topics
+            else:
+                raise ValueError("semantic adjudication topics must be an array of objects")
             canonical = corpus_schema.canonicalize_url(item["url"])
             support = evidence.get(canonical, "")
-            if not isinstance(topic, dict):
+            if not topics:
                 judgment = {
                     "judgment": "not_conveyed",
                     "rationale": "The generated briefing has no topic citing the required URL.",
@@ -177,7 +173,7 @@ def run_semantic_judging(
                 checkpoint = output_dir / f"judgment-{safe_key}.json"
                 judgment, resumed = _judge_call(
                     judge,
-                    _judgment_prompt(support, topic, item["proposition"]),
+                    _judgment_prompt(support, topics, item["proposition"]),
                     checkpoint,
                 )
                 model_calls += not resumed
@@ -198,12 +194,12 @@ def run_semantic_judging(
                 "resumed": False,
             })
         if changed:
-            _write_json_atomic(adjudication_path, payload)
+            write_json_atomic(adjudication_path, payload)
 
     apply_adjudications(manifest, run_dir)
     report = summarize(manifest)
-    _write_json_atomic(run_dir / "report.json", report)
-    (run_dir / "report.md").write_text(markdown_report(report), encoding="utf-8")
+    write_json_atomic(run_dir / "report.json", report)
+    write_text_atomic(run_dir / "report.md", markdown_report(report))
 
     result = {
         "schema_version": 1,
@@ -217,5 +213,5 @@ def run_semantic_judging(
         },
         "records": records,
     }
-    _write_json_atomic(output_dir / "semantic-judgments.json", result)
+    write_json_atomic(output_dir / "semantic-judgments.json", result)
     return result

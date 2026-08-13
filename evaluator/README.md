@@ -98,7 +98,7 @@ Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial arti
 python3 -m evaluator report evaluator/results/<run>/manifest.json
 ```
 
-Cases with `must_convey` requirements also get `semantic-adjudication.json`. Review those files manually, or run a blinded semantic judge that sees only corpus evidence, generated topic text, and one proposition at a time:
+Cases with `must_convey` requirements also get `semantic-adjudication.json`. Review those files manually, or run a blinded semantic judge that sees only corpus evidence, every generated topic citing the required URL, and one proposition at a time:
 
 ```bash
 python3 -m evaluator judge-semantics evaluator/results/<run>/manifest.json \

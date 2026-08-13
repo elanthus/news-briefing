@@ -9,14 +9,13 @@ second model, so this does not try." This module is that second model,
 scoped narrowly to relative comparison rather than absolute scoring, because
 pairwise preference is more reliable than an LLM rubric score in isolation.
 
-It reuses the blinded-identifier and fence-tolerant-JSON conventions from
+It shares the durable checkpoint and fence-tolerant JSON machinery used by
 label_review.py, and reads its inputs from the artifacts a completed
 `evaluator run` already wrote to disk (final.md, corpus.json per case-trial).
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import random
 from collections import defaultdict
@@ -27,7 +26,14 @@ import briefing_config
 import corpus_schema
 import eval_briefing
 
-from evaluator.adapters import Adapter, Generation
+from evaluator.adapters import Adapter
+from evaluator.judge_io import (
+    checkpointed_generate,
+    parse_json_response,
+    sha256_bytes,
+    write_json_atomic,
+    write_text_atomic,
+)
 from evaluator.metrics import rate
 
 QUALITY_AXES = ("faithfulness", "salience", "concision", "coherence")
@@ -56,14 +62,17 @@ _FLIP = {"a": "b", "b": "a", "tie": "tie"}
 
 
 def _group_key(row: dict[str, Any]) -> tuple[str, str, str]:
+    """Return the dimensions that identify one compared generation group."""
     return (row["provider"], row["model"], row["prompt_version"])
 
 
 def _group_label(key: tuple[str, str, str]) -> str:
+    """Render a generation-group key for artifact filenames."""
     return "__".join(key)
 
 
 def _case_configs(suite: dict[str, Any], suite_path: Path) -> dict[str, briefing_config.BriefingConfig]:
+    """Load each case's briefing configuration from the selected suite."""
     configs: dict[str, briefing_config.BriefingConfig] = {}
     for case in suite["cases"]:
         configs[case["id"]] = briefing_config.load_config(suite_path.parent / case["config"])
@@ -85,7 +94,9 @@ def _topics(run_dir: Path, row: dict[str, Any], config: briefing_config.Briefing
             bucket.get("topics", []), bucket.get("topic_texts", []), bucket.get("topic_links", []), strict=True
         ):
             canonical = frozenset(corpus_schema.canonicalize_url(url) for url in links)
-            support = " ".join(dict.fromkeys(evidence[url] for url in canonical if url in evidence)).strip()
+            support = " ".join(
+                dict.fromkeys(evidence[url] for url in sorted(canonical) if url in evidence)
+            ).strip()
             if not canonical or not support:
                 continue
             topics.append({"section": name, "title": title, "prose": prose, "urls": canonical, "evidence": support})
@@ -107,6 +118,11 @@ def matched_pairs(
 
     pairs: list[dict[str, Any]] = []
     for (case_id, trial), rows in sorted(by_case_trial.items()):
+        if case_id not in configs:
+            raise ValueError(
+                f"case {case_id!r} is in the manifest but not in the suite; "
+                "the suite does not match this run"
+            )
         config = configs[case_id]
         topics_by_group: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         for row in rows:
@@ -135,6 +151,7 @@ def matched_pairs(
 
 
 def _judgment_prompt(pair: dict[str, Any], swapped: bool) -> str:
+    """Build one blinded quality prompt in original or swapped option order."""
     left = pair["topic_b"] if swapped else pair["topic_a"]
     right = pair["topic_a"] if swapped else pair["topic_b"]
     return f"""You are an independent prose-quality judge for a news-briefing evaluation suite.
@@ -167,22 +184,8 @@ Every value except "rationale" must be exactly "a", "b", or "tie".
 
 
 def _parse_judgment(text: str) -> dict[str, str]:
-    value = text.strip()
-    if value.startswith("```"):
-        lines = value.splitlines()
-        if lines[-1].strip() != "```":
-            raise ValueError("judgment response has an unterminated code fence")
-        value = "\n".join(lines[1:-1])
-    elif not value.startswith("{"):
-        start = value.find("{")
-        end = value.rfind("}")
-        if start >= 0 and end > start:
-            value = value[start:end + 1]
-    try:
-        payload = json.loads(value)
-    except json.JSONDecodeError as exc:
-        preview = text.strip().replace("\n", " ")[:160]
-        raise ValueError(f"judgment response is not valid JSON: {exc}; response starts {preview!r}") from exc
+    """Validate one fence-tolerant pairwise quality response."""
+    payload = parse_json_response(text, "judgment response")
     if not isinstance(payload, dict):
         raise ValueError("judgment response must be a JSON object")
     expected_keys = {*QUALITY_AXES, "overall", "rationale"}
@@ -198,27 +201,16 @@ def _parse_judgment(text: str) -> dict[str, str]:
 
 def _judge_call(adapter: Adapter, prompt: str, checkpoint: Path) -> dict[str, str]:
     """Resumable single judge call: a prior valid checkpoint is reused without a paid re-call."""
-    if checkpoint.exists():
-        try:
-            payload = json.loads(checkpoint.read_text(encoding="utf-8"))
-            generation = Generation(**payload)
-            return _parse_judgment(generation.text)
-        except (OSError, TypeError, ValueError):
-            pass
-    generation = adapter.generate(prompt)
-    checkpoint.write_text(json.dumps(generation.record(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return _parse_judgment(generation.text)
+    _, judgment, _ = checkpointed_generate(adapter, prompt, checkpoint, _parse_judgment)
+    return judgment
 
 
 def _pct(metric: dict[str, Any]) -> str:
+    """Format a rate and its Wilson interval for Markdown output."""
     if metric["rate"] is None:
         return "n/a"
     low, high = metric["ci95_wilson"]
     return f"{metric['rate'] * 100:.1f}% ({low * 100:.1f}–{high * 100:.1f}%; {metric['successes']}/{metric['trials']})"
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
 
 
 def _identity(
@@ -230,12 +222,13 @@ def _identity(
     sample: int | None,
     seed: int,
 ) -> dict[str, Any]:
+    """Bind resumable quality checkpoints to their exact inputs and judge."""
     return {
         "schema_version": 2,
         "manifest": str(manifest_path.resolve()),
-        "manifest_sha256": _sha256(manifest_content),
+        "manifest_sha256": sha256_bytes(manifest_content),
         "suite": str(suite_path.resolve()),
-        "suite_sha256": _sha256(suite_content),
+        "suite_sha256": sha256_bytes(suite_content),
         "judge": {"provider": judge.provider, "model": judge.model},
         "sample": sample,
         "seed": seed,
@@ -250,6 +243,7 @@ def run_quality_judging(
     sample: int | None = None,
     seed: int = 0,
 ) -> dict[str, Any]:
+    """Judge matched same-story prose pairs and write resumable reports."""
     manifest_content = manifest_path.read_bytes()
     manifest = json.loads(manifest_content)
     run_dir = manifest_path.parent
@@ -281,7 +275,7 @@ def run_quality_judging(
     else:
         if any(output_dir.glob("*-original.json")) or any(output_dir.glob("*-swapped.json")):
             raise ValueError("output directory has unbound judge-quality checkpoints")
-        identity_path.write_text(json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json_atomic(identity_path, identity)
 
     records = []
     for index, pair in enumerate(pairs, 1):
@@ -354,14 +348,13 @@ def run_quality_judging(
         "win_rates": win_rates,
         "records": records,
     }
-    (output_dir / "quality-judgments.json").write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    (output_dir / "quality-report.md").write_text(markdown_quality_report(result), encoding="utf-8")
+    write_json_atomic(output_dir / "quality-judgments.json", result)
+    write_text_atomic(output_dir / "quality-report.md", markdown_quality_report(result))
     return result
 
 
 def markdown_quality_report(result: dict[str, Any]) -> str:
+    """Render pairwise quality judgments and position consistency as Markdown."""
     lines = [
         "# Prose-quality pairwise judgments",
         "",

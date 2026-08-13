@@ -12,6 +12,7 @@ from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
 
+import corpus_schema
 import eval_briefing
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.__main__ import ProgressBar, _provider_values
@@ -28,17 +29,25 @@ from evaluator.adapters import (
 from evaluator.cases import run_deterministic_suite
 from evaluator.label_review import _parse_reviews, _portable_path, blinded_cases, run_label_review
 from evaluator.metrics import rate, wilson_interval
-from evaluator.quality import QUALITY_AXES, _parse_judgment, matched_pairs, run_quality_judging
+from evaluator.quality import (
+    QUALITY_AXES,
+    _parse_judgment,
+    _topics,
+    matched_pairs,
+    run_quality_judging,
+)
 from evaluator.runner import (
     DEFAULT_CORPUS,
     _mutate,
     _oracle,
+    _semantic_adjudication_template,
     _validate_generation_case,
     apply_adjudications,
     correction_request,
     run_evaluation,
     summarize,
 )
+from evaluator.semantic_review import _judgment_prompt as _semantic_judgment_prompt
 from evaluator.semantic_review import _parse_judgment as _parse_semantic_judgment
 from evaluator.semantic_review import run_semantic_judging
 
@@ -526,6 +535,8 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "manifest.json").is_file())
             self.assertTrue((output / "report.json").is_file())
             self.assertTrue((output / "report.md").is_file())
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schema_version"], 5)
             self.assertEqual(report["deterministic_summary"]["case_count"], 54)
             group = report["groups"][0]
             for field in (
@@ -999,7 +1010,7 @@ class SemanticJudgeTest(unittest.TestCase):
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             semantic_path = output / manifest["results"][0]["semantic_adjudication"]
             semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
-            generated_prose = semantic["judgments"][0]["topic"]["prose"]
+            generated_prose = semantic["judgments"][0]["topics"][0]["prose"]
             self.assertNotIn("run using other model providers", generated_prose)
 
             judge = FakeSemanticJudgeAdapter("fixture-judge")
@@ -1021,6 +1032,37 @@ class SemanticJudgeTest(unittest.TestCase):
             )
             self.assertEqual(resumed["model_calls"], 0)
             self.assertEqual(judge.calls, 1)
+
+    def test_repeated_url_exposes_every_citing_topic_to_the_semantic_judge(self) -> None:
+        url = "https://example.test/repeated"
+        proposition = "The later topic contains the required meaning."
+        payload = _semantic_adjudication_template(
+            {
+                "must_convey": [{"url": url, "propositions": [proposition]}],
+            },
+            {
+                "AI Dev Tools": {
+                    "topics": ["First mention", "Later mention"],
+                    "topic_texts": [
+                        "This topic omits the required meaning.",
+                        "The later topic contains the required meaning.",
+                    ],
+                    "topic_links": [[url], [url]],
+                },
+            },
+        )
+
+        judgment = payload["judgments"][0]
+        self.assertEqual(
+            [topic["title"] for topic in judgment["topics"]],
+            ["First mention", "Later mention"],
+        )
+        prompt = _semantic_judgment_prompt(
+            "Supporting evidence.", judgment["topics"], proposition
+        )
+        self.assertIn("TOPIC 1:\nFirst mention", prompt)
+        self.assertIn("TOPIC 2:\nLater mention", prompt)
+        self.assertIn("whether at least one GENERATED TOPIC conveys", prompt)
 
 
 class QualityJudgeTest(unittest.TestCase):
@@ -1082,6 +1124,38 @@ class QualityJudgeTest(unittest.TestCase):
             self.assertEqual(pairs[0]["group_b"][0], "offline-fixture-b")
             self.assertIn("billing stays on the subscription plan", pairs[0]["topic_b"]["prose"])
 
+    def test_multi_url_evidence_is_joined_in_canonical_url_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            case_dir = temporary / "case"
+            case_dir.mkdir()
+            corpus = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+            urls = [
+                "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/",
+                "https://news.ycombinator.com/item?id=90000001",
+            ]
+            (case_dir / "corpus.json").write_text(json.dumps(corpus), encoding="utf-8")
+            (case_dir / "final.md").write_text(
+                "# Daily Briefing\n\n## AI Dev Tools\n\n"
+                "**Combined topic** — A concise combined summary.\n"
+                f"🔗 {urls[0]}\n🔗 {urls[1]}\n",
+                encoding="utf-8",
+            )
+            config = load_config(
+                Path(__file__).parents[1] / "fixtures" / "generation-config-1.json"
+            )
+
+            topics = _topics(temporary, {"artifact_dir": "case"}, config)
+
+            evidence = eval_briefing.corpus_evidence(corpus)
+            expected = " ".join(
+                dict.fromkeys(
+                    evidence[url]
+                    for url in sorted(corpus_schema.canonicalize_url(url) for url in urls)
+                )
+            )
+            self.assertEqual(topics[0]["evidence"], expected)
+
     def test_position_biased_judge_is_flagged_as_inconsistent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -1136,6 +1210,33 @@ class QualityJudgeTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "different judge-quality run"):
                 run_quality_judging(manifest_path, judge, temporary / "quality")
+
+    def test_suite_override_missing_a_manifest_case_reports_a_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            mismatched_suite = temporary / "mismatched-suite.json"
+            mismatched_suite.write_text(json.dumps({
+                "schema_version": 2,
+                "case_count": 1,
+                "cases": [{
+                    "id": "different-case",
+                    "kind": "utility",
+                    "family": "valid_edge",
+                    "config": "config.json",
+                    "mutations": [],
+                }],
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "case 'offline' is in the manifest but not in the suite"
+            ):
+                run_quality_judging(
+                    manifest_path,
+                    FakeJudgeAdapter("fixture-judge"),
+                    temporary / "quality",
+                    suite_path=mismatched_suite,
+                )
 
     def test_resumed_run_reuses_checkpoints_without_a_second_paid_call(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

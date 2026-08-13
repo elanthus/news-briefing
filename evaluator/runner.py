@@ -326,8 +326,8 @@ def _adjudication_template(sections: dict[str, eval_briefing.Section]) -> dict[s
 def _semantic_adjudication_template(
     case: dict[str, Any], sections: dict[str, eval_briefing.Section]
 ) -> dict[str, Any]:
-    """Build URL-scoped, wording-independent meaning-preservation reviews."""
-    topics_by_url: dict[str, dict[str, str]] = {}
+    """Build URL-scoped reviews containing every topic that cites each URL."""
+    topics_by_url: dict[str, list[dict[str, str]]] = defaultdict(list)
     for section, bucket in sections.items():
         if section in {eval_briefing.EXCLUDED, eval_briefing.CORPUS_HEALTH}:
             continue
@@ -338,22 +338,26 @@ def _semantic_adjudication_template(
             strict=True,
         ):
             parsed_topic = {"section": section, "title": title, "prose": prose}
-            for url in links:
-                topics_by_url.setdefault(corpus_schema.canonicalize_url(url), parsed_topic)
+            for canonical in dict.fromkeys(
+                corpus_schema.canonicalize_url(url) for url in links
+            ):
+                topics_by_url[canonical].append(parsed_topic)
 
     judgments = []
     for requirement in case.get("must_convey", []):
-        matched_topic = topics_by_url.get(corpus_schema.canonicalize_url(requirement["url"]))
+        matched_topics = topics_by_url.get(
+            corpus_schema.canonicalize_url(requirement["url"]), []
+        )
         for proposition in requirement["propositions"]:
             judgments.append({
                 "url": requirement["url"],
                 "proposition": proposition,
-                "topic": matched_topic,
+                "topics": matched_topics,
                 "judgment": None,
                 "notes": "",
                 "reviewer": None,
             })
-    return {"schema_version": 1, "judgments": judgments}
+    return {"schema_version": 2, "judgments": judgments}
 
 
 def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
@@ -470,7 +474,7 @@ def run_evaluation(
     results: list[dict[str, Any]] = []
     deterministic = run_deterministic_suite()
     manifest = {
-        "schema_version": 4,
+        "schema_version": 5,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,

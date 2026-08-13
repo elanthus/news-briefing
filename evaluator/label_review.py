@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.cases import DEFAULT_SUITE, _xml_case, apply_variant
+from evaluator.judge_io import (
+    checkpointed_generate,
+    parse_json_response,
+    sha256_bytes,
+    write_json_atomic,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -142,22 +147,7 @@ Include exactly one review for every supplied case. Use only labels from the rub
 
 
 def _parse_reviews(text: str, expected_ids: set[str]) -> dict[str, dict[str, Any]]:
-    value = text.strip()
-    if value.startswith("```"):
-        lines = value.splitlines()
-        if lines[-1].strip() != "```":
-            raise ValueError("review response has an unterminated code fence")
-        value = "\n".join(lines[1:-1])
-    elif not value.startswith("{"):
-        start = value.find("{")
-        end = value.rfind("}")
-        if start >= 0 and end > start:
-            value = value[start:end + 1]
-    try:
-        payload = json.loads(value)
-    except json.JSONDecodeError as exc:
-        preview = text.strip().replace("\n", " ")[:160]
-        raise ValueError(f"review response is not valid JSON: {exc}; response starts {preview!r}") from exc
+    payload = parse_json_response(text, "review response")
     rows = payload.get("reviews") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
         raise ValueError("review response must contain a reviews array")
@@ -185,33 +175,18 @@ def _generation_record(generation: Generation) -> dict[str, Any]:
     return generation.record()
 
 
-def _load_generation(path: Path) -> Generation:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"checkpoint {path.name} is not a JSON object")
-    return Generation(**payload)
-
-
 def _review_batch(
     adapter: Adapter,
     prompt: str,
     checkpoint: Path,
     expected_ids: set[str],
 ) -> tuple[Generation, dict[str, dict[str, Any]], bool]:
-    if checkpoint.exists():
-        try:
-            generation = _load_generation(checkpoint)
-            return generation, _parse_reviews(generation.text, expected_ids), True
-        except (OSError, TypeError, ValueError):
-            # Preserve every response before parsing, but retry a corrupt file or
-            # malformed model response instead of treating it as completed work.
-            pass
-    generation = adapter.generate(prompt)
-    checkpoint.write_text(
-        json.dumps(_generation_record(generation), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    return checkpointed_generate(
+        adapter,
+        prompt,
+        checkpoint,
+        lambda text: _parse_reviews(text, expected_ids),
     )
-    return generation, _parse_reviews(generation.text, expected_ids), False
 
 
 def _portable_path(path: Path) -> str:
@@ -242,7 +217,7 @@ def run_label_review(
     output_dir.mkdir(parents=True, exist_ok=True)
     identity = {
         "schema_version": 1,
-        "suite_sha256": hashlib.sha256(raw).hexdigest(),
+        "suite_sha256": sha256_bytes(raw),
         "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
         "adjudicator": {"provider": adjudicator.provider, "model": adjudicator.model},
         "batch_size": batch_size,
@@ -256,9 +231,7 @@ def run_label_review(
         if any(output_dir.glob("reviewer-batch-*.json")) or any(
                 output_dir.glob("adjudicator-batch-*.json")):
             raise ValueError("output directory has unbound label-review checkpoints")
-        identity_path.write_text(
-            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_json_atomic(identity_path, identity)
 
     reviewer_rows: dict[str, dict[str, Any]] = {}
     reviewer_calls = []
@@ -341,5 +314,5 @@ def run_label_review(
         "adjudicator_calls": adjudicator_calls,
     }
     destination = output_dir / "label-review.json"
-    destination.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_atomic(destination, result)
     return result
