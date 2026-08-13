@@ -46,6 +46,11 @@ SOURCE_CONTEXT_MAX_TOKENS = 24_000
 GLOBAL_CONTEXT_MAX_BYTES = 512 * 1024
 GLOBAL_CONTEXT_MAX_TOKENS = 128_000
 
+# Per-field token ceilings are the dependency-free planning estimate implied
+# by their byte ceilings, not a second rejection criterion. Source and global
+# token budgets remain independently enforced because their decimal token
+# ceilings are lower than one quarter of their binary byte ceilings.
+
 CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
 # Query keys that identify a referral, not an article. `utm_*` is handled by
@@ -139,6 +144,11 @@ def _http_url(value: Any) -> bool:
         return False
     parts = urllib.parse.urlsplit(value)
     return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
+
+
+def estimated_tokens_for_bytes(size: int) -> int:
+    """Dependency-free planning estimate shared by writers and validators."""
+    return max(1, (size + 3) // 4)
 
 
 def valid_category_name(value: Any) -> bool:
@@ -345,10 +355,11 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
                 "discussion": ITEM_URL_MAX_BYTES,
                 "query": ITEM_QUERY_MAX_BYTES,
             }
-            for field, limit in byte_limits.items():
+            for field, byte_limit in byte_limits.items():
                 value = item.get(field)
-                if isinstance(value, str) and len(value.encode("utf-8")) > limit:
-                    problems.append(f"{where}.{field} exceeds {limit} UTF-8 bytes")
+                if isinstance(value, str) and len(value.encode("utf-8")) > byte_limit:
+                    problems.append(
+                        f"{where}.{field} exceeds {byte_limit} UTF-8 bytes")
             summary = item.get("summary")
             if isinstance(summary, str) and len(summary) > ITEM_SUMMARY_MAX_CHARS:
                 problems.append(

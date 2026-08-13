@@ -884,18 +884,13 @@ def is_relevant_item(item: Item) -> bool:
     return bool(pattern.search(text))
 
 
-def _estimated_tokens_for_bytes(size: int) -> int:
-    return max(1, math.ceil(size / 4))
-
-
-def _truncate_utf8(value: str, max_bytes: int, max_tokens: int,
+def _truncate_utf8(value: str, max_bytes: int,
                    max_chars: int | None = None) -> tuple[str, bool]:
     """Truncate without splitting a Unicode code point."""
     bounded = value[:max_chars] if max_chars is not None else value
     encoded = bounded.encode("utf-8")
-    effective_max_bytes = min(max_bytes, max_tokens * 4)
-    if len(encoded) > effective_max_bytes:
-        bounded = encoded[:effective_max_bytes].decode("utf-8", errors="ignore")
+    if len(encoded) > max_bytes:
+        bounded = encoded[:max_bytes].decode("utf-8", errors="ignore")
     return bounded, bounded != value
 
 
@@ -937,7 +932,7 @@ def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]
             telemetry["field_budget_dropped"] += 1
             continue
         candidate["title"], title_truncated = _truncate_utf8(
-            title, TITLE_BYTES, TITLE_TOKENS)
+            title, TITLE_BYTES)
         telemetry["title_truncated"] += int(title_truncated)
         summary = candidate.get("summary")
         if summary is not None:
@@ -945,7 +940,7 @@ def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]
                 telemetry["field_budget_dropped"] += 1
                 continue
             candidate["summary"], summary_truncated = _truncate_utf8(
-                summary, SUMMARY_BYTES, SUMMARY_TOKENS, SUMMARY_CHARS)
+                summary, SUMMARY_BYTES, SUMMARY_CHARS)
             telemetry["summary_truncated"] += int(summary_truncated)
         kept.append(candidate)
     return kept, telemetry
@@ -961,7 +956,7 @@ def item_context_usage(item: Item) -> tuple[int, int]:
     size = len(json.dumps(
         item, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8"))
-    return size, _estimated_tokens_for_bytes(size)
+    return size, corpus_schema.estimated_tokens_for_bytes(size)
 
 
 def _source_budget_key(item: Item) -> tuple[str, str]:
