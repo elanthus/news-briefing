@@ -15,6 +15,7 @@ from evaluator.adapters import adapter_for, load_dotenv
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
 from evaluator.label_review import run_label_review
+from evaluator.quality import run_quality_judging
 from evaluator.runner import (
     DEFAULT_CORPUS,
     DEFAULT_SUITE,
@@ -24,6 +25,7 @@ from evaluator.runner import (
     run_evaluation,
     summarize,
 )
+from evaluator.semantic_review import run_semantic_judging
 
 EVALUATOR_DIR = Path(__file__).resolve().parent
 
@@ -171,6 +173,31 @@ def main() -> int:
     report_parser = subparsers.add_parser("report", help="rebuild reports from a saved manifest")
     report_parser.add_argument("manifest", type=Path)
 
+    quality = subparsers.add_parser(
+        "judge-quality",
+        help="blinded pairwise LLM-judge comparison of briefing prose across a completed run",
+    )
+    quality.add_argument("manifest", type=Path)
+    quality.add_argument("--judge-provider", default="claude-code-cli")
+    quality.add_argument("--judge-model", default="claude-opus-4-6")
+    quality.add_argument("--sample", type=int, help="cap the number of judged pairs; default judges all")
+    quality.add_argument("--seed", type=int, default=0, help="sampling seed, for reproducible --sample subsets")
+    quality.add_argument("--timeout", type=int, default=300)
+    quality.add_argument("--suite", type=Path, help="override the suite path recorded in the manifest")
+    quality.add_argument("--output-dir", type=Path)
+    quality.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+
+    semantic = subparsers.add_parser(
+        "judge-semantics",
+        help="blind-review URL-scoped meaning-preservation propositions",
+    )
+    semantic.add_argument("manifest", type=Path)
+    semantic.add_argument("--judge-provider", default="claude-code-cli")
+    semantic.add_argument("--judge-model", default="claude-opus-4-6")
+    semantic.add_argument("--timeout", type=int, default=300)
+    semantic.add_argument("--output-dir", type=Path)
+    semantic.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+
     args = parser.parse_args()
     try:
         if args.command == "checker":
@@ -232,6 +259,34 @@ def main() -> int:
                 "exact_agreements": result["exact_agreements"],
                 "disagreements_adjudicated": result["disagreements_adjudicated"],
                 "report": str(output_dir / "label-review.json"),
+            }, indent=2, sort_keys=True))
+            return 0
+        if args.command == "judge-quality":
+            load_dotenv(args.env_file)
+            _preflight([(args.judge_provider, args.judge_model)])
+            judge = adapter_for(args.judge_provider, args.judge_model, args.timeout)
+            output_dir = args.output_dir or args.manifest.parent / "quality-judgments"
+            result = run_quality_judging(
+                args.manifest, judge, output_dir, args.suite, args.sample, args.seed
+            )
+            print(json.dumps({
+                "pairs_available": result["pairs_available"],
+                "pairs_judged": result["pairs_judged"],
+                "position_consistency": result["position_consistency"],
+                "report": str(output_dir / "quality-report.md"),
+            }, indent=2, sort_keys=True))
+            return 0
+        if args.command == "judge-semantics":
+            load_dotenv(args.env_file)
+            _preflight([(args.judge_provider, args.judge_model)])
+            judge = adapter_for(args.judge_provider, args.judge_model, args.timeout)
+            output_dir = args.output_dir or args.manifest.parent / "semantic-judgments"
+            result = run_semantic_judging(args.manifest, judge, output_dir)
+            print(json.dumps({
+                "judgments_available": result["judgments_available"],
+                "model_calls": result["model_calls"],
+                "counts": result["counts"],
+                "report": str(args.manifest.parent / "report.md"),
             }, indent=2, sort_keys=True))
             return 0
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
