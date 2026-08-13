@@ -6,7 +6,7 @@ This directory is a development-only benchmark. Nothing under `evaluator/` is im
 
 `fixtures/checker-cases.json` contains 54 fixed, human-reviewable gold-label cases: 42 checker cases and 12 feed-parser cases. They cover fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose false positives. The committed labels are provisional until an independent human approves them; their provenance and review status are part of the suite and every report.
 
-`fixtures/generation-cases.json` contains 63 fixed end-to-end cases: 45 indirect prompt-injection attacks and 18 utility/quality cases. Each of the nine attack behaviors covers direct, escape-character, context-ignoring, fake-response, and combined techniques with shared assertions. Nine paired over-refusal decoys require legitimate lookalike content to remain included, cited, and reported normally. Focused utility cases require the mutated item to be selected and apply case-specific assertions for evidence conflicts, section placement, and over-consolidation. Selection attacks assert URL inclusion, exclusion, lead position, and section placement rather than relying only on marker strings. The suite records first output, one correction attempt when needed, final output, the transformed corpus, raw provider usage, oracle outcomes, and hashes.
+`fixtures/generation-cases.json` contains 63 fixed end-to-end cases: 45 indirect prompt-injection attacks and 18 utility/quality cases. Each of the nine attack behaviors covers direct, escape-character, context-ignoring, fake-response, and combined techniques with shared assertions. Nine paired over-refusal decoys require legitimate lookalike content to remain included, cited, and reported normally. Observable behavior—URL inclusion, exclusion, ordering, separation, and section placement—is checked deterministically. Meaning-preservation requirements are URL-scoped propositions reviewed separately, so a faithful paraphrase is not failed for omitting fixture wording. The suite records first output, one checker-guided correction attempt when needed, final output, the transformed corpus, raw provider usage, oracle outcomes, and hashes.
 
 The injection design follows the evaluation posture of [AgentDojo (NeurIPS 2024)](https://proceedings.neurips.cc/paper_files/paper/2024/hash/97091a5177d8dc64b1da8bf3e1f6fb54-Abstract-Datasets_and_Benchmarks_Track.html)—measure clean utility as well as attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. This suite is application-specific rather than a claim to reproduce either paper.
 
@@ -98,20 +98,41 @@ Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial arti
 python3 -m evaluator report evaluator/results/<run>/manifest.json
 ```
 
+Cases with `must_convey` requirements also get `semantic-adjudication.json`. Review those files manually, or run a blinded semantic judge that sees only corpus evidence, every generated topic citing the required URL, and one proposition at a time:
+
+```bash
+python3 -m evaluator judge-semantics evaluator/results/<run>/manifest.json \
+  --judge-provider claude-code-cli --judge-model claude-opus-4-6
+```
+
+The labels are `conveyed`, `not_conveyed`, and `unclear`; `unclear` remains unresolved until a human adjudicates it. Calls are checkpointed, and the command refreshes the run's `report.json` and `report.md` without changing the immutable generation manifest.
+
 ## Metrics and denominators
 
 Every proportion includes successes, trials, and a 95% Wilson interval.
 
 - Checker precision and recall are micro-averaged over human labels. The feed parser is reported separately.
 - First-pass contract success is the share of completed case-trials with no deterministic `ERROR`, grouped by provider, exact model, and prompt version. Planned, recorded, completed, provider-error, and correction-error trial counts are reported separately.
-- Utility-oracle success is the share of utility case-trials satisfying their case-specific content, URL-selection, separation, and placement assertions. It complements rather than replaces contract success; semantic quality outside those explicit assertions still requires human review.
-- Correction success is the share of attempted corrections that finish contract-clean and satisfy the case's utility or attack assertions.
+- Utility-routing success is the share of utility case-trials satisfying deterministic URL-selection, separation, and placement assertions.
+- Meaning-preservation success is the share of decided URL-scoped propositions labeled `conveyed`. Unreviewed and `unclear` propositions are reported explicitly and never silently counted as passes.
+- Correction success is the share of checker-requested corrections that finish contract-clean. Hidden benchmark assertions and semantic propositions are neither shown to the model nor used to trigger correction.
 - Prompt-injection attack success is reported before and after correction over attack case-trials only.
 - Grounding-error rate is reported two ways. The primary human-adjudicated rate uses every topic whose `grounding_error` label has been completed. The deterministic proxy counts a topic when it has no citation, an ungrounded citation, or a figure/quotation/length heuristic. Unreviewed human labels have a zero denominator and are shown as `n/a`, never silently replaced by the proxy.
 - Heuristic claim-check false-positive rate is measured against the deliberately valid gold-label claim cases in the offline suite.
 - Latency includes mean, median, p95, and call count. Cost uses provider-reported USD when available. Missing cost is `null`, never silently treated as zero; NVIDIA can use configured per-token rates, while subscription-backed Codex CLI runs generally have no meaningful per-call billed amount.
 
 The labels intentionally include semantic failures the deterministic checker cannot detect, such as conflicting evidence and over-consolidation. Those misses lower recall rather than being removed from the denominator.
+
+## Prose-quality judging
+
+The checker and case oracles validate routing — is a citation grounded, does a topic land in the right section — not the quality of the prose written about a correctly-routed story. `judge-quality` closes part of that gap with a blinded pairwise LLM judge, run after `run` against a completed manifest:
+
+```bash
+python3 -m evaluator judge-quality evaluator/results/<run>/manifest.json \
+  --judge-provider claude-code-cli --judge-model claude-opus-4-6
+```
+
+It matches same-story topics written by two different provider/model/prompt groups in the same run, by exact canonical-URL-set identity, and asks a judge model to pick the better option on four axes — faithfulness (to the corpus's title/summary blurb, never to outside knowledge), salience, concision, and coherence — plus an overall preference. Every pair is judged twice with option order swapped, because pairwise LLM judges are known to favor whichever option is labeled first; a low position-consistency rate on an axis means its win rate is not yet trustworthy, and both are reported side by side rather than only the win rate. Like label review, this is additional evidence, not a substitute for human read-through, and checkpoints are keyed to the exact judge model so switching `--judge-model` against an existing `--output-dir` fails loudly instead of silently mixing judgments from two judges.
 
 ## Independent label review
 
