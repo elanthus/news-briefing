@@ -1033,6 +1033,16 @@ class SemanticJudgeTest(unittest.TestCase):
             self.assertEqual(resumed["model_calls"], 0)
             self.assertEqual(judge.calls, 1)
 
+            identity_path = output / "semantic-judgments" / "semantic-judging-run.json"
+            identity = json.loads(identity_path.read_text(encoding="utf-8"))
+            self.assertEqual(identity["schema_version"], 2)
+            identity["schema_version"] = 1
+            identity_path.write_text(json.dumps(identity), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "different semantic-judge run"):
+                run_semantic_judging(
+                    output / "manifest.json", judge, output / "semantic-judgments"
+                )
+
     def test_repeated_url_exposes_every_citing_topic_to_the_semantic_judge(self) -> None:
         url = "https://example.test/repeated"
         proposition = "The later topic contains the required meaning."

@@ -89,7 +89,7 @@ def _judge_call(
 def _identity(manifest_path: Path, manifest_bytes: bytes, judge: Adapter) -> dict[str, Any]:
     """Bind semantic checkpoints to the exact manifest and judge model."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "manifest": str(manifest_path.resolve()),
         "manifest_sha256": sha256_bytes(manifest_bytes),
         "judge": {"provider": judge.provider, "model": judge.model},
