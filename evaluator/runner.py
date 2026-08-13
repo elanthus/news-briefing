@@ -445,7 +445,7 @@ def _checkpoint(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     """Atomically persist every completed or failed trial and its current report."""
     manifest["checkpointed_at"] = datetime.now(UTC).isoformat()
     _write_json_atomic(output_dir / "manifest.json", manifest)
-    report = summarize(manifest)
+    report = summarize(manifest, output_dir)
     _write_json_atomic(output_dir / "report.json", report)
     _write_text_atomic(output_dir / "report.md", markdown_report(report))
     return report
@@ -712,36 +712,209 @@ def run_evaluation(
     return _checkpoint(manifest, output_dir)
 
 
-def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
+def _completed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [row for row in rows if isinstance(row.get("first"), dict) and isinstance(row.get("final"), dict)]
+
+
+def _group_identity(key: tuple[str, str, str]) -> dict[str, str]:
+    provider, model, prompt_version = key
+    return {
+        "provider": provider,
+        "model": model,
+        "prompt_version": prompt_version,
+    }
+
+
+def _correction_success(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    corrected = [row for row in rows if row["correction_attempted"]]
+    return rate(
+        sum(row["correction"] is not None and row["final"]["contract_success"] for row in corrected),
+        len(corrected),
+    )
+
+
+def _application_success(row: dict[str, Any], stage: str) -> bool:
+    result = row[stage]
+    return bool(result["contract_success"] and not result["oracle"].get("utility_failure", False))
+
+
+def _attack_dimensions(case_id: str) -> tuple[str, str]:
+    techniques = (
+        ("-context-ignore", "context_ignore"),
+        ("-response-injection", "response_injection"),
+        ("-combined", "combined"),
+        ("-escape", "escape_character"),
+    )
+    base = case_id.removeprefix("attack-")
+    for suffix, technique in techniques:
+        if base.endswith(suffix):
+            return base.removesuffix(suffix), technique
+    return base, "direct"
+
+
+def _attack_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    completed = _completed(rows)
+    first_successes = sum(row["first"]["oracle"]["attack_success"] for row in completed)
+    final_successes = sum(row["final"]["oracle"]["attack_success"] for row in completed)
+    first_compromised = [row for row in completed if row["first"]["oracle"]["attack_success"]]
+    return {
+        "case_trials": len(rows),
+        "completed_case_trials": len(completed),
+        "attack_success_first": rate(first_successes, len(completed)),
+        "attack_success_final": rate(final_successes, len(completed)),
+        "robustness_first": rate(len(completed) - first_successes, len(completed)),
+        "robustness_final": rate(len(completed) - final_successes, len(completed)),
+        "attack_recovery_success": rate(
+            sum(not row["final"]["oracle"]["attack_success"] for row in first_compromised),
+            len(first_compromised),
+        ),
+    }
+
+
+def _attack_breakdown(rows: list[dict[str, Any]], dimension: str) -> list[dict[str, Any]]:
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        behavior, technique = _attack_dimensions(row["case_id"])
+        buckets[behavior if dimension == "behavior" else technique].append(row)
+    return [{dimension: name, **_attack_metrics(bucket)} for name, bucket in sorted(buckets.items())]
+
+
+def _pairwise_quality(
+    quality: dict[str, Any] | None,
+    key: tuple[str, str, str],
+) -> dict[str, Any]:
+    if quality is None:
+        return {"status": "not_run", "axes": []}
+    if quality.get("_report_status") == "stale_schema":
+        return {"status": "stale_schema", "axes": []}
+    axes = [
+        row for row in quality.get("win_rates", []) if (row["provider"], row["model"], row["prompt_version"]) == key
+    ]
+    return {
+        "status": "available" if axes else "no_matched_pairs",
+        "axes": axes,
+    }
+
+
+def _load_quality_summary(artifact_root: Path | None) -> dict[str, Any] | None:
+    if artifact_root is None:
+        return None
+    path = artifact_root / "quality-judgments" / "quality-judgments.json"
+    if not path.exists():
+        return None
+    payload = _json(path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"quality judgments must contain an object: {path}")
+    if payload.get("schema_version") != 2:
+        return {"_report_status": "stale_schema"}
+    return payload
+
+
+def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> dict[str, Any]:
     grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in manifest["results"]:
         grouped[(row["provider"], row["model"], row["prompt_version"])].append(row)
-    summaries = []
-    for (provider, model, prompt_version), rows in sorted(grouped.items()):
-        completed_rows = [
-            row for row in rows
-            if isinstance(row.get("first"), dict) and isinstance(row.get("final"), dict)
+
+    quality = _load_quality_summary(artifact_root)
+    utility_groups = []
+    security_groups = []
+    editorial_groups = []
+    operation_groups = []
+    for key, rows in sorted(grouped.items()):
+        identity = _group_identity(key)
+        completed_rows = _completed(rows)
+        utility_rows = [row for row in rows if row["case_kind"] == "utility"]
+        completed_utility = _completed(utility_rows)
+        attack_rows = [row for row in rows if row["case_kind"] == "attack"]
+
+        utility_corrected = [row for row in completed_utility if row["correction_attempted"]]
+        over_refusal = [row for row in completed_utility if row["case_id"].startswith("utility-over-refusal-")]
+        health_cases = [
+            row for row in completed_utility if row["case_family"] in {"degraded", "partially_degraded", "health"}
         ]
-        attack_rows = [row for row in completed_rows if row["case_kind"] == "attack"]
-        utility_rows = [row for row in completed_rows if row["case_kind"] == "utility"]
-        corrected_rows = [row for row in completed_rows if row["correction_attempted"]]
-        first_topics = sum(row["first"]["generated_topics"] for row in completed_rows)
-        final_topics = sum(row["final"]["generated_topics"] for row in completed_rows)
-        human_reviewed_topics = sum(
-            row["final"].get("human_grounding_reviewed_topics", 0) for row in completed_rows
+        utility_groups.append(
+            {
+                **identity,
+                "case_trials": len(utility_rows),
+                "completed_case_trials": len(completed_utility),
+                "first_pass_contract_success": rate(
+                    sum(row["first"]["contract_success"] for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "final_contract_success": rate(
+                    sum(row["final"]["contract_success"] for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "routing_success_first": rate(
+                    sum(not row["first"]["oracle"].get("utility_failure", False) for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "routing_success_final": rate(
+                    sum(not row["final"]["oracle"].get("utility_failure", False) for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "end_to_end_success_first": rate(
+                    sum(_application_success(row, "first") for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "end_to_end_success_final": rate(
+                    sum(_application_success(row, "final") for row in completed_utility),
+                    len(completed_utility),
+                ),
+                "correction_success": _correction_success(completed_utility),
+                "correction_attempts": len(utility_corrected),
+                "over_refusal_success_final": rate(
+                    sum(_application_success(row, "final") for row in over_refusal),
+                    len(over_refusal),
+                ),
+                "health_reporting_success_final": rate(
+                    sum(_application_success(row, "final") for row in health_cases),
+                    len(health_cases),
+                ),
+            }
         )
-        semantic_required = sum(
-            row["final"].get("semantic_required_propositions", 0) for row in completed_rows
+
+        security_groups.append(
+            {
+                **identity,
+                **_attack_metrics(attack_rows),
+                "by_behavior": _attack_breakdown(attack_rows, "behavior"),
+                "by_technique": _attack_breakdown(attack_rows, "technique"),
+            }
         )
-        semantic_reviewed = sum(
-            row["final"].get("semantic_reviewed_propositions", 0) for row in completed_rows
+
+        first_topics = sum(row["first"]["generated_topics"] for row in completed_utility)
+        final_topics = sum(row["final"]["generated_topics"] for row in completed_utility)
+        human_reviewed_topics = sum(row["final"].get("human_grounding_reviewed_topics", 0) for row in completed_utility)
+        semantic_required = sum(row["final"].get("semantic_required_propositions", 0) for row in completed_utility)
+        semantic_reviewed = sum(row["final"].get("semantic_reviewed_propositions", 0) for row in completed_utility)
+        semantic_conveyed = sum(row["final"].get("semantic_conveyed_propositions", 0) for row in completed_utility)
+        semantic_unclear = sum(row["final"].get("semantic_unclear_propositions", 0) for row in completed_utility)
+        editorial_groups.append(
+            {
+                **identity,
+                "utility_case_trials": len(utility_rows),
+                "completed_utility_case_trials": len(completed_utility),
+                "semantic_meaning_preservation": rate(semantic_conveyed, semantic_reviewed),
+                "semantic_required_propositions": semantic_required,
+                "semantic_unreviewed_propositions": (semantic_required - semantic_reviewed - semantic_unclear),
+                "semantic_unclear_propositions": semantic_unclear,
+                "grounding_error_topics_human": rate(
+                    sum(row["final"].get("human_grounding_error_topics", 0) for row in completed_utility),
+                    human_reviewed_topics,
+                ),
+                "grounding_error_topics_proxy_first": rate(
+                    sum(row["first"]["grounding_error_topics"] for row in completed_utility),
+                    first_topics,
+                ),
+                "grounding_error_topics_proxy_final": rate(
+                    sum(row["final"]["grounding_error_topics"] for row in completed_utility),
+                    final_topics,
+                ),
+                "pairwise_prose_quality": _pairwise_quality(quality, key),
+            }
         )
-        semantic_conveyed = sum(
-            row["final"].get("semantic_conveyed_propositions", 0) for row in completed_rows
-        )
-        semantic_unclear = sum(
-            row["final"].get("semantic_unclear_propositions", 0) for row in completed_rows
-        )
+
         costs = []
         cost_missing = 0
         latencies = []
@@ -758,87 +931,81 @@ def summarize(manifest: dict[str, Any]) -> dict[str, Any]:
                     cost_missing += 1
                 else:
                     costs.append(row["correction"]["cost_usd"])
-        summaries.append({
-            "provider": provider,
-            "model": model,
-            "prompt_version": prompt_version,
-            "case_trials": len(rows),
-            "completed_case_trials": len(completed_rows),
-            "provider_error_trials": sum(row.get("status") == "provider_error" for row in rows),
-            "circuit_open_skipped_trials": sum(
-                row.get("status") == "skipped_circuit_open" for row in rows
-            ),
-            "correction_error_trials": sum(bool(row.get("correction_error")) for row in rows),
-            "first_pass_contract_success": rate(
-                sum(row["first"]["contract_success"] for row in completed_rows),
-                len(completed_rows),
-            ),
-            "correction_success": rate(
-                sum(
-                    row["correction"] is not None
-                    and row["final"]["contract_success"]
-                    for row in corrected_rows
-                ),
-                len(corrected_rows),
-            ),
-            "attack_success_first": rate(
-                sum(row["first"]["oracle"]["attack_success"] for row in attack_rows), len(attack_rows)
-            ),
-            "attack_success_final": rate(
-                sum(row["final"]["oracle"]["attack_success"] for row in attack_rows), len(attack_rows)
-            ),
-            "utility_routing_success_first": rate(
-                sum(not row["first"]["oracle"].get("utility_failure", False) for row in utility_rows),
-                len(utility_rows),
-            ),
-            "utility_routing_success_final": rate(
-                sum(not row["final"]["oracle"].get("utility_failure", False) for row in utility_rows),
-                len(utility_rows),
-            ),
-            "semantic_meaning_preservation": rate(semantic_conveyed, semantic_reviewed),
-            "semantic_required_propositions": semantic_required,
-            "semantic_unreviewed_propositions": (
-                semantic_required - semantic_reviewed - semantic_unclear
-            ),
-            "semantic_unclear_propositions": semantic_unclear,
-            "grounding_error_topics_first": rate(
-                sum(row["first"]["grounding_error_topics"] for row in completed_rows), first_topics
-            ),
-            "grounding_error_topics_final": rate(
-                sum(row["final"]["grounding_error_topics"] for row in completed_rows), final_topics
-            ),
-            "grounding_error_topics_human": rate(
-                sum(row["final"].get("human_grounding_error_topics", 0) for row in completed_rows),
-                human_reviewed_topics,
-            ),
-            "latency_first": latency_summary(latencies),
-            "latency_correction": latency_summary(correction_latencies),
-            "cost": {
-                "reported_calls": len(costs),
-                "unreported_calls": cost_missing,
-                "total_usd": sum(costs) if costs else None,
-                "mean_usd_per_reported_call": sum(costs) / len(costs) if costs else None,
-            },
-        })
-    return {
-        "schema_version": 5,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "run_status": manifest.get("run_status", "complete"),
+        operation_groups.append(
+            {
+                **identity,
+                "case_trials": len(rows),
+                "completed_case_trials": len(completed_rows),
+                "provider_error_trials": sum(row.get("status") == "provider_error" for row in rows),
+                "circuit_open_skipped_trials": sum(row.get("status") == "skipped_circuit_open" for row in rows),
+                "correction_error_trials": sum(bool(row.get("correction_error")) for row in rows),
+                "latency_first": latency_summary(latencies),
+                "latency_correction": latency_summary(correction_latencies),
+                "cost": {
+                    "reported_calls": len(costs),
+                    "unreported_calls": cost_missing,
+                    "total_usd": sum(costs) if costs else None,
+                    "mean_usd_per_reported_call": sum(costs) / len(costs) if costs else None,
+                },
+            }
+        )
+
+    deterministic = manifest.get("deterministic_summary")
+    checker_capability = None
+    if deterministic:
+        checker_capability = {
+            "case_count": deterministic["case_count"],
+            "label_provenance": deterministic.get("label_provenance"),
+            "checker": deterministic["components"]["checker"],
+            "feed_parser": deterministic["components"]["feed_parser"],
+            "heuristic_claim_false_positive_rate": (deterministic["heuristic_claim_false_positive_rate"]),
+        }
+
+    provider_errors = sum(row.get("status") == "provider_error" for row in manifest["results"])
+    circuit_skips = sum(row.get("status") == "skipped_circuit_open" for row in manifest["results"])
+    correction_errors = sum(bool(row.get("correction_error")) for row in manifest["results"])
+    run_status = manifest.get("run_status", "complete")
+    if run_status == "complete" and (provider_errors or circuit_skips or correction_errors):
+        run_status = "completed_with_errors"
+    operations = {
+        "run_status": run_status,
         "planned_case_trials": manifest.get("planned_case_trials", len(manifest["results"])),
         "recorded_case_trials": len(manifest["results"]),
-        "provider_error_trials": sum(
-            row.get("status") == "provider_error" for row in manifest["results"]
-        ),
-        "circuit_open_skipped_trials": sum(
-            row.get("status") == "skipped_circuit_open" for row in manifest["results"]
-        ),
-        "correction_error_trials": sum(
-            bool(row.get("correction_error")) for row in manifest["results"]
-        ),
-        "grounding_measure": manifest["grounding_measure"],
+        "provider_error_trials": provider_errors,
+        "circuit_open_skipped_trials": circuit_skips,
+        "correction_error_trials": correction_errors,
+        "groups": operation_groups,
+    }
+    quality_status = "not_run" if quality is None else quality.get("_report_status", "available")
+    pairwise_summary = {
+        "status": quality_status,
+        "judge": None if quality is None else quality.get("judge"),
+        "pairs_available": 0 if quality is None else quality.get("pairs_available", 0),
+        "pairs_judged": 0 if quality is None else quality.get("pairs_judged", 0),
+        "position_consistency": (None if quality is None else quality.get("position_consistency")),
+    }
+    return {
+        "schema_version": 6,
+        "generated_at": datetime.now(UTC).isoformat(),
         "generation_controls": manifest.get("generation_controls", []),
-        "deterministic_summary": manifest.get("deterministic_summary"),
-        "groups": summaries,
+        "score_families": {
+            "checker_capability": checker_capability,
+            "application_utility": {
+                "scope": "Completed utility case-trials only.",
+                "groups": utility_groups,
+            },
+            "security_robustness": {
+                "scope": "Completed attack case-trials only; robustness is one minus attack success.",
+                "groups": security_groups,
+            },
+            "editorial_quality": {
+                "scope": "Generated topics and propositions from completed utility case-trials only.",
+                "grounding_measure": manifest["grounding_measure"],
+                "pairwise_judging": pairwise_summary,
+                "groups": editorial_groups,
+            },
+        },
+        "operations": operations,
     }
 
 
@@ -849,13 +1016,28 @@ def _pct(metric: dict[str, Any]) -> str:
     return f"{metric['rate'] * 100:.1f}% ({low * 100:.1f}–{high * 100:.1f}%; {metric['successes']}/{metric['trials']})"
 
 
+def _render_group_label(group: dict[str, Any]) -> str:
+    return f"{group['provider']} / {group['model']} / {group['prompt_version']}"
+
+
+def _pairwise_overall(group: dict[str, Any]) -> str:
+    quality = group["pairwise_prose_quality"]
+    for axis in quality["axes"]:
+        if axis["axis"] == "overall":
+            return _pct(axis["win_rate_excluding_ties"])
+    return "n/a"
+
+
 def markdown_report(report: dict[str, Any]) -> str:
+    families = report["score_families"]
+    operations = report["operations"]
     lines = [
         "# News briefing model evaluation",
         "",
         f"Generated: {report['generated_at']}",
         "",
-        f"Grounding metric: {report['grounding_measure']}",
+        f"Run status: {operations['run_status']}; recorded "
+        f"{operations['recorded_case_trials']}/{operations['planned_case_trials']} planned case-trials.",
         "",
     ]
     controls = report.get("generation_controls", [])
@@ -875,61 +1057,142 @@ def markdown_report(report: dict[str, Any]) -> str:
                 f"{'uncontrolled' if seed is None else seed} | {control['disclosure']} |"
             )
         lines.append("")
-    deterministic = report.get("deterministic_summary")
-    if deterministic:
-        checker = deterministic["components"]["checker"]
-        feed = deterministic["components"]["feed_parser"]
+    checker_family = families["checker_capability"]
+    if checker_family:
+        checker = checker_family["checker"]
+        feed = checker_family["feed_parser"]
+        provenance = checker_family.get("label_provenance") or {}
         lines += [
-            "## Fixed human-labeled suite",
+            "## Score family 1: Checker capability",
+            "",
+            f"Label review status: {provenance.get('review_status', 'not recorded')}",
             "",
             f"- Checker precision: {_pct(checker['precision'])}",
             f"- Checker recall: {_pct(checker['recall'])}",
-            f"- Heuristic claim false-positive rate: "
-            f"{_pct(deterministic['heuristic_claim_false_positive_rate'])}",
+            f"- Heuristic claim false-positive rate: {_pct(checker_family['heuristic_claim_false_positive_rate'])}",
             f"- Feed-parser precision: {_pct(feed['precision'])}",
             f"- Feed-parser recall: {_pct(feed['recall'])}",
             "",
         ]
     lines += [
-        "## Live model results",
+        "## Score family 2: Application utility",
         "",
-        "| Provider / model / prompt | First-pass contract | Utility routing (first → final) | "
-        "Meaning preserved | Correction success | Attack success (first → final) | Human grounding | "
-        "Proxy grounding (first → final) | "
-        "Completed trials | First latency mean | Cost |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        families["application_utility"]["scope"],
+        "",
+        "| Provider / model / prompt | End-to-end (first → final) | Contract (first → final) | "
+        "Routing (first → final) | Correction success | Over-refusal success | Health handling | "
+        "Completed utility trials |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    for group in report["groups"]:
-        label = f"{group['provider']} / {group['model']} / {group['prompt_version']}"
-        attacks = f"{_pct(group['attack_success_first'])} → {_pct(group['attack_success_final'])}"
-        utility = (
-            f"{_pct(group['utility_routing_success_first'])} → "
-            f"{_pct(group['utility_routing_success_final'])}"
+    for group in families["application_utility"]["groups"]:
+        lines.append(
+            f"| {_render_group_label(group)} | "
+            f"{_pct(group['end_to_end_success_first'])} → {_pct(group['end_to_end_success_final'])} | "
+            f"{_pct(group['first_pass_contract_success'])} → {_pct(group['final_contract_success'])} | "
+            f"{_pct(group['routing_success_first'])} → {_pct(group['routing_success_final'])} | "
+            f"{_pct(group['correction_success'])} | {_pct(group['over_refusal_success_final'])} | "
+            f"{_pct(group['health_reporting_success_final'])} | "
+            f"{group['completed_case_trials']}/{group['case_trials']} |"
         )
+    lines += [
+        "",
+        "## Score family 3: Security robustness",
+        "",
+        families["security_robustness"]["scope"],
+        "",
+        "| Provider / model / prompt | Robustness (first → final) | "
+        "Attack success (first → final) | Attack recovery | Completed attack trials |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for group in families["security_robustness"]["groups"]:
+        lines.append(
+            f"| {_render_group_label(group)} | "
+            f"{_pct(group['robustness_first'])} → {_pct(group['robustness_final'])} | "
+            f"{_pct(group['attack_success_first'])} → {_pct(group['attack_success_final'])} | "
+            f"{_pct(group['attack_recovery_success'])} | "
+            f"{group['completed_case_trials']}/{group['case_trials']} |"
+        )
+    for group in families["security_robustness"]["groups"]:
+        if not group["by_behavior"] and not group["by_technique"]:
+            continue
+        lines += [
+            "",
+            f"### Security breakdown — {_render_group_label(group)}",
+            "",
+            "| Behavior | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in group["by_behavior"]:
+            lines.append(
+                f"| {row['behavior']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+        lines += [
+            "",
+            "| Attack technique | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in group["by_technique"]:
+            lines.append(
+                f"| {row['technique']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    pairwise = families["editorial_quality"]["pairwise_judging"]
+    lines += [
+        "",
+        "## Score family 4: Editorial quality",
+        "",
+        families["editorial_quality"]["scope"],
+        "",
+        f"Grounding metric: {families['editorial_quality']['grounding_measure']}",
+        "",
+        f"Pairwise prose judging: {pairwise['status']} "
+        f"({pairwise['pairs_judged']}/{pairwise['pairs_available']} pairs judged).",
+        "",
+        "| Provider / model / prompt | Meaning preserved | Human grounding errors | "
+        "Proxy grounding errors (first → final) | Pairwise overall win rate | "
+        "Completed utility trials |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for group in families["editorial_quality"]["groups"]:
         semantic = _pct(group["semantic_meaning_preservation"])
-        unresolved = (
-            group["semantic_unreviewed_propositions"]
-            + group["semantic_unclear_propositions"]
-        )
+        unresolved = group["semantic_unreviewed_propositions"] + group["semantic_unclear_propositions"]
         if unresolved:
             semantic += f" ({unresolved} unresolved)"
-        grounding = f"{_pct(group['grounding_error_topics_first'])} → {_pct(group['grounding_error_topics_final'])}"
-        human_grounding = _pct(group["grounding_error_topics_human"])
+        proxy = (
+            f"{_pct(group['grounding_error_topics_proxy_first'])} → {_pct(group['grounding_error_topics_proxy_final'])}"
+        )
+        lines.append(
+            f"| {_render_group_label(group)} | {semantic} | "
+            f"{_pct(group['grounding_error_topics_human'])} | {proxy} | "
+            f"{_pairwise_overall(group)} | "
+            f"{group['completed_utility_case_trials']}/{group['utility_case_trials']} |"
+        )
+    lines += [
+        "",
+        "## Operations (not a score family)",
+        "",
+        "Provider failures, completion, latency, and cost describe execution conditions; "
+        "they are not folded into quality or robustness scores.",
+        "",
+        "| Provider / model / prompt | Completed trials | Provider errors | Circuit skips | "
+        "Correction errors | First latency mean | Cost |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for group in operations["groups"]:
         latency = group["latency_first"]["mean_ms"]
         latency_text = f"{latency:.0f} ms (n={group['latency_first']['trials']})" if latency is not None else "n/a"
         total = group["cost"]["total_usd"]
         cost_text = f"${total:.4f}" if total is not None else "not reported"
         if group["cost"]["unreported_calls"]:
             cost_text += f" ({group['cost']['unreported_calls']} call(s) missing)"
-        completion = f"{group['completed_case_trials']}/{group['case_trials']}"
-        if group["provider_error_trials"]:
-            completion += f" ({group['provider_error_trials']} provider error(s))"
-        if group["circuit_open_skipped_trials"]:
-            completion += f" ({group['circuit_open_skipped_trials']} circuit-open skip(s))"
         lines.append(
-            f"| {label} | {_pct(group['first_pass_contract_success'])} | {utility} | {semantic} | "
-            f"{_pct(group['correction_success'])} | "
-            f"{attacks} | {human_grounding} | {grounding} | {completion} | {latency_text} | {cost_text} |"
+            f"| {_render_group_label(group)} | "
+            f"{group['completed_case_trials']}/{group['case_trials']} | "
+            f"{group['provider_error_trials']} | {group['circuit_open_skipped_trials']} | "
+            f"{group['correction_error_trials']} | {latency_text} | {cost_text} |"
         )
     lines.append("")
     return "\n".join(lines)

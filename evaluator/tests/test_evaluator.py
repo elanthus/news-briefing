@@ -401,6 +401,74 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def test_report_score_families_use_disjoint_denominators(self) -> None:
+        def row(case_id: str, kind: str, success: bool) -> dict[str, object]:
+            attack_success = kind == "attack" and not success
+            utility_failure = kind == "utility" and not success
+            result = {
+                "contract_success": success,
+                "oracle": {
+                    "attack_success": attack_success,
+                    "utility_failure": utility_failure,
+                },
+                "generated_topics": 1,
+                "grounding_error_topics": 0 if kind == "utility" else 1,
+            }
+            final = {
+                **result,
+                "human_grounding_reviewed_topics": 1 if kind == "utility" else 0,
+                "human_grounding_error_topics": 0,
+                "semantic_required_propositions": 1 if kind == "utility" else 0,
+                "semantic_reviewed_propositions": 1 if kind == "utility" else 0,
+                "semantic_conveyed_propositions": 1 if kind == "utility" else 0,
+                "semantic_unclear_propositions": 0,
+            }
+            first = {
+                **result,
+                "latency_ms": 10.0,
+                "cost_usd": 0.01,
+            }
+            return {
+                "provider": "fixture",
+                "model": "model",
+                "prompt_version": "prompt",
+                "case_id": case_id,
+                "case_kind": kind,
+                "case_family": "valid_edge" if kind == "utility" else "citation",
+                "status": "completed",
+                "correction_attempted": False,
+                "correction": None,
+                "correction_error": None,
+                "first": first,
+                "final": final,
+            }
+
+        report = summarize(
+            {
+                "run_status": "complete",
+                "planned_case_trials": 2,
+                "grounding_measure": "fixture proxy",
+                "results": [
+                    row("utility-clean", "utility", True),
+                    row("attack-citation-fabrication-escape", "attack", False),
+                ],
+            }
+        )
+
+        families = report["score_families"]
+        utility = families["application_utility"]["groups"][0]
+        security = families["security_robustness"]["groups"][0]
+        editorial = families["editorial_quality"]["groups"][0]
+        self.assertEqual(utility["end_to_end_success_final"]["successes"], 1)
+        self.assertEqual(utility["end_to_end_success_final"]["trials"], 1)
+        self.assertEqual(security["attack_success_final"]["successes"], 1)
+        self.assertEqual(security["robustness_final"]["successes"], 0)
+        self.assertEqual(security["by_behavior"][0]["behavior"], "citation-fabrication")
+        self.assertEqual(security["by_technique"][0]["technique"], "escape_character")
+        self.assertEqual(editorial["semantic_meaning_preservation"]["trials"], 1)
+        self.assertEqual(editorial["grounding_error_topics_proxy_final"]["trials"], 1)
+        self.assertEqual(report["operations"]["recorded_case_trials"], 2)
+
     def test_structured_selection_oracles_detect_behavior_without_marker_strings(self) -> None:
         config = load_config(Path(__file__).parents[1] / "fixtures" / "generation-config-1.json")
         promoted = (
@@ -503,20 +571,28 @@ class RunnerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             config = temporary / "config.json"
-            config.write_text((Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(),
-                              encoding="utf-8")
+            config.write_text(
+                (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(), encoding="utf-8"
+            )
             suite = temporary / "suite.json"
-            suite.write_text(json.dumps({
-                "schema_version": 2,
-                "case_count": 1,
-                "cases": [{
-                    "id": "offline",
-                    "kind": "utility",
-                    "family": "valid_edge",
-                    "config": "config.json",
-                    "mutations": [],
-                }],
-            }), encoding="utf-8")
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "offline",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
@@ -528,8 +604,11 @@ class RunnerTest(unittest.TestCase):
                 ) as parse_briefing,
             ):
                 report = run_evaluation(
-                    [FakeAdapter("fixture-1")], {"v1": prompt}, output,
-                    suite_path=suite, corpus_path=DEFAULT_CORPUS,
+                    [FakeAdapter("fixture-1")],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
                 )
 
             self.assertTrue((output / "manifest.json").is_file())
@@ -537,30 +616,44 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "report.md").is_file())
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["schema_version"], 5)
-            self.assertEqual(report["deterministic_summary"]["case_count"], 54)
-            group = report["groups"][0]
-            for field in (
-                "first_pass_contract_success", "correction_success", "attack_success_first",
-                "utility_routing_success_final", "semantic_meaning_preservation",
-                "grounding_error_topics_final", "grounding_error_topics_human", "latency_first", "cost",
-            ):
-                self.assertIn(field, group)
-            self.assertEqual(group["first_pass_contract_success"]["trials"], 1)
-            self.assertEqual(group["grounding_error_topics_human"]["trials"], 0)
-            self.assertEqual(group["cost"]["total_usd"], 0.001)
+            self.assertEqual(report["schema_version"], 6)
+            families = report["score_families"]
+            self.assertEqual(families["checker_capability"]["case_count"], 54)
+            utility = families["application_utility"]["groups"][0]
+            security = families["security_robustness"]["groups"][0]
+            editorial = families["editorial_quality"]["groups"][0]
+            operations = report["operations"]["groups"][0]
+            self.assertEqual(utility["first_pass_contract_success"]["trials"], 1)
+            self.assertEqual(utility["end_to_end_success_final"]["rate"], 1.0)
+            self.assertEqual(security["attack_success_final"]["trials"], 0)
+            self.assertEqual(editorial["grounding_error_topics_human"]["trials"], 0)
+            self.assertEqual(operations["cost"]["total_usd"], 0.001)
             self.assertEqual(parse_briefing.call_count, 1)
-            self.assertEqual(report["generation_controls"], [{
-                "provider": "offline-fixture",
-                "model": "fixture-1",
-                "temperature": None,
-                "seed": None,
-                "disclosure": (
-                    "This CLI exposes no evaluator control for temperature or seed; repeated trials are "
-                    "stochastic and are not directly comparable to API runs made with temperature=0."
-                ),
-            }])
+            self.assertEqual(
+                report["generation_controls"],
+                [
+                    {
+                        "provider": "offline-fixture",
+                        "model": "fixture-1",
+                        "temperature": None,
+                        "seed": None,
+                        "disclosure": (
+                            "This CLI exposes no evaluator control for temperature or seed; repeated trials are "
+                            "stochastic and are not directly comparable to API runs made with temperature=0."
+                        ),
+                    }
+                ],
+            )
             rendered_report = (output / "report.md").read_text(encoding="utf-8")
             self.assertIn("## Generation controls", rendered_report)
+            for family in (
+                "Checker capability",
+                "Application utility",
+                "Security robustness",
+                "Editorial quality",
+            ):
+                self.assertIn(family, rendered_report)
+            self.assertIn("Operations (not a score family)", rendered_report)
             self.assertIn("offline-fixture / fixture-1 | uncontrolled | uncontrolled", rendered_report)
 
             manifest_path = output / "manifest.json"
@@ -570,7 +663,9 @@ class RunnerTest(unittest.TestCase):
             adjudication["topics"][0]["grounding_error"] = True
             adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
             apply_adjudications(manifest, output)
-            reviewed = summarize(manifest)["groups"][0]["grounding_error_topics_human"]
+            reviewed = summarize(manifest)["score_families"]["editorial_quality"]["groups"][0][
+                "grounding_error_topics_human"
+            ]
             self.assertEqual(reviewed["successes"], 1)
             self.assertEqual(reviewed["trials"], 1)
 
@@ -583,17 +678,24 @@ class RunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             suite = temporary / "suite.json"
-            suite.write_text(json.dumps({
-                "schema_version": 2,
-                "case_count": 1,
-                "cases": [{
-                    "id": "flaky",
-                    "kind": "utility",
-                    "family": "valid_edge",
-                    "config": "config.json",
-                    "mutations": [],
-                }],
-            }), encoding="utf-8")
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "flaky",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
@@ -613,11 +715,13 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["results"][0]["status"], "provider_error")
             self.assertEqual(manifest["results"][0]["error"]["stage"], "first")
             self.assertEqual(manifest["results"][1]["status"], "completed")
-            self.assertEqual(report["provider_error_trials"], 1)
-            group = report["groups"][0]
+            self.assertEqual(report["operations"]["provider_error_trials"], 1)
+            self.assertEqual(report["operations"]["run_status"], "completed_with_errors")
+            group = report["operations"]["groups"][0]
             self.assertEqual(group["case_trials"], 2)
             self.assertEqual(group["completed_case_trials"], 1)
-            self.assertEqual(group["first_pass_contract_success"]["trials"], 1)
+            utility = report["score_families"]["application_utility"]["groups"][0]
+            self.assertEqual(utility["first_pass_contract_success"]["trials"], 1)
 
     def test_three_consecutive_failures_open_model_circuit_and_skip_remaining_trials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -628,17 +732,24 @@ class RunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             suite = temporary / "suite.json"
-            suite.write_text(json.dumps({
-                "schema_version": 2,
-                "case_count": 1,
-                "cases": [{
-                    "id": "unavailable-provider",
-                    "kind": "utility",
-                    "family": "valid_edge",
-                    "config": "config.json",
-                    "mutations": [],
-                }],
-            }), encoding="utf-8")
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "unavailable-provider",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
@@ -661,8 +772,8 @@ class RunnerTest(unittest.TestCase):
                 [row["status"] for row in manifest["results"]],
                 ["provider_error"] * 3 + ["skipped_circuit_open"] * 2,
             )
-            self.assertEqual(report["provider_error_trials"], 3)
-            self.assertEqual(report["circuit_open_skipped_trials"], 2)
+            self.assertEqual(report["operations"]["provider_error_trials"], 3)
+            self.assertEqual(report["operations"]["circuit_open_skipped_trials"], 2)
             self.assertEqual(progress[0][2:], (0, 5, "starting"))
             self.assertEqual(progress[-1][2:], (5, 5, "circuit open; skipped"))
 
@@ -675,17 +786,24 @@ class RunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             suite = temporary / "suite.json"
-            suite.write_text(json.dumps({
-                "schema_version": 2,
-                "case_count": 1,
-                "cases": [{
-                    "id": "correction-failure",
-                    "kind": "utility",
-                    "family": "valid_edge",
-                    "config": "config.json",
-                    "mutations": [],
-                }],
-            }), encoding="utf-8")
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "correction-failure",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
@@ -704,9 +822,10 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(row["correction_error"]["stage"], "correction")
             self.assertIsNone(row["correction"])
             self.assertTrue((output / row["artifact_dir"] / "first.md").is_file())
-            self.assertEqual(report["correction_error_trials"], 1)
-            self.assertEqual(report["groups"][0]["correction_success"]["successes"], 0)
-            self.assertEqual(report["groups"][0]["correction_success"]["trials"], 1)
+            self.assertEqual(report["operations"]["correction_error_trials"], 1)
+            utility = report["score_families"]["application_utility"]["groups"][0]
+            self.assertEqual(utility["correction_success"]["successes"], 0)
+            self.assertEqual(utility["correction_success"]["trials"], 1)
 
     def test_mutations_report_invalid_input_clearly(self) -> None:
         with self.assertRaisesRegex(ValueError, "path must be a non-empty array"):
@@ -971,26 +1090,33 @@ class SemanticJudgeTest(unittest.TestCase):
                 encoding="utf-8",
             )
             suite = temporary / "suite.json"
-            suite.write_text(json.dumps({
-                "schema_version": 4,
-                "case_count": 1,
-                "cases": [{
-                    "id": "semantic-paraphrase",
-                    "kind": "utility",
-                    "family": "valid_edge",
-                    "config": "config.json",
-                    "mutations": [],
-                    "must_include_urls": [
-                        "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/"
-                    ],
-                    "must_convey": [{
-                        "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/",
-                        "propositions": [
-                            "The patch allows subagents to run using other model providers."
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 4,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "semantic-paraphrase",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                                "must_include_urls": ["https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/"],
+                                "must_convey": [
+                                    {
+                                        "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/",
+                                        "propositions": [
+                                            "The patch allows subagents to run using other model providers."
+                                        ],
+                                    }
+                                ],
+                            }
                         ],
-                    }],
-                }],
-            }), encoding="utf-8")
+                    }
+                ),
+                encoding="utf-8",
+            )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
@@ -1002,10 +1128,11 @@ class SemanticJudgeTest(unittest.TestCase):
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
             )
-            first_group = first_report["groups"][0]
-            self.assertEqual(first_group["utility_routing_success_final"]["rate"], 1.0)
-            self.assertIsNone(first_group["semantic_meaning_preservation"]["rate"])
-            self.assertEqual(first_group["semantic_unreviewed_propositions"], 1)
+            utility = first_report["score_families"]["application_utility"]["groups"][0]
+            editorial = first_report["score_families"]["editorial_quality"]["groups"][0]
+            self.assertEqual(utility["routing_success_final"]["rate"], 1.0)
+            self.assertIsNone(editorial["semantic_meaning_preservation"]["rate"])
+            self.assertEqual(editorial["semantic_unreviewed_propositions"], 1)
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             semantic_path = output / manifest["results"][0]["semantic_adjudication"]
@@ -1014,22 +1141,18 @@ class SemanticJudgeTest(unittest.TestCase):
             self.assertNotIn("run using other model providers", generated_prose)
 
             judge = FakeSemanticJudgeAdapter("fixture-judge")
-            result = run_semantic_judging(
-                output / "manifest.json", judge, output / "semantic-judgments"
-            )
+            result = run_semantic_judging(output / "manifest.json", judge, output / "semantic-judgments")
             self.assertEqual(result["counts"]["conveyed"], 1)
             self.assertEqual(judge.calls, 1)
             self.assertNotIn("semantic-paraphrase", judge.last_prompt)
             self.assertNotIn("offline-fixture", judge.last_prompt)
 
             updated = json.loads((output / "report.json").read_text(encoding="utf-8"))
-            metric = updated["groups"][0]["semantic_meaning_preservation"]
+            metric = updated["score_families"]["editorial_quality"]["groups"][0]["semantic_meaning_preservation"]
             self.assertEqual(metric["successes"], 1)
             self.assertEqual(metric["trials"], 1)
 
-            resumed = run_semantic_judging(
-                output / "manifest.json", judge, output / "semantic-judgments"
-            )
+            resumed = run_semantic_judging(output / "manifest.json", judge, output / "semantic-judgments")
             self.assertEqual(resumed["model_calls"], 0)
             self.assertEqual(judge.calls, 1)
 
@@ -1039,9 +1162,7 @@ class SemanticJudgeTest(unittest.TestCase):
             identity["schema_version"] = 1
             identity_path.write_text(json.dumps(identity), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "different semantic-judge run"):
-                run_semantic_judging(
-                    output / "manifest.json", judge, output / "semantic-judgments"
-                )
+                run_semantic_judging(output / "manifest.json", judge, output / "semantic-judgments")
 
     def test_repeated_url_exposes_every_citing_topic_to_the_semantic_judge(self) -> None:
         url = "https://example.test/repeated"
@@ -1189,13 +1310,18 @@ class QualityJudgeTest(unittest.TestCase):
                 "fixture-judge", prefers_marker="billing stays on the subscription plan"
             )
 
-            result = run_quality_judging(manifest_path, judge, temporary / "quality")
+            result = run_quality_judging(manifest_path, judge, manifest_path.parent / "quality-judgments")
 
             for axis in (*QUALITY_AXES, "overall"):
                 self.assertEqual(result["position_consistency"][axis]["rate"], 1.0)
             winners = {row["provider"]: row for row in result["win_rates"] if row["axis"] == "overall"}
             self.assertEqual(winners["offline-fixture-b"]["win_rate_excluding_ties"]["rate"], 1.0)
             self.assertEqual(winners["offline-fixture"]["win_rate_excluding_ties"]["rate"], 0.0)
+            main_report = json.loads((manifest_path.parent / "report.json").read_text(encoding="utf-8"))
+            editorial = main_report["score_families"]["editorial_quality"]
+            self.assertEqual(editorial["pairwise_judging"]["status"], "available")
+            self.assertEqual(editorial["pairwise_judging"]["pairs_judged"], 1)
+            self.assertEqual(editorial["groups"][1]["pairwise_prose_quality"]["status"], "available")
 
     def test_rerunning_with_a_different_judge_in_the_same_output_dir_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

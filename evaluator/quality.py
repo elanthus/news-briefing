@@ -113,7 +113,11 @@ def matched_pairs(
     """
     by_case_trial: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
     for row in manifest["results"]:
-        if isinstance(row.get("final"), dict) and row.get("artifact_dir"):
+        if (
+            row.get("case_kind") == "utility"
+            and isinstance(row.get("final"), dict)
+            and row.get("artifact_dir")
+        ):
             by_case_trial[(row["case_id"], row["trial"])].append(row)
 
     pairs: list[dict[str, Any]] = []
@@ -337,7 +341,7 @@ def run_quality_judging(
         })
 
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "manifest": str(manifest_path),
         "judge": {"provider": judge.provider, "model": judge.model},
         "pairs_available": len(all_pairs),
@@ -350,6 +354,13 @@ def run_quality_judging(
     }
     write_json_atomic(output_dir / "quality-judgments.json", result)
     write_text_atomic(output_dir / "quality-report.md", markdown_quality_report(result))
+    if output_dir.resolve() == (run_dir / "quality-judgments").resolve():
+        from evaluator.runner import apply_adjudications, markdown_report, summarize
+
+        apply_adjudications(manifest, run_dir)
+        report = summarize(manifest, run_dir)
+        write_json_atomic(run_dir / "report.json", report)
+        write_text_atomic(run_dir / "report.md", markdown_report(report))
     return result
 
 
