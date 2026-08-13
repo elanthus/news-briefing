@@ -760,11 +760,10 @@ def check_claims_supported(sections: dict[str, Section],
     return findings
 
 
-def evaluate(corpus: dict[str, Any], text: str,
-             config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
-    """Run every check and return findings, ERRORs first."""
+def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Section],
+                    config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
+    """Run every check against an already-parsed briefing and return findings."""
     config = config or briefing_config.load_config()
-    sections = parse_briefing(text, config)
     findings: list[Finding] = []
     category_problems = briefing_config.validate_corpus_categories(
         config, set(corpus.get("categories", {})))
@@ -782,6 +781,13 @@ def evaluate(corpus: dict[str, Any], text: str,
     findings += check_claims_supported(sections, corpus_evidence(corpus))
     findings += check_corpus_health_reported(sections, corpus)
     return sorted(findings, key=lambda f: f.level != ERROR)
+
+
+def evaluate(corpus: dict[str, Any], text: str,
+             config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
+    """Parse a briefing, run every check, and return findings, ERRORs first."""
+    config = config or briefing_config.load_config()
+    return evaluate_parsed(corpus, text, parse_briefing(text, config), config)
 
 
 def main() -> int:

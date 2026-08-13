@@ -56,7 +56,7 @@ For each topic across all categories:
 **[Topic headline]** — [1-3 concise sentences, containing only facts supported by the selected corpus item(s)]
 🔗 [URL from the corpus item]
 
-For Hacker News items, include both links — the article (`url`) and the HN discussion (`discussion`) — each on its own 🔗 line, followed by the engagement signal on its own line:
+For Hacker News items whose article (`url`) and HN discussion (`discussion`) resolve to different destinations, include both links, each on its own 🔗 line. If they resolve to the same destination (as with an HN self-post), print that URL only once. Then print the engagement signal on its own line:
 🔗 [article URL]
 🔗 HN: [discussion URL]
 `↑ [points] pts · [comments] comments`

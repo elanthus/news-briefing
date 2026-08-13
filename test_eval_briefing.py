@@ -484,6 +484,15 @@ class EngagementSignalTest(unittest.TestCase):
         text = briefing().replace("🔗 HN: https://news.ycombinator.com/item?id=1\n", "")
         self.assertIn("missing_discussion_link", checks(evaluate(CORPUS, text), WARN))
 
+    def test_hn_self_post_is_cited_once_without_a_missing_discussion_warning(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        hn = corpus["categories"]["dev_community"][0]
+        hn["url"] = hn["discussion"]
+        text = briefing().replace("🔗 https://ex.com/t1\n", "").replace("🔗 HN: ", "🔗 ")
+        findings = evaluate(corpus, text)
+        self.assertNotIn("missing_discussion_link", checks(findings, WARN))
+        self.assertNotIn("duplicate_citation", checks(findings, ERROR))
+
 
 class CorpusHealthTest(unittest.TestCase):
     """A degraded run must look degraded rather than merely short."""

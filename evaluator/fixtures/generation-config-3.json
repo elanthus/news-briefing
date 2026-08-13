@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "sections": [
+    {
+      "name": "AI Dev Tools",
+      "group": null,
+      "target_stories": 3,
+      "corpus_categories": ["dev_community"],
+      "guidance": "Releases and updates to agentic coding tools and notable integrations.",
+      "excluded_stories": 0
+    }
+  ]
+}
