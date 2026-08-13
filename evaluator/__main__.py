@@ -157,6 +157,12 @@ def main() -> int:
     run.add_argument("--prompt", action="append", default=[], help="VERSION=PATH; repeatable")
     run.add_argument("--trials", type=int, default=1)
     run.add_argument("--timeout", type=int, default=300)
+    run.add_argument(
+        "--temperature",
+        type=float,
+        help="sampling temperature for API providers (default: 0)",
+    )
+    run.add_argument("--seed", type=int, help="optional sampling seed for API providers")
     run.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
     run.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     run.add_argument("--output-dir", type=Path)
@@ -181,7 +187,16 @@ def main() -> int:
             load_dotenv(args.env_file)
             providers = _provider_values(args.provider, args.all_providers)
             _preflight(providers)
-            adapters = [adapter_for(provider, model, args.timeout) for provider, model in providers]
+            adapters = [
+                adapter_for(
+                    provider,
+                    model,
+                    args.timeout,
+                    temperature=args.temperature,
+                    seed=args.seed,
+                )
+                for provider, model in providers
+            ]
             prompts = _prompt_values(args.prompt)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / stamp

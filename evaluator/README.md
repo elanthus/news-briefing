@@ -70,9 +70,23 @@ python3 -m evaluator run \
   --trials 3
 ```
 
+Set sampling controls for the OpenRouter and NVIDIA API adapters with optional run flags:
+
+```bash
+python3 -m evaluator run \
+  --all-providers \
+  --temperature 0.2 \
+  --seed 42 \
+  --trials 3
+```
+
+If `--temperature` is omitted, API runs preserve the evaluator's existing `temperature=0`
+default. If `--seed` is omitted, no seed is sent. These flags do not affect the Codex or
+Claude Code CLI adapters because those CLIs do not expose equivalent controls here.
+
 Supported provider names are `codex-cli`, `claude-code-cli`, `openrouter`, and `nvidia`. The CLI adapters disable tools or use an empty read-only workspace. The API adapters send the corpus directly to OpenRouter's and NVIDIA's OpenAI-compatible chat-completions endpoints.
 
-Sampling controls are not equivalent across providers. The OpenRouter and NVIDIA adapters send `temperature=0` but no seed. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest and rendered report records those settings and explicitly warns that exact reproducibility is not guaranteed and CLI/API results are not directly comparable on sampling controls alone.
+Sampling controls are not equivalent across providers. The OpenRouter and NVIDIA adapters send the configured temperature and optional seed. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest and rendered report records those settings and explicitly warns that exact reproducibility is not guaranteed and CLI/API results are not directly comparable on sampling controls alone. API models and routed providers may also differ in which sampling parameters they honor.
 
 The CLI displays a progress bar labeled with the exact provider and model. API calls make at most three attempts for HTTP 408, 425, 429, 5xx, network, and timeout failures. `Retry-After` is honored when present; otherwise retries wait one second and then two seconds. `--timeout` remains the total ceiling for one model call, including retry waits and attempts. A retry is not started when its delay would exceed the remaining call timeout.
 

@@ -196,10 +196,20 @@ class OpenAiCompatibleAdapter(Adapter):
     endpoint: str
     api_key_env: str
 
-    def __init__(self, model: str, timeout: int = 300, endpoint: str | None = None):
+    def __init__(
+        self,
+        model: str,
+        timeout: int = 300,
+        endpoint: str | None = None,
+        *,
+        temperature: float = 0,
+        seed: int | None = None,
+    ):
         super().__init__(model, timeout)
         if endpoint:
             self.endpoint = endpoint
+        self.temperature = temperature
+        self.seed = seed
 
     def _headers(self) -> dict[str, str]:
         api_key = os.environ.get(self.api_key_env)
@@ -208,19 +218,24 @@ class OpenAiCompatibleAdapter(Adapter):
         return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     def _payload(self, prompt: str) -> dict[str, Any]:
-        return {
+        payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
+            "temperature": self.temperature,
             "max_tokens": int(os.environ.get("EVALUATOR_MAX_TOKENS", "8192")),
         }
+        if self.seed is not None:
+            payload["seed"] = self.seed
+        return payload
 
     def generation_controls(self) -> dict[str, Any]:
+        seed_disclosure = "no seed" if self.seed is None else f"seed={self.seed}"
         return {
-            "temperature": 0,
-            "seed": None,
+            "temperature": self.temperature,
+            "seed": self.seed,
             "disclosure": (
-                "The evaluator sends temperature=0 but no seed; exact reproducibility is not guaranteed, "
+                f"The evaluator sends temperature={self.temperature} and {seed_disclosure}; "
+                "exact reproducibility is not guaranteed, "
                 "and these runs are not directly comparable to CLI runs without temperature control."
             ),
         }
@@ -346,7 +361,13 @@ class NvidiaAdapter(OpenAiCompatibleAdapter):
     api_key_env = "NVIDIA_API_KEY"
 
 
-def adapter_for(provider: str, model: str, timeout: int = 300) -> Adapter:
+def adapter_for(
+    provider: str,
+    model: str,
+    timeout: int = 300,
+    temperature: float | None = None,
+    seed: int | None = None,
+) -> Adapter:
     adapters: dict[str, type[Adapter]] = {
         "codex-cli": CodexCliAdapter,
         "claude-code-cli": ClaudeCodeCliAdapter,
@@ -354,9 +375,17 @@ def adapter_for(provider: str, model: str, timeout: int = 300) -> Adapter:
         "nvidia": NvidiaAdapter,
     }
     try:
-        return adapters[provider](model, timeout)
+        adapter_type = adapters[provider]
     except KeyError as exc:
         raise ValueError(f"unknown provider {provider!r}; choose {', '.join(adapters)}") from exc
+    if issubclass(adapter_type, OpenAiCompatibleAdapter):
+        return adapter_type(
+            model,
+            timeout,
+            temperature=0 if temperature is None else temperature,
+            seed=seed,
+        )
+    return adapter_type(model, timeout)
 
 
 def load_dotenv(path: Path) -> None:

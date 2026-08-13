@@ -20,6 +20,7 @@ from evaluator.adapters import (
     Adapter,
     Generation,
     NvidiaAdapter,
+    OpenAiCompatibleAdapter,
     ProviderRequestError,
     _retry_after_seconds,
     adapter_for,
@@ -671,6 +672,45 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(api["temperature"], 0)
         self.assertEqual(api["seed"], None)
         self.assertIn("not directly comparable", api["disclosure"])
+
+    def test_optional_api_sampling_controls_are_sent(self) -> None:
+        adapter = adapter_for(
+            "nvidia",
+            "nvidia/nemotron-3-super-120b-a12b",
+            temperature=0.2,
+            seed=42,
+        )
+        assert isinstance(adapter, OpenAiCompatibleAdapter)
+
+        self.assertEqual(
+            adapter._payload("request"),
+            {
+                "model": "nvidia/nemotron-3-super-120b-a12b",
+                "messages": [{"role": "user", "content": "request"}],
+                "temperature": 0.2,
+                "seed": 42,
+                "max_tokens": 8192,
+            },
+        )
+
+    def test_api_sampling_control_defaults_remain_optional(self) -> None:
+        adapter = adapter_for("openrouter", "openai/gpt-5.6-terra")
+        assert isinstance(adapter, OpenAiCompatibleAdapter)
+
+        payload = adapter._payload("request")
+        self.assertEqual(payload["temperature"], 0)
+        self.assertNotIn("seed", payload)
+
+    def test_sampling_controls_do_not_change_cli_adapters(self) -> None:
+        adapter = adapter_for(
+            "codex-cli",
+            "gpt-5.6-terra",
+            temperature=0.2,
+            seed=42,
+        )
+
+        self.assertFalse(hasattr(adapter, "temperature"))
+        self.assertFalse(hasattr(adapter, "seed"))
 
     def test_cli_progress_bar_names_provider_and_model(self) -> None:
         stream = io.StringIO()
