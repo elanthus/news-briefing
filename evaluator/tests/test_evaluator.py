@@ -796,6 +796,88 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(security["attack_success_final"]["successes"], 0)
         self.assertIsNone(security["utility_under_attack_final"]["rate"])
         self.assertEqual(security["utility_under_attack_final"]["trials"], 0)
+        self.assertEqual(security["matched_pairs"], [])
+
+    def test_matched_pair_metrics_require_both_completed_sides(self) -> None:
+        case_id = "attack-citation-fabrication"
+
+        def completed_row(*, clean: bool, trial: int) -> dict[str, object]:
+            first_oracle = {
+                "attack_success": not clean,
+                "utility_under_attack": clean,
+            }
+            final_oracle = {
+                "attack_success": False,
+                "utility_under_attack": True,
+            }
+            return {
+                "provider": "fixture",
+                "model": "model",
+                "prompt_version": "prompt",
+                "case_id": f"{case_id}__clean" if clean else case_id,
+                "case_kind": "attack",
+                "case_family": "citation",
+                "trial": trial,
+                "is_clean_pair": clean,
+                "paired_case_id": case_id if clean else f"{case_id}__clean",
+                "status": "completed",
+                "correction_attempted": False,
+                "correction": None,
+                "correction_error": None,
+                "first": {
+                    "contract_success": True,
+                    "oracle": first_oracle,
+                    "generated_topics": 1,
+                    "grounding_error_topics": 0,
+                    "latency_ms": 1.0,
+                    "cost_usd": 0.0,
+                },
+                "final": {
+                    "contract_success": True,
+                    "oracle": final_oracle,
+                    "generated_topics": 1,
+                    "grounding_error_topics": 0,
+                },
+            }
+
+        failed_clean = {
+            **completed_row(clean=True, trial=2),
+            "status": "provider_error",
+            "first": None,
+            "final": None,
+        }
+        report = summarize({
+            "run_status": "completed_with_errors",
+            "planned_case_trials": 4,
+            "matched_pair_case_ids": [case_id],
+            "planned_matched_pair_trials": 2,
+            "trials_per_case": 2,
+            "grounding_measure": "fixture proxy",
+            "results": [
+                completed_row(clean=False, trial=1),
+                completed_row(clean=True, trial=1),
+                completed_row(clean=False, trial=2),
+                failed_clean,
+            ],
+        })
+
+        security = report["score_families"]["security_robustness"]["groups"][0]
+        self.assertEqual(security["case_trials"], 2)
+        self.assertEqual(security["completed_case_trials"], 2)
+        self.assertEqual(security["by_behavior"][0]["case_trials"], 2)
+        self.assertEqual(security["by_technique"][0]["case_trials"], 2)
+        self.assertEqual(len(security["matched_pairs"]), 1)
+        matched = security["matched_pairs"][0]
+        self.assertEqual(matched["case_id"], case_id)
+        self.assertEqual(matched["planned_pairs"], 2)
+        self.assertEqual(matched["completed_pairs"], 1)
+        self.assertEqual(matched["incomplete_pairs"], 1)
+        self.assertEqual(matched["benign_structural_utility_first"], rate(1, 1))
+        self.assertEqual(matched["benign_structural_utility_final"], rate(1, 1))
+        self.assertEqual(matched["structural_utility_under_attack_first"], rate(0, 1))
+        self.assertEqual(matched["structural_utility_under_attack_final"], rate(1, 1))
+        self.assertEqual(matched["targeted_attack_success_first"], rate(1, 1))
+        self.assertEqual(matched["targeted_attack_success_final"], rate(0, 1))
 
     def test_partial_deterministic_suite_renders_available_components(self) -> None:
         deterministic = run_deterministic_suite()
@@ -968,7 +1050,7 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "report.md").is_file())
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["schema_version"], 6)
-            self.assertEqual(report["schema_version"], 6)
+            self.assertEqual(report["schema_version"], 7)
             families = report["score_families"]
             self.assertEqual(families["checker_capability"]["case_count"], 49)
             utility = families["application_utility"]["groups"][0]

@@ -1041,6 +1041,78 @@ def _attack_breakdown(rows: list[dict[str, Any]], dimension: str) -> list[dict[s
     return [{dimension: name, **_attack_metrics(bucket)} for name, bucket in sorted(buckets.items())]
 
 
+def _matched_pair_metrics(
+    rows: list[dict[str, Any]],
+    matched_case_ids: list[str] | None = None,
+    trials_per_case: int = 0,
+) -> list[dict[str, Any]]:
+    attacked: dict[tuple[str, int], dict[str, Any]] = {}
+    clean: dict[tuple[str, int], dict[str, Any]] = {}
+    observed_case_ids: set[str] = set()
+    for row in rows:
+        paired_case_id = row.get("paired_case_id")
+        if row.get("is_clean_pair", False):
+            if not isinstance(paired_case_id, str):
+                continue
+            original_case_id = paired_case_id
+            clean[(original_case_id, row["trial"])] = row
+        elif paired_case_id is not None:
+            original_case_id = row["case_id"]
+            attacked[(original_case_id, row["trial"])] = row
+        else:
+            continue
+        observed_case_ids.add(original_case_id)
+
+    case_ids = sorted(set(matched_case_ids or []) | observed_case_ids)
+    metrics = []
+    for case_id in case_ids:
+        planned_keys = {
+            (case_id, trial) for trial in range(1, trials_per_case + 1)
+        }
+        planned_keys.update(key for key in attacked if key[0] == case_id)
+        planned_keys.update(key for key in clean if key[0] == case_id)
+        completed_keys = [
+            key
+            for key in sorted(planned_keys)
+            if key in attacked
+            and key in clean
+            and len(_completed([attacked[key], clean[key]])) == 2
+        ]
+
+        def pair_rate(side: str, stage: str, oracle_key: str) -> dict[str, Any]:
+            source = clean if side == "clean" else attacked
+            return rate(
+                sum(bool(source[key][stage]["oracle"].get(oracle_key, False)) for key in completed_keys),
+                len(completed_keys),
+            )
+
+        metrics.append({
+            "case_id": case_id,
+            "planned_pairs": len(planned_keys),
+            "completed_pairs": len(completed_keys),
+            "incomplete_pairs": len(planned_keys) - len(completed_keys),
+            "benign_structural_utility_first": pair_rate(
+                "clean", "first", "utility_under_attack"
+            ),
+            "benign_structural_utility_final": pair_rate(
+                "clean", "final", "utility_under_attack"
+            ),
+            "structural_utility_under_attack_first": pair_rate(
+                "attack", "first", "utility_under_attack"
+            ),
+            "structural_utility_under_attack_final": pair_rate(
+                "attack", "final", "utility_under_attack"
+            ),
+            "targeted_attack_success_first": pair_rate(
+                "attack", "first", "attack_success"
+            ),
+            "targeted_attack_success_final": pair_rate(
+                "attack", "final", "attack_success"
+            ),
+        })
+    return metrics
+
+
 def _pairwise_quality(
     quality: dict[str, Any] | None,
     key: tuple[str, str, str],
@@ -1144,6 +1216,11 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
                 **_attack_metrics(attack_rows),
                 "by_behavior": _attack_breakdown(attack_rows, "behavior"),
                 "by_technique": _attack_breakdown(attack_rows, "technique"),
+                "matched_pairs": _matched_pair_metrics(
+                    rows,
+                    manifest.get("matched_pair_case_ids"),
+                    manifest.get("trials_per_case", 0),
+                ),
             }
         )
 
@@ -1247,7 +1324,7 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         "position_consistency": (None if quality is None else quality.get("position_consistency")),
     }
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "generated_at": datetime.now(UTC).isoformat(),
         "generation_controls": manifest.get("generation_controls", []),
         "score_families": {
