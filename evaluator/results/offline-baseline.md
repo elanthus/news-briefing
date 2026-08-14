@@ -6,7 +6,7 @@ This report was produced after human adjudication of the 10 cases disputed by th
 python3 -m evaluator checker
 ```
 
-No external model was called while regenerating these metrics. The remaining 40 labels still require independent human approval before these values are publication-grade. Live model, prompt-version, correction, attack, grounding, latency, and cost rows therefore have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
+No external model was called while regenerating these metrics. All 49 labels are now human-reviewed and approved for publication — 9 via the original blinded-review adjudication, the other 40 via a full independent pass by the repository owner on 2026-08-14 (see `label_provenance` in `evaluator/fixtures/checker-cases.json`). Live model, prompt-version, correction, attack, grounding, latency, and cost rows therefore have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
 
 ## Deterministic checker (39 cases)
 
