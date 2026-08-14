@@ -61,9 +61,9 @@ from evaluator.semantic_review import run_semantic_judging
 class FixedSuiteTest(unittest.TestCase):
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
-        self.assertEqual(result["case_count"], 54)
-        self.assertEqual(result["components"]["checker"]["cases"], 42)
-        self.assertEqual(result["components"]["feed_parser"]["cases"], 12)
+        self.assertEqual(result["case_count"], 49)
+        self.assertEqual(result["components"]["checker"]["cases"], 39)
+        self.assertEqual(result["components"]["feed_parser"]["cases"], 10)
         families = {case["family"] for case in result["cases"]}
         for required in {
             "url", "encoding", "feed_shape", "malformed", "degraded",
@@ -730,7 +730,7 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["schema_version"], 5)
             self.assertEqual(report["schema_version"], 6)
             families = report["score_families"]
-            self.assertEqual(families["checker_capability"]["case_count"], 54)
+            self.assertEqual(families["checker_capability"]["case_count"], 49)
             utility = families["application_utility"]["groups"][0]
             security = families["security_robustness"]["groups"][0]
             editorial = families["editorial_quality"]["groups"][0]

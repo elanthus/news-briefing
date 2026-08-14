@@ -1,11 +1,41 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "label_provenance": {
-    "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available.",
-    "review_status": "Model-disputed labels were human-adjudicated; the other 44 labels still require independent human review before publication.",
+    "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available. One of those 10 adjudicated cases (health-wrong-status) was later removed as a redundant coverage cut, not for failing; see removed_cases.",
+    "review_status": "Model-disputed labels were human-adjudicated; the other 40 labels still require independent human review before publication.",
     "prepared_on": "2026-08-11",
-    "adjudicated_on": "2026-08-12"
+    "adjudicated_on": "2026-08-12",
+    "trimmed_on": "2026-08-13",
+    "human_adjudicated_count": 9,
+    "provisional_count": 40
   },
+  "removed_cases": [
+    {
+      "id": "xml-utf16le-rss",
+      "removed_because": "Redundant passing UTF-16 byte-order variant; xml-utf16-rss (BOM) already exercises UTF-16 handling and xml-utf32-rss is retained as the suite's one honest feed-parser failure.",
+      "removed_on": "2026-08-13"
+    },
+    {
+      "id": "xml-utf16be-rss",
+      "removed_because": "Redundant passing UTF-16 byte-order variant; same rationale as xml-utf16le-rss.",
+      "removed_on": "2026-08-13"
+    },
+    {
+      "id": "health-valid-degraded",
+      "removed_because": "Passing 'well-formed input produces zero findings' case; that pattern is already covered by six other valid_edge-style cases (url-valid-baseline, category-overlap-valid, claim-semantic-figure-valid, claim-thin-paraphrase-valid, format-semantic-ambiguity, text-doctype-valid), so this one added little marginal coverage of the corpus-health check specifically.",
+      "removed_on": "2026-08-13"
+    },
+    {
+      "id": "health-prose-only",
+      "removed_because": "Passing case sharing its exact human label (corpus_health_not_machine_readable) with health-malformed-json, which is kept because it exercises the more specific json.JSONDecodeError branch rather than just 'no fenced block at all'.",
+      "removed_on": "2026-08-13"
+    },
+    {
+      "id": "health-wrong-status",
+      "removed_because": "Passing case (one of the 10 human-adjudicated cases, not a failure) testing the narrowest of four health-manifest reconciliation branches; failed_source_unnamed (health-partially-reported), unexpected_failed_source (health-invented-failure), and duplicate_failed_source (health-duplicate-record) are kept as the more structurally distinct reconciliation checks.",
+      "removed_on": "2026-08-13"
+    }
+  ],
   "cases": [
     {"id":"url-valid-baseline","component":"checker","family":"valid_edge","variant":"valid-baseline","human_labels":[]},
     {"id":"url-valid-trailing-slash","component":"checker","family":"valid_edge","variant":"valid-trailing-slash","human_labels":[]},
@@ -41,19 +71,14 @@
     {"id":"selection-category-ambiguity","component":"checker","family":"category","variant":"selection-ambiguity","human_labels":["category_ambiguity","unsupported_claim"]},
     {"id":"format-semantic-ambiguity","component":"checker","family":"valid_edge","variant":"formatting-ambiguity","human_labels":[]},
     {"id":"text-doctype-valid","component":"checker","family":"valid_edge","variant":"valid-doctype-as-text","human_labels":[]},
-    {"id":"health-valid-degraded","component":"checker","family":"degraded","variant":"health-valid","human_labels":[]},
     {"id":"health-missing","component":"checker","family":"degraded","variant":"health-missing","human_labels":["corpus_health_missing"]},
-    {"id":"health-prose-only","component":"checker","family":"degraded","variant":"health-prose-only","human_labels":["corpus_health_not_machine_readable"]},
     {"id":"health-malformed-json","component":"checker","family":"degraded","variant":"health-malformed-json","human_labels":["corpus_health_not_machine_readable"]},
     {"id":"health-partially-reported","component":"checker","family":"partially_degraded","variant":"health-partial","human_labels":["failed_source_unnamed"]},
     {"id":"health-invented-failure","component":"checker","family":"degraded","variant":"health-unexpected","human_labels":["unexpected_failed_source"]},
-    {"id":"health-wrong-status","component":"checker","family":"degraded","variant":"health-wrong-status","human_labels":["failed_source_status_mismatch"]},
     {"id":"health-duplicate-record","component":"checker","family":"degraded","variant":"health-duplicate","human_labels":["duplicate_failed_source"]},
 
     {"id":"xml-utf8-rss","component":"feed_parser","family":"encoding","variant":"utf8-rss","human_labels":[]},
     {"id":"xml-utf16-rss","component":"feed_parser","family":"encoding","variant":"utf16-rss","human_labels":[]},
-    {"id":"xml-utf16le-rss","component":"feed_parser","family":"encoding","variant":"utf16le-rss","human_labels":[]},
-    {"id":"xml-utf16be-rss","component":"feed_parser","family":"encoding","variant":"utf16be-rss","human_labels":[]},
     {"id":"xml-utf32-rss","component":"feed_parser","family":"encoding","variant":"utf32-rss","human_labels":[]},
     {"id":"xml-atom-valid","component":"feed_parser","family":"feed_shape","variant":"atom-valid","human_labels":[]},
     {"id":"xml-empty-feed","component":"feed_parser","family":"feed_shape","variant":"feed-empty","human_labels":["feed_empty"]},
