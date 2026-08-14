@@ -540,8 +540,7 @@ def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
         url
         for name, bucket in sections.items()
         if name != EXCLUDED
-        for topic_links in bucket["topic_links"]
-        for url in topic_links
+        for url in bucket["links"]
     }
     for section in config.sections:
         target = section.excluded_stories
@@ -610,9 +609,17 @@ def check_corpus_health_reported(sections: dict[str, Section],
     if not errors:
         return []
     if CORPUS_HEALTH not in sections:
-        return [Finding(ERROR, "corpus_health_missing",
-                        f"corpus recorded {len(errors)} fetch error(s) but the "
-                        f"briefing has no {CORPUS_HEALTH!r} section")]
+        missing_findings = [Finding(
+            ERROR, "corpus_health_missing",
+            f"corpus recorded {len(errors)} fetch error(s) but the "
+            f"briefing has no {CORPUS_HEALTH!r} section")]
+        if corpus_schema.corpus_version(corpus) >= 4:
+            for error in errors:
+                missing_findings.append(Finding(
+                    ERROR, "failed_source_unnamed",
+                    f"failed source {error['source_type']}:{error['source_id']} "
+                    f"({error['status']}) is absent because the health manifest is missing"))
+        return missing_findings
     if corpus_schema.corpus_version(corpus) >= 4:
         return _check_structured_corpus_health(sections[CORPUS_HEALTH], errors)
 

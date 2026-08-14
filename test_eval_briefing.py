@@ -385,6 +385,31 @@ class StructureTest(unittest.TestCase):
         findings = evaluate(CORPUS, briefing(exclusions=3))
         self.assertIn("exclusion_log_short", checks(findings, WARN))
 
+    def test_section_level_citation_reduces_available_exclusions(self):
+        """Every reported citation is unavailable, even outside a topic line."""
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"] = corpus["categories"]["us_politics"][:8]
+        config = BriefingConfig(
+            FIXTURE_CONFIG.schema_version,
+            tuple(
+                section._replace(corpus_categories=("us_politics",))
+                if section.name == "US Politics" else section
+                for section in FIXTURE_CONFIG.sections
+            ),
+        )
+        text = briefing(exclusions=4, extra_link="https://ex.com/p4").replace(
+            "- *Dropped 4* — lower impact. 🔗 https://ex.com/p4",
+            "- *Dropped 8* — lower impact. 🔗 https://ex.com/p8",
+            1,
+        )
+        findings = eval_briefing.evaluate(corpus, text, config)
+        politics_warnings = [
+            finding for finding in findings
+            if finding.check.startswith("exclusion_log")
+            and "US Politics" in finding.message
+        ]
+        self.assertEqual(politics_warnings, [])
+
     def test_exclusion_subheaders_do_not_reopen_top_level_sections(self):
         """`**US Politics**` inside the log must not re-enter the real section."""
         sections = parse_briefing(briefing())
@@ -504,6 +529,19 @@ class CorpusHealthTest(unittest.TestCase):
     def test_missing_health_section_on_degraded_run_is_an_error(self):
         findings = evaluate(self.degraded, briefing())
         self.assertIn("corpus_health_missing", checks(findings, ERROR))
+
+    def test_missing_structured_health_also_leaves_each_source_unnamed(self):
+        error = {
+            "source_type": "rss", "source_id": "Feed A", "status": "error",
+            "error_type": "HTTPError", "message": "503", "duration_ms": 12,
+        }
+        degraded = dict(CORPUS, schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION,
+                        errors=[error])
+        findings = evaluate(degraded, briefing())
+        self.assertEqual(
+            checks(findings, ERROR),
+            {"corpus_health_missing", "failed_source_unnamed"},
+        )
 
     def test_unnamed_failed_source_is_an_error(self):
         text = briefing(health="`r/ClaudeAI` failed.")

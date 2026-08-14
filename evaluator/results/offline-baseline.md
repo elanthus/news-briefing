@@ -2,24 +2,24 @@
 
 Dates in this document, and the `*_on` fields in `evaluator/fixtures/checker-cases.json`'s `label_provenance`, are UTC calendar dates — commit timestamps in `git log` show local reviewer time (UTC−7), which can land on the previous UTC-minus-a-day date.
 
-This report was produced after human adjudication of the 10 cases disputed by the blinded Sonnet review, with Opus recommendations available, and after a 2026-08-13 redundancy trim (54 → 49 checker/feed cases; see "Redundancy trim" below), by running:
+This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, and the addition of six provisional checker cases recommended by that review, by running:
 
 ```bash
 python3 -m evaluator checker
 ```
 
-No external model was called while regenerating these metrics. All 49 labels have now had owner review — 9 via the original blinded-review adjudication with model recommendations, the other 40 via a full owner pass on 2026-08-14 (see `label_provenance` in `evaluator/fixtures/checker-cases.json`). This is human review, not independent validation: the same person prepared, adjudicated, and reviewed every label, and no case has yet been checked by a second, previously-uninvolved reviewer. Live model, prompt-version, correction, attack, grounding, latency, and cost rows therefore have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
+No external model was called while regenerating these metrics. The original 49 cases completed attested review by a previously uninvolved human: 38 label sets matched exactly, the repository owner adjudicated all 11 disagreements, and one final label set changed. The six later coverage additions are owner-labeled but provisional pending the same independent review, so the current 55-case suite has mixed validation status (49 independently validated, 6 provisional; see `label_provenance` in `evaluator/fixtures/checker-cases.json`). Live model, prompt-version, correction, attack, grounding, latency, and cost rows have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
 
-## Deterministic checker (39 cases)
+## Deterministic checker (45 cases)
 
 | Metric | Result |
 |---|---:|
-| Precision | 96.4% (95% Wilson CI 82.3–99.4%; 27/28 predicted positives) |
-| Recall | 79.4% (95% Wilson CI 63.2–89.7%; 27/34 human-positive labels) |
-| Exact case match | 82.1% (95% Wilson CI 67.3–91.0%; 32/39 cases) |
+| Precision | 96.8% (95% Wilson CI 83.8–99.4%; 30/31 predicted positives) |
+| Recall | 73.2% (95% Wilson CI 58.1–84.3%; 30/41 human-positive labels) |
+| Exact case match | 80.0% (95% Wilson CI 66.2–89.1%; 36/45 cases) |
 | Heuristic claim false-positive rate | 100% (95% Wilson CI 20.7–100%; 1/1 deliberately valid claim case) |
 
-The seven false-negative labels are semantic: unsupported prose in an overfilled case, a generic claim-exceeds-evidence label alongside an unsupported quotation, unsupported thin-evidence prose, conflicting evidence, over-consolidation, and category ambiguity plus unsupported prose in the ambiguous-selection case. The sole false positive among the deliberately valid heuristic claim cases is a semantically equivalent `one in two` → `50 percent` figure, which the deterministic figure check flags. The formerly valid thin paraphrase was adjudicated as exceeding its deliberately shortened evidence and is no longer in the false-positive denominator.
+The 11 false-negative labels are semantic: unsupported prose in the overfilled and wrong-category cases; clean category ambiguity; a generic claim-exceeds-evidence label alongside an unsupported quotation; two labels on unsupported thin-evidence prose; conflicting evidence plus over-consolidation; over-consolidation alone; and category ambiguity plus unsupported prose in the ambiguous-selection case. The sole false positive among the deliberately valid heuristic claim cases is a semantically equivalent `one in two` → `50 percent` figure, which the deterministic figure check flags. The formerly valid thin paraphrase was adjudicated as exceeding its deliberately shortened evidence and is no longer in the false-positive denominator.
 
 ## Feed parser (10 cases)
 
@@ -35,7 +35,7 @@ The one false positive is a valid UTF-32 RSS document rejected by the current Ex
 
 Five cases were dropped from the 54-case suite (checker/feed only — the separate 63→43-case generation-suite trim is documented in `evaluator/README.md`): `xml-utf16le-rss`, `xml-utf16be-rss` (redundant passing UTF-16 byte-order variants; `xml-utf16-rss` and the honest `xml-utf32-rss` failure are kept), `health-valid-degraded` (a passing "well-formed input, zero findings" case redundant with six others), `health-prose-only` (shares its human label with the kept `health-malformed-json`), and `health-wrong-status` (the narrowest of four corpus-health-reconciliation cases; `health-partially-reported`, `health-invented-failure`, and `health-duplicate-record` are kept as more structurally distinct). Full rationale is recorded per-case in `evaluator/fixtures/checker-cases.json`'s `removed_cases` block.
 
-**No case was removed on the basis of failing.** All five removed cases passed under their prior labels before removal; the 8 cases that fail under current labels (7 checker, 1 feed-parser) are all still in the suite. `health-wrong-status` was one of the 10 human-adjudicated cases from the blinded-review process; removing it moves the human-adjudicated count from 10 to 9 (see `label_provenance` in `checker-cases.json`), which is a bookkeeping consequence of the removal, not a re-review.
+**No case was removed on the basis of failing.** All five removed cases passed under their labels at the time; the 8 cases that failed in that 49-case post-trim snapshot (7 checker, 1 feed-parser) all remained in the suite. `health-wrong-status` was one of the 10 owner-adjudicated cases from the initial blinded-review process, so its removal reduced that historical subset from 10 to 9. Later independent review produced 11 disagreements, all owner-adjudicated, which is the current `human_adjudicated_count` recorded in `checker-cases.json`; these are separate stages of the fixture history.
 
 Before → after, exact figures from one `python3 -m evaluator checker` run before and after the trim (`git stash` around the fixture edit):
 

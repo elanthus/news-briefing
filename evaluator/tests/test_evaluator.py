@@ -112,6 +112,7 @@ class FixedSuiteTest(unittest.TestCase):
             cases["category-ambiguity-clean"]["missed"],
             ["category_ambiguity"],
         )
+        self.assertEqual(cases["category-ambiguity-clean"]["unexpected"], [])
 
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
