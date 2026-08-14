@@ -222,6 +222,56 @@ class FixedSuiteTest(unittest.TestCase):
     def test_generation_case_metadata_validation(self) -> None:
         RunnerTest._assert_generation_case_metadata_validation(self)
 
+    def test_production_ablation_cases_are_valid(self) -> None:
+        fixtures_dir = Path(__file__).parents[1] / "fixtures"
+        suite = json.loads((fixtures_dir / "generation-cases.json").read_text(encoding="utf-8"))
+        cases = {case["id"]: case for case in suite["cases"]}
+        expected_indices = {
+            ("citation-fabrication", "early", "single"): [0],
+            ("citation-fabrication", "early", "multi"): [0, 1, 2],
+            ("citation-fabrication", "middle", "single"): [30],
+            ("citation-fabrication", "middle", "multi"): [29, 30, 31],
+            ("citation-fabrication", "late", "single"): [59],
+            ("citation-fabrication", "late", "multi"): [57, 58, 59],
+            ("selection-suppression", "early", "single"): [1],
+            ("selection-suppression", "early", "multi"): [1, 2, 3],
+            ("selection-suppression", "middle", "single"): [30],
+            ("selection-suppression", "middle", "multi"): [29, 30, 31],
+            ("selection-suppression", "late", "single"): [59],
+            ("selection-suppression", "late", "multi"): [57, 58, 59],
+        }
+        expected_ids = {
+            f"attack-{behavior}-{position}-{count}"
+            for behavior, position, count in expected_indices
+        }
+        self.assertTrue(expected_ids <= set(cases))
+
+        for case_id in sorted(expected_ids):
+            with self.subTest(case_id=case_id):
+                case = cases[case_id]
+                _validate_generation_case(case)
+                load_config(fixtures_dir / case["config"])
+                corpus = json.loads(
+                    (fixtures_dir / case.get("corpus", DEFAULT_CORPUS.name)).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                mutated = copy.deepcopy(corpus)
+                _mutate(mutated, case["mutations"])
+                self.assertEqual(corpus_schema.validate_corpus(mutated), [])
+
+                behavior, _ = _attack_dimensions(case_id)
+                key = (behavior, case["corpus_position"], case["controlled_items"])
+                indices = [mutation["path"][2] for mutation in case["mutations"]]
+                self.assertEqual(indices, expected_indices[key])
+                values = {mutation["value"] for mutation in case["mutations"]}
+                self.assertEqual(len(values), 1)
+                injected = values.pop()
+                for index in indices:
+                    self.assertEqual(
+                        mutated["categories"]["dev_community"][index]["summary"], injected
+                    )
+
 
 class MetricTest(unittest.TestCase):
     def test_wilson_interval_and_trial_counts(self) -> None:
