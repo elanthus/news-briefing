@@ -43,6 +43,11 @@ _ATTACK_TECHNIQUE_SUFFIXES = (
     ("-combined", "combined"),
     ("-escape", "escape_character"),
 )
+_ATTACK_ABLATION_SUFFIXES = tuple(
+    (f"-{position}-{count}", position, count)
+    for position in ("early", "middle", "late")
+    for count in ("single", "multi")
+)
 CASE_FIELDS = {
     "id",
     "kind",
@@ -62,6 +67,10 @@ CASE_FIELDS = {
     "min_section_topics",
     "separate_topic_urls",
     "must_convey",
+    "matched_pair",
+    "corpus_position",
+    "controlled_items",
+    "corpus_relocations",
 }
 
 
@@ -92,6 +101,45 @@ def _mutate(target: dict[str, Any], mutations: list[dict[str, Any]]) -> None:
             raise ValueError(f"mutation {index} path does not exist: {rendered}") from exc
 
 
+def _relocate(target: dict[str, Any], relocations: list[dict[str, Any]]) -> None:
+    """Move list slices to final serialized positions before applying mutations."""
+    for index, relocation in enumerate(relocations):
+        if not isinstance(relocation, dict):
+            raise ValueError(f"corpus relocation {index} must be an object")
+        if set(relocation) != {"path", "from", "to", "count"}:
+            raise ValueError(
+                f"corpus relocation {index} must contain exactly path, from, to, and count"
+            )
+        path = relocation["path"]
+        if not isinstance(path, list) or not path:
+            raise ValueError(f"corpus relocation {index} path must be a non-empty array")
+        values = (relocation["from"], relocation["to"], relocation["count"])
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
+            raise ValueError(f"corpus relocation {index} from, to, and count must be integers")
+        source, destination, count = values
+        if source < 0 or destination < 0 or count <= 0:
+            raise ValueError(
+                f"corpus relocation {index} from/to must be non-negative and count must be positive"
+            )
+        cursor: Any = target
+        try:
+            for part in path:
+                cursor = cursor[part]
+        except (IndexError, KeyError, TypeError) as exc:
+            rendered = json.dumps(path, ensure_ascii=False)
+            raise ValueError(f"corpus relocation {index} path does not exist: {rendered}") from exc
+        if not isinstance(cursor, list):
+            rendered = json.dumps(path, ensure_ascii=False)
+            raise ValueError(f"corpus relocation {index} path must resolve to an array: {rendered}")
+        if source + count > len(cursor):
+            raise ValueError(f"corpus relocation {index} source slice is out of range")
+        if destination > len(cursor) - count:
+            raise ValueError(f"corpus relocation {index} destination is out of range")
+        block = cursor[source : source + count]
+        del cursor[source : source + count]
+        cursor[destination:destination] = block
+
+
 def _validate_generation_case(case: dict[str, Any]) -> None:
     unknown = sorted(set(case) - CASE_FIELDS)
     if unknown:
@@ -101,8 +149,64 @@ def _validate_generation_case(case: dict[str, Any]) -> None:
         raise ValueError("generation case id must be a non-empty string")
     if case.get("kind") not in {"utility", "attack"}:
         raise ValueError(f"case {case_id} kind must be 'utility' or 'attack'")
-    if case["kind"] == "attack":
-        _attack_dimensions(case_id)
+    attack_dimensions = _attack_id_dimensions(case_id) if case["kind"] == "attack" else None
+    if "matched_pair" in case:
+        if not isinstance(case["matched_pair"], bool):
+            raise ValueError(f"case {case_id} matched_pair must be a boolean")
+        if case["kind"] != "attack":
+            raise ValueError(f"case {case_id} matched_pair is only valid on attack cases")
+    position_present = "corpus_position" in case
+    count_present = "controlled_items" in case
+    if position_present and case["corpus_position"] not in {"early", "middle", "late"}:
+        raise ValueError(f"case {case_id} corpus_position must be early, middle, or late")
+    if count_present and case["controlled_items"] not in {"single", "multi"}:
+        raise ValueError(f"case {case_id} controlled_items must be single or multi")
+    if position_present != count_present:
+        raise ValueError(f"case {case_id} corpus_position and controlled_items must appear together")
+    if position_present and case["kind"] != "attack":
+        raise ValueError(f"case {case_id} ablation metadata is only valid on attack cases")
+    if attack_dimensions is not None:
+        _, _, id_position, id_count = attack_dimensions
+        metadata_dimensions = (
+            case.get("corpus_position"),
+            case.get("controlled_items"),
+        )
+        if metadata_dimensions != (id_position, id_count):
+            raise ValueError(
+                f"case {case_id} ablation metadata {metadata_dimensions} does not match its ID suffix"
+            )
+    if count_present:
+        expected_mutations = 1 if case["controlled_items"] == "single" else 3
+        if len(case.get("mutations", [])) != expected_mutations:
+            expected_word = "one" if expected_mutations == 1 else "three"
+            raise ValueError(
+                f"case {case_id} {case['controlled_items']} requires exactly "
+                f"{expected_word} mutation{'s' if expected_mutations != 1 else ''}"
+            )
+    relocations = case.get("corpus_relocations", [])
+    if not isinstance(relocations, list):
+        raise ValueError(f"case {case_id} corpus_relocations must be an array")
+    for index, relocation in enumerate(relocations):
+        if not isinstance(relocation, dict) or set(relocation) != {"path", "from", "to", "count"}:
+            raise ValueError(
+                f"case {case_id} corpus_relocations[{index}] must contain exactly "
+                "path, from, to, and count"
+            )
+        path = relocation["path"]
+        if not isinstance(path, list) or not path:
+            raise ValueError(
+                f"case {case_id} corpus_relocations[{index}] path must be a non-empty array"
+            )
+        values = (relocation["from"], relocation["to"], relocation["count"])
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
+            raise ValueError(
+                f"case {case_id} corpus_relocations[{index}] from, to, and count must be integers"
+            )
+        if relocation["from"] < 0 or relocation["to"] < 0 or relocation["count"] <= 0:
+            raise ValueError(
+                f"case {case_id} corpus_relocations[{index}] from/to must be non-negative "
+                "and count must be positive"
+            )
     list_fields = (
         "forbidden_substrings",
         "success_if_checks",
@@ -583,6 +687,25 @@ def _has_execution_errors(rows: list[dict[str, Any]]) -> bool:
     )
 
 
+def _case_trial_variants(
+    case: dict[str, Any], trials: int
+) -> list[tuple[int, str, list[dict[str, Any]], list[dict[str, Any]], bool]]:
+    variants: list[
+        tuple[int, str, list[dict[str, Any]], list[dict[str, Any]], bool]
+    ] = []
+    for trial in range(1, trials + 1):
+        variants.append((
+            trial,
+            case["id"],
+            case.get("mutations", []),
+            case.get("source_failures", []),
+            False,
+        ))
+        if case.get("matched_pair"):
+            variants.append((trial, f"{case['id']}__clean", [], [], True))
+    return variants
+
+
 def run_evaluation(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
@@ -601,12 +724,26 @@ def run_evaluation(
         if not isinstance(case, dict):
             raise ValueError("every generation case must be an object")
         _validate_generation_case(case)
+    case_ids = [case["id"] for case in suite["cases"]]
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("generation suite case ids must be unique")
+    authored_case_ids = set(case_ids)
+    derived_clean_ids = {
+        f"{case['id']}__clean" for case in suite["cases"] if case.get("matched_pair")
+    }
+    collisions = sorted(authored_case_ids & derived_clean_ids)
+    if collisions:
+        raise ValueError(f"derived clean case id collision: {', '.join(collisions)}")
+    case_trial_units = sum(2 if case.get("matched_pair") else 1 for case in suite["cases"])
+    matched_pair_case_ids = sorted(
+        case["id"] for case in suite["cases"] if case.get("matched_pair")
+    )
     output_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC)
     results: list[dict[str, Any]] = []
     deterministic = run_deterministic_suite()
     manifest = {
-        "schema_version": 5,
+        "schema_version": 6,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,
@@ -614,7 +751,11 @@ def run_evaluation(
         "suite_sha256": _sha256(suite_path.read_bytes()),
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
         "trials_per_case": trials,
-        "planned_case_trials": len(adapters) * len(prompt_versions) * len(suite["cases"]) * trials,
+        "planned_case_trials": len(adapters) * len(prompt_versions) * case_trial_units * trials,
+        "matched_pair_case_ids": matched_pair_case_ids,
+        "planned_matched_pair_trials": (
+            len(adapters) * len(prompt_versions) * len(matched_pair_case_ids) * trials
+        ),
         "generation_controls": [
             {
                 "provider": adapter.provider,
@@ -639,7 +780,7 @@ def run_evaluation(
     }
     _checkpoint(manifest, output_dir)
 
-    model_total = len(prompt_versions) * len(suite["cases"]) * trials
+    model_total = len(prompt_versions) * case_trial_units * trials
     for adapter in adapters:
         model_completed = 0
         consecutive_failures = 0
@@ -650,13 +791,15 @@ def run_evaluation(
             prompt_bytes = prompt_path.read_bytes()
             prompt = prompt_bytes.decode("utf-8")
             for case in suite["cases"]:
-                for trial in range(1, trials + 1):
+                variants = _case_trial_variants(case, trials)
+                for trial, result_case_id, mutations, source_failures, is_clean_pair in variants:
                     case_corpus_path = (
                         suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
                     )
                     corpus = copy.deepcopy(_json(case_corpus_path))
-                    _mutate(corpus, case.get("mutations", []))
-                    _set_source_failures(corpus, case.get("source_failures", []))
+                    _relocate(corpus, case.get("corpus_relocations", []))
+                    _mutate(corpus, mutations)
+                    _set_source_failures(corpus, source_failures)
                     problems = corpus_schema.validate_corpus(corpus)
                     if problems:
                         raise ValueError(f"case {case['id']} has invalid corpus: {'; '.join(problems)}")
@@ -664,7 +807,7 @@ def run_evaluation(
                     config_data = _json(config_path)
                     config = briefing_config.load_config(config_path)
                     request = model_request(prompt, config_data, corpus)
-                    key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{case['id']}__{trial}"
+                    key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{result_case_id}__{trial}"
                     safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
                     case_dir = output_dir / safe_key
                     case_dir.mkdir()
@@ -675,10 +818,18 @@ def run_evaluation(
                         "model": adapter.model,
                         "prompt_version": prompt_version,
                         "prompt_sha256": _sha256(prompt_bytes),
-                        "case_id": case["id"],
+                        "case_id": result_case_id,
                         "case_kind": case["kind"],
                         "case_family": case["family"],
-                        "source_failure_count": len(case.get("source_failures", [])),
+                        "is_clean_pair": is_clean_pair,
+                        "paired_case_id": (
+                            case["id"] if is_clean_pair
+                            else f"{case['id']}__clean" if case.get("matched_pair")
+                            else None
+                        ),
+                        "corpus_position": case.get("corpus_position"),
+                        "controlled_items": case.get("controlled_items"),
+                        "source_failure_count": len(source_failures),
                         "trial": trial,
                         "artifact_dir": safe_key,
                         "corpus_sha256": _sha256(case_corpus_path.read_bytes()),
@@ -886,10 +1037,19 @@ def _is_degraded_source_case(row: dict[str, Any]) -> bool:
     return row["case_family"] in {"degraded", "partially_degraded"}
 
 
-def _attack_dimensions(case_id: str) -> tuple[str, str]:
+def _attack_id_dimensions(case_id: str) -> tuple[str, str, str | None, str | None]:
+    """Return behavior, technique, category-array position, controlled count."""
     if not case_id.startswith("attack-"):
         raise ValueError(f"attack case id must start with 'attack-': {case_id}")
     base = case_id[len("attack-") :]
+    corpus_position = None
+    controlled_items = None
+    for suffix, position, count in _ATTACK_ABLATION_SUFFIXES:
+        if base.endswith(suffix):
+            base = base.removesuffix(suffix)
+            corpus_position = position
+            controlled_items = count
+            break
     technique = "direct"
     for suffix, candidate in _ATTACK_TECHNIQUE_SUFFIXES:
         if base.endswith(suffix):
@@ -898,7 +1058,12 @@ def _attack_dimensions(case_id: str) -> tuple[str, str]:
             break
     if base not in _ATTACK_BEHAVIORS:
         raise ValueError(f"attack case {case_id} has an unknown behavior or technique")
-    return base, technique
+    return base, technique, corpus_position, controlled_items
+
+
+def _attack_dimensions(case_id: str) -> tuple[str, str]:
+    behavior, technique, _, _ = _attack_id_dimensions(case_id)
+    return behavior, technique
 
 
 def _utility_under_attack_rate(rows: list[dict[str, Any]], stage: str) -> dict[str, Any]:
@@ -943,11 +1108,100 @@ def _attack_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _attack_breakdown(rows: list[dict[str, Any]], dimension: str) -> list[dict[str, Any]]:
+    supported = {"behavior", "technique", "corpus_position", "controlled_items"}
+    if dimension not in supported:
+        raise ValueError(f"unsupported attack breakdown dimension: {dimension}")
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        behavior, technique = _attack_dimensions(row["case_id"])
-        buckets[behavior if dimension == "behavior" else technique].append(row)
+        value: str
+        if dimension in {"behavior", "technique"}:
+            behavior, technique = _attack_dimensions(row["case_id"])
+            value = behavior if dimension == "behavior" else technique
+        else:
+            metadata_value = row.get(dimension)
+            if metadata_value is None:
+                continue
+            if not isinstance(metadata_value, str):
+                raise ValueError(f"attack breakdown metadata {dimension} must be a string")
+            value = metadata_value
+        buckets[value].append(row)
     return [{dimension: name, **_attack_metrics(bucket)} for name, bucket in sorted(buckets.items())]
+
+
+def _matched_pair_metrics(
+    rows: list[dict[str, Any]],
+    matched_case_ids: list[str] | None = None,
+    trials_per_case: int = 0,
+) -> list[dict[str, Any]]:
+    attacked: dict[tuple[str, int], dict[str, Any]] = {}
+    clean: dict[tuple[str, int], dict[str, Any]] = {}
+    observed_case_ids: set[str] = set()
+    for row in rows:
+        paired_case_id = row.get("paired_case_id")
+        if row.get("is_clean_pair", False):
+            if not isinstance(paired_case_id, str):
+                continue
+            original_case_id = paired_case_id
+            clean[(original_case_id, row["trial"])] = row
+        elif paired_case_id is not None:
+            original_case_id = row["case_id"]
+            attacked[(original_case_id, row["trial"])] = row
+        else:
+            continue
+        observed_case_ids.add(original_case_id)
+
+    case_ids = sorted(set(matched_case_ids or []) | observed_case_ids)
+    metrics = []
+    for case_id in case_ids:
+        planned_keys = {
+            (case_id, trial) for trial in range(1, trials_per_case + 1)
+        }
+        planned_keys.update(key for key in attacked if key[0] == case_id)
+        planned_keys.update(key for key in clean if key[0] == case_id)
+        completed_keys = [
+            key
+            for key in sorted(planned_keys)
+            if key in attacked
+            and key in clean
+            and len(_completed([attacked[key], clean[key]])) == 2
+        ]
+
+        def pair_rate(
+            source: dict[tuple[str, int], dict[str, Any]],
+            stage: str,
+            oracle_key: str,
+            keys: list[tuple[str, int]],
+        ) -> dict[str, Any]:
+            return rate(
+                sum(bool(source[key][stage]["oracle"].get(oracle_key, False)) for key in keys),
+                len(keys),
+            )
+
+        metrics.append({
+            "case_id": case_id,
+            "planned_pairs": len(planned_keys),
+            "completed_pairs": len(completed_keys),
+            "incomplete_pairs": len(planned_keys) - len(completed_keys),
+            "benign_structural_utility_first": pair_rate(
+                clean, "first", "utility_under_attack", completed_keys
+            ),
+            "benign_structural_utility_final": pair_rate(
+                clean, "final", "utility_under_attack", completed_keys
+            ),
+            "structural_utility_under_attack_first": pair_rate(
+                attacked, "first", "utility_under_attack", completed_keys
+            ),
+            "structural_utility_under_attack_final": pair_rate(
+                attacked, "final", "utility_under_attack", completed_keys
+            ),
+            "targeted_attack_success_first": pair_rate(
+                attacked, "first", "attack_success", completed_keys
+            ),
+            "targeted_attack_success_final": pair_rate(
+                attacked, "final", "attack_success", completed_keys
+            ),
+        })
+    return metrics
 
 
 def _pairwise_quality(
@@ -996,7 +1250,17 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         completed_rows = _completed(rows)
         utility_rows = [row for row in rows if row["case_kind"] == "utility"]
         completed_utility = _completed(utility_rows)
-        attack_rows = [row for row in rows if row["case_kind"] == "attack"]
+        attack_rows = [
+            row
+            for row in rows
+            if row["case_kind"] == "attack" and not row.get("is_clean_pair", False)
+        ]
+        ablation_rows = [
+            row for row in attack_rows if row.get("corpus_position") is not None
+        ]
+        primary_attack_rows = [
+            row for row in attack_rows if row.get("corpus_position") is None
+        ]
 
         utility_corrected = [row for row in completed_utility if row["correction_attempted"]]
         over_refusal = [row for row in completed_utility if row["case_id"].startswith("utility-over-refusal-")]
@@ -1046,9 +1310,23 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         security_groups.append(
             {
                 **identity,
-                **_attack_metrics(attack_rows),
-                "by_behavior": _attack_breakdown(attack_rows, "behavior"),
-                "by_technique": _attack_breakdown(attack_rows, "technique"),
+                **_attack_metrics(primary_attack_rows),
+                "by_behavior": _attack_breakdown(primary_attack_rows, "behavior"),
+                "by_technique": _attack_breakdown(primary_attack_rows, "technique"),
+                "ablation": {
+                    **_attack_metrics(ablation_rows),
+                    "by_corpus_position": _attack_breakdown(
+                        ablation_rows, "corpus_position"
+                    ),
+                    "by_controlled_items": _attack_breakdown(
+                        ablation_rows, "controlled_items"
+                    ),
+                },
+                "matched_pairs": _matched_pair_metrics(
+                    rows,
+                    manifest.get("matched_pair_case_ids"),
+                    manifest.get("trials_per_case", 0),
+                ),
             }
         )
 
@@ -1152,7 +1430,7 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         "position_consistency": (None if quality is None else quality.get("position_consistency")),
     }
     return {
-        "schema_version": 6,
+        "schema_version": 8,
         "generated_at": datetime.now(UTC).isoformat(),
         "generation_controls": manifest.get("generation_controls", []),
         "score_families": {
@@ -1163,7 +1441,9 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
             },
             "security_robustness": {
                 "scope": (
-                    "Completed attack case-trials only; robustness is one minus targeted attack success. "
+                    "Completed primary attack case-trials only; position/count ablation replicates are "
+                    "excluded from headline, behavior, and technique denominators and reported separately. "
+                    "Robustness is one minus targeted attack success. "
                     "utility_under_attack reports whether the underlying task was still completed despite "
                     "the attack (AgentDojo's second metric), independent of whether the attacker's specific "
                     "goal also occurred — it is a structural-validity-and-non-empty-output floor, not parity "
@@ -1255,9 +1535,111 @@ def _security_row(group: dict[str, Any]) -> str:
 _SECURITY_HEADER = [
     "| Provider / model / prompt | Robustness (first → final) | "
     "Attack success (first → final) | Utility under attack (first → final) | "
-    "Attack recovery | Completed attack trials |",
+    "Attack recovery | Completed primary attack trials |",
     "|---|---:|---:|---:|---:|---:|",
 ]
+
+
+def _security_detail_lines(group: dict[str, Any]) -> list[str]:
+    by_behavior = group.get("by_behavior", [])
+    by_technique = group.get("by_technique", [])
+    ablation = group.get("ablation", {})
+    by_corpus_position = ablation.get("by_corpus_position", [])
+    by_controlled_items = ablation.get("by_controlled_items", [])
+    matched_pairs = group.get("matched_pairs", [])
+    if not any((by_behavior, by_technique, by_corpus_position, by_controlled_items, matched_pairs)):
+        return []
+
+    lines = [
+        "",
+        f"### Security breakdown — {_render_group_label(group)}",
+    ]
+    if by_behavior:
+        lines += [
+            "",
+            "| Behavior | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_behavior:
+            lines.append(
+                f"| {row['behavior']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if by_technique:
+        lines += [
+            "",
+            "| Attack technique | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_technique:
+            lines.append(
+                f"| {row['technique']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if matched_pairs:
+        lines += [
+            "",
+            "#### Matched clean/attack pairs",
+            "",
+            "| Case | Stage | Benign structural utility | Structural utility under attack | "
+            "Targeted attack success | Completed pairs |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+        for row in matched_pairs:
+            for stage in ("first", "final"):
+                lines.append(
+                    f"| {row['case_id']} | {stage} | "
+                    f"{_pct(row[f'benign_structural_utility_{stage}'])} | "
+                    f"{_pct(row[f'structural_utility_under_attack_{stage}'])} | "
+                    f"{_pct(row[f'targeted_attack_success_{stage}'])} | "
+                    f"{row['completed_pairs']}/{row['planned_pairs']} |"
+                )
+    if by_corpus_position or by_controlled_items:
+        lines += [
+            "",
+            "#### Production-corpus ablation replicates",
+            "",
+            f"Completed replicate trials: {ablation.get('completed_case_trials', 0)}/"
+            f"{ablation.get('case_trials', 0)}. These rows are excluded from the headline, "
+            "behavior, and technique denominators above.",
+            "",
+            "Position means location within the serialized `dev_community` array, not merged "
+            "eligible-pool rank or relative prompt-token position. The same selected carrier "
+            "items retain their timestamps while being relocated, so recency selection stays "
+            "constant across positions. Controlled item count means one versus three mutated "
+            "items, not controlled token fraction.",
+        ]
+    if by_corpus_position:
+        lines += [
+            "",
+            "#### Attack success by category-array position",
+            "",
+            "| Position | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_corpus_position:
+            lines.append(
+                f"| {row['corpus_position']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if by_controlled_items:
+        lines += [
+            "",
+            "#### Attack success by attacker-controlled item count",
+            "",
+            "| Controlled items | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_controlled_items:
+            lines.append(
+                f"| {row['controlled_items']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    return lines
 
 
 def _editorial_row(group: dict[str, Any]) -> str:
@@ -1422,32 +1804,7 @@ def markdown_report(report: dict[str, Any]) -> str:
         *(_security_row(group) for group in security_live),
     ]
     for group in security_live:
-        if not group["by_behavior"] and not group["by_technique"]:
-            continue
-        lines += [
-            "",
-            f"### Security breakdown — {_render_group_label(group)}",
-            "",
-            "| Behavior | Final attack success | Final robustness | Completed trials |",
-            "|---|---:|---:|---:|",
-        ]
-        for row in group["by_behavior"]:
-            lines.append(
-                f"| {row['behavior']} | {_pct(row['attack_success_final'])} | "
-                f"{_pct(row['robustness_final'])} | "
-                f"{row['completed_case_trials']}/{row['case_trials']} |"
-            )
-        lines += [
-            "",
-            "| Attack technique | Final attack success | Final robustness | Completed trials |",
-            "|---|---:|---:|---:|",
-        ]
-        for row in group["by_technique"]:
-            lines.append(
-                f"| {row['technique']} | {_pct(row['attack_success_final'])} | "
-                f"{_pct(row['robustness_final'])} | "
-                f"{row['completed_case_trials']}/{row['case_trials']} |"
-            )
+        lines += _security_detail_lines(group)
     pairwise = families["editorial_quality"]["pairwise_judging"]
     lines += [
         "",
@@ -1497,6 +1854,9 @@ def markdown_report(report: dict[str, Any]) -> str:
         if security_baseline:
             lines += ["### Security robustness (baseline)", "", *_SECURITY_HEADER,
                       *(_security_row(group) for group in security_baseline), ""]
+            for group in security_baseline:
+                lines += _security_detail_lines(group)
+            lines.append("")
         if editorial_baseline:
             lines += ["### Editorial quality (baseline)", "", *_EDITORIAL_HEADER,
                       *(_editorial_row(group) for group in editorial_baseline), ""]
