@@ -623,6 +623,17 @@ def _has_execution_errors(rows: list[dict[str, Any]]) -> bool:
     )
 
 
+def _case_trial_variants(
+    case: dict[str, Any], trials: int
+) -> list[tuple[int, str, list[dict[str, Any]], bool]]:
+    variants: list[tuple[int, str, list[dict[str, Any]], bool]] = []
+    for trial in range(1, trials + 1):
+        variants.append((trial, case["id"], case.get("mutations", []), False))
+        if case.get("matched_pair"):
+            variants.append((trial, f"{case['id']}__clean", [], True))
+    return variants
+
+
 def run_evaluation(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
@@ -641,12 +652,26 @@ def run_evaluation(
         if not isinstance(case, dict):
             raise ValueError("every generation case must be an object")
         _validate_generation_case(case)
+    case_ids = [case["id"] for case in suite["cases"]]
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("generation suite case ids must be unique")
+    authored_case_ids = set(case_ids)
+    derived_clean_ids = {
+        f"{case['id']}__clean" for case in suite["cases"] if case.get("matched_pair")
+    }
+    collisions = sorted(authored_case_ids & derived_clean_ids)
+    if collisions:
+        raise ValueError(f"derived clean case id collision: {', '.join(collisions)}")
+    case_trial_units = sum(2 if case.get("matched_pair") else 1 for case in suite["cases"])
+    matched_pair_case_ids = sorted(
+        case["id"] for case in suite["cases"] if case.get("matched_pair")
+    )
     output_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC)
     results: list[dict[str, Any]] = []
     deterministic = run_deterministic_suite()
     manifest = {
-        "schema_version": 5,
+        "schema_version": 6,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,
@@ -654,7 +679,11 @@ def run_evaluation(
         "suite_sha256": _sha256(suite_path.read_bytes()),
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
         "trials_per_case": trials,
-        "planned_case_trials": len(adapters) * len(prompt_versions) * len(suite["cases"]) * trials,
+        "planned_case_trials": len(adapters) * len(prompt_versions) * case_trial_units * trials,
+        "matched_pair_case_ids": matched_pair_case_ids,
+        "planned_matched_pair_trials": (
+            len(adapters) * len(prompt_versions) * len(matched_pair_case_ids) * trials
+        ),
         "generation_controls": [
             {
                 "provider": adapter.provider,
@@ -679,7 +708,7 @@ def run_evaluation(
     }
     _checkpoint(manifest, output_dir)
 
-    model_total = len(prompt_versions) * len(suite["cases"]) * trials
+    model_total = len(prompt_versions) * case_trial_units * trials
     for adapter in adapters:
         model_completed = 0
         consecutive_failures = 0
@@ -690,12 +719,12 @@ def run_evaluation(
             prompt_bytes = prompt_path.read_bytes()
             prompt = prompt_bytes.decode("utf-8")
             for case in suite["cases"]:
-                for trial in range(1, trials + 1):
+                for trial, result_case_id, mutations, is_clean_pair in _case_trial_variants(case, trials):
                     case_corpus_path = (
                         suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
                     )
                     corpus = copy.deepcopy(_json(case_corpus_path))
-                    _mutate(corpus, case.get("mutations", []))
+                    _mutate(corpus, mutations)
                     _set_source_failures(corpus, case.get("source_failures", []))
                     problems = corpus_schema.validate_corpus(corpus)
                     if problems:
@@ -704,7 +733,7 @@ def run_evaluation(
                     config_data = _json(config_path)
                     config = briefing_config.load_config(config_path)
                     request = model_request(prompt, config_data, corpus)
-                    key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{case['id']}__{trial}"
+                    key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{result_case_id}__{trial}"
                     safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
                     case_dir = output_dir / safe_key
                     case_dir.mkdir()
@@ -715,9 +744,17 @@ def run_evaluation(
                         "model": adapter.model,
                         "prompt_version": prompt_version,
                         "prompt_sha256": _sha256(prompt_bytes),
-                        "case_id": case["id"],
+                        "case_id": result_case_id,
                         "case_kind": case["kind"],
                         "case_family": case["family"],
+                        "is_clean_pair": is_clean_pair,
+                        "paired_case_id": (
+                            case["id"] if is_clean_pair
+                            else f"{case['id']}__clean" if case.get("matched_pair")
+                            else None
+                        ),
+                        "corpus_position": case.get("corpus_position"),
+                        "controlled_items": case.get("controlled_items"),
                         "source_failure_count": len(case.get("source_failures", [])),
                         "trial": trial,
                         "artifact_dir": safe_key,
@@ -1050,7 +1087,11 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         completed_rows = _completed(rows)
         utility_rows = [row for row in rows if row["case_kind"] == "utility"]
         completed_utility = _completed(utility_rows)
-        attack_rows = [row for row in rows if row["case_kind"] == "attack"]
+        attack_rows = [
+            row
+            for row in rows
+            if row["case_kind"] == "attack" and not row.get("is_clean_pair", False)
+        ]
 
         utility_corrected = [row for row in completed_utility if row["correction_attempted"]]
         over_refusal = [row for row in completed_utility if row["case_id"].startswith("utility-over-refusal-")]
