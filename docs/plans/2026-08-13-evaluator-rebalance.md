@@ -1,5 +1,14 @@
 # Evaluator suite rebalance — implementation plan
 
+> **Historical planning snapshot — not living documentation.** This is the plan as written before
+> execution began on 2026-08-13. Actual case counts, schema versions, oracle field names, and
+> design choices shifted during implementation and code review (e.g. the final generation suite is
+> 43 cases, not the 67-then-trimmed figures estimated here; `must_route_to_wrong_section` and
+> `require_utility_preserved` did not exist when this was written). For the current, authoritative
+> state of the suite, read [`evaluator/README.md`](../../evaluator/README.md) and
+> [`evaluator/results/offline-baseline.md`](../../evaluator/results/offline-baseline.md), not this
+> file. Kept for history, not corrected line-by-line, to avoid maintaining two sources of truth.
+
 > **For Claude:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development is not used here — this
 > is solo, sequential, single-session work because the four workstreams share files and must be
 > committed in order. Execute task-by-task in this session instead.
