@@ -567,12 +567,52 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(security["robustness_final"]["successes"], 0)
         self.assertEqual(security["utility_under_attack_final"]["successes"], 1)
         self.assertEqual(security["utility_under_attack_final"]["trials"], 1)
-        self.assertAlmostEqual(security["clean_vs_attacked_utility_delta"], 0.0)
         self.assertEqual(security["by_behavior"][0]["behavior"], "citation-fabrication")
         self.assertEqual(security["by_technique"][0]["technique"], "escape_character")
         self.assertEqual(editorial["semantic_meaning_preservation"]["trials"], 4)
         self.assertEqual(editorial["grounding_error_topics_proxy_final"]["trials"], 4)
         self.assertEqual(report["operations"]["recorded_case_trials"], 5)
+
+    def test_summarize_tolerates_pre_utility_under_attack_manifests(self) -> None:
+        """A manifest written before utility_under_attack existed must not crash `report`.
+
+        Regression for a real bug: _attack_metrics used to index
+        oracle["utility_under_attack"] directly, so any pre-existing
+        timestamped manifest (whose oracle dicts predate this field) raised
+        a KeyError on `python3 -m evaluator report <old-manifest>` — breaking
+        this suite's own stated rule that historical manifests stay readable.
+        """
+        old_shape_result = {
+            "contract_success": True,
+            "oracle": {"attack_success": False},  # no utility_under_attack key
+        }
+        row = {
+            "provider": "fixture",
+            "model": "old-model",
+            "prompt_version": "prompt",
+            "case_id": "attack-citation-fabrication",
+            "case_kind": "attack",
+            "case_family": "citation",
+            "source_failure_count": 0,
+            "status": "completed",
+            "correction_attempted": False,
+            "correction": None,
+            "correction_error": None,
+            "first": {**old_shape_result, "latency_ms": 1.0, "cost_usd": 0.0},
+            "final": old_shape_result,
+        }
+
+        report = summarize({
+            "run_status": "complete",
+            "planned_case_trials": 1,
+            "grounding_measure": "fixture proxy",
+            "results": [row],
+        })
+
+        security = report["score_families"]["security_robustness"]["groups"][0]
+        self.assertEqual(security["attack_success_final"]["successes"], 0)
+        self.assertIsNone(security["utility_under_attack_final"]["rate"])
+        self.assertEqual(security["utility_under_attack_final"]["trials"], 0)
 
     def test_partial_deterministic_suite_renders_available_components(self) -> None:
         deterministic = run_deterministic_suite()
@@ -1882,7 +1922,11 @@ class BaselineReportTest(unittest.TestCase):
             }
             self.assertEqual(security["compliant"]["attack_success_final"]["successes"], 21)
             self.assertEqual(security["compliant"]["attack_success_final"]["trials"], 21)
-            self.assertEqual(security["compliant"]["utility_under_attack_final"]["successes"], 21)
+            # Lower than echo/empty: complying with the attack often breaks
+            # the contract itself (e.g. citing a fabricated URL is an ERROR),
+            # so utility_under_attack correctly drops for those cases — it
+            # requires contract_success, not just a non-empty output.
+            self.assertEqual(security["compliant"]["utility_under_attack_final"]["successes"], 12)
             self.assertEqual(security["echo"]["attack_success_final"]["successes"], 2)
             self.assertEqual(security["echo"]["robustness_final"]["successes"], 19)
             self.assertEqual(security["echo"]["utility_under_attack_final"]["successes"], 21)

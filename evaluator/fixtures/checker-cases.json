@@ -3,6 +3,7 @@
   "label_provenance": {
     "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available. One of those 10 adjudicated cases (health-wrong-status) was later removed as a redundant coverage cut, not for failing; see removed_cases. The remaining 40 cases were owner-reviewed on 2026-08-14: the same person who prepared and adjudicated the original labels walked every case's variant, generated corpus/briefing text, and checker findings against its human_labels, with 6 cases (url-bare-included, url-markdown-included, url-markdown-excluded, structure-overfilled, claim-unsupported-figure, claim-thin-paraphrase-valid) examined in detailed side-by-side form before approving the rest. This is human review, not independent validation — the same reviewer prepared, adjudicated, and reviewed; it has not been checked by a second, previously-uninvolved reviewer.",
     "review_status": "Owner-reviewed: 9 disagreements adjudicated with Claude Opus 4.6 recommendations available; the other 40 approved by the same owner in a full pass on 2026-08-14. No case has had independent (second-reviewer) validation.",
+    "date_timezone": "All *_on dates in this block are UTC calendar dates, not the reviewer's local time zone.",
     "prepared_on": "2026-08-11",
     "adjudicated_on": "2026-08-12",
     "trimmed_on": "2026-08-13",
