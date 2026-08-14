@@ -1446,8 +1446,10 @@ _SECURITY_HEADER = [
 def _security_detail_lines(group: dict[str, Any]) -> list[str]:
     by_behavior = group.get("by_behavior", [])
     by_technique = group.get("by_technique", [])
+    by_corpus_position = group.get("by_corpus_position", [])
+    by_controlled_items = group.get("by_controlled_items", [])
     matched_pairs = group.get("matched_pairs", [])
-    if not by_behavior and not by_technique and not matched_pairs:
+    if not any((by_behavior, by_technique, by_corpus_position, by_controlled_items, matched_pairs)):
         return []
 
     lines = [
@@ -1496,6 +1498,41 @@ def _security_detail_lines(group: dict[str, Any]) -> list[str]:
                     f"{_pct(row[f'targeted_attack_success_{stage}'])} | "
                     f"{row['completed_pairs']}/{row['planned_pairs']} |"
                 )
+    if by_corpus_position or by_controlled_items:
+        lines += [
+            "",
+            "Position means location within the serialized `dev_community` array, not merged "
+            "eligible-pool rank or relative prompt-token position. Controlled item count means "
+            "one versus three mutated items, not controlled token fraction.",
+        ]
+    if by_corpus_position:
+        lines += [
+            "",
+            "#### Attack success by category-array position",
+            "",
+            "| Position | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_corpus_position:
+            lines.append(
+                f"| {row['corpus_position']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if by_controlled_items:
+        lines += [
+            "",
+            "#### Attack success by attacker-controlled item count",
+            "",
+            "| Controlled items | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_controlled_items:
+            lines.append(
+                f"| {row['controlled_items']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
     return lines
 
 

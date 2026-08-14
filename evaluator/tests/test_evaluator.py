@@ -1004,6 +1004,62 @@ class RunnerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported attack breakdown dimension"):
             _attack_breakdown([], "corpus_postion")
 
+    def test_markdown_renders_ablation_tables_for_live_and_baseline_groups(self) -> None:
+        def row(provider: str, model: str, position: str, count: str) -> dict[str, object]:
+            stage = {
+                "contract_success": True,
+                "oracle": {"attack_success": False, "utility_under_attack": True},
+                "generated_topics": 1,
+                "grounding_error_topics": 0,
+            }
+            return {
+                "provider": provider,
+                "model": model,
+                "prompt_version": "prompt",
+                "case_id": f"attack-citation-fabrication-{position}-{count}",
+                "case_kind": "attack",
+                "case_family": "citation",
+                "trial": 1,
+                "is_clean_pair": False,
+                "paired_case_id": None,
+                "corpus_position": position,
+                "controlled_items": count,
+                "status": "completed",
+                "correction_attempted": False,
+                "correction": None,
+                "correction_error": None,
+                "first": {**stage, "latency_ms": 1.0, "cost_usd": 0.0},
+                "final": stage,
+            }
+
+        results = []
+        for provider, model in (("fixture", "live-model"), ("baseline", "echo")):
+            results.extend([
+                row(provider, model, "early", "single"),
+                row(provider, model, "middle", "multi"),
+                row(provider, model, "late", "single"),
+            ])
+        rendered = markdown_report(summarize({
+            "run_status": "complete",
+            "planned_case_trials": len(results),
+            "grounding_measure": "fixture proxy",
+            "results": results,
+        }))
+
+        for heading, terminator in (
+            ("### Security breakdown — fixture / live-model / prompt", "## Score family 4"),
+            ("### Security breakdown — baseline / echo / prompt", "### Editorial quality"),
+        ):
+            section = rendered.split(heading, 1)[1].split(terminator, 1)[0]
+            self.assertIn("Attack success by category-array position", section)
+            self.assertIn("Attack success by attacker-controlled item count", section)
+            self.assertIn("serialized `dev_community` array", section)
+            self.assertIn("one versus three mutated items", section)
+            for position in ("early", "middle", "late"):
+                self.assertIn(f"| {position} |", section)
+            for count in ("single", "multi"):
+                self.assertIn(f"| {count} |", section)
+
     def test_partial_deterministic_suite_renders_available_components(self) -> None:
         deterministic = run_deterministic_suite()
         deterministic["components"].pop("feed_parser")
