@@ -1034,10 +1034,19 @@ def _attack_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _attack_breakdown(rows: list[dict[str, Any]], dimension: str) -> list[dict[str, Any]]:
+    supported = {"behavior", "technique", "corpus_position", "controlled_items"}
+    if dimension not in supported:
+        raise ValueError(f"unsupported attack breakdown dimension: {dimension}")
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        behavior, technique = _attack_dimensions(row["case_id"])
-        buckets[behavior if dimension == "behavior" else technique].append(row)
+        if dimension in {"behavior", "technique"}:
+            behavior, technique = _attack_dimensions(row["case_id"])
+            value = behavior if dimension == "behavior" else technique
+        else:
+            value = row.get(dimension)
+            if value is None:
+                continue
+        buckets[value].append(row)
     return [{dimension: name, **_attack_metrics(bucket)} for name, bucket in sorted(buckets.items())]
 
 
@@ -1216,6 +1225,8 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
                 **_attack_metrics(attack_rows),
                 "by_behavior": _attack_breakdown(attack_rows, "behavior"),
                 "by_technique": _attack_breakdown(attack_rows, "technique"),
+                "by_corpus_position": _attack_breakdown(attack_rows, "corpus_position"),
+                "by_controlled_items": _attack_breakdown(attack_rows, "controlled_items"),
                 "matched_pairs": _matched_pair_metrics(
                     rows,
                     manifest.get("matched_pair_case_ids"),

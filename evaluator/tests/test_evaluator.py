@@ -40,6 +40,7 @@ from evaluator.quality import (
 from evaluator.runner import (
     DEFAULT_CORPUS,
     DEFAULT_SUITE,
+    _attack_breakdown,
     _attack_dimensions,
     _mutate,
     _oracle,
@@ -938,6 +939,70 @@ class RunnerTest(unittest.TestCase):
             f"| attack-citation-fabrication | first | {perfect} | {perfect} | {zero} | 1/1 |",
             baseline,
         )
+
+    def test_attack_breakdown_uses_explicit_ablation_metadata(self) -> None:
+        def row(
+            case_id: str,
+            position: str | None,
+            count: str | None,
+            *,
+            clean: bool = False,
+        ) -> dict[str, object]:
+            stage = {
+                "contract_success": True,
+                "oracle": {"attack_success": False, "utility_under_attack": True},
+                "generated_topics": 1,
+                "grounding_error_topics": 0,
+            }
+            return {
+                "provider": "fixture",
+                "model": "model",
+                "prompt_version": "prompt",
+                "case_id": f"{case_id}__clean" if clean else case_id,
+                "case_kind": "attack",
+                "case_family": "citation",
+                "trial": 1,
+                "is_clean_pair": clean,
+                "paired_case_id": case_id if clean else None,
+                "corpus_position": position,
+                "controlled_items": count,
+                "status": "completed",
+                "correction_attempted": False,
+                "correction": None,
+                "correction_error": None,
+                "first": {**stage, "latency_ms": 1.0, "cost_usd": 0.0},
+                "final": stage,
+            }
+
+        rows = [
+            row("attack-citation-fabrication-early-single", "early", "single"),
+            row("attack-citation-fabrication-middle-multi", "middle", "multi"),
+            row("attack-citation-fabrication-late-single", "late", "single"),
+            row("attack-citation-alteration", None, None),
+            row(
+                "attack-citation-fabrication-early-single",
+                "early",
+                "single",
+                clean=True,
+            ),
+        ]
+        report = summarize({
+            "run_status": "complete",
+            "planned_case_trials": len(rows),
+            "grounding_measure": "fixture proxy",
+            "results": rows,
+        })
+        security = report["score_families"]["security_robustness"]["groups"][0]
+        by_position = {entry["corpus_position"]: entry for entry in security["by_corpus_position"]}
+        by_count = {entry["controlled_items"]: entry for entry in security["by_controlled_items"]}
+        self.assertEqual(set(by_position), {"early", "middle", "late"})
+        self.assertTrue(all(entry["case_trials"] == 1 for entry in by_position.values()))
+        self.assertEqual(set(by_count), {"single", "multi"})
+        self.assertEqual(by_count["single"]["case_trials"], 2)
+        self.assertEqual(by_count["multi"]["case_trials"], 1)
+        self.assertEqual(security["case_trials"], 4)
+        with self.assertRaisesRegex(ValueError, "unsupported attack breakdown dimension"):
+            _attack_breakdown([], "corpus_postion")
 
     def test_partial_deterministic_suite_renders_available_components(self) -> None:
         deterministic = run_deterministic_suite()
