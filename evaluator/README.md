@@ -163,7 +163,7 @@ python3 -m evaluator review-labels \
   --review-only
 ```
 
-The selected reviewer receives opaque case identifiers, the rubric, and case inputs, but not fixture names, provisional labels, or checker findings. When an adjudicator is configured, only disagreements are sent to it; `--review-only` instead leaves those disagreements unresolved for human adjudication. The resulting `label-review.json` preserves both label sets, rationales, any adjudications, provider/model identifiers, usage, and the fixture hash. It never rewrites the fixture and explicitly retains the requirement for independent human approval. Validated batch checkpoints are resumed only when the suite hash, providers, models, and batch size match, avoiding repeated paid calls after a later batch fails.
+The selected reviewer receives opaque case identifiers, the rubric, and case inputs, but not fixture names, provisional labels, or checker findings. When an adjudicator is configured, only disagreements are sent to it; `--review-only` instead leaves those disagreements unresolved for human adjudication. The resulting `label-review.json` preserves both label sets, rationales, any adjudications, provider/model identifiers, reviewer generation controls, usage, and the fixture hash. It never rewrites the fixture and explicitly retains the requirement for independent human approval. Validated batch checkpoints are resumed only when the suite hash, providers, models, reviewer generation controls, and batch size match, avoiding repeated paid calls after a later batch fails.
 
 ## Prompt provenance
 
