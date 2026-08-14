@@ -220,14 +220,19 @@ def run_label_review(
         "model": reviewer.model,
         "generation_controls": reviewer.generation_controls(),
     }
+    adjudicator_metadata = (
+        None if adjudicator is None
+        else {
+            "provider": adjudicator.provider,
+            "model": adjudicator.model,
+            "generation_controls": adjudicator.generation_controls(),
+        }
+    )
     identity = {
         "schema_version": 2,
         "suite_sha256": sha256_bytes(raw),
         "reviewer": reviewer_metadata,
-        "adjudicator": (
-            None if adjudicator is None
-            else {"provider": adjudicator.provider, "model": adjudicator.model}
-        ),
+        "adjudicator": adjudicator_metadata,
         "batch_size": batch_size,
     }
     identity_path = output_dir / "label-review-run.json"

@@ -2181,7 +2181,11 @@ class LabelReviewTest(unittest.TestCase):
             }
             suite_path.write_text(json.dumps(suite), encoding="utf-8")
             reviewer = LabelReviewAdapter("sonnet", {"case-001": ["unsupported_claim"]})
-            adjudicator = LabelReviewAdapter("opus", {"case-001": []})
+            adjudicator = LabelReviewAdapter(
+                "opus",
+                {"case-001": []},
+                {"reasoning_enabled": True, "reasoning_effort": "high"},
+            )
             result = run_label_review(reviewer, adjudicator, temporary / "output", suite_path)
 
             self.assertEqual(result["exact_agreements"], 0)
@@ -2200,6 +2204,23 @@ class LabelReviewTest(unittest.TestCase):
             self.assertEqual(adjudicator.calls, 1)
             self.assertTrue(resumed["reviewer_calls"][0]["resumed"])
             self.assertTrue(resumed["adjudicator_calls"][0]["resumed"])
+            self.assertEqual(
+                result["adjudicator"]["generation_controls"],
+                {"reasoning_enabled": True, "reasoning_effort": "high"},
+            )
+
+            changed_adjudicator = LabelReviewAdapter(
+                "opus",
+                {"case-001": []},
+                {"reasoning_enabled": False, "reasoning_effort": None},
+            )
+            with self.assertRaisesRegex(ValueError, "different label-review run"):
+                run_label_review(
+                    reviewer,
+                    changed_adjudicator,
+                    temporary / "output",
+                    suite_path,
+                )
 
     def test_checkpoints_are_bound_to_reviewer_generation_controls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
