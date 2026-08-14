@@ -150,7 +150,8 @@ def _set_source_failures(corpus: dict[str, Any], failures: list[dict[str, str]])
     for index, failure in enumerate(failures, 1):
         status = failure["status"]
         error_type = "EmptyFeed" if status == "empty" else "HTTPError"
-        message = "no dated entries" if status == "empty" else "HTTP 503"
+        default_message = "no dated entries" if status == "empty" else "HTTP 503"
+        message = failure.get("message", default_message)
         duration = 10 + index
         corpus["sources"].append({
             "source_type": failure["source_type"],
