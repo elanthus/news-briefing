@@ -113,14 +113,17 @@ def _prompt_values(values: list[str]) -> dict[str, Path]:
 
 def _preflight(providers: list[tuple[str, str]]) -> None:
     problems = []
-    requirements = {
+    requirements: dict[str, tuple[str, str]] = {
         "codex-cli": ("command", "codex"),
         "claude-code-cli": ("command", "claude"),
         "openrouter": ("environment variable", "OPENROUTER_API_KEY"),
         "nvidia": ("environment variable", "NVIDIA_API_KEY"),
+        "baseline": ("none", ""),
     }
     for provider, _model in providers:
         kind, value = requirements.get(provider, ("unknown provider", provider))
+        if kind == "none":
+            continue
         if kind == "command" and shutil.which(value) is None:
             problems.append(f"{provider} requires the {value!r} command")
         elif kind == "environment variable" and not os.environ.get(value):
