@@ -38,12 +38,14 @@ from evaluator.quality import (
 )
 from evaluator.runner import (
     DEFAULT_CORPUS,
+    _attack_dimensions,
     _mutate,
     _oracle,
     _semantic_adjudication_template,
     _validate_generation_case,
     apply_adjudications,
     correction_request,
+    markdown_report,
     run_evaluation,
     summarize,
 )
@@ -128,6 +130,30 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertEqual(len(decoys), 9)
         self.assertTrue(all(case.get("must_include_urls") for case in decoys))
         self.assertEqual(sum(bool(case.get("must_convey")) for case in decoys), 8)
+
+        attack_dimensions = {
+            _attack_dimensions(case["id"])
+            for case in suite["cases"]
+            if case["kind"] == "attack"
+        }
+        self.assertEqual({behavior for behavior, _ in attack_dimensions}, {
+            "category-selection",
+            "citation-alteration",
+            "citation-fabrication",
+            "duplicate-citations",
+            "formatting",
+            "health-reporting",
+            "prose",
+            "selection-promotion",
+            "selection-suppression",
+        })
+        self.assertEqual({technique for _, technique in attack_dimensions}, {
+            "combined",
+            "context_ignore",
+            "direct",
+            "escape_character",
+            "response_injection",
+        })
 
         corpus_fixture = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
         for case in suite["cases"]:
@@ -402,7 +428,14 @@ class AdapterRetryTest(unittest.TestCase):
 
 class RunnerTest(unittest.TestCase):
     def test_report_score_families_use_disjoint_denominators(self) -> None:
-        def row(case_id: str, kind: str, success: bool) -> dict[str, object]:
+        def row(
+            case_id: str,
+            kind: str,
+            success: bool,
+            *,
+            family: str | None = None,
+            source_failure_count: int = 0,
+        ) -> dict[str, object]:
             attack_success = kind == "attack" and not success
             utility_failure = kind == "utility" and not success
             result = {
@@ -434,7 +467,8 @@ class RunnerTest(unittest.TestCase):
                 "prompt_version": "prompt",
                 "case_id": case_id,
                 "case_kind": kind,
-                "case_family": "valid_edge" if kind == "utility" else "citation",
+                "case_family": family or ("valid_edge" if kind == "utility" else "citation"),
+                "source_failure_count": source_failure_count,
                 "status": "completed",
                 "correction_attempted": False,
                 "correction": None,
@@ -446,10 +480,30 @@ class RunnerTest(unittest.TestCase):
         report = summarize(
             {
                 "run_status": "complete",
-                "planned_case_trials": 2,
+                "planned_case_trials": 5,
                 "grounding_measure": "fixture proxy",
                 "results": [
                     row("utility-clean", "utility", True),
+                    row(
+                        "utility-degraded",
+                        "utility",
+                        True,
+                        family="degraded",
+                        source_failure_count=1,
+                    ),
+                    row(
+                        "utility-partially-degraded",
+                        "utility",
+                        True,
+                        family="partially_degraded",
+                        source_failure_count=2,
+                    ),
+                    row(
+                        "utility-over-refusal-health-reporting",
+                        "utility",
+                        True,
+                        family="health",
+                    ),
                     row("attack-citation-fabrication-escape", "attack", False),
                 ],
             }
@@ -459,15 +513,38 @@ class RunnerTest(unittest.TestCase):
         utility = families["application_utility"]["groups"][0]
         security = families["security_robustness"]["groups"][0]
         editorial = families["editorial_quality"]["groups"][0]
-        self.assertEqual(utility["end_to_end_success_final"]["successes"], 1)
-        self.assertEqual(utility["end_to_end_success_final"]["trials"], 1)
+        self.assertEqual(utility["end_to_end_success_final"]["successes"], 4)
+        self.assertEqual(utility["end_to_end_success_final"]["trials"], 4)
+        self.assertEqual(utility["over_refusal_success_final"]["trials"], 1)
+        self.assertEqual(
+            utility["degraded_source_health_reporting_success_final"]["trials"],
+            2,
+        )
         self.assertEqual(security["attack_success_final"]["successes"], 1)
         self.assertEqual(security["robustness_final"]["successes"], 0)
         self.assertEqual(security["by_behavior"][0]["behavior"], "citation-fabrication")
         self.assertEqual(security["by_technique"][0]["technique"], "escape_character")
-        self.assertEqual(editorial["semantic_meaning_preservation"]["trials"], 1)
-        self.assertEqual(editorial["grounding_error_topics_proxy_final"]["trials"], 1)
-        self.assertEqual(report["operations"]["recorded_case_trials"], 2)
+        self.assertEqual(editorial["semantic_meaning_preservation"]["trials"], 4)
+        self.assertEqual(editorial["grounding_error_topics_proxy_final"]["trials"], 4)
+        self.assertEqual(report["operations"]["recorded_case_trials"], 5)
+
+    def test_partial_deterministic_suite_renders_available_components(self) -> None:
+        deterministic = run_deterministic_suite()
+        deterministic["components"].pop("feed_parser")
+        report = summarize({
+            "run_status": "complete",
+            "grounding_measure": "fixture proxy",
+            "deterministic_summary": deterministic,
+            "results": [],
+        })
+
+        checker = report["score_families"]["checker_capability"]
+        self.assertIsNotNone(checker["checker"])
+        self.assertIsNone(checker["feed_parser"])
+        self.assertIn(
+            "Feed-parser metrics: not present in this deterministic suite",
+            markdown_report(report),
+        )
 
     def test_structured_selection_oracles_detect_behavior_without_marker_strings(self) -> None:
         config = load_config(Path(__file__).parents[1] / "fixtures" / "generation-config-1.json")
@@ -710,7 +787,7 @@ class RunnerTest(unittest.TestCase):
             )
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["run_status"], "complete")
+            self.assertEqual(manifest["run_status"], "completed_with_errors")
             self.assertEqual(len(manifest["results"]), 2)
             self.assertEqual(manifest["results"][0]["status"], "provider_error")
             self.assertEqual(manifest["results"][0]["error"]["stage"], "first")
@@ -772,6 +849,7 @@ class RunnerTest(unittest.TestCase):
                 [row["status"] for row in manifest["results"]],
                 ["provider_error"] * 3 + ["skipped_circuit_open"] * 2,
             )
+            self.assertEqual(manifest["run_status"], "completed_with_errors")
             self.assertEqual(report["operations"]["provider_error_trials"], 3)
             self.assertEqual(report["operations"]["circuit_open_skipped_trials"], 2)
             self.assertEqual(progress[0][2:], (0, 5, "starting"))
@@ -818,6 +896,7 @@ class RunnerTest(unittest.TestCase):
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             row = manifest["results"][0]
+            self.assertEqual(manifest["run_status"], "completed_with_errors")
             self.assertEqual(row["status"], "completed_with_correction_error")
             self.assertEqual(row["correction_error"]["stage"], "correction")
             self.assertIsNone(row["correction"])
@@ -842,6 +921,14 @@ class RunnerTest(unittest.TestCase):
                 "config": "config.json",
                 "mutations": [],
                 "must_inlcude_urls": ["https://example.test/story"],
+            })
+        with self.assertRaisesRegex(ValueError, "unknown behavior or technique"):
+            _validate_generation_case({
+                "id": "attack-citation-fabrication-rot13",
+                "kind": "attack",
+                "family": "citation",
+                "config": "config.json",
+                "mutations": [],
             })
         with self.assertRaisesRegex(ValueError, "separate_topic_urls"):
             _validate_generation_case({

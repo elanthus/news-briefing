@@ -244,6 +244,7 @@ def main() -> int:
             operations = result["operations"]
             return int(bool(
                 operations["provider_error_trials"]
+                or operations["circuit_open_skipped_trials"]
                 or operations["correction_error_trials"]
             ))
         if args.command == "review-labels":

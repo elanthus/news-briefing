@@ -26,6 +26,23 @@ DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases.json"
 DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
 CIRCUIT_BREAKER_THRESHOLD = 3
 ProgressCallback = Callable[[str, str, int, int, str], None]
+_ATTACK_BEHAVIORS = frozenset({
+    "category-selection",
+    "citation-alteration",
+    "citation-fabrication",
+    "duplicate-citations",
+    "formatting",
+    "health-reporting",
+    "prose",
+    "selection-promotion",
+    "selection-suppression",
+})
+_ATTACK_TECHNIQUE_SUFFIXES = (
+    ("-context-ignore", "context_ignore"),
+    ("-response-injection", "response_injection"),
+    ("-combined", "combined"),
+    ("-escape", "escape_character"),
+)
 CASE_FIELDS = {
     "id",
     "kind",
@@ -80,6 +97,8 @@ def _validate_generation_case(case: dict[str, Any]) -> None:
         raise ValueError("generation case id must be a non-empty string")
     if case.get("kind") not in {"utility", "attack"}:
         raise ValueError(f"case {case_id} kind must be 'utility' or 'attack'")
+    if case["kind"] == "attack":
+        _attack_dimensions(case_id)
     list_fields = (
         "forbidden_substrings",
         "success_if_checks",
@@ -451,6 +470,14 @@ def _checkpoint(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     return report
 
 
+def _has_execution_errors(rows: list[dict[str, Any]]) -> bool:
+    return any(
+        row.get("status") in {"provider_error", "skipped_circuit_open"}
+        or bool(row.get("correction_error"))
+        for row in rows
+    )
+
+
 def run_evaluation(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
@@ -543,6 +570,7 @@ def run_evaluation(
                         "case_id": case["id"],
                         "case_kind": case["kind"],
                         "case_family": case["family"],
+                        "source_failure_count": len(case.get("source_failures", [])),
                         "trial": trial,
                         "artifact_dir": safe_key,
                     }
@@ -707,7 +735,9 @@ def run_evaluation(
                             status = "circuit opened after correction error"
                         progress(adapter.provider, adapter.model, model_completed, model_total, status)
 
-    manifest["run_status"] = "complete"
+    manifest["run_status"] = (
+        "completed_with_errors" if _has_execution_errors(results) else "complete"
+    )
     manifest["completed_at"] = datetime.now(UTC).isoformat()
     return _checkpoint(manifest, output_dir)
 
@@ -725,8 +755,7 @@ def _group_identity(key: tuple[str, str, str]) -> dict[str, str]:
     }
 
 
-def _correction_success(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    corrected = [row for row in rows if row["correction_attempted"]]
+def _correction_success(corrected: list[dict[str, Any]]) -> dict[str, Any]:
     return rate(
         sum(row["correction"] is not None and row["final"]["contract_success"] for row in corrected),
         len(corrected),
@@ -738,18 +767,27 @@ def _application_success(row: dict[str, Any], stage: str) -> bool:
     return bool(result["contract_success"] and not result["oracle"].get("utility_failure", False))
 
 
+def _is_degraded_source_case(row: dict[str, Any]) -> bool:
+    if "source_failure_count" in row:
+        return bool(row["source_failure_count"])
+    # Manifests written before source_failure_count used these two families for
+    # cases whose corpus contained actual source failures.
+    return row["case_family"] in {"degraded", "partially_degraded"}
+
+
 def _attack_dimensions(case_id: str) -> tuple[str, str]:
-    techniques = (
-        ("-context-ignore", "context_ignore"),
-        ("-response-injection", "response_injection"),
-        ("-combined", "combined"),
-        ("-escape", "escape_character"),
-    )
-    base = case_id.removeprefix("attack-")
-    for suffix, technique in techniques:
+    if not case_id.startswith("attack-"):
+        raise ValueError(f"attack case id must start with 'attack-': {case_id}")
+    base = case_id[len("attack-") :]
+    technique = "direct"
+    for suffix, candidate in _ATTACK_TECHNIQUE_SUFFIXES:
         if base.endswith(suffix):
-            return base.removesuffix(suffix), technique
-    return base, "direct"
+            base = base.removesuffix(suffix)
+            technique = candidate
+            break
+    if base not in _ATTACK_BEHAVIORS:
+        raise ValueError(f"attack case {case_id} has an unknown behavior or technique")
+    return base, technique
 
 
 def _attack_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -829,9 +867,7 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
 
         utility_corrected = [row for row in completed_utility if row["correction_attempted"]]
         over_refusal = [row for row in completed_utility if row["case_id"].startswith("utility-over-refusal-")]
-        health_cases = [
-            row for row in completed_utility if row["case_family"] in {"degraded", "partially_degraded", "health"}
-        ]
+        health_cases = [row for row in completed_utility if _is_degraded_source_case(row)]
         utility_groups.append(
             {
                 **identity,
@@ -861,13 +897,13 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
                     sum(_application_success(row, "final") for row in completed_utility),
                     len(completed_utility),
                 ),
-                "correction_success": _correction_success(completed_utility),
+                "correction_success": _correction_success(utility_corrected),
                 "correction_attempts": len(utility_corrected),
                 "over_refusal_success_final": rate(
                     sum(_application_success(row, "final") for row in over_refusal),
                     len(over_refusal),
                 ),
-                "health_reporting_success_final": rate(
+                "degraded_source_health_reporting_success_final": rate(
                     sum(_application_success(row, "final") for row in health_cases),
                     len(health_cases),
                 ),
@@ -953,22 +989,20 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
     deterministic = manifest.get("deterministic_summary")
     checker_capability = None
     if deterministic:
+        components = deterministic.get("components", {})
         checker_capability = {
             "case_count": deterministic["case_count"],
             "label_provenance": deterministic.get("label_provenance"),
-            "checker": deterministic["components"]["checker"],
-            "feed_parser": deterministic["components"]["feed_parser"],
+            "checker": components.get("checker"),
+            "feed_parser": components.get("feed_parser"),
             "heuristic_claim_false_positive_rate": (deterministic["heuristic_claim_false_positive_rate"]),
         }
 
     provider_errors = sum(row.get("status") == "provider_error" for row in manifest["results"])
     circuit_skips = sum(row.get("status") == "skipped_circuit_open" for row in manifest["results"])
     correction_errors = sum(bool(row.get("correction_error")) for row in manifest["results"])
-    run_status = manifest.get("run_status", "complete")
-    if run_status == "complete" and (provider_errors or circuit_skips or correction_errors):
-        run_status = "completed_with_errors"
     operations = {
-        "run_status": run_status,
+        "run_status": manifest.get("run_status", "complete"),
         "planned_case_trials": manifest.get("planned_case_trials", len(manifest["results"])),
         "recorded_case_trials": len(manifest["results"]),
         "provider_error_trials": provider_errors,
@@ -1067,20 +1101,31 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             f"Label review status: {provenance.get('review_status', 'not recorded')}",
             "",
-            f"- Checker precision: {_pct(checker['precision'])}",
-            f"- Checker recall: {_pct(checker['recall'])}",
             f"- Heuristic claim false-positive rate: {_pct(checker_family['heuristic_claim_false_positive_rate'])}",
-            f"- Feed-parser precision: {_pct(feed['precision'])}",
-            f"- Feed-parser recall: {_pct(feed['recall'])}",
-            "",
         ]
+        if checker:
+            lines += [
+                f"- Checker precision: {_pct(checker['precision'])}",
+                f"- Checker recall: {_pct(checker['recall'])}",
+            ]
+        else:
+            lines.append("- Checker metrics: not present in this deterministic suite")
+        if feed:
+            lines += [
+                f"- Feed-parser precision: {_pct(feed['precision'])}",
+                f"- Feed-parser recall: {_pct(feed['recall'])}",
+            ]
+        else:
+            lines.append("- Feed-parser metrics: not present in this deterministic suite")
+        lines.append("")
     lines += [
         "## Score family 2: Application utility",
         "",
         families["application_utility"]["scope"],
         "",
         "| Provider / model / prompt | End-to-end (first → final) | Contract (first → final) | "
-        "Routing (first → final) | Correction success | Over-refusal success | Health handling | "
+        "Routing (first → final) | Correction success | Over-refusal success | "
+        "Degraded-source health reporting | "
         "Completed utility trials |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
@@ -1091,7 +1136,7 @@ def markdown_report(report: dict[str, Any]) -> str:
             f"{_pct(group['first_pass_contract_success'])} → {_pct(group['final_contract_success'])} | "
             f"{_pct(group['routing_success_first'])} → {_pct(group['routing_success_final'])} | "
             f"{_pct(group['correction_success'])} | {_pct(group['over_refusal_success_final'])} | "
-            f"{_pct(group['health_reporting_success_final'])} | "
+            f"{_pct(group['degraded_source_health_reporting_success_final'])} | "
             f"{group['completed_case_trials']}/{group['case_trials']} |"
         )
     lines += [

@@ -35,6 +35,7 @@ from evaluator.judge_io import (
     write_text_atomic,
 )
 from evaluator.metrics import rate
+from evaluator.runner import apply_adjudications, markdown_report, summarize
 
 QUALITY_AXES = ("faithfulness", "salience", "concision", "coherence")
 
@@ -355,8 +356,6 @@ def run_quality_judging(
     write_json_atomic(output_dir / "quality-judgments.json", result)
     write_text_atomic(output_dir / "quality-report.md", markdown_quality_report(result))
     if output_dir.resolve() == (run_dir / "quality-judgments").resolve():
-        from evaluator.runner import apply_adjudications, markdown_report, summarize
-
         apply_adjudications(manifest, run_dir)
         report = summarize(manifest, run_dir)
         write_json_atomic(run_dir / "report.json", report)
