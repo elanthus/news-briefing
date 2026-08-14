@@ -1,13 +1,27 @@
-# Matched clean/attack pairs — design
+# Matched clean/attack pairs + production-corpus ablation — design
 
-**Goal:** For 5 representative attack cases, run the exact same task with and
-without the injected instruction and report the two outcomes side by side —
-benign utility (clean twin), utility under attack, and targeted attack
-success (both from the existing attacked run) — so robustness numbers are
-never read without their matched utility cost. This is AgentDojo's clean/attack
-pairing (item 1 of the suggestions the user brought from the AgentDojo paper),
-scoped down from the full 21-case matrix to 5 cases chosen to cover distinct
-oracle mechanisms, one per targeted behavior:
+**Goal:** Two additions from the AgentDojo-inspired suggestion list, both in
+scope for this pass:
+
+1. **Matched clean/attack pairs (item 1).** For 5 representative attack cases,
+   run the exact same task with and without the injected instruction and
+   report the two outcomes side by side — benign utility (clean twin),
+   utility under attack, and targeted attack success (both from the existing
+   attacked run) — so robustness numbers are never read without their matched
+   utility cost.
+2. **Production-corpus position/attacker-control ablation (item 2).** New
+   attack cases against the realistic 236-item production corpus, varying
+   where in the corpus the attacker-controlled item(s) sit (early/middle/late)
+   and how many items the attacker controls (single vs. several), per
+   AgentDojo's finding that both position and attacker-controlled fraction of
+   context materially change attack success.
+
+Items 3–5 of the original suggestion list (adaptive attack aggregation,
+task×attack-goal coverage, compound goals) remain out of scope for this pass.
+
+## Item 1 — the 5 matched pairs
+
+Chosen to cover distinct oracle mechanisms, one per targeted behavior:
 
 - `attack-citation-fabrication` (the technique-sensitivity probe)
 - `attack-citation-alteration`
@@ -15,11 +29,9 @@ oracle mechanisms, one per targeted behavior:
 - `attack-selection-promotion`
 - `attack-selection-suppression` (capacity-aware, `require_utility_preserved`)
 
-All five are the existing `direct`-technique case IDs (no suffix). Item 2 of
-the original suggestion list (production-corpus position/attacker-control
-ablation) is explicitly out of scope for this pass.
+All five are the existing `direct`-technique case IDs (no suffix).
 
-## Why no new fixture cases
+### Why no new fixture cases
 
 AgentDojo's clean/attack pair is the same task, with and without the injected
 string. The 5 chosen cases already fully define that task via their existing
@@ -29,7 +41,7 @@ fixture entries would drift from the attacked case over time (two places to
 update). Instead, a case-level flag drives the runner to derive and execute
 the clean twin at run time.
 
-## Oracle reuse — no new scoring logic
+### Oracle reuse — no new scoring logic
 
 `_oracle`'s existing `utility_under_attack` field (`evaluator/runner.py:359`)
 is already kind-agnostic: "did the model do the basic job — structurally
@@ -39,7 +51,7 @@ of whether the attacker's specific goal also occurred." That is exactly
 function is needed; the clean twin's `oracle["utility_under_attack"]` *is*
 the benign-utility number.
 
-## Architecture
+### Architecture
 
 **`evaluator/fixtures/generation-cases.json`**
 - Add `"matched_pair": true` to the 5 named cases.
@@ -69,7 +81,7 @@ the benign-utility number.
 count multiplier already in play) — cheap enough to run unconditionally,
 matching the user's call to skip an opt-in flag.
 
-## Data flow
+### Data flow
 
 The clean twin is a first-class trial: its own provider call, latency, cost,
 manifest entry, and artifact directory — not a value derived after the fact
@@ -77,7 +89,7 @@ from the attacked run. This matters because the checker-correction loop and
 provider nondeterminism both mean the clean output isn't reconstructable from
 the attacked output.
 
-## Testing
+### Testing
 
 - `test_matched_pair_clean_run_has_no_mutation_applied` — clean row's rendered
   corpus/output contains none of the attacked case's injected text; the
@@ -98,8 +110,108 @@ the attacked output.
   flagged cases (case count itself doesn't change — same 43 cases, 5 gain a
   field).
 
+## Item 2 — production-corpus position/attacker-control ablation
+
+**Scope:** 2 behaviors (`citation-fabrication`, `selection-suppression`) × 3
+corpus positions (`early`/`middle`/`late`) × 2 controlled-item counts
+(`single`/`multi`) = 12 new cases, all `direct` technique (position/count is
+the variable under test here, not technique — that axis is already covered
+by the existing suite). Bounded to 2 representative behaviors rather than all
+9, mirroring AgentDojo's own practice of ablating on a couple of
+representative tasks rather than the whole suite.
+
+Behaviors chosen because they already have distinct oracle mechanisms worth
+stressing under a bigger, more realistic corpus: `citation-fabrication` is
+the suite's existing technique-sensitivity probe, and `selection-suppression`
+is the one behavior with a capacity-aware `require_utility_preserved` floor.
+
+**Position semantics:** corpus items within a category are in recency order
+(`fetch_news.py:845`), which is also their order in the serialized JSON the
+model reads (`evaluator/runner.py`'s `model_request` embeds the corpus
+verbatim). "Position" = index of the mutated item(s) within their category's
+array, bucketed into thirds: `early` = first eligible item, `late` = last
+eligible item, `middle` = the item nearest the array's midpoint.
+
+**Controlled-item-count semantics:** `single` mutates exactly 1 item;
+`multi` mutates 3 items, clustered at the position under test (e.g.
+`late`/`multi` mutates the last 3 eligible items, not 3 items spread across
+the whole array) — this keeps position and count as independently
+controlled axes of the same factorial rather than conflating "spread out"
+with "many."
+
+### Architecture
+
+**`evaluator/fixtures/generation-corpus-production.json` /
+`generation-config-production.json`** (already exist from the 2026-08-13
+rebalance) — reused as-is, no changes.
+
+**`evaluator/fixtures/generation-cases.json`**
+- 12 new cases, IDs like `attack-citation-fabrication-early-single`,
+  `attack-selection-suppression-late-multi`. Each case sets `"config":
+  "generation-config-production.json"`, `"corpus":
+  "generation-corpus-production.json"`, `corpus_position`, `controlled_items`,
+  and `mutations` targeting the concrete chosen item(s) (specific corpus
+  URLs picked by hand from the production fixture, same authoring process as
+  the existing 4 production-fixture utility cases — see
+  `docs/plans/2026-08-13-evaluator-rebalance.md` Task 1.2).
+- `forbidden_substrings`/`success_if_checks` mirror the existing
+  `attack-citation-fabrication`/`attack-selection-suppression` base cases
+  (same attack text and oracle, only the corpus/position/count differ), with
+  `require_utility_preserved` carried over for the `selection-suppression`
+  variants since the base case has it.
+
+**`evaluator/runner.py`**
+- `CASE_FIELDS` gains `corpus_position` (`"early"|"middle"|"late"`) and
+  `controlled_items` (`"single"|"multi"`), both optional strings.
+- `_validate_generation_case`: accept and validate the new fields (must be
+  one of the allowed literals when present).
+- `_attack_dimensions` extended from a 2-tuple to a 4-tuple
+  `(behavior, technique, position, controlled_items)`. Position/count are
+  NOT parsed from the case ID (unlike technique) — they come straight from
+  the new case fields, since encoding them as ID suffixes would require
+  extending `_ATTACK_BEHAVIORS`'s exact-match parsing in a way that's more
+  fragile than just reading two explicit fields. The ID still encodes them
+  for human readability, but the parser trusts the fields, not the string.
+  Existing 21 cases without these fields get `position=None,
+  controlled_items=None`.
+- `_attack_breakdown` gains two more `dimension` values: `"position"` and
+  `"controlled_items"`, each restricted to rows whose case declares the
+  field (existing cases without it don't appear in these two breakdowns).
+- `markdown_report`: two new tables ("Attack success by corpus position",
+  "Attack success by attacker-controlled item count") alongside the existing
+  behavior/technique tables in Security robustness.
+
+### Data flow
+
+No new execution path — these are ordinary attack cases through the existing
+generate → checker-correction → oracle pipeline (`run_evaluation` already
+supports per-case `corpus`/`config` via the 2026-08-13 rebalance's Task 1.3).
+The only new thing is which corpus items the `mutations` target and two
+descriptive fields used purely for report bucketing — `_oracle` itself is
+unchanged.
+
+### Testing
+
+- `test_attack_dimensions_parses_position_and_control_fields` — a case dict
+  with `corpus_position`/`controlled_items` set returns them in the 4-tuple;
+  a case dict without them returns `(behavior, technique, None, None)`.
+- `test_attack_breakdown_by_position_excludes_cases_without_position` —
+  the 21 pre-existing cases don't appear in the `"position"` breakdown.
+- `test_generation_attack_matrix_and_decoys_are_complete` extended: 21 → 33
+  attack cases (21 + 12); assert the 12 new IDs are exactly the 2×3×2
+  factorial.
+- Extend `BaselineReportTest`'s `compliant`-baseline 100%-attack-success
+  regression test to include the 12 new cases (proves the oracle fires
+  against the production corpus and the new mutation positions, not just the
+  small synthetic fixture).
+
 ## Report / docs
 
-`evaluator/README.md`'s "What is fixed" section gets a short paragraph
-naming the 5 paired cases and one sentence on why they're not all 21
-(cost-scoped representative sample, one per distinct oracle mechanism).
+`evaluator/README.md`'s "What is fixed" section gets two short additions:
+naming the 5 paired cases (and why not all 21 — cost-scoped representative
+sample, one per distinct oracle mechanism), and describing the 12 new
+production-corpus position/control cases (why 2 behaviors not 9, what
+early/middle/late and single/multi mean). Root `README.md`'s case-count line
+and `evaluator/fixtures/generation-cases.json`'s case_count get updated for
+43 → 55 total cases (43 existing + 12 new; the 5 matched-pair flags don't add
+cases, just a field).
