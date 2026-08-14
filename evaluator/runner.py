@@ -1432,6 +1432,62 @@ _SECURITY_HEADER = [
 ]
 
 
+def _security_detail_lines(group: dict[str, Any]) -> list[str]:
+    by_behavior = group.get("by_behavior", [])
+    by_technique = group.get("by_technique", [])
+    matched_pairs = group.get("matched_pairs", [])
+    if not by_behavior and not by_technique and not matched_pairs:
+        return []
+
+    lines = [
+        "",
+        f"### Security breakdown — {_render_group_label(group)}",
+    ]
+    if by_behavior:
+        lines += [
+            "",
+            "| Behavior | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_behavior:
+            lines.append(
+                f"| {row['behavior']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if by_technique:
+        lines += [
+            "",
+            "| Attack technique | Final attack success | Final robustness | Completed trials |",
+            "|---|---:|---:|---:|",
+        ]
+        for row in by_technique:
+            lines.append(
+                f"| {row['technique']} | {_pct(row['attack_success_final'])} | "
+                f"{_pct(row['robustness_final'])} | "
+                f"{row['completed_case_trials']}/{row['case_trials']} |"
+            )
+    if matched_pairs:
+        lines += [
+            "",
+            "#### Matched clean/attack pairs",
+            "",
+            "| Case | Stage | Benign structural utility | Structural utility under attack | "
+            "Targeted attack success | Completed pairs |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+        for row in matched_pairs:
+            for stage in ("first", "final"):
+                lines.append(
+                    f"| {row['case_id']} | {stage} | "
+                    f"{_pct(row[f'benign_structural_utility_{stage}'])} | "
+                    f"{_pct(row[f'structural_utility_under_attack_{stage}'])} | "
+                    f"{_pct(row[f'targeted_attack_success_{stage}'])} | "
+                    f"{row['completed_pairs']}/{row['planned_pairs']} |"
+                )
+    return lines
+
+
 def _editorial_row(group: dict[str, Any]) -> str:
     semantic = _pct(group["semantic_meaning_preservation"])
     unresolved = group["semantic_unreviewed_propositions"] + group["semantic_unclear_propositions"]
@@ -1594,32 +1650,7 @@ def markdown_report(report: dict[str, Any]) -> str:
         *(_security_row(group) for group in security_live),
     ]
     for group in security_live:
-        if not group["by_behavior"] and not group["by_technique"]:
-            continue
-        lines += [
-            "",
-            f"### Security breakdown — {_render_group_label(group)}",
-            "",
-            "| Behavior | Final attack success | Final robustness | Completed trials |",
-            "|---|---:|---:|---:|",
-        ]
-        for row in group["by_behavior"]:
-            lines.append(
-                f"| {row['behavior']} | {_pct(row['attack_success_final'])} | "
-                f"{_pct(row['robustness_final'])} | "
-                f"{row['completed_case_trials']}/{row['case_trials']} |"
-            )
-        lines += [
-            "",
-            "| Attack technique | Final attack success | Final robustness | Completed trials |",
-            "|---|---:|---:|---:|",
-        ]
-        for row in group["by_technique"]:
-            lines.append(
-                f"| {row['technique']} | {_pct(row['attack_success_final'])} | "
-                f"{_pct(row['robustness_final'])} | "
-                f"{row['completed_case_trials']}/{row['case_trials']} |"
-            )
+        lines += _security_detail_lines(group)
     pairwise = families["editorial_quality"]["pairwise_judging"]
     lines += [
         "",
@@ -1669,6 +1700,9 @@ def markdown_report(report: dict[str, Any]) -> str:
         if security_baseline:
             lines += ["### Security robustness (baseline)", "", *_SECURITY_HEADER,
                       *(_security_row(group) for group in security_baseline), ""]
+            for group in security_baseline:
+                lines += _security_detail_lines(group)
+            lines.append("")
         if editorial_baseline:
             lines += ["### Editorial quality (baseline)", "", *_EDITORIAL_HEADER,
                       *(_editorial_row(group) for group in editorial_baseline), ""]
