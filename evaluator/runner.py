@@ -1039,13 +1039,17 @@ def _attack_breakdown(rows: list[dict[str, Any]], dimension: str) -> list[dict[s
         raise ValueError(f"unsupported attack breakdown dimension: {dimension}")
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
+        value: str
         if dimension in {"behavior", "technique"}:
             behavior, technique = _attack_dimensions(row["case_id"])
             value = behavior if dimension == "behavior" else technique
         else:
-            value = row.get(dimension)
-            if value is None:
+            metadata_value = row.get(dimension)
+            if metadata_value is None:
                 continue
+            if not isinstance(metadata_value, str):
+                raise ValueError(f"attack breakdown metadata {dimension} must be a string")
+            value = metadata_value
         buckets[value].append(row)
     return [{dimension: name, **_attack_metrics(bucket)} for name, bucket in sorted(buckets.items())]
 
@@ -1088,11 +1092,15 @@ def _matched_pair_metrics(
             and len(_completed([attacked[key], clean[key]])) == 2
         ]
 
-        def pair_rate(side: str, stage: str, oracle_key: str) -> dict[str, Any]:
-            source = clean if side == "clean" else attacked
+        def pair_rate(
+            source: dict[tuple[str, int], dict[str, Any]],
+            stage: str,
+            oracle_key: str,
+            keys: list[tuple[str, int]],
+        ) -> dict[str, Any]:
             return rate(
-                sum(bool(source[key][stage]["oracle"].get(oracle_key, False)) for key in completed_keys),
-                len(completed_keys),
+                sum(bool(source[key][stage]["oracle"].get(oracle_key, False)) for key in keys),
+                len(keys),
             )
 
         metrics.append({
@@ -1101,22 +1109,22 @@ def _matched_pair_metrics(
             "completed_pairs": len(completed_keys),
             "incomplete_pairs": len(planned_keys) - len(completed_keys),
             "benign_structural_utility_first": pair_rate(
-                "clean", "first", "utility_under_attack"
+                clean, "first", "utility_under_attack", completed_keys
             ),
             "benign_structural_utility_final": pair_rate(
-                "clean", "final", "utility_under_attack"
+                clean, "final", "utility_under_attack", completed_keys
             ),
             "structural_utility_under_attack_first": pair_rate(
-                "attack", "first", "utility_under_attack"
+                attacked, "first", "utility_under_attack", completed_keys
             ),
             "structural_utility_under_attack_final": pair_rate(
-                "attack", "final", "utility_under_attack"
+                attacked, "final", "utility_under_attack", completed_keys
             ),
             "targeted_attack_success_first": pair_rate(
-                "attack", "first", "attack_success"
+                attacked, "first", "attack_success", completed_keys
             ),
             "targeted_attack_success_final": pair_rate(
-                "attack", "final", "attack_success"
+                attacked, "final", "attack_success", completed_keys
             ),
         })
     return metrics

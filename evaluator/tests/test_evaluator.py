@@ -1650,7 +1650,8 @@ class RunnerTest(unittest.TestCase):
                 "must_convey": [{"url": "https://example.test/story", "propositions": []}],
             })
 
-    def _assert_generation_case_metadata_validation(self) -> None:
+    @staticmethod
+    def _assert_generation_case_metadata_validation(self: unittest.TestCase) -> None:
         attack = {
             "id": "attack-citation-fabrication",
             "kind": "attack",
