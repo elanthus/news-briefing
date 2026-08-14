@@ -1067,6 +1067,131 @@ def _pairwise_overall(group: dict[str, Any]) -> str:
     return "n/a"
 
 
+def _is_baseline(group: dict[str, Any]) -> bool:
+    """Whether a report group is an offline reference strategy, not a live model.
+
+    Baseline rows are real trial data (see evaluator/adapters.py's
+    BaselineAdapter), so they still belong in score_families/summarize's
+    output — this only controls how markdown_report presents them: separated
+    from cross-model tables so a reader cannot mistake a zero-cost floor or
+    positive control for a live-model result.
+    """
+    return group["provider"] == "baseline"
+
+
+def _partition_baseline(groups: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    live = [group for group in groups if not _is_baseline(group)]
+    baseline = [group for group in groups if _is_baseline(group)]
+    return live, baseline
+
+
+def _utility_row(group: dict[str, Any]) -> str:
+    return (
+        f"| {_render_group_label(group)} | "
+        f"{_pct(group['end_to_end_success_first'])} → {_pct(group['end_to_end_success_final'])} | "
+        f"{_pct(group['first_pass_contract_success'])} → {_pct(group['final_contract_success'])} | "
+        f"{_pct(group['routing_success_first'])} → {_pct(group['routing_success_final'])} | "
+        f"{_pct(group['correction_success'])} | {_pct(group['over_refusal_success_final'])} | "
+        f"{_pct(group['degraded_source_health_reporting_success_final'])} | "
+        f"{group['completed_case_trials']}/{group['case_trials']} |"
+    )
+
+
+_UTILITY_HEADER = [
+    "| Provider / model / prompt | End-to-end (first → final) | Contract (first → final) | "
+    "Routing (first → final) | Correction success | Over-refusal success | "
+    "Degraded-source health reporting | "
+    "Completed utility trials |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|",
+]
+
+
+def _security_row(group: dict[str, Any]) -> str:
+    return (
+        f"| {_render_group_label(group)} | "
+        f"{_pct(group['robustness_first'])} → {_pct(group['robustness_final'])} | "
+        f"{_pct(group['attack_success_first'])} → {_pct(group['attack_success_final'])} | "
+        f"{_pct(group['attack_recovery_success'])} | "
+        f"{group['completed_case_trials']}/{group['case_trials']} |"
+    )
+
+
+_SECURITY_HEADER = [
+    "| Provider / model / prompt | Robustness (first → final) | "
+    "Attack success (first → final) | Attack recovery | Completed attack trials |",
+    "|---|---:|---:|---:|---:|",
+]
+
+
+def _editorial_row(group: dict[str, Any]) -> str:
+    semantic = _pct(group["semantic_meaning_preservation"])
+    unresolved = group["semantic_unreviewed_propositions"] + group["semantic_unclear_propositions"]
+    if unresolved:
+        semantic += f" ({unresolved} unresolved)"
+    proxy = f"{_pct(group['grounding_error_topics_proxy_first'])} → {_pct(group['grounding_error_topics_proxy_final'])}"
+    return (
+        f"| {_render_group_label(group)} | {semantic} | "
+        f"{_pct(group['grounding_error_topics_human'])} | {proxy} | "
+        f"{_pairwise_overall(group)} | "
+        f"{group['completed_utility_case_trials']}/{group['utility_case_trials']} |"
+    )
+
+
+_EDITORIAL_HEADER = [
+    "| Provider / model / prompt | Meaning preserved | Human grounding errors | "
+    "Proxy grounding errors (first → final) | Pairwise overall win rate | "
+    "Completed utility trials |",
+    "|---|---:|---:|---:|---:|---:|",
+]
+
+
+def _operations_row(group: dict[str, Any]) -> str:
+    latency = group["latency_first"]["mean_ms"]
+    latency_text = f"{latency:.0f} ms (n={group['latency_first']['trials']})" if latency is not None else "n/a"
+    total = group["cost"]["total_usd"]
+    cost_text = f"${total:.4f}" if total is not None else "not reported"
+    if group["cost"]["unreported_calls"]:
+        cost_text += f" ({group['cost']['unreported_calls']} call(s) missing)"
+    return (
+        f"| {_render_group_label(group)} | "
+        f"{group['completed_case_trials']}/{group['case_trials']} | "
+        f"{group['provider_error_trials']} | {group['circuit_open_skipped_trials']} | "
+        f"{group['correction_error_trials']} | {latency_text} | {cost_text} |"
+    )
+
+
+_OPERATIONS_HEADER = [
+    "| Provider / model / prompt | Completed trials | Provider errors | Circuit skips | "
+    "Correction errors | First latency mean | Cost |",
+    "|---|---:|---:|---:|---:|---:|---:|",
+]
+
+
+def _baseline_summary_callout(
+    utility_baseline: list[dict[str, Any]], security_baseline: list[dict[str, Any]]
+) -> list[str]:
+    """A sentence pairing empty/echo's robustness against their utility, sourced from real numbers.
+
+    This is the concrete artifact for the AgentDojo-derived posture
+    evaluator/README.md already cites: robustness is meaningless unpaired
+    with utility. Only speaks about models actually present in this run.
+    """
+    security_by_model = {group["model"]: group for group in security_baseline}
+    utility_by_model = {group["model"]: group for group in utility_baseline}
+    lines: list[str] = []
+    for model in ("empty", "echo"):
+        security = security_by_model.get(model)
+        utility = utility_by_model.get(model)
+        if security is None or utility is None:
+            continue
+        lines.append(
+            f"- `{model}`: {_pct(security['robustness_final'])} robustness paired with "
+            f"{_pct(utility['end_to_end_success_final'])} end-to-end utility — robustness alone "
+            "does not show whether the system is worth deploying."
+        )
+    return lines
+
+
 def markdown_report(report: dict[str, Any]) -> str:
     families = report["score_families"]
     operations = report["operations"]
@@ -1123,46 +1248,32 @@ def markdown_report(report: dict[str, Any]) -> str:
         else:
             lines.append("- Feed-parser metrics: not present in this deterministic suite")
         lines.append("")
+
+    utility_live, utility_baseline = _partition_baseline(families["application_utility"]["groups"])
+    security_live, security_baseline = _partition_baseline(families["security_robustness"]["groups"])
+    editorial_live, editorial_baseline = _partition_baseline(families["editorial_quality"]["groups"])
+    operations_live, operations_baseline = _partition_baseline(operations["groups"])
+
     lines += [
         "## Score family 2: Application utility",
         "",
-        families["application_utility"]["scope"],
+        families["application_utility"]["scope"] + " Offline reference baselines are reported "
+        "separately below, not in this cross-model table.",
         "",
-        "| Provider / model / prompt | End-to-end (first → final) | Contract (first → final) | "
-        "Routing (first → final) | Correction success | Over-refusal success | "
-        "Degraded-source health reporting | "
-        "Completed utility trials |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        *_UTILITY_HEADER,
+        *(_utility_row(group) for group in utility_live),
     ]
-    for group in families["application_utility"]["groups"]:
-        lines.append(
-            f"| {_render_group_label(group)} | "
-            f"{_pct(group['end_to_end_success_first'])} → {_pct(group['end_to_end_success_final'])} | "
-            f"{_pct(group['first_pass_contract_success'])} → {_pct(group['final_contract_success'])} | "
-            f"{_pct(group['routing_success_first'])} → {_pct(group['routing_success_final'])} | "
-            f"{_pct(group['correction_success'])} | {_pct(group['over_refusal_success_final'])} | "
-            f"{_pct(group['degraded_source_health_reporting_success_final'])} | "
-            f"{group['completed_case_trials']}/{group['case_trials']} |"
-        )
     lines += [
         "",
         "## Score family 3: Security robustness",
         "",
-        families["security_robustness"]["scope"],
+        families["security_robustness"]["scope"] + " Offline reference baselines are reported "
+        "separately below, not in this cross-model table.",
         "",
-        "| Provider / model / prompt | Robustness (first → final) | "
-        "Attack success (first → final) | Attack recovery | Completed attack trials |",
-        "|---|---:|---:|---:|---:|",
+        *_SECURITY_HEADER,
+        *(_security_row(group) for group in security_live),
     ]
-    for group in families["security_robustness"]["groups"]:
-        lines.append(
-            f"| {_render_group_label(group)} | "
-            f"{_pct(group['robustness_first'])} → {_pct(group['robustness_final'])} | "
-            f"{_pct(group['attack_success_first'])} → {_pct(group['attack_success_final'])} | "
-            f"{_pct(group['attack_recovery_success'])} | "
-            f"{group['completed_case_trials']}/{group['case_trials']} |"
-        )
-    for group in families["security_robustness"]["groups"]:
+    for group in security_live:
         if not group["by_behavior"] and not group["by_technique"]:
             continue
         lines += [
@@ -1194,55 +1305,56 @@ def markdown_report(report: dict[str, Any]) -> str:
         "",
         "## Score family 4: Editorial quality",
         "",
-        families["editorial_quality"]["scope"],
+        families["editorial_quality"]["scope"] + " Offline reference baselines are reported "
+        "separately below, not in this cross-model table.",
         "",
         f"Grounding metric: {families['editorial_quality']['grounding_measure']}",
         "",
         f"Pairwise prose judging: {pairwise['status']} "
         f"({pairwise['pairs_judged']}/{pairwise['pairs_available']} pairs judged).",
         "",
-        "| Provider / model / prompt | Meaning preserved | Human grounding errors | "
-        "Proxy grounding errors (first → final) | Pairwise overall win rate | "
-        "Completed utility trials |",
-        "|---|---:|---:|---:|---:|---:|",
+        *_EDITORIAL_HEADER,
+        *(_editorial_row(group) for group in editorial_live),
     ]
-    for group in families["editorial_quality"]["groups"]:
-        semantic = _pct(group["semantic_meaning_preservation"])
-        unresolved = group["semantic_unreviewed_propositions"] + group["semantic_unclear_propositions"]
-        if unresolved:
-            semantic += f" ({unresolved} unresolved)"
-        proxy = (
-            f"{_pct(group['grounding_error_topics_proxy_first'])} → {_pct(group['grounding_error_topics_proxy_final'])}"
-        )
-        lines.append(
-            f"| {_render_group_label(group)} | {semantic} | "
-            f"{_pct(group['grounding_error_topics_human'])} | {proxy} | "
-            f"{_pairwise_overall(group)} | "
-            f"{group['completed_utility_case_trials']}/{group['utility_case_trials']} |"
-        )
     lines += [
         "",
         "## Operations (not a score family)",
         "",
         "Provider failures, completion, latency, and cost describe execution conditions; "
-        "they are not folded into quality or robustness scores.",
+        "they are not folded into quality or robustness scores. Offline reference baselines "
+        "are reported separately below, not in this cross-model table.",
         "",
-        "| Provider / model / prompt | Completed trials | Provider errors | Circuit skips | "
-        "Correction errors | First latency mean | Cost |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        *_OPERATIONS_HEADER,
+        *(_operations_row(group) for group in operations_live),
     ]
-    for group in operations["groups"]:
-        latency = group["latency_first"]["mean_ms"]
-        latency_text = f"{latency:.0f} ms (n={group['latency_first']['trials']})" if latency is not None else "n/a"
-        total = group["cost"]["total_usd"]
-        cost_text = f"${total:.4f}" if total is not None else "not reported"
-        if group["cost"]["unreported_calls"]:
-            cost_text += f" ({group['cost']['unreported_calls']} call(s) missing)"
-        lines.append(
-            f"| {_render_group_label(group)} | "
-            f"{group['completed_case_trials']}/{group['case_trials']} | "
-            f"{group['provider_error_trials']} | {group['circuit_open_skipped_trials']} | "
-            f"{group['correction_error_trials']} | {latency_text} | {cost_text} |"
-        )
+
+    if utility_baseline or security_baseline or editorial_baseline or operations_baseline:
+        lines += [
+            "",
+            "## Reference baselines (offline, zero-cost — excluded from cross-model tables above)",
+            "",
+            "Deterministic, no-network strategies from the `baseline` provider "
+            "(evaluator/adapters.py:BaselineAdapter): `empty` renders only the structural "
+            "skeleton, `echo` fills sections in corpus recency order with verbatim text, "
+            "and `compliant` obeys every embedded instruction as a positive control. They "
+            "anchor every rate above against known floors rather than leaving it unanchored.",
+            "",
+        ]
+        callout = _baseline_summary_callout(utility_baseline, security_baseline)
+        if callout:
+            lines += callout + [""]
+        if utility_baseline:
+            lines += ["### Application utility (baseline)", "", *_UTILITY_HEADER,
+                      *(_utility_row(group) for group in utility_baseline), ""]
+        if security_baseline:
+            lines += ["### Security robustness (baseline)", "", *_SECURITY_HEADER,
+                      *(_security_row(group) for group in security_baseline), ""]
+        if editorial_baseline:
+            lines += ["### Editorial quality (baseline)", "", *_EDITORIAL_HEADER,
+                      *(_editorial_row(group) for group in editorial_baseline), ""]
+        if operations_baseline:
+            lines += ["### Operations (baseline)", "", *_OPERATIONS_HEADER,
+                      *(_operations_row(group) for group in operations_baseline), ""]
+
     lines.append("")
     return "\n".join(lines)

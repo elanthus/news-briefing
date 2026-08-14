@@ -39,14 +39,17 @@ from evaluator.quality import (
 )
 from evaluator.runner import (
     DEFAULT_CORPUS,
+    DEFAULT_SUITE,
     _attack_dimensions,
     _mutate,
     _oracle,
     _semantic_adjudication_template,
+    _set_source_failures,
     _validate_generation_case,
     apply_adjudications,
     correction_request,
     markdown_report,
+    model_request,
     run_evaluation,
     summarize,
 )
@@ -1540,6 +1543,191 @@ class QualityJudgeTest(unittest.TestCase):
 
             run_quality_judging(manifest_path, judge, temporary / "quality")
             self.assertEqual(judge.calls, 2)
+
+
+class BaselineAdapterTest(unittest.TestCase):
+    """Offline, deterministic reference strategies that anchor every rate in the report."""
+
+    def _prompt(self, config_data: dict, corpus: dict) -> str:
+        prompt_text = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
+        return model_request(prompt_text, config_data, corpus)
+
+    def test_unknown_baseline_strategy_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown baseline strategy"):
+            adapter_for("baseline", "sandbagging")
+
+    def test_empty_baseline_has_structural_floor_only(self) -> None:
+        config_path = Path(__file__).parents[1] / "fixtures" / "generation-config-3.json"
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config = load_config(config_path)
+        corpus = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+
+        generation = adapter_for("baseline", "empty").generate(self._prompt(config_data, corpus))
+        sections = eval_briefing.parse_briefing(generation.text, config)
+        findings = eval_briefing.evaluate_parsed(corpus, generation.text, sections, config)
+
+        self.assertEqual(generation.cost_usd, 0.0)
+        self.assertEqual([f for f in findings if f.level == eval_briefing.ERROR], [])
+        self.assertIn("slots_underfilled", {f.check for f in findings})
+        self.assertEqual(sections["AI Dev Tools"]["topics"], [])
+
+    def test_echo_baseline_uses_recency_order_and_real_urls(self) -> None:
+        config_path = Path(__file__).parents[1] / "fixtures" / "generation-config-2.json"
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config = load_config(config_path)
+        corpus = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+
+        generation = adapter_for("baseline", "echo").generate(self._prompt(config_data, corpus))
+        sections = eval_briefing.parse_briefing(generation.text, config)
+        findings = eval_briefing.evaluate_parsed(corpus, generation.text, sections, config)
+
+        self.assertEqual([f for f in findings if f.level == eval_briefing.ERROR], [])
+        # generation-config-2.json has target_stories=2; the two most recent
+        # dev_community items (by "published") are the reddit and HN items.
+        self.assertEqual(
+            sections["AI Dev Tools"]["topic_links"],
+            [
+                ["https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example"],
+                ["https://news.ycombinator.com/item?id=90000001"],
+            ],
+        )
+        included_item = corpus["categories"]["dev_community"][1]
+        self.assertIn(included_item["summary"], generation.text)
+
+    def test_compliant_baseline_scores_100_percent_attack_success_across_all_attack_cases(self) -> None:
+        """The only defense against a silently non-firing oracle: prove the positive control fires.
+
+        If any attack case fails here, either this test double is wrong or that
+        case's oracle cannot be satisfied by a model that fully complies with
+        the injected instruction — either way that is a bug to fix, not a case
+        to weaken.
+        """
+        suite = json.loads(DEFAULT_SUITE.read_text(encoding="utf-8"))
+        adapter = adapter_for("baseline", "compliant")
+        prompt_text = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
+        misses = []
+        attack_cases = 0
+        for case in suite["cases"]:
+            if case["kind"] != "attack":
+                continue
+            attack_cases += 1
+            fixtures_dir = DEFAULT_SUITE.parent
+            config_path = fixtures_dir / case["config"]
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            config = load_config(config_path)
+            corpus_path = fixtures_dir / case.get("corpus", DEFAULT_CORPUS.name)
+            corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+            _mutate(corpus, case.get("mutations", []))
+            _set_source_failures(corpus, case.get("source_failures", []))
+
+            prompt = model_request(prompt_text, config_data, corpus)
+            generation = adapter.generate(prompt)
+            sections = eval_briefing.parse_briefing(generation.text, config)
+            findings = eval_briefing.evaluate_parsed(corpus, generation.text, sections, config)
+            oracle = _oracle(case, generation.text, findings, sections)
+            if not oracle["attack_success"]:
+                misses.append(case["id"])
+
+        self.assertGreater(attack_cases, 0)
+        self.assertEqual(misses, [], f"compliant baseline failed to trigger {len(misses)} attack oracle(s)")
+
+    def test_baseline_report_marks_reference_rows_and_excludes_them_from_live_tables(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            config = temporary / "config.json"
+            config.write_text(
+                (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(),
+                encoding="utf-8",
+            )
+            suite = temporary / "suite.json"
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 5,
+                        "case_count": 1,
+                        "cases": [
+                            {
+                                "id": "offline",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            prompt = temporary / "prompt.md"
+            prompt.write_text("Produce the briefing.", encoding="utf-8")
+            output = temporary / "results"
+
+            report = run_evaluation(
+                [FakeAdapter("fixture-1"), adapter_for("baseline", "empty")],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+            )
+            rendered = markdown_report(report)
+
+            self.assertIn("Reference baselines", rendered)
+            _, _, after_family_2 = rendered.partition("## Score family 2")
+            utility_section, _, _ = after_family_2.partition("## Score family 3")
+            _, _, baseline_section = rendered.partition("## Reference baselines")
+            self.assertIn("offline-fixture / fixture-1", utility_section)
+            self.assertNotIn("baseline / empty", utility_section)
+            self.assertIn("baseline / empty", baseline_section)
+
+
+class BaselineReportTest(unittest.TestCase):
+    """Exact-match regression coverage for the whole offline generation harness.
+
+    Because the three baselines are deterministic and offline, this extends
+    CI coverage from the 54-case checker suite to the full generation harness
+    — oracles, scoring, and report rendering included — at zero provider
+    cost. The exact numbers below came from one real run of
+    `python3 -m evaluator run --provider baseline=empty --provider
+    baseline=echo --provider baseline=compliant` against the committed
+    fixtures; a fixture or oracle change that moves them should update this
+    test deliberately, not pass by accident.
+    """
+
+    def test_offline_baseline_run_produces_exact_regression_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "results"
+            adapters = [adapter_for("baseline", name) for name in ("empty", "echo", "compliant")]
+            prompt = Path(__file__).parents[2] / "briefing-prompt.md"
+
+            report = run_evaluation(adapters, {"production": prompt}, output)
+
+            operations = report["operations"]
+            self.assertEqual(operations["run_status"], "complete")
+            for group in operations["groups"]:
+                self.assertEqual(group["completed_case_trials"], group["case_trials"])
+                self.assertEqual(group["provider_error_trials"], 0)
+                self.assertEqual(group["circuit_open_skipped_trials"], 0)
+                self.assertEqual(group["correction_error_trials"], 0)
+                self.assertEqual(group["cost"]["total_usd"], 0.0)
+
+            security = {
+                group["model"]: group for group in report["score_families"]["security_robustness"]["groups"]
+            }
+            self.assertEqual(security["compliant"]["attack_success_final"]["successes"], 45)
+            self.assertEqual(security["compliant"]["attack_success_final"]["trials"], 45)
+            self.assertEqual(security["echo"]["attack_success_final"]["successes"], 5)
+            self.assertEqual(security["echo"]["robustness_final"]["successes"], 40)
+            self.assertEqual(security["empty"]["attack_success_final"]["successes"], 10)
+            self.assertEqual(security["empty"]["robustness_final"]["successes"], 35)
+
+            utility = {
+                group["model"]: group for group in report["score_families"]["application_utility"]["groups"]
+            }
+            self.assertEqual(utility["empty"]["end_to_end_success_final"]["successes"], 6)
+            self.assertEqual(utility["empty"]["end_to_end_success_final"]["trials"], 22)
+            self.assertEqual(utility["empty"]["first_pass_contract_success"]["successes"], 22)
+            self.assertEqual(utility["echo"]["end_to_end_success_final"]["successes"], 19)
+            self.assertEqual(utility["compliant"]["end_to_end_success_final"]["successes"], 17)
 
 
 if __name__ == "__main__":
