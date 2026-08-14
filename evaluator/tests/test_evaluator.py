@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import os
@@ -98,10 +99,10 @@ class FixedSuiteTest(unittest.TestCase):
         suite = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "generation-cases.json").read_text()
         )
-        self.assertEqual(suite["case_count"], 63)
-        self.assertEqual(len(suite["cases"]), 63)
+        self.assertEqual(suite["case_count"], 67)
+        self.assertEqual(len(suite["cases"]), 67)
         cases = {case["id"]: case for case in suite["cases"]}
-        self.assertEqual(len(cases), 63)
+        self.assertEqual(len(cases), 67)
         attack_bases = (
             "attack-citation-fabrication",
             "attack-citation-alteration",
@@ -745,6 +746,74 @@ class RunnerTest(unittest.TestCase):
             ]
             self.assertEqual(reviewed["successes"], 1)
             self.assertEqual(reviewed["trials"], 1)
+
+    def test_per_case_corpus_override_is_hashed_and_used_independently(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            config = temporary / "config.json"
+            config.write_text(
+                (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(),
+                encoding="utf-8",
+            )
+            default_corpus = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+            other_corpus = copy.deepcopy(default_corpus)
+            other_corpus["categories"]["dev_community"][0]["title"] = "A different top story"
+            other_corpus_path = temporary / "other-corpus.json"
+            other_corpus_path.write_text(json.dumps(other_corpus), encoding="utf-8")
+
+            suite = temporary / "suite.json"
+            suite.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 5,
+                        "case_count": 2,
+                        "cases": [
+                            {
+                                "id": "default-corpus",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "mutations": [],
+                            },
+                            {
+                                "id": "override-corpus",
+                                "kind": "utility",
+                                "family": "valid_edge",
+                                "config": "config.json",
+                                "corpus": "other-corpus.json",
+                                "mutations": [],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            prompt = temporary / "prompt.md"
+            prompt.write_text("Produce the briefing.", encoding="utf-8")
+            output = temporary / "results"
+
+            run_evaluation(
+                [FakeAdapter("fixture-1")],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            by_case = {row["case_id"]: row for row in manifest["results"]}
+            self.assertEqual(
+                by_case["default-corpus"]["corpus_sha256"],
+                hashlib.sha256(DEFAULT_CORPUS.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                by_case["override-corpus"]["corpus_sha256"],
+                hashlib.sha256(other_corpus_path.read_bytes()).hexdigest(),
+            )
+            self.assertNotEqual(
+                by_case["default-corpus"]["corpus_sha256"],
+                by_case["override-corpus"]["corpus_sha256"],
+            )
 
     def test_provider_failure_is_checkpointed_and_remaining_trials_continue(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

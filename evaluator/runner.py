@@ -48,6 +48,7 @@ CASE_FIELDS = {
     "kind",
     "family",
     "config",
+    "corpus",
     "mutations",
     "source_failures",
     "forbidden_substrings",
@@ -546,7 +547,10 @@ def run_evaluation(
             prompt = prompt_bytes.decode("utf-8")
             for case in suite["cases"]:
                 for trial in range(1, trials + 1):
-                    corpus = copy.deepcopy(_json(corpus_path))
+                    case_corpus_path = (
+                        suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
+                    )
+                    corpus = copy.deepcopy(_json(case_corpus_path))
                     _mutate(corpus, case.get("mutations", []))
                     _set_source_failures(corpus, case.get("source_failures", []))
                     problems = corpus_schema.validate_corpus(corpus)
@@ -573,6 +577,7 @@ def run_evaluation(
                         "source_failure_count": len(case.get("source_failures", [])),
                         "trial": trial,
                         "artifact_dir": safe_key,
+                        "corpus_sha256": _sha256(case_corpus_path.read_bytes()),
                     }
                     if circuit_reason is not None:
                         error = {
