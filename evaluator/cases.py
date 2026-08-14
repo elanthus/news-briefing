@@ -259,7 +259,7 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
 
 ## AI Dev Tools
 
-**Tool two review mode reshapes patch workflows** — Tool two's new review mode changes how developers inspect proposed patches.
+**Tool two review mode reshapes patch workflows** — Tool two's review mode changes patch inspection workflows.
 🔗 https://publisher.test/story?id=2&output=1
 
 ## AI Dev Practices
