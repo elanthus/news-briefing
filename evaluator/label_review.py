@@ -203,7 +203,7 @@ def _portable_path(path: Path) -> str:
 
 def run_label_review(
     reviewer: Adapter,
-    adjudicator: Adapter,
+    adjudicator: Adapter | None,
     output_dir: Path,
     suite_path: Path = DEFAULT_SUITE,
     batch_size: int = 10,
@@ -219,7 +219,10 @@ def run_label_review(
         "schema_version": 1,
         "suite_sha256": sha256_bytes(raw),
         "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
-        "adjudicator": {"provider": adjudicator.provider, "model": adjudicator.model},
+        "adjudicator": (
+            None if adjudicator is None
+            else {"provider": adjudicator.provider, "model": adjudicator.model}
+        ),
         "batch_size": batch_size,
     }
     identity_path = output_dir / "label-review-run.json"
@@ -264,22 +267,23 @@ def run_label_review(
 
     adjudicator_rows: dict[str, dict[str, Any]] = {}
     adjudicator_calls = []
-    for batch_index, start in enumerate(range(0, len(disagreements), batch_size), 1):
-        batch = disagreements[start:start + batch_size]
-        expected = {row["input"]["case"] for row in batch}
-        generation, reviews, resumed = _review_batch(
-            adjudicator,
-            _adjudication_prompt(batch),
-            output_dir / f"adjudicator-batch-{batch_index:02d}.json",
-            expected,
-        )
-        adjudicator_rows.update(reviews)
-        adjudicator_calls.append({
-            "batch": batch_index,
-            "cases": sorted(reviews),
-            "resumed": resumed,
-            "generation": _generation_record(generation),
-        })
+    if adjudicator is not None:
+        for batch_index, start in enumerate(range(0, len(disagreements), batch_size), 1):
+            batch = disagreements[start:start + batch_size]
+            expected = {row["input"]["case"] for row in batch}
+            generation, reviews, resumed = _review_batch(
+                adjudicator,
+                _adjudication_prompt(batch),
+                output_dir / f"adjudicator-batch-{batch_index:02d}.json",
+                expected,
+            )
+            adjudicator_rows.update(reviews)
+            adjudicator_calls.append({
+                "batch": batch_index,
+                "cases": sorted(reviews),
+                "resumed": resumed,
+                "generation": _generation_record(generation),
+            })
 
     cases = []
     for opaque_id, fixture_id in mapping.items():
@@ -295,19 +299,26 @@ def run_label_review(
             "adjudicator_labels": adjudicated["labels"] if adjudicated else None,
             "adjudicator_rationale": adjudicated["rationale"] if adjudicated else None,
             "machine_consensus_labels": (
-                adjudicated["labels"] if adjudicated else reviewer_row["labels"]
+                adjudicated["labels"] if adjudicated
+                else reviewer_row["labels"] if reviewer_row["labels"] == prepared[fixture_id]
+                else None
             ),
         })
     result = {
         "schema_version": 1,
-        "status": "machine_review_complete_human_approval_required",
+        "status": (
+            "machine_review_complete_human_approval_required"
+            if adjudicator is not None
+            else "blinded_review_complete_adjudication_not_run_human_approval_required"
+        ),
         "suite": _portable_path(suite_path),
         "suite_sha256": identity["suite_sha256"],
         "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
-        "adjudicator": {"provider": adjudicator.provider, "model": adjudicator.model},
+        "adjudicator": identity["adjudicator"],
         "case_count": len(cases),
         "exact_agreements": sum(case["exact_agreement"] for case in cases),
-        "disagreements_adjudicated": len(disagreements),
+        "disagreements_found": len(disagreements),
+        "disagreements_adjudicated": len(adjudicator_rows),
         "notice": "Model review is additional evidence and does not satisfy independent human approval.",
         "cases": cases,
         "reviewer_calls": reviewer_calls,

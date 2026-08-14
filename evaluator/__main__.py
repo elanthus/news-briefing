@@ -146,7 +146,24 @@ def main() -> int:
         "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
     )
     label_review.add_argument("--reviewer-model", default="claude-sonnet-5")
+    label_review.add_argument("--reviewer-provider", default="claude-code-cli")
+    label_review.add_argument(
+        "--reviewer-reasoning",
+        choices=("enabled", "disabled"),
+        help="optional reasoning control for API reviewer providers",
+    )
+    label_review.add_argument(
+        "--reviewer-reasoning-effort",
+        choices=("max", "xhigh", "high", "medium", "low", "minimal"),
+        help="optional API reviewer reasoning effort; implies reasoning enabled",
+    )
     label_review.add_argument("--adjudicator-model", default="claude-opus-4-6")
+    label_review.add_argument("--adjudicator-provider", default="claude-code-cli")
+    label_review.add_argument(
+        "--review-only",
+        action="store_true",
+        help="record blinded reviewer disagreements without model adjudication",
+    )
     label_review.add_argument("--batch-size", type=int, default=10)
     label_review.add_argument("--timeout", type=int, default=600)
     label_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
@@ -168,6 +185,16 @@ def main() -> int:
         help="sampling temperature for API providers (default: 0)",
     )
     run.add_argument("--seed", type=int, help="optional sampling seed for API providers")
+    run.add_argument(
+        "--reasoning",
+        choices=("enabled", "disabled"),
+        help="optional reasoning control for API providers; omitted preserves provider default",
+    )
+    run.add_argument(
+        "--reasoning-effort",
+        choices=("max", "xhigh", "high", "medium", "low", "minimal"),
+        help="optional API reasoning effort; implies reasoning enabled",
+    )
     run.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
     run.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     run.add_argument("--output-dir", type=Path)
@@ -224,6 +251,10 @@ def main() -> int:
                     args.timeout,
                     temperature=args.temperature,
                     seed=args.seed,
+                    reasoning_enabled=(
+                        None if args.reasoning is None else args.reasoning == "enabled"
+                    ),
+                    reasoning_effort=args.reasoning_effort,
                 )
                 for provider, model in providers
             ]
@@ -251,12 +282,29 @@ def main() -> int:
                 or operations["correction_error_trials"]
             ))
         if args.command == "review-labels":
-            _preflight([("claude-code-cli", args.reviewer_model)])
+            selected = [(args.reviewer_provider, args.reviewer_model)]
+            if not args.review_only:
+                selected.append((args.adjudicator_provider, args.adjudicator_model))
+            _preflight(selected)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / f"label-review-{stamp}"
+            reviewer = adapter_for(
+                args.reviewer_provider,
+                args.reviewer_model,
+                args.timeout,
+                reasoning_enabled=(
+                    None if args.reviewer_reasoning is None
+                    else args.reviewer_reasoning == "enabled"
+                ),
+                reasoning_effort=args.reviewer_reasoning_effort,
+            )
+            adjudicator = (
+                None if args.review_only
+                else adapter_for(args.adjudicator_provider, args.adjudicator_model, args.timeout)
+            )
             result = run_label_review(
-                adapter_for("claude-code-cli", args.reviewer_model, args.timeout),
-                adapter_for("claude-code-cli", args.adjudicator_model, args.timeout),
+                reviewer,
+                adjudicator,
                 output_dir,
                 args.suite,
                 args.batch_size,
@@ -265,6 +313,7 @@ def main() -> int:
                 "status": result["status"],
                 "case_count": result["case_count"],
                 "exact_agreements": result["exact_agreements"],
+                "disagreements_found": result["disagreements_found"],
                 "disagreements_adjudicated": result["disagreements_adjudicated"],
                 "report": str(output_dir / "label-review.json"),
             }, indent=2, sort_keys=True))

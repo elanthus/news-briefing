@@ -1739,16 +1739,21 @@ def markdown_report(report: dict[str, Any]) -> str:
         lines += [
             "## Generation controls",
             "",
-            "| Provider / model | Temperature | Seed | Reproducibility disclosure |",
-            "|---|---:|---:|---|",
+            "| Provider / model | Temperature | Seed | Reasoning | Reproducibility disclosure |",
+            "|---|---:|---:|---:|---|",
         ]
         for control in controls:
             temperature = control["temperature"]
             seed = control["seed"]
+            reasoning = control.get("reasoning_enabled")
+            reasoning_effort = control.get("reasoning_effort")
             lines.append(
                 f"| {control['provider']} / {control['model']} | "
                 f"{'uncontrolled' if temperature is None else temperature} | "
-                f"{'uncontrolled' if seed is None else seed} | {control['disclosure']} |"
+                f"{'uncontrolled' if seed is None else seed} | "
+                f"{'provider-default' if reasoning is None else reasoning}"
+                f"{'' if reasoning_effort is None else f'/{reasoning_effort}'} | "
+                f"{control['disclosure']} |"
             )
         lines.append("")
     checker_family = families["checker_capability"]

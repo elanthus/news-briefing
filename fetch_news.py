@@ -677,7 +677,15 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
         dated_entries += 1
         if published < cutoff:
             continue
-        link = entry.find("atom:link", ns)
+        links = entry.findall("atom:link", ns)
+        # Atom defines an omitted rel as "alternate". Feeds commonly put a
+        # rel="self" API/feed URL first, so selecting the first link can cite
+        # the feed endpoint instead of the human-readable article.
+        link = next(
+            (candidate for candidate in links
+             if candidate.get("href") and candidate.get("rel", "alternate") == "alternate"),
+            next((candidate for candidate in links if candidate.get("href")), None),
+        )
         items.append({
             "title": strip_html(entry.findtext("atom:title", namespaces=ns)),
             "url": link.get("href", "") if link is not None else "",

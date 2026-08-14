@@ -63,8 +63,8 @@ from evaluator.semantic_review import run_semantic_judging
 class FixedSuiteTest(unittest.TestCase):
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
-        self.assertEqual(result["case_count"], 49)
-        self.assertEqual(result["components"]["checker"]["cases"], 39)
+        self.assertEqual(result["case_count"], 55)
+        self.assertEqual(result["components"]["checker"]["cases"], 45)
         self.assertEqual(result["components"]["feed_parser"]["cases"], 10)
         families = {case["family"] for case in result["cases"]}
         for required in {
@@ -85,6 +85,37 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("over_consolidation", misses)
         self.assertIn("unsupported_claim", misses)
         self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 1)
+
+    def test_provisional_coverage_additions_exercise_distinct_boundaries(self) -> None:
+        result = run_deterministic_suite()
+        cases = {case["id"]: case for case in result["cases"]}
+
+        for valid_case in (
+            "grouped-multisection-valid",
+            "exclusions-exhausted-valid",
+            "hn-without-discussion-valid",
+        ):
+            self.assertEqual(cases[valid_case]["human_labels"], [])
+            self.assertEqual(cases[valid_case]["predicted_labels"], [])
+
+        self.assertEqual(
+            cases["health-status-mismatch"]["matched"],
+            ["failed_source_status_mismatch"],
+        )
+        self.assertEqual(
+            cases["health-wrong-schema"]["matched"],
+            ["corpus_health_not_machine_readable"],
+        )
+        self.assertEqual(
+            cases["category-ambiguity-clean"]["missed"],
+            ["category_ambiguity"],
+        )
+
+        provenance = json.loads(
+            (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
+        )["label_provenance"]
+        self.assertEqual(provenance["independently_validated_count"], 49)
+        self.assertEqual(provenance["provisional_count"], 6)
 
     def test_focused_generation_cases_require_the_mutated_item(self) -> None:
         evaluator_dir = Path(__file__).parents[1]
@@ -1376,7 +1407,7 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["schema_version"], 6)
             self.assertEqual(report["schema_version"], 8)
             families = report["score_families"]
-            self.assertEqual(families["checker_capability"]["case_count"], 49)
+            self.assertEqual(families["checker_capability"]["case_count"], 55)
             utility = families["application_utility"]["groups"][0]
             security = families["security_robustness"]["groups"][0]
             editorial = families["editorial_quality"]["groups"][0]
@@ -2026,6 +2057,7 @@ class RunnerTest(unittest.TestCase):
             "nvidia/nemotron-3-super-120b-a12b",
             temperature=0.2,
             seed=42,
+            reasoning_enabled=False,
         )
         assert isinstance(adapter, OpenAiCompatibleAdapter)
 
@@ -2036,9 +2068,12 @@ class RunnerTest(unittest.TestCase):
                 "messages": [{"role": "user", "content": "request"}],
                 "temperature": 0.2,
                 "seed": 42,
+                "reasoning": {"enabled": False},
                 "max_tokens": 8192,
             },
         )
+        controls = adapter.generation_controls()
+        self.assertEqual(controls["reasoning_enabled"], False)
 
     def test_api_sampling_control_defaults_remain_optional(self) -> None:
         adapter = adapter_for("openrouter", "openai/gpt-5.6-terra")
@@ -2047,6 +2082,21 @@ class RunnerTest(unittest.TestCase):
         payload = adapter._payload("request")
         self.assertEqual(payload["temperature"], 0)
         self.assertNotIn("seed", payload)
+        self.assertNotIn("reasoning", payload)
+
+    def test_api_reasoning_effort_implies_enabled_reasoning_budget(self) -> None:
+        adapter = adapter_for(
+            "openrouter",
+            "deepseek/deepseek-v4-flash-0731",
+            reasoning_enabled=True,
+            reasoning_effort="low",
+        )
+        assert isinstance(adapter, OpenAiCompatibleAdapter)
+
+        self.assertEqual(adapter._payload("request")["reasoning"], {"effort": "low"})
+        controls = adapter.generation_controls()
+        self.assertEqual(controls["reasoning_enabled"], True)
+        self.assertEqual(controls["reasoning_effort"], "low")
 
     def test_sampling_controls_do_not_change_cli_adapters(self) -> None:
         adapter = adapter_for(
@@ -2139,6 +2189,31 @@ class LabelReviewTest(unittest.TestCase):
             self.assertEqual(adjudicator.calls, 1)
             self.assertTrue(resumed["reviewer_calls"][0]["resumed"])
             self.assertTrue(resumed["adjudicator_calls"][0]["resumed"])
+
+    def test_review_only_preserves_disagreements_for_human_adjudication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(json.dumps({
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }), encoding="utf-8")
+            reviewer = LabelReviewAdapter("reviewer", {"case-001": ["unsupported_claim"]})
+
+            result = run_label_review(reviewer, None, temporary / "output", suite_path)
+
+            self.assertEqual(result["disagreements_found"], 1)
+            self.assertEqual(result["disagreements_adjudicated"], 0)
+            self.assertIsNone(result["adjudicator"])
+            self.assertIsNone(result["cases"][0]["machine_consensus_labels"])
+            self.assertEqual(result["adjudicator_calls"], [])
+            self.assertIn("adjudication_not_run", result["status"])
 
 
 class SemanticJudgeTest(unittest.TestCase):

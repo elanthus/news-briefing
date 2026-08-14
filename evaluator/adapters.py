@@ -208,12 +208,18 @@ class OpenAiCompatibleAdapter(Adapter):
         *,
         temperature: float = 0,
         seed: int | None = None,
+        reasoning_enabled: bool | None = None,
+        reasoning_effort: str | None = None,
     ):
         super().__init__(model, timeout)
         if endpoint:
             self.endpoint = endpoint
+        if reasoning_effort is not None and reasoning_enabled is False:
+            raise ValueError("reasoning effort cannot be combined with disabled reasoning")
         self.temperature = temperature
         self.seed = seed
+        self.reasoning_enabled = True if reasoning_effort is not None else reasoning_enabled
+        self.reasoning_effort = reasoning_effort
 
     def _headers(self) -> dict[str, str]:
         api_key = os.environ.get(self.api_key_env)
@@ -230,6 +236,10 @@ class OpenAiCompatibleAdapter(Adapter):
         }
         if self.seed is not None:
             payload["seed"] = self.seed
+        if self.reasoning_effort is not None:
+            payload["reasoning"] = {"effort": self.reasoning_effort}
+        elif self.reasoning_enabled is not None:
+            payload["reasoning"] = {"enabled": self.reasoning_enabled}
         return payload
 
     def generation_controls(self) -> dict[str, Any]:
@@ -237,8 +247,12 @@ class OpenAiCompatibleAdapter(Adapter):
         return {
             "temperature": self.temperature,
             "seed": self.seed,
+            "reasoning_enabled": self.reasoning_enabled,
+            "reasoning_effort": self.reasoning_effort,
             "disclosure": (
                 f"The evaluator sends temperature={self.temperature} and {seed_disclosure}; "
+                f"reasoning is {'provider-default' if self.reasoning_enabled is None else self.reasoning_enabled}"
+                f"{'' if self.reasoning_effort is None else f' at {self.reasoning_effort} effort'}; "
                 "exact reproducibility is not guaranteed, "
                 "and these runs are not directly comparable to CLI runs without temperature control."
             ),
@@ -720,6 +734,8 @@ def adapter_for(
     timeout: int = 300,
     temperature: float | None = None,
     seed: int | None = None,
+    reasoning_enabled: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> Adapter:
     adapters: dict[str, type[Adapter]] = {
         "codex-cli": CodexCliAdapter,
@@ -738,6 +754,8 @@ def adapter_for(
             timeout,
             temperature=0 if temperature is None else temperature,
             seed=seed,
+            reasoning_enabled=reasoning_enabled,
+            reasoning_effort=reasoning_effort,
         )
     return adapter_type(model, timeout)
 

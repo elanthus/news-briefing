@@ -524,17 +524,39 @@ def check_no_repeated_topics(sections: dict[str, Section]) -> list[Finding]:
     return findings
 
 
-def check_exclusion_log(sections: dict[str, Section],
+def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
                         config: briefing_config.BriefingConfig) -> list[Finding]:
+    """Require as many exclusions as the corpus can actually supply.
+
+    ``excluded_stories`` is a target, not permission to fabricate padding. A
+    story reported in any section is unavailable to every exclusion log, and
+    overlapping corpus categories still identify one story by canonical URL.
+    """
     findings: list[Finding] = []
     if EXCLUDED not in sections:
         return findings
     logged = sections[EXCLUDED]["excluded"]
+    included = {
+        url
+        for name, bucket in sections.items()
+        if name != EXCLUDED
+        for topic_links in bucket["topic_links"]
+        for url in topic_links
+    }
     for section in config.sections:
-        expected = section.excluded_stories
-        if expected == 0:
+        target = section.excluded_stories
+        if target == 0:
             continue
         name = section.name
+        eligible_urls = {
+            corpus_schema.canonicalize_url(item["url"])
+            for category in section.corpus_categories
+            for item in corpus.get("categories", {}).get(category, [])
+            if isinstance(item, dict) and isinstance(item.get("url"), str)
+        }
+        expected = min(target, len(eligible_urls - included))
+        if expected == 0:
+            continue
         entries = logged.get(name, [])
         if not entries:
             findings.append(Finding(
@@ -776,7 +798,7 @@ def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Secti
     findings += check_no_double_listing(sections)
     findings += check_slot_allocation(sections, config)
     findings += check_no_repeated_topics(sections)
-    findings += check_exclusion_log(sections, config)
+    findings += check_exclusion_log(sections, corpus, config)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
     findings += check_claims_supported(sections, corpus_evidence(corpus))
     findings += check_corpus_health_reported(sections, corpus)
