@@ -168,6 +168,7 @@ def main() -> int:
     label_review.add_argument("--timeout", type=int, default=600)
     label_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
     label_review.add_argument("--output-dir", type=Path)
+    label_review.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
 
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
@@ -282,6 +283,7 @@ def main() -> int:
                 or operations["correction_error_trials"]
             ))
         if args.command == "review-labels":
+            load_dotenv(args.env_file)
             selected = [(args.reviewer_provider, args.reviewer_model)]
             if not args.review_only:
                 selected.append((args.adjudicator_provider, args.adjudicator_model))

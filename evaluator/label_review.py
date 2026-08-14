@@ -215,10 +215,15 @@ def run_label_review(
     payloads, mapping = blinded_cases(suite)
     prepared = {case["id"]: sorted(case["human_labels"]) for case in suite["cases"]}
     output_dir.mkdir(parents=True, exist_ok=True)
+    reviewer_metadata = {
+        "provider": reviewer.provider,
+        "model": reviewer.model,
+        "generation_controls": reviewer.generation_controls(),
+    }
     identity = {
-        "schema_version": 1,
+        "schema_version": 2,
         "suite_sha256": sha256_bytes(raw),
-        "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
+        "reviewer": reviewer_metadata,
         "adjudicator": (
             None if adjudicator is None
             else {"provider": adjudicator.provider, "model": adjudicator.model}
@@ -313,7 +318,7 @@ def run_label_review(
         ),
         "suite": _portable_path(suite_path),
         "suite_sha256": identity["suite_sha256"],
-        "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
+        "reviewer": reviewer_metadata,
         "adjudicator": identity["adjudicator"],
         "case_count": len(cases),
         "exact_agreements": sum(case["exact_agreement"] for case in cases),

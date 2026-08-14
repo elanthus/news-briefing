@@ -683,12 +683,16 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
         # the feed endpoint instead of the human-readable article.
         link = next(
             (candidate for candidate in links
-             if candidate.get("href") and candidate.get("rel", "alternate") == "alternate"),
-            next((candidate for candidate in links if candidate.get("href")), None),
+             if (candidate.get("href") or "").strip()
+             and candidate.get("rel", "alternate") == "alternate"),
+            next(
+                (candidate for candidate in links if (candidate.get("href") or "").strip()),
+                None,
+            ),
         )
         items.append({
             "title": strip_html(entry.findtext("atom:title", namespaces=ns)),
-            "url": link.get("href", "") if link is not None else "",
+            "url": (link.get("href") or "").strip() if link is not None else "",
             "published": published.isoformat(),
             "summary": _feed_summary(entry, "atom:summary", "atom:content"),
             "source": source_name,

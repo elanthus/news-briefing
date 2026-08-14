@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -15,6 +16,7 @@ from unittest.mock import patch
 
 import corpus_schema
 import eval_briefing
+import evaluator.__main__ as evaluator_cli
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.__main__ import ProgressBar, _provider_values
 from evaluator.adapters import (
@@ -476,10 +478,19 @@ class FakeSemanticJudgeAdapter(Adapter):
 class LabelReviewAdapter(Adapter):
     provider = "offline-label-review"
 
-    def __init__(self, model: str, labels: dict[str, list[str]]):
+    def __init__(
+        self,
+        model: str,
+        labels: dict[str, list[str]],
+        controls: dict[str, object] | None = None,
+    ):
         super().__init__(model)
         self.labels = labels
+        self.controls = controls
         self.calls = 0
+
+    def generation_controls(self) -> dict[str, object]:
+        return self.controls or super().generation_controls()
 
     def generate(self, prompt: str) -> Generation:
         self.calls += 1
@@ -2189,6 +2200,80 @@ class LabelReviewTest(unittest.TestCase):
             self.assertEqual(adjudicator.calls, 1)
             self.assertTrue(resumed["reviewer_calls"][0]["resumed"])
             self.assertTrue(resumed["adjudicator_calls"][0]["resumed"])
+
+    def test_checkpoints_are_bound_to_reviewer_generation_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(json.dumps({
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }), encoding="utf-8")
+            enabled = LabelReviewAdapter(
+                "reviewer",
+                {"case-001": []},
+                {"reasoning_enabled": True, "reasoning_effort": "high"},
+            )
+            result = run_label_review(enabled, None, temporary / "output", suite_path)
+
+            identity = json.loads(
+                (temporary / "output" / "label-review-run.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(identity["schema_version"], 2)
+            self.assertEqual(
+                result["reviewer"]["generation_controls"],
+                {"reasoning_enabled": True, "reasoning_effort": "high"},
+            )
+
+            disabled = LabelReviewAdapter(
+                "reviewer",
+                {"case-001": []},
+                {"reasoning_enabled": False, "reasoning_effort": None},
+            )
+            with self.assertRaisesRegex(ValueError, "different label-review run"):
+                run_label_review(disabled, None, temporary / "output", suite_path)
+
+    def test_review_labels_loads_env_file_before_provider_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            env_file = temporary / ".env"
+            env_file.write_text("OPENROUTER_API_KEY=from-file\n", encoding="utf-8")
+            reviewer = LabelReviewAdapter("reviewer", {})
+            result = {
+                "status": "complete",
+                "case_count": 0,
+                "exact_agreements": 0,
+                "disagreements_found": 0,
+                "disagreements_adjudicated": 0,
+            }
+
+            def assert_credentials_loaded(_providers: object) -> None:
+                self.assertEqual(os.environ.get("OPENROUTER_API_KEY"), "from-file")
+
+            argv = [
+                "evaluator",
+                "review-labels",
+                "--reviewer-provider", "openrouter",
+                "--reviewer-model", "deepseek/deepseek-v4-flash",
+                "--review-only",
+                "--env-file", str(env_file),
+                "--output-dir", str(temporary / "output"),
+            ]
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(sys, "argv", argv),
+                patch.object(evaluator_cli, "_preflight", side_effect=assert_credentials_loaded),
+                patch.object(evaluator_cli, "adapter_for", return_value=reviewer),
+                patch.object(evaluator_cli, "run_label_review", return_value=result),
+                patch("builtins.print"),
+            ):
+                self.assertEqual(evaluator_cli.main(), 0)
 
     def test_review_only_preserves_disagreements_for_human_adjudication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
