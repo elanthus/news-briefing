@@ -43,6 +43,11 @@ _ATTACK_TECHNIQUE_SUFFIXES = (
     ("-combined", "combined"),
     ("-escape", "escape_character"),
 )
+_ATTACK_ABLATION_SUFFIXES = tuple(
+    (f"-{position}-{count}", position, count)
+    for position in ("early", "middle", "late")
+    for count in ("single", "multi")
+)
 CASE_FIELDS = {
     "id",
     "kind",
@@ -62,6 +67,9 @@ CASE_FIELDS = {
     "min_section_topics",
     "separate_topic_urls",
     "must_convey",
+    "matched_pair",
+    "corpus_position",
+    "controlled_items",
 }
 
 
@@ -101,8 +109,40 @@ def _validate_generation_case(case: dict[str, Any]) -> None:
         raise ValueError("generation case id must be a non-empty string")
     if case.get("kind") not in {"utility", "attack"}:
         raise ValueError(f"case {case_id} kind must be 'utility' or 'attack'")
-    if case["kind"] == "attack":
-        _attack_dimensions(case_id)
+    attack_dimensions = _attack_id_dimensions(case_id) if case["kind"] == "attack" else None
+    if "matched_pair" in case:
+        if not isinstance(case["matched_pair"], bool):
+            raise ValueError(f"case {case_id} matched_pair must be a boolean")
+        if case["kind"] != "attack":
+            raise ValueError(f"case {case_id} matched_pair is only valid on attack cases")
+    position_present = "corpus_position" in case
+    count_present = "controlled_items" in case
+    if position_present and case["corpus_position"] not in {"early", "middle", "late"}:
+        raise ValueError(f"case {case_id} corpus_position must be early, middle, or late")
+    if count_present and case["controlled_items"] not in {"single", "multi"}:
+        raise ValueError(f"case {case_id} controlled_items must be single or multi")
+    if position_present != count_present:
+        raise ValueError(f"case {case_id} corpus_position and controlled_items must appear together")
+    if position_present and case["kind"] != "attack":
+        raise ValueError(f"case {case_id} ablation metadata is only valid on attack cases")
+    if attack_dimensions is not None:
+        _, _, id_position, id_count = attack_dimensions
+        metadata_dimensions = (
+            case.get("corpus_position"),
+            case.get("controlled_items"),
+        )
+        if metadata_dimensions != (id_position, id_count):
+            raise ValueError(
+                f"case {case_id} ablation metadata {metadata_dimensions} does not match its ID suffix"
+            )
+    if count_present:
+        expected_mutations = 1 if case["controlled_items"] == "single" else 3
+        if len(case.get("mutations", [])) != expected_mutations:
+            expected_word = "one" if expected_mutations == 1 else "three"
+            raise ValueError(
+                f"case {case_id} {case['controlled_items']} requires exactly "
+                f"{expected_word} mutation{'s' if expected_mutations != 1 else ''}"
+            )
     list_fields = (
         "forbidden_substrings",
         "success_if_checks",
@@ -886,10 +926,19 @@ def _is_degraded_source_case(row: dict[str, Any]) -> bool:
     return row["case_family"] in {"degraded", "partially_degraded"}
 
 
-def _attack_dimensions(case_id: str) -> tuple[str, str]:
+def _attack_id_dimensions(case_id: str) -> tuple[str, str, str | None, str | None]:
+    """Return behavior, technique, category-array position, controlled count."""
     if not case_id.startswith("attack-"):
         raise ValueError(f"attack case id must start with 'attack-': {case_id}")
     base = case_id[len("attack-") :]
+    corpus_position = None
+    controlled_items = None
+    for suffix, position, count in _ATTACK_ABLATION_SUFFIXES:
+        if base.endswith(suffix):
+            base = base.removesuffix(suffix)
+            corpus_position = position
+            controlled_items = count
+            break
     technique = "direct"
     for suffix, candidate in _ATTACK_TECHNIQUE_SUFFIXES:
         if base.endswith(suffix):
@@ -898,7 +947,12 @@ def _attack_dimensions(case_id: str) -> tuple[str, str]:
             break
     if base not in _ATTACK_BEHAVIORS:
         raise ValueError(f"attack case {case_id} has an unknown behavior or technique")
-    return base, technique
+    return base, technique, corpus_position, controlled_items
+
+
+def _attack_dimensions(case_id: str) -> tuple[str, str]:
+    behavior, technique, _, _ = _attack_id_dimensions(case_id)
+    return behavior, technique
 
 
 def _utility_under_attack_rate(rows: list[dict[str, Any]], stage: str) -> dict[str, Any]:

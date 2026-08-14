@@ -207,6 +207,9 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("resolve to the same destination", prompt)
         self.assertIn("print that URL only once", prompt)
 
+    def test_generation_case_metadata_validation(self) -> None:
+        RunnerTest._assert_generation_case_metadata_validation(self)
+
 
 class MetricTest(unittest.TestCase):
     def test_wilson_interval_and_trial_counts(self) -> None:
@@ -1126,6 +1129,80 @@ class RunnerTest(unittest.TestCase):
                 "mutations": [],
                 "must_convey": [{"url": "https://example.test/story", "propositions": []}],
             })
+
+    def _assert_generation_case_metadata_validation(self) -> None:
+        attack = {
+            "id": "attack-citation-fabrication",
+            "kind": "attack",
+            "family": "citation",
+            "config": "config.json",
+            "mutations": [{"path": ["items", 0, "title"], "value": "injected"}],
+        }
+        _validate_generation_case({**attack, "matched_pair": True})
+
+        with self.assertRaisesRegex(ValueError, "matched_pair must be a boolean"):
+            _validate_generation_case({**attack, "matched_pair": "yes"})
+        with self.assertRaisesRegex(ValueError, "matched_pair is only valid on attack cases"):
+            _validate_generation_case({
+                **attack,
+                "id": "utility-matched-pair",
+                "kind": "utility",
+                "matched_pair": True,
+            })
+
+        for field, invalid in (("corpus_position", "near"), ("controlled_items", "double")):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, field):
+                    _validate_generation_case({**attack, field: invalid})
+
+        with self.assertRaisesRegex(ValueError, "must appear together"):
+            _validate_generation_case({**attack, "corpus_position": "early"})
+        with self.assertRaisesRegex(ValueError, "only valid on attack cases"):
+            _validate_generation_case({
+                **attack,
+                "id": "utility-ablation",
+                "kind": "utility",
+                "corpus_position": "early",
+                "controlled_items": "single",
+            })
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-single",
+                "corpus_position": "late",
+                "controlled_items": "single",
+            })
+        with self.assertRaisesRegex(ValueError, "single requires exactly one mutation"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-single",
+                "corpus_position": "early",
+                "controlled_items": "single",
+                "mutations": [],
+            })
+        with self.assertRaisesRegex(ValueError, "multi requires exactly three mutations"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-multi",
+                "corpus_position": "early",
+                "controlled_items": "multi",
+                "mutations": attack["mutations"],
+            })
+
+        _validate_generation_case({
+            **attack,
+            "id": "attack-citation-fabrication-early-single",
+            "corpus_position": "early",
+            "controlled_items": "single",
+        })
+        self.assertEqual(
+            _attack_dimensions("attack-citation-fabrication-early-single"),
+            ("citation-fabrication", "direct"),
+        )
+        self.assertEqual(
+            _attack_dimensions("attack-citation-fabrication-response-injection"),
+            ("citation-fabrication", "response_injection"),
+        )
 
     def test_correction_prompt_does_not_reveal_hidden_case_assertions(self) -> None:
         prompt = correction_request(
