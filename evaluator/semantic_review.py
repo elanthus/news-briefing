@@ -197,7 +197,7 @@ def run_semantic_judging(
             write_json_atomic(adjudication_path, payload)
 
     apply_adjudications(manifest, run_dir)
-    report = summarize(manifest)
+    report = summarize(manifest, run_dir)
     write_json_atomic(run_dir / "report.json", report)
     write_text_atomic(run_dir / "report.md", markdown_report(report))
 

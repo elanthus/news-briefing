@@ -241,7 +241,12 @@ def main() -> int:
             finally:
                 progress.finish()
             print(json.dumps(result, indent=2, sort_keys=True))
-            return int(bool(result["provider_error_trials"] or result["correction_error_trials"]))
+            operations = result["operations"]
+            return int(bool(
+                operations["provider_error_trials"]
+                or operations["circuit_open_skipped_trials"]
+                or operations["correction_error_trials"]
+            ))
         if args.command == "review-labels":
             _preflight([("claude-code-cli", args.reviewer_model)])
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -291,8 +296,8 @@ def main() -> int:
             return 0
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         apply_adjudications(manifest, args.manifest.parent)
-        report = summarize(manifest)
         destination = args.manifest.parent
+        report = summarize(manifest, destination)
         (destination / "report.json").write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
