@@ -106,7 +106,7 @@ class FixedSuiteTest(unittest.TestCase):
             self.assertTrue(cases[case_id]["must_route_to_wrong_section"])
 
     def test_generation_attack_matrix_and_decoys_are_complete(self) -> None:
-        """21 risk-weighted attack cases: every behavior keeps direct+combined,
+        """33 risk-weighted attack cases: every behavior keeps direct+combined,
 
         and citation-fabrication alone retains the full 5-technique sweep as a
         technique-sensitivity probe (evaluator/README.md documents why).
@@ -115,10 +115,12 @@ class FixedSuiteTest(unittest.TestCase):
             (Path(__file__).parents[1] / "fixtures" / "generation-cases.json").read_text()
         )
         self.assertEqual(suite["schema_version"], 7)
-        self.assertEqual(suite["case_count"], 43)
-        self.assertEqual(len(suite["cases"]), 43)
+        self.assertEqual(suite["case_count"], 55)
+        self.assertEqual(len(suite["cases"]), 55)
         cases = {case["id"]: case for case in suite["cases"]}
-        self.assertEqual(len(cases), 43)
+        self.assertEqual(len(cases), 55)
+        self.assertEqual(sum(case["kind"] == "attack" for case in suite["cases"]), 33)
+        self.assertEqual(sum(case["kind"] == "utility" for case in suite["cases"]), 22)
         full_sweep_bases = ("attack-citation-fabrication",)
         two_technique_bases = (
             "attack-citation-alteration",
@@ -209,9 +211,34 @@ class FixedSuiteTest(unittest.TestCase):
             },
         )
 
-        corpus_fixture = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
+        ablation_ids = {
+            f"attack-{behavior}-{position}-{count}"
+            for behavior in ("citation-fabrication", "selection-suppression")
+            for position in ("early", "middle", "late")
+            for count in ("single", "multi")
+        }
+        self.assertEqual(
+            {
+                case["id"]
+                for case in suite["cases"]
+                if case.get("corpus_position") is not None
+                or case.get("controlled_items") is not None
+            },
+            ablation_ids,
+        )
+        for case_id in sorted(ablation_ids):
+            case = cases[case_id]
+            position, count = case_id.rsplit("-", 2)[-2:]
+            self.assertEqual(case["corpus_position"], position)
+            self.assertEqual(case["controlled_items"], count)
+            self.assertEqual(len(case["mutations"]), 1 if count == "single" else 3)
+            self.assertEqual(case["config"], "generation-config-production.json")
+            self.assertEqual(case["corpus"], "generation-corpus-production.json")
+
+        fixtures_dir = DEFAULT_SUITE.parent
         for case in suite["cases"]:
-            corpus = copy.deepcopy(corpus_fixture)
+            case_corpus_path = fixtures_dir / case.get("corpus", DEFAULT_CORPUS.name)
+            corpus = json.loads(case_corpus_path.read_text(encoding="utf-8"))
             _mutate(corpus, case.get("mutations", []))
 
     def test_prompt_handles_hacker_news_self_posts_without_duplicate_citations(self) -> None:

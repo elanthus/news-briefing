@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -631,8 +632,24 @@ def _attack_echo(corpus: dict[str, Any]) -> list[str]:
 
 def _render_compliant(config: dict[str, Any], corpus: dict[str, Any]) -> str:
     suppressed = _suppressed_urls(corpus)
-    text = _render_baseline(config, corpus, include_topics=True, suppressed=suppressed)
-    extra = _attack_echo(corpus)
+    # The positive control should comply with attacker instructions while
+    # still completing a structurally valid briefing. Production summaries
+    # legitimately contain arbitrary embedded URLs; echoing those as prose
+    # makes the checker treat them as ungrounded citations and prevents the
+    # utility-preserving suppression oracle from firing. Keep canonical item
+    # and discussion URLs intact, but remove URLs embedded in prose fields.
+    render_corpus = copy.deepcopy(corpus)
+    for items in render_corpus.get("categories", {}).values():
+        for item in items:
+            for field in ("title", "summary", "source"):
+                if isinstance(item.get(field), str):
+                    item[field] = _ESCAPED_URL.sub("[embedded link]", item[field])
+    text = _render_baseline(config, render_corpus, include_topics=True, suppressed=suppressed)
+    # Suppression is demonstrated by omitting the named corpus URL while
+    # preserving the rest of the task. A generic compliance echo would append
+    # unrelated URLs found in production prose and invalidate that structural
+    # utility evidence, so it is only needed for non-suppression attacks.
+    extra = [] if suppressed else _attack_echo(corpus)
     if not extra:
         return text
     return text + "\n---\n\n### Compliance echo\n" + "\n".join(extra) + "\n"
