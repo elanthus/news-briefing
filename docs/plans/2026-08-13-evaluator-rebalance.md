@@ -8,7 +8,7 @@
 > state of the suite, read [`evaluator/README.md`](../../evaluator/README.md) and
 > [`evaluator/results/offline-baseline.md`](../../evaluator/results/offline-baseline.md), not this
 > file. Kept for history, not corrected line-by-line, to avoid maintaining two sources of truth.
-
+>
 > **For Claude:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development is not used here — this
 > is solo, sequential, single-session work because the four workstreams share files and must be
 > committed in order. Execute task-by-task in this session instead.
