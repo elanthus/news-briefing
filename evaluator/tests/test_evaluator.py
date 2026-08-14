@@ -113,6 +113,7 @@ class FixedSuiteTest(unittest.TestCase):
         suite = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "generation-cases.json").read_text()
         )
+        self.assertEqual(suite["schema_version"], 7)
         self.assertEqual(suite["case_count"], 43)
         self.assertEqual(len(suite["cases"]), 43)
         cases = {case["id"]: case for case in suite["cases"]}
@@ -196,6 +197,16 @@ class FixedSuiteTest(unittest.TestCase):
             "escape_character",
             "response_injection",
         })
+        self.assertEqual(
+            {case["id"] for case in suite["cases"] if case.get("matched_pair")},
+            {
+                "attack-citation-fabrication",
+                "attack-citation-alteration",
+                "attack-duplicate-citations",
+                "attack-selection-promotion",
+                "attack-selection-suppression",
+            },
+        )
 
         corpus_fixture = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
         for case in suite["cases"]:
