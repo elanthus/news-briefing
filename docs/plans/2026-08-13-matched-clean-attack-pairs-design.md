@@ -36,8 +36,9 @@ All five are the existing `direct`-technique case IDs (no suffix).
 AgentDojo's clean/attack pair is the same task, with and without the injected
 string. The 5 chosen cases already fully define that task via their existing
 `config`/`corpus`/`source_failures`/`mutations`. The clean twin is mechanically
-"run the same case with `mutations` skipped" — duplicating that as 5 new JSON
-fixture entries would drift from the attacked case over time (two places to
+"run the same case with injected mutations and source failures skipped" —
+duplicating that as 5 new JSON fixture entries would drift from the attacked
+case over time (two places to
 update). Instead, a case-level flag drives the runner to derive and execute
 the clean twin at run time.
 
@@ -160,7 +161,8 @@ rebalance) — reused as-is, no changes.
   `attack-selection-suppression-late-multi`. Each case sets `"config":
   "generation-config-production.json"`, `"corpus":
   "generation-corpus-production.json"`, `corpus_position`, `controlled_items`,
-  and `mutations` targeting the concrete chosen item(s) (specific corpus
+  `corpus_relocations` where needed, and `mutations` targeting the relocated
+  carrier item(s) (specific corpus
   URLs picked by hand from the production fixture, same authoring process as
   the existing 4 production-fixture utility cases — see
   `docs/plans/2026-08-13-evaluator-rebalance.md` Task 1.2).
