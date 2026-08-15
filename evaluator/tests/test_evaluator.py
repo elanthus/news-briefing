@@ -88,7 +88,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("unsupported_claim", misses)
         self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 1)
 
-    def test_provisional_coverage_additions_exercise_distinct_boundaries(self) -> None:
+    def test_independently_validated_coverage_additions_exercise_distinct_boundaries(self) -> None:
         result = run_deterministic_suite()
         cases = {case["id"]: case for case in result["cases"]}
 
@@ -117,8 +117,9 @@ class FixedSuiteTest(unittest.TestCase):
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
-        self.assertEqual(provenance["independently_validated_count"], 49)
-        self.assertEqual(provenance["provisional_count"], 6)
+        self.assertEqual(provenance["independently_validated_count"], 55)
+        self.assertEqual(provenance["provisional_count"], 0)
+        self.assertEqual(provenance["provisional_case_ids"], [])
 
     def test_focused_generation_cases_require_the_mutated_item(self) -> None:
         evaluator_dir = Path(__file__).parents[1]

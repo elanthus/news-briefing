@@ -2,13 +2,13 @@
 
 Dates in this document, and the `*_on` fields in `evaluator/fixtures/checker-cases.json`'s `label_provenance`, are UTC calendar dates — commit timestamps in `git log` show local reviewer time (UTC−7), which can land on the previous UTC-minus-a-day date.
 
-This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, and the addition of six provisional checker cases recommended by that review, by running:
+This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, the addition of six checker cases recommended by that review, and a separate independent review plus owner adjudication of those six additions, by running:
 
 ```bash
 python3 -m evaluator checker
 ```
 
-No external model was called while regenerating these metrics. The original 49 cases completed attested review by a previously uninvolved human: 38 label sets matched exactly, the repository owner adjudicated all 11 disagreements, and one final label set changed. The six later coverage additions are owner-labeled but provisional pending the same independent review, so the current 55-case suite has mixed validation status (49 independently validated, 6 provisional; see `label_provenance` in `evaluator/fixtures/checker-cases.json`). Live model, prompt-version, correction, attack, grounding, latency, and cost rows have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
+No external model was called while regenerating these metrics. The original 49 cases completed attested review by a previously uninvolved human: 38 label sets matched exactly, the repository owner adjudicated all 11 disagreements, and one final label set changed. A different attested independent reviewer assessed the six later coverage additions: 3 label sets matched exactly, and the repository owner adjudicated all 3 disagreements without changing a label. The current 55-case suite is therefore fully independently human-validated (see `label_provenance` in `evaluator/fixtures/checker-cases.json`). Live model, prompt-version, correction, attack, grounding, latency, and cost rows have **0 trials / not run** in this baseline; `python3 -m evaluator run` produces those rows from actual provider calls. The offline `baseline` provider (empty/echo/compliant) is the one exception — see "Offline generation-harness baselines" below, which reports real numbers from a zero-cost, zero-credential run.
 
 ## Deterministic checker (45 cases)
 
