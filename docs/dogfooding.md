@@ -120,3 +120,42 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
   ```
 
 - Offline verification: all 219 core tests and all 38 evaluator tests passed.
+
+### 2026-08-15 — OpenRouter Tencent Hy3 dogfood run
+
+The complete fetch → rank and summarize → check → single correction → final check loop run with OpenRouter `tencent/hy3`. The corpus, first draft, final `ERROR` briefing, configuration snapshot, and token/cost manifest are archived at [`docs/runs/2026-08-15/`](runs/2026-08-15/). This entry preserves the unhealthy result rather than replacing it with an unrecorded cleaner rerun.
+
+- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Generation used OpenRouter `tencent/hy3` with temperature 0, no seed, reasoning disabled, an 8,192-token output ceiling, and a 300-second per-call timeout. The model received only the trusted prompt/configuration and the closed corpus; it had no tools or browsing capability.
+- Initial environment attempt: the first sandboxed fetch had no outbound-network access and exited after 6.1 seconds with 0 usable items and 28 fetch errors. It was immediately rerun after network access was approved; the failed environment check is recorded here and is not misreported as source health.
+- Corpus window: 2026-08-14 17:09:55 UTC → 2026-08-15 17:09:55 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 185 items — 24 US politics, 60 US news, 46 world, 3 AI/tech, and 52 developer-community. The successful live fetch took 19.65 seconds according to the corpus manifest.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/LocalLLaMA` and `r/cursor` returned HTTP 429. The briefing's corpus-health and validation sections record all three coverage gaps.
+- Processing: 26 AI/tech and 2 developer-community items failed the relevance filter; 1 developer-community duplicate was dropped; and the 60-per-category cap dropped 11 US-news items. No source-cap, field-budget, source-budget, or global-budget drops occurred. Eighty-eight summaries were truncated at the configured field limit, and all counters reconcile against 225 fetched items.
+- Briefing: 22 reported topics filled all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), with a 25-row exclusion log, corpus-health section, and final validation section.
+- Checker, first result: 13 errors and 2 warnings. The draft used literal square brackets around the three AI subsection labels, so the checker reported all three subsections missing; it removed required query strings from nine BBC/Al Jazeera URLs; and its World Events Iran topic cited one ineligible `us_politics` item. The checker also warned about an unsupported figure parsed from the ICE headline and an unsupported quotation in the Lebanon topic.
+- Correction made after checking: one checker-guided Hy3 correction turn removed the literal headline brackets, restored the required query strings, and paraphrased the unsupported Lebanon quotation. It did not remove the ineligible Iran citation; once the AI subsections became recognizable, the checker also exposed two ineligible `us_politics` Axios citations in AI News. Per the one-correction workflow, no additional model turn was taken.
+- Checker, final result: **3 errors and 6 warnings**. The errors are the three `category_ineligible` findings just described. The warnings are one `unsupported_figure` on the ICE topic, four `unsupported_figure` findings on the two Hacker News topics' engagement figures, and one `claim_exceeds_evidence` finding on the Codex auto-research topic. Adding the required `### Validation status` section did not change the findings, so the final status stabilized at `ERROR`.
+- Usage and cost: the first draft used 33,234 prompt and 4,238 completion tokens; the correction used 37,758 prompt and 4,299 completion tokens. Total usage was 70,992 prompt + 8,537 completion = 79,529 tokens, with zero reasoning or cached tokens. At the OpenRouter catalog rates retrieved after the run ($0.132/M input and $0.528/M output), the token-based estimate is **$0.01387848**. OpenRouter reported **$0.014364728** across the two calls; the first call's cost details used slightly higher effective rates, so the provider-reported value is retained as authoritative. Full per-call details are in [`generation-usage.json`](runs/2026-08-15/generation-usage.json).
+- Reproduce the stabilized final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-15/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/briefing.md --config docs/runs/2026-08-15/briefing-config.json
+  ```
+
+#### Reasoning-enabled follow-up on the same corpus
+
+At owner request, Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/2026-08-15/hy3-reasoning-enabled/).
+
+- Original-ceiling attempt: with the original 8,192-token completion budget and 300-second call timeout, Hy3 consumed the completion budget in reasoning and returned no text (`finish_reason='length'`). Because the one-off invocation did not persist the exception's usage envelope, its exact billed cost is unavailable. Using the identical retry's 33,260-token prompt count and the exhausted 8,192-token budget, the catalog-rate estimate is $0.008715696.
+- Owner-authorized retry controls: the same request was retried with a 100,000-token completion budget and a 600-second per-call timeout. No other generation control changed. The larger budget was subsequently made the evaluator's permanent default; the 10-minute timeout applied only to this follow-up.
+- First completed draft: 90.85 seconds; 33,260 prompt tokens and 19,631 completion tokens, including 15,748 reasoning and 3,883 visible-output tokens. OpenRouter reported $0.014438142. The checker found 6 errors and 16 warnings: three AI subsection labels were unrecognized because the model again emitted literal square brackets, three BBC URLs lost their required query strings, and the unsupported-figure heuristic produced 16 warnings.
+- Correction: one checker-guided reasoning-enabled turn completed in 174.34 seconds using 37,355 prompt tokens and 14,093 completion tokens, including 10,189 reasoning and 3,904 visible-output tokens. OpenRouter reported $0.0117533658.
+- Final checker result: **0 errors and 27 warnings**. The briefing stabilized at `WARN`: AI News filled 3 of 4 slots, one Hacker News summary exceeded its thin evidence, and the remaining 25 warnings were `unsupported_figure` findings, mostly digits in inline citation URL paths being attributed to topic prose by the current checker. No second correction was made.
+- Completed-call usage and cost: 70,615 prompt + 33,724 completion = 104,339 tokens, of which 25,937 were reasoning and 7,787 were visible output. OpenRouter reported $0.0261915078 for the two completed calls.
+- All-attempt cost estimate: including the initial length-exhausted attempt, estimated usage is 145,791 tokens and the catalog-rate estimate is $0.035843148. Combining the completed calls' reported cost with the failed call's token-rate estimate gives approximately **$0.0349072038**. The failed call prevents an exact all-attempt billed total.
+- Offline verification: all 82 evaluator tests passed after changing the permanent completion-token default to 100,000.
+- Reproduce the stabilized final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-15/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/briefing-config.json
+  ```

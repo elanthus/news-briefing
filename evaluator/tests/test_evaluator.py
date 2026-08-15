@@ -2082,7 +2082,7 @@ class RunnerTest(unittest.TestCase):
                 "temperature": 0.2,
                 "seed": 42,
                 "reasoning": {"enabled": False},
-                "max_tokens": 8192,
+                "max_tokens": 100000,
             },
         )
         controls = adapter.generation_controls()
