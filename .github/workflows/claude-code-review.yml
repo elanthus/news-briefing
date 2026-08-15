@@ -1,0 +1,67 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Review pull request
+        continue-on-error: true
+        uses: anthropics/claude-code-action@d07835ac7037978eb1aa67c6be18ed0883cea652 # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model claude-sonnet-5
+            --max-turns 25
+            --allowedTools 'Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)'
+            --disallowedTools 'Task,WebSearch,WebFetch,Edit,Write'
+            --append-system-prompt "Review as a careful senior engineer. Read pyproject.toml and the two or three modules most relevant to the changed code when they help establish contracts, callers, or project conventions."
+
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number || github.event.issue.number }} in ${{ github.repository }}.
+
+            Work alone. Do not launch subagents. Budget roughly 20 tool calls and
+            reserve one turn to post the final comment.
+
+            1. Read the PR title and body with `gh pr view`.
+            2. Read the complete diff with `gh pr diff`.
+            3. Inspect relevant surrounding source, callers, tests, and project
+               configuration when needed to verify a possible issue.
+            4. Report actionable findings in changed code, including:
+               - correctness bugs for any realistic input, state, or execution path
+               - edge cases and latent defects
+               - security, reliability, compatibility, and material performance issues
+               - clear violations of CLAUDE.md or AGENTS.md
+               - objective style or formatting defects covered by this repository's
+                 configured lint rules
+
+               Findings do not need to affect every input. Report an issue when you are
+               confident it is real and can explain the concrete condition that triggers it.
+               Do not report purely subjective preferences, speculative concerns, or
+               pre-existing problems unrelated to the diff.
+
+            5. Post exactly one comment with:
+               `gh pr comment ${{ github.event.pull_request.number || github.event.issue.number }} --body '...'`
+
+               Format it as:
+
+               ## Code review
+
+               Then list each finding as `path:line`, its category, and a concise
+               explanation of the failure condition and impact. If there are no findings,
+               write:
+               `No issues found. Checked correctness, edge cases, security, project
+               instructions, and configured style rules.`
