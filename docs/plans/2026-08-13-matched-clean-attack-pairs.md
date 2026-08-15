@@ -1,10 +1,9 @@
-# Matched clean/attack pairs + production-corpus ablation Implementation Plan
+# Matched clean/attack pairs + production-corpus ablation Implementation Record
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
-**Status:** Implemented. The snippets below describe the finalized contracts
-on `main`; preserve the current fixture schema and report shapes when using
-this plan as a reference.
+> **Historical record — do not execute these tasks.** The feature is already
+> implemented on `main`. The current source and fixtures are authoritative;
+> the task sequence and line-anchored snippets below are retained only to
+> document how the shipped design was implemented.
 
 **Goal:** Add two AgentDojo-inspired measurements to `evaluator/`: (1) 5 matched
 clean/attack pairs reporting benign utility alongside utility-under-attack and

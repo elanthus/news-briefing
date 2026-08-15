@@ -32,7 +32,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model claude-sonnet-5
-            --max-turns 20
+            --max-turns 40
             --allowedTools 'Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(grep:*)'
             --disallowedTools 'Task,WebSearch,WebFetch,Edit,Write'
             --append-system-prompt "Review as a careful senior engineer. Read pyproject.toml and the two or three modules most relevant to the changed code when they help establish contracts, callers, or project conventions."

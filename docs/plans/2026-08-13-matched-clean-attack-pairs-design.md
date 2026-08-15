@@ -1,5 +1,8 @@
 # Matched clean/attack pairs + production-corpus ablation — design
 
+**Status:** Implemented on `main`. This document records the shipped design;
+the current source and fixtures are authoritative.
+
 **Goal:** Two additions from the AgentDojo-inspired suggestion list, both in
 scope for this pass:
 
@@ -176,8 +179,10 @@ rebalance) — reused as-is, no changes.
   `controlled_items` (`"single"|"multi"`), both optional strings.
 - `_validate_generation_case`: accept and validate the new fields (must be
   one of the allowed literals when present).
-- `_attack_dimensions` remains a 2-tuple `(behavior, technique)` derived from
-  the case ID. `run_evaluation` copies the explicit case fields
+- `_attack_id_dimensions` parses the ablation suffix solely to validate that
+  an authored case ID agrees with its explicit metadata. `_attack_dimensions`
+  remains the public 2-tuple `(behavior, technique)` view. `run_evaluation`
+  copies the explicit case fields
   `corpus_position` and `controlled_items` onto each result row; existing
   cases without these fields retain `None` values.
 - `_attack_breakdown` gains two more allowed `dimension` values:
@@ -202,12 +207,12 @@ unchanged.
 
 ### Testing
 
-- `test_attack_dimensions_parses_position_and_control_fields` — ablation IDs
-  still produce the same `(behavior, technique)` tuple, while their explicit
-  `corpus_position`/`controlled_items` fields are copied to result rows.
-- `test_attack_breakdown_by_position_excludes_cases_without_position` —
-  the 21 pre-existing cases don't appear in the `"corpus_position"`
-  breakdown.
+- `test_production_ablation_cases_are_valid` — each ablation ID suffix agrees
+  with its explicit `corpus_position`/`controlled_items` metadata.
+- `test_ablation_metadata_is_copied_to_result_rows` and
+  `test_attack_breakdown_uses_explicit_ablation_metadata` — result rows and
+  report buckets use the explicit metadata; the 21 primary cases stay out of
+  the ablation breakdown.
 - `test_generation_attack_matrix_and_decoys_are_complete` extended: 21 → 33
   attack cases (21 + 12); assert the 12 new IDs are exactly the 2×3×2
   factorial.
