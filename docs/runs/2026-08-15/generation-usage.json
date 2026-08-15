@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "provider": "openrouter",
+  "model": "tencent/hy3",
+  "generation_controls": {
+    "temperature": 0,
+    "seed": null,
+    "reasoning_enabled": false,
+    "max_tokens": 8192,
+    "timeout_seconds": 300
+  },
+  "calls": [
+    {
+      "purpose": "first_draft",
+      "attempts": 1,
+      "latency_ms": 39278.82804092951,
+      "provider_request_id": "gen-1786813874-IZ0ke5p7sgblxdTf6Ncb",
+      "prompt_tokens": 33234,
+      "completion_tokens": 4238,
+      "total_tokens": 37472,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
+      "provider_reported_cost_usd": 0.0071108,
+      "provider_cost_details": {
+        "upstream_inference_prompt_cost": 0.00465276,
+        "upstream_inference_completions_cost": 0.00245804,
+        "upstream_inference_cost": 0.0071108
+      }
+    },
+    {
+      "purpose": "checker_guided_correction",
+      "attempts": 1,
+      "latency_ms": 29703.302749898285,
+      "provider_request_id": "gen-1786813953-QjTsqyxYvOXT694r4Pc1",
+      "prompt_tokens": 37758,
+      "completion_tokens": 4299,
+      "total_tokens": 42057,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
+      "provider_reported_cost_usd": 0.007253928,
+      "provider_cost_details": {
+        "upstream_inference_prompt_cost": 0.004984056,
+        "upstream_inference_completions_cost": 0.002269872,
+        "upstream_inference_cost": 0.007253928
+      }
+    }
+  ],
+  "totals": {
+    "prompt_tokens": 70992,
+    "completion_tokens": 8537,
+    "total_tokens": 79529,
+    "reasoning_tokens": 0,
+    "cached_tokens": 0,
+    "provider_reported_cost_usd": 0.014364728
+  },
+  "token_cost_estimate": {
+    "catalog_checked_at": "2026-08-15",
+    "catalog_source": "https://openrouter.ai/api/v1/models",
+    "prompt_usd_per_token": 0.000000132,
+    "completion_usd_per_token": 0.000000528,
+    "formula": "70992 * 0.000000132 + 8537 * 0.000000528",
+    "estimated_cost_usd": 0.01387848,
+    "difference_from_provider_reported_usd": 0.000486248,
+    "note": "The first call's provider cost details imply higher effective rates than the catalog rates returned after the run; provider-reported cost is retained as the billed-value authority."
+  }
+}

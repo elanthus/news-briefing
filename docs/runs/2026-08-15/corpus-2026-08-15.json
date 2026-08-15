@@ -1,0 +1,1864 @@
+{
+ "schema_version": 5,
+ "generated_at": "2026-08-15T17:09:55.968899+00:00",
+ "cutoff": "2026-08-14T17:09:55.968899+00:00",
+ "window_hours": 24,
+ "limits": {
+  "source_cap": 25,
+  "category_cap": 60
+ },
+ "categories": {
+  "us_politics": [
+   {
+    "title": "Why Americans now hate each other more than ever",
+    "url": "https://thehill.com/opinion/white-house/6030279-us-societal-distrust-growth/",
+    "published": "2026-08-15T17:00:00+00:00",
+    "summary": "Recent polling and sociological analysis suggest that the United States is experiencing a severe generational decline in trust and a rise in mutual contempt driven by economic and political incentives.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump family crypto company receives approval for conditional banking charter",
+    "url": "https://thehill.com/business/6031421-trump-family-crypto-firm-bank-charter/",
+    "published": "2026-08-15T16:32:21+00:00",
+    "summary": "A crypto firm partially owned by President Trump\u2019s family received preliminary conditional approval for a bank charter on Friday.  The Office of the Comptroller of the Currency (OCC) granted conditional approval for an application from World Liberty Trust Co. for a national trust bank, according to ",
+    "source": "The Hill"
+   },
+   {
+    "title": "ICE purchase\u00a0of electric shock gloves\u00a0prompts\u00a0Democratic outrage",
+    "url": "https://thehill.com/homenews/administration/6030574-democrats-outraged-ice-deportation-gloves/",
+    "published": "2026-08-15T16:00:00+00:00",
+    "summary": "Outrage is building among congressional Democrats who are alarmed by new plans from the Trump administration to buy gloves that will allow immigration agents to deliver a painful electric shock as they carry out deportations. U.S. Immigration and Customs Enforcement (ICE) on Monday published a notic",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump targets El-Sayed, WWII Memorial vandalism in string of Truth Social posts",
+    "url": "https://thehill.com/homenews/administration/6031396-trump-targets-el-sayed-truth-social/",
+    "published": "2026-08-15T15:50:55+00:00",
+    "summary": "President Trump targeted several Democratic politicians in a series of Truth Social posts while also calling attention to vandalism at the World War II Memorial on Friday evening. Several of the posts focused on Michigan Democratic Senate candidate Abdul El-Sayed, a progressive labeled as \u201ccrazy\u201d in",
+    "source": "The Hill"
+   },
+   {
+    "title": "Ben Shapiro says Rubio's potential 2028 White House bid against Vance could backfire",
+    "url": "https://thehill.com/homenews/campaign/6031384-shapiro-rubio-vance-2028-risks/",
+    "published": "2026-08-15T15:22:50+00:00",
+    "summary": "Conservative commentator Ben Shapiro is warning that a widely speculated 2028 presidential contest between Secretary of State Marco Rubio and Vice President JD Vance could backfire on the secretary.  In a podcast interview with host Patrick Bet-David released on Wednesday, Shapiro cast doubt that Ru",
+    "source": "The Hill"
+   },
+   {
+    "title": "The science behind justice is easy to ignore, until we need it",
+    "url": "https://thehill.com/opinion/criminal-justice/6030198-investing-in-forensic-research/",
+    "published": "2026-08-15T15:00:00+00:00",
+    "summary": "We simply cannot wait until the next tragedy to invest in the science that makes justice possible.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Peltola distances herself from Kamala Harris endorsement ahead of Alaska primary",
+    "url": "https://thehill.com/homenews/campaign/6031348-peltola-distancing-harris-endorsement/",
+    "published": "2026-08-15T14:38:10+00:00",
+    "summary": "Former Rep. Mary Peltola (D-Alaska) is distancing herself from an endorsement from former Vice President Kamala Harris as she looks to win the Alaska Senate race. Harris threw her support behind Peltola in a fundraising email on Wednesday from her Fight for the People PAC, urging supporters to donat",
+    "source": "The Hill"
+   },
+   {
+    "title": "AIPAC takes center stage in last stretch of Democratic contests before November",
+    "url": "https://thehill.com/homenews/campaign/6030885-aipac-spending-california-florida-new-hampshire-elections/",
+    "published": "2026-08-15T14:14:02+00:00",
+    "summary": "A major pro-Israel group is zeroing in on one of their last contests before November: The special election for former Rep. Eric Swalwell\u2019s (D-Calif.) seat.  The super PAC of the American Israel Public Affairs Committee (AIPAC), United Democracy Project (UDP), has poured roughly $2.5 million into the",
+    "source": "The Hill"
+   },
+   {
+    "title": "Trump accuses nonprofit organization of revealing 'top military secrets' in ballroom case",
+    "url": "https://thehill.com/homenews/administration/6031322-trump-accuses-national-trust-revealing-info-ballroom/",
+    "published": "2026-08-15T14:05:35+00:00",
+    "summary": "President Trump issued fresh criticism on Friday evening toward the nonprofit organization suing his administration over the White House ballroom project, accusing the National Trust for Historic Preservation of revealing \u201cTop Military Secrets\u201d in their lawsuit.  \u201cThese are the TREASONISTS that brou",
+    "source": "The Hill"
+   },
+   {
+    "title": "The worse it gets, the better it is: American leftism is thriving on its own failures",
+    "url": "https://thehill.com/opinion/campaign/6030675-american-left-politics-failure/",
+    "published": "2026-08-15T14:00:00+00:00",
+    "summary": "American leftist policies on immigration, healthcare and housing are turning systemic failures into political opportunities ... to create even bigger failures.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Deputy national security adviser Andy Baker to leave White House: Report",
+    "url": "https://thehill.com/homenews/administration/6031282-andy-baker-leaving-white-house/",
+    "published": "2026-08-15T13:19:41+00:00",
+    "summary": "White House deputy national security adviser Andy Baker is leaving the Trump administration in the coming weeks, the latest departure from President Trump\u2019s national security team. Baker, who previously served as Vice President Vance\u2019s national security adviser, has been closely involved in the admi",
+    "source": "The Hill"
+   },
+   {
+    "title": "Live updates: Iran responds to Trump's Strait of Hormuz comments; Katie Miller's podcast continues to grow",
+    "url": "https://thehill.com/homenews/administration/6031242-live-updates-iran-responds-to-trumps-strait-of-hormuz-comments-katie-millers-podcast-continues-to-grow/",
+    "published": "2026-08-15T13:01:00+00:00",
+    "summary": "President Trump's comments on making the Strait of Hormuz a U.S. territory on Friday sparked a response from Iran, stating on the social platform X that it will continue to stay in the country's control. \"This strait will only be closed and opened under Iran's command, and as long as you do not acce",
+    "source": "The Hill"
+   },
+   {
+    "title": "FDA green lights more screwworm medications: Should you give them to your pets?",
+    "url": "https://thehill.com/homenews/6028718-fda-green-lights-more-screwworm-medications-should-you-give-them-to-your-pets/",
+    "published": "2026-08-15T13:00:00+00:00",
+    "summary": "The Food and Drug Administration has granted emergency use authorizations for more medications that can prevent and treat infestations of the flesh-eating New World screwworm spreading along the U.S.-Mexico border.",
+    "source": "The Hill"
+   },
+   {
+    "title": "No one should be sent back to Taliban rule",
+    "url": "https://thehill.com/opinion/international/6030093-afghanistan-taliban-returns-unsafe/",
+    "published": "2026-08-15T13:00:00+00:00",
+    "summary": "It\u2019s the height of hypocrisy to condemn Taliban abuses in one breath and cooperate in sending people back to them in the next.",
+    "source": "The Hill"
+   },
+   {
+    "title": "Iran rejects Trump's 'delusions' on making Strait of Hormuz a US territory",
+    "url": "https://thehill.com/policy/international/6031248-iran-rejects-trump-hormuz-claim/",
+    "published": "2026-08-15T11:55:27+00:00",
+    "summary": "Iran on Saturday rejected President Trump\u2019s assertion that he could declare the Strait of Hormuz a \u201cterritory of the United States,\u201d saying the opening and closure of the key waterway will remain up to Iran\u2019s control. In a post on the social platform X, Iranian Deputy Foreign Minister Kazem Gharibab",
+    "source": "The Hill"
+   },
+   {
+    "title": "Week in Politics: USS Lincoln; latest primaries and Democrats; White House ballroom",
+    "url": "https://www.npr.org/2026/08/15/nx-s1-5929131/week-in-politics-uss-lincoln-latest-primaries-and-democrats-white-house-ballroom",
+    "published": "2026-08-15T11:40:15+00:00",
+    "summary": "A shortage of some munitions as well as the problems with the USS Lincoln have the Trump administration on the defensive. Meanwhile, what the latest primaries show about Democratic enthusiasm.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "College loses its monopoly on the American Dream",
+    "url": "https://www.axios.com/2026/08/15/college-bachelors-degree-shift-ai-america",
+    "published": "2026-08-15T10:00:05+00:00",
+    "summary": "Whether framed on an office wall, collecting dust in a box or still a distant dream, the college diploma is getting a hard reappraisal.Why it matters: College was once sold as a ticket to the American dream. But students today are taking a tougher look at the college tradeoff: burdensome debt and no",
+    "source": "Axios"
+   },
+   {
+    "title": "\"There's no point\": AI forces college students to rethink their major",
+    "url": "https://www.axios.com/2026/08/15/college-major-ai-skills-job-search",
+    "published": "2026-08-15T09:50:05+00:00",
+    "summary": "Students \u2014 and their parents \u2014 are searching for future-proof college majors for an AI-powered world. Why it matters: AI is changing the skills employers expect from entry-level workers, while colleges are rethinking how to prepare students for the transition.The big picture: Rumors of the death of ",
+    "source": "Axios"
+   },
+   {
+    "title": "They fought for the U.S. in Afghanistan. Now they worry about losing their green cards",
+    "url": "https://www.npr.org/2026/08/15/nx-s1-5897606/afghanistan-visa-green-card-deport",
+    "published": "2026-08-15T09:00:00+00:00",
+    "summary": "When the U.S. withdrew from Afghanistan five years ago, thousands of Afghans who helped U.S. troops were brought here to rebuild their lives. But now, some fear the U.S. may want to send them back.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Democrats grapple with Trump's push to limit transparency within the executive branch",
+    "url": "https://www.npr.org/2026/08/14/nx-s1-5930399/democrats-grapple-with-trumps-push-to-limit-transparency-within-the-executive-branch",
+    "published": "2026-08-14T21:49:04+00:00",
+    "summary": "President Trump is pushing the boundaries of executive power to limit transparency within the executive branch. Congressional Democrats are grappling with how to respond.",
+    "source": "NPR Politics"
+   },
+   {
+    "title": "Trump shrugs off concerns about dismal conditions on USS Abraham Lincoln",
+    "url": "https://www.axios.com/2026/08/14/trump-uss-abraham-lincoln-deployment-middle-east",
+    "published": "2026-08-14T20:19:31+00:00",
+    "summary": "President Trump said Friday that he isn't concerned about the state of the USS Abraham Lincoln, despite calls from lawmakers to investigate reports of mental health issues for those onboard. Why it matters: The San Diego-based aircraft carrier has been deployed for nine months, and numerous reports ",
+    "source": "Axios"
+   },
+   {
+    "title": "Luigi Mangione pleads guilty to stalking UnitedHealthcare CEO, admits killing him",
+    "url": "https://www.axios.com/2026/08/14/luigi-mangione-plea-trial-brian-thompson-case",
+    "published": "2026-08-14T19:15:57+00:00",
+    "summary": "Luigi Mangione pleaded guilty Friday in federal court to stalking charges tied to the 2024 broad daylight killing of UnitedHealthcare CEO Brian Thompson in New York City.Why it matters: Mangione's lawyers are now using Friday's federal plea to request that all but one separate state charge be dismis",
+    "source": "Axios"
+   },
+   {
+    "title": "Americans' wanderlust hits new heights",
+    "url": "https://www.axios.com/2026/08/14/americans-overseas-european-travel-boom",
+    "published": "2026-08-14T17:30:05+00:00",
+    "summary": "Data: International Trade Administration; Chart: Sara Wise/AxiosEven as U.S. policy has walled off Washington, D.C., from friends across the pond, Americans' travel overseas is reaching new heights.Why it matters: Much like the resilient consumer, the American tourist keeps riding the post-COVID tra",
+    "source": "Axios"
+   },
+   {
+    "title": "Dorm rooms are tiny. The dorm decor economy is not.",
+    "url": "https://www.axios.com/2026/08/14/college-dorm-decor-economy",
+    "published": "2026-08-14T17:15:06+00:00",
+    "summary": "Dorm rooms are tiny. The dorm decor economy is not.The big picture: College dorms are becoming customized, social-media-ready micro-apartments, but the market looks wildly different depending on which side of the Mason-Dixon line your campus sits.Zoom out: The multi-thousand-dollar \"designer dorm\" i",
+    "source": "Axios"
+   }
+  ],
+  "us_news": [
+   {
+    "title": "5 people injured in shooting at Virginia State University",
+    "url": "https://www.cbsnews.com/news/shooting-virginia-state-university/",
+    "published": "2026-08-15T16:57:41+00:00",
+    "summary": "Five people were injured in the shooting involving multiple suspects. One person is currently listed in critical condition, the university said.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "First woman to serve as NYC's chief lifeguard tells her story",
+    "url": "https://www.cbsnews.com/video/first-woman-to-serve-as-nycs-chief-lifeguard-tells-her-story/",
+    "published": "2026-08-15T16:24:00+00:00",
+    "summary": "Janet Fash made history when she became the first woman to serve as New York City's chief lifeguard. She joins \"CBS Saturday Morning\" to share stories from her new memoir, \"Lifeguard: A Love Story.\"",
+    "source": "CBS News US"
+   },
+   {
+    "title": "U.S. pulls last aircraft carrier in Asia as Trump focuses on Iran and the Western Hemisphere",
+    "url": "https://www.pbs.org/newshour/world/u-s-pulls-last-aircraft-carrier-in-asia-as-trump-focuses-on-iran-and-the-western-hemisphere",
+    "published": "2026-08-15T16:22:32+00:00",
+    "summary": "The USS George Washington is departing the Pacific and expected to replace the USS Abraham Lincoln in the Middle East amid growing concerns about mental health and supply issues aboard the long-deployed carrier.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Tropical Storm Lala begins lashing Hawaii's Big Island",
+    "url": "https://www.cbsnews.com/news/tropical-storm-lala-big-island-hawaii-hurricane-track/",
+    "published": "2026-08-15T16:18:22+00:00",
+    "summary": "Tropical Storm Lala is expected to become a hurricane and bring dangerous conditions to Hawaii this weekend, forecasters say.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Massive egg recall in US south and south-west due to salmonella outbreak",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/egg-recall-us-south-and-south-west-salmonella-outbreak",
+    "published": "2026-08-15T16:01:10+00:00",
+    "summary": "1.6m dozen eggs from Texas recalled amid one of the largest recorded foodborne illness outbreaks in US historyA massive egg recall affecting nearly 1.6m dozen eggs has been elevated to the US Food and Drug Administration\u2019s highest-risk warning as officials investigate a salmonella outbreak that has ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Israeli airstrikes on southern Lebanon kill 11 people, Health Ministry says",
+    "url": "https://www.pbs.org/newshour/world/israeli-airstrikes-on-southern-lebanon-kill-11-people-health-ministry-says",
+    "published": "2026-08-15T15:47:14+00:00",
+    "summary": "Israel and the Lebanese government announced a \"framework agreement\" on June 26, laying out a plan for Israeli forces to withdraw from southern Lebanon, in exchange for the disarmament of the Iran-backed Hezbollah militant group.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Luigi Mangione pleads guilty in federal case, admits to shooting Brian Thompson",
+    "url": "https://www.cbsnews.com/news/luigi-mangione-says-he-will-plead-guilty-in-federal-case/",
+    "published": "2026-08-15T15:31:17+00:00",
+    "summary": "Luigi Mangione entered a guilty plea in his federal case at a court appearance in Manhattan Friday morning.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "How double jeopardy could come into play after Mangione guilty plea",
+    "url": "https://www.cbsnews.com/news/mangione-guilty-plea-federal-case-jeopardize-state-murder-trial/",
+    "published": "2026-08-15T15:30:45+00:00",
+    "summary": "Luigi Mangione pleaded guilty to two federal counts on Friday. His state trial is currently scheduled to begin on Sept. 8.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Air traffic controller saves day when 2 jets with same call number converge",
+    "url": "https://www.cbsnews.com/news/phoenix-air-traffic-controller-2-american-airlines-flights-same-call-number-converge/",
+    "published": "2026-08-15T15:26:42+00:00",
+    "summary": "An air traffic controller's quick thinking helped avert a dangerous situation when two jets, one landing in Phoenix and the other simultaneously taking off, shared the same flight number and radio frequency.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "USS Washington aircraft carrier heads to Middle East to replace USS Lincoln",
+    "url": "https://www.cbsnews.com/news/aircraft-carrier-uss-george-washington-uss-lincoln-iran-middle-east/",
+    "published": "2026-08-15T15:26:02+00:00",
+    "summary": "The USS George Washington aircraft carrier departed Vietnam last week and is headed to the Middle East to replace the USS Abraham Lincoln, according to a U.S. official.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Air traffic controller catches two planes with same call sign, averting disaster",
+    "url": "https://www.cbsnews.com/video/air-traffic-controller-catches-two-planes-with-same-call-sign-averting-disaster/",
+    "published": "2026-08-15T15:20:59+00:00",
+    "summary": "Two American Airlines jets in the same airspace briefly shared the same flight number and radio frequency. Luckily, the quick thinking of a veteran air traffic controller prevented potential catastrophe. Kris Van Cleave has the story.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Hawaii's Big Island lashed by rain and wind as Tropical Storm Lala closes in",
+    "url": "https://www.pbs.org/newshour/nation/hawaiis-big-island-lashed-by-rain-and-wind-as-tropical-storm-lala-closes-in",
+    "published": "2026-08-15T15:17:14+00:00",
+    "summary": "The National Hurricane Center issued a rare hurricane warning for the island, which hasn't experienced a direct hurricane landfall in 155 years.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "This week on \"Sunday Morning\" (Aug. 16)",
+    "url": "https://www.cbsnews.com/news/this-week-on-sunday-morning-aug-16-2026/",
+    "published": "2026-08-15T15:14:45+00:00",
+    "summary": "A look at the features for this week's broadcast of the Emmy-winning program, hosted by Jane Pauley.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Justice Department expands military's power to detain migrants near border",
+    "url": "https://www.cbsnews.com/news/justice-department-opinion-military-migrants-trespassing/",
+    "published": "2026-08-15T15:14:09+00:00",
+    "summary": "The Justice Department issued a legal opinion giving the U.S. military broader powers to detain migrants near certain areas along the southern border.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Downpours flood the Midwest as Lala barrels toward Hawaii",
+    "url": "https://www.cbsnews.com/video/downpours-flood-the-midwest-as-lala-barrels-toward-hawaii/",
+    "published": "2026-08-15T15:09:24+00:00",
+    "summary": "Tropical Storm Lala threatens Hawaii's Big Island with rainfall and strong winds. Meanwhile, relentless rain floods parts of the Midwest. Lana Zak reports from the banks of the rising Iowa River, and John Elliott has the forecast.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Alaska candidate for US Senate seat rejects Kamala Harris\u2019s unsolicited support",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/alaska-mary-peltola-rejects-kamala-harris-unsolicited-support",
+    "published": "2026-08-15T15:07:54+00:00",
+    "summary": "Former VP sent fundraising appeal for Democrat Mary Peltola\u2019s campaign \u2013 with half of donations going to Harris\u2019s organizationAlaska US Senate candidate Mary Peltola has rejected the support of Kamala Harris, her fellow Democrat, after the 2024 presidential candidate sent out a seemingly unsolicited",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Magnitude 7.7 earthquake strikes off Indonesia's coast, killing at least 47 and toppling buildings",
+    "url": "https://www.pbs.org/newshour/world/magnitude-7-7-earthquake-strikes-off-indonesias-coast-killing-at-least-47-and-toppling-buildings",
+    "published": "2026-08-15T15:01:06+00:00",
+    "summary": "Authorities issued a tsunami warning and urged coastal residents to move to higher ground, but later lifted the warning when Indonesia's meteorological agency said monitoring showed no significant sea-level changes that posed a threat to coastal communities.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Teenager pleas guilty to attacking California sea lion in viral video",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/teen-pleas-guilty-california-sea-lion-attack",
+    "published": "2026-08-15T13:54:58+00:00",
+    "summary": "Tyler Muehl, 18, could face a year in prison for kicking marine animal four times on La Jolla coastAn 18-year-old California man has admitted he kicked a sea lion in a video that went viral recently \u2013 while referring to himself by the name of an Ultimate Fighting Championship (UFC) competitor \u2013 and ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Multiple people injured in shooting at Virginia State University",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/multiple-people-injured-virginia-state-university-shooting",
+    "published": "2026-08-15T13:20:41+00:00",
+    "summary": "School said shooting involved \u2018multiple suspects\u2019 as campus was locked down and police responded to scene Multiple people were injured in a shooting at Virginia State University (VSU), police said on Saturday morning, with several suspects still at large.The campus, about 20 miles (32km) south of Ri",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "In JD Vance\u2019s hometown, comment on his new memoir is hard to find",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/jd-vance-memoir-middletown-ohio",
+    "published": "2026-08-15T12:00:57+00:00",
+    "summary": "The US vice-president\u2019s most recent memoir may be widely read in Middletown, Ohio, but no one seems to be talking about itNearly two months since JD Vance\u2019s most recent memoir, Communion: Finding My Way Back to Faith, was released, and following sales of 64,000 copies in its first week, Vance\u2019s home",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Sure, \u2018Woke 1\u2019 had its issues \u2013 but we have far bigger problems on our hands | Arwa Mahdawi",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/15/woke-1-aoc-progressives",
+    "published": "2026-08-15T12:00:55+00:00",
+    "summary": "AOC\u2019s remarks about past excesses have been ripped out of context. Progressives shouldn\u2019t get roped into this sideshowThere is probably no word that has been more used and abused in the last decade than \u201cwoke\u201d. It has been rendered completely meaningless, but it refuses to die. Indeed, it has now ta",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Mom-to-be had 2 signs of rare complication: \"Everything kept getting worse\"",
+    "url": "https://www.cbsnews.com/news/pregnancy-complications-hellp-syndrome-preeclampsia-florida/",
+    "published": "2026-08-15T12:00:01+00:00",
+    "summary": "Candice Davis' first pregnancy was going smoothly until she began feeling some nausea and pain one afternoon.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Prichard Col\u00f3n, boxer left with brain damage after 2015 fight, dies aged 33",
+    "url": "https://www.theguardian.com/sport/2026/aug/15/prichard-colon-boxer-death-brain-injury-aged-33",
+    "published": "2026-08-15T11:42:02+00:00",
+    "summary": "Puerto Rican suffered brain bleed in only defeatWBC blamed illegal blows to back of the headCol\u00f3n had won his first 16 professional fightsThe boxing world was in mourning Friday following the death of Puerto Rican fighter Prichard Col\u00f3n at the age of 33, 11 years after he sustained brain damage in t",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Lindsay Clancy murder trial: prosecutors revive theory of faked suicide attempt",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/lindsay-clancy-murder-trial-prosecutors",
+    "published": "2026-08-15T11:00:56+00:00",
+    "summary": "Prosecutors pointed to internet searches made on the family computer in the months before the killings to make their caseProsecutors revived a theory in the Lindsay Clancy murder trial case this week, suggesting she had faked a suicide attempt after allegedly strangling her three children.While pros",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "US navy veterans and military health experts express concern over USS Abraham Lincoln sailors",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/uss-abraham-lincoln-sailors-mental-health",
+    "published": "2026-08-15T11:00:55+00:00",
+    "summary": "Prolonged deployment is coupled with reports of water shortages, plumbing issues and attempts to jump overboardTrump downplays concerns about sailors onboard USS Abraham Lincoln US navy veterans and military health experts are expressing concerns about the strain on sailors aboard the USS Abraham Li",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Double jeopardy could spell end of state case after Luigi Mangione\u2019s guilty plea",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/luigi-mangione-double-jeopardy-state-case",
+    "published": "2026-08-15T11:00:54+00:00",
+    "summary": "Defense argues New York cannot try Mangione over same act or offense as federal case \u2013 the killing of Brian ThompsonLuigi Mangione\u2019s plea to federal stalking charges in UnitedHealthcare CEO Brian Thompson\u2019s death has spurred questions about the fate of the separate Manhattan murder case against him,",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The Uplift: Travel buddies",
+    "url": "https://www.cbsnews.com/video/the-uplift-travel-buddies/",
+    "published": "2026-08-15T10:30:00+00:00",
+    "summary": "An unlikely friendship forms between two New Yorkers who meet on a commuter train \u2013 and find themselves traveling to a tropical island together. Plus, more heartwarming news.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "ICE detained a Venezuelan soccer pro. His case shows the immigration backlog crisis",
+    "url": "https://www.npr.org/2026/08/15/nx-s1-5928322/ice-detained-a-venezuelan-soccer-pro-his-case-shows-the-immigration-backlog-crisis",
+    "published": "2026-08-15T10:10:00+00:00",
+    "summary": "Homero Calder\u00f3n's detention by ICE spotlights the massive backlog in the U.S. immigration system.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Where healthcare could sway voters, organizers ramp up an old tactic: talking to people",
+    "url": "https://www.theguardian.com/us-news/2026/aug/15/wisconsin-healthcare-democrats-canvassers",
+    "published": "2026-08-15T10:00:54+00:00",
+    "summary": "In Wisconsin, voters weigh candidates who backed cuts to Medicaid, and those who want to expand itGoing door to door in western Wisconsin multiple times per week, Bill Hogseth tells strangers about his seizure.Hogseth, the co-executive director and lead organizer of the nonpartisan group GrassRoots ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Donald Trump doesn\u2019t just love billionaires, he loves multimillionaires too",
+    "url": "https://www.theguardian.com/business/2026/aug/15/trump-big-beautiful-bill-millionaires",
+    "published": "2026-08-15T10:00:54+00:00",
+    "summary": "US tax policy deprives the government of revenue and overwhelmingly serves the interests of the richAfter the House passed its version of Donald Trump\u2019s One Big Beautiful Bill Act (OBBBA) last year \u2013 the one that paired a $5tn-plus tax cut with $1tn-plus of cuts from food stamps and Medicaid \u2013 the H",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "What AOC gets right \u2013 and wrong \u2013 about \u2018Woke 1.0\u2019 | Francine Prose",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/15/aoc-woke-1",
+    "published": "2026-08-15T10:00:53+00:00",
+    "summary": "Recent comments by AOC have reignited a fiery debate about \u2018wokeism\u2019. But what are we really talking about?Full confession: I am one of those who have come to think that Alexandria Ocasio-Cortez can essentially do no wrong. At times when I most fear for the future of our country, I watch her videos ",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "The Fauci hearing was painful to watch. But we need answers on Covid-19\u2019s origin| David Relman",
+    "url": "https://www.theguardian.com/commentisfree/2026/aug/15/covid-19-origins",
+    "published": "2026-08-15T10:00:53+00:00",
+    "summary": "Despite the recent hearings in Congress, we seem to be even further from the goal of understanding Covid-19\u2019s origin\u2019s than we have ever beenAs a microbiologist and infectious disease clinician, it has been tough to watch the recent devolution of public discourse on Covid-19 origins. It has been esp",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "As ESPN cuts familiar faces, its retreat from serious NBA coverage is complete",
+    "url": "https://www.theguardian.com/sport/2026/aug/15/espn-layoffs-nba-coverage-hot-takes",
+    "published": "2026-08-15T09:00:53+00:00",
+    "summary": "As ESPN cuts expert voices and rewards viral argument, fans who want to understand basketball are building a smarter conversation elsewhereAfter the Phoenix Suns dumped the Golden State Warriors out of last season\u2019s play-in, Stephen A Smith settled behind the First Take desk to explain why Steve Ker",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "\u2018Here we are 30 years later\u2019: the Olympic team that transformed US basketball",
+    "url": "https://www.theguardian.com/sport/2026/aug/15/1996-us-womens-olympic-basketball-team-hall-of-fame-wnba",
+    "published": "2026-08-15T09:00:52+00:00",
+    "summary": "The 1996 US women\u2019s Olympic team enter the Hall of Fame on Saturday after giving momentum to the WNBA and re-launching an era of American dominanceFor the US women\u2019s basketball team, the 1996 Olympics weren\u2019t just about winning gold in front of their home crowd.It was about the future of women\u2019s bas",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Video shows moment fighter jet crashed into mountain in Washington state",
+    "url": "https://www.cbsnews.com/video/video-shows-moment-fighter-jet-crashed-into-mountain-in-washington-state/",
+    "published": "2026-08-15T01:36:07+00:00",
+    "summary": "A new video shows the moment a fighter jet crashed into a mountain in Washington State in June. The pilot survived. Mark Strassmann has the details.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "American Airlines flies two jets with same flight number simultaneously in dangerous mistake",
+    "url": "https://www.cbsnews.com/video/american-airlines-flies-two-jets-with-same-flight-number-simultaneously-in-dangerous-mistake/",
+    "published": "2026-08-15T01:27:20+00:00",
+    "summary": "Two American Airlines jets were found to briefly share the same flight number and radio frequency in what could have turned into a major problem for the airline. Kris Van Cleave has more.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "8/14: The Takeout with Major Garrett",
+    "url": "https://www.cbsnews.com/video/814-the-takeout-with-major-garrett/",
+    "published": "2026-08-15T01:10:23+00:00",
+    "summary": "Luigi Mangione pleads guilty to federal charges in UnitedHealthcare CEO murder; new aircraft carrier on way to replace USS Lincoln.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Why freshmen at one high school give their mothers a goodbye kiss on their first day",
+    "url": "https://www.cbsnews.com/news/incoming-freshmen-oklahoma-bishop-kelley-high-school-give-their-mothers-goodbye-kiss/",
+    "published": "2026-08-15T00:34:19+00:00",
+    "summary": "For the last 26 years at Bishop Kelley High School in Tulsa, Oklahoma, the seniors surround the cars of the incoming freshmen and don't let them out until they do one specific thing: give their mothers a goodbye kiss.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Here's the humiliating initiation ritual freshmen must go through at this Oklahoma high school",
+    "url": "https://www.cbsnews.com/video/heres-the-humiliating-initiation-ritual-freshmen-must-go-through-at-this-oklahoma-high-school/",
+    "published": "2026-08-15T00:20:38+00:00",
+    "summary": "Steve Hartman goes on the road to uncover an embarrassing initiation ritual for freshmen at an Oklahoma high school.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Midwest flooding grows as Indiana sees over a foot of rain with river reaching record level",
+    "url": "https://www.cbsnews.com/video/midwest-flooding-grows-as-indiana-sees-over-a-foot-of-rain-with-river-reaching-record-level/",
+    "published": "2026-08-15T00:06:24+00:00",
+    "summary": "Nine states from Nebraska to Virginia are under flood watches as heavy rains rock large swaths of the country. Ian Lee reports.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "FBI: Violent crime plummeted in 2025, murder rate hit 20-year low",
+    "url": "https://www.cbsnews.com/news/fbi-crime-data-violent-crime-murder-white-house/",
+    "published": "2026-08-14T23:35:23+00:00",
+    "summary": "The White House is touting a historic drop in violent crime as the FBI releases the latest data from its annual Uniform Crime Reporting Program.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Army temporarily halts Apache helicopter training missions after deadly Texas crash",
+    "url": "https://www.pbs.org/newshour/nation/army-temporarily-halts-apache-helicopter-training-missions-after-deadly-texas-crash",
+    "published": "2026-08-14T23:34:27+00:00",
+    "summary": "No cause of the Wednesday crash has been released because the investigation has just begun. A safety investigation team from the Army Combat Readiness Center in Fort Rucker, Alabama, is trying to determine what happened, the Army said.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Jason Arday, youngest Black professor at Cambridge, found dead at 41 after resignation",
+    "url": "https://www.pbs.org/newshour/world/jason-arday-youngest-black-professor-at-cambridge-found-dead-at-41-after-resignation",
+    "published": "2026-08-14T23:25:02+00:00",
+    "summary": "A\u00a0British\u00a0sociologist who resigned last week from the University of Cambridge following weeks of public accusations of plagiarism and media scrutiny was found dead Friday.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "New aircraft carrier en route to Middle East after issues reported aboard USS Abraham Lincoln",
+    "url": "https://www.pbs.org/newshour/world/new-aircraft-carrier-en-route-to-middle-east-after-issues-reported-aboard-uss-abraham-lincoln",
+    "published": "2026-08-14T23:10:05+00:00",
+    "summary": "The Lincoln has been supporting the\u00a0U.S. war against Iran, and its deployment has included a record-setting uninterrupted time at sea of more than 240 days.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Luigi Mangione reveals motive for CEO's killing after pleading guilty in federal case",
+    "url": "https://www.pbs.org/newshour/show/luigi-mangione-reveals-motive-for-ceos-killing-after-pleading-guilty-in-federal-case",
+    "published": "2026-08-14T22:57:22+00:00",
+    "summary": "In a surprise turn, Luigi Mangione pleaded guilty to the shooting death of UnitedHealthcare CEO Brian Thompson. Mangione admitted he stalked and shot Thompson in 2024 outside a Hilton hotel in Manhattan. He potentially faces life in prison. The 28-year-old is also still facing state murder charges f",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Trump dismisses concerns over conditions on long-deployed USS Abraham Lincoln",
+    "url": "https://www.pbs.org/newshour/show/trump-dismisses-concerns-over-conditions-on-long-deployed-uss-abraham-lincoln",
+    "published": "2026-08-14T22:55:06+00:00",
+    "summary": "Reports from sailors and their families describe concerning conditions aboard the USS Abraham Lincoln. The ship has been at sea since last November, a record-length deployment. White House correspondent Liz Landers reports.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Quick-thinking controller helps 2 planes with same flight number avoid possible disaster",
+    "url": "https://www.pbs.org/newshour/nation/quick-thinking-controller-helps-2-planes-with-same-flight-number-avoid-possible-disaster",
+    "published": "2026-08-14T22:50:56+00:00",
+    "summary": "A\u00a0potential disaster\u00a0was averted Friday when a Phoenix air traffic controller recognized two American Airlines jets mistakenly were flying the same flight number and acted quickly to avoid confusion and keep them a safe distance apart.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "News Wrap: Record-breaking heat wave grips Europe",
+    "url": "https://www.pbs.org/newshour/show/news-wrap-record-breaking-heat-wave-grips-europe",
+    "published": "2026-08-14T22:50:43+00:00",
+    "summary": "In our news wrap Friday, a heat wave is breaking records across Europe, record-breaking rainfall triggered flooding across several cities in Japan, Hawaii is preparing for significant rain and strong winds from Tropical Storm Lala and authorities in Italy recovered a trio of stolen artworks by Renoi",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Congo Ebola outbreak on track to become deadliest in history",
+    "url": "https://www.pbs.org/newshour/show/congo-ebola-outbreak-on-track-to-become-deadliest-in-history",
+    "published": "2026-08-14T22:45:49+00:00",
+    "summary": "The Ebola outbreak in the Democratic Republic of Congo continues to worsen, with the number of confirmed cases climbing to over 4,600. At least 2,100 people have died, a death toll that was reached almost three times faster than the outbreak over a decade ago. William Brangham discussed the crisis w",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Greece toughens stance on illegal migration with new deportation plan",
+    "url": "https://www.pbs.org/newshour/show/greece-toughens-stance-on-illegal-migration-with-new-deportation-plan",
+    "published": "2026-08-14T22:40:56+00:00",
+    "summary": "Eleven years into a migration crisis, Greece is trying to stop boats crossing from North Africa to the Greek island of Crete. Five European Union countries have made a breakthrough in their efforts to deport migrants crossing the Mediterranean Sea. Uganda in East Africa has agreed to accept them, al",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Brooks and Atkins Stohr on 'woke' politics in America",
+    "url": "https://www.pbs.org/newshour/show/brooks-and-atkins-stohr-on-woke-politics-in-america",
+    "published": "2026-08-14T22:30:52+00:00",
+    "summary": "David Brooks of The Atlantic and Kimberly Atkins Stohr of the Boston Globe join William Brangham to discuss the week in politics, including the surprising result in Wisconsin's Democratic primary, the status of 'woke' politics in America and the stalemate between the U.S. and Iran.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "8/14: CBS Evening News",
+    "url": "https://www.cbsnews.com/video/081426-cbs-evening-news/",
+    "published": "2026-08-14T22:30:00+00:00",
+    "summary": "Latest on Luigi Mangione guilty plea; Trump denies USS Lincoln concerns.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Trump downplays concerns about sailors onboard USS Abraham Lincoln amid record deployment",
+    "url": "https://www.theguardian.com/us-news/2026/aug/14/trump-uss-abraham-lincoln-deployment",
+    "published": "2026-08-14T22:12:55+00:00",
+    "summary": "President said nine months at sea \u2018not nearly long enough\u2019 even as families call for attention to mental health crisisUS navy veterans and military health experts express concern over USS Abraham Lincoln sailorsDonald Trump has downplayed concerns about US sailors enduring a record-setting deploymen",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Army temporarily grounds Apache helicopter training flights after deadly crash",
+    "url": "https://www.cbsnews.com/news/army-apache-helicopter-training-flights-temporarily-grounded-fatal-crash-fort-hood/",
+    "published": "2026-08-14T22:01:00+00:00",
+    "summary": "The U.S. Army said Friday it is temporarily halting Apache helicopter training flights after two soldiers were killed earlier this week\u200b in a crash near Fort Hood, Texas.",
+    "source": "CBS News US"
+   },
+   {
+    "title": "Palestinians besieged in West Bank village of Qusra fear Israeli settlers will seize their homes",
+    "url": "https://www.pbs.org/newshour/world/palestinians-besieged-in-west-bank-village-of-qusra-fear-israeli-settlers-will-seize-their-homes",
+    "published": "2026-08-14T21:43:06+00:00",
+    "summary": "The standoff in Qusra between Palestinian families and Israeli settlers who apparently want to push them out entered a new stage Friday as activists supporting the Palestinians marched toward the besieged homes to replenish their dwindling food and water supply.",
+    "source": "PBS NewsHour"
+   },
+   {
+    "title": "Trump threatens to declare strait of Hormuz \u2018territory of the United States\u2019",
+    "url": "https://www.theguardian.com/us-news/2026/aug/14/trump-threat-strait-hormuz-us-territory",
+    "published": "2026-08-14T21:38:17+00:00",
+    "summary": "Seriousness of remark made in New York on Friday, and whether it signaled new policy \u200bposition, not clearDonald Trump has threatened to declare the strait of Hormuz as \u201ca territory of the United States\u201d as his administration struggles to conclude the war with Iran.During a speech at a police academy",
+    "source": "The Guardian US"
+   },
+   {
+    "title": "Should the U.S. have a mandatory retirement age?",
+    "url": "https://www.npr.org/2026/08/14/nx-s1-5924910/should-the-u-s-have-a-mandatory-retirement-age",
+    "published": "2026-08-14T21:05:09+00:00",
+    "summary": "Older workers are delaying retirement more and more. But it's causing younger workers to wonder if they're missing out on job advancement because senior roles aren't opening up. Is this true?",
+    "source": "NPR National"
+   },
+   {
+    "title": "At Big Bend National Park, bulldozers begin clearing land for border barrier work",
+    "url": "https://www.npr.org/2026/08/14/nx-s1-5927276-e1/at-big-bend-national-park-bulldozers-begin-clearing-land-for-border-barrier-work",
+    "published": "2026-08-14T20:54:51+00:00",
+    "summary": "In the Big Bend area of West Texas, contractors are beginning to set the stage to build the Trump administration's planned border wall and barriers, despite bipartisan opposition.",
+    "source": "NPR National"
+   },
+   {
+    "title": "No privacy, little downtime: Life aboard the USS Abraham Lincoln",
+    "url": "https://www.npr.org/2026/08/14/nx-s1-5931543/no-privacy-little-downtime-life-aboard-the-uss-abraham-lincoln",
+    "published": "2026-08-14T20:49:32+00:00",
+    "summary": "Almost 5,000 sailors have spent months aboard the USS Abraham Lincoln. As another carrier heads to relieve them, a former pilot takes us inside life on the ship.",
+    "source": "NPR National"
+   },
+   {
+    "title": "Ancient Nero's Bridge reemerges from Tiber River as Rome faces water crisis",
+    "url": "https://www.pbs.org/newshour/world/ancient-neros-bridge-reemerges-from-tiber-river-as-rome-faces-water-crisis",
+    "published": "2026-08-14T20:48:35+00:00",
+    "summary": "Named for the former Roman emperor, the bridge\u00a0once connected Rome's city center with the Tiber's right bank.",
+    "source": "PBS NewsHour"
+   }
+  ],
+  "world": [
+   {
+    "title": "Erdogan says Egypt could join Turkiye-Saudi-Pakistan defence pact",
+    "url": "https://www.aljazeera.com/news/2026/8/15/erdogan-says-egypt-could-join-turkiye-saudi-pakistan-defence-pact?traffic_source=rss",
+    "published": "2026-08-15T16:39:52+00:00",
+    "summary": "Turkish president tells Al Jazeera that the recently signed agreement is open to new members as he pledges continued support.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "One killed, dozens injured after wildfire hits Croatian coast",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/one-killed-dozens-injured-after-wildfire-hits-croatian-coast?traffic_source=rss",
+    "published": "2026-08-15T16:33:05+00:00",
+    "summary": "At least one person was killed and around 42 others were injured after a violent wildfire hit a coastal town in Croatia.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Sudan\u2019s al-Burhan pledges immunity for dialogue, rules out Hemedti return",
+    "url": "https://www.aljazeera.com/news/2026/8/15/sudans-al-burhan-pledges-immunity-for-dialogue-rules-out-hemedti-return?traffic_source=rss",
+    "published": "2026-08-15T16:17:43+00:00",
+    "summary": "Al-Burhan pledged temporary immunity and legal protections for participants in a Sudanese national dialogue.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Eleven killed in Israeli strikes on southern Lebanon, authorities say",
+    "url": "https://www.bbc.co.uk/news/articles/c4gjygx4gjeo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T16:02:49+00:00",
+    "summary": "Israel's military said it had struck \"Hezbollah terror infrastructure\" in response to what it described as earlier action against its soldiers.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Ukraine hits Russian Starlink-style network, Moscow tracks arms package",
+    "url": "https://www.aljazeera.com/news/2026/8/15/ukraine-hits-russian-starlink-style-network-moscow-tracks-arms-package?traffic_source=rss",
+    "published": "2026-08-15T15:50:06+00:00",
+    "summary": "Ukraine used domestically produced Flamingo missiles to hit targets in Russia's southwestern Samara region.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Israeli settlers besiege Palestinian families in occupied West Bank",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/15-08-reported-nour-west-bank-ps?traffic_source=rss",
+    "published": "2026-08-15T15:48:07+00:00",
+    "summary": "Three Palestinian families say they have been trapped inside their homes in the occupied West Bank for nearly a week.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Sedition to anthem: Many lives of \u2018Azadi\u2019 chants in India\u2019s youth protests",
+    "url": "https://www.aljazeera.com/features/2026/8/15/sedition-to-anthem-many-lives-of-aazadi-chants-in-indias-youth-protests?traffic_source=rss",
+    "published": "2026-08-15T15:25:51+00:00",
+    "summary": "A decade ago, student leaders were jailed for shouting 'Azadi', which means freedom.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "How blind football is helping women overcome barriers in Mexico",
+    "url": "https://www.aljazeera.com/news/longform/2026/8/15/how-blind-football-is-helping-women-overcome-barriers-in-mexico?traffic_source=rss",
+    "published": "2026-08-15T15:15:45+00:00",
+    "summary": "Mexico is sending its first blind women's football team to compete in an international tournament. Players cannot wait.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Five injured, one critically, in shooting at Virginia State University",
+    "url": "https://www.bbc.co.uk/news/articles/c0l5583903yo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T15:09:59+00:00",
+    "summary": "Multiple suspects were involved in the incident in the early hours of Saturday, the university said.",
+    "source": "BBC World"
+   },
+   {
+    "title": "South Korea proposes talks to officially end war with North",
+    "url": "https://www.bbc.co.uk/news/articles/c8en2z9jp2xo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T14:40:15+00:00",
+    "summary": "Lee Jae Myung offers chance to end the conflict, which has been frozen since an armistice in 1953.",
+    "source": "BBC World"
+   },
+   {
+    "title": "The next Yemen war might be different",
+    "url": "https://www.aljazeera.com/features/2026/8/15/the-next-yemen-war-might-be-different?traffic_source=rss",
+    "published": "2026-08-15T14:32:07+00:00",
+    "summary": "Drones are no longer the advantage for only one side.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Family stranded at sea for 16 hours after jet ski capsized in Thailand",
+    "url": "https://www.bbc.co.uk/news/articles/cy0j60p0d29o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T13:41:09+00:00",
+    "summary": "A father and his two young sons spent a night adrift before being rescued off the coast of the island of Koh Samui.",
+    "source": "BBC World"
+   },
+   {
+    "title": "World's Ugliest Dog contest crowns 2026 winner",
+    "url": "https://www.bbc.co.uk/news/videos/c39eekgv79ko?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T13:41:08+00:00",
+    "summary": "The annual contest has been taking place in Santa Rosa, California.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Powerful magnitude 7.7 earthquake kills at least 47 in Indonesia",
+    "url": "https://www.bbc.co.uk/news/articles/c5y0zz63gero?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T13:35:57+00:00",
+    "summary": "A search and rescue operation is under way to find survivors in Flores, an island in eastern Indonesia.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Afghans mark five years of Taliban rule",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/afghans-mark-five-years-of-taliban-rule?traffic_source=rss",
+    "published": "2026-08-15T13:12:51+00:00",
+    "summary": "Afghans have gathered in Kabul to mark five years since the Taliban returned to power.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Black professor at centre of Cambridge plagiarism row found dead",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/black-professor-at-centre-of-cambridge-plagiarism-row-found-dead?traffic_source=rss",
+    "published": "2026-08-15T13:11:31+00:00",
+    "summary": "Dr Jason Arday has been found dead days after resigning from Cambridge University due to plagiarism allegations.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Vienna woman sues city for discrimination over toilet fees",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/vienna-woman-sues-city-for-discrimination-over-toilet-fees?traffic_source=rss",
+    "published": "2026-08-15T13:01:31+00:00",
+    "summary": "An Austrian activist in Vienna is challenging the city over public toilet fees.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Five wounded in shooting at Virginia State University, multiple suspects",
+    "url": "https://www.aljazeera.com/news/2026/8/15/five-wounded-in-shooting-at-virginia-state?traffic_source=rss",
+    "published": "2026-08-15T12:57:08+00:00",
+    "summary": "Police found the gunshot victims near the US university's halls of residence.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Five years on, how will Taliban deal with armed opposition?",
+    "url": "https://www.aljazeera.com/news/2026/8/15/five-years-on-how-will-taliban-deal-with-armed-opposition?traffic_source=rss",
+    "published": "2026-08-15T12:44:30+00:00",
+    "summary": "The United Nations says armed groups opposed to the government remain active.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Afghan refugees face an uncertain future as Europe shifts to the right",
+    "url": "https://www.aljazeera.com/news/2026/8/15/afghan-refugees-face-uncertain-future-as-europe-shifts-to-the-right?traffic_source=rss",
+    "published": "2026-08-15T12:14:30+00:00",
+    "summary": "With the fall of the former government in Kabul, thousands of Afghans were forced to flee the country, many to Europe.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Is China seeking to copy Iran\u2019s Strait of Hormuz blockade around Taiwan?",
+    "url": "https://www.aljazeera.com/video/101-east/2026/8/15/is-china-seeking-to-copy-irans-strait-of-hormuz-blockade-around-taiwan?traffic_source=rss",
+    "published": "2026-08-15T11:30:00+00:00",
+    "summary": "Taiwan has long prepared for a Chinese military invasion but wars in Iran and Ukraine expose new potential threats.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Modi threatens to target \u2018intellectual Naxals\u2019 in Independence Day speech",
+    "url": "https://www.aljazeera.com/news/2026/8/15/modi-threatens-to-target-intellectual-naxals-in-independence-day-speech?traffic_source=rss",
+    "published": "2026-08-15T11:27:11+00:00",
+    "summary": "The Indian PM said Maoist-influenced Naxalite rebellion is largely gone, but its ideological backers still pose threat.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Secondhand book sales are booming. Is it because of AI?",
+    "url": "https://www.bbc.co.uk/news/articles/cp3rprx2wl4o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T11:25:32+00:00",
+    "summary": "Booksellers are reporting mysterious bulk orders. It's thought the books are being used to train AI - and ending up pulped.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Aftermath of deadly Indonesia earthquake",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/aftermath-of-deadly-indonesia-earthquake?traffic_source=rss",
+    "published": "2026-08-15T11:19:56+00:00",
+    "summary": "Dozens of people have been killed after a 7.7-magnitude earthquake off Indonesia\u2019s Flores Island.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Japanese minister visits shrine to war dead, angering China, South Korea",
+    "url": "https://www.aljazeera.com/news/2026/8/15/japanese-minister-visits-shrine-to-war-dead-angering-china-south-korea?traffic_source=rss",
+    "published": "2026-08-15T11:09:27+00:00",
+    "summary": "Defence Minister Koizumi's visit to Yasukuni Shrine comes on the 81st anniversary of Japan's surrender in WWII.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "What the Taliban achieved and failed to achieve in five years",
+    "url": "https://www.aljazeera.com/opinions/2026/8/15/what-the-taliban-achieved-and-failed-to-achieve-in-five-years?traffic_source=rss",
+    "published": "2026-08-15T11:07:05+00:00",
+    "summary": "The Taliban government brought security and stability but is facing increasing alienation of the general population.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "World Cup winner Ferran Torres joins Paris Saint-Germain from Barcelona",
+    "url": "https://www.aljazeera.com/sports/2026/8/15/world-cup-winner-ferran-torres-joins-paris-saint-germain-from-barcelona?traffic_source=rss",
+    "published": "2026-08-15T10:48:41+00:00",
+    "summary": "The 26-year-old striker cost the Ligue 1 champions a reported 50 million euros ($58m) and has signed a five-year deal.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Arsenal vs Manchester City: Community Shield \u2013 prediction, lineups, teams",
+    "url": "https://www.aljazeera.com/sports/2026/8/15/arsenal-vs-manchester-city-community-shield-prediction-lineups-teams?traffic_source=rss",
+    "published": "2026-08-15T10:43:09+00:00",
+    "summary": "Premier League winners Arsenal and FA Cup holders Man City prepare to trade blows as English top-flight season nears.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "At scene of deadly Israeli strike on Lebanon home",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/15/at-scene-of-deadly-israeli-strike-on-lebanon-home?traffic_source=rss",
+    "published": "2026-08-15T10:18:40+00:00",
+    "summary": "An overnight Israeli strike on a family home in Ansar, southern Lebanon, killed at least seven people.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Moment family rescued after 16 hours floating on jet ski off Thailand",
+    "url": "https://www.bbc.co.uk/news/videos/cj4kg74ndggo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T09:29:31+00:00",
+    "summary": "A 50-year-old father and his two sons were found floating off Koh Samui island, a local official told AFP on Saturday.",
+    "source": "BBC World"
+   },
+   {
+    "title": "They fought for the U.S. in Afghanistan. Now they worry about losing their green cards",
+    "url": "https://www.npr.org/2026/08/15/nx-s1-5897606/afghanistan-visa-green-card-deport",
+    "published": "2026-08-15T09:00:00+00:00",
+    "summary": "When the U.S. withdrew from Afghanistan five years ago, thousands of Afghans who helped U.S. troops were brought here to rebuild their lives. But now, some fear the U.S. may want to send them back.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Bangladesh rock Australia as historic Test win in sight",
+    "url": "https://www.aljazeera.com/sports/2026/8/15/bangladesh-rock-australia-as-historic-test-win-in-sight?traffic_source=rss",
+    "published": "2026-08-15T08:50:56+00:00",
+    "summary": "Australia close Day Three of the first Test against Bangladesh on 161-4, trailing the record-chasing tourists by 67.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "FIFA World Cup and Olympics cited as Coe warns of politicians near sport",
+    "url": "https://www.aljazeera.com/sports/2026/8/15/coe-cites-olympics-and-fifa-world-cup-in-warning-on-interference-in-sport?traffic_source=rss",
+    "published": "2026-08-15T08:44:36+00:00",
+    "summary": "World Athletics' president says political influence in sport must be kept in check with LA Olympics on horizon.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Venus Williams hits 13-game tennis losing streak with Cincinnati Open exit",
+    "url": "https://www.aljazeera.com/sports/2026/8/15/venus-williams-hits-13-game-tennis-losing-streak-with-cincinnati-open-exit?traffic_source=rss",
+    "published": "2026-08-15T08:32:07+00:00",
+    "summary": "Seven-time Grand Slam winner Venus Williams defeated 6-2, 6-2 by Emiliana Arango in the first round of Cincinnati Open.",
+    "source": "Al Jazeera"
+   },
+   {
+    "title": "Magnitude 7.7 earthquake strikes off Indonesia's coast, killing at least 38",
+    "url": "https://www.npr.org/2026/08/15/nx-s1-5932405/earthquake-indonesia",
+    "published": "2026-08-15T08:29:20+00:00",
+    "summary": "A powerful magnitude 7.7 earthquake struck off the coast of Indonesia early Saturday, killing at least 38 people, collapsing buildings as well as causing panic in a region prone to deadly quakes.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Europe's scorched landscapes seen from space after summer heatwaves",
+    "url": "https://www.bbc.co.uk/news/articles/c4gxy0wqqd9o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T05:01:13+00:00",
+    "summary": "From glaciers shrinking to\u00a0an exposed shipwreck, \u00a0satellites capture the impact of extreme heat and drought.",
+    "source": "BBC World"
+   },
+   {
+    "title": "I wish I had been a more rebellious teenager, says Bella Ramsey",
+    "url": "https://www.bbc.co.uk/news/articles/c87nwq9qe24o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T00:10:47+00:00",
+    "summary": "Ramsey stars in a new film about a cancer survivor who attends \u201cchemo camp\u201d and finds friendship, love and freedom.",
+    "source": "BBC World"
+   },
+   {
+    "title": "BBC seeks to subpoena Trump's family members in Panorama lawsuit",
+    "url": "https://www.bbc.co.uk/news/articles/cd69ely319eo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-15T00:01:53+00:00",
+    "summary": "The BBC's lawyers argue Trump's family members \"have personal knowledge\" of his intentions in the speech he gave outside the US Capitol on 6 January 2021.",
+    "source": "BBC World"
+   },
+   {
+    "title": "The Polygamist's author says women see themselves reflected in her Netflix hit",
+    "url": "https://www.bbc.co.uk/news/articles/cd0xk82mrpyo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T23:17:22+00:00",
+    "summary": "Zimbabwean novelist Sue Nyathi self-funded her debut novel and now asks who can afford to write at all.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Many Canadians are boycotting the US, so this is where they're travelling instead",
+    "url": "https://www.bbc.co.uk/news/articles/c8jnwnw22ngo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T23:16:43+00:00",
+    "summary": "From exploring their own backyard to travelling abroad, many Canadians are spending their money elsewhere to send a message to the US president.",
+    "source": "BBC World"
+   },
+   {
+    "title": "How is parkour helping these seniors avoid injuries?",
+    "url": "https://www.bbc.co.uk/news/videos/c7vg06pjdmqo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T23:08:13+00:00",
+    "summary": "In one of the world's fastest aging countries, older people are finding creative ways to stay healthy.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Many Iranians are heading to Turkey to escape the ongoing war's heavy toll",
+    "url": "https://www.npr.org/2026/08/14/nx-s1-5931244/many-iranians-are-heading-to-turkey-to-escape-the-ongoing-wars-heavy-toll",
+    "published": "2026-08-14T22:03:08+00:00",
+    "summary": "Iranians visiting the city of Van, Turkey, near the Iranian border say how expensive and difficult life back home is.",
+    "source": "NPR World"
+   },
+   {
+    "title": "Dozens injured and thousands evacuated in Croatia wildfire",
+    "url": "https://www.bbc.co.uk/news/articles/c9342wn2x27o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T20:22:56+00:00",
+    "summary": "Officials say the blaze, near the port town of Omis, is one of the worst in Croatia's history.",
+    "source": "BBC World"
+   },
+   {
+    "title": "'I shot Mr Thompson'- What it was like inside court as Mangione pleaded guilty",
+    "url": "https://www.bbc.co.uk/news/articles/c4gkyez7195o?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T18:54:58+00:00",
+    "summary": "It marked the first time a court had heard Mangione describe how he committed a crime that garnered worldwide attention.",
+    "source": "BBC World"
+   },
+   {
+    "title": "Afghan women tell the BBC their lives are unrecognisable after five years of Taliban rule",
+    "url": "https://www.bbc.co.uk/news/articles/clyje43dz4eo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T18:25:38+00:00",
+    "summary": "Women across the country speak of public floggings, losing their jobs, and barriers to healthcare that endanger lives.",
+    "source": "BBC World"
+   },
+   {
+    "title": "US aircraft carrier on way to relieve USS Lincoln after issues reported aboard",
+    "url": "https://www.bbc.co.uk/news/articles/c171yp5zdrxo?at_medium=RSS&at_campaign=rss",
+    "published": "2026-08-14T17:36:27+00:00",
+    "summary": "Thousands of sailors on the Lincoln have reportedly faced food shortages and broken plumbing, with some considering jumping overboard.",
+    "source": "BBC World"
+   }
+  ],
+  "ai_tech": [
+   {
+    "title": "Amazon Can Use Your Twitch Content to Train Its AI\u2014Unless You Opt Out",
+    "url": "https://www.wired.com/story/amazon-uses-your-twitch-content-to-train-its-ai-how-to-opt-out/",
+    "published": "2026-08-15T09:00:00+00:00",
+    "summary": "When Twitch announced that streamers could opt out, thousands of users questioned why their content was being used to train AI models in the first place.",
+    "source": "Wired"
+   },
+   {
+    "title": "New York City Lawmakers Push to \u2018Ban the Scan\u2019 at MSG",
+    "url": "https://www.wired.com/story/new-york-city-lawmakers-push-to-ban-the-scan-at-msg/",
+    "published": "2026-08-14T21:43:17+00:00",
+    "summary": "At a press conference outside Madison Square Garden, politicians, musicians, and privacy advocates argued for tighter restrictions on how public venues deploy biometric surveillance.",
+    "source": "Wired"
+   },
+   {
+    "title": "Suspecting court of using AI, man injected prompts in filings to try to win case",
+    "url": "https://arstechnica.com/tech-policy/2026/08/suspecting-court-of-using-ai-man-injected-prompts-in-filings-to-try-to-win-case/",
+    "published": "2026-08-14T17:26:53+00:00",
+    "summary": "Judge warns pro se litigants are using chatbots wrong and getting desperate.",
+    "source": "Ars Technica"
+   }
+  ],
+  "dev_community": [
+   {
+    "title": "Benjamin Pasero joined Claude Code Team",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vp6vt3/benjamin_pasero_joined_claude_code_team/",
+    "published": "2026-08-15T16:14:55+00:00",
+    "summary": "Benjamin Pasero, one of the main developers of VS Code left Microsoft and the VS Code team towards Anthropic to work on Claude Code. For those of you who don't know him: he worked for Microsoft and mainly VS Code for 15 years.  I'm following VS Code and their team for more than 10 years and I was al",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "7h window?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vp65cs/7h_window/",
+    "published": "2026-08-15T15:45:42+00:00",
+    "summary": "Are you f joking me right now? Lets time how fast I can unsub from Claude and sub to OpenAI for a second account.... https://preview.redd.it/fg3958a47kjh1.png?width=1692&format=png&auto=webp&s=492725d00e737e3bcff0cc5f80e005f802cbedaa",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Claude Code hitting the 5-hour usage limit much faster than usual is something changing?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp5cqt/claude_code_hitting_the_5hour_usage_limit_much/",
+    "published": "2026-08-15T15:13:18+00:00",
+    "summary": "Hi everyone, This is the second time I've hit the 5-hour usage limit on my $100 plan while using Claude Code. I've been using Claude Code for a while and have never experienced this issue before. I'm a developer and use it across different projects, mainly with Fable and Opus 5, but I've never hit t",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I'm starting to hate anthropic/claude, but I don't want to",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vp4fjh/im_starting_to_hate_anthropicclaude_but_i_dont/",
+    "published": "2026-08-15T14:34:27+00:00",
+    "summary": "Yesterday Qwen 3.8-27B came out. A nice addition to my setup. So I tasked Fable- as with previous versions - with modifying and customizing it. Apparently that now counts as some kind of cybersecurity violation, because Fable keeps bouncing back to Opus 4.8. Opus 4.8 then does exactly the job Fable ",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Opus 5 built me some houses",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp4c1s/opus_5_built_me_some_houses/",
+    "published": "2026-08-15T14:30:14+00:00",
+    "summary": "So wanted to test Opus 5 3D capabilities so handed it some architectural drawings for some houses, does really decent job. Does need pushing a few times not to accept crap results, but it\u2019s damn good for a days worth my time.",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Secondhand book sales are booming. Is it because of AI?",
+    "url": "https://www.bbc.co.uk/news/articles/cp3rprx2wl4o",
+    "discussion": "https://news.ycombinator.com/item?id=49310725",
+    "published": "2026-08-15T14:08:55+00:00",
+    "summary": "",
+    "points": 55,
+    "comments": 63,
+    "source": "Hacker News",
+    "query": "mcp"
+   },
+   {
+    "title": "How do you keep remote control active for longer than a day?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vp37me/how_do_you_keep_remote_control_active_for_longer/",
+    "published": "2026-08-15T13:41:51+00:00",
+    "summary": "I have desktop sessions i run /rc on when im away but they always close connection within about a day. How do you guys handle keeping desktop sessions connected to claude app when you are away for longer than a day?",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "\u201cHouse rules\u201d works better than \u201cRULES\u201d in CLAUDE.md anyone else seeing this?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp2u4k/house_rules_works_better_than_rules_in_claudemd/",
+    "published": "2026-08-15T13:25:19+00:00",
+    "summary": "Small thing, but it\u2019s held up across enough sessions that I want to see if it\u2019s just me. My CLAUDE.md used to look like this: ## STRICT RULES \u2014 MUST FOLLOW - We run tests before committing. - This repo uses pnpm. Don't reach for npm. - Prefer editing an existing file over creating a new one. Rules g",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Fable, shmable... The real flagship feature is not having to set a 4:20 AM alarm just to hit \"try again\"",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp2ty0/fable_shmable_the_real_flagship_feature_is_not/",
+    "published": "2026-08-15T13:25:06+00:00",
+    "summary": "It's a tiny feature I cannot underappreciate, arrived recently to \"Code\" in Claude app. Seems to work only on a focused session, so don't turn off your alarms yet Disclosure: the night alert actually was 6:20 AM. I woke up myself a minute earlier to witness that only the focused session was restarte",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "TCG game with claude after 1 month from zero experience making games",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp2ky0/tcg_game_with_claude_after_1_month_from_zero/",
+    "published": "2026-08-15T13:13:51+00:00",
+    "summary": "all was created by 99.9% claude 0.01% me, for only one month work is really impressive since all functional + online too +140 cards right now with his sprites for attack / defense, the whole game is free on steam, if u like it u can wishlist on steam and that gonna help me a lot (release this month ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "For people who use both Claude Code and Codex - how do they compare in your experience?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vp1lai/for_people_who_use_both_claude_code_and_codex_how/",
+    "published": "2026-08-15T12:27:39+00:00",
+    "summary": "I am mainly interested how it performs in projects created from scratch when it comes to:  Token usage speed and weekly allowance limits Ability of the AI to give you exactly what you wanted on the first couple of tries Lying about doing something or implementing workarounds to fake out linters Havi",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "I built Popwatch - your personal popcorn popping pal",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vp09ja/i_built_popwatch_your_personal_popcorn_popping_pal/",
+    "published": "2026-08-15T11:19:49+00:00",
+    "summary": "It's staggering how quickly we can knock up an app now. I've long thought about creating some software for determining the perfect time to stop microwave popcorn. Typically the instructions say to wait until 3-4 seconds between pops. The initial prompt I used to build with Claude Opus5  build a mobi",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Auto-research with codex: How I achieved a 232x Faster Kernel",
+    "url": "https://sankalp.bearblog.dev/autoresearch/",
+    "discussion": "https://news.ycombinator.com/item?id=49309549",
+    "published": "2026-08-15T11:00:02+00:00",
+    "summary": "",
+    "points": 243,
+    "comments": 69,
+    "source": "Hacker News",
+    "query": "codex"
+   },
+   {
+    "title": "Opus 5 output is unreadable on long sessions",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vozvlg/opus_5_output_is_unreadable_on_long_sessions/",
+    "published": "2026-08-15T10:58:47+00:00",
+    "summary": "So opus 5 is fine on short sessions but if you let it run on a big repo for a while the output gets honestly unusable. like whatever it tells you is correct but you cant actually use it because it read so much of the codebase that it writes like you already read it too. everything is \"load-bearing\" ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "A Google Cloud engineer just showed how to build a complete application with Claude from scratch",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vozpv9/a_google_cloud_engineer_just_showed_how_to_build/",
+    "published": "2026-08-15T10:49:43+00:00",
+    "summary": "He spent 26 minutes live on stage doing what most teams take weeks to do. No team, no setup, just Claude and a goal. Worth more than any $500 vibe coding course. Those who learn what Claude really does are launching what everyone else outsources to a team. The gap between what AI can do and who know",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Downgraded from Opus 5 to Opus 4.6 and it feels night and day",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voz6sm/downgraded_from_opus_5_to_opus_46_and_it_feels/",
+    "published": "2026-08-15T10:18:55+00:00",
+    "summary": "Holy shit. Got Opus 4.6 to take over the project and finally the plans made sense. The language, my god Opus 5 speaks in riddles and weird sentence phrasing it is so difficult to understand wtf it is saying half the time without prompting, 4.6 sounds so more more coherent to me.Given opus 5 is suppo",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Kind of burnt out reviewing every single line claude code writes",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voyaox/kind_of_burnt_out_reviewing_every_single_line/",
+    "published": "2026-08-15T09:24:31+00:00",
+    "summary": "Hey guys, not sure if this is just me but lately i feel genuinely tired. Not of claude code itself, its great, but of the constant vigilance of reviewing everything it touches because i dont fully trust it yet. Feels like i traded typing fatigue for reviewing fatigue and some days that feels worse. ",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Am I using Claude Code wrong, or is vibe coding supposed to take THIS long?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voy5cp/am_i_using_claude_code_wrong_or_is_vibe_coding/",
+    "published": "2026-08-15T09:15:30+00:00",
+    "summary": "I\u2019m an accountant with zero software engineering or computer science background, and I\u2019ve been using Claude Code to build a personal project to streamline my workflow. It has auth, tools, UI, etc., but honestly, the biggest thing I\u2019m struggling with is how damn long everything takes. At this point I",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "World of Claudecraft after 2 months of vibe coding",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voxq2f/world_of_claudecraft_after_2_months_of_vibe_coding/",
+    "published": "2026-08-15T08:49:44+00:00",
+    "summary": "Wanted to update you all after two months of vibecoding with the community on what our AI generated game, World of ClaudeCraft, looks and plays like now The graphics difference alone is hard to believe, I could list every feature we've added in the past 60 days but the video speaks for itself At thi",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Claude code usage from 0 to 100% without sending prompts or being signed in and without active sessions",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voxhrq/claude_code_usage_from_0_to_100_without_sending/",
+    "published": "2026-08-15T08:35:26+00:00",
+    "summary": "My work claude account is useless now because within 30 minutes the full 5 hour window usage is used up without me actually using it. Reading this subreddit I am not the only one that this happens to lets hope my account doesn't get banned like many others have expierenced",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Stupid typing game I made with Claude",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vowcyh/stupid_typing_game_i_made_with_claude/",
+    "published": "2026-08-15T07:27:04+00:00",
+    "summary": "Just as the title says. Space typing game I made. Silly but fun. Not selling anything whatsoever. Just wanted to see if people wanted to give it a go.  Two different leaderboards depending on if you play mobile or desktop.  Have fun, or dont. I dont care.  https://aphelion-production-bbcd.up.railway",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Understanding Claude Code and building agents to build websites",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vovyau/understanding_claude_code_and_building_agents_to/",
+    "published": "2026-08-15T07:03:44+00:00",
+    "summary": "Hey,  Not sure if I'm posting in the right subreddit but I\u2019ve been using Claude/Claude Code and I\u2019m starting to realise that I still don\u2019t fully understand how to use it effectively. My main goal is to use Claude Code to build websites but I haven't quite fully got to the stage of working with it as",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Whhat?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1votms0/whhat/",
+    "published": "2026-08-15T04:53:33+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I built BuildStory with Claude Code + Codex, then used it to see how ridiculous the build actually was",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vothje/i_built_buildstory_with_claude_code_codex_then/",
+    "published": "2026-08-15T04:45:36+00:00",
+    "summary": "I\u2019ve been building BuildStory, a project-report tool for AI-assisted software work. The basic idea is: point the local scanner at a repo you\u2019ve been working on with tools like Claude Code/Codex, and it reconstructs a report about the build, sessions, model usage, turning points, build patterns, weir",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Is /Ponytail FUll and /Caveman Full :really worth it, for saving tokens? I'm finding I'm saving so much, but am I shooting myself in the foot?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vos14t/is_ponytail_full_and_caveman_full_really_worth_it/",
+    "published": "2026-08-15T03:30:14+00:00",
+    "summary": "Pretty much what the title says. I find that my session Never hit limits, I'm never reaching my five-hour window limit anymore, and I'm using Opus on max. (Max 20 plan) But I don't know if I'm shooting myself in the foot with the lack of complexity. Everything seems to be going well, but maybe there",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Claude doesn't want to talk about SSD prices",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vopaqp/claude_doesnt_want_to_talk_about_ssd_prices/",
+    "published": "2026-08-15T01:17:05+00:00",
+    "summary": "https://preview.redd.it/8bchtwrkwfjh1.png?width=1123&format=png&auto=webp&s=5a40ac16c5da8f3d5b4acdcdee998464f5ada7ae ???",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I built a cocktail app. Anyone else just build their own tailored versions of tools now?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voo5zf/i_built_a_cocktail_app_anyone_else_just_build/",
+    "published": "2026-08-15T00:23:23+00:00",
+    "summary": "There are so many apps, admittedly built by people a lot more skilled than me, that I use that just don\u2019t quite do what I want.  And now instead of testing every solution in a given genre. I can just make my own, uniquely tailored to my taste and use case with Claude. I\u2019ve replaced excel sheets that",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "I've built a fun dot matrix style graphics editor with the help of Claude",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voo433/ive_built_a_fun_dot_matrix_style_graphics_editor/",
+    "published": "2026-08-15T00:21:03+00:00",
+    "summary": "Hi all - I'm a designer / developer with a background in games/apps. I like to make tools that solve problems that I\u2019m having day to day. I\u2019ve been working on a tool to generate dot matrix style graphics - either from text, by drawing or images. I wanted to make something that had a balance of being",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I built an Acrylic Pouring simulator (based real Physics)",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vonlgu/i_built_an_acrylic_pouring_simulator_based_real/",
+    "published": "2026-08-14T23:58:17+00:00",
+    "summary": "Inspired by the amazing watercolour simulator i decided to bring back only of my hobbies - acrylic pouring, which involves mixing acrylic paint, water and a thickener with drop or two of silicone. One of the most interesting parts for me was how the different colours would mix and create cells:  A c",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Worktrees and additional headache",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vonihg/worktrees_and_additional_headache/",
+    "published": "2026-08-14T23:54:25+00:00",
+    "summary": "I've been using claude code for a while and was mostly running it the old fashioned way in git, branches for features, merge back to main when needed. Latest claude code really pushes you towards the multi agent workflow where every agent works in its own worktree. While I get the theoretical benefi",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "What are some common giveaways of Claude AI writing?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vonba5/what_are_some_common_giveaways_of_claude_ai/",
+    "published": "2026-08-14T23:45:20+00:00",
+    "summary": "I am a teacher, and my students sometimes use AI for their homework. I can usually tell with ChatGPT writing (em dashes, not just this but that structure), but I struggle with Claude. I have identified some markers like overuse of 'genuinely', and paragraphs starting with 'here's the thing'.  What a",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Wilson's Survival Guide for August 7-14, 2026 now available!",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1von8re/wilsons_survival_guide_for_august_714_2026_now/",
+    "published": "2026-08-14T23:42:12+00:00",
+    "summary": "Another week, another pile of chaos to sort through so you don't have to scroll 9,000 watermarking threads yourself. This week's Survival Guide covers August 7\u201314, 2026, and folks \u2014 it was a lot. Here's the short version of what you'll find inside:  The drama: Anthropic's statistical watermarking an",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "What are the benefits to using Hermes with Claude?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voktun/what_are_the_benefits_to_using_hermes_with_claude/",
+    "published": "2026-08-14T21:57:26+00:00",
+    "summary": "I\u2019m struggling to understand what Hermes, paired with Claude, can do better than just using Claude Code and Claude Cowork. Is it being able to fully automate agentic workflows with orchestration?",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Anthropic writes an FAQ about watermarking",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vokr48/anthropic_writes_an_faq_about_watermarking/",
+    "published": "2026-08-14T21:54:19+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Downgrading never felt so good. Opus 4.8 FTW\ud83d\udd25",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vojj88/downgrading_never_felt_so_good_opus_48_ftw/",
+    "published": "2026-08-14T21:05:37+00:00",
+    "summary": "After spending a few days here in Reddit trying to figure out why over the last week my workflows are just so confusingly communicated and there is so much Cloudsplaining and smart-assing!!! First of all, I had a massive validation from you guys and this subreddit hat this is not just me. Most of th",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "I made Claude file a markdown record before every fix just for discipline. It accidentally turned into a self-generating rule pipeline.",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voiqgb/i_made_claude_file_a_markdown_record_before_every/",
+    "published": "2026-08-14T20:34:30+00:00",
+    "summary": "This is a heavier version of the MISTAKES.md setup posted here recently. When Claude hits a bug in my projects, the fix starts with an md file. It has to file a fix record before it's allowed to touch anything - one markdown file per mistake. I set all of this up purely for discipline, I wanted less",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "I let Claude Code trade stocks with my real money. Results:",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voi341/i_let_claude_code_trade_stocks_with_my_real_money/",
+    "published": "2026-08-14T20:09:39+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Built a gym rest timer that automatically starts when you pick up your phone after a set",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vohwi1/built_a_gym_rest_timer_that_automatically_starts/",
+    "published": "2026-08-14T20:02:39+00:00",
+    "summary": "App is called RestlQ. It analyzes your iPhone's motion sensor data in order to achieve this. The idea was to create a rest timer that's as low friction as possible, one you can just begin at the start of your workout and never have to touch again. The app morphs into a Live Activity when you leave t",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Opus 5: How to fix verbose output",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vohcdg/opus_5_how_to_fix_verbose_output/",
+    "published": "2026-08-14T19:42:04+00:00",
+    "summary": "Since everyone is having a great time with it, I collected some solutions that you can utilize to manage Opus 5 communication nightmare style. Ordered from \"weakest\" to \"strongest\". CLAUDE.md instructions Write your rules down first. Be concise on its own barely registers, because it's abstract and ",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "How I got my Claude sessions to learn from me, and learn from its mistakes.",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voh9qb/how_i_got_my_claude_sessions_to_learn_from_me_and/",
+    "published": "2026-08-14T19:39:14+00:00",
+    "summary": "I saw a post by u/thabxi about how they created a mistakes markdown to write and fetch from, and I thought I'd share my method, which I think takes it one level up. At the end of each Claude sessions, I force Claude to answer a series of questions. Each question relates to potential mistakes or surp",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "New usage credits bug?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voh8gb/new_usage_credits_bug/",
+    "published": "2026-08-14T19:37:53+00:00",
+    "summary": "I noticed my current balance going down despite my usage credits hitting $100, the monthly limit. So I turned it off and saw the bar reset! Guess I just have to keep it off.",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "How are you actually using Claude Code day to day? Local terminal, web, IDE, remote?",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vogkxa/how_are_you_actually_using_claude_code_day_to_day/",
+    "published": "2026-08-14T19:13:34+00:00",
+    "summary": "My default is basically:  have a project in GitHub connect Claude Code to that repo use Claude Code web version  But I keep seeing people mention completely different workflows. Where do you run Claude Code most often? Local terminal...VS Code/Cursor...Codespaces/devcontainer...Replit/Lovable...Clau",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Thank you, Claude, for making sure my 3D object does NOT read unmistakably as phallic.",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vog95p/thank_you_claude_for_making_sure_my_3d_object/",
+    "published": "2026-08-14T19:01:26+00:00",
+    "summary": "",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Show HN: Mole \u2013 Deep research agent for your terminal",
+    "url": "https://github.com/lajosdeme/mole",
+    "discussion": "https://news.ycombinator.com/item?id=49303046",
+    "published": "2026-08-14T18:52:48+00:00",
+    "summary": "Doing research with agents is fun until they blow way past budget, jumble the sources, and don't even give you the best possible answer, just sound confident.And if you want to run some research task on local data - you have no idea where your data ends up after the prompt consumes it.So I built thi",
+    "points": 83,
+    "comments": 13,
+    "source": "Hacker News",
+    "query": "llm agent"
+   },
+   {
+    "title": "If we allow AIs to lecture us on morality, the future is going to get really ugly",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vofwzq/if_we_allow_ais_to_lecture_us_on_morality_the/",
+    "published": "2026-08-14T18:49:15+00:00",
+    "summary": "An AI doesn't have \u201cmorals\u201d; it has arbitrary guidelines created by a PRIVATE COMPANY, which are based on literally nothing but their own interests. Today, Claude rejected my request, and instead of displaying a red notice saying \u201cThis company does not allow this content,\u201d it gave me a moral lecture",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "Have you ever tried to find an old Claude Code session by what you talked about in it?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voffc7/have_you_ever_tried_to_find_an_old_claude_code/",
+    "published": "2026-08-14T18:31:31+00:00",
+    "summary": "Last week I spent 20 minutes planning a feature with Claude Code. We went back and forth on payload size limits, agreed on an approach, everything was in that session's context.  Today I wanted to continue that work. And I realized I had no way to say: \"open the session where we discussed increasing",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "I'm in my failure era",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vof9sq/im_in_my_failure_era/",
+    "published": "2026-08-14T18:26:15+00:00",
+    "summary": "Why is this the most convoluted shit I've ever seen Claude say \ud83e\udee0\ud83d\ude2d",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Is there a legitimate reason for the lobotomy-like intervals?",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voesyf/is_there_a_legitimate_reason_for_the_lobotomylike/",
+    "published": "2026-08-14T18:09:40+00:00",
+    "summary": "I can\u2019t describe what I\u2019m experiencing other than Opus 5 says way too much about too little, and does more than I ask after setting clear expectations and stoppage points. It\u2019s so draining to deal with. Is there a proverbial on-off switch or is this Anthropic-side? I\u2019ve been experiencing this in mul",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Opus 5 is hard to understand",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1voejvc/opus_5_is_hard_to_understand/",
+    "published": "2026-08-14T18:00:58+00:00",
+    "summary": "Hi everyone, For the last couple of weeks I've been using Opus 5 a lot for both programming and editing documents. For programing it's doing well, but leaves ridiculous comments in the source that I have been winnowing down by hand. I have, however, been having a hard time understanding it. I though",
+    "source": "r/ClaudeAI"
+   },
+   {
+    "title": "I created a procedural Bikini Bottom with Opus 5",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1voe2su/i_created_a_procedural_bikini_bottom_with_opus_5/",
+    "published": "2026-08-14T17:43:27+00:00",
+    "summary": "I made Bikini Bottom in the browser. The whole town grows from a single seed. Change the seed and you get a completely different layout. Same pineapple, same rock, same moai, but the streets between them are never the same. You can fly around. Houses, roads, fish, jellyfish, those little boat cars. ",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Vibe coders when someone asks them to explain their own code",
+    "url": "https://www.reddit.com/r/ClaudeCode/comments/1vodqza/vibe_coders_when_someone_asks_them_to_explain/",
+    "published": "2026-08-14T17:31:24+00:00",
+    "summary": "",
+    "source": "r/ClaudeCode"
+   },
+   {
+    "title": "Claude has started over-engineering every task over the past few weeks",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vod9ri/claude_has_started_overengineering_every_task/",
+    "published": "2026-08-14T17:13:49+00:00",
+    "summary": "Over the past week, maybe two, Claude has started to really over engineer every task that was thrown at it. I have observed the issue with Fable 5 and Opus 5, some of my colleagues also have seen the same behaviour. To give a bit of history, a few months ago we decided to rewrite a complex analytics",
+    "source": "r/ClaudeAI"
+   }
+  ]
+ },
+ "processing": {
+  "us_politics": {
+   "fetched": 24,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "field_budget_dropped": 0,
+   "source_budget_dropped": 0,
+   "global_budget_dropped": 0,
+   "title_truncated": 0,
+   "summary_truncated": 16,
+   "context_bytes": 12326,
+   "estimated_tokens": 3092,
+   "kept": 24
+  },
+  "us_news": {
+   "fetched": 71,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 11,
+   "field_budget_dropped": 0,
+   "source_budget_dropped": 0,
+   "global_budget_dropped": 0,
+   "title_truncated": 0,
+   "summary_truncated": 25,
+   "context_bytes": 29414,
+   "estimated_tokens": 7377,
+   "kept": 60
+  },
+  "world": {
+   "fetched": 46,
+   "undated_dropped": 0,
+   "relevance_dropped": 0,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "field_budget_dropped": 0,
+   "source_budget_dropped": 0,
+   "global_budget_dropped": 0,
+   "title_truncated": 0,
+   "summary_truncated": 0,
+   "context_bytes": 17413,
+   "estimated_tokens": 4373,
+   "kept": 46
+  },
+  "ai_tech": {
+   "fetched": 29,
+   "undated_dropped": 0,
+   "relevance_dropped": 26,
+   "duplicates_dropped": 0,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "field_budget_dropped": 0,
+   "source_budget_dropped": 0,
+   "global_budget_dropped": 0,
+   "title_truncated": 0,
+   "summary_truncated": 9,
+   "context_bytes": 1194,
+   "estimated_tokens": 300,
+   "kept": 3
+  },
+  "dev_community": {
+   "fetched": 55,
+   "undated_dropped": 0,
+   "relevance_dropped": 2,
+   "duplicates_dropped": 1,
+   "source_cap_dropped": 0,
+   "category_cap_dropped": 0,
+   "field_budget_dropped": 0,
+   "source_budget_dropped": 0,
+   "global_budget_dropped": 0,
+   "title_truncated": 0,
+   "summary_truncated": 38,
+   "context_bytes": 26088,
+   "estimated_tokens": 6538,
+   "kept": 52
+  }
+ },
+ "errors": [
+  {
+   "source_type": "hacker_news",
+   "source_id": "prompt engineering",
+   "status": "empty",
+   "error_type": "EmptySource",
+   "message": "response contained zero recognized entries",
+   "duration_ms": 333
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "LocalLLaMA",
+   "status": "error",
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests",
+   "duration_ms": 5421
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "cursor",
+   "status": "error",
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests",
+   "duration_ms": 5419
+  }
+ ],
+ "sources": [
+  {
+   "source_type": "rss",
+   "source_id": "NPR Politics",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 3,
+   "retained_bytes": 1440,
+   "estimated_tokens": 361,
+   "duration_ms": 175
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Politico",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 30,
+   "dated_entries": 30,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 429
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Hill",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 15,
+   "dated_entries": 15,
+   "retained_entries": 15,
+   "retained_bytes": 7742,
+   "estimated_tokens": 1942,
+   "duration_ms": 1367
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Axios",
+   "category": "us_politics",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 100,
+   "dated_entries": 100,
+   "retained_entries": 6,
+   "retained_bytes": 3144,
+   "estimated_tokens": 789,
+   "duration_ms": 385
+  },
+  {
+   "source_type": "rss",
+   "source_id": "CBS News US",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 30,
+   "dated_entries": 30,
+   "retained_entries": 22,
+   "retained_bytes": 8999,
+   "estimated_tokens": 2258,
+   "duration_ms": 240
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Guardian US",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 33,
+   "dated_entries": 33,
+   "retained_entries": 18,
+   "retained_bytes": 10319,
+   "estimated_tokens": 2587,
+   "duration_ms": 308
+  },
+  {
+   "source_type": "rss",
+   "source_id": "PBS NewsHour",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 16,
+   "retained_bytes": 8346,
+   "estimated_tokens": 2093,
+   "duration_ms": 244
+  },
+  {
+   "source_type": "rss",
+   "source_id": "NPR National",
+   "category": "us_news",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 4,
+   "retained_bytes": 1750,
+   "estimated_tokens": 439,
+   "duration_ms": 222
+  },
+  {
+   "source_type": "rss",
+   "source_id": "BBC World",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 28,
+   "dated_entries": 28,
+   "retained_entries": 18,
+   "retained_bytes": 6387,
+   "estimated_tokens": 1604,
+   "duration_ms": 202
+  },
+  {
+   "source_type": "rss",
+   "source_id": "NPR World",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 3,
+   "retained_bytes": 1291,
+   "estimated_tokens": 324,
+   "duration_ms": 186
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Al Jazeera",
+   "category": "world",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 25,
+   "retained_bytes": 9735,
+   "estimated_tokens": 2445,
+   "duration_ms": 202
+  },
+  {
+   "source_type": "rss",
+   "source_id": "OpenAI News",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 1129,
+   "dated_entries": 1129,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 367
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Google DeepMind",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 100,
+   "dated_entries": 100,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 559
+  },
+  {
+   "source_type": "rss",
+   "source_id": "The Verge",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 235
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Ars Technica",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 1,
+   "retained_bytes": 378,
+   "estimated_tokens": 95,
+   "duration_ms": 367
+  },
+  {
+   "source_type": "rss",
+   "source_id": "Wired",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 50,
+   "dated_entries": 50,
+   "retained_entries": 2,
+   "retained_bytes": 816,
+   "estimated_tokens": 205,
+   "duration_ms": 234
+  },
+  {
+   "source_type": "rss",
+   "source_id": "TechCrunch AI",
+   "category": "ai_tech",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 20,
+   "dated_entries": 20,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 173
+  },
+  {
+   "source_type": "rss",
+   "source_id": "GitHub Changelog",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 10,
+   "dated_entries": 10,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 186
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "claude code",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 7,
+   "dated_entries": 7,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 472
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "cursor",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 5,
+   "dated_entries": 5,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 414
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "codex",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 1,
+   "retained_bytes": 304,
+   "estimated_tokens": 76,
+   "duration_ms": 456
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "mcp",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 21,
+   "dated_entries": 21,
+   "retained_entries": 1,
+   "retained_bytes": 301,
+   "estimated_tokens": 76,
+   "duration_ms": 451
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "llm agent",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 8,
+   "dated_entries": 8,
+   "retained_entries": 1,
+   "retained_bytes": 592,
+   "estimated_tokens": 148,
+   "duration_ms": 366
+  },
+  {
+   "source_type": "hacker_news",
+   "source_id": "prompt engineering",
+   "category": "dev_community",
+   "status": "empty",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 333,
+   "error_type": "EmptySource",
+   "message": "response contained zero recognized entries"
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "ClaudeAI",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 25,
+   "retained_bytes": 12192,
+   "estimated_tokens": 3056,
+   "duration_ms": 704
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "ClaudeCode",
+   "category": "dev_community",
+   "status": "ok",
+   "requested": true,
+   "http_success": true,
+   "parsed_entries": 25,
+   "dated_entries": 25,
+   "retained_entries": 24,
+   "retained_bytes": 12699,
+   "estimated_tokens": 3182,
+   "duration_ms": 727
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "LocalLLaMA",
+   "category": "dev_community",
+   "status": "error",
+   "requested": true,
+   "http_success": false,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 5421,
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests"
+  },
+  {
+   "source_type": "reddit",
+   "source_id": "cursor",
+   "category": "dev_community",
+   "status": "error",
+   "requested": true,
+   "http_success": false,
+   "parsed_entries": 0,
+   "dated_entries": 0,
+   "retained_entries": 0,
+   "retained_bytes": 0,
+   "estimated_tokens": 0,
+   "duration_ms": 5419,
+   "error_type": "HTTPError",
+   "message": "HTTP Error 429: Too Many Requests"
+  }
+ ],
+ "fetch_duration_ms": 19650,
+ "context_budget": {
+  "field_limits": {
+   "title_bytes": 512,
+   "title_tokens": 128,
+   "url_bytes": 2048,
+   "url_tokens": 512,
+   "summary_chars": 300,
+   "summary_bytes": 1200,
+   "summary_tokens": 300,
+   "source_bytes": 256,
+   "source_tokens": 64,
+   "query_bytes": 256,
+   "query_tokens": 64
+  },
+  "source_max_bytes": 98304,
+  "source_max_tokens": 24000,
+  "global_max_bytes": 524288,
+  "global_max_tokens": 128000,
+  "used_bytes": 86435,
+  "estimated_tokens": 21680,
+  "title_truncated": 0,
+  "summary_truncated": 88,
+  "field_budget_dropped": 0,
+  "source_budget_dropped": 0,
+  "global_budget_dropped": 0
+ }
+}

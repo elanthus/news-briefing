@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "provider": "openrouter",
+  "model": "tencent/hy3",
+  "generation_controls": {
+    "temperature": 0,
+    "seed": null,
+    "reasoning_enabled": true,
+    "reasoning_effort": "provider-default",
+    "provider_default_effort_at_run_time": "high"
+  },
+  "calls": [
+    {
+      "purpose": "initial_draft_with_original_ceiling",
+      "status": "provider_error",
+      "finish_reason": "length",
+      "error": "OpenRouter returned no text content after the reasoning output consumed the completion budget.",
+      "max_tokens": 8192,
+      "timeout_seconds": 300,
+      "prompt_tokens_inferred_from_identical_retry": 33260,
+      "completion_tokens_inferred_from_exhausted_budget": 8192,
+      "visible_output_tokens": 0,
+      "provider_reported_cost_usd": null,
+      "catalog_rate_estimated_cost_usd": 0.008715696,
+      "note": "The adapter surfaced token and cost fields on the exception, but the original one-off invocation did not persist them. The token estimate uses the identical retry's prompt count and the exhausted 8,192-token ceiling; it is not reported provider usage."
+    },
+    {
+      "purpose": "first_draft_retry",
+      "status": "complete",
+      "max_tokens": 100000,
+      "timeout_seconds": 600,
+      "attempts": 1,
+      "latency_ms": 90852.03616693616,
+      "provider_request_id": "gen-1786814446-gfzVnDVgmDFek3y2mBUe",
+      "prompt_tokens": 33260,
+      "completion_tokens": 19631,
+      "reasoning_tokens": 15748,
+      "visible_output_tokens": 3883,
+      "total_tokens": 52891,
+      "cached_tokens": 0,
+      "provider_reported_cost_usd": 0.014438142,
+      "provider_cost_details": {
+        "upstream_inference_prompt_cost": 0.00419076,
+        "upstream_inference_completions_cost": 0.010247382,
+        "upstream_inference_cost": 0.014438142
+      }
+    },
+    {
+      "purpose": "checker_guided_correction",
+      "status": "complete",
+      "max_tokens": 100000,
+      "timeout_seconds": 600,
+      "attempts": 1,
+      "latency_ms": 174337.2093332,
+      "provider_request_id": "gen-1786814588-8wM9DXfQUEa3DivlJPh8",
+      "prompt_tokens": 37355,
+      "completion_tokens": 14093,
+      "reasoning_tokens": 10189,
+      "visible_output_tokens": 3904,
+      "total_tokens": 51448,
+      "cached_tokens": 0,
+      "provider_reported_cost_usd": 0.0117533658,
+      "provider_cost_details": {
+        "upstream_inference_prompt_cost": 0.004684317,
+        "upstream_inference_completions_cost": 0.0070690488,
+        "upstream_inference_cost": 0.0117533658
+      }
+    }
+  ],
+  "completed_call_totals": {
+    "prompt_tokens": 70615,
+    "completion_tokens": 33724,
+    "reasoning_tokens": 25937,
+    "visible_output_tokens": 7787,
+    "total_tokens": 104339,
+    "provider_reported_cost_usd": 0.0261915078
+  },
+  "all_attempt_estimates": {
+    "prompt_tokens": 103875,
+    "completion_tokens": 41916,
+    "reasoning_tokens": 34129,
+    "visible_output_tokens": 7787,
+    "total_tokens": 145791,
+    "catalog_rate_estimated_cost_usd": 0.035843148,
+    "reported_successful_cost_plus_failed_call_estimate_usd": 0.0349072038
+  },
+  "token_cost_estimate": {
+    "catalog_checked_at": "2026-08-15",
+    "catalog_source": "https://openrouter.ai/api/v1/models",
+    "prompt_usd_per_token": 0.000000132,
+    "completion_usd_per_token": 0.000000528,
+    "formula_all_attempts": "103875 * 0.000000132 + 41916 * 0.000000528",
+    "note": "Completed-call provider costs are authoritative. The failed call's exact billed cost was not persisted, so totals including it remain estimates."
+  }
+}

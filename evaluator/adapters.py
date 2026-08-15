@@ -232,7 +232,7 @@ class OpenAiCompatibleAdapter(Adapter):
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": self.temperature,
-            "max_tokens": int(os.environ.get("EVALUATOR_MAX_TOKENS", "8192")),
+            "max_tokens": int(os.environ.get("EVALUATOR_MAX_TOKENS", "100000")),
         }
         if self.seed is not None:
             payload["seed"] = self.seed

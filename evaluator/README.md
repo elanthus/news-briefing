@@ -42,6 +42,10 @@ cp evaluator/.env.example evaluator/.env
 
 The template contains blank key fields and a dated, commented model list for all four providers. Re-check the dated official catalog links before a long run; never put credentials in the tracked template.
 
+API adapters default to a 100,000-token completion budget. Override it for a
+specific environment with `EVALUATOR_MAX_TOKENS`; provider-specific context and
+completion limits still apply.
+
 Each provider's model variable accepts either one model or a comma-delimited list. When `--all-providers` is used, every configured model is included in the run:
 
 ```dotenv
