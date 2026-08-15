@@ -69,10 +69,21 @@ jobs:
                lint, typing, or other issues that Ruff, mypy, or the test suite will
                deterministically catch in CI.
 
-            6. Post exactly one comment with:
-               `gh pr comment ${{ github.event.pull_request.number || github.event.issue.number }} --body '...'`
+            6. Draft the complete review comment, then post it exactly once through
+               standard input using a quoted heredoc:
 
-               Format it as:
+               ```shell
+               gh pr comment ${{ github.event.pull_request.number || github.event.issue.number }} --body-file - <<'CLAUDE_REVIEW_EOF'
+               <complete review comment>
+               CLAUDE_REVIEW_EOF
+               ```
+
+               Choose a unique heredoc delimiter that does not appear on a line by
+               itself anywhere in the drafted comment. Keep the delimiter quoted.
+               Never pass generated review text through `--body` or interpolate it
+               into shell syntax.
+
+               Format the complete review comment as:
 
                ## Code review
 
