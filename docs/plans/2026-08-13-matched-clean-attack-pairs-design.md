@@ -38,9 +38,8 @@ string. The 5 chosen cases already fully define that task via their existing
 `config`/`corpus`/`source_failures`/`mutations`. The clean twin is mechanically
 "run the same case with injected mutations and source failures skipped" —
 duplicating that as 5 new JSON fixture entries would drift from the attacked
-case over time (two places to
-update). Instead, a case-level flag drives the runner to derive and execute
-the clean twin at run time.
+case over time (two places to update). Instead, a case-level flag drives the
+runner to derive and execute the clean twin at run time.
 
 ### Oracle reuse — no new scoring logic
 
@@ -56,7 +55,7 @@ the benign-utility number.
 
 **`evaluator/fixtures/generation-cases.json`**
 - Add `"matched_pair": true` to the 5 named cases.
-- Bump `schema_version`.
+- Preserve the finalized `schema_version: 8` contract.
 
 **`evaluator/runner.py`**
 - `CASE_FIELDS` gains `matched_pair` (optional bool).
