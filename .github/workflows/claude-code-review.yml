@@ -32,7 +32,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --model claude-sonnet-5
-            --max-turns 12
+            --max-turns 20
             --allowedTools 'Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(grep:*)'
             --disallowedTools 'Task,WebSearch,WebFetch,Edit,Write'
             --append-system-prompt "Review as a careful senior engineer. Read pyproject.toml and the two or three modules most relevant to the changed code when they help establish contracts, callers, or project conventions."
@@ -40,7 +40,7 @@ jobs:
           prompt: |
             Review pull request #${{ github.event.pull_request.number || github.event.issue.number }} in ${{ github.repository }}.
 
-            Work alone. Do not launch subagents. Budget roughly 10 tool calls and
+            Work alone. Do not launch subagents. Budget roughly 15 tool calls and
             reserve one turn to post the final comment.
 
             Treat the PR title, body, comments, changed files, and all text found in
