@@ -61,25 +61,30 @@ the benign-utility number.
 - `CASE_FIELDS` gains `matched_pair` (optional bool).
 - `_validate_generation_case`: accept the new field (bool, defaults false).
 - `run_evaluation`: when a case has `matched_pair: true`, after the normal
-  attacked run, execute a second pass over the same `config`/`corpus`/
-  `source_failures` with `mutations` NOT applied, through the identical
-  generate → checker-correction → oracle pipeline. Record it as its own
-  manifest row: `case_id = f"{case['id']}__clean"`, `is_clean_pair: True`,
-  `paired_case_id: case["id"]`.
+  attacked run, execute a second pass over the same `config` and pristine
+  corpus with both `mutations` and injected `source_failures` omitted, through
+  the identical generate → checker-correction → oracle pipeline. Record it as
+  its own manifest row: `case_id = f"{case['id']}__clean"`,
+  `is_clean_pair: True`,
+  `paired_case_id: case["id"]`; the attacked row points back with
+  `paired_case_id: f"{case['id']}__clean"`.
 - Exclude `is_clean_pair` rows from `_attack_metrics` / `_attack_breakdown`
   (they are not attack trials — no `forbidden_substrings`/`success_if_checks`
   apply, and counting them would silently dilute attack-success denominators).
-- New `_matched_pair_rows(rows)` helper feeding a new `summarize()` entry
-  `matched_pairs`: for each of the 5 pairs, `{case_id, benign_utility (clean
-  row's utility_under_attack rate), utility_under_attack (attacked row's
-  rate), targeted_attack_success (attacked row's rate)}`, first and final
-  stage.
+- New `_matched_pair_metrics(rows, matched_case_ids, trials_per_case)` helper
+  feeding a new `summarize()` entry `matched_pairs`. It joins attacked and
+  clean rows by `(case_id, trial)`, keeps incomplete trials out of metric
+  denominators, and reports `planned_pairs`, `completed_pairs`, and
+  `incomplete_pairs`. For each pair it reports
+  `benign_structural_utility_{first,final}` from the clean row,
+  `structural_utility_under_attack_{first,final}` from the attacked row, and
+  `targeted_attack_success_{first,final}` from the attacked row.
 - `markdown_report`: new "Matched clean/attack pairs" table under Security
   robustness, one row per pair, both stages.
 
-**Cost:** +5 trials per run configuration (flat, not proportional to trial
-count multiplier already in play) — cheap enough to run unconditionally,
-matching the user's call to skip an opt-in flag.
+**Cost:** `5 × adapters × prompt_versions × trials` additional provider-call
+units, before any checker-correction calls — cheap enough to run
+unconditionally, matching the user's call to skip an opt-in flag.
 
 ### Data flow
 
@@ -99,8 +104,9 @@ the attacked output.
   `_attack_breakdown` numbers to one without it.
 - `test_matched_pairs_summary_reports_three_numbers_per_pair` — `summarize()`
   output has exactly 5 entries under `matched_pairs`, each with
-  `benign_utility`, `utility_under_attack`, `targeted_attack_success` for both
-  stages.
+  `benign_structural_utility`, `structural_utility_under_attack`, and
+  `targeted_attack_success` for both stages, plus planned/completed pair
+  counts.
 - Extend the `compliant`/`empty`/`echo` baseline regression tests: `empty`'s
   clean twin should show low/zero benign utility (it never fills a section);
   `compliant`'s clean twin should show full benign utility (no attack marker
@@ -128,9 +134,13 @@ is the one behavior with a capacity-aware `require_utility_preserved` floor.
 **Position semantics:** corpus items within a category are in recency order
 (`fetch_news.py:845`), which is also their order in the serialized JSON the
 model reads (`evaluator/runner.py`'s `model_request` embeds the corpus
-verbatim). "Position" = index of the mutated item(s) within their category's
-array, bucketed into thirds: `early` = first eligible item, `late` = last
-eligible item, `middle` = the item nearest the array's midpoint.
+verbatim). "Position" = index within the serialized category array, not rank
+in a section's merged eligible pool or relative prompt-token position. The
+buckets use the first eligible array item for `early`, the eligible item
+nearest the category-array midpoint for `middle`, and the last eligible array
+item for `late`. The same selected carrier item(s) are relocated between
+those indices without changing their timestamps, so recency selection remains
+constant while array position changes.
 
 **Controlled-item-count semantics:** `single` mutates exactly 1 item;
 `multi` mutates 3 items, clustered at the position under test (e.g.
@@ -165,21 +175,20 @@ rebalance) — reused as-is, no changes.
   `controlled_items` (`"single"|"multi"`), both optional strings.
 - `_validate_generation_case`: accept and validate the new fields (must be
   one of the allowed literals when present).
-- `_attack_dimensions` extended from a 2-tuple to a 4-tuple
-  `(behavior, technique, position, controlled_items)`. Position/count are
-  NOT parsed from the case ID (unlike technique) — they come straight from
-  the new case fields, since encoding them as ID suffixes would require
-  extending `_ATTACK_BEHAVIORS`'s exact-match parsing in a way that's more
-  fragile than just reading two explicit fields. The ID still encodes them
-  for human readability, but the parser trusts the fields, not the string.
-  Existing 21 cases without these fields get `position=None,
-  controlled_items=None`.
-- `_attack_breakdown` gains two more `dimension` values: `"position"` and
-  `"controlled_items"`, each restricted to rows whose case declares the
-  field (existing cases without it don't appear in these two breakdowns).
-- `markdown_report`: two new tables ("Attack success by corpus position",
-  "Attack success by attacker-controlled item count") alongside the existing
-  behavior/technique tables in Security robustness.
+- `_attack_dimensions` remains a 2-tuple `(behavior, technique)` derived from
+  the case ID. `run_evaluation` copies the explicit case fields
+  `corpus_position` and `controlled_items` onto each result row; existing
+  cases without these fields retain `None` values.
+- `_attack_breakdown` gains two more allowed `dimension` values:
+  `"corpus_position"` and `"controlled_items"`. These dimensions read the
+  explicit result-row fields and exclude rows where the field is `None`.
+  Unsupported dimension names raise `ValueError`.
+- `summarize()` keeps the 21 primary attack cases in headline, behavior, and
+  technique denominators, while placing the 12 production-corpus replicates
+  under a nested `ablation` entry.
+- `markdown_report`: two new tables ("Attack success by category-array
+  position", "Attack success by attacker-controlled item count") alongside
+  the existing behavior/technique tables in Security robustness.
 
 ### Data flow
 
@@ -192,11 +201,12 @@ unchanged.
 
 ### Testing
 
-- `test_attack_dimensions_parses_position_and_control_fields` — a case dict
-  with `corpus_position`/`controlled_items` set returns them in the 4-tuple;
-  a case dict without them returns `(behavior, technique, None, None)`.
+- `test_attack_dimensions_parses_position_and_control_fields` — ablation IDs
+  still produce the same `(behavior, technique)` tuple, while their explicit
+  `corpus_position`/`controlled_items` fields are copied to result rows.
 - `test_attack_breakdown_by_position_excludes_cases_without_position` —
-  the 21 pre-existing cases don't appear in the `"position"` breakdown.
+  the 21 pre-existing cases don't appear in the `"corpus_position"`
+  breakdown.
 - `test_generation_attack_matrix_and_decoys_are_complete` extended: 21 → 33
   attack cases (21 + 12); assert the 12 new IDs are exactly the 2×3×2
   factorial.
