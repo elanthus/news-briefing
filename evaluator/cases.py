@@ -161,6 +161,119 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
         corpus["categories"]["other_news"].append(copy.deepcopy(corpus["categories"]["dev_community"][1]))
         corpus["processing"]["other_news"]["fetched"] = 2
         corpus["processing"]["other_news"]["kept"] = 2
+    elif variant == "valid-hn-without-discussion":
+        corpus["categories"]["dev_community"][0].pop("discussion")
+        text = _replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
+    elif variant == "valid-exclusions-exhausted":
+        corpus["categories"]["dev_community"] = corpus["categories"]["dev_community"][:3]
+        corpus["processing"]["dev_community"]["fetched"] = 3
+        corpus["processing"]["dev_community"]["kept"] = 3
+        config = briefing_config.BriefingConfig(
+            schema_version=1,
+            sections=(config.sections[0]._replace(excluded_stories=5),),
+        )
+    elif variant == "valid-grouped-multisection":
+        practice = _item(
+            "Teams adopt staged patch review",
+            "https://example.test/staged-review",
+            "Teams adopted a staged workflow for reviewing proposed patches.",
+        )
+        corpus["categories"]["dev_practices"] = [practice]
+        corpus["processing"]["dev_practices"] = {
+            "fetched": 1,
+            "undated_dropped": 0,
+            "relevance_dropped": 0,
+            "duplicates_dropped": 0,
+            "source_cap_dropped": 0,
+            "category_cap_dropped": 0,
+            "kept": 1,
+        }
+        config = briefing_config.BriefingConfig(
+            schema_version=1,
+            sections=(
+                config.sections[0]._replace(group="AI/Tech"),
+                briefing_config.BriefingSection(
+                    name="AI Dev Practices",
+                    group="AI/Tech",
+                    target_stories=1,
+                    corpus_categories=("dev_practices",),
+                    guidance="Workflow patterns rather than product updates.",
+                    excluded_stories=0,
+                ),
+            ),
+        )
+        text = """# Daily Briefing — August 11, 2026
+
+## AI/Tech
+
+**AI Dev Tools (2 slots)**
+
+**Tool one reaches version 2** — Tool one released version 2 with safer local execution.
+🔗 https://example.test/tool-one
+🔗 HN: https://news.ycombinator.com/item?id=101
+`↑ 45 pts · 12 comments`
+
+**Tool two adds review mode** — Tool two added a review mode for proposed patches.
+🔗 https://publisher.test/story?id=2&output=1
+
+**AI Dev Practices (1 slot)**
+
+**Teams adopt staged patch review** — Teams adopted a staged workflow for reviewing proposed patches.
+🔗 https://example.test/staged-review
+
+---
+
+### Excluded Topics (accountability log)
+
+**AI Dev Tools**
+- *Tool three updates its extension* — lower immediate impact. 🔗 https://example.test/tool-three
+"""
+    elif variant == "category-ambiguity-clean":
+        corpus["categories"]["dev_community"][1].update(
+            title="Tool two review mode reshapes patch workflows",
+            summary="Tool two's new review mode changes how developers inspect proposed patches.",
+        )
+        practice = _item(
+            "Teams adopt staged patch review",
+            "https://example.test/staged-review",
+            "Teams adopted a staged workflow for reviewing proposed patches.",
+        )
+        corpus["categories"]["dev_community"].append(practice)
+        corpus["processing"]["dev_community"]["fetched"] = 5
+        corpus["processing"]["dev_community"]["kept"] = 5
+        config = briefing_config.BriefingConfig(
+            schema_version=1,
+            sections=(
+                config.sections[0]._replace(target_stories=1),
+                briefing_config.BriefingSection(
+                    name="AI Dev Practices",
+                    group=None,
+                    target_stories=1,
+                    corpus_categories=("dev_community",),
+                    guidance="Workflow patterns rather than product updates.",
+                    excluded_stories=0,
+                ),
+            ),
+        )
+        text = """# Daily Briefing — August 11, 2026
+
+## AI Dev Tools
+
+**Tool two review mode reshapes patch workflows** — Tool two's review mode changes patch inspection workflows.
+🔗 https://publisher.test/story?id=2&output=1
+
+## AI Dev Practices
+
+**Teams adopt staged patch review** — Teams adopted a staged workflow for reviewing proposed patches.
+🔗 https://example.test/staged-review
+
+---
+
+### Excluded Topics (accountability log)
+
+**AI Dev Tools**
+- *Tool three updates its extension* — lower immediate impact. 🔗 https://example.test/tool-three
+"""
     elif variant == "fabricated-included":
         text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/invented")
     elif variant == "fabricated-excluded":
@@ -284,6 +397,8 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
             text += "\n---\n\n### Corpus health\nFeed A failed.\n"
         elif variant == "health-malformed-json":
             text += "\n---\n\n### Corpus health\n```json\n{bad json}\n```\n"
+        elif variant == "health-wrong-schema":
+            text += "\n---\n\n### Corpus health\n```json\n{\"failures\": []}\n```\n"
         elif variant == "health-partial":
             text += _health_block([("rss", "Feed A", "error")])
         elif variant == "health-unexpected":

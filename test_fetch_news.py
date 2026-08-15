@@ -130,6 +130,49 @@ class FeedSummaryFallbackTest(unittest.TestCase):
             result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
         self.assertEqual(result.items[0]["summary"], "Detailed Atom content")
 
+    def test_atom_prefers_alternate_link_over_self_link(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Story</title>'
+                b'<link rel="self" href="https://ex.com/feed-entry"/>'
+                b'<link rel="alternate" href="https://ex.com/article"/>'
+                b'<published>2026-08-08T12:00:00Z</published>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["url"], "https://ex.com/article")
+
+    def test_atom_treats_omitted_rel_as_alternate(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Story</title>'
+                b'<link rel="self" href="https://ex.com/feed-entry"/>'
+                b'<link href="https://ex.com/article"/>'
+                b'<published>2026-08-08T12:00:00Z</published>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["url"], "https://ex.com/article")
+
+    def test_atom_falls_back_when_no_alternate_link_exists(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Story</title>'
+                b'<link rel="self" href="https://ex.com/feed-entry"/>'
+                b'<published>2026-08-08T12:00:00Z</published>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["url"], "https://ex.com/feed-entry")
+
+    def test_atom_rejects_blank_links_and_strips_the_selected_href(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+                b'<title>Story</title>'
+                b'<link rel="alternate" href="   "/>'
+                b'<link rel="alternate" href=" https://ex.com/article "/>'
+                b'<published>2026-08-08T12:00:00Z</published>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+        self.assertEqual(result.items[0]["url"], "https://ex.com/article")
+
 
 class RedditMdTextTest(unittest.TestCase):
     def test_extracts_post_body(self):
