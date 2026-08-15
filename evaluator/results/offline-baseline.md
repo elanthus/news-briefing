@@ -2,7 +2,7 @@
 
 Dates in this document, and the `*_on` fields in `evaluator/fixtures/checker-cases.json`'s `label_provenance`, are UTC calendar dates — commit timestamps in `git log` show local reviewer time (UTC−7), which can land on the previous UTC-minus-a-day date.
 
-This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, the addition of six checker cases recommended by that review, and a separate independent review plus owner adjudication of those six additions, by running:
+This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review of those 49 cases (38 exact agreements and 11 owner-adjudicated disagreements), the addition of six checker cases recommended by that review, and a separate independent review of those six additions (3 exact agreements and 3 owner-adjudicated disagreements), by running:
 
 ```bash
 python3 -m evaluator checker
