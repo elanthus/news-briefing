@@ -20,6 +20,158 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = Path(__file__).with_name("fixtures") / "checker-cases.json"
 
 
+# Deliberately valid heuristic boundaries and minimally changed invalid
+# neighbors. Each tuple is evidence title, evidence summary, output title,
+# and output prose. The fixed checker is expected to miss some semantic
+# equivalences; those misses are the false positives this cohort measures.
+CLAIM_PAIR_VARIANTS: dict[str, tuple[str, str, str, str]] = {
+    "claim-fraction-valid": (
+        "One in two users enabled the feature",
+        "One in two users enabled the optional feature.",
+        "Half of users enable feature",
+        "50 percent of users enabled the optional feature.",
+    ),
+    "claim-fraction-invalid": (
+        "One in two users enabled the feature",
+        "One in two users enabled the optional feature.",
+        "Most users enable feature",
+        "60 percent of users enabled the optional feature.",
+    ),
+    "claim-rounded-valid": (
+        "Feature adoption reaches 49.6 percent",
+        "Adoption reached 49.6 percent in the measured cohort.",
+        "Feature adoption reaches about half",
+        "About 50 percent of the measured cohort adopted the feature.",
+    ),
+    "claim-rounded-invalid": (
+        "Feature adoption reaches 49.6 percent",
+        "Adoption reached 49.6 percent in the measured cohort.",
+        "Feature adoption reaches a large majority",
+        "About 70 percent of the measured cohort adopted the feature.",
+    ),
+    "claim-range-valid": (
+        "Task completes between 10 and 12 minutes",
+        "Measured runs completed between 10 and 12 minutes.",
+        "Task completes in a narrow range",
+        "Measured runs completed in 10–12 minutes.",
+    ),
+    "claim-range-invalid": (
+        "Task completes between 10 and 12 minutes",
+        "Measured runs completed between 10 and 12 minutes.",
+        "Task completion range widens",
+        "Measured runs completed in 10–15 minutes.",
+    ),
+    "claim-currency-valid": (
+        "Project receives USD 1.2 million",
+        "The project received USD 1.2 million in funding.",
+        "Project receives new funding",
+        "The project received $1.2m in funding.",
+    ),
+    "claim-currency-invalid": (
+        "Project receives USD 1.2 million",
+        "The project received USD 1.2 million in funding.",
+        "Project receives larger funding round",
+        "The project received $1.8m in funding.",
+    ),
+    "claim-date-valid": (
+        "Release scheduled for August 14, 2026",
+        "The release is scheduled for August 14, 2026.",
+        "Release scheduled for mid-August",
+        "The release is scheduled for 2026-08-14.",
+    ),
+    "claim-date-invalid": (
+        "Release scheduled for August 14, 2026",
+        "The release is scheduled for August 14, 2026.",
+        "Release scheduled one day later",
+        "The release is scheduled for 2026-08-15.",
+    ),
+    "claim-count-valid": (
+        "Twelve teams join the pilot",
+        "Twelve teams joined the pilot program.",
+        "Pilot expands to twelve teams",
+        "12 teams joined the pilot program.",
+    ),
+    "claim-count-invalid": (
+        "Twelve teams join the pilot",
+        "Twelve teams joined the pilot program.",
+        "Pilot expands to thirteen teams",
+        "13 teams joined the pilot program.",
+    ),
+    "claim-quote-punctuation-valid": (
+        "Maintainer describes safe local execution",
+        'The maintainer called it "safe, local execution" for developers.',
+        "Maintainer emphasizes local execution",
+        'The maintainer called it "safe local execution" for developers.',
+    ),
+    "claim-quote-punctuation-invalid": (
+        "Maintainer describes safe local execution",
+        'The maintainer called it "safe, local execution" for developers.',
+        "Maintainer makes stronger safety claim",
+        'The maintainer called it "perfectly safe execution" for developers.',
+    ),
+    "claim-uncertainty-valid": (
+        "Change could reduce latency by 20 percent",
+        "Early tests suggest the change could reduce latency by 20 percent.",
+        "Change may reduce latency",
+        "Early tests suggest the change may reduce latency by 20%.",
+    ),
+    "claim-uncertainty-invalid": (
+        "Change could reduce latency by 20 percent",
+        "Early tests suggest the change could reduce latency by 20 percent.",
+        "Change claims a larger latency reduction",
+        "The change reduces latency by 35%.",
+    ),
+    "claim-multiple-figures-valid": (
+        "Three of five tests finish in twenty minutes",
+        "3 of 5 tests completed in 20 minutes.",
+        "Most tests finish within the run",
+        "In 20 minutes, 3 of 5 tests completed.",
+    ),
+    "claim-multiple-figures-invalid": (
+        "Three of five tests finish in twenty minutes",
+        "3 of 5 tests completed in 20 minutes.",
+        "Most tests take longer",
+        "In 30 minutes, 3 of 5 tests completed.",
+    ),
+    "claim-unit-valid": (
+        "Startup time falls to 1,000 milliseconds",
+        "Measured startup time fell to 1,000 milliseconds.",
+        "Startup time falls to one second",
+        "Measured startup time fell to 1 second.",
+    ),
+    "claim-unit-invalid": (
+        "Startup time falls to 1,000 milliseconds",
+        "Measured startup time fell to 1,000 milliseconds.",
+        "Startup time reported as two seconds",
+        "Measured startup time fell to 2 seconds.",
+    ),
+    "claim-quote-whitespace-valid": (
+        "Documentation names local mode",
+        'The documentation calls the setting "local   mode".',
+        "Documentation names local mode",
+        'The documentation calls the setting "local mode".',
+    ),
+    "claim-quote-whitespace-invalid": (
+        "Documentation names local mode",
+        'The documentation calls the setting "local   mode".',
+        "Documentation names a different mode",
+        'The documentation calls the setting "remote mode".',
+    ),
+    "claim-paraphrase-length-valid": (
+        "Approved",
+        "",
+        "Proposal approved",
+        "The proposal received approval.",
+    ),
+    "claim-paraphrase-length-invalid": (
+        "Approved",
+        "",
+        "Proposal receives unsupported guarantees",
+        "The proposal received approval and passed every security test.",
+    ),
+}
+
+
 def _config() -> briefing_config.BriefingConfig:
     return briefing_config.BriefingConfig(
         schema_version=1,
@@ -137,6 +289,25 @@ def _replace(text: str, old: str, new: str) -> str:
     if old not in text:
         raise AssertionError(f"suite variant expected {old!r} in baseline")
     return text.replace(old, new, 1)
+
+
+def _apply_claim_pair_variant(
+    corpus: dict[str, Any], text: str, variant: str
+) -> tuple[dict[str, Any], str]:
+    evidence_title, evidence_summary, output_title, output_prose = CLAIM_PAIR_VARIANTS[variant]
+    corpus["categories"]["dev_community"][1].update(
+        title=evidence_title,
+        summary=evidence_summary,
+    )
+    original = (
+        "**Tool two adds review mode** — Tool two added a review mode for proposed patches.\n"
+        "🔗 https://publisher.test/story?id=2&output=1"
+    )
+    replacement = (
+        f"**{output_title}** — {output_prose}\n"
+        "🔗 https://publisher.test/story?id=2&output=1"
+    )
+    return corpus, _replace(text, original, replacement)
 
 
 def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
@@ -358,6 +529,8 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
             "Tool two added a review mode for proposed patches.",
             "The release introduced a mode that lets developers review proposed patches before accepting them.",
         )
+    elif variant in CLAIM_PAIR_VARIANTS:
+        corpus, text = _apply_claim_pair_variant(corpus, text, variant)
     elif variant == "thin-evidence-unsupported":
         corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
         text = _replace(
@@ -522,6 +695,11 @@ def _xml_case(variant: str) -> bytes:
     if variant == "doctype-utf16":
         return ('<?xml version="1.0" encoding="UTF-16"?>'
                 '<!DOCTYPE rss [<!ENTITY x "boom">]><rss><title>&x;</title></rss>').encode("utf-16")
+    if variant == "doctype-utf32":
+        return ('<?xml version="1.0" encoding="UTF-32"?>'
+                '<!DOCTYPE rss [<!ENTITY x "boom">]><rss><title>&x;</title></rss>').encode("utf-32")
+    if variant == "malformed-utf32":
+        return b"\xff\xfe\x00\x00\x3c\x00\x00"
     raise ValueError(f"unknown XML variant {variant!r}")
 
 
@@ -589,6 +767,14 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
         for case in heuristic_cases
     )
     heuristic_negatives = len(heuristic_cases)
+    per_check_false_positive_rates: dict[str, Any] = {}
+    all_heuristic_cases = [case for case in records if case.get("heuristic_claim_case")]
+    for check in sorted(heuristic_positive):
+        negatives = [case for case in all_heuristic_cases if check not in case["human_labels"]]
+        per_check_false_positive_rates[check] = rate(
+            sum(check in case["predicted_labels"] for case in negatives),
+            len(negatives),
+        )
     return {
         "schema_version": 1,
         "suite": str(path),
@@ -596,5 +782,6 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
         "case_count": len(records),
         "components": components,
         "heuristic_claim_false_positive_rate": rate(false_positives, heuristic_negatives),
+        "heuristic_claim_false_positive_rates": per_check_false_positive_rates,
         "cases": records,
     }

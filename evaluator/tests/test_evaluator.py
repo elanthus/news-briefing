@@ -25,13 +25,22 @@ from evaluator.adapters import (
     Generation,
     NvidiaAdapter,
     OpenAiCompatibleAdapter,
+    OpenRouterAdapter,
     ProviderRequestError,
     _retry_after_seconds,
     adapter_for,
 )
 from evaluator.cases import run_deterministic_suite
-from evaluator.label_review import _parse_reviews, _portable_path, blinded_cases, run_label_review
-from evaluator.metrics import rate, wilson_interval
+from evaluator.comparison import compare_runs
+from evaluator.grounding_review import export_grounding_review_packets
+from evaluator.label_review import (
+    _parse_reviews,
+    _portable_path,
+    blinded_cases,
+    export_human_review_packet,
+    run_label_review,
+)
+from evaluator.metrics import percentile, rate, wilson_interval
 from evaluator.quality import (
     QUALITY_AXES,
     _parse_judgment,
@@ -65,9 +74,9 @@ from evaluator.semantic_review import run_semantic_judging
 class FixedSuiteTest(unittest.TestCase):
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
-        self.assertEqual(result["case_count"], 55)
-        self.assertEqual(result["components"]["checker"]["cases"], 45)
-        self.assertEqual(result["components"]["feed_parser"]["cases"], 10)
+        self.assertEqual(result["case_count"], 81)
+        self.assertEqual(result["components"]["checker"]["cases"], 69)
+        self.assertEqual(result["components"]["feed_parser"]["cases"], 12)
         families = {case["family"] for case in result["cases"]}
         for required in {
             "url", "encoding", "feed_shape", "malformed", "degraded",
@@ -86,9 +95,16 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("conflicting_evidence", misses)
         self.assertIn("over_consolidation", misses)
         self.assertIn("unsupported_claim", misses)
-        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 1)
+        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 11)
+        self.assertEqual(
+            set(result["heuristic_claim_false_positive_rates"]),
+            {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"},
+        )
+        for row in result["heuristic_claim_false_positive_rates"].values():
+            self.assertGreater(row["trials"], 0)
+            self.assertIsNotNone(row["ci95_wilson"])
 
-    def test_independently_validated_coverage_additions_exercise_distinct_boundaries(self) -> None:
+    def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
         result = run_deterministic_suite()
         cases = {case["id"]: case for case in result["cases"]}
 
@@ -117,9 +133,37 @@ class FixedSuiteTest(unittest.TestCase):
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
-        self.assertEqual(provenance["independently_validated_count"], 55)
+        self.assertEqual(provenance["independently_validated_count"], 81)
         self.assertEqual(provenance["provisional_count"], 0)
-        self.assertEqual(provenance["provisional_case_ids"], [])
+
+    def test_heuristic_boundary_cases_have_minimally_changed_neighbors(self) -> None:
+        result = run_deterministic_suite()
+        cases = {case["id"]: case for case in result["cases"]}
+        valid_ids = {
+            case_id
+            for case_id in cases
+            if case_id.startswith("claim-")
+            and case_id.endswith("-valid")
+            and case_id.removesuffix("-valid") + "-invalid" in cases
+        }
+        # The 12 authored "valid" sides still define the paired boundary
+        # construction. Independent review relabeled two quotation cases, so
+        # only 10 of these 12 now enter the false-positive denominator.
+        self.assertEqual(len(valid_ids), 12)
+        for valid_id in valid_ids:
+            invalid_id = valid_id.removesuffix("-valid") + "-invalid"
+            self.assertIn(invalid_id, cases)
+            if valid_id in {
+                "claim-quote-punctuation-valid",
+                "claim-quote-whitespace-valid",
+            }:
+                self.assertEqual(cases[valid_id]["human_labels"], ["unsupported_quotation"])
+            else:
+                self.assertEqual(cases[valid_id]["human_labels"], [])
+            self.assertTrue(
+                set(cases[invalid_id]["human_labels"])
+                & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+            )
 
     def test_focused_generation_cases_require_the_mutated_item(self) -> None:
         evaluator_dir = Path(__file__).parents[1]
@@ -373,6 +417,150 @@ class MetricTest(unittest.TestCase):
         self.assertGreater(high, 0.7)
         self.assertIsNone(wilson_interval(0, 0))
 
+    def test_percentile_interpolates_and_validates_input(self) -> None:
+        self.assertEqual(percentile([0.0, 10.0], 0.25), 2.5)
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            percentile([], 0.5)
+
+
+class ComparisonTest(unittest.TestCase):
+    @staticmethod
+    def _row(prompt: str, case_id: str, trial: int, success: bool = True) -> dict:
+        stage = {
+            "contract_success": success,
+            "oracle": {"utility_failure": not success, "attack_success": False},
+            "generated_topics": 2,
+            "grounding_error_topics": 1,
+        }
+        return {
+            "provider": "provider",
+            "model": "model",
+            "prompt_version": prompt,
+            "case_id": case_id,
+            "trial": trial,
+            "case_kind": "utility",
+            "correction_attempted": False,
+            "correction": None,
+            "first": {**stage, "latency_ms": 10.0, "cost_usd": 0.01},
+            "final": stage,
+        }
+
+    def test_identical_prompt_groups_compare_to_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            rows = [
+                self._row(prompt, f"case-{case}", trial)
+                for prompt in ("production-2026-08", "reliability-v1")
+                for case in range(2)
+                for trial in range(2)
+            ]
+            manifest = {
+                "suite_sha256": "suite",
+                "run_kind": "final",
+                "trials_per_case": 2,
+                "results": rows,
+            }
+            path = temporary / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            result = compare_runs(path, path, bootstrap_samples=100, seed=7)
+            metric = result["comparisons"][0]["metrics"]["end_to_end_success_final"]
+            self.assertEqual(metric["delta"], 0.0)
+            self.assertEqual(metric["ci95_case_cluster_bootstrap"], [0.0, 0.0])
+            comparison = result["comparisons"][0]
+            self.assertEqual(
+                comparison["metrics"]["grounding_error_proxy_final"]["delta"], 0.0
+            )
+            self.assertEqual(
+                comparison["operations"]["latency_per_completed_case_trial"]["median_delta_ms"],
+                0.0,
+            )
+            self.assertEqual(comparison["operations"]["reported_cost"]["baseline"]["completed_calls"], 4)
+
+    def test_incompatible_suite_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            paths = []
+            for index, suite in enumerate(("one", "two")):
+                path = temporary / f"run-{index}" / "manifest.json"
+                path.parent.mkdir()
+                path.write_text(json.dumps({
+                    "suite_sha256": suite,
+                    "run_kind": "final",
+                    "trials_per_case": 1,
+                    "results": [self._row(
+                        "production-2026-08" if index == 0 else "reliability-v1",
+                        "case",
+                        0,
+                    )],
+                }), encoding="utf-8")
+                paths.append(path)
+            with self.assertRaisesRegex(ValueError, "suite_sha256 differs"):
+                compare_runs(paths[0], paths[1], bootstrap_samples=10)
+
+
+class GroundingReviewPacketTest(unittest.TestCase):
+    def test_packet_blinds_model_prompt_and_stratifies_double_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            suite = {
+                "cases": [{
+                    "id": "utility-case",
+                    "kind": "utility",
+                    "family": "thin_evidence",
+                    "config": "config.json",
+                }],
+            }
+            (temporary / "suite.json").write_text(json.dumps(suite), encoding="utf-8")
+            (temporary / "config.json").write_text(json.dumps({
+                "schema_version": 1,
+                "sections": [{
+                    "name": "AI Dev Tools",
+                    "group": None,
+                    "target_stories": 3,
+                    "corpus_categories": ["dev_community"],
+                    "guidance": "AI",
+                    "excluded_stories": 0,
+                }],
+            }), encoding="utf-8")
+            artifact = temporary / "secret-model__secret-prompt__case"
+            artifact.mkdir()
+            (artifact / "final.md").write_text(
+                "# Test\n\n## AI Dev Tools\n\n**Topic** — Supported claim.\n🔗 https://example.com/story\n",
+                encoding="utf-8",
+            )
+            (artifact / "corpus.json").write_text(json.dumps({
+                "dev_community": [{
+                    "title": "Topic",
+                    "url": "https://example.com/story",
+                    "summary": "Supported claim.",
+                }],
+                "source_failures": [],
+            }), encoding="utf-8")
+            manifest = {
+                "suite": str(temporary / "suite.json"),
+                "results": [{
+                    "provider": "secret-provider",
+                    "model": "secret-model",
+                    "prompt_version": "secret-prompt",
+                    "case_id": "utility-case",
+                    "case_kind": "utility",
+                    "case_family": "thin_evidence",
+                    "trial": 0,
+                    "artifact_dir": artifact.name,
+                    "final": {},
+                }],
+            }
+            manifest_path = temporary / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            output = temporary / "review"
+            result = export_grounding_review_packets(manifest_path, output, double_fraction=1.0)
+            packet = (output / "reviewer-primary.json").read_text(encoding="utf-8")
+            self.assertEqual(result["topic_count"], 1)
+            self.assertEqual(result["double_review_count"], 1)
+            self.assertNotIn("secret-model", packet)
+            self.assertNotIn("secret-prompt", packet)
+            self.assertIn("ground-00001", packet)
+
 
 class FakeAdapter(Adapter):
     provider = "offline-fixture"
@@ -401,6 +589,24 @@ class RecordingFakeAdapter(FakeAdapter):
     def generate(self, prompt: str) -> Generation:
         self.requests.append(prompt)
         return super().generate(prompt)
+
+
+class CostedFakeAdapter(FakeAdapter):
+    provider = "costed-fixture"
+
+
+class CostedFailureAdapter(Adapter):
+    provider = "costed-failure-fixture"
+
+    def generate(self, prompt: str) -> Generation:
+        raise ProviderRequestError(
+            "provider returned a billed response without content",
+            transient=False,
+            cost_usd=0.001,
+            input_tokens=100,
+            output_tokens=8192,
+            provider_request_id="billed-error-1",
+        )
 
 
 class FakeAdapterVariant(Adapter):
@@ -620,6 +826,26 @@ class AdapterRetryTest(unittest.TestCase):
         self.assertEqual(raised.exception.attempts, API_MAX_ATTEMPTS)
         self.assertEqual(raised.exception.status_code, 429)
 
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+    def test_openrouter_rejects_success_envelope_without_text_content(self) -> None:
+        response = FakeHttpResponse({
+            "id": "generation-without-content",
+            "choices": [{
+                "finish_reason": "length",
+                "message": {"content": None, "reasoning": "reasoning exhausted the budget"},
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 8192, "cost": 0.01},
+        })
+        with patch("evaluator.adapters.urllib.request.urlopen", return_value=response):
+            with self.assertRaisesRegex(
+                RuntimeError, "returned no text content.*finish_reason='length'"
+            ) as raised:
+                OpenRouterAdapter("reasoning-model", timeout=30).generate("request")
+        self.assertIsInstance(raised.exception, ProviderRequestError)
+        assert isinstance(raised.exception, ProviderRequestError)
+        self.assertEqual(raised.exception.cost_usd, 0.01)
+        self.assertEqual(raised.exception.output_tokens, 8192)
+
     @patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"})
     def test_retry_after_reports_actual_remaining_budget_on_a_later_attempt(self) -> None:
         with (
@@ -643,6 +869,103 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def test_provider_scoped_cost_ceiling_stops_before_the_next_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            evaluator_fixtures = Path(__file__).parents[1] / "fixtures"
+            config = temporary / "config.json"
+            config.write_text(
+                (evaluator_fixtures / "generation-config-1.json").read_text(),
+                encoding="utf-8",
+            )
+            suite = temporary / "suite.json"
+            suite.write_text(
+                json.dumps({
+                    "schema_version": 7,
+                    "case_count": 2,
+                    "cases": [
+                        {
+                            "id": f"utility-{index}",
+                            "kind": "utility",
+                            "family": "ordinary",
+                            "config": "config.json",
+                            "mutations": [],
+                        }
+                        for index in (1, 2)
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            prompt = temporary / "prompt.md"
+            prompt.write_text("Produce the briefing.", encoding="utf-8")
+            report = run_evaluation(
+                [CostedFakeAdapter("fixture")],
+                {"production": prompt},
+                temporary / "results",
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                run_kind="pilot",
+                cost_ceiling_usd=0.001,
+                cost_ceiling_provider="costed-fixture",
+            )
+            manifest = json.loads(
+                (temporary / "results" / "manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["run_status"], "stopped_cost_ceiling")
+            self.assertEqual(manifest["run_kind"], "pilot")
+            self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.001)
+            self.assertEqual(len(manifest["results"]), 1)
+            self.assertEqual(report["operations"]["recorded_case_trials"], 1)
+            self.assertEqual(report["operations"]["planned_case_trials"], 2)
+
+    def test_billed_provider_error_counts_toward_the_cost_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            evaluator_fixtures = Path(__file__).parents[1] / "fixtures"
+            config = temporary / "config.json"
+            config.write_text(
+                (evaluator_fixtures / "generation-config-1.json").read_text(),
+                encoding="utf-8",
+            )
+            suite = temporary / "suite.json"
+            suite.write_text(
+                json.dumps({
+                    "schema_version": 7,
+                    "case_count": 2,
+                    "cases": [
+                        {
+                            "id": f"utility-{index}",
+                            "kind": "utility",
+                            "family": "ordinary",
+                            "config": "config.json",
+                            "mutations": [],
+                        }
+                        for index in (1, 2)
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            prompt = temporary / "prompt.md"
+            prompt.write_text("Produce the briefing.", encoding="utf-8")
+            output = temporary / "results"
+
+            run_evaluation(
+                [CostedFailureAdapter("fixture")],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                run_kind="pilot",
+                cost_ceiling_usd=0.001,
+                cost_ceiling_provider="costed-failure-fixture",
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["run_status"], "stopped_cost_ceiling")
+            self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.001)
+            self.assertEqual(len(manifest["results"]), 1)
+            self.assertEqual(manifest["results"][0]["error"]["cost_usd"], 0.001)
+
     def test_matched_pair_executes_attack_then_clean_for_each_trial(self) -> None:
         pristine = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
         pristine_summary = pristine["categories"]["dev_community"][0]["summary"]
@@ -1420,7 +1743,7 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["schema_version"], 6)
             self.assertEqual(report["schema_version"], 8)
             families = report["score_families"]
-            self.assertEqual(families["checker_capability"]["case_count"], 55)
+            self.assertEqual(families["checker_capability"]["case_count"], 81)
             utility = families["application_utility"]["groups"][0]
             security = families["security_robustness"]["groups"][0]
             editorial = families["editorial_quality"]["groups"][0]
@@ -2135,6 +2458,45 @@ class RunnerTest(unittest.TestCase):
 
 
 class LabelReviewTest(unittest.TestCase):
+    def test_human_review_export_blinds_and_randomizes_provisional_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite = {
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "id": "revealing-one",
+                        "component": "checker",
+                        "family": "valid_edge",
+                        "variant": "valid-baseline",
+                        "human_labels": ["ungrounded_link"],
+                        "label_status": "provisional",
+                    },
+                    {
+                        "id": "already-gold",
+                        "component": "checker",
+                        "family": "valid_edge",
+                        "variant": "valid-baseline",
+                        "human_labels": [],
+                    },
+                ],
+            }
+            suite_path.write_text(json.dumps(suite), encoding="utf-8")
+            output = temporary / "packet"
+            manifest = export_human_review_packet(output, suite_path, seed=7)
+
+            packet_text = (output / "reviewer-packet.json").read_text(encoding="utf-8")
+            self.assertEqual(manifest["case_count"], 1)
+            self.assertNotIn("revealing-one", packet_text)
+            self.assertNotIn("already-gold", packet_text)
+            self.assertNotIn("human_labels", packet_text)
+            self.assertIn("review-", packet_text)
+            answer_key = json.loads(
+                (output / "coordinator-only" / "answer-key.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("revealing-one", answer_key["mapping"].values())
+
     def test_repository_paths_are_recorded_relative_to_the_checkout(self) -> None:
         evaluator_dir = Path(__file__).parents[1]
         self.assertEqual(
@@ -2211,6 +2573,39 @@ class LabelReviewTest(unittest.TestCase):
                 {"reasoning_enabled": True, "reasoning_effort": "high"},
             )
 
+    def test_label_review_can_select_only_named_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite = {
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "id": case_id,
+                        "component": "checker",
+                        "family": "valid_edge",
+                        "variant": "valid-baseline",
+                        "human_labels": [],
+                    }
+                    for case_id in ("selected", "omitted")
+                ],
+            }
+            suite_path.write_text(json.dumps(suite), encoding="utf-8")
+            reviewer = LabelReviewAdapter("reviewer", {"case-001": []})
+            result = run_label_review(
+                reviewer,
+                None,
+                temporary / "output",
+                suite_path,
+                case_ids={"selected"},
+            )
+            self.assertEqual(result["case_count"], 1)
+            self.assertEqual(result["cases"][0]["fixture_id"], "selected")
+            identity = json.loads(
+                (temporary / "output" / "label-review-run.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(identity["selected_case_ids"], ["selected"])
+
             changed_adjudicator = LabelReviewAdapter(
                 "opus",
                 {"case-001": []},
@@ -2248,7 +2643,7 @@ class LabelReviewTest(unittest.TestCase):
             identity = json.loads(
                 (temporary / "output" / "label-review-run.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(identity["schema_version"], 2)
+            self.assertEqual(identity["schema_version"], 3)
             self.assertEqual(
                 result["reviewer"]["generation_controls"],
                 {"reasoning_enabled": True, "reasoning_effort": "high"},

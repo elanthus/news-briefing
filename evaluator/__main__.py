@@ -14,7 +14,9 @@ from typing import TextIO
 from evaluator.adapters import adapter_for, load_dotenv
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
-from evaluator.label_review import run_label_review
+from evaluator.comparison import compare_runs, markdown_comparison
+from evaluator.grounding_review import export_grounding_review_packets
+from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.quality import run_quality_judging
 from evaluator.runner import (
     DEFAULT_CORPUS,
@@ -167,8 +169,35 @@ def main() -> int:
     label_review.add_argument("--batch-size", type=int, default=10)
     label_review.add_argument("--timeout", type=int, default=600)
     label_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
+    label_review.add_argument(
+        "--provisional-only",
+        action="store_true",
+        help="review only cases whose label_status is provisional",
+    )
     label_review.add_argument("--output-dir", type=Path)
     label_review.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+
+    export_review = subparsers.add_parser(
+        "export-label-review",
+        help="export a randomized opaque-ID packet for independent human review",
+    )
+    export_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
+    export_review.add_argument("--output-dir", type=Path, required=True)
+    export_review.add_argument(
+        "--case-id",
+        action="append",
+        default=[],
+        help="specific case ID; repeatable (default: every provisional case)",
+    )
+
+    grounding_review = subparsers.add_parser(
+        "export-grounding-review",
+        help="export blinded primary and stratified double-review packets for final utility topics",
+    )
+    grounding_review.add_argument("manifest", type=Path)
+    grounding_review.add_argument("--output-dir", type=Path, required=True)
+    grounding_review.add_argument("--seed", type=int, default=8142026)
+    grounding_review.add_argument("--double-fraction", type=float, default=0.20)
 
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
@@ -200,9 +229,31 @@ def main() -> int:
     run.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     run.add_argument("--output-dir", type=Path)
     run.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+    run.add_argument(
+        "--run-kind",
+        choices=("development", "pilot", "final"),
+        default="development",
+    )
+    run.add_argument("--cost-ceiling-usd", type=float)
+    run.add_argument(
+        "--cost-ceiling-provider",
+        help="apply the cost ceiling only to this provider (for example, openrouter)",
+    )
 
     report_parser = subparsers.add_parser("report", help="rebuild reports from a saved manifest")
     report_parser.add_argument("manifest", type=Path)
+
+    compare = subparsers.add_parser(
+        "compare", help="paired, case-clustered comparison of compatible prompt runs"
+    )
+    compare.add_argument("baseline", type=Path)
+    compare.add_argument("candidate", type=Path)
+    compare.add_argument("--baseline-prompt")
+    compare.add_argument("--candidate-prompt")
+    compare.add_argument("--allow-descriptive", action="store_true")
+    compare.add_argument("--bootstrap-samples", type=int, default=10_000)
+    compare.add_argument("--seed", type=int, default=1729)
+    compare.add_argument("--output", type=Path)
 
     quality = subparsers.add_parser(
         "judge-quality",
@@ -238,8 +289,39 @@ def main() -> int:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(output, encoding="utf-8")
             print(json.dumps({"case_count": result["case_count"], "components": result["components"],
-                              "heuristic_claim_false_positive_rate": result["heuristic_claim_false_positive_rate"]},
+                              "heuristic_claim_false_positive_rate": result["heuristic_claim_false_positive_rate"],
+                              "heuristic_claim_false_positive_rates": result["heuristic_claim_false_positive_rates"]},
                              indent=2, sort_keys=True))
+            return 0
+        if args.command == "compare":
+            result = compare_runs(
+                args.baseline,
+                args.candidate,
+                baseline_prompt=args.baseline_prompt,
+                candidate_prompt=args.candidate_prompt,
+                allow_descriptive=args.allow_descriptive,
+                bootstrap_samples=args.bootstrap_samples,
+                seed=args.seed,
+            )
+            output_path = args.output
+            if output_path:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(
+                    json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                output_path.with_suffix(".md").write_text(
+                    markdown_comparison(result), encoding="utf-8"
+                )
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        if args.command == "export-grounding-review":
+            result = export_grounding_review_packets(
+                args.manifest,
+                args.output_dir,
+                seed=args.seed,
+                double_fraction=args.double_fraction,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         if args.command == "run":
             load_dotenv(args.env_file)
@@ -272,6 +354,9 @@ def main() -> int:
                     args.suite,
                     args.corpus,
                     progress,
+                    run_kind=args.run_kind,
+                    cost_ceiling_usd=args.cost_ceiling_usd,
+                    cost_ceiling_provider=args.cost_ceiling_provider,
                 )
             finally:
                 progress.finish()
@@ -281,7 +366,16 @@ def main() -> int:
                 operations["provider_error_trials"]
                 or operations["circuit_open_skipped_trials"]
                 or operations["correction_error_trials"]
+                or operations["run_status"] != "complete"
             ))
+        if args.command == "export-label-review":
+            result = export_human_review_packet(
+                args.output_dir,
+                args.suite,
+                case_ids=set(args.case_id) if args.case_id else None,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
         if args.command == "review-labels":
             load_dotenv(args.env_file)
             selected = [(args.reviewer_provider, args.reviewer_model)]
@@ -310,6 +404,14 @@ def main() -> int:
                 output_dir,
                 args.suite,
                 args.batch_size,
+                case_ids=(
+                    {
+                        case["id"]
+                        for case in json.loads(args.suite.read_text(encoding="utf-8"))["cases"]
+                        if case.get("label_status") == "provisional"
+                    }
+                    if args.provisional_only else None
+                ),
             )
             print(json.dumps({
                 "status": result["status"],

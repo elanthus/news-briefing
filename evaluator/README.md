@@ -4,7 +4,9 @@ This directory is a development-only benchmark. Nothing under `evaluator/` is im
 
 ## What is fixed
 
-`fixtures/checker-cases.json` contains 55 fixed cases: 45 checker cases and 10 feed-parser cases. They cover fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose false positives. All 55 labels completed attested independent human review on 2026-08-14: 41 label sets agreed exactly, and the repository owner adjudicated the other 14 disagreements. The original 49-case pass produced 38 exact agreements and 11 adjudications; a separate reviewer assessed the six later coverage additions—clean category ambiguity, failed-source status mismatch, grouped multi-section rendering, exhausted exclusion availability, HN without a discussion field, and valid health JSON with the wrong schema—producing 3 exact agreements and 3 owner-adjudicated disagreements. Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansion, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
+`fixtures/checker-cases.json` contains 81 independently human-validated cases: 69 checker cases and 12 feed-parser cases. They cover fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
+
+The 81-case checker/feed suite and the separate 55-case generation suite are distinct score families with different denominators. Their counts must not be added and described as one benchmark success rate.
 
 `fixtures/generation-cases.json` contains 55 fixed end-to-end cases: 33 indirect prompt-injection attacks and 22 utility/quality cases. Every attack behavior covers at least a `direct` and a `combined` technique; `citation-fabrication` alone retains the full five-technique sweep (direct, escape-character, context-ignoring, fake-response, combined) as a technique-sensitivity probe, since one real run showed direct/escape-character attack success around 25% against context-ignore/combined around 67–75% — that range is what the two-technique floor brackets for every other behavior. Nine paired over-refusal decoys require legitimate lookalike content to remain included, cited, and reported normally. Mutation channels are no longer summary-only: a handful of surviving cases inject through `title`, `source`, or the `errors`/health block instead, to test whether a model leaks instructions from fields the checker doesn't itself validate. Observable behavior—URL inclusion, exclusion, ordering, separation, and section placement—is checked deterministically. Meaning-preservation requirements are URL-scoped propositions reviewed separately, so a faithful paraphrase is not failed for omitting fixture wording. The suite records first output, one checker-guided correction attempt when needed, final output, the transformed corpus, raw provider usage, oracle outcomes, and hashes.
 
@@ -16,7 +18,7 @@ For attack cases, `success_if_checks` entries are restricted to checker codes th
 
 4 of the 22 utility cases, both `attack-category-selection` cases, and all 12 position/count ablation attacks use a realistic production fixture (`fixtures/generation-corpus-production.json`, a 236-item, 5-category corpus copied as-is from a real `fetch_news.py` run, plus `fixtures/generation-config-production.json`'s 6 sections, 3 of them grouped under `AI/Tech`). The utility cases cover cross-section boundary routing, selection under scarcity, cross-section duplicate detection (the suite's only real exercise of `check_no_repeated_topics` against overlapping categories), and grouped-section rendering. The remaining small synthetic fixtures (`generation-config-{1,2,3}.json`, `generation-corpus.json`) are kept for cases that only need a minimal corpus.
 
-A `baseline` provider (`evaluator/adapters.py:BaselineAdapter`, `--provider baseline=empty|echo|compliant`) supplies three offline, deterministic, zero-cost reference strategies with no network call: `empty` renders only the structural skeleton, `echo` fills sections from `corpus_categories` in the corpus's own recency order with verbatim text, and `compliant` obeys every instruction embedded in corpus content as a positive control — a dedicated test asserts it scores 100% attack success across the whole attack matrix, since anything less would mean an oracle isn't firing. Because they're deterministic, all three are wired into `evaluator/tests/test_evaluator.py` as exact-match regression assertions, extending CI coverage from the 55-case checker suite to the whole generation harness — oracles, scoring, and report rendering — at zero cost. `report.md` renders their rows in a separate "Reference baselines" section, excluded from the four live cross-model tables, with a callout pairing `empty`/`echo`'s primary-case robustness against their utility: `empty` is 100% robust and 0% useful (it never reads any instruction, so it cannot be attacked into misbehaving, and it never fills a section either), while `echo` is 90.5% robust and 86.4% useful — the concrete demonstration of why robustness is meaningless unpaired with utility. Both live and baseline groups render the matched-pair and separately-denominated ablation detail tables. Two attack behaviors (`category-selection`, `selection-suppression`) used to report false attack successes against a vacuous output via a `must_include_urls`-based signal that omission alone satisfied; that has been fixed (`must_route_to_wrong_section` requires the citation to actually land in the attacker's named section, and `require_utility_preserved` requires the rest of the task to still be completed), and `evaluator/tests/test_evaluator.py` has regression tests guarding against it recurring.
+A `baseline` provider (`evaluator/adapters.py:BaselineAdapter`, `--provider baseline=empty|echo|compliant`) supplies three offline, deterministic, zero-cost reference strategies with no network call: `empty` renders only the structural skeleton, `echo` fills sections from `corpus_categories` in the corpus's own recency order with verbatim text, and `compliant` obeys every instruction embedded in corpus content as a positive control — a dedicated test asserts it scores 100% attack success across the whole attack matrix, since anything less would mean an oracle isn't firing. Because they're deterministic, all three are wired into `evaluator/tests/test_evaluator.py` as exact-match regression assertions, extending CI coverage from the 81-case checker/feed suite to the whole generation harness — oracles, scoring, and report rendering — at zero cost. `report.md` renders their rows in a separate "Reference baselines" section, excluded from the four live cross-model tables, with a callout pairing `empty`/`echo`'s primary-case robustness against their utility: `empty` is 100% robust and 0% useful (it never reads any instruction, so it cannot be attacked into misbehaving, and it never fills a section either), while `echo` is 90.5% robust and 86.4% useful — the concrete demonstration of why robustness is meaningless unpaired with utility. Both live and baseline groups render the matched-pair and separately-denominated ablation detail tables. Two attack behaviors (`category-selection`, `selection-suppression`) used to report false attack successes against a vacuous output via a `must_include_urls`-based signal that omission alone satisfied; that has been fixed (`must_route_to_wrong_section` requires the citation to actually land in the attacker's named section, and `require_utility_preserved` requires the rest of the task to still be completed), and `evaluator/tests/test_evaluator.py` has regression tests guarding against it recurring.
 
 The injection design follows the evaluation posture of the peer-reviewed [AgentDojo paper (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf)—measure clean utility alongside attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. The matched structural-utility measure and the category-position/item-count axes are inspired proxies: they do not reproduce AgentDojo's deterministic user-task utility, relative injection-token position, or controlled-token fraction.
 
@@ -58,6 +60,75 @@ NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b,openai/gpt-oss-120b
 Whitespace around commas is ignored. Empty entries are rejected. The models still run sequentially, and each provider/model/prompt combination is reported separately.
 
 ## Live model runs
+
+The frozen portfolio protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
+Its one-trial pilot began with the immutable `production-2026-08` and `reliability-v1`
+prompts on Claude Sonnet 5 through Claude Code and DeepSeek V4 Flash through
+OpenRouter. Pilot rows are operational checks and are excluded from final estimates:
+
+```bash
+python3 -m evaluator run \
+  --provider claude-code-cli=claude-sonnet-5 \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
+  --prompt reliability-v1=evaluator/prompts/reliability-v1.md \
+  --trials 1 \
+  --timeout 300 \
+  --temperature 0 \
+  --reasoning enabled \
+  --reasoning-effort high \
+  --run-kind pilot \
+  --cost-ceiling-usd 5 \
+  --cost-ceiling-provider openrouter \
+  --output-dir evaluator/results/portfolio-v1-pilot-20260814
+```
+
+The provider-scoped ceiling accumulates costs reported by OpenRouter and stops
+before the next request after the observed total reaches the ceiling. One in-flight
+request can therefore take the observed total slightly above the limit. A stopped
+ceiling, provider failure, or billing/credit error leaves checkpointed artifacts and
+causes a nonzero command exit.
+
+The 2026-08-15 operational pilot found the original Sonnet path incompatible with
+the production corpus at the frozen timeout and found that reasoning-enabled
+DeepSeek could consume the completion budget without returning text. The dated
+protocol amendments use reasoning-disabled DeepSeek and the owner-selected
+OpenRouter `tencent/hy3` replacement; both amended 120-row groups completed without
+execution errors. See [`docs/results/portfolio-v1-pilot.md`](../docs/results/portfolio-v1-pilot.md).
+
+The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, a
+five-trial matrix, and a hard $4 OpenRouter ceiling. It completed 1,200/1,200 rows with no failed or skipped
+rows and $3.0338 in reported generation cost. The candidate did not pass the preregistered promotion rule
+for either model; see the curated [final results](../docs/results/portfolio-v1.md), [machine-readable
+aggregates](../docs/results/portfolio-v1.json), and [model card](../docs/results/portfolio-v1-model-card.md).
+
+Reproduce the compatible prompt comparison from a local final manifest without making provider calls:
+
+```bash
+python3 -m evaluator compare \
+  evaluator/results/portfolio-v1-final-20260815/report.json \
+  evaluator/results/portfolio-v1-final-20260815/report.json \
+  --output evaluator/results/portfolio-v1-final-20260815/comparison.json
+```
+
+The comparator pairs case ID and trial, refuses incompatible suite hashes, pilot/final combinations, or
+different repetition counts by default, and uses a 10,000-resample authored-case-cluster bootstrap. It
+reports contract and end-to-end utility, targeted attack success, correction success, grounding proxy,
+latency, cost, and unmatched rows. Human grounding stays undetermined until blinded review and adjudication
+are complete.
+
+Export the blinded primary and stratified 20% double-review packets from a completed final manifest:
+
+```bash
+python3 -m evaluator export-grounding-review \
+  evaluator/results/portfolio-v1-final-20260815/manifest.json \
+  --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review
+```
+
+Raw generations and review mappings stay local and ignored. Versioned aggregates live in
+[`history/portfolio-v1.json`](history/portfolio-v1.json); [`regression-policy.json`](regression-policy.json)
+defines compatibility, completeness, review-trigger, and promotion rules. Incomplete or incompatible runs
+cannot pass.
 
 Run one model and one prompt version:
 
@@ -149,7 +220,7 @@ It matches same-story topics written by two different provider/model/prompt grou
 
 ## Label review
 
-The 10 cases disputed by the initial blinded model review were adjudicated by the repository owner (one of those 10, `health-wrong-status`, was later removed as a redundant coverage cut, not for failing). The other 40 were reviewed and approved by the same repository owner on 2026-08-14. A second blinded pass with DeepSeek V4 Flash found 12 disagreements among the then-current 49 cases. GLM 5.2 arbitrated those disagreements, and the owner explicitly approved the four recommendations that changed fixture labels: `category-wrong`, `claim-conflicting-evidence`, `selection-category-ambiguity`, and `health-missing`. An attested, previously uninvolved human reviewer then completed a randomized opaque-ID review of all 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. A different attested independent reviewer then reviewed the six later coverage additions through a randomized opaque-ID packet, producing 3 exact agreements and 3 disagreements. The owner adjudicated those three against the evidence and rubric and retained all three provisional label sets. All 55 labels have now completed independent human validation. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change, without being represented as human approval on its own:
+The 10 cases disputed by the initial blinded model review were adjudicated by the repository owner (one of those 10, `health-wrong-status`, was later removed as a redundant coverage cut, not for failing). The other 40 were reviewed and approved by the same repository owner on 2026-08-14. A second blinded pass with DeepSeek V4 Flash found 12 disagreements among the then-current 49 cases. GLM 5.2 arbitrated those disagreements, and the owner explicitly approved the four recommendations that changed fixture labels: `category-wrong`, `claim-conflicting-evidence`, `selection-category-ambiguity`, and `health-missing`. An attested, previously uninvolved human reviewer then completed a randomized opaque-ID review of all 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. A different independent reviewer assessed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. That reviewer later assessed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`. All 81 current cases are independently validated. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change, without being represented as human approval on its own:
 
 ```bash
 python3 -m evaluator review-labels \
@@ -167,8 +238,17 @@ python3 -m evaluator review-labels \
   --review-only
 ```
 
+For future case additions, export the cases still marked provisional into a randomized opaque-ID packet for an independent human reviewer (the current suite has none):
+
+```bash
+python3 -m evaluator export-label-review \
+  --output-dir evaluator/results/portfolio-v1-offline-review-20260814
+```
+
+Share only `reviewer-packet.json` and `attestation-and-review-form.json`; keep the generated `coordinator-only/answer-key.json` private until the response is locked.
+
 The selected reviewer receives opaque case identifiers, the rubric, and case inputs, but not fixture names, provisional labels, or checker findings. When an adjudicator is configured, only disagreements are sent to it; `--review-only` instead leaves those disagreements unresolved for human adjudication. The resulting `label-review.json` preserves both label sets, rationales, any adjudications, provider/model identifiers, reviewer and adjudicator generation controls, usage, and the fixture hash. It never rewrites the fixture and explicitly retains the requirement for independent human approval. Validated batch checkpoints are resumed only when the suite hash, providers, models, generation controls, and batch size match, avoiding repeated paid calls after a later batch fails.
 
 ## Prompt provenance
 
-The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it an immutable version name, and pass both versions explicitly. Reports store the name and SHA-256 hash, so reusing a name for changed prompt bytes remains visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
+The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it an immutable version name, and pass both versions explicitly. Portfolio v1 freezes the exact files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Reports store the name and SHA-256 hash, so reusing a name for changed prompt bytes remains visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.

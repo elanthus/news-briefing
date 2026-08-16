@@ -552,6 +552,40 @@ def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> 
     raise AssertionError("unreachable redirect loop")
 
 
+def _decode_bom_marked_utf32_xml(data: bytes) -> str | bytes:
+    """Decode BOM-marked UTF-32 for parsers whose Expat lacks UTF-32 support."""
+    byte_order: str | None = None
+    if data.startswith(b"\xff\xfe\x00\x00"):
+        byte_order = "le"
+    elif data.startswith(b"\x00\x00\xfe\xff"):
+        byte_order = "be"
+    if byte_order is None:
+        return data
+    if len(data) > MAX_RESPONSE_BYTES:
+        raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
+
+    # The generic codec requires and strips the BOM and rejects incomplete or
+    # otherwise invalid code units. Passing Unicode to Expat then avoids its
+    # platform-dependent "multi-byte encodings are not supported" failure.
+    text = data.decode("utf-32", errors="strict")
+    declaration = re.match(r"\s*<\?xml\s+([^?]*?)\?>", text, re.IGNORECASE)
+    if declaration:
+        encoding = re.search(
+            r"\bencoding\s*=\s*(['\"])([^'\"]+)\1",
+            declaration.group(1),
+            re.IGNORECASE,
+        )
+        if encoding:
+            normalized = re.sub(r"[-_]", "", encoding.group(2)).lower()
+            accepted = {"utf32", f"utf32{byte_order}"}
+            if normalized not in accepted:
+                raise ValueError(
+                    "UTF-32 byte order mark contradicts XML encoding declaration "
+                    f"{encoding.group(2)!r}"
+                )
+    return text
+
+
 def parse_feed_xml(data: bytes) -> ET.Element:
     """Parse feed XML, refusing any DOCTYPE declaration.
 
@@ -565,8 +599,10 @@ def parse_feed_xml(data: bytes) -> ET.Element:
 
     Expat recognizes the document's declared encoding before calling the DTD
     handler, so UTF-16 and other supported encodings cannot hide a declaration
-    from this guard. A separate validation pass keeps ElementTree's convenient
-    tree API without relying on its private parser internals.
+    from this guard. BOM-marked UTF-32 is first decoded strictly and bounded,
+    because Python's Expat does not support that byte encoding; the same DTD
+    guard then runs over Unicode. A separate validation pass keeps
+    ElementTree's convenient tree API without relying on private internals.
     """
     def reject_doctype(_name: str, _system_id: str | None,
                        _public_id: str | None, _has_internal_subset: int) -> None:
@@ -578,11 +614,12 @@ def parse_feed_xml(data: bytes) -> ET.Element:
     def stop_at_root(_name: str, _attributes: dict[str, str]) -> None:
         raise RootReached
 
+    parseable = _decode_bom_marked_utf32_xml(data)
     parser = expat.ParserCreate()
     parser.StartDoctypeDeclHandler = reject_doctype
     parser.StartElementHandler = stop_at_root
     try:
-        parser.Parse(data, True)
+        parser.Parse(parseable, True)
     except RootReached:
         pass
     except expat.ExpatError as exc:
@@ -590,7 +627,7 @@ def parse_feed_xml(data: bytes) -> ET.Element:
         # handle, without swallowing a guard failure and hoping a second parser
         # happens to reject the same bytes.
         raise ET.ParseError(str(exc)) from exc
-    return ET.fromstring(data)
+    return ET.fromstring(parseable)
 
 
 def parse_feed_date(text: str | None) -> datetime | None:

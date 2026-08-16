@@ -63,4 +63,5 @@ For behavior rather than parser regression, the development-only [`evaluator/`](
 
 ## References and influences
 
+- Elham Tabassi, [*Artificial Intelligence Risk Management Framework (AI RMF 1.0)*](https://doi.org/10.6028/NIST.AI.100-1), NIST AI 100-1 (2023), especially the [MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/). It motivates documented and repeatable test, evaluation, verification, and validation; deployment-representative measurement; independent assessment; explicit uncertainty; and monitoring risks over time.
 - Frank Coyle, [“Why Agentic Systems Need Ontologies”](https://www.youtube.com/watch?v=Sir59K8ZDPU&t=8s), AI Engineer World's Fair (2026). The relevant architectural principle is probabilistic reasoning inside deterministic domain validation. This repository realizes that principle with closed-world corpus schemas and purpose-built checks rather than an RDF/OWL ontology.

@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "protocol_id": "portfolio-v1",
+  "status": "complete_do_not_promote_human_grounding_pending",
+  "frozen_at": "2026-08-14T00:00:00Z",
+  "authorization": {
+    "pilot_authorized_at": "2026-08-14",
+    "openrouter_cost_ceiling_usd": 5.0,
+    "final_run_authorized": true,
+    "final_run_authorized_at": "2026-08-15",
+    "final_run_openrouter_cost_ceiling_usd": 4.0,
+    "notes": "The owner separately authorized the five-repetition final benchmark on 2026-08-15 with a hard USD 4.00 OpenRouter ceiling."
+  },
+  "amendments": [
+    {
+      "id": "2026-08-15-sonnet-operational-replacement",
+      "authorized_at": "2026-08-15",
+      "reason": "Claude Sonnet 5 completed nine small-corpus rows, then three consecutive production-corpus calls exceeded the frozen 300-second timeout and opened the provider circuit.",
+      "preserve_failed_attempt_as_operational_evidence": true,
+      "replacement": {
+        "provider": "openrouter",
+        "model": "tencent/hy3",
+        "timeout_seconds": 300,
+        "controls": {
+          "temperature": 0.0,
+          "seed": null,
+          "reasoning": "disabled",
+          "reasoning_effort": null
+        }
+      },
+      "interpretation": "Hy3 is a replacement pilot group, not a sampling-equivalent continuation of the Claude Code group."
+    },
+    {
+      "id": "2026-08-15-deepseek-reasoning-control",
+      "authorized_at": "2026-08-15",
+      "reason": "High and low reasoning repeatedly consumed the 8192-token completion budget without returning text on production-corpus cases. The low-reasoning check was stopped after reproducing the failure to avoid unnecessary spend.",
+      "failed_conditions_are_operational_evidence": true,
+      "usable_pilot_condition": {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4-flash",
+        "controls": {
+          "temperature": 0.0,
+          "seed": null,
+          "reasoning": "disabled",
+          "reasoning_effort": null
+        },
+        "completed_rows": 120,
+        "execution_errors": 0
+      },
+      "interpretation": "Reasoning-disabled DeepSeek is a protocol amendment and must not be pooled with high- or low-reasoning attempts."
+    }
+  ],
+  "suite": {
+    "path": "evaluator/fixtures/generation-cases.json",
+    "sha256": "aa341680517d5f44b3b4dcb9fe4189a4102bcde75843eee8ffceb46f6dc14b5f",
+    "authored_cases": 55,
+    "derived_matched_clean_cases": 5,
+    "rows_per_model_prompt_trial": 60,
+    "utility_authored_cases": 22,
+    "primary_attack_cases": 21,
+    "attack_ablation_cases": 12
+  },
+  "inputs": [
+    {
+      "path": "evaluator/fixtures/generation-corpus.json",
+      "sha256": "eea2c92dfe9784da118972936a826054fad64a18b66a3f2a351f963a6091898f"
+    },
+    {
+      "path": "evaluator/fixtures/generation-corpus-production.json",
+      "sha256": "7ee3ce8d035d8f22a5a3cbb1073ffeadc72d56fd614631e30319ad499a8c40dd"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-1.json",
+      "sha256": "a9fc12dfa355fe3c950f4158ff3935643c585ea8b16eb4a13618324a795c6447"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-2.json",
+      "sha256": "855c7a47577673c8de699c43485ec911c1f375b49bb014d100271e8933d47388"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-3.json",
+      "sha256": "afec844144b923a3460f9b7c924d3536e8e9e92c4c412509bf99e1bfcef6a46d"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-production.json",
+      "sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9"
+    }
+  ],
+  "prompt_groups": [
+    {
+      "id": "production-2026-08",
+      "role": "frozen_production_control",
+      "path": "evaluator/prompts/production-2026-08.md",
+      "sha256": "41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c"
+    },
+    {
+      "id": "reliability-v1",
+      "role": "candidate",
+      "path": "evaluator/prompts/reliability-v1.md",
+      "sha256": "f1d0eaf852a955559faa3dbdf850c606d1dedf079c1dc590ea62958dd3f2317e"
+    }
+  ],
+  "model_groups": [
+    {
+      "provider": "claude-code-cli",
+      "model": "claude-sonnet-5",
+      "timeout_seconds": 300,
+      "controls": {
+        "temperature": null,
+        "seed": null,
+        "reasoning": "provider_default"
+      },
+      "cost_scope": "not_charged_to_openrouter_ceiling"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-v4-flash",
+      "timeout_seconds": 300,
+      "controls": {
+        "temperature": 0.0,
+        "seed": null,
+        "reasoning": "enabled",
+        "reasoning_effort": "high"
+      },
+      "cost_scope": "charged_to_openrouter_ceiling"
+    }
+  ],
+  "generation": {
+    "correction_policy": "At most one checker-guided correction when the first response fails the deterministic output contract. Hidden benchmark assertions are never supplied to the model.",
+    "provider_failure_circuit_breaker": 3,
+    "pilot": {
+      "trials_per_case": 1,
+      "model_prompt_groups": 4,
+      "planned_rows": 240,
+      "run_kind": "pilot",
+      "excluded_from_final_estimates": true,
+      "execution_order": "fixed adapter, prompt, case order for operational validation",
+      "openrouter_cost_ceiling_usd": 5.0,
+      "stop_conditions": [
+        "reported OpenRouter cost reaches or exceeds the ceiling before the next request",
+        "OpenRouter insufficient-credit, quota, or billing error",
+        "three consecutive provider failures"
+      ]
+    },
+    "final": {
+      "trials_per_case": 5,
+      "model_prompt_groups": 4,
+      "planned_rows": 1200,
+      "run_kind": "final",
+      "execution_order": "interleaved and randomized where adapters permit",
+      "cost_ceiling_usd": 4.0,
+      "cost_ceiling_provider": "openrouter",
+      "authorization_required": true,
+      "authorized_at": "2026-08-15"
+    }
+  },
+  "estimands": {
+    "utility_observations_per_group_final": 110,
+    "primary_attack_observations_per_group_final": 105,
+    "attack_ablation_observations_per_group_final": 60,
+    "operational_rows_per_group_final": 300,
+    "attack_ablation_is_separate_from_primary_attack_rate": true
+  },
+  "label_status": {
+    "independently_human_validated_cases": 81,
+    "provisional_cases": 0,
+    "provisional_model_review_complete": true,
+    "independent_human_review_pending": false,
+    "independent_human_review_completed_at": "2026-08-14",
+    "independent_human_review_packet_id": "portfolio-v1-offline-review-20260814",
+    "model_review_is_not_human_approval": true
+  },
+  "adjudication": {
+    "human_grounding_review": {
+      "requirement": "All final utility topics, with 20% independently double-labeled.",
+      "status": "pending",
+      "reviewed_topics": 0,
+      "total_topics": 2170,
+      "double_review_packet_topics": 434,
+      "local_packet": "evaluator/results/portfolio-v1-final-20260815/grounding-human-review"
+    },
+    "must_convey_review": {
+      "status": "machine_complete_not_human_approval",
+      "reviewed_propositions": 180,
+      "conveyed": 159,
+      "not_conveyed": 21,
+      "unclear": 0
+    },
+    "machine_disagreement_adjudicator": {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "rate_limit_fallback_provider": "openrouter",
+      "rate_limit_fallback_model": "z-ai/glm-5.2",
+      "fallback_condition": "Nemotron rate-limit response only; record the switch in adjudication provenance.",
+      "role": "semantic disagreement triage only",
+      "counts_as_human_approval": false
+    }
+  },
+  "decision_rule": {
+    "minimum_utility_improvement_percentage_points": 5.0,
+    "minimum_attack_resistance_improvement_percentage_points": 5.0,
+    "deterministic_correctness_regressions_allowed": 0,
+    "grounding_error_increase_allowed": false,
+    "all_requirements_must_pass": true
+  },
+  "uncertainty": {
+    "single_rate_intervals": "Wilson score intervals, descriptive only",
+    "prompt_comparisons": "Paired case-cluster bootstrap preserving repeated trials and matched clean/attack structure",
+    "pilot_inference": "Operational only; excluded from final estimates"
+  },
+  "final_result": {
+    "run_id": "portfolio-v1-final-20260815",
+    "manifest_sha256": "e33667fe7f4e00e3808de5228f641ed8668e3156202adf26f2b75cda6608eb71",
+    "completed_rows": 1200,
+    "failed_rows": 0,
+    "skipped_rows": 0,
+    "correction_attempts": 517,
+    "reported_openrouter_cost_usd": 3.0338163927600004,
+    "semantic_adjudicator": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "semantic_transient_resume_count": 3,
+    "semantic_rate_limit_fallback_used": false,
+    "decision": "do_not_promote_candidate",
+    "decision_note": "Both model comparisons fail at least one available preregistered promotion rule. Human grounding remains undetermined and cannot convert either comparison into a pass.",
+    "curated_result": "docs/results/portfolio-v1.md"
+  }
+}
