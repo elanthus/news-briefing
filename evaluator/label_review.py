@@ -14,6 +14,7 @@ from evaluator.cases import DEFAULT_SUITE, _xml_case, apply_variant
 from evaluator.judge_io import (
     checkpointed_generate,
     parse_json_response,
+    portable_path,
     sha256_bytes,
     write_json_atomic,
 )
@@ -108,19 +109,18 @@ def export_human_review_packet(
     """Write a randomized human-review packet without labels or predictions."""
     raw = suite_path.read_bytes()
     suite = json.loads(raw)
-    selected = [
-        case for case in suite["cases"]
-        if case["id"] in case_ids
-        if case_ids is not None
-    ] if case_ids is not None else [
-        case for case in suite["cases"] if case.get("label_status") == "provisional"
-    ]
-    if not selected:
-        raise ValueError("human-review packet selection is empty")
     if case_ids is not None:
-        missing = case_ids - {case["id"] for case in selected}
+        available_ids = {case["id"] for case in suite["cases"]}
+        missing = case_ids - available_ids
         if missing:
             raise ValueError(f"unknown case IDs: {', '.join(sorted(missing))}")
+        selected = [case for case in suite["cases"] if case["id"] in case_ids]
+    else:
+        selected = [
+            case for case in suite["cases"] if case.get("label_status") == "provisional"
+        ]
+    if not selected:
+        raise ValueError("human-review packet selection is empty")
 
     rng = random.Random(seed if seed is not None else secrets.randbits(128))
     rng.shuffle(selected)
@@ -160,14 +160,13 @@ def export_human_review_packet(
             {"case": case["case"], "labels": [], "rationale": ""} for case in payloads
         ],
     }
+    labels_by_case = {case["id"]: sorted(case["human_labels"]) for case in selected}
     answer_key = {
         "schema_version": 1,
         "notice": "Coordinator-only until the completed response and attestation are locked.",
         "mapping": mapping,
         "provisional_labels": {
-            mapping[opaque_id]: sorted(
-                next(case["human_labels"] for case in selected if case["id"] == mapping[opaque_id])
-            )
+            mapping[opaque_id]: labels_by_case[mapping[opaque_id]]
             for opaque_id in mapping
         },
     }
@@ -181,7 +180,7 @@ def export_human_review_packet(
     manifest = {
         "schema_version": 1,
         "status": "awaiting_independent_human_review",
-        "suite": _portable_path(suite_path),
+        "suite": portable_path(suite_path),
         "suite_sha256": sha256_bytes(raw),
         "case_count": len(selected),
         "reviewer_packet": packet_path.name,
@@ -290,15 +289,8 @@ def _review_batch(
 
 
 def _portable_path(path: Path) -> str:
-    """Represent repository paths without leaking a machine-specific checkout path."""
-    resolved = path.resolve()
-    try:
-        return f"./{resolved.relative_to(ROOT).as_posix()}"
-    except ValueError:
-        try:
-            return f"~/{resolved.relative_to(Path.home()).as_posix()}"
-        except ValueError:
-            return str(resolved)
+    """Backward-compatible wrapper for the shared path sanitizer."""
+    return portable_path(path)
 
 
 def run_label_review(
@@ -307,6 +299,7 @@ def run_label_review(
     output_dir: Path,
     suite_path: Path = DEFAULT_SUITE,
     batch_size: int = 10,
+    *,
     case_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     if batch_size <= 0:
@@ -434,7 +427,7 @@ def run_label_review(
             if adjudicator is not None
             else "blinded_review_complete_adjudication_not_run_human_approval_required"
         ),
-        "suite": _portable_path(suite_path),
+        "suite": portable_path(suite_path),
         "suite_sha256": identity["suite_sha256"],
         "reviewer": reviewer_metadata,
         "adjudicator": identity["adjudicator"],

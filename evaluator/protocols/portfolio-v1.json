@@ -48,6 +48,13 @@
         "execution_errors": 0
       },
       "interpretation": "Reasoning-disabled DeepSeek is a protocol amendment and must not be pooled with high- or low-reasoning attempts."
+    },
+    {
+      "id": "2026-08-16-cross-section-wording-review",
+      "recorded_at": "2026-08-16",
+      "finding": "The frozen consolidation text says an event can reach multiple sections immediately before the ONE PLACEMENT RULE requires exactly one reported placement.",
+      "portfolio_v1_interpretation": "The explicit ONE PLACEMENT RULE is authoritative: an event may be eligible for multiple sections but is reported in only one.",
+      "disposition": "Do not mutate the hash-frozen prompts after execution. Apply the clarified wording under new prompt IDs and hashes in the next protocol version."
     }
   ],
   "suite": {

@@ -729,6 +729,14 @@ def run_evaluation(
         raise ValueError("run_kind must be development, pilot, or final")
     if cost_ceiling_usd is not None and cost_ceiling_usd <= 0:
         raise ValueError("cost_ceiling_usd must be positive")
+    if cost_ceiling_provider is not None:
+        available_providers = {adapter.provider for adapter in adapters}
+        if cost_ceiling_provider not in available_providers:
+            available = ", ".join(sorted(available_providers)) or "none"
+            raise ValueError(
+                f"cost_ceiling_provider {cost_ceiling_provider!r} matches no selected provider; "
+                f"choose one of: {available}"
+            )
     suite = _json(suite_path)
     if suite.get("case_count") != len(suite.get("cases", [])):
         raise ValueError("generation suite case_count does not match cases")

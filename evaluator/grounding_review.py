@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import random
 from collections import defaultdict
@@ -13,11 +12,7 @@ import briefing_config
 import corpus_schema
 import eval_briefing
 
-from evaluator.judge_io import write_json_atomic
-
-
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+from evaluator.judge_io import portable_path, sha256_bytes, write_json_atomic
 
 
 def _case_configs(manifest: dict[str, Any], manifest_path: Path) -> dict[str, briefing_config.BriefingConfig]:
@@ -68,7 +63,11 @@ def _review_topics(manifest_path: Path, manifest: dict[str, Any]) -> list[dict[s
                         "prose": prose,
                         "citations": canonical,
                         "evidence": [
-                            {"url": url, "feed_evidence": evidence.get(url, "")}
+                            {
+                                "url": url,
+                                "corpus_match": url in evidence,
+                                "feed_evidence": evidence.get(url),
+                            }
                             for url in canonical
                         ],
                     },
@@ -80,6 +79,9 @@ def _double_sample(records: list[dict[str, Any]], count: int, rng: random.Random
     by_stratum: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         by_stratum[record["stratum"]].append(record)
+    if not records or count <= 0:
+        return []
+    target = min(len(records), max(count, len(by_stratum)))
     chosen = []
     for stratum in sorted(by_stratum):
         chosen.append(rng.choice(by_stratum[stratum]))
@@ -89,7 +91,7 @@ def _double_sample(records: list[dict[str, Any]], count: int, rng: random.Random
         if (row["artifact_dir"], row["topic_index"]) not in chosen_keys
     ]
     rng.shuffle(remaining)
-    return chosen[:count] + remaining[: max(0, count - len(chosen))]
+    return chosen + remaining[: target - len(chosen)]
 
 
 def _packet(
@@ -126,7 +128,7 @@ def export_grounding_review_packets(
     manifest = json.loads(manifest_bytes)
     records = _review_topics(manifest_path, manifest)
     rng = random.Random(seed)
-    double_count = round(len(records) * double_fraction)
+    double_count = max(1, round(len(records) * double_fraction)) if records else 0
     double_records = _double_sample(records, double_count, rng)
     primary, primary_map = _packet(records, "ground", rng)
     secondary, secondary_map = _packet(double_records, "double", rng)
@@ -140,11 +142,16 @@ def export_grounding_review_packets(
             "paraphrase is allowed."
         ),
         "scope": "Use only the supplied feed evidence. Do not use outside knowledge or infer from the URL.",
+        "missing_citation_evidence": (
+            "An evidence item with corpus_match=false was not found in the corpus; its "
+            "feed_evidence is null. An empty feed_evidence string with corpus_match=true "
+            "means the corpus item exists but supplies no textual evidence."
+        ),
     }
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=False)
     packet_meta = {
         "schema_version": 1,
-        "manifest_sha256": _sha256(manifest_bytes),
+        "manifest_sha256": sha256_bytes(manifest_bytes),
         "rubric": rubric,
     }
     write_json_atomic(output_dir / "reviewer-primary.json", {**packet_meta, "reviews": primary})
@@ -172,8 +179,8 @@ def export_grounding_review_packets(
     })
     write_json_atomic(output_dir / "review-map.json", {
         "schema_version": 1,
-        "manifest": str(manifest_path.resolve()),
-        "manifest_sha256": _sha256(manifest_bytes),
+        "manifest": portable_path(manifest_path),
+        "manifest_sha256": sha256_bytes(manifest_bytes),
         "seed": seed,
         "double_fraction": double_fraction,
         "primary": primary_map,
@@ -182,6 +189,6 @@ def export_grounding_review_packets(
     return {
         "topic_count": len(records),
         "double_review_count": len(double_records),
-        "manifest_sha256": _sha256(manifest_bytes),
-        "output_dir": str(output_dir),
+        "manifest_sha256": sha256_bytes(manifest_bytes),
+        "output_dir": portable_path(output_dir),
     }

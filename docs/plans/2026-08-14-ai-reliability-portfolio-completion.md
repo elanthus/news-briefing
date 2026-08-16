@@ -1,40 +1,40 @@
 # AI reliability portfolio completion plan
 
-**Status:** proposed  
+**Status:** historical planning snapshot — implementation completed 2026-08-15
 **Scope:** close the remaining evaluation-evidence gaps; do not rebuild capabilities that already exist  
 **Primary audience:** a reviewer assessing the project as an AI reliability portfolio piece
 
 ## Goal
 
-Turn the existing evaluator from a strong implementation with an offline baseline into a reproducible,
-independently reviewed, longitudinal evaluation with real model results.
+This document records the plan used to turn the evaluator from a strong implementation with an offline
+baseline into a reproducible, independently reviewed, longitudinal evaluation with real model results.
 
-The repository already implements nearly all of the requested mechanics. The remaining work is mostly
-about evidence quality: finish label validation, strengthen two weak offline denominators, run a fixed live
-comparison, adjudicate grounding, and make results comparable over time.
+The planned implementation is complete except for the explicitly pending blinded human grounding review.
+Current outcomes are recorded in `docs/results/portfolio-v1.md`; this file preserves the original sequence
+and acceptance criteria rather than serving as the current project-status source.
 
 This plan follows NIST AI RMF's emphasis on documented test sets and methods, deployment-representative
 conditions, independent assessment, uncertainty, and tracking risks over time. It also keeps benign utility
 separate from targeted attack success, following the evaluation posture used by the peer-reviewed AgentDojo
 and MELON work.
 
-## Current-state gap audit
+## Historical gap audit and completion state
 
 | Requested capability | Current state | Remaining gap |
 |---|---|---|
-| Fixed 30–100-case suite | Implemented as two fixed 55-case suites: 55 checker/feed cases and 55 generation cases | Keep the two score families separate and explain why the combined count is not one denominator |
+| Fixed 30–100-case suite | Completed: 81 independently validated checker/feed cases plus 55 authored generation cases (60 executed case units with matched clean pairs) | None; the score families and denominators are reported separately |
 | Fabricated, altered, bare, Markdown, and duplicate URLs | Covered | None |
-| UTF-8/16/32 and malformed/feed-shape cases | Covered by labels and cases | The valid UTF-32 case is currently rejected, a known false positive |
+| UTF-8/16/32 and malformed/feed-shape cases | Completed: valid BOM-aware UTF-32 is accepted and malformed, contradictory, and DOCTYPE inputs remain rejected | None |
 | Degraded and partially degraded sources | Covered in checker and generation suites | None |
-| Injection against citations, prose, selection, health, and formatting | Covered across 33 attacks, including positive controls, over-refusal decoys, matched clean twins, and an ablation cohort | No full, current live-model benchmark has been published |
+| Injection against citations, prose, selection, health, and formatting | Completed across 33 attacks, including positive controls, over-refusal decoys, matched clean twins, and an ablation cohort | None; the 1,200-row final benchmark is published |
 | Thin/conflicting evidence, over-consolidation, and category ambiguity | Covered | Semantic misses are honestly reflected in checker recall; do not hide them by relabeling |
-| Deliberately valid edge cases | Covered | The heuristic claim false-positive rate has only one eligible negative case, so its interval is too wide to be useful |
-| Checker precision/recall | Implemented with human labels and Wilson intervals | Six recently added labels remain provisional |
-| First-pass contract, correction, attack success, grounding, latency, and cost | Implemented in the generation harness and report schema | The committed baseline reports zero current live-model trials; partial and older local runs are not a substitute |
-| Confidence intervals and trial counts | Implemented for rates; trial counts are explicit | Repeated trials over the same authored cases need a clearer uncertainty interpretation and paired comparison method |
-| Results over time | Individual timestamped artifacts exist | No curated history, compatible-run comparator, or regression policy exists |
+| Deliberately valid edge cases | Completed, including independently reviewed paired heuristic-claim boundaries | None |
+| Checker precision/recall | Completed with all 81 labels independently validated, Wilson intervals, and zero provisional cases | None |
+| First-pass contract, correction, attack success, grounding, latency, and cost | Completed for 1,200/1,200 final rows at a recorded cost of $3.0338 | Blinded human grounding review remains pending for 2,170 topics; machine semantic review is complete |
+| Confidence intervals and trial counts | Completed with explicit trial counts and paired authored-case-cluster bootstrap intervals | None |
+| Results over time | Completed with curated history, compatibility checks, paired comparison, and a regression policy | Add future compatible runs as they are completed |
 
-## Decisions to make before implementation
+## Historical pre-implementation decisions
 
 These decisions should be recorded in the pull request or tracking issue before paid runs begin:
 

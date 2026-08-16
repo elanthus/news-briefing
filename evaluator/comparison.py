@@ -97,9 +97,15 @@ def _cluster_bootstrap(
     samples: int,
     seed: int,
 ) -> dict[str, Any]:
-    by_cluster: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = defaultdict(list)
+    by_cluster: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    baseline_values = []
+    candidate_values = []
     for left, right in pairs:
-        by_cluster[_cluster(left["case_id"])].append((left, right))
+        baseline_value = baseline_metric(left)
+        candidate_value = candidate_metric(right)
+        by_cluster[_cluster(left["case_id"])].append((baseline_value, candidate_value))
+        baseline_values.append(baseline_value)
+        candidate_values.append(candidate_value)
     clusters = sorted(by_cluster)
     if not clusters:
         return {
@@ -110,17 +116,15 @@ def _cluster_bootstrap(
             "pairs": 0,
             "case_clusters": 0,
         }
-    baseline_values = [baseline_metric(left) for left, _ in pairs]
-    candidate_values = [candidate_metric(right) for _, right in pairs]
     baseline_rate = statistics.fmean(baseline_values)
     candidate_rate = statistics.fmean(candidate_values)
     rng = random.Random(seed)
     deltas = []
     for _ in range(samples):
         drawn = [rng.choice(clusters) for _ in clusters]
-        selected = [pair for cluster in drawn for pair in by_cluster[cluster]]
-        base = statistics.fmean(baseline_metric(left) for left, _ in selected)
-        cand = statistics.fmean(candidate_metric(right) for _, right in selected)
+        selected = [values for cluster in drawn for values in by_cluster[cluster]]
+        base = statistics.fmean(value for value, _ in selected)
+        cand = statistics.fmean(value for _, value in selected)
         deltas.append(cand - base)
     return {
         "baseline_rate": baseline_rate,
@@ -141,14 +145,24 @@ def _cluster_bootstrap_ratio(
     seed: int,
 ) -> dict[str, Any]:
     """Bootstrap a topic-weighted ratio while resampling authored case clusters."""
-    by_cluster: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = defaultdict(list)
+    by_cluster: dict[str, list[tuple[float, float, float, float]]] = defaultdict(list)
+    values = []
     for left, right in pairs:
-        by_cluster[_cluster(left["case_id"])].append((left, right))
+        pair_values = (
+            numerator(left),
+            denominator(left),
+            numerator(right),
+            denominator(right),
+        )
+        by_cluster[_cluster(left["case_id"])].append(pair_values)
+        values.append(pair_values)
     clusters = sorted(by_cluster)
 
-    def ratio(selected: list[tuple[dict[str, Any], dict[str, Any]]], side: int) -> float:
-        rows = [pair[side] for pair in selected]
-        return sum(numerator(row) for row in rows) / sum(denominator(row) for row in rows)
+    def ratio(selected: list[tuple[float, float, float, float]], side: int) -> float:
+        offset = side * 2
+        return sum(pair[offset] for pair in selected) / sum(
+            pair[offset + 1] for pair in selected
+        )
 
     if not clusters:
         return {
@@ -159,8 +173,8 @@ def _cluster_bootstrap_ratio(
             "pairs": 0,
             "case_clusters": 0,
         }
-    baseline_rate = ratio(pairs, 0)
-    candidate_rate = ratio(pairs, 1)
+    baseline_rate = ratio(values, 0)
+    candidate_rate = ratio(values, 1)
     rng = random.Random(seed)
     deltas = []
     for _ in range(samples):
@@ -184,9 +198,15 @@ def _cluster_bootstrap_median(
     samples: int,
     seed: int,
 ) -> dict[str, Any]:
-    by_cluster: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = defaultdict(list)
+    by_cluster: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    baseline_values = []
+    candidate_values = []
     for left, right in pairs:
-        by_cluster[_cluster(left["case_id"])].append((left, right))
+        baseline_value = metric(left)
+        candidate_value = metric(right)
+        by_cluster[_cluster(left["case_id"])].append((baseline_value, candidate_value))
+        baseline_values.append(baseline_value)
+        candidate_values.append(candidate_value)
     clusters = sorted(by_cluster)
     if not clusters:
         return {
@@ -199,18 +219,16 @@ def _cluster_bootstrap_median(
             "pairs": 0,
             "case_clusters": 0,
         }
-    baseline_values = [metric(left) for left, _ in pairs]
-    candidate_values = [metric(right) for _, right in pairs]
     baseline_median = statistics.median(baseline_values)
     candidate_median = statistics.median(candidate_values)
     rng = random.Random(seed)
     deltas = []
     for _ in range(samples):
         drawn = [rng.choice(clusters) for _ in clusters]
-        selected = [pair for cluster in drawn for pair in by_cluster[cluster]]
+        selected = [values for cluster in drawn for values in by_cluster[cluster]]
         deltas.append(
-            statistics.median(metric(right) for _, right in selected)
-            - statistics.median(metric(left) for left, _ in selected)
+            statistics.median(value for _, value in selected)
+            - statistics.median(value for value, _ in selected)
         )
     return {
         "baseline_median_ms": baseline_median,
@@ -300,6 +318,7 @@ def compare_runs(
     problems = _compatible(baseline_manifest, candidate_manifest)
     if problems and not allow_descriptive:
         raise ValueError("incompatible runs: " + "; ".join(problems))
+    comparison_kind = "gated" if not problems else "descriptive_incompatible"
     left_prompt = _infer_prompt(baseline_manifest, "production-2026-08", baseline_prompt)
     right_prompt = _infer_prompt(candidate_manifest, "reliability-v1", candidate_prompt)
 
@@ -397,8 +416,11 @@ def compare_runs(
         decision["passes_all_available_rules"] = all(
             value is True for value in decision.values() if isinstance(value, bool)
         )
+        decision["comparison_kind"] = comparison_kind
         decision["gated_outcome"] = (
-            "inconclusive_pending_human_grounding"
+            "not_gate_eligible_descriptive_comparison"
+            if problems
+            else "inconclusive_pending_human_grounding"
             if decision["passes_all_available_rules"]
             else "do_not_promote_candidate"
         )
@@ -434,7 +456,7 @@ def compare_runs(
 
     return {
         "schema_version": 1,
-        "comparison_kind": "gated" if not problems else "descriptive_incompatible",
+        "comparison_kind": comparison_kind,
         "compatibility_problems": problems,
         "baseline_manifest": str(baseline_manifest_path),
         "candidate_manifest": str(candidate_manifest_path),
@@ -477,8 +499,8 @@ def markdown_comparison(result: dict[str, Any]) -> str:
         )
     lines += [
         "",
-        "Intervals are paired, authored-case-cluster bootstrap intervals. They preserve the five repeated "
-        "trials inside each case cluster and are the inferential comparison; marginal Wilson intervals are "
+        "Intervals are paired, authored-case-cluster bootstrap intervals. They preserve repeated trials "
+        "inside each case cluster and are the inferential comparison; marginal Wilson intervals are "
         "descriptive only.",
         "",
     ]

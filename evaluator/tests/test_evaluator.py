@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import random
 import sys
 import tempfile
 import unittest
@@ -32,7 +33,7 @@ from evaluator.adapters import (
 )
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
-from evaluator.grounding_review import export_grounding_review_packets
+from evaluator.grounding_review import _double_sample, export_grounding_review_packets
 from evaluator.label_review import (
     _parse_reviews,
     _portable_path,
@@ -524,6 +525,14 @@ class ComparisonTest(unittest.TestCase):
                 path, path, allow_descriptive=True, bootstrap_samples=10
             )
             self.assertEqual(result["comparison_kind"], "descriptive_incompatible")
+            self.assertEqual(
+                result["comparisons"][0]["decision"]["comparison_kind"],
+                "descriptive_incompatible",
+            )
+            self.assertEqual(
+                result["comparisons"][0]["decision"]["gated_outcome"],
+                "not_gate_eligible_descriptive_comparison",
+            )
             self.assertIn("n/a", markdown_comparison(result))
 
 
@@ -554,16 +563,20 @@ class GroundingReviewPacketTest(unittest.TestCase):
             artifact = temporary / "secret-model__secret-prompt__case"
             artifact.mkdir()
             (artifact / "final.md").write_text(
-                "# Test\n\n## AI Dev Tools\n\n**Topic** — Supported claim.\n🔗 https://example.com/story\n",
+                "# Test\n\n## AI Dev Tools\n\n**Topic** — Supported claim.\n"
+                "🔗 https://example.com/story\n"
+                "🔗 https://example.com/missing\n",
                 encoding="utf-8",
             )
             (artifact / "corpus.json").write_text(json.dumps({
-                "dev_community": [{
-                    "title": "Topic",
-                    "url": "https://example.com/story",
-                    "summary": "Supported claim.",
-                }],
-                "source_failures": [],
+                "categories": {
+                    "dev_community": [{
+                        "title": "Topic",
+                        "url": "https://example.com/story",
+                        "summary": "Supported claim.",
+                    }],
+                },
+                "errors": [],
             }), encoding="utf-8")
             manifest = {
                 "suite": str(temporary / "suite.json"),
@@ -582,13 +595,44 @@ class GroundingReviewPacketTest(unittest.TestCase):
             manifest_path = temporary / "manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             output = temporary / "review"
-            result = export_grounding_review_packets(manifest_path, output, double_fraction=1.0)
+            result = export_grounding_review_packets(manifest_path, output, double_fraction=0.20)
             packet = (output / "reviewer-primary.json").read_text(encoding="utf-8")
+            packet_payload = json.loads(packet)
+            evidence = packet_payload["reviews"][0]["evidence"]
             self.assertEqual(result["topic_count"], 1)
             self.assertEqual(result["double_review_count"], 1)
+            self.assertEqual(result["output_dir"], "review")
             self.assertNotIn("secret-model", packet)
             self.assertNotIn("secret-prompt", packet)
             self.assertIn("ground-00001", packet)
+            self.assertEqual(
+                evidence,
+                [
+                    {
+                        "corpus_match": True,
+                        "feed_evidence": "Topic Supported claim.",
+                        "url": "https://example.com/story",
+                    },
+                    {
+                        "corpus_match": False,
+                        "feed_evidence": None,
+                        "url": "https://example.com/missing",
+                    },
+                ],
+            )
+            review_map = json.loads((output / "review-map.json").read_text(encoding="utf-8"))
+            self.assertEqual(review_map["manifest"], "manifest.json")
+            with self.assertRaises(FileExistsError):
+                export_grounding_review_packets(manifest_path, output)
+
+    def test_double_review_sampling_keeps_every_stratum(self) -> None:
+        records = [
+            {"artifact_dir": f"artifact-{stratum}", "topic_index": 1, "stratum": stratum}
+            for stratum in ("alpha", "beta", "gamma")
+        ]
+        sampled = _double_sample(records, 1, random.Random(7))
+        self.assertEqual(len(sampled), 3)
+        self.assertEqual({record["stratum"] for record in sampled}, {"alpha", "beta", "gamma"})
 
 
 class FakeAdapter(Adapter):
@@ -898,6 +942,20 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def test_cost_ceiling_provider_must_match_a_selected_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(
+                ValueError,
+                "cost_ceiling_provider 'open-router' matches no selected provider",
+            ):
+                run_evaluation(
+                    [CostedFakeAdapter("fixture")],
+                    {},
+                    Path(directory) / "results",
+                    cost_ceiling_usd=1.0,
+                    cost_ceiling_provider="open-router",
+                )
+
     def test_provider_scoped_cost_ceiling_stops_before_the_next_call(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -2525,6 +2583,21 @@ class LabelReviewTest(unittest.TestCase):
                 (output / "coordinator-only" / "answer-key.json").read_text(encoding="utf-8")
             )
             self.assertIn("revealing-one", answer_key["mapping"].values())
+
+    def test_human_review_export_names_unknown_case_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(
+                json.dumps({"cases": [{"id": "known", "label_status": "provisional"}]}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "unknown case IDs: missing"):
+                export_human_review_packet(
+                    temporary / "packet",
+                    suite_path,
+                    case_ids={"missing"},
+                )
 
     def test_repository_paths_are_recorded_relative_to_the_checkout(self) -> None:
         evaluator_dir = Path(__file__).parents[1]
