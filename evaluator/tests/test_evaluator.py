@@ -31,7 +31,7 @@ from evaluator.adapters import (
     adapter_for,
 )
 from evaluator.cases import run_deterministic_suite
-from evaluator.comparison import compare_runs
+from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import (
     _parse_reviews,
@@ -439,6 +439,7 @@ class ComparisonTest(unittest.TestCase):
             "case_id": case_id,
             "trial": trial,
             "case_kind": "utility",
+            "status": "completed",
             "correction_attempted": False,
             "correction": None,
             "first": {**stage, "latency_ms": 10.0, "cost_usd": 0.01},
@@ -458,6 +459,8 @@ class ComparisonTest(unittest.TestCase):
                 "suite_sha256": "suite",
                 "run_kind": "final",
                 "trials_per_case": 2,
+                "run_status": "complete",
+                "planned_case_trials": len(rows),
                 "results": rows,
             }
             path = temporary / "manifest.json"
@@ -487,6 +490,8 @@ class ComparisonTest(unittest.TestCase):
                     "suite_sha256": suite,
                     "run_kind": "final",
                     "trials_per_case": 1,
+                    "run_status": "complete",
+                    "planned_case_trials": 1,
                     "results": [self._row(
                         "production-2026-08" if index == 0 else "reliability-v1",
                         "case",
@@ -496,6 +501,30 @@ class ComparisonTest(unittest.TestCase):
                 paths.append(path)
             with self.assertRaisesRegex(ValueError, "suite_sha256 differs"):
                 compare_runs(paths[0], paths[1], bootstrap_samples=10)
+
+    def test_incomplete_final_run_is_refused_and_descriptive_markdown_is_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "manifest.json"
+            rows = [
+                self._row("production-2026-08", "case", 0),
+                self._row("reliability-v1", "case", 0),
+            ]
+            rows[1] = {**rows[1], "status": "provider_error", "first": None, "final": None}
+            path.write_text(json.dumps({
+                "suite_sha256": "suite",
+                "run_kind": "final",
+                "trials_per_case": 1,
+                "run_status": "completed_with_errors",
+                "planned_case_trials": 2,
+                "results": rows,
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "run_status is not complete"):
+                compare_runs(path, path, bootstrap_samples=10)
+            result = compare_runs(
+                path, path, allow_descriptive=True, bootstrap_samples=10
+            )
+            self.assertEqual(result["comparison_kind"], "descriptive_incompatible")
+            self.assertIn("n/a", markdown_comparison(result))
 
 
 class GroundingReviewPacketTest(unittest.TestCase):

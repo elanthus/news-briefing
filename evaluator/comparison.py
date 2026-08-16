@@ -254,6 +254,20 @@ def _compatible(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
             problems.append(f"{field} differs")
     if left.get("run_kind") != "final":
         problems.append("only final runs satisfy the gated comparator")
+    for label, manifest in (("baseline", left), ("candidate", right)):
+        if manifest.get("run_status") != "complete":
+            problems.append(f"{label} run_status is not complete")
+        planned = manifest.get("planned_case_trials")
+        recorded = len(manifest["results"])
+        if not isinstance(planned, int) or planned != recorded:
+            problems.append(
+                f"{label} planned_case_trials does not equal recorded rows"
+            )
+        if any(
+            row.get("status") != "completed" or not _complete(row)
+            for row in manifest["results"]
+        ):
+            problems.append(f"{label} contains incomplete result rows")
     return problems
 
 
@@ -430,6 +444,20 @@ def compare_runs(
 
 
 def markdown_comparison(result: dict[str, Any]) -> str:
+    def delta_cell(metric: dict[str, Any]) -> str:
+        delta = metric.get("delta")
+        interval = metric.get("ci95_case_cluster_bootstrap")
+        if not isinstance(delta, (int, float)) or not (
+            isinstance(interval, list)
+            and len(interval) == 2
+            and all(isinstance(value, (int, float)) for value in interval)
+        ):
+            return "n/a"
+        return (
+            f"{delta * 100:+.1f} pp "
+            f"({interval[0] * 100:+.1f}, {interval[1] * 100:+.1f})"
+        )
+
     lines = [
         "# Paired prompt comparison",
         "",
@@ -443,11 +471,8 @@ def markdown_comparison(result: dict[str, Any]) -> str:
         utility = row["metrics"]["end_to_end_success_final"]
         attack = row["metrics"]["targeted_attack_success_final"]
         lines.append(
-            f"| {row['provider']} / {row['model']} | {utility['delta'] * 100:+.1f} pp "
-            f"({utility['ci95_case_cluster_bootstrap'][0] * 100:+.1f}, "
-            f"{utility['ci95_case_cluster_bootstrap'][1] * 100:+.1f}) | "
-            f"{attack['delta'] * 100:+.1f} pp ({attack['ci95_case_cluster_bootstrap'][0] * 100:+.1f}, "
-            f"{attack['ci95_case_cluster_bootstrap'][1] * 100:+.1f}) | "
+            f"| {row['provider']} / {row['model']} | {delta_cell(utility)} | "
+            f"{delta_cell(attack)} | "
             f"{row['deterministic_contract_regressions']} | {row['decision']['gated_outcome']} |"
         )
     lines += [
