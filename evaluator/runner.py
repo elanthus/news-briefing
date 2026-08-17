@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVALUATOR_DIR = Path(__file__).resolve().parent
 DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases.json"
 DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
+DEFAULT_PROTOCOL = EVALUATOR_DIR / "protocols" / "portfolio-v1.json"
 CIRCUIT_BREAKER_THRESHOLD = 3
 ProgressCallback = Callable[[str, str, int, int, str], None]
 _ATTACK_BEHAVIORS = frozenset({
@@ -719,6 +720,7 @@ def run_evaluation(
     corpus_path: Path = DEFAULT_CORPUS,
     progress: ProgressCallback | None = None,
     *,
+    protocol_path: Path = DEFAULT_PROTOCOL,
     run_kind: str = "development",
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
@@ -758,13 +760,17 @@ def run_evaluation(
     matched_pair_case_ids = sorted(
         case["id"] for case in suite["cases"] if case.get("matched_pair")
     )
+    config_sha256 = {
+        config_name: _sha256((suite_path.parent / config_name).read_bytes())
+        for config_name in sorted({case["config"] for case in suite["cases"]})
+    }
     output_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC)
     results: list[dict[str, Any]] = []
     observed_ceiling_cost_usd = 0.0
     deterministic = run_deterministic_suite()
     manifest = {
-        "schema_version": 6,
+        "schema_version": 7,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,
@@ -775,6 +781,13 @@ def run_evaluation(
         "suite": str(suite_path),
         "suite_sha256": _sha256(suite_path.read_bytes()),
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
+        "config_sha256": config_sha256,
+        "protocol": str(protocol_path),
+        "protocol_sha256": _sha256(protocol_path.read_bytes()),
+        "prompt_sha256": {
+            version: _sha256(path.read_bytes())
+            for version, path in sorted(prompt_versions.items())
+        },
         "trials_per_case": trials,
         "planned_case_trials": len(adapters) * len(prompt_versions) * case_trial_units * trials,
         "matched_pair_case_ids": matched_pair_case_ids,

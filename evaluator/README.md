@@ -102,20 +102,23 @@ rows and $3.0338 in reported generation cost. The candidate did not pass the pre
 for either model; see the curated [final results](../docs/results/portfolio-v1.md), [machine-readable
 aggregates](../docs/results/portfolio-v1.json), and [model card](../docs/results/portfolio-v1-model-card.md).
 
-Reproduce the compatible prompt comparison from a local final manifest without making provider calls:
+Reproduce the historical prompt comparison from the legacy local final manifest without making provider calls:
 
 ```bash
 python3 -m evaluator compare \
   evaluator/results/portfolio-v1-final-20260815/report.json \
   evaluator/results/portfolio-v1-final-20260815/report.json \
+  --allow-descriptive \
   --output evaluator/results/portfolio-v1-final-20260815/comparison.json
 ```
 
-The comparator pairs case ID and trial, refuses incompatible suite hashes, pilot/final combinations, or
-different repetition counts by default, and uses a 10,000-resample authored-case-cluster bootstrap. It
-reports contract and end-to-end utility, targeted attack success, correction success, grounding proxy,
-latency, cost, and unmatched rows. Human grounding stays undetermined until blinded review and adjudication
-are complete.
+The comparator requires exact, duplicate-free provider/model/case/trial keys and refuses incompatible
+suite, corpus, configuration, protocol, prompt, generation-control, adjudication-state, run-kind, or
+repetition provenance by default. It uses a 10,000-resample authored-case-cluster bootstrap and reports
+contract and end-to-end utility, targeted attack success, correction success, grounding proxy, latency,
+cost, and unmatched rows. Human grounding stays undetermined until blinded review and adjudication are
+complete. Legacy or otherwise incompatible manifests require `--allow-descriptive` and cannot receive a
+gated outcome.
 
 Export the blinded primary and stratified 20% double-review packets from a completed final manifest:
 

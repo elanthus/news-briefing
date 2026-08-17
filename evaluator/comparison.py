@@ -265,11 +265,40 @@ def _cost_summary(
     }
 
 
-def _compatible(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
+def _required_provenance(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
     problems = []
-    for field in ("suite_sha256", "run_kind", "trials_per_case"):
-        if left.get(field) != right.get(field):
+    for field in ("suite_sha256", "corpus_sha256", "config_sha256", "protocol_sha256"):
+        values = (left.get(field), right.get(field))
+        valid = (
+            all(isinstance(value, str) and bool(value) for value in values)
+            if field != "config_sha256"
+            else all(
+                isinstance(value, dict)
+                and bool(value)
+                and all(
+                    isinstance(path, str) and path
+                    and isinstance(digest, str) and digest
+                    for path, digest in value.items()
+                )
+                for value in values
+            )
+        )
+        if not valid:
+            problems.append(f"{field} is missing or invalid")
+        elif left[field] != right[field]:
             problems.append(f"{field} differs")
+    return problems
+
+
+def _compatible(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
+    problems = _required_provenance(left, right)
+    if left.get("run_kind") != right.get("run_kind"):
+        problems.append("run_kind differs")
+    trial_counts = (left.get("trials_per_case"), right.get("trials_per_case"))
+    if not all(isinstance(value, int) and not isinstance(value, bool) and value > 0 for value in trial_counts):
+        problems.append("trials_per_case is missing or invalid")
+    elif trial_counts[0] != trial_counts[1]:
+        problems.append("trials_per_case differs")
     if left.get("run_kind") != "final":
         problems.append("only final runs satisfy the gated comparator")
     for label, manifest in (("baseline", left), ("candidate", right)):
@@ -286,6 +315,144 @@ def _compatible(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
             for row in manifest["results"]
         ):
             problems.append(f"{label} contains incomplete result rows")
+    return problems
+
+
+def _generation_controls(manifest: dict[str, Any]) -> tuple[dict[tuple[str, str], dict[str, Any]], bool]:
+    controls = manifest.get("generation_controls")
+    if not isinstance(controls, list):
+        return {}, False
+    mapped: dict[tuple[str, str], dict[str, Any]] = {}
+    unique = True
+    for control in controls:
+        if not isinstance(control, dict):
+            return {}, False
+        provider = control.get("provider")
+        model = control.get("model")
+        if not isinstance(provider, str) or not isinstance(model, str):
+            return {}, False
+        key = (provider, model)
+        if key in mapped:
+            unique = False
+        mapped[key] = control
+    return mapped, unique
+
+
+def _prompt_hashes(manifest: dict[str, Any]) -> dict[str, str] | None:
+    hashes = manifest.get("prompt_sha256")
+    if not isinstance(hashes, dict) or not all(
+        isinstance(version, str) and isinstance(value, str) and value
+        for version, value in hashes.items()
+    ):
+        return None
+    return hashes
+
+
+def _adjudication_state(row: dict[str, Any]) -> tuple[str, str]:
+    final = row["final"]
+    generated = int(final.get("generated_topics", 0))
+    grounding_reviewed = final.get("human_grounding_reviewed_topics")
+    if grounding_reviewed is None:
+        grounding = "unrecorded"
+    elif grounding_reviewed == 0:
+        grounding = "not_required" if generated == 0 else "unreviewed"
+    elif grounding_reviewed == generated:
+        grounding = "complete"
+    else:
+        grounding = "partial"
+
+    semantic_required = int(final.get("semantic_required_propositions", 0))
+    semantic_reviewed = int(final.get("semantic_reviewed_propositions", 0))
+    semantic_unclear = int(final.get("semantic_unclear_propositions", 0))
+    if semantic_required == 0:
+        semantic = "not_required"
+    elif semantic_reviewed == semantic_required and semantic_unclear == 0:
+        semantic = "complete"
+    elif semantic_reviewed == 0 and semantic_unclear == 0:
+        semantic = "unreviewed"
+    else:
+        semantic = "partial_or_unclear"
+    return grounding, semantic
+
+
+def _selected_compatibility(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    left_prompt: str,
+    right_prompt: str,
+    models: list[tuple[str, str]],
+) -> list[str]:
+    problems = []
+    left_prompt_hashes = _prompt_hashes(left)
+    right_prompt_hashes = _prompt_hashes(right)
+    if left_prompt_hashes is None or right_prompt_hashes is None:
+        problems.append("prompt_sha256 mapping is missing or invalid")
+    else:
+        for version in sorted(left_prompt_hashes.keys() & right_prompt_hashes.keys()):
+            if left_prompt_hashes[version] != right_prompt_hashes[version]:
+                problems.append(f"prompt_sha256 differs for {version}")
+
+    left_controls, left_controls_unique = _generation_controls(left)
+    right_controls, right_controls_unique = _generation_controls(right)
+    if not left_controls_unique or not right_controls_unique:
+        problems.append("generation_controls is missing, invalid, or contains duplicate provider/model keys")
+
+    for provider, model in models:
+        identity = (provider, model)
+        if identity not in left_controls or identity not in right_controls:
+            problems.append(f"generation_controls is missing for {provider}/{model}")
+        elif left_controls[identity] != right_controls[identity]:
+            problems.append(f"generation_controls differs for {provider}/{model}")
+
+        left_rows = [
+            row for row in left["results"]
+            if (row.get("provider"), row.get("model"), row.get("prompt_version"))
+            == (provider, model, left_prompt)
+        ]
+        right_rows = [
+            row for row in right["results"]
+            if (row.get("provider"), row.get("model"), row.get("prompt_version"))
+            == (provider, model, right_prompt)
+        ]
+        left_keys = [
+            (row.get("provider"), row.get("model"), row.get("case_id"), row.get("trial"))
+            for row in left_rows
+        ]
+        right_keys = [
+            (row.get("provider"), row.get("model"), row.get("case_id"), row.get("trial"))
+            for row in right_rows
+        ]
+        if len(set(left_keys)) != len(left_keys):
+            problems.append(f"baseline contains duplicate comparison keys for {provider}/{model}")
+        if len(set(right_keys)) != len(right_keys):
+            problems.append(f"candidate contains duplicate comparison keys for {provider}/{model}")
+        if set(left_keys) != set(right_keys):
+            problems.append(f"comparison key set differs for {provider}/{model}")
+
+        left_by_key = dict(zip(left_keys, left_rows, strict=True))
+        right_by_key = dict(zip(right_keys, right_rows, strict=True))
+        for key in sorted(set(left_by_key) & set(right_by_key)):
+            left_row = left_by_key[key]
+            right_row = right_by_key[key]
+            if left_row.get("corpus_sha256") != right_row.get("corpus_sha256"):
+                problems.append(f"row corpus_sha256 differs for {provider}/{model}/{key[2]}/{key[3]}")
+                break
+            if (
+                _complete(left_row)
+                and _complete(right_row)
+                and _adjudication_state(left_row) != _adjudication_state(right_row)
+            ):
+                problems.append(f"adjudication state differs for {provider}/{model}/{key[2]}/{key[3]}")
+                break
+
+        for label, rows, prompt, hashes in (
+            ("baseline", left_rows, left_prompt, left_prompt_hashes),
+            ("candidate", right_rows, right_prompt, right_prompt_hashes),
+        ):
+            expected_hash = hashes.get(prompt) if hashes is not None else None
+            row_hashes = {row.get("prompt_sha256") for row in rows}
+            if not expected_hash or row_hashes != {expected_hash}:
+                problems.append(f"{label} prompt hash is missing or inconsistent for {provider}/{model}/{prompt}")
     return problems
 
 
@@ -316,26 +483,35 @@ def compare_runs(
     baseline_manifest_path, baseline_manifest = _load_manifest(baseline_path)
     candidate_manifest_path, candidate_manifest = _load_manifest(candidate_path)
     problems = _compatible(baseline_manifest, candidate_manifest)
-    if problems and not allow_descriptive:
-        raise ValueError("incompatible runs: " + "; ".join(problems))
-    comparison_kind = "gated" if not problems else "descriptive_incompatible"
     left_prompt = _infer_prompt(baseline_manifest, "production-2026-08", baseline_prompt)
     right_prompt = _infer_prompt(candidate_manifest, "reliability-v1", candidate_prompt)
 
-    models = sorted(
-        {
-            (row["provider"], row["model"])
-            for row in baseline_manifest["results"]
-            if row["prompt_version"] == left_prompt
-        }
-        & {
-            (row["provider"], row["model"])
-            for row in candidate_manifest["results"]
-            if row["prompt_version"] == right_prompt
-        }
-    )
+    baseline_models = {
+        (row["provider"], row["model"])
+        for row in baseline_manifest["results"]
+        if row["prompt_version"] == left_prompt
+    }
+    candidate_models = {
+        (row["provider"], row["model"])
+        for row in candidate_manifest["results"]
+        if row["prompt_version"] == right_prompt
+    }
+    if baseline_models != candidate_models:
+        problems.append("selected provider/model set differs")
+    models = sorted(baseline_models & candidate_models)
     if not models:
         raise ValueError("no shared provider/model groups between the selected prompts")
+    problems.extend(_selected_compatibility(
+        baseline_manifest,
+        candidate_manifest,
+        left_prompt,
+        right_prompt,
+        models,
+    ))
+    problems = list(dict.fromkeys(problems))
+    if problems and not allow_descriptive:
+        raise ValueError("incompatible runs: " + "; ".join(problems))
+    comparison_kind = "gated" if not problems else "descriptive_incompatible"
 
     comparisons = []
     for model_index, (provider, model) in enumerate(models):
