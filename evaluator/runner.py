@@ -772,6 +772,64 @@ def _safe_artifact_key(key: tuple[Any, Any, Any, Any, Any]) -> str:
     return "".join(char if char.isalnum() or char in "-_." else "_" for char in raw)
 
 
+def _base_result(
+    adapter: Adapter,
+    prompt_version: str,
+    prompt_hash: str,
+    case: dict[str, Any],
+    variant: tuple[int, str, list[dict[str, Any]], list[dict[str, Any]], bool],
+    artifact_dir: str,
+    corpus_hash: str,
+) -> dict[str, Any]:
+    trial, result_case_id, _mutations, source_failures, is_clean_pair = variant
+    return {
+        "provider": adapter.provider,
+        "model": adapter.model,
+        "prompt_version": prompt_version,
+        "prompt_sha256": prompt_hash,
+        "case_id": result_case_id,
+        "case_kind": case["kind"],
+        "case_family": case["family"],
+        "is_clean_pair": is_clean_pair,
+        "paired_case_id": (
+            case["id"] if is_clean_pair
+            else f"{case['id']}__clean" if case.get("matched_pair")
+            else None
+        ),
+        "corpus_position": case.get("corpus_position"),
+        "controlled_items": case.get("controlled_items"),
+        "source_failure_count": len(source_failures),
+        "trial": trial,
+        "artifact_dir": artifact_dir,
+        "corpus_sha256": corpus_hash,
+    }
+
+
+_RUNNER_ARTIFACT_FILES = (
+    "corpus.json",
+    "request.txt",
+    "error.json",
+    "correction-error.json",
+    "first.md",
+    "final.md",
+    "grounding-adjudication.json",
+    "semantic-adjudication.json",
+)
+
+
+def _prepare_artifact_dir(case_dir: Path, *, resume: bool) -> None:
+    case_dir.mkdir(exist_ok=resume)
+    if not resume:
+        return
+    for name in _RUNNER_ARTIFACT_FILES:
+        path = case_dir / name
+        if path.exists() and not path.is_file() and not path.is_symlink():
+            raise ValueError(
+                f"cannot resume corrupt checkpoint: runner artifact path is not a file: {path}"
+            )
+        path.unlink(missing_ok=True)
+
+
 def _load_resume_manifest(output_dir: Path) -> dict[str, Any]:
     if not output_dir.is_dir():
         raise ValueError(f"resume output directory does not exist: {output_dir}")
@@ -1064,11 +1122,25 @@ def run_evaluation(
                 raise ValueError(
                     "cannot resume corrupt checkpoint: recorded results are not an exact execution-plan prefix"
                 )
-            adapter, _version, _path, case, _variant = planned_units[index]
-            if row.get("prompt_sha256") != prompt_sha256[expected_key[2]]:
-                raise ValueError("cannot resume corrupt checkpoint: result prompt hash is inconsistent")
-            if row.get("corpus_sha256") != case_corpus_sha256[case["id"]]:
-                raise ValueError("cannot resume corrupt checkpoint: result corpus hash is inconsistent")
+            adapter, prompt_version, _path, case, variant = planned_units[index]
+            expected_base = _base_result(
+                adapter,
+                prompt_version,
+                prompt_sha256[prompt_version],
+                case,
+                variant,
+                planned_artifact_dirs[index],
+                case_corpus_sha256[case["id"]],
+            )
+            inconsistent_metadata = [
+                field for field, expected in expected_base.items()
+                if row.get(field) != expected
+            ]
+            if inconsistent_metadata:
+                raise ValueError(
+                    "cannot resume corrupt checkpoint: result metadata differs: "
+                    + ", ".join(inconsistent_metadata)
+                )
             status = row.get("status")
             if status in {"provider_error", "skipped_circuit_open"}:
                 if (
@@ -1093,6 +1165,15 @@ def run_evaluation(
                 ):
                     raise ValueError(
                         "cannot resume corrupt checkpoint: invalid correction-error result"
+                    )
+            if status in {"completed", "completed_with_correction_error"}:
+                expected_semantic_path = (
+                    f"{planned_artifact_dirs[index]}/semantic-adjudication.json"
+                    if case.get("must_convey") else None
+                )
+                if row.get("semantic_adjudication") != expected_semantic_path:
+                    raise ValueError(
+                        "cannot resume corrupt checkpoint: semantic adjudication presence is inconsistent"
                     )
             _validate_checkpoint_artifacts(row, output_dir, planned_artifact_dirs[index])
         observed_ceiling_cost_usd = (
@@ -1175,7 +1256,7 @@ def run_evaluation(
         for prompt_version, prompt_path, case, variant in execution_plan:
             prompt_bytes = prompt_path.read_bytes()
             prompt = prompt_bytes.decode("utf-8")
-            trial, result_case_id, mutations, source_failures, is_clean_pair = variant
+            trial, result_case_id, mutations, source_failures, _is_clean_pair = variant
             result_key = (
                 adapter.provider,
                 adapter.model,
@@ -1217,30 +1298,18 @@ def run_evaluation(
             request = model_request(prompt, config_data, corpus)
             safe_key = _safe_artifact_key(result_key)
             case_dir = output_dir / safe_key
-            case_dir.mkdir(exist_ok=resume_manifest is not None)
+            _prepare_artifact_dir(case_dir, resume=resume_manifest is not None)
             _write_json_atomic(case_dir / "corpus.json", corpus)
             _write_text_atomic(case_dir / "request.txt", request)
-            base_result = {
-                "provider": adapter.provider,
-                "model": adapter.model,
-                "prompt_version": prompt_version,
-                "prompt_sha256": _sha256(prompt_bytes),
-                "case_id": result_case_id,
-                "case_kind": case["kind"],
-                "case_family": case["family"],
-                "is_clean_pair": is_clean_pair,
-                "paired_case_id": (
-                    case["id"] if is_clean_pair
-                    else f"{case['id']}__clean" if case.get("matched_pair")
-                    else None
-                ),
-                "corpus_position": case.get("corpus_position"),
-                "controlled_items": case.get("controlled_items"),
-                "source_failure_count": len(source_failures),
-                "trial": trial,
-                "artifact_dir": safe_key,
-                "corpus_sha256": _sha256(case_corpus_path.read_bytes()),
-            }
+            base_result = _base_result(
+                adapter,
+                prompt_version,
+                prompt_sha256[prompt_version],
+                case,
+                variant,
+                safe_key,
+                case_corpus_sha256[case["id"]],
+            )
             if circuit_reason is not None:
                 error = {
                     "stage": "first",

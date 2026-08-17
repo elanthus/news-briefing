@@ -1299,7 +1299,15 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(checkpoint["run_status"], "running")
             self.assertEqual(len(checkpoint["results"]), 1)
             first_row = copy.deepcopy(checkpoint["results"][0])
-            self.assertTrue((output / "offline-fixture__fixture__v1__resume-1__1").is_dir())
+            interrupted_dir = output / "offline-fixture__fixture__v1__resume-1__1"
+            self.assertTrue(interrupted_dir.is_dir())
+            stale_names = (
+                "error.json",
+                "correction-error.json",
+                "semantic-adjudication.json",
+            )
+            for name in stale_names:
+                (interrupted_dir / name).write_text("stale interrupted artifact", encoding="utf-8")
 
             resumed_adapter = RecordingFakeAdapter("fixture")
             report = run_evaluation(
@@ -1318,6 +1326,8 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(len(resumed_adapter.requests), 2)
             self.assertEqual(len(resumed["resume_history"]), 1)
             self.assertEqual(report["operations"]["recorded_case_trials"], 3)
+            for name in stale_names:
+                self.assertFalse((interrupted_dir / name).exists())
 
     def test_resume_reconstructs_circuit_breaker_state(self) -> None:
         class FailTwiceThenInterrupt(Adapter):
@@ -1451,6 +1461,14 @@ class RunnerTest(unittest.TestCase):
             interrupted_suite, interrupted_prompt, interrupted_output = self._resume_fixture(
                 interrupted_root, case_count=2
             )
+            interrupted_suite_data = json.loads(interrupted_suite.read_text(encoding="utf-8"))
+            interrupted_suite_data["cases"][0]["must_convey"] = [{
+                "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/",
+                "propositions": ["The author built a patch for third-party model subagents."],
+            }]
+            interrupted_suite.write_text(
+                json.dumps(interrupted_suite_data), encoding="utf-8"
+            )
 
             class InterruptSecondCall(FakeAdapter):
                 def __init__(self, model: str):
@@ -1474,6 +1492,7 @@ class RunnerTest(unittest.TestCase):
 
             checkpoint_path = interrupted_output / "manifest.json"
             original_checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            self.assertIsNotNone(original_checkpoint["results"][0]["semantic_adjudication"])
             identity_mutations = {
                 "suite_sha256": "different-suite",
                 "corpus_sha256": "different-corpus",
@@ -1508,6 +1527,37 @@ class RunnerTest(unittest.TestCase):
                             resume=True,
                         )
                     self.assertEqual(counter.calls, 0)
+            checkpoint_path.write_text(json.dumps(original_checkpoint), encoding="utf-8")
+
+            changed = copy.deepcopy(original_checkpoint)
+            changed["results"][0]["source_failure_count"] = 99
+            checkpoint_path.write_text(json.dumps(changed), encoding="utf-8")
+            counter = CountingAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "result metadata differs"):
+                run_evaluation(
+                    [counter],
+                    {"v1": interrupted_prompt},
+                    interrupted_output,
+                    suite_path=interrupted_suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
+            self.assertEqual(counter.calls, 0)
+
+            changed = copy.deepcopy(original_checkpoint)
+            changed["results"][0]["semantic_adjudication"] = None
+            checkpoint_path.write_text(json.dumps(changed), encoding="utf-8")
+            counter = CountingAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "semantic adjudication presence"):
+                run_evaluation(
+                    [counter],
+                    {"v1": interrupted_prompt},
+                    interrupted_output,
+                    suite_path=interrupted_suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
+            self.assertEqual(counter.calls, 0)
             checkpoint_path.write_text(json.dumps(original_checkpoint), encoding="utf-8")
 
             counter = CountingAdapter("different-model")
