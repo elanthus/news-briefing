@@ -1200,6 +1200,12 @@ def run_evaluation(
             raise ValueError("cannot resume corrupt checkpoint: resume_history must be a list")
         history.append(datetime.now(UTC).isoformat())
         manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+        if len(results) == len(planned_units):
+            manifest["run_status"] = (
+                "completed_with_errors" if _has_execution_errors(results) else "complete"
+            )
+            manifest["completed_at"] = datetime.now(UTC).isoformat()
+            return _checkpoint(manifest, output_dir)
     else:
         output_dir.mkdir(parents=True, exist_ok=False)
         results = []

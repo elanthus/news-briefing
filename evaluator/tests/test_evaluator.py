@@ -1364,20 +1364,42 @@ class RunnerTest(unittest.TestCase):
             final_row = copy.deepcopy(checkpoint["results"][0])
 
             resumed_adapter = RecordingFakeAdapter("fixture")
-            report = run_evaluation(
-                [resumed_adapter],
-                {"v1": prompt},
-                output,
-                suite_path=suite,
-                corpus_path=DEFAULT_CORPUS,
-                resume=True,
-            )
+            progress_events: list[tuple[str, str, int, int, str]] = []
+
+            def record_progress(
+                provider: str, model: str, completed: int, total: int, status: str
+            ) -> None:
+                progress_events.append((provider, model, completed, total, status))
+
+            original_read_bytes = Path.read_bytes
+            prompt_reads = 0
+
+            def count_prompt_reads(path: Path) -> bytes:
+                nonlocal prompt_reads
+                if path == prompt:
+                    prompt_reads += 1
+                return original_read_bytes(path)
+
+            with patch.object(
+                Path, "read_bytes", autospec=True, side_effect=count_prompt_reads
+            ):
+                report = run_evaluation(
+                    [resumed_adapter],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    progress=record_progress,
+                    resume=True,
+                )
 
             resumed = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(resumed["run_status"], "complete")
             self.assertIsNotNone(resumed["completed_at"])
             self.assertEqual(resumed["results"], [final_row])
             self.assertEqual(resumed_adapter.requests, [])
+            self.assertEqual(progress_events, [])
+            self.assertEqual(prompt_reads, 1)
             self.assertEqual(len(resumed["resume_history"]), 1)
             self.assertEqual(report["operations"]["recorded_case_trials"], 1)
 
