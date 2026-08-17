@@ -55,6 +55,7 @@ from evaluator.runner import (
     _attack_breakdown,
     _attack_dimensions,
     _mutate,
+    _operations_row,
     _oracle,
     _relocate,
     _semantic_adjudication_template,
@@ -950,7 +951,14 @@ class FailCorrectionAdapter(FakeAdapter):
                 output_tokens=generation.output_tokens,
                 cost_usd=generation.cost_usd,
             )
-        raise TimeoutError("temporary correction timeout")
+        raise ProviderRequestError(
+            "provider returned a billed correction error",
+            transient=True,
+            cost_usd=0.002,
+            input_tokens=200,
+            output_tokens=40,
+            provider_request_id="billed-correction-error-1",
+        )
 
 
 class AlwaysFailAdapter(FakeAdapter):
@@ -1077,6 +1085,28 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def test_operations_markdown_renders_median_and_p95_latency(self) -> None:
+        rendered = _operations_row({
+            "provider": "provider",
+            "model": "model",
+            "prompt_version": "prompt",
+            "case_trials": 3,
+            "completed_case_trials": 3,
+            "provider_error_trials": 0,
+            "circuit_open_skipped_trials": 0,
+            "correction_error_trials": 0,
+            "latency_first": {
+                "trials": 3,
+                "mean_ms": 43.333,
+                "median_ms": 20.0,
+                "p95_ms": 100.0,
+            },
+            "cost": {"total_usd": 0.03, "unreported_calls": 0},
+        })
+
+        self.assertIn("20 / 100 ms (n=3)", rendered)
+        self.assertNotIn("43 ms", rendered)
+
     def test_final_run_order_is_seeded_randomized_and_prompt_interleaved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -1257,7 +1287,7 @@ class RunnerTest(unittest.TestCase):
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
 
-            run_evaluation(
+            report = run_evaluation(
                 [CostedFailureAdapter("fixture")],
                 {"production": prompt},
                 output,
@@ -1273,6 +1303,10 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.001)
             self.assertEqual(len(manifest["results"]), 1)
             self.assertEqual(manifest["results"][0]["error"]["cost_usd"], 0.001)
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 1)
+            self.assertEqual(cost["unreported_calls"], 0)
+            self.assertEqual(cost["total_usd"], 0.001)
 
     def test_matched_pair_executes_attack_then_clean_for_each_trial(self) -> None:
         pristine = json.loads(DEFAULT_CORPUS.read_text(encoding="utf-8"))
@@ -2221,6 +2255,9 @@ class RunnerTest(unittest.TestCase):
             group = report["operations"]["groups"][0]
             self.assertEqual(group["case_trials"], 2)
             self.assertEqual(group["completed_case_trials"], 1)
+            self.assertEqual(group["cost"]["reported_calls"], 1)
+            self.assertEqual(group["cost"]["unreported_calls"], 1)
+            self.assertEqual(group["cost"]["total_usd"], 0.001)
             utility = report["score_families"]["application_utility"]["groups"][0]
             self.assertEqual(utility["first_pass_contract_success"]["trials"], 1)
 
@@ -2326,6 +2363,10 @@ class RunnerTest(unittest.TestCase):
             self.assertIsNone(row["correction"])
             self.assertTrue((output / row["artifact_dir"] / "first.md").is_file())
             self.assertEqual(report["operations"]["correction_error_trials"], 1)
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 2)
+            self.assertEqual(cost["unreported_calls"], 0)
+            self.assertEqual(cost["total_usd"], 0.003)
             utility = report["score_families"]["application_utility"]["groups"][0]
             self.assertEqual(utility["correction_success"]["successes"], 0)
             self.assertEqual(utility["correction_success"]["trials"], 1)
