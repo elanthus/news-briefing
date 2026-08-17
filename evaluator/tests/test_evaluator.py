@@ -13,6 +13,7 @@ import urllib.error
 from datetime import UTC, datetime, timedelta
 from email.message import Message
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import corpus_schema
@@ -55,6 +56,7 @@ from evaluator.runner import (
     DEFAULT_SUITE,
     _attack_breakdown,
     _attack_dimensions,
+    _checkpoint,
     _mutate,
     _operations_row,
     _oracle,
@@ -1328,6 +1330,84 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(report["operations"]["recorded_case_trials"], 3)
             for name in stale_names:
                 self.assertFalse((interrupted_dir / name).exists())
+
+    def test_fully_recorded_running_checkpoint_finalizes_on_resume(self) -> None:
+        def interrupt_after_final_row(
+            manifest: dict[str, Any], output_dir: Path
+        ) -> dict[str, Any]:
+            report = _checkpoint(manifest, output_dir)
+            if (
+                manifest["run_status"] == "running"
+                and len(manifest["results"]) == manifest["planned_case_trials"]
+            ):
+                raise KeyboardInterrupt("simulated interruption before terminal status")
+            return report
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            with (
+                patch("evaluator.runner._checkpoint", side_effect=interrupt_after_final_row),
+                self.assertRaises(KeyboardInterrupt),
+            ):
+                run_evaluation(
+                    [FakeAdapter("fixture")],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                )
+
+            checkpoint = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["run_status"], "running")
+            self.assertEqual(len(checkpoint["results"]), checkpoint["planned_case_trials"])
+            final_row = copy.deepcopy(checkpoint["results"][0])
+
+            resumed_adapter = RecordingFakeAdapter("fixture")
+            report = run_evaluation(
+                [resumed_adapter],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                resume=True,
+            )
+
+            resumed = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed["run_status"], "complete")
+            self.assertIsNotNone(resumed["completed_at"])
+            self.assertEqual(resumed["results"], [final_row])
+            self.assertEqual(resumed_adapter.requests, [])
+            self.assertEqual(len(resumed["resume_history"]), 1)
+            self.assertEqual(report["operations"]["recorded_case_trials"], 1)
+
+    def test_resume_rejects_more_results_than_planned(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            run_evaluation(
+                [FakeAdapter("fixture")],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+            )
+            manifest_path = output / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["run_status"] = "running"
+            manifest["completed_at"] = None
+            manifest["results"].append(copy.deepcopy(manifest["results"][0]))
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "more results than planned"):
+                run_evaluation(
+                    [FakeAdapter("fixture")],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
 
     def test_resume_reconstructs_circuit_breaker_state(self) -> None:
         class FailTwiceThenInterrupt(Adapter):
