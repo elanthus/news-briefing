@@ -30,7 +30,7 @@ Utility rates use completed utility trials only. Targeted attack rates use compl
 
 ## Reproducibility and limitations
 
-Runs record immutable suite, corpus, configuration, prompt, protocol, and exact model identifiers with SHA-256 hashes. Pilot rows are marked and excluded from final preregistered results. Provider errors, circuit skips, replacement runs, missing adjudications, and unknown costs are retained rather than converted into successes or zeroes.
+Runs record immutable suite, root and case-specific corpus, configuration, prompt, protocol, and exact model identifiers with SHA-256 hashes. They also record prompt and adapter order, generation controls, per-adapter timeouts, trials, run kind, execution order/seed, circuit threshold, and cost-ceiling settings. An interrupted `running` checkpoint can resume only when those fields still match and its saved rows are an exact artifact-complete prefix of the original plan. Resume skips every saved completed or failed row and reconstructs observed billed cost plus per-adapter circuit state before any new provider call; complete, stopped, incompatible, or corrupt checkpoints are refused. Pilot rows are marked and excluded from final preregistered results. Provider errors, circuit skips, replacement runs, missing adjudications, and unknown costs are retained rather than converted into successes or zeroes.
 
 The suite is fixed, small, and intentionally enriched for known boundaries. Provider behavior and model aliases can change. CLI and API sampling controls are not equivalent. Human grounding decisions can disagree and require agreement statistics plus adjudication. These limitations preclude a single composite reliability score or claims that small model/prompt differences are decisive.
 

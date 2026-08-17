@@ -1097,6 +1097,33 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def _resume_fixture(
+        self, temporary: Path, case_count: int = 3
+    ) -> tuple[Path, Path, Path]:
+        config = temporary / "config.json"
+        config.write_text(
+            (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(),
+            encoding="utf-8",
+        )
+        suite = temporary / "suite.json"
+        suite.write_text(json.dumps({
+            "schema_version": 8,
+            "case_count": case_count,
+            "cases": [
+                {
+                    "id": f"resume-{index}",
+                    "kind": "utility",
+                    "family": "valid_edge",
+                    "config": "config.json",
+                    "mutations": [],
+                }
+                for index in range(case_count)
+            ],
+        }), encoding="utf-8")
+        prompt = temporary / "prompt.md"
+        prompt.write_text("Produce the briefing.", encoding="utf-8")
+        return suite, prompt, temporary / "results"
+
     def test_operations_markdown_renders_median_and_p95_latency(self) -> None:
         rendered = _operations_row({
             "provider": "provider",
@@ -1205,6 +1232,347 @@ class RunnerTest(unittest.TestCase):
                 run_evaluation(
                     [], {}, Path(directory) / "results", run_kind="final", execution_seed=-1
                 )
+
+    def test_final_resume_reuses_generated_execution_seed_when_omitted(self) -> None:
+        class InterruptImmediately(FakeAdapter):
+            def generate(self, prompt: str) -> Generation:
+                raise KeyboardInterrupt("simulated process interruption")
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, production, output = self._resume_fixture(temporary, case_count=1)
+            candidate = temporary / "candidate.md"
+            candidate.write_text("Produce the candidate briefing.", encoding="utf-8")
+            prompts = {"production": production, "candidate": candidate}
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [InterruptImmediately("fixture")],
+                    prompts,
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    run_kind="final",
+                )
+            generated_seed = json.loads(
+                (output / "manifest.json").read_text(encoding="utf-8")
+            )["execution_seed"]
+
+            run_evaluation(
+                [FakeAdapter("fixture")],
+                prompts,
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                run_kind="final",
+                resume=True,
+            )
+            resumed = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed["execution_seed"], generated_seed)
+            self.assertEqual(len(resumed["results"]), 2)
+
+    def test_interrupted_run_resumes_without_repeating_checkpointed_rows(self) -> None:
+        class InterruptSecondCall(FakeAdapter):
+            def __init__(self, model: str):
+                super().__init__(model)
+                self.calls = 0
+
+            def generate(self, prompt: str) -> Generation:
+                self.calls += 1
+                if self.calls == 2:
+                    raise KeyboardInterrupt("simulated process interruption")
+                return super().generate(prompt)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary)
+            interrupted = InterruptSecondCall("fixture")
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [interrupted],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                )
+
+            checkpoint = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(checkpoint["run_status"], "running")
+            self.assertEqual(len(checkpoint["results"]), 1)
+            first_row = copy.deepcopy(checkpoint["results"][0])
+            self.assertTrue((output / "offline-fixture__fixture__v1__resume-1__1").is_dir())
+
+            resumed_adapter = RecordingFakeAdapter("fixture")
+            report = run_evaluation(
+                [resumed_adapter],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                resume=True,
+            )
+
+            resumed = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed["run_status"], "complete")
+            self.assertEqual(len(resumed["results"]), 3)
+            self.assertEqual(resumed["results"][0], first_row)
+            self.assertEqual(len(resumed_adapter.requests), 2)
+            self.assertEqual(len(resumed["resume_history"]), 1)
+            self.assertEqual(report["operations"]["recorded_case_trials"], 3)
+
+    def test_resume_reconstructs_circuit_breaker_state(self) -> None:
+        class FailTwiceThenInterrupt(Adapter):
+            provider = "nvidia"
+
+            def __init__(self, model: str):
+                super().__init__(model)
+                self.calls = 0
+
+            def generate(self, prompt: str) -> Generation:
+                self.calls += 1
+                if self.calls == 3:
+                    raise KeyboardInterrupt("simulated process interruption")
+                raise TimeoutError("provider unavailable")
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=5)
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [FailTwiceThenInterrupt("model")],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                )
+
+            resumed_adapter = AlwaysFailAdapter("model")
+            run_evaluation(
+                [resumed_adapter],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                resume=True,
+            )
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed_adapter.calls, 1)
+            self.assertEqual(
+                [row["status"] for row in manifest["results"]],
+                ["provider_error"] * 3 + ["skipped_circuit_open"] * 2,
+            )
+
+    def test_resume_reconstructs_observed_cost_before_next_call(self) -> None:
+        class CostOnceThenInterrupt(CostedFakeAdapter):
+            def __init__(self, model: str):
+                super().__init__(model)
+                self.calls = 0
+
+            def generate(self, prompt: str) -> Generation:
+                self.calls += 1
+                if self.calls == 2:
+                    raise KeyboardInterrupt("simulated process interruption")
+                return super().generate(prompt)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary)
+            ceiling = 0.0015
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [CostOnceThenInterrupt("model")],
+                    {"v1": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    cost_ceiling_usd=ceiling,
+                    cost_ceiling_provider="costed-fixture",
+                )
+
+            class CountingCostedAdapter(CostedFakeAdapter):
+                def __init__(self, model: str):
+                    super().__init__(model)
+                    self.calls = 0
+
+                def generate(self, request: str) -> Generation:
+                    self.calls += 1
+                    return super().generate(request)
+
+            resumed_adapter = CountingCostedAdapter("model")
+            run_evaluation(
+                [resumed_adapter],
+                {"v1": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                cost_ceiling_usd=ceiling,
+                cost_ceiling_provider="costed-fixture",
+                resume=True,
+            )
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed_adapter.calls, 1)
+            self.assertEqual(len(manifest["results"]), 2)
+            self.assertEqual(manifest["run_status"], "stopped_cost_ceiling")
+            self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.002)
+
+    def test_resume_refuses_complete_incompatible_and_corrupt_checkpoints_without_calls(self) -> None:
+        class CountingAdapter(FakeAdapter):
+            def __init__(self, model: str):
+                super().__init__(model)
+                self.calls = 0
+
+            def generate(self, prompt: str) -> Generation:
+                self.calls += 1
+                return super().generate(prompt)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, complete_output = self._resume_fixture(temporary, case_count=1)
+            run_evaluation(
+                [FakeAdapter("fixture")],
+                {"v1": prompt},
+                complete_output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+            )
+            counter = CountingAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "interrupted manifest"):
+                run_evaluation(
+                    [counter],
+                    {"v1": prompt},
+                    complete_output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
+            self.assertEqual(counter.calls, 0)
+
+            interrupted_root = temporary / "interrupted"
+            interrupted_root.mkdir()
+            interrupted_suite, interrupted_prompt, interrupted_output = self._resume_fixture(
+                interrupted_root, case_count=2
+            )
+
+            class InterruptSecondCall(FakeAdapter):
+                def __init__(self, model: str):
+                    super().__init__(model)
+                    self.calls = 0
+
+                def generate(self, request: str) -> Generation:
+                    self.calls += 1
+                    if self.calls == 2:
+                        raise KeyboardInterrupt
+                    return super().generate(request)
+
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [InterruptSecondCall("fixture")],
+                    {"v1": interrupted_prompt},
+                    interrupted_output,
+                    suite_path=interrupted_suite,
+                    corpus_path=DEFAULT_CORPUS,
+                )
+
+            checkpoint_path = interrupted_output / "manifest.json"
+            original_checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            identity_mutations = {
+                "suite_sha256": "different-suite",
+                "corpus_sha256": "different-corpus",
+                "case_corpus_sha256": {},
+                "config_sha256": {},
+                "protocol_sha256": "different-protocol",
+                "prompt_sha256": {},
+                "prompt_order": ["different-prompt"],
+                "trials_per_case": 99,
+                "run_kind": "pilot",
+                "execution_order": "different-order",
+                "execution_seed": 99,
+                "cost_ceiling_usd": 1.0,
+                "cost_ceiling_provider": "offline-fixture",
+                "circuit_breaker_threshold": 99,
+                "generation_controls": [],
+                "adapter_timeouts_seconds": [],
+            }
+            for field, changed_value in identity_mutations.items():
+                with self.subTest(identity_field=field):
+                    changed = copy.deepcopy(original_checkpoint)
+                    changed[field] = changed_value
+                    checkpoint_path.write_text(json.dumps(changed), encoding="utf-8")
+                    counter = CountingAdapter("fixture")
+                    with self.assertRaisesRegex(ValueError, "immutable fields differ"):
+                        run_evaluation(
+                            [counter],
+                            {"v1": interrupted_prompt},
+                            interrupted_output,
+                            suite_path=interrupted_suite,
+                            corpus_path=DEFAULT_CORPUS,
+                            resume=True,
+                        )
+                    self.assertEqual(counter.calls, 0)
+            checkpoint_path.write_text(json.dumps(original_checkpoint), encoding="utf-8")
+
+            counter = CountingAdapter("different-model")
+            with self.assertRaisesRegex(ValueError, "immutable fields differ"):
+                run_evaluation(
+                    [counter],
+                    {"v1": interrupted_prompt},
+                    interrupted_output,
+                    suite_path=interrupted_suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
+            self.assertEqual(counter.calls, 0)
+
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            checkpoint["results"][0]["trial"] = 99
+            checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+            counter = CountingAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "exact execution-plan prefix"):
+                run_evaluation(
+                    [counter],
+                    {"v1": interrupted_prompt},
+                    interrupted_output,
+                    suite_path=interrupted_suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                )
+            self.assertEqual(counter.calls, 0)
+
+    def test_run_cli_exposes_explicit_resume_flag(self) -> None:
+        result = {
+            "operations": {
+                "provider_error_trials": 0,
+                "circuit_open_skipped_trials": 0,
+                "correction_error_trials": 0,
+                "run_status": "complete",
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "interrupted-run"
+            argv = [
+                "evaluator",
+                "run",
+                "--provider", "baseline=empty",
+                "--output-dir", str(output),
+                "--resume",
+            ]
+            with (
+                patch.object(sys, "argv", argv),
+                patch.object(evaluator_cli, "run_evaluation", return_value=result) as run,
+                patch("builtins.print"),
+            ):
+                self.assertEqual(evaluator_cli.main(), 0)
+            self.assertTrue(run.call_args.kwargs["resume"])
+            self.assertEqual(run.call_args.args[2], output)
+
+        with (
+            patch.object(sys, "argv", [
+                "evaluator", "run", "--provider", "baseline=empty", "--resume",
+            ]),
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+            self.assertRaisesRegex(SystemExit, "2"),
+        ):
+            evaluator_cli.main()
+        self.assertIn("--resume requires --output-dir", stderr.getvalue())
 
     def test_cost_ceiling_provider_must_match_a_selected_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

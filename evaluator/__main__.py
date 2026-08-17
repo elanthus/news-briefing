@@ -240,6 +240,11 @@ def main() -> int:
     run.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     run.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     run.add_argument("--output-dir", type=Path)
+    run.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue an interrupted checkpoint in --output-dir after validating run identity",
+    )
     run.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
     run.add_argument(
         "--run-kind",
@@ -336,6 +341,8 @@ def main() -> int:
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         if args.command == "run":
+            if args.resume and args.output_dir is None:
+                raise ValueError("--resume requires --output-dir")
             load_dotenv(args.env_file)
             providers = _provider_values(args.provider, args.all_providers)
             _preflight(providers)
@@ -371,6 +378,7 @@ def main() -> int:
                     execution_seed=args.execution_seed,
                     cost_ceiling_usd=args.cost_ceiling_usd,
                     cost_ceiling_provider=args.cost_ceiling_provider,
+                    resume=args.resume,
                 )
             finally:
                 progress.finish()

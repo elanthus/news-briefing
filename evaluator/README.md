@@ -189,7 +189,33 @@ The CLI displays a progress bar labeled with the exact provider and model. API c
 
 Three consecutive provider failures open a circuit for that exact provider/model. Its remaining case-trials are recorded as circuit-open skips, while other models continue. Any successful case-trial resets the consecutive-failure count.
 
-Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes. Rebuild any complete or partial report without calling a model:
+Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
+
+If the process itself is interrupted while the manifest still has `run_status: running`, repeat the original
+`run` command with the same providers, prompts, trials, run kind, controls, timeout, protocol, and cost-ceiling
+options, reuse its explicit output directory, and add `--resume`:
+
+```bash
+python3 -m evaluator run \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
+  --trials 5 \
+  --run-kind pilot \
+  --output-dir evaluator/results/<interrupted-run> \
+  --resume
+```
+
+Before another provider call, resume verifies the suite, root and case-specific corpora, configurations,
+protocol, prompts and prompt order, adapter/model order, generation controls, per-adapter timeout, trials,
+run kind, execution order/seed, circuit threshold, and cost-ceiling settings against the checkpoint. It also
+requires saved results to be a unique exact prefix of the original execution plan and verifies their artifact
+files. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
+safely reused. Known billed cost and each adapter's consecutive-failure/circuit state are reconstructed from
+saved rows. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
+Complete, stopped, completed-with-errors, incompatible, and corrupt manifests are refused without a provider
+call. `--resume` always requires `--output-dir`; it never guesses which run to continue.
+
+Rebuild any complete or partial report without calling a model:
 
 ```bash
 python3 -m evaluator report evaluator/results/<run>/manifest.json

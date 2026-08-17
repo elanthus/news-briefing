@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import random
 import secrets
 import subprocess
@@ -756,6 +757,129 @@ def _execution_plan(
     ]
 
 
+def _result_key(row: dict[str, Any]) -> tuple[Any, Any, Any, Any, Any]:
+    return (
+        row.get("provider"),
+        row.get("model"),
+        row.get("prompt_version"),
+        row.get("case_id"),
+        row.get("trial"),
+    )
+
+
+def _safe_artifact_key(key: tuple[Any, Any, Any, Any, Any]) -> str:
+    raw = "__".join(str(part) for part in key)
+    return "".join(char if char.isalnum() or char in "-_." else "_" for char in raw)
+
+
+def _load_resume_manifest(output_dir: Path) -> dict[str, Any]:
+    if not output_dir.is_dir():
+        raise ValueError(f"resume output directory does not exist: {output_dir}")
+    manifest_path = output_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot resume corrupt checkpoint {manifest_path}: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError(f"cannot resume corrupt checkpoint {manifest_path}: manifest must be an object")
+    if manifest.get("run_status") != "running" or manifest.get("completed_at") is not None:
+        raise ValueError(
+            "resume requires an interrupted manifest with run_status='running' and no completed_at"
+        )
+    return manifest
+
+
+def _validate_checkpoint_artifacts(
+    row: dict[str, Any], output_dir: Path, expected_artifact_dir: str
+) -> None:
+    if row.get("artifact_dir") != expected_artifact_dir:
+        raise ValueError("cannot resume corrupt checkpoint: result artifact_dir is inconsistent")
+    case_dir = output_dir / expected_artifact_dir
+    required = [case_dir / "corpus.json", case_dir / "request.txt"]
+    status = row.get("status")
+    if status in {"provider_error", "skipped_circuit_open"}:
+        required.append(case_dir / "error.json")
+    elif status in {"completed", "completed_with_correction_error"}:
+        if row.get("grounding_adjudication") != (
+            f"{expected_artifact_dir}/grounding-adjudication.json"
+        ):
+            raise ValueError(
+                "cannot resume corrupt checkpoint: grounding adjudication path is inconsistent"
+            )
+        required.extend([
+            case_dir / "first.md",
+            case_dir / "final.md",
+            case_dir / "grounding-adjudication.json",
+        ])
+        if status == "completed_with_correction_error":
+            required.append(case_dir / "correction-error.json")
+        semantic_path = row.get("semantic_adjudication")
+        if semantic_path is not None:
+            if semantic_path != f"{expected_artifact_dir}/semantic-adjudication.json":
+                raise ValueError(
+                    "cannot resume corrupt checkpoint: semantic adjudication path is inconsistent"
+                )
+            required.append(output_dir / semantic_path)
+    else:
+        raise ValueError(f"cannot resume corrupt checkpoint: invalid result status {status!r}")
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise ValueError(
+            "cannot resume corrupt checkpoint: missing artifact files: " + ", ".join(missing)
+        )
+
+
+def _reconstruct_failure_state(
+    rows: list[dict[str, Any]], provider: str, model: str
+) -> tuple[int, dict[str, Any] | None]:
+    consecutive_failures = 0
+    circuit_reason: dict[str, Any] | None = None
+    for row in rows:
+        if (row.get("provider"), row.get("model")) != (provider, model):
+            continue
+        status = row.get("status")
+        if circuit_reason is not None:
+            if status != "skipped_circuit_open":
+                raise ValueError(
+                    "cannot resume corrupt checkpoint: a provider/model has results after its circuit opened"
+                )
+            continue
+        if status == "skipped_circuit_open":
+            raise ValueError(
+                "cannot resume corrupt checkpoint: circuit-open skip appears before the circuit opened"
+            )
+        failure = row.get("error") if status == "provider_error" else row.get("correction_error")
+        if isinstance(failure, dict):
+            consecutive_failures += 1
+            if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
+                circuit_reason = failure
+        else:
+            consecutive_failures = 0
+    return consecutive_failures, circuit_reason
+
+
+def _reconstruct_observed_cost(
+    rows: list[dict[str, Any]], cost_ceiling_provider: str | None
+) -> float:
+    observed = 0.0
+    for row in rows:
+        if cost_ceiling_provider is not None and row.get("provider") != cost_ceiling_provider:
+            continue
+        for call in _operation_call_records(row):
+            cost = call.get("cost_usd")
+            if cost is None:
+                continue
+            if (
+                not isinstance(cost, (int, float))
+                or isinstance(cost, bool)
+                or not math.isfinite(cost)
+                or cost < 0
+            ):
+                raise ValueError("cannot resume corrupt checkpoint: invalid observed call cost")
+            observed += float(cost)
+    return observed
+
+
 def run_evaluation(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
@@ -770,13 +894,17 @@ def run_evaluation(
     execution_seed: int | None = None,
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     if trials <= 0:
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
+    resume_manifest = _load_resume_manifest(output_dir) if resume else None
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
+    if run_kind == "final" and execution_seed is None and resume_manifest is not None:
+        execution_seed = resume_manifest.get("execution_seed")
     if execution_seed is not None and (
         not isinstance(execution_seed, int) or isinstance(execution_seed, bool) or execution_seed < 0
     ):
@@ -795,6 +923,9 @@ def run_evaluation(
                 f"cost_ceiling_provider {cost_ceiling_provider!r} matches no selected provider; "
                 f"choose one of: {available}"
             )
+    adapter_keys = [(adapter.provider, adapter.model) for adapter in adapters]
+    if len(adapter_keys) != len(set(adapter_keys)):
+        raise ValueError("provider/model selections must be unique")
     suite = _json(suite_path)
     if suite.get("case_count") != len(suite.get("cases", [])):
         raise ValueError("generation suite case_count does not match cases")
@@ -820,88 +951,240 @@ def run_evaluation(
         config_name: _sha256((suite_path.parent / config_name).read_bytes())
         for config_name in sorted({case["config"] for case in suite["cases"]})
     }
-    output_dir.mkdir(parents=True, exist_ok=False)
-    started = datetime.now(UTC)
-    results: list[dict[str, Any]] = []
-    observed_ceiling_cost_usd = 0.0
-    deterministic = run_deterministic_suite()
-    manifest = {
+    case_corpus_sha256 = {
+        case["id"]: _sha256(
+            (suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path).read_bytes()
+        )
+        for case in suite["cases"]
+    }
+    prompt_sha256 = {
+        version: _sha256(path.read_bytes())
+        for version, path in sorted(prompt_versions.items())
+    }
+    execution_order = (
+        "prompt_interleaved_randomized" if run_kind == "final"
+        else "adapter_prompt_case_trial_fixed"
+    )
+    generation_controls = [
+        {
+            "provider": adapter.provider,
+            "model": adapter.model,
+            **adapter.generation_controls(),
+        }
+        for adapter in adapters
+    ]
+    adapter_timeouts_seconds = [
+        {
+            "provider": adapter.provider,
+            "model": adapter.model,
+            "timeout_seconds": adapter.timeout,
+        }
+        for adapter in adapters
+    ]
+    execution_plans = [
+        (
+            adapter,
+            _execution_plan(
+                prompt_versions,
+                suite["cases"],
+                trials,
+                randomized=run_kind == "final",
+                seed=execution_seed,
+                provider=adapter.provider,
+                model=adapter.model,
+            ),
+        )
+        for adapter in adapters
+    ]
+    planned_units = [
+        (adapter, prompt_version, prompt_path, case, variant)
+        for adapter, plan in execution_plans
+        for prompt_version, prompt_path, case, variant in plan
+    ]
+    planned_keys = [
+        (
+            adapter.provider,
+            adapter.model,
+            prompt_version,
+            variant[1],
+            variant[0],
+        )
+        for adapter, prompt_version, _prompt_path, _case, variant in planned_units
+    ]
+    planned_artifact_dirs = [_safe_artifact_key(key) for key in planned_keys]
+    if len(planned_keys) != len(set(planned_keys)):
+        raise ValueError("planned provider/model/prompt/case/trial keys must be unique")
+    if len(planned_artifact_dirs) != len(set(planned_artifact_dirs)):
+        raise ValueError("planned result artifact directory names collide after sanitization")
+
+    identity = {
         "schema_version": 8,
-        "run_status": "running",
-        "started_at": started.isoformat(),
-        "completed_at": None,
         "run_kind": run_kind,
-        "execution_order": (
-            "prompt_interleaved_randomized" if run_kind == "final"
-            else "adapter_prompt_case_trial_fixed"
-        ),
+        "execution_order": execution_order,
         "execution_seed": execution_seed,
         "cost_ceiling_usd": cost_ceiling_usd,
         "cost_ceiling_provider": cost_ceiling_provider,
-        "observed_ceiling_cost_usd": observed_ceiling_cost_usd,
-        "suite": str(suite_path),
+        "circuit_breaker_threshold": CIRCUIT_BREAKER_THRESHOLD,
         "suite_sha256": _sha256(suite_path.read_bytes()),
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
+        "case_corpus_sha256": case_corpus_sha256,
         "config_sha256": config_sha256,
-        "protocol": str(protocol_path),
         "protocol_sha256": _sha256(protocol_path.read_bytes()),
-        "prompt_sha256": {
-            version: _sha256(path.read_bytes())
-            for version, path in sorted(prompt_versions.items())
-        },
+        "prompt_sha256": prompt_sha256,
+        "prompt_order": list(prompt_versions),
         "trials_per_case": trials,
-        "planned_case_trials": len(adapters) * len(prompt_versions) * case_trial_units * trials,
+        "planned_case_trials": len(planned_units),
         "matched_pair_case_ids": matched_pair_case_ids,
         "planned_matched_pair_trials": (
             len(adapters) * len(prompt_versions) * len(matched_pair_case_ids) * trials
         ),
-        "generation_controls": [
-            {
-                "provider": adapter.provider,
-                "model": adapter.model,
-                **adapter.generation_controls(),
-            }
-            for adapter in adapters
-        ],
-        "code": _git_provenance(),
-        "grounding_measure": (
-            "Deterministic proxy: topic has no citation, an ungrounded citation, "
-            "or a figure/quotation/length heuristic. "
-            "Preserved outputs should be human-adjudicated for semantic publication claims."
-        ),
-        "deterministic_summary": {
-            "case_count": deterministic["case_count"],
-            "label_provenance": deterministic["label_provenance"],
-            "components": deterministic["components"],
-            "heuristic_claim_false_positive_rate": deterministic["heuristic_claim_false_positive_rate"],
-            "heuristic_claim_false_positive_rates": deterministic[
-                "heuristic_claim_false_positive_rates"
-            ],
-        },
-        "results": results,
+        "generation_controls": generation_controls,
+        "adapter_timeouts_seconds": adapter_timeouts_seconds,
     }
+
+    if resume_manifest is not None:
+        incompatible = [
+            field for field, expected in identity.items()
+            if resume_manifest.get(field) != expected
+        ]
+        if incompatible:
+            raise ValueError(
+                "cannot resume incompatible run; immutable fields differ: "
+                + ", ".join(incompatible)
+            )
+        raw_results = resume_manifest.get("results")
+        if not isinstance(raw_results, list) or any(not isinstance(row, dict) for row in raw_results):
+            raise ValueError("cannot resume corrupt checkpoint: results must be a list of objects")
+        results = raw_results
+        if len(results) >= len(planned_units):
+            raise ValueError("cannot resume checkpoint: every planned result is already recorded")
+        for index, row in enumerate(results):
+            expected_key = planned_keys[index]
+            if _result_key(row) != expected_key:
+                raise ValueError(
+                    "cannot resume corrupt checkpoint: recorded results are not an exact execution-plan prefix"
+                )
+            adapter, _version, _path, case, _variant = planned_units[index]
+            if row.get("prompt_sha256") != prompt_sha256[expected_key[2]]:
+                raise ValueError("cannot resume corrupt checkpoint: result prompt hash is inconsistent")
+            if row.get("corpus_sha256") != case_corpus_sha256[case["id"]]:
+                raise ValueError("cannot resume corrupt checkpoint: result corpus hash is inconsistent")
+            status = row.get("status")
+            if status in {"provider_error", "skipped_circuit_open"}:
+                if (
+                    not isinstance(row.get("error"), dict)
+                    or row.get("first") is not None
+                    or row.get("final") is not None
+                ):
+                    raise ValueError("cannot resume corrupt checkpoint: invalid failed result")
+            elif status == "completed":
+                if (
+                    not isinstance(row.get("first"), dict)
+                    or not isinstance(row.get("final"), dict)
+                    or row.get("error") is not None
+                    or row.get("correction_error") is not None
+                ):
+                    raise ValueError("cannot resume corrupt checkpoint: invalid completed result")
+            elif status == "completed_with_correction_error":
+                if (
+                    not isinstance(row.get("first"), dict)
+                    or not isinstance(row.get("final"), dict)
+                    or not isinstance(row.get("correction_error"), dict)
+                ):
+                    raise ValueError(
+                        "cannot resume corrupt checkpoint: invalid correction-error result"
+                    )
+            _validate_checkpoint_artifacts(row, output_dir, planned_artifact_dirs[index])
+        observed_ceiling_cost_usd = (
+            _reconstruct_observed_cost(results, cost_ceiling_provider)
+            if cost_ceiling_usd is not None else 0.0
+        )
+        saved_observed = resume_manifest.get("observed_ceiling_cost_usd")
+        if (
+            not isinstance(saved_observed, (int, float))
+            or isinstance(saved_observed, bool)
+            or not math.isclose(
+                float(saved_observed),
+                observed_ceiling_cost_usd,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+        ):
+            raise ValueError("cannot resume corrupt checkpoint: observed ceiling cost is inconsistent")
+        for adapter in adapters:
+            _reconstruct_failure_state(results, adapter.provider, adapter.model)
+        manifest = resume_manifest
+        history = manifest.setdefault("resume_history", [])
+        if not isinstance(history, list):
+            raise ValueError("cannot resume corrupt checkpoint: resume_history must be a list")
+        history.append(datetime.now(UTC).isoformat())
+        manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+    else:
+        output_dir.mkdir(parents=True, exist_ok=False)
+        results = []
+        observed_ceiling_cost_usd = 0.0
+        deterministic = run_deterministic_suite()
+        manifest = {
+            **identity,
+            "run_status": "running",
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": None,
+            "observed_ceiling_cost_usd": observed_ceiling_cost_usd,
+            "suite": str(suite_path),
+            "protocol": str(protocol_path),
+            "code": _git_provenance(),
+            "grounding_measure": (
+                "Deterministic proxy: topic has no citation, an ungrounded citation, "
+                "or a figure/quotation/length heuristic. "
+                "Preserved outputs should be human-adjudicated for semantic publication claims."
+            ),
+            "deterministic_summary": {
+                "case_count": deterministic["case_count"],
+                "label_provenance": deterministic["label_provenance"],
+                "components": deterministic["components"],
+                "heuristic_claim_false_positive_rate": deterministic[
+                    "heuristic_claim_false_positive_rate"
+                ],
+                "heuristic_claim_false_positive_rates": deterministic[
+                    "heuristic_claim_false_positive_rates"
+                ],
+            },
+            "results": results,
+        }
     _checkpoint(manifest, output_dir)
 
     model_total = len(prompt_versions) * case_trial_units * trials
-    for adapter in adapters:
-        model_completed = 0
-        consecutive_failures = 0
-        circuit_reason: dict[str, Any] | None = None
-        if progress:
-            progress(adapter.provider, adapter.model, 0, model_total, "starting")
-        execution_plan = _execution_plan(
-            prompt_versions,
-            suite["cases"],
-            trials,
-            randomized=run_kind == "final",
-            seed=execution_seed,
-            provider=adapter.provider,
-            model=adapter.model,
+    recorded_keys = {_result_key(row) for row in results}
+    for adapter, execution_plan in execution_plans:
+        adapter_rows = [
+            row for row in results
+            if (row.get("provider"), row.get("model")) == (adapter.provider, adapter.model)
+        ]
+        model_completed = len(adapter_rows)
+        consecutive_failures, circuit_reason = _reconstruct_failure_state(
+            results, adapter.provider, adapter.model
         )
+        if progress:
+            progress(
+                adapter.provider,
+                adapter.model,
+                model_completed,
+                model_total,
+                "resuming" if resume_manifest is not None else "starting",
+            )
         for prompt_version, prompt_path, case, variant in execution_plan:
             prompt_bytes = prompt_path.read_bytes()
             prompt = prompt_bytes.decode("utf-8")
             trial, result_case_id, mutations, source_failures, is_clean_pair = variant
+            result_key = (
+                adapter.provider,
+                adapter.model,
+                prompt_version,
+                result_case_id,
+                trial,
+            )
+            if result_key in recorded_keys:
+                continue
             ceiling_applies = (
                 cost_ceiling_usd is not None
                 and (
@@ -932,10 +1215,9 @@ def run_evaluation(
             config_data = _json(config_path)
             config = briefing_config.load_config(config_path)
             request = model_request(prompt, config_data, corpus)
-            key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{result_case_id}__{trial}"
-            safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
+            safe_key = _safe_artifact_key(result_key)
             case_dir = output_dir / safe_key
-            case_dir.mkdir()
+            case_dir.mkdir(exist_ok=resume_manifest is not None)
             _write_json_atomic(case_dir / "corpus.json", corpus)
             _write_text_atomic(case_dir / "request.txt", request)
             base_result = {
