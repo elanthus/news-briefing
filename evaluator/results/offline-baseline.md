@@ -17,17 +17,17 @@ No external model was called while regenerating these metrics. The original 49 c
 | Precision | 85.7% (95% Wilson CI 73.3–92.9%; 42/49 predicted positives) |
 | Recall | 75.0% (95% Wilson CI 62.3–84.5%; 42/56 human-positive labels) |
 | Exact case match | 73.9% (95% Wilson CI 62.5–82.8%; 51/69 cases) |
-| Heuristic claim false-positive rate | 63.6% (95% Wilson CI 35.4–84.8%; 7/11 deliberately valid claim cases) |
+| Heuristic claim false-positive rate | 58.3% (95% Wilson CI 32.0–80.7%; 7/12 deliberately valid claim cases) |
 
-The 14 false-negative labels include the previously documented 11 semantic misses (unsupported prose, category ambiguity, conflicting evidence, and over-consolidation), the qualified-uncertainty neighbor's stronger causal claim, and two direct quotations whose punctuation or internal whitespace differs from the evidence. The seven false positives among deliberately valid claim cases expose known normalization limits: fraction/percentage equivalence, rounding, date and word/digit normalization, percent spelling, and a faithful long paraphrase. These are retained as honest errors rather than tuned away.
+The 14 false-negative labels include the previously documented 11 semantic misses (unsupported prose, category ambiguity, conflicting evidence, and over-consolidation), the qualified-uncertainty neighbor's stronger causal claim, and two direct quotations whose punctuation or internal whitespace differs from the evidence. The seven false positives among deliberately valid claim cases expose known normalization limits: fraction/percentage equivalence, rounding, date and word/digit normalization, percent spelling, and a faithful long paraphrase. These are retained as honest errors rather than tuned away. The twelfth deliberately valid case is the existing, independently validated `url-valid-baseline`; its supported numeric claims (version 2, 45 points, and 12 comments) now exercise the figure heuristic without changing any gold label or review count.
 
 Per-check false-positive denominators include every heuristic case without that specific human label, including invalid neighbors labeled for another heuristic. Zero-denominator rows would remain explicit.
 
 | Heuristic check | False positives / eligible negatives | Rate (95% Wilson CI) |
 |---|---:|---:|
-| `unsupported_figure` | 6/20 | 30.0% (14.5–51.9%) |
-| `unsupported_quotation` | 0/25 | 0.0% (0.0–13.3%) |
-| `claim_exceeds_evidence` | 1/25 | 4.0% (0.7–19.5%) |
+| `unsupported_figure` | 6/21 | 28.6% (13.8–50.0%) |
+| `unsupported_quotation` | 0/26 | 0.0% (0.0–12.9%) |
+| `claim_exceeds_evidence` | 1/26 | 3.8% (0.7–18.9%) |
 
 ## Feed parser (12 cases)
 
