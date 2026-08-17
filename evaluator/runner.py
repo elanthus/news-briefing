@@ -1177,6 +1177,24 @@ def _completed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row.get("first"), dict) and isinstance(row.get("final"), dict)]
 
 
+def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return records for provider calls, including failed calls that may be billed."""
+    calls = []
+    if isinstance(row.get("first"), dict):
+        calls.append(row["first"])
+    elif row.get("status") == "provider_error" and isinstance(row.get("error"), dict):
+        calls.append(row["error"])
+
+    if isinstance(row.get("correction"), dict):
+        calls.append(row["correction"])
+    elif (
+        isinstance(row.get("correction_error"), dict)
+        and row["correction_error"].get("type") != "CostCeilingReached"
+    ):
+        calls.append(row["correction_error"])
+    return calls
+
+
 def _group_identity(key: tuple[str, str, str]) -> dict[str, str]:
     provider, model, prompt_version = key
     return {
@@ -1532,22 +1550,15 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
             }
         )
 
-        costs = []
-        cost_missing = 0
+        call_records = [call for row in rows for call in _operation_call_records(row)]
+        costs = [call["cost_usd"] for call in call_records if call.get("cost_usd") is not None]
+        cost_missing = len(call_records) - len(costs)
         latencies = []
         correction_latencies = []
         for row in completed_rows:
             latencies.append(row["first"]["latency_ms"])
-            if row["first"]["cost_usd"] is None:
-                cost_missing += 1
-            else:
-                costs.append(row["first"]["cost_usd"])
             if row["correction"]:
                 correction_latencies.append(row["correction"]["latency_ms"])
-                if row["correction"]["cost_usd"] is None:
-                    cost_missing += 1
-                else:
-                    costs.append(row["correction"]["cost_usd"])
         operation_groups.append(
             {
                 **identity,
@@ -1841,8 +1852,12 @@ _EDITORIAL_HEADER = [
 
 
 def _operations_row(group: dict[str, Any]) -> str:
-    latency = group["latency_first"]["mean_ms"]
-    latency_text = f"{latency:.0f} ms (n={group['latency_first']['trials']})" if latency is not None else "n/a"
+    latency = group["latency_first"]
+    latency_text = (
+        f"{latency['median_ms']:.0f} / {latency['p95_ms']:.0f} ms (n={latency['trials']})"
+        if latency["median_ms"] is not None and latency["p95_ms"] is not None
+        else "n/a"
+    )
     total = group["cost"]["total_usd"]
     cost_text = f"${total:.4f}" if total is not None else "not reported"
     if group["cost"]["unreported_calls"]:
@@ -1857,7 +1872,7 @@ def _operations_row(group: dict[str, Any]) -> str:
 
 _OPERATIONS_HEADER = [
     "| Provider / model / prompt | Completed trials | Provider errors | Circuit skips | "
-    "Correction errors | First latency mean | Cost |",
+    "Correction errors | First latency median / p95 | Cost |",
     "|---|---:|---:|---:|---:|---:|---:|",
 ]
 

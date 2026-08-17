@@ -26,7 +26,7 @@ Conflicting evidence, over-consolidation, unsupported paraphrase, and ambiguous 
 
 Every rate reports successes, trials, and a two-sided 95% Wilson interval. Wilson intervals describe outcomes on this fixed authored suite; they do not establish generalization to deployment traffic. Repeated live trials over the same authored case are not independent samples of the deployment population. Compatible live-run comparisons therefore pair by case ID and trial index and cluster bootstrap resampling at the authored-case level.
 
-Utility rates use completed utility trials only. Targeted attack rates use completed primary attack trials only; clean twins and ablation replicates have separate denominators. Grounding error uses adjudicated generated topics, not case trials. Unreviewed topics and unclear propositions remain visible. Latency reports completed calls, median, and p95. Cost reports observed billed totals and per-completed-call values; unavailable cost remains `null`.
+Utility rates use completed utility trials only. Targeted attack rates use completed primary attack trials only; clean twins and ablation replicates have separate denominators. Grounding error uses adjudicated generated topics, not case trials. Unreviewed topics and unclear propositions remain visible. Latency reports completed calls, median, and p95. Cost reports observed billed totals across successful and failed provider calls; calls whose providers do not report cost remain explicitly counted as unknown.
 
 ## Reproducibility and limitations
 
