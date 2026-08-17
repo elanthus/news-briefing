@@ -167,5 +167,5 @@ At owner request, Hy3 was run again against the exact archived corpus and config
 - Reproduce the stabilized final checker result with:
 
   ```bash
-  python3 eval_briefing.py --corpus docs/runs/2026-08-15/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/briefing-config.json
+  python3 eval_briefing.py --corpus docs/runs/2026-08-15/hy3-reasoning-enabled/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/hy3-reasoning-enabled/briefing-config.json
   ```
