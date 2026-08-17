@@ -71,12 +71,20 @@ class ProviderRequestError(RuntimeError):
         attempts: int = 1,
         status_code: int | None = None,
         retry_after: float | None = None,
+        cost_usd: float | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        provider_request_id: str | None = None,
     ):
         super().__init__(message)
         self.transient = transient
         self.attempts = attempts
         self.status_code = status_code
         self.retry_after = retry_after
+        self.cost_usd = cost_usd
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.provider_request_id = provider_request_id
 
 
 def is_transient_provider_error(exc: Exception) -> bool:
@@ -330,12 +338,25 @@ class OpenAiCompatibleAdapter(Adapter):
             raise RuntimeError(f"{self.provider} returned an unexpected response") from exc
         usage = payload.get("usage") or {}
         cost = usage.get("cost")
+        cost_usd = float(cost) if cost is not None else self._estimated_cost(usage)
+        if not isinstance(text, str):
+            finish_reason = payload.get("choices", [{}])[0].get("finish_reason")
+            raise ProviderRequestError(
+                f"{self.provider} returned no text content"
+                f" (finish_reason={finish_reason!r})",
+                transient=False,
+                attempts=attempt,
+                cost_usd=cost_usd,
+                input_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"),
+                provider_request_id=payload.get("id") or request_id,
+            )
         return Generation(
             text=text,
             latency_ms=latency_ms,
             input_tokens=usage.get("prompt_tokens"),
             output_tokens=usage.get("completion_tokens"),
-            cost_usd=float(cost) if cost is not None else self._estimated_cost(usage),
+            cost_usd=cost_usd,
             cost_note=None if cost is not None else self._cost_note(usage),
             provider_request_id=payload.get("id") or request_id,
             usage=usage,

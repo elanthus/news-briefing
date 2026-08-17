@@ -11,11 +11,21 @@ from typing import Any, TypeVar
 from evaluator.adapters import Adapter, Generation
 
 Parsed = TypeVar("Parsed")
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def sha256_bytes(content: bytes) -> str:
     """Return the lowercase SHA-256 digest for input identity records."""
     return hashlib.sha256(content).hexdigest()
+
+
+def portable_path(path: Path) -> str:
+    """Represent repository paths without exposing a machine-specific checkout."""
+    resolved = path.resolve()
+    try:
+        return f"./{resolved.relative_to(ROOT).as_posix()}"
+    except ValueError:
+        return path.name
 
 
 def parse_json_response(text: str, response_name: str) -> Any:

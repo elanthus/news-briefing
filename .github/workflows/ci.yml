@@ -28,6 +28,47 @@ jobs:
           python -m unittest --verbose
           python -m unittest discover -s evaluator/tests --verbose
 
+  offline-policy:
+    name: offline reliability policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Run the credential-free checker gate
+        run: python -m evaluator checker
+      - name: Enforce declared case counts and history reference
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          policy = json.loads(Path("evaluator/regression-policy.json").read_text())
+          gate = policy["offline_ci_gate"]
+          if gate["credentials_required"] is not False:
+              raise SystemExit("offline_ci_gate must remain credential-free")
+          if gate["command"] not in {"python -m evaluator checker", "python3 -m evaluator checker"}:
+              raise SystemExit("offline_ci_gate command does not match the enforced checker command")
+
+          suite = json.loads(Path("evaluator/fixtures/checker-cases.json").read_text())
+          counts = Counter(case["component"] for case in suite["cases"])
+          actual = {
+              "expected_case_count": len(suite["cases"]),
+              "expected_checker_cases": counts["checker"],
+              "expected_feed_parser_cases": counts["feed_parser"],
+          }
+          expected = {name: gate[name] for name in actual}
+          if actual != expected:
+              raise SystemExit(f"offline_ci_gate count drift: expected {expected}, got {actual}")
+
+          history_path = Path(policy["history"])
+          history = json.loads(history_path.read_text())
+          if history.get("history_id") != "portfolio-v1" or not history.get("runs"):
+              raise SystemExit(f"invalid or empty reliability history: {history_path}")
+          PY
+
   lint:
     runs-on: ubuntu-latest
     steps:

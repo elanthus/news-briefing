@@ -8,6 +8,22 @@ from collections.abc import Iterable
 from typing import Any
 
 
+def percentile(values: list[float], probability: float) -> float:
+    """Return a linearly interpolated percentile without a numerical dependency."""
+    if not values:
+        raise ValueError("percentile requires at least one value")
+    if not 0 <= probability <= 1:
+        raise ValueError("probability must be between zero and one")
+    ordered = sorted(values)
+    position = probability * (len(ordered) - 1)
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
 def wilson_interval(successes: int, trials: int, z: float = 1.959963984540054) -> list[float] | None:
     """Return a two-sided 95% Wilson score interval for a binomial rate."""
     if trials == 0:

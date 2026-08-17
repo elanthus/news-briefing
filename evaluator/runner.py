@@ -665,6 +665,10 @@ def _provider_error(stage: str, exc: Exception) -> dict[str, Any]:
             "attempts": exc.attempts,
             "status_code": exc.status_code,
             "retry_after": exc.retry_after,
+            "cost_usd": exc.cost_usd,
+            "input_tokens": exc.input_tokens,
+            "output_tokens": exc.output_tokens,
+            "provider_request_id": exc.provider_request_id,
         })
     return error
 
@@ -714,9 +718,25 @@ def run_evaluation(
     suite_path: Path = DEFAULT_SUITE,
     corpus_path: Path = DEFAULT_CORPUS,
     progress: ProgressCallback | None = None,
+    *,
+    run_kind: str = "development",
+    cost_ceiling_usd: float | None = None,
+    cost_ceiling_provider: str | None = None,
 ) -> dict[str, Any]:
     if trials <= 0:
         raise ValueError("trials must be positive")
+    if run_kind not in {"development", "pilot", "final"}:
+        raise ValueError("run_kind must be development, pilot, or final")
+    if cost_ceiling_usd is not None and cost_ceiling_usd <= 0:
+        raise ValueError("cost_ceiling_usd must be positive")
+    if cost_ceiling_provider is not None:
+        available_providers = {adapter.provider for adapter in adapters}
+        if cost_ceiling_provider not in available_providers:
+            available = ", ".join(sorted(available_providers)) or "none"
+            raise ValueError(
+                f"cost_ceiling_provider {cost_ceiling_provider!r} matches no selected provider; "
+                f"choose one of: {available}"
+            )
     suite = _json(suite_path)
     if suite.get("case_count") != len(suite.get("cases", [])):
         raise ValueError("generation suite case_count does not match cases")
@@ -741,12 +761,17 @@ def run_evaluation(
     output_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC)
     results: list[dict[str, Any]] = []
+    observed_ceiling_cost_usd = 0.0
     deterministic = run_deterministic_suite()
     manifest = {
         "schema_version": 6,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,
+        "run_kind": run_kind,
+        "cost_ceiling_usd": cost_ceiling_usd,
+        "cost_ceiling_provider": cost_ceiling_provider,
+        "observed_ceiling_cost_usd": observed_ceiling_cost_usd,
         "suite": str(suite_path),
         "suite_sha256": _sha256(suite_path.read_bytes()),
         "corpus_sha256": _sha256(corpus_path.read_bytes()),
@@ -775,6 +800,9 @@ def run_evaluation(
             "label_provenance": deterministic["label_provenance"],
             "components": deterministic["components"],
             "heuristic_claim_false_positive_rate": deterministic["heuristic_claim_false_positive_rate"],
+            "heuristic_claim_false_positive_rates": deterministic[
+                "heuristic_claim_false_positive_rates"
+            ],
         },
         "results": results,
     }
@@ -793,6 +821,22 @@ def run_evaluation(
             for case in suite["cases"]:
                 variants = _case_trial_variants(case, trials)
                 for trial, result_case_id, mutations, source_failures, is_clean_pair in variants:
+                    ceiling_applies = (
+                        cost_ceiling_usd is not None
+                        and (
+                            cost_ceiling_provider is None
+                            or adapter.provider == cost_ceiling_provider
+                        )
+                    )
+                    ceiling_limit = cost_ceiling_usd if ceiling_applies else None
+                    if (
+                        ceiling_limit is not None
+                        and observed_ceiling_cost_usd >= ceiling_limit
+                    ):
+                        manifest["run_status"] = "stopped_cost_ceiling"
+                        manifest["completed_at"] = datetime.now(UTC).isoformat()
+                        manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+                        return _checkpoint(manifest, output_dir)
                     case_corpus_path = (
                         suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
                     )
@@ -872,6 +916,13 @@ def run_evaluation(
                     try:
                         first = adapter.generate(request)
                     except Exception as exc:
+                        if (
+                            ceiling_applies
+                            and isinstance(exc, ProviderRequestError)
+                            and exc.cost_usd is not None
+                        ):
+                            observed_ceiling_cost_usd += exc.cost_usd
+                            manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
                         error = _provider_error("first", exc)
                         consecutive_failures += 1
                         if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
@@ -897,6 +948,9 @@ def run_evaluation(
                                 status = "circuit opened after provider error"
                             progress(adapter.provider, adapter.model, model_completed, model_total, status)
                         continue
+                    if ceiling_applies and first.cost_usd is not None:
+                        observed_ceiling_cost_usd += first.cost_usd
+                        manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
                     first_sections = eval_briefing.parse_briefing(first.text, config)
                     before = eval_briefing.evaluate_parsed(corpus, first.text, first_sections, config)
                     oracle_before = _oracle(case, first.text, before, first_sections, corpus=corpus, config=config)
@@ -909,15 +963,49 @@ def run_evaluation(
                     corrected = None
                     correction_error = None
                     if needs_correction:
-                        try:
-                            corrected = adapter.generate(correction_request(
-                                request,
-                                first.text,
-                                [finding._asdict() for finding in before],
-                            ))
-                        except Exception as exc:
-                            correction_error = _provider_error("correction", exc)
+                        if (
+                            ceiling_limit is not None
+                            and observed_ceiling_cost_usd >= ceiling_limit
+                        ):
+                            correction_error = {
+                                "stage": "correction",
+                                "type": "CostCeilingReached",
+                                "message": (
+                                    f"correction skipped after observed {adapter.provider} cost "
+                                    f"reached ${observed_ceiling_cost_usd:.6f}"
+                                ),
+                                "transient": False,
+                            }
                             _write_json_atomic(case_dir / "correction-error.json", correction_error)
+                        else:
+                            try:
+                                corrected = adapter.generate(correction_request(
+                                    request,
+                                    first.text,
+                                    [finding._asdict() for finding in before],
+                                ))
+                                if (
+                                    ceiling_applies
+                                    and corrected.cost_usd is not None
+                                ):
+                                    observed_ceiling_cost_usd += corrected.cost_usd
+                                    manifest["observed_ceiling_cost_usd"] = (
+                                        observed_ceiling_cost_usd
+                                    )
+                            except Exception as exc:
+                                if (
+                                    ceiling_applies
+                                    and isinstance(exc, ProviderRequestError)
+                                    and exc.cost_usd is not None
+                                ):
+                                    observed_ceiling_cost_usd += exc.cost_usd
+                                    manifest["observed_ceiling_cost_usd"] = (
+                                        observed_ceiling_cost_usd
+                                    )
+                                correction_error = _provider_error("correction", exc)
+                                _write_json_atomic(
+                                    case_dir / "correction-error.json", correction_error
+                                )
                     final_generation = corrected or first
                     if corrected is None:
                         final_sections = first_sections
@@ -1350,6 +1438,7 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
                     sum(row["final"].get("human_grounding_error_topics", 0) for row in completed_utility),
                     human_reviewed_topics,
                 ),
+                "human_grounding_unreviewed_topics": final_topics - human_reviewed_topics,
                 "grounding_error_topics_proxy_first": rate(
                     sum(row["first"]["grounding_error_topics"] for row in completed_utility),
                     first_topics,
@@ -1407,6 +1496,9 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
             "checker": components.get("checker"),
             "feed_parser": components.get("feed_parser"),
             "heuristic_claim_false_positive_rate": (deterministic["heuristic_claim_false_positive_rate"]),
+            "heuristic_claim_false_positive_rates": deterministic.get(
+                "heuristic_claim_false_positive_rates", {}
+            ),
         }
 
     provider_errors = sum(row.get("status") == "provider_error" for row in manifest["results"])
@@ -1648,9 +1740,12 @@ def _editorial_row(group: dict[str, Any]) -> str:
     if unresolved:
         semantic += f" ({unresolved} unresolved)"
     proxy = f"{_pct(group['grounding_error_topics_proxy_first'])} → {_pct(group['grounding_error_topics_proxy_final'])}"
+    human_grounding = _pct(group["grounding_error_topics_human"])
+    if group.get("human_grounding_unreviewed_topics"):
+        human_grounding += f" ({group['human_grounding_unreviewed_topics']} unreviewed)"
     return (
         f"| {_render_group_label(group)} | {semantic} | "
-        f"{_pct(group['grounding_error_topics_human'])} | {proxy} | "
+        f"{human_grounding} | {proxy} | "
         f"{_pairwise_overall(group)} | "
         f"{group['completed_utility_case_trials']}/{group['utility_case_trials']} |"
     )
@@ -1768,6 +1863,19 @@ def markdown_report(report: dict[str, Any]) -> str:
             "",
             f"- Heuristic claim false-positive rate: {_pct(checker_family['heuristic_claim_false_positive_rate'])}",
         ]
+        per_check_rates = checker_family.get("heuristic_claim_false_positive_rates", {})
+        if per_check_rates:
+            lines += [
+                "",
+                "| Heuristic check | False positives / eligible negatives | Rate (95% Wilson CI) |",
+                "|---|---:|---:|",
+            ]
+            for check in ("unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"):
+                row = per_check_rates.get(check)
+                if row is not None:
+                    lines.append(
+                        f"| `{check}` | {row['successes']}/{row['trials']} | {_pct(row)} |"
+                    )
         if checker:
             lines += [
                 f"- Checker precision: {_pct(checker['precision'])}",

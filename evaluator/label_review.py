@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import random
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,7 @@ from evaluator.cases import DEFAULT_SUITE, _xml_case, apply_variant
 from evaluator.judge_io import (
     checkpointed_generate,
     parse_json_response,
+    portable_path,
     sha256_bytes,
     write_json_atomic,
 )
@@ -94,6 +97,102 @@ def blinded_cases(suite: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str
         payloads.append(_blind_case(case, opaque_id))
         mapping[opaque_id] = case["id"]
     return payloads, mapping
+
+
+def export_human_review_packet(
+    output_dir: Path,
+    suite_path: Path = DEFAULT_SUITE,
+    *,
+    case_ids: set[str] | None = None,
+    seed: int | None = None,
+) -> dict[str, Any]:
+    """Write a randomized human-review packet without labels or predictions."""
+    raw = suite_path.read_bytes()
+    suite = json.loads(raw)
+    if case_ids is not None:
+        available_ids = {case["id"] for case in suite["cases"]}
+        missing = case_ids - available_ids
+        if missing:
+            raise ValueError(f"unknown case IDs: {', '.join(sorted(missing))}")
+        selected = [case for case in suite["cases"] if case["id"] in case_ids]
+    else:
+        selected = [
+            case for case in suite["cases"] if case.get("label_status") == "provisional"
+        ]
+    if not selected:
+        raise ValueError("human-review packet selection is empty")
+
+    rng = random.Random(seed if seed is not None else secrets.randbits(128))
+    rng.shuffle(selected)
+    used_ids: set[str] = set()
+    mapping: dict[str, str] = {}
+    payloads: list[dict[str, Any]] = []
+    for case in selected:
+        while True:
+            opaque_id = f"review-{rng.getrandbits(48):012x}"
+            if opaque_id not in used_ids:
+                used_ids.add(opaque_id)
+                break
+        mapping[opaque_id] = case["id"]
+        payloads.append(_blind_case(case, opaque_id))
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+    packet = {
+        "schema_version": 1,
+        "instructions": (
+            "Review each case only against the supplied inputs and rubric. Return every applicable "
+            "label, or an empty list for a valid case. Equivalent quantities and faithful "
+            "paraphrases are supported. For feeds, decode according to the BOM/declaration; valid "
+            "RSS and Atom may use UTF-8, UTF-16, or UTF-32, while every DOCTYPE is rejected."
+        ),
+        "label_rubric": LABEL_RUBRIC,
+        "cases": payloads,
+    }
+    form = {
+        "schema_version": 1,
+        "attestation": {
+            "reviewer_name": "",
+            "reviewed_on": "",
+            "not_involved_in_case_preparation_or_labeling": None,
+            "did_not_inspect_current_labels_or_checker_predictions": None,
+        },
+        "reviews": [
+            {"case": case["case"], "labels": [], "rationale": ""} for case in payloads
+        ],
+    }
+    labels_by_case = {case["id"]: sorted(case["human_labels"]) for case in selected}
+    answer_key = {
+        "schema_version": 1,
+        "notice": "Coordinator-only until the completed response and attestation are locked.",
+        "mapping": mapping,
+        "provisional_labels": {
+            mapping[opaque_id]: labels_by_case[mapping[opaque_id]]
+            for opaque_id in mapping
+        },
+    }
+    packet_path = output_dir / "reviewer-packet.json"
+    form_path = output_dir / "attestation-and-review-form.json"
+    key_path = output_dir / "coordinator-only" / "answer-key.json"
+    key_path.parent.mkdir()
+    write_json_atomic(packet_path, packet)
+    write_json_atomic(form_path, form)
+    write_json_atomic(key_path, answer_key)
+    manifest = {
+        "schema_version": 1,
+        "status": "awaiting_independent_human_review",
+        "suite": portable_path(suite_path),
+        "suite_sha256": sha256_bytes(raw),
+        "case_count": len(selected),
+        "reviewer_packet": packet_path.name,
+        "reviewer_packet_sha256": sha256_bytes(packet_path.read_bytes()),
+        "review_form": form_path.name,
+        "review_form_sha256": sha256_bytes(form_path.read_bytes()),
+        "coordinator_answer_key": "coordinator-only/answer-key.json",
+        "coordinator_answer_key_sha256": sha256_bytes(key_path.read_bytes()),
+        "notice": "Share only the reviewer packet and blank review form with the reviewer.",
+    }
+    write_json_atomic(output_dir / "manifest.json", manifest)
+    return manifest
 
 
 def _review_prompt(cases: list[dict[str, Any]]) -> str:
@@ -190,15 +289,8 @@ def _review_batch(
 
 
 def _portable_path(path: Path) -> str:
-    """Represent repository paths without leaking a machine-specific checkout path."""
-    resolved = path.resolve()
-    try:
-        return f"./{resolved.relative_to(ROOT).as_posix()}"
-    except ValueError:
-        try:
-            return f"~/{resolved.relative_to(Path.home()).as_posix()}"
-        except ValueError:
-            return str(resolved)
+    """Backward-compatible wrapper for the shared path sanitizer."""
+    return portable_path(path)
 
 
 def run_label_review(
@@ -207,13 +299,26 @@ def run_label_review(
     output_dir: Path,
     suite_path: Path = DEFAULT_SUITE,
     batch_size: int = 10,
+    *,
+    case_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     raw = suite_path.read_bytes()
     suite = json.loads(raw)
-    payloads, mapping = blinded_cases(suite)
-    prepared = {case["id"]: sorted(case["human_labels"]) for case in suite["cases"]}
+    selected_cases = (
+        suite["cases"]
+        if case_ids is None
+        else [case for case in suite["cases"] if case["id"] in case_ids]
+    )
+    if case_ids is not None:
+        missing = case_ids - {case["id"] for case in selected_cases}
+        if missing:
+            raise ValueError(f"unknown case IDs: {', '.join(sorted(missing))}")
+    if not selected_cases:
+        raise ValueError("label-review selection is empty")
+    payloads, mapping = blinded_cases({"cases": selected_cases})
+    prepared = {case["id"]: sorted(case["human_labels"]) for case in selected_cases}
     output_dir.mkdir(parents=True, exist_ok=True)
     reviewer_metadata = {
         "provider": reviewer.provider,
@@ -229,8 +334,9 @@ def run_label_review(
         }
     )
     identity = {
-        "schema_version": 2,
+        "schema_version": 3,
         "suite_sha256": sha256_bytes(raw),
+        "selected_case_ids": sorted(case["id"] for case in selected_cases),
         "reviewer": reviewer_metadata,
         "adjudicator": adjudicator_metadata,
         "batch_size": batch_size,
@@ -321,7 +427,7 @@ def run_label_review(
             if adjudicator is not None
             else "blinded_review_complete_adjudication_not_run_human_approval_required"
         ),
-        "suite": _portable_path(suite_path),
+        "suite": portable_path(suite_path),
         "suite_sha256": identity["suite_sha256"],
         "reviewer": reviewer_metadata,
         "adjudicator": identity["adjudicator"],

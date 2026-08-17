@@ -508,11 +508,51 @@ class ParseFeedXmlTest(unittest.TestCase):
             ("UTF-16", "utf-16"),
             ("UTF-16", "utf-16-le"),
             ("UTF-16", "utf-16-be"),
+            ("UTF-32", "utf-32"),
             ("ISO-8859-1", "iso-8859-1"),
         )
         for declaration, codec in cases:
             with self.subTest(encoding=declaration), self.assertRaises(ValueError):
                 parse_feed_xml(document.format(encoding=declaration).encode(codec))
+
+    def test_rejects_utf32_entity_expansion_payload(self):
+        payload = self.BILLION_LAUGHS.decode("utf-8").replace(
+            '<?xml version="1.0"?>',
+            '<?xml version="1.0" encoding="UTF-32"?>',
+        ).encode("utf-32")
+        with self.assertRaises(ValueError):
+            parse_feed_xml(payload)
+
+    def test_parses_bom_marked_utf32_in_both_byte_orders(self):
+        template = (
+            '<?xml version="1.0" encoding="{encoding}"?>'
+            '<rss><channel><item><title>ok</title></item></channel></rss>'
+        )
+        cases = (
+            ("UTF-32", "utf-32"),
+            ("UTF-32LE", "utf-32-le"),
+            ("UTF-32BE", "utf-32-be"),
+        )
+        for declaration, codec in cases:
+            text = template.format(encoding=declaration)
+            if codec == "utf-32":
+                payload = text.encode(codec)
+            elif codec.endswith("le"):
+                payload = b"\xff\xfe\x00\x00" + text.encode(codec)
+            else:
+                payload = b"\x00\x00\xfe\xff" + text.encode(codec)
+            with self.subTest(codec=codec):
+                self.assertEqual(parse_feed_xml(payload).find(".//title").text, "ok")
+
+    def test_rejects_utf32_with_contradictory_declaration_or_invalid_bytes(self):
+        contradictory = (
+            '<?xml version="1.0" encoding="UTF-16"?>'
+            '<rss><channel /></rss>'
+        ).encode("utf-32")
+        with self.assertRaisesRegex(ValueError, "contradicts"):
+            parse_feed_xml(contradictory)
+        with self.assertRaises(UnicodeDecodeError):
+            parse_feed_xml(b"\xff\xfe\x00\x00\x3c\x00\x00")
 
     def test_entity_reference_without_a_doctype_cannot_expand(self):
         """Without a declaration expat rejects the reference outright."""
