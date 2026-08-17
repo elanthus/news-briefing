@@ -50,6 +50,7 @@ from evaluator.quality import (
     run_quality_judging,
 )
 from evaluator.runner import (
+    _OPERATIONS_HEADER,
     DEFAULT_CORPUS,
     DEFAULT_SUITE,
     _attack_breakdown,
@@ -1106,6 +1107,7 @@ class RunnerTest(unittest.TestCase):
 
         self.assertIn("20 / 100 ms (n=3)", rendered)
         self.assertNotIn("43 ms", rendered)
+        self.assertIn("First latency median / p95", _OPERATIONS_HEADER[0])
 
     def test_final_run_order_is_seeded_randomized_and_prompt_interleaved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
