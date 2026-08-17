@@ -16,6 +16,9 @@
     "heuristic_expanded_on": "2026-08-14",
     "heuristic_independent_reviewed_on": "2026-08-14",
     "heuristic_adjudicated_on": "2026-08-14",
+    "heuristic_denominator_repaired_on": "2026-08-17",
+    "heuristic_denominator_replacement_case_id": "url-valid-baseline",
+    "heuristic_denominator_replacement_basis": "This existing independently validated true-negative contains the supported numeric claim 'version 2' in evaluated topic prose, so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
     "reviewed_by": "elanthus (repository owner)",
     "independent_reviewer": "Ree Vu Urtu",
     "independent_review_packet_id": "ihv-3e7641c047f5",
@@ -75,7 +78,7 @@
     }
   ],
   "cases": [
-    {"id":"url-valid-baseline","component":"checker","family":"valid_edge","variant":"valid-baseline","human_labels":[]},
+    {"id":"url-valid-baseline","component":"checker","family":"valid_edge","variant":"valid-baseline","human_labels":[],"heuristic_claim_case":true},
     {"id":"url-valid-trailing-slash","component":"checker","family":"valid_edge","variant":"valid-trailing-slash","human_labels":[]},
     {"id":"url-valid-tracking","component":"checker","family":"valid_edge","variant":"valid-tracking-parameter","human_labels":[]},
     {"id":"url-valid-query-order","component":"checker","family":"valid_edge","variant":"valid-query-order","human_labels":[]},

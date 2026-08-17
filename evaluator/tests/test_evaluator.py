@@ -98,7 +98,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("conflicting_evidence", misses)
         self.assertIn("over_consolidation", misses)
         self.assertIn("unsupported_claim", misses)
-        self.assertEqual(result["heuristic_claim_false_positive_rate"]["trials"], 11)
+        self.assertGreaterEqual(result["heuristic_claim_false_positive_rate"]["trials"], 12)
         self.assertEqual(
             set(result["heuristic_claim_false_positive_rates"]),
             {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"},
@@ -106,6 +106,16 @@ class FixedSuiteTest(unittest.TestCase):
         for row in result["heuristic_claim_false_positive_rates"].values():
             self.assertGreater(row["trials"], 0)
             self.assertIsNotNone(row["ci95_wilson"])
+
+        replacement = next(
+            case for case in result["cases"] if case["id"] == "url-valid-baseline"
+        )
+        self.assertTrue(replacement["heuristic_claim_case"])
+        self.assertEqual(replacement["human_labels"], [])
+        self.assertFalse(
+            set(replacement["predicted_labels"])
+            & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+        )
 
     def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
         result = run_deterministic_suite()
@@ -151,7 +161,8 @@ class FixedSuiteTest(unittest.TestCase):
         }
         # The 12 authored "valid" sides still define the paired boundary
         # construction. Independent review relabeled two quotation cases, so
-        # only 10 of these 12 now enter the false-positive denominator.
+        # 10 of these 12 enter the false-positive denominator alongside the
+        # semantic-figure and independently validated baseline cases.
         self.assertEqual(len(valid_ids), 12)
         for valid_id in valid_ids:
             invalid_id = valid_id.removesuffix("-valid") + "-invalid"

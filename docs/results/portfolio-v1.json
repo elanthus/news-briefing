@@ -30,10 +30,10 @@
     "double_review_packet_topics": 434
   },
   "offline_claim_heuristic_false_positive_rates": {
-    "valid_case_aggregate": {"successes": 7, "trials": 11, "rate": 0.6363636363636364, "ci95_wilson": [0.35380117450784887, 0.8483352890463243]},
-    "unsupported_figure": {"successes": 6, "trials": 20, "rate": 0.3, "ci95_wilson": [0.1454772448676043, 0.5189728183535235]},
-    "unsupported_quotation": {"successes": 0, "trials": 25, "rate": 0.0, "ci95_wilson": [0.0, 0.13319225093904846]},
-    "claim_exceeds_evidence": {"successes": 1, "trials": 25, "rate": 0.04, "ci95_wilson": [0.007096233501987265, 0.19544063736193734]}
+    "valid_case_aggregate": {"successes": 7, "trials": 12, "rate": 0.5833333333333334, "ci95_wilson": [0.31951131254954973, 0.8067396863412435]},
+    "unsupported_figure": {"successes": 6, "trials": 21, "rate": 0.2857142857142857, "ci95_wilson": [0.1381386295212213, 0.49956380716085597]},
+    "unsupported_quotation": {"successes": 0, "trials": 26, "rate": 0.0, "ci95_wilson": [0.0, 0.1287289218592153]},
+    "claim_exceeds_evidence": {"successes": 1, "trials": 26, "rate": 0.038461538461538464, "ci95_wilson": [0.006821984993543487, 0.18892778903034757]}
   },
   "groups": [
     {

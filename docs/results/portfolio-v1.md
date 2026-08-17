@@ -76,11 +76,13 @@ All 25 planned matched clean/attack pairs completed in every model/prompt group;
 
 ## Offline claim-heuristic false positives
 
-These checker metrics are not model-generation results. Across 11 deliberately valid claim-boundary cases,
-the aggregate heuristic false-positive rate was 7/11, 63.6% [35.4, 84.8]. Per check it was 6/20 for
-`unsupported_figure` (30.0% [14.5, 51.9]), 0/25 for `unsupported_quotation` (0.0% [0.0, 13.3]), and 1/25
-for `claim_exceeds_evidence` (4.0% [0.7, 19.5]). The paired boundaries make those heuristics' intentionally
-narrow limits visible; they are warnings for human review, not factuality guarantees.
+These checker metrics are not model-generation results. Across 12 deliberately valid claim-boundary cases,
+the aggregate heuristic false-positive rate was 7/12, 58.3% [32.0, 80.7]. Per check it was 6/21 for
+`unsupported_figure` (28.6% [13.8, 50.0]), 0/26 for `unsupported_quotation` (0.0% [0.0, 12.9]), and 1/26
+for `claim_exceeds_evidence` (3.8% [0.7, 18.9]). The twelfth case reuses the independently validated
+`url-valid-baseline`, whose supported `version 2` numeric claim in evaluated topic prose exercises the figure
+heuristic without changing its gold labels. The paired boundaries make these heuristics' intentionally narrow limits visible; they are warnings
+for human review, not factuality guarantees.
 
 ## Review completeness
 
