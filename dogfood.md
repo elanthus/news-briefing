@@ -11,6 +11,8 @@ The final briefing filled all 22 configured slots: 3 US Politics, 4 US News, 5 W
 - Operator date: August 16, 2026 in `America/Los_Angeles`.
 - Execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6.
 - Provider and model: OpenRouter `z-ai/glm-5.2`.
+- Prompt version: `production`, using `briefing-prompt.md` from base commit `b340548be06ec2d1a898bffda384defe5fd31730` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`; Git blob `731d706316b358b65550a22c8116dba5c0847df8`). The assembled first-pass request, including the operator-date prefix, trusted configuration, and fetched corpus, had SHA-256 `b0473bf8ba717ff62f8be8ebc556f0776528b8c271d6d2914588ceb00a7a5231`.
+- Configuration version: `briefing-config.json` from the same base commit (SHA-256 `ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9`; Git blob `38429ea90cdd97ad95d949a232ccd169134e9905`).
 - Generation controls: temperature 0, no seed, reasoning enabled at `high` effort, 100,000-token completion ceiling, and a 600-second per-call timeout.
 - Tool boundary: the model received only the trusted prompt and configuration plus the closed, untrusted corpus. No tools, browsing, or external retrieval were available to the model.
 - Correction policy: at most one correction pass, using only deterministic checker findings and the original closed corpus.
