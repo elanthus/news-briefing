@@ -1114,8 +1114,8 @@ def run_evaluation(
         if not isinstance(raw_results, list) or any(not isinstance(row, dict) for row in raw_results):
             raise ValueError("cannot resume corrupt checkpoint: results must be a list of objects")
         results = raw_results
-        if len(results) >= len(planned_units):
-            raise ValueError("cannot resume checkpoint: every planned result is already recorded")
+        if len(results) > len(planned_units):
+            raise ValueError("cannot resume corrupt checkpoint: more results than planned")
         for index, row in enumerate(results):
             expected_key = planned_keys[index]
             if _result_key(row) != expected_key:
@@ -1200,6 +1200,12 @@ def run_evaluation(
             raise ValueError("cannot resume corrupt checkpoint: resume_history must be a list")
         history.append(datetime.now(UTC).isoformat())
         manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+        if len(results) == len(planned_units):
+            manifest["run_status"] = (
+                "completed_with_errors" if _has_execution_errors(results) else "complete"
+            )
+            manifest["completed_at"] = datetime.now(UTC).isoformat()
+            return _checkpoint(manifest, output_dir)
     else:
         output_dir.mkdir(parents=True, exist_ok=False)
         results = []
