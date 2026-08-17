@@ -1142,6 +1142,13 @@ class RunnerTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "only valid for final runs"):
                 run_evaluation([], {}, Path(directory) / "results", execution_seed=1)
 
+    def test_final_execution_seed_must_be_non_negative(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "non-negative integer"):
+                run_evaluation(
+                    [], {}, Path(directory) / "results", run_kind="final", execution_seed=-1
+                )
+
     def test_cost_ceiling_provider_must_match_a_selected_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(

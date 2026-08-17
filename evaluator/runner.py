@@ -772,6 +772,10 @@ def run_evaluation(
         raise ValueError("run_kind must be development, pilot, or final")
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
+    if execution_seed is not None and (
+        not isinstance(execution_seed, int) or isinstance(execution_seed, bool) or execution_seed < 0
+    ):
+        raise ValueError("execution_seed must be a non-negative integer")
     if run_kind == "final" and execution_seed is None:
         execution_seed = secrets.randbits(64)
     if cost_ceiling_usd is not None and cost_ceiling_usd <= 0:
