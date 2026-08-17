@@ -20,6 +20,7 @@ from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.quality import run_quality_judging
 from evaluator.runner import (
     DEFAULT_CORPUS,
+    DEFAULT_PROTOCOL,
     DEFAULT_SUITE,
     ROOT,
     apply_adjudications,
@@ -227,6 +228,7 @@ def main() -> int:
     )
     run.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
     run.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    run.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     run.add_argument("--output-dir", type=Path)
     run.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
     run.add_argument(
@@ -354,6 +356,7 @@ def main() -> int:
                     args.suite,
                     args.corpus,
                     progress,
+                    protocol_path=args.protocol,
                     run_kind=args.run_kind,
                     cost_ceiling_usd=args.cost_ceiling_usd,
                     cost_ceiling_provider=args.cost_ceiling_provider,

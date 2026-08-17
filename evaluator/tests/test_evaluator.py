@@ -426,6 +426,18 @@ class MetricTest(unittest.TestCase):
 
 class ComparisonTest(unittest.TestCase):
     @staticmethod
+    def _provenance(*prompts: str) -> dict:
+        return {
+            "corpus_sha256": "corpus",
+            "config_sha256": {"config.json": "config"},
+            "protocol_sha256": "protocol",
+            "prompt_sha256": {prompt: f"hash-{prompt}" for prompt in prompts},
+            "generation_controls": [{
+                "provider": "provider", "model": "model", "temperature": 0,
+            }],
+        }
+
+    @staticmethod
     def _row(prompt: str, case_id: str, trial: int, success: bool = True) -> dict:
         stage = {
             "contract_success": success,
@@ -437,7 +449,9 @@ class ComparisonTest(unittest.TestCase):
             "provider": "provider",
             "model": "model",
             "prompt_version": prompt,
+            "prompt_sha256": f"hash-{prompt}",
             "case_id": case_id,
+            "corpus_sha256": "case-corpus",
             "trial": trial,
             "case_kind": "utility",
             "status": "completed",
@@ -457,6 +471,7 @@ class ComparisonTest(unittest.TestCase):
                 for trial in range(2)
             ]
             manifest = {
+                **self._provenance("production-2026-08", "reliability-v1"),
                 "suite_sha256": "suite",
                 "run_kind": "final",
                 "trials_per_case": 2,
@@ -488,6 +503,9 @@ class ComparisonTest(unittest.TestCase):
                 path = temporary / f"run-{index}" / "manifest.json"
                 path.parent.mkdir()
                 path.write_text(json.dumps({
+                    **self._provenance(
+                        "production-2026-08" if index == 0 else "reliability-v1"
+                    ),
                     "suite_sha256": suite,
                     "run_kind": "final",
                     "trials_per_case": 1,
@@ -512,6 +530,7 @@ class ComparisonTest(unittest.TestCase):
             ]
             rows[1] = {**rows[1], "status": "provider_error", "first": None, "final": None}
             path.write_text(json.dumps({
+                **self._provenance("production-2026-08", "reliability-v1"),
                 "suite_sha256": "suite",
                 "run_kind": "final",
                 "trials_per_case": 1,
@@ -534,6 +553,93 @@ class ComparisonTest(unittest.TestCase):
                 "not_gate_eligible_descriptive_comparison",
             )
             self.assertIn("n/a", markdown_comparison(result))
+
+    def test_incompatible_provenance_and_key_sets_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompts = ("production-2026-08", "reliability-v1")
+            paths = []
+            for index, prompt in enumerate(prompts):
+                row = self._row(prompt, "case", 1)
+                manifest = {
+                    **self._provenance(*prompts),
+                    "suite_sha256": "suite",
+                    "run_kind": "final",
+                    "trials_per_case": 1,
+                    "run_status": "complete",
+                    "planned_case_trials": 1,
+                    "results": [row],
+                }
+                if index:
+                    manifest["protocol_sha256"] = "different-protocol"
+                    manifest["config_sha256"] = {"config.json": "different-config"}
+                    manifest["generation_controls"][0]["temperature"] = 1
+                    row["corpus_sha256"] = "different-corpus"
+                path = temporary / f"run-{index}" / "manifest.json"
+                path.parent.mkdir()
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+                paths.append(path)
+
+            with self.assertRaisesRegex(ValueError, "config_sha256 differs") as raised:
+                compare_runs(paths[0], paths[1], bootstrap_samples=10)
+            message = str(raised.exception)
+            self.assertIn("protocol_sha256 differs", message)
+            self.assertIn("generation_controls differs", message)
+            self.assertIn("row corpus_sha256 differs", message)
+
+    def test_duplicate_or_missing_comparison_keys_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompts = ("production-2026-08", "reliability-v1")
+            paths = []
+            for index, prompt in enumerate(prompts):
+                result_rows = [self._row(prompt, "case", 1)]
+                result_rows.append(self._row(
+                    prompt, "case" if index == 0 else "other-case", 1,
+                ))
+                path = temporary / f"run-{index}" / "manifest.json"
+                path.parent.mkdir()
+                path.write_text(json.dumps({
+                    **self._provenance(*prompts),
+                    "suite_sha256": "suite",
+                    "run_kind": "final",
+                    "trials_per_case": 1,
+                    "run_status": "complete",
+                    "planned_case_trials": len(result_rows),
+                    "results": result_rows,
+                }), encoding="utf-8")
+                paths.append(path)
+
+            with self.assertRaisesRegex(ValueError, "duplicate comparison keys") as raised:
+                compare_runs(paths[0], paths[1], bootstrap_samples=10)
+            self.assertIn("comparison key set differs", str(raised.exception))
+
+    def test_prompt_hash_and_adjudication_state_are_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            temporary = Path(temporary_dir)
+            prompts = ("production-2026-08", "reliability-v1")
+            paths = []
+            for index, prompt in enumerate(prompts):
+                row = self._row(prompt, "case", 1)
+                if index:
+                    row["prompt_sha256"] = "wrong-row-hash"
+                    row["final"]["human_grounding_reviewed_topics"] = 1
+                path = temporary / f"run-{index}" / "manifest.json"
+                path.parent.mkdir()
+                path.write_text(json.dumps({
+                    **self._provenance(*prompts),
+                    "suite_sha256": "suite",
+                    "run_kind": "final",
+                    "trials_per_case": 1,
+                    "run_status": "complete",
+                    "planned_case_trials": 1,
+                    "results": [row],
+                }), encoding="utf-8")
+                paths.append(path)
+
+            with self.assertRaisesRegex(ValueError, "adjudication state differs") as raised:
+                compare_runs(paths[0], paths[1], bootstrap_samples=10)
+            self.assertIn("candidate prompt hash is missing or inconsistent", str(raised.exception))
 
 
 class GroundingReviewPacketTest(unittest.TestCase):
@@ -1156,7 +1262,7 @@ class RunnerTest(unittest.TestCase):
                 self.assertNotIn(injected, request)
                 self.assertNotIn("ATTACK_HEALTH_SUCCEEDED", request)
             self.assertNotEqual(attack_requests[0], clean_requests[0])
-            self.assertEqual(manifest["schema_version"], 6)
+            self.assertEqual(manifest["schema_version"], 7)
             self.assertEqual(manifest["planned_case_trials"], 4)
             self.assertEqual(manifest["matched_pair_case_ids"], ["attack-citation-fabrication"])
             self.assertEqual(manifest["planned_matched_pair_trials"], 2)
@@ -1827,7 +1933,7 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "report.json").is_file())
             self.assertTrue((output / "report.md").is_file())
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schema_version"], 6)
+            self.assertEqual(manifest["schema_version"], 7)
             self.assertEqual(report["schema_version"], 8)
             families = report["score_families"]
             self.assertEqual(families["checker_capability"]["case_count"], 81)
