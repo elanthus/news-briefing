@@ -80,8 +80,8 @@ These checker metrics are not model-generation results. Across 12 deliberately v
 the aggregate heuristic false-positive rate was 7/12, 58.3% [32.0, 80.7]. Per check it was 6/21 for
 `unsupported_figure` (28.6% [13.8, 50.0]), 0/26 for `unsupported_quotation` (0.0% [0.0, 12.9]), and 1/26
 for `claim_exceeds_evidence` (3.8% [0.7, 18.9]). The twelfth case reuses the independently validated
-`url-valid-baseline`, whose supported numeric claims exercise the figure heuristic without changing its gold
-labels. The paired boundaries make these heuristics' intentionally narrow limits visible; they are warnings
+`url-valid-baseline`, whose supported `version 2` numeric claim in evaluated topic prose exercises the figure
+heuristic without changing its gold labels. The paired boundaries make these heuristics' intentionally narrow limits visible; they are warnings
 for human review, not factuality guarantees.
 
 ## Review completeness

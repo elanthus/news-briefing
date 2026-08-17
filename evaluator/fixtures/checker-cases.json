@@ -18,7 +18,7 @@
     "heuristic_adjudicated_on": "2026-08-14",
     "heuristic_denominator_repaired_on": "2026-08-17",
     "heuristic_denominator_replacement_case_id": "url-valid-baseline",
-    "heuristic_denominator_replacement_basis": "This existing independently validated true-negative contains supported numeric claims (version 2, 45 points, and 12 comments), so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
+    "heuristic_denominator_replacement_basis": "This existing independently validated true-negative contains the supported numeric claim 'version 2' in evaluated topic prose, so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
     "reviewed_by": "elanthus (repository owner)",
     "independent_reviewer": "Ree Vu Urtu",
     "independent_review_packet_id": "ihv-3e7641c047f5",
