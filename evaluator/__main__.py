@@ -217,6 +217,11 @@ def main() -> int:
     )
     run.add_argument("--seed", type=int, help="optional sampling seed for API providers")
     run.add_argument(
+        "--execution-seed",
+        type=int,
+        help="optional final-run ordering seed; generated and recorded when omitted",
+    )
+    run.add_argument(
         "--reasoning",
         choices=("enabled", "disabled"),
         help="optional reasoning control for API providers; omitted preserves provider default",
@@ -358,6 +363,7 @@ def main() -> int:
                     progress,
                     protocol_path=args.protocol,
                     run_kind=args.run_kind,
+                    execution_seed=args.execution_seed,
                     cost_ceiling_usd=args.cost_ceiling_usd,
                     cost_ceiling_provider=args.cost_ceiling_provider,
                 )

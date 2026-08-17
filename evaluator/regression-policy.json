@@ -8,6 +8,8 @@
     "same_corpus_sha256": true,
     "same_config_sha256": true,
     "same_protocol_sha256": true,
+    "same_execution_order": true,
+    "same_execution_seed": true,
     "same_run_kind": "final",
     "same_positive_trials_per_case": true,
     "same_selected_provider_model_set": true,

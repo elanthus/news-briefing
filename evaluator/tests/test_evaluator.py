@@ -431,6 +431,8 @@ class ComparisonTest(unittest.TestCase):
             "corpus_sha256": "corpus",
             "config_sha256": {"config.json": "config"},
             "protocol_sha256": "protocol",
+            "execution_order": "prompt_interleaved_randomized",
+            "execution_seed": 1729,
             "prompt_sha256": {prompt: f"hash-{prompt}" for prompt in prompts},
             "generation_controls": [{
                 "provider": "provider", "model": "model", "temperature": 0,
@@ -1075,6 +1077,71 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    def test_final_run_order_is_seeded_randomized_and_prompt_interleaved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            fixtures = Path(__file__).parents[1] / "fixtures"
+            config = temporary / "config.json"
+            config.write_text(
+                (fixtures / "generation-config-1.json").read_text(), encoding="utf-8"
+            )
+            suite = temporary / "suite.json"
+            suite.write_text(json.dumps({
+                "schema_version": 8,
+                "case_count": 3,
+                "cases": [{
+                    "id": f"utility-{index}",
+                    "kind": "utility",
+                    "family": "ordinary",
+                    "config": "config.json",
+                    "mutations": [],
+                } for index in range(3)],
+            }), encoding="utf-8")
+            prompts = {}
+            for version in ("production", "candidate"):
+                prompt = temporary / f"{version}.md"
+                prompt.write_text(f"Produce the {version} briefing.", encoding="utf-8")
+                prompts[version] = prompt
+
+            orders = []
+            for run in range(2):
+                output = temporary / f"results-{run}"
+                run_evaluation(
+                    [FakeAdapter("fixture")],
+                    prompts,
+                    output,
+                    trials=2,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    run_kind="final",
+                    execution_seed=8675309,
+                )
+                manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest["execution_order"], "prompt_interleaved_randomized")
+                self.assertEqual(manifest["execution_seed"], 8675309)
+                orders.append([
+                    (row["prompt_version"], row["case_id"], row["trial"])
+                    for row in manifest["results"]
+                ])
+
+            self.assertEqual(orders[0], orders[1])
+            self.assertTrue(all(
+                left[0] != right[0]
+                for left, right in zip(orders[0], orders[0][1:], strict=False)
+            ))
+            fixed = [
+                (prompt, f"utility-{case}", trial)
+                for prompt in prompts
+                for case in range(3)
+                for trial in range(1, 3)
+            ]
+            self.assertNotEqual(orders[0], fixed)
+
+    def test_execution_seed_is_rejected_outside_final_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "only valid for final runs"):
+                run_evaluation([], {}, Path(directory) / "results", execution_seed=1)
+
     def test_cost_ceiling_provider_must_match_a_selected_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(
@@ -1289,7 +1356,7 @@ class RunnerTest(unittest.TestCase):
                 self.assertNotIn(injected, request)
                 self.assertNotIn("ATTACK_HEALTH_SUCCEEDED", request)
             self.assertNotEqual(attack_requests[0], clean_requests[0])
-            self.assertEqual(manifest["schema_version"], 7)
+            self.assertEqual(manifest["schema_version"], 8)
             self.assertEqual(manifest["planned_case_trials"], 4)
             self.assertEqual(manifest["matched_pair_case_ids"], ["attack-citation-fabrication"])
             self.assertEqual(manifest["planned_matched_pair_trials"], 2)
@@ -1960,7 +2027,7 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "report.json").is_file())
             self.assertTrue((output / "report.md").is_file())
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schema_version"], 7)
+            self.assertEqual(manifest["schema_version"], 8)
             self.assertEqual(report["schema_version"], 8)
             families = report["score_families"]
             self.assertEqual(families["checker_capability"]["case_count"], 81)

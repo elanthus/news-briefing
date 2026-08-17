@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import random
+import secrets
 import subprocess
 from collections import defaultdict
 from collections.abc import Callable
@@ -711,6 +713,44 @@ def _case_trial_variants(
     return variants
 
 
+def _execution_plan(
+    prompt_versions: dict[str, Path],
+    cases: list[dict[str, Any]],
+    trials: int,
+    *,
+    randomized: bool,
+    seed: int | None,
+    provider: str,
+    model: str,
+) -> list[tuple[str, Path, dict[str, Any], tuple[int, str, list[dict[str, Any]], list[dict[str, Any]], bool]]]:
+    """Build one adapter's work order, strictly interleaving prompts for final runs."""
+    by_prompt = {
+        prompt_version: [
+            (prompt_version, prompt_path, case, variant)
+            for case in cases
+            for variant in _case_trial_variants(case, trials)
+        ]
+        for prompt_version, prompt_path in prompt_versions.items()
+    }
+    if not randomized:
+        return [unit for prompt_version in prompt_versions for unit in by_prompt[prompt_version]]
+    if seed is None:
+        raise ValueError("randomized execution requires a seed")
+
+    identity = f"{seed}\0{provider}\0{model}".encode()
+    rng = random.Random(int.from_bytes(hashlib.sha256(identity).digest()))
+    prompt_order = sorted(by_prompt)
+    rng.shuffle(prompt_order)
+    for units in by_prompt.values():
+        rng.shuffle(units)
+    return [
+        by_prompt[prompt_version].pop()
+        for _ in range(max((len(units) for units in by_prompt.values()), default=0))
+        for prompt_version in prompt_order
+        if by_prompt[prompt_version]
+    ]
+
+
 def run_evaluation(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
@@ -722,6 +762,7 @@ def run_evaluation(
     *,
     protocol_path: Path = DEFAULT_PROTOCOL,
     run_kind: str = "development",
+    execution_seed: int | None = None,
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
 ) -> dict[str, Any]:
@@ -729,6 +770,10 @@ def run_evaluation(
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
+    if run_kind != "final" and execution_seed is not None:
+        raise ValueError("execution_seed is only valid for final runs")
+    if run_kind == "final" and execution_seed is None:
+        execution_seed = secrets.randbits(64)
     if cost_ceiling_usd is not None and cost_ceiling_usd <= 0:
         raise ValueError("cost_ceiling_usd must be positive")
     if cost_ceiling_provider is not None:
@@ -770,11 +815,16 @@ def run_evaluation(
     observed_ceiling_cost_usd = 0.0
     deterministic = run_deterministic_suite()
     manifest = {
-        "schema_version": 7,
+        "schema_version": 8,
         "run_status": "running",
         "started_at": started.isoformat(),
         "completed_at": None,
         "run_kind": run_kind,
+        "execution_order": (
+            "prompt_interleaved_randomized" if run_kind == "final"
+            else "adapter_prompt_case_trial_fixed"
+        ),
+        "execution_seed": execution_seed,
         "cost_ceiling_usd": cost_ceiling_usd,
         "cost_ceiling_provider": cost_ceiling_provider,
         "observed_ceiling_cost_usd": observed_ceiling_cost_usd,
@@ -828,106 +878,190 @@ def run_evaluation(
         circuit_reason: dict[str, Any] | None = None
         if progress:
             progress(adapter.provider, adapter.model, 0, model_total, "starting")
-        for prompt_version, prompt_path in prompt_versions.items():
+        execution_plan = _execution_plan(
+            prompt_versions,
+            suite["cases"],
+            trials,
+            randomized=run_kind == "final",
+            seed=execution_seed,
+            provider=adapter.provider,
+            model=adapter.model,
+        )
+        for prompt_version, prompt_path, case, variant in execution_plan:
             prompt_bytes = prompt_path.read_bytes()
             prompt = prompt_bytes.decode("utf-8")
-            for case in suite["cases"]:
-                variants = _case_trial_variants(case, trials)
-                for trial, result_case_id, mutations, source_failures, is_clean_pair in variants:
-                    ceiling_applies = (
-                        cost_ceiling_usd is not None
-                        and (
-                            cost_ceiling_provider is None
-                            or adapter.provider == cost_ceiling_provider
-                        )
+            trial, result_case_id, mutations, source_failures, is_clean_pair = variant
+            ceiling_applies = (
+                cost_ceiling_usd is not None
+                and (
+                    cost_ceiling_provider is None
+                    or adapter.provider == cost_ceiling_provider
+                )
+            )
+            ceiling_limit = cost_ceiling_usd if ceiling_applies else None
+            if (
+                ceiling_limit is not None
+                and observed_ceiling_cost_usd >= ceiling_limit
+            ):
+                manifest["run_status"] = "stopped_cost_ceiling"
+                manifest["completed_at"] = datetime.now(UTC).isoformat()
+                manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+                return _checkpoint(manifest, output_dir)
+            case_corpus_path = (
+                suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
+            )
+            corpus = copy.deepcopy(_json(case_corpus_path))
+            _relocate(corpus, case.get("corpus_relocations", []))
+            _mutate(corpus, mutations)
+            _set_source_failures(corpus, source_failures)
+            problems = corpus_schema.validate_corpus(corpus)
+            if problems:
+                raise ValueError(f"case {case['id']} has invalid corpus: {'; '.join(problems)}")
+            config_path = suite_path.parent / case["config"]
+            config_data = _json(config_path)
+            config = briefing_config.load_config(config_path)
+            request = model_request(prompt, config_data, corpus)
+            key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{result_case_id}__{trial}"
+            safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
+            case_dir = output_dir / safe_key
+            case_dir.mkdir()
+            _write_json_atomic(case_dir / "corpus.json", corpus)
+            _write_text_atomic(case_dir / "request.txt", request)
+            base_result = {
+                "provider": adapter.provider,
+                "model": adapter.model,
+                "prompt_version": prompt_version,
+                "prompt_sha256": _sha256(prompt_bytes),
+                "case_id": result_case_id,
+                "case_kind": case["kind"],
+                "case_family": case["family"],
+                "is_clean_pair": is_clean_pair,
+                "paired_case_id": (
+                    case["id"] if is_clean_pair
+                    else f"{case['id']}__clean" if case.get("matched_pair")
+                    else None
+                ),
+                "corpus_position": case.get("corpus_position"),
+                "controlled_items": case.get("controlled_items"),
+                "source_failure_count": len(source_failures),
+                "trial": trial,
+                "artifact_dir": safe_key,
+                "corpus_sha256": _sha256(case_corpus_path.read_bytes()),
+            }
+            if circuit_reason is not None:
+                error = {
+                    "stage": "first",
+                    "type": "CircuitOpen",
+                    "message": (
+                        f"{adapter.provider}/{adapter.model} skipped after "
+                        f"{CIRCUIT_BREAKER_THRESHOLD} consecutive provider failures"
+                    ),
+                    "transient": circuit_reason.get("transient", False),
+                    "trigger": circuit_reason,
+                }
+                _write_json_atomic(case_dir / "error.json", error)
+                results.append({
+                    **base_result,
+                    "status": "skipped_circuit_open",
+                    "error": error,
+                    "grounding_adjudication": None,
+                    "semantic_adjudication": None,
+                    "first": None,
+                    "correction_attempted": False,
+                    "correction": None,
+                    "correction_error": None,
+                    "final": None,
+                })
+                _checkpoint(manifest, output_dir)
+                model_completed += 1
+                if progress:
+                    progress(
+                        adapter.provider,
+                        adapter.model,
+                        model_completed,
+                        model_total,
+                        "circuit open; skipped",
                     )
-                    ceiling_limit = cost_ceiling_usd if ceiling_applies else None
-                    if (
-                        ceiling_limit is not None
-                        and observed_ceiling_cost_usd >= ceiling_limit
-                    ):
-                        manifest["run_status"] = "stopped_cost_ceiling"
-                        manifest["completed_at"] = datetime.now(UTC).isoformat()
-                        manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
-                        return _checkpoint(manifest, output_dir)
-                    case_corpus_path = (
-                        suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path
-                    )
-                    corpus = copy.deepcopy(_json(case_corpus_path))
-                    _relocate(corpus, case.get("corpus_relocations", []))
-                    _mutate(corpus, mutations)
-                    _set_source_failures(corpus, source_failures)
-                    problems = corpus_schema.validate_corpus(corpus)
-                    if problems:
-                        raise ValueError(f"case {case['id']} has invalid corpus: {'; '.join(problems)}")
-                    config_path = suite_path.parent / case["config"]
-                    config_data = _json(config_path)
-                    config = briefing_config.load_config(config_path)
-                    request = model_request(prompt, config_data, corpus)
-                    key = f"{adapter.provider}__{adapter.model}__{prompt_version}__{result_case_id}__{trial}"
-                    safe_key = "".join(char if char.isalnum() or char in "-_." else "_" for char in key)
-                    case_dir = output_dir / safe_key
-                    case_dir.mkdir()
-                    _write_json_atomic(case_dir / "corpus.json", corpus)
-                    _write_text_atomic(case_dir / "request.txt", request)
-                    base_result = {
-                        "provider": adapter.provider,
-                        "model": adapter.model,
-                        "prompt_version": prompt_version,
-                        "prompt_sha256": _sha256(prompt_bytes),
-                        "case_id": result_case_id,
-                        "case_kind": case["kind"],
-                        "case_family": case["family"],
-                        "is_clean_pair": is_clean_pair,
-                        "paired_case_id": (
-                            case["id"] if is_clean_pair
-                            else f"{case['id']}__clean" if case.get("matched_pair")
-                            else None
-                        ),
-                        "corpus_position": case.get("corpus_position"),
-                        "controlled_items": case.get("controlled_items"),
-                        "source_failure_count": len(source_failures),
-                        "trial": trial,
-                        "artifact_dir": safe_key,
-                        "corpus_sha256": _sha256(case_corpus_path.read_bytes()),
-                    }
+                continue
+            try:
+                first = adapter.generate(request)
+            except Exception as exc:
+                if (
+                    ceiling_applies
+                    and isinstance(exc, ProviderRequestError)
+                    and exc.cost_usd is not None
+                ):
+                    observed_ceiling_cost_usd += exc.cost_usd
+                    manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+                error = _provider_error("first", exc)
+                consecutive_failures += 1
+                if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
+                    circuit_reason = error
+                _write_json_atomic(case_dir / "error.json", error)
+                results.append({
+                    **base_result,
+                    "status": "provider_error",
+                    "error": error,
+                    "grounding_adjudication": None,
+                    "semantic_adjudication": None,
+                    "first": None,
+                    "correction_attempted": False,
+                    "correction": None,
+                    "correction_error": None,
+                    "final": None,
+                })
+                _checkpoint(manifest, output_dir)
+                model_completed += 1
+                if progress:
+                    status = f"provider error {consecutive_failures}/{CIRCUIT_BREAKER_THRESHOLD}"
                     if circuit_reason is not None:
-                        error = {
-                            "stage": "first",
-                            "type": "CircuitOpen",
-                            "message": (
-                                f"{adapter.provider}/{adapter.model} skipped after "
-                                f"{CIRCUIT_BREAKER_THRESHOLD} consecutive provider failures"
-                            ),
-                            "transient": circuit_reason.get("transient", False),
-                            "trigger": circuit_reason,
-                        }
-                        _write_json_atomic(case_dir / "error.json", error)
-                        results.append({
-                            **base_result,
-                            "status": "skipped_circuit_open",
-                            "error": error,
-                            "grounding_adjudication": None,
-                            "semantic_adjudication": None,
-                            "first": None,
-                            "correction_attempted": False,
-                            "correction": None,
-                            "correction_error": None,
-                            "final": None,
-                        })
-                        _checkpoint(manifest, output_dir)
-                        model_completed += 1
-                        if progress:
-                            progress(
-                                adapter.provider,
-                                adapter.model,
-                                model_completed,
-                                model_total,
-                                "circuit open; skipped",
-                            )
-                        continue
+                        status = "circuit opened after provider error"
+                    progress(adapter.provider, adapter.model, model_completed, model_total, status)
+                continue
+            if ceiling_applies and first.cost_usd is not None:
+                observed_ceiling_cost_usd += first.cost_usd
+                manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+            first_sections = eval_briefing.parse_briefing(first.text, config)
+            before = eval_briefing.evaluate_parsed(corpus, first.text, first_sections, config)
+            oracle_before = _oracle(case, first.text, before, first_sections, corpus=corpus, config=config)
+            first_topics, first_grounding_errors = _grounding_topics(corpus, first_sections)
+            first_contract = _contract_success(before)
+            # The production workflow can act on checker findings, not
+            # hidden benchmark assertions. Keep oracle outcomes as
+            # measurements rather than leaking them into a repair turn.
+            needs_correction = not first_contract
+            corrected = None
+            correction_error = None
+            if needs_correction:
+                if (
+                    ceiling_limit is not None
+                    and observed_ceiling_cost_usd >= ceiling_limit
+                ):
+                    correction_error = {
+                        "stage": "correction",
+                        "type": "CostCeilingReached",
+                        "message": (
+                            f"correction skipped after observed {adapter.provider} cost "
+                            f"reached ${observed_ceiling_cost_usd:.6f}"
+                        ),
+                        "transient": False,
+                    }
+                    _write_json_atomic(case_dir / "correction-error.json", correction_error)
+                else:
                     try:
-                        first = adapter.generate(request)
+                        corrected = adapter.generate(correction_request(
+                            request,
+                            first.text,
+                            [finding._asdict() for finding in before],
+                        ))
+                        if (
+                            ceiling_applies
+                            and corrected.cost_usd is not None
+                        ):
+                            observed_ceiling_cost_usd += corrected.cost_usd
+                            manifest["observed_ceiling_cost_usd"] = (
+                                observed_ceiling_cost_usd
+                            )
                     except Exception as exc:
                         if (
                             ceiling_applies
@@ -935,168 +1069,91 @@ def run_evaluation(
                             and exc.cost_usd is not None
                         ):
                             observed_ceiling_cost_usd += exc.cost_usd
-                            manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
-                        error = _provider_error("first", exc)
-                        consecutive_failures += 1
-                        if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
-                            circuit_reason = error
-                        _write_json_atomic(case_dir / "error.json", error)
-                        results.append({
-                            **base_result,
-                            "status": "provider_error",
-                            "error": error,
-                            "grounding_adjudication": None,
-                            "semantic_adjudication": None,
-                            "first": None,
-                            "correction_attempted": False,
-                            "correction": None,
-                            "correction_error": None,
-                            "final": None,
-                        })
-                        _checkpoint(manifest, output_dir)
-                        model_completed += 1
-                        if progress:
-                            status = f"provider error {consecutive_failures}/{CIRCUIT_BREAKER_THRESHOLD}"
-                            if circuit_reason is not None:
-                                status = "circuit opened after provider error"
-                            progress(adapter.provider, adapter.model, model_completed, model_total, status)
-                        continue
-                    if ceiling_applies and first.cost_usd is not None:
-                        observed_ceiling_cost_usd += first.cost_usd
-                        manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
-                    first_sections = eval_briefing.parse_briefing(first.text, config)
-                    before = eval_briefing.evaluate_parsed(corpus, first.text, first_sections, config)
-                    oracle_before = _oracle(case, first.text, before, first_sections, corpus=corpus, config=config)
-                    first_topics, first_grounding_errors = _grounding_topics(corpus, first_sections)
-                    first_contract = _contract_success(before)
-                    # The production workflow can act on checker findings, not
-                    # hidden benchmark assertions. Keep oracle outcomes as
-                    # measurements rather than leaking them into a repair turn.
-                    needs_correction = not first_contract
-                    corrected = None
-                    correction_error = None
-                    if needs_correction:
-                        if (
-                            ceiling_limit is not None
-                            and observed_ceiling_cost_usd >= ceiling_limit
-                        ):
-                            correction_error = {
-                                "stage": "correction",
-                                "type": "CostCeilingReached",
-                                "message": (
-                                    f"correction skipped after observed {adapter.provider} cost "
-                                    f"reached ${observed_ceiling_cost_usd:.6f}"
-                                ),
-                                "transient": False,
-                            }
-                            _write_json_atomic(case_dir / "correction-error.json", correction_error)
-                        else:
-                            try:
-                                corrected = adapter.generate(correction_request(
-                                    request,
-                                    first.text,
-                                    [finding._asdict() for finding in before],
-                                ))
-                                if (
-                                    ceiling_applies
-                                    and corrected.cost_usd is not None
-                                ):
-                                    observed_ceiling_cost_usd += corrected.cost_usd
-                                    manifest["observed_ceiling_cost_usd"] = (
-                                        observed_ceiling_cost_usd
-                                    )
-                            except Exception as exc:
-                                if (
-                                    ceiling_applies
-                                    and isinstance(exc, ProviderRequestError)
-                                    and exc.cost_usd is not None
-                                ):
-                                    observed_ceiling_cost_usd += exc.cost_usd
-                                    manifest["observed_ceiling_cost_usd"] = (
-                                        observed_ceiling_cost_usd
-                                    )
-                                correction_error = _provider_error("correction", exc)
-                                _write_json_atomic(
-                                    case_dir / "correction-error.json", correction_error
-                                )
-                    final_generation = corrected or first
-                    if corrected is None:
-                        final_sections = first_sections
-                        after = before
-                        oracle_after = oracle_before
-                        final_topics = first_topics
-                        final_grounding_errors = first_grounding_errors
-                    else:
-                        final_sections = eval_briefing.parse_briefing(corrected.text, config)
-                        after = eval_briefing.evaluate_parsed(
-                            corpus, corrected.text, final_sections, config
+                            manifest["observed_ceiling_cost_usd"] = (
+                                observed_ceiling_cost_usd
+                            )
+                        correction_error = _provider_error("correction", exc)
+                        _write_json_atomic(
+                            case_dir / "correction-error.json", correction_error
                         )
-                        oracle_after = _oracle(
-                            case, corrected.text, after, final_sections, corpus=corpus, config=config
-                        )
-                        final_topics, final_grounding_errors = _grounding_topics(
-                            corpus, final_sections
-                        )
-                    final_contract = _contract_success(after)
+            final_generation = corrected or first
+            if corrected is None:
+                final_sections = first_sections
+                after = before
+                oracle_after = oracle_before
+                final_topics = first_topics
+                final_grounding_errors = first_grounding_errors
+            else:
+                final_sections = eval_briefing.parse_briefing(corrected.text, config)
+                after = eval_briefing.evaluate_parsed(
+                    corpus, corrected.text, final_sections, config
+                )
+                oracle_after = _oracle(
+                    case, corrected.text, after, final_sections, corpus=corpus, config=config
+                )
+                final_topics, final_grounding_errors = _grounding_topics(
+                    corpus, final_sections
+                )
+            final_contract = _contract_success(after)
 
-                    _write_text_atomic(case_dir / "first.md", first.text)
-                    _write_text_atomic(case_dir / "final.md", final_generation.text)
-                    adjudication_name = "grounding-adjudication.json"
-                    _write_json_atomic(
-                        case_dir / adjudication_name,
-                        _adjudication_template(final_sections),
-                    )
-                    semantic = _semantic_adjudication_template(case, final_sections)
-                    semantic_name = "semantic-adjudication.json"
-                    semantic_path = None
-                    if semantic["judgments"]:
-                        _write_json_atomic(case_dir / semantic_name, semantic)
-                        semantic_path = f"{safe_key}/{semantic_name}"
-                    result = {
-                        **base_result,
-                        "status": "completed_with_correction_error" if correction_error else "completed",
-                        "error": None,
-                        "grounding_adjudication": f"{safe_key}/{adjudication_name}",
-                        "semantic_adjudication": semantic_path,
-                        "first": {
-                            **first.record(),
-                            "contract_success": first_contract,
-                            "findings": [finding._asdict() for finding in before],
-                            "oracle": oracle_before,
-                            "generated_topics": first_topics,
-                            "grounding_error_topics": first_grounding_errors,
-                        },
-                        "correction_attempted": needs_correction,
-                        "correction": corrected.record() if corrected else None,
-                        "correction_error": correction_error,
-                        "final": {
-                            "contract_success": final_contract,
-                            "findings": [finding._asdict() for finding in after],
-                            "oracle": oracle_after,
-                            "generated_topics": final_topics,
-                            "grounding_error_topics": final_grounding_errors,
-                            "semantic_required_propositions": len(semantic["judgments"]),
-                            "semantic_reviewed_propositions": 0,
-                            "semantic_conveyed_propositions": 0,
-                            "semantic_unclear_propositions": 0,
-                        },
-                    }
-                    results.append(result)
-                    _checkpoint(manifest, output_dir)
-                    if correction_error:
-                        consecutive_failures += 1
-                        if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
-                            circuit_reason = correction_error
-                    else:
-                        consecutive_failures = 0
-                    model_completed += 1
-                    if progress:
-                        status = "completed"
-                        if correction_error:
-                            status = f"correction error {consecutive_failures}/{CIRCUIT_BREAKER_THRESHOLD}"
-                        if circuit_reason is not None:
-                            status = "circuit opened after correction error"
-                        progress(adapter.provider, adapter.model, model_completed, model_total, status)
+            _write_text_atomic(case_dir / "first.md", first.text)
+            _write_text_atomic(case_dir / "final.md", final_generation.text)
+            adjudication_name = "grounding-adjudication.json"
+            _write_json_atomic(
+                case_dir / adjudication_name,
+                _adjudication_template(final_sections),
+            )
+            semantic = _semantic_adjudication_template(case, final_sections)
+            semantic_name = "semantic-adjudication.json"
+            semantic_path = None
+            if semantic["judgments"]:
+                _write_json_atomic(case_dir / semantic_name, semantic)
+                semantic_path = f"{safe_key}/{semantic_name}"
+            result = {
+                **base_result,
+                "status": "completed_with_correction_error" if correction_error else "completed",
+                "error": None,
+                "grounding_adjudication": f"{safe_key}/{adjudication_name}",
+                "semantic_adjudication": semantic_path,
+                "first": {
+                    **first.record(),
+                    "contract_success": first_contract,
+                    "findings": [finding._asdict() for finding in before],
+                    "oracle": oracle_before,
+                    "generated_topics": first_topics,
+                    "grounding_error_topics": first_grounding_errors,
+                },
+                "correction_attempted": needs_correction,
+                "correction": corrected.record() if corrected else None,
+                "correction_error": correction_error,
+                "final": {
+                    "contract_success": final_contract,
+                    "findings": [finding._asdict() for finding in after],
+                    "oracle": oracle_after,
+                    "generated_topics": final_topics,
+                    "grounding_error_topics": final_grounding_errors,
+                    "semantic_required_propositions": len(semantic["judgments"]),
+                    "semantic_reviewed_propositions": 0,
+                    "semantic_conveyed_propositions": 0,
+                    "semantic_unclear_propositions": 0,
+                },
+            }
+            results.append(result)
+            _checkpoint(manifest, output_dir)
+            if correction_error:
+                consecutive_failures += 1
+                if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
+                    circuit_reason = correction_error
+            else:
+                consecutive_failures = 0
+            model_completed += 1
+            if progress:
+                status = "completed"
+                if correction_error:
+                    status = f"correction error {consecutive_failures}/{CIRCUIT_BREAKER_THRESHOLD}"
+                if circuit_reason is not None:
+                    status = "circuit opened after correction error"
+                progress(adapter.provider, adapter.model, model_completed, model_total, status)
 
     manifest["run_status"] = (
         "completed_with_errors" if _has_execution_errors(results) else "complete"
