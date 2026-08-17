@@ -724,19 +724,24 @@ def _execution_plan(
     model: str,
 ) -> list[tuple[str, Path, dict[str, Any], tuple[int, str, list[dict[str, Any]], list[dict[str, Any]], bool]]]:
     """Build one adapter's work order, strictly interleaving prompts for final runs."""
-    by_prompt = {
-        prompt_version: [
+    if not randomized:
+        return [
             (prompt_version, prompt_path, case, variant)
+            for prompt_version, prompt_path in prompt_versions.items()
             for case in cases
             for variant in _case_trial_variants(case, trials)
         ]
-        for prompt_version, prompt_path in prompt_versions.items()
-    }
-    if not randomized:
-        return [unit for prompt_version in prompt_versions for unit in by_prompt[prompt_version]]
     if seed is None:
         raise ValueError("randomized execution requires a seed")
 
+    by_prompt = {
+        prompt_version: [
+            (prompt_version, prompt_versions[prompt_version], case, variant)
+            for case in cases
+            for variant in _case_trial_variants(case, trials)
+        ]
+        for prompt_version in sorted(prompt_versions)
+    }
     identity = f"{seed}\0{provider}\0{model}".encode()
     rng = random.Random(int.from_bytes(hashlib.sha256(identity).digest()))
     prompt_order = sorted(by_prompt)
@@ -776,6 +781,8 @@ def run_evaluation(
         not isinstance(execution_seed, int) or isinstance(execution_seed, bool) or execution_seed < 0
     ):
         raise ValueError("execution_seed must be a non-negative integer")
+    if run_kind == "final" and len(prompt_versions) < 2:
+        raise ValueError("final runs require at least two prompt versions for interleaving")
     if run_kind == "final" and execution_seed is None:
         execution_seed = secrets.randbits(64)
     if cost_ceiling_usd is not None and cost_ceiling_usd <= 0:

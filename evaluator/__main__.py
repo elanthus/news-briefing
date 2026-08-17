@@ -207,7 +207,12 @@ def main() -> int:
         action="store_true",
         help="run every model in each comma-delimited provider MODEL environment variable",
     )
-    run.add_argument("--prompt", action="append", default=[], help="VERSION=PATH; repeatable")
+    run.add_argument(
+        "--prompt",
+        action="append",
+        default=[],
+        help="VERSION=PATH; repeatable (final runs require at least two)",
+    )
     run.add_argument("--trials", type=int, default=1)
     run.add_argument("--timeout", type=int, default=300)
     run.add_argument(

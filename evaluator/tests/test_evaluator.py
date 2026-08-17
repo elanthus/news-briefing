@@ -1106,9 +1106,10 @@ class RunnerTest(unittest.TestCase):
             orders = []
             for run in range(2):
                 output = temporary / f"results-{run}"
+                run_prompts = prompts if run == 0 else dict(reversed(prompts.items()))
                 run_evaluation(
                     [FakeAdapter("fixture")],
-                    prompts,
+                    run_prompts,
                     output,
                     trials=2,
                     suite_path=suite,
@@ -1136,6 +1137,19 @@ class RunnerTest(unittest.TestCase):
                 for trial in range(1, 3)
             ]
             self.assertNotEqual(orders[0], fixed)
+
+    def test_final_run_requires_multiple_prompt_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            prompt = Path(directory) / "production.md"
+            prompt.write_text("Produce the briefing.", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "at least two prompt versions"):
+                run_evaluation(
+                    [],
+                    {"production": prompt},
+                    Path(directory) / "results",
+                    run_kind="final",
+                    execution_seed=1,
+                )
 
     def test_execution_seed_is_rejected_outside_final_runs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
