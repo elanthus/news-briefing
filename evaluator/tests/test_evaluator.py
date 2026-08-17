@@ -1236,15 +1236,16 @@ class RunnerTest(unittest.TestCase):
             )
             prompt = temporary / "prompt.md"
             prompt.write_text("Produce the briefing.", encoding="utf-8")
+            adapter = FailCorrectionAdapter("fixture")
             report = run_evaluation(
-                [CostedFakeAdapter("fixture")],
+                [adapter],
                 {"production": prompt},
                 temporary / "results",
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
                 run_kind="pilot",
                 cost_ceiling_usd=0.001,
-                cost_ceiling_provider="costed-fixture",
+                cost_ceiling_provider="offline-fixture",
             )
             manifest = json.loads(
                 (temporary / "results" / "manifest.json").read_text(encoding="utf-8")
@@ -1253,8 +1254,17 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["run_kind"], "pilot")
             self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.001)
             self.assertEqual(len(manifest["results"]), 1)
+            self.assertEqual(adapter.calls, 1)
+            self.assertEqual(
+                manifest["results"][0]["correction_error"]["type"],
+                "CostCeilingReached",
+            )
             self.assertEqual(report["operations"]["recorded_case_trials"], 1)
             self.assertEqual(report["operations"]["planned_case_trials"], 2)
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 1)
+            self.assertEqual(cost["unreported_calls"], 0)
+            self.assertEqual(cost["total_usd"], 0.001)
 
     def test_billed_provider_error_counts_toward_the_cost_ceiling(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2313,6 +2323,10 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["run_status"], "completed_with_errors")
             self.assertEqual(report["operations"]["provider_error_trials"], 3)
             self.assertEqual(report["operations"]["circuit_open_skipped_trials"], 2)
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 0)
+            self.assertEqual(cost["unreported_calls"], 3)
+            self.assertIsNone(cost["total_usd"])
             self.assertEqual(progress[0][2:], (0, 5, "starting"))
             self.assertEqual(progress[-1][2:], (5, 5, "circuit open; skipped"))
 
