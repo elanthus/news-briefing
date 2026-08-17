@@ -1,4 +1,5 @@
 corpus.json
+.news-briefing/
 __pycache__/
 *.pyc
 *.egg-info/

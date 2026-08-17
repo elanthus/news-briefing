@@ -27,7 +27,9 @@ configuration, such as:
 - bypasses of public-destination validation, DNS pinning, or redirect checks;
 - ways to introduce a briefing URL that is absent from the fetched corpus;
 - parser or resource-exhaustion flaws that violate the documented input bounds;
-- credential exposure from the optional evaluator; and
+- credential exposure from the runner or optional evaluator;
+- bypasses of the runner's OpenRouter or Claude Code empty-tool policy, citation
+  projection, checkpoint integrity, or fail-closed provider-event validation; and
 - prompt-injection paths that cross a boundary the project claims to enforce.
 
 The following are documented limitations rather than vulnerabilities by
@@ -36,8 +38,9 @@ themselves:
 - inaccurate ranking or summaries produced by a model;
 - prompt injection that changes selection or prose without escaping the corpus
   URL allowlist;
-- unsafe tools granted to the generating agent contrary to the deployment
-  precondition in `briefing-prompt.md`;
+- a Codex built-in tool being present but unused inside the documented empty,
+  read-only sandbox boundary (actual non-message/reasoning trace events are in
+  scope);
 - malicious, inaccurate, unavailable, or rate-limited third-party feeds; and
 - denial of service against the upstream public sources.
 
