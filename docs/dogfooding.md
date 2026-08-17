@@ -5,6 +5,7 @@ This is the operating record for news-briefing. It records the first run of the 
 For a complete daily run, record:
 
 - the agent and execution environment;
+- the prompt version (a content hash or immutable source revision, plus any version name);
 - corpus item counts by category and elapsed fetch time;
 - every failed source;
 - the checker's first result;
@@ -12,6 +13,8 @@ For a complete daily run, record:
 - the final checker result.
 
 Generated corpora and briefings are archived per day under [`docs/runs/<date>/`](runs/) (corpus, briefing, and the `briefing-config.json` snapshot used), so each entry below can be re-derived instead of taken on trust. The frozen regression pair in `fixtures/` is separate: it is the fixed example the test suite pins to, and daily runs do not update it.
+
+Prompt versions for runs before 2026-08-16 were not recorded at run time. The historical entries below now identify the committed `briefing-prompt.md` version inferred from the corpus generation time, prompt-change history, and the parent of the contemporaneous run or log commit. These retroactive values identify the most strongly supported repository prompt bytes, not the complete request delivered to the model: they cannot rule out uncommitted changes, recover provider or CLI system instructions, or reconstruct missing first-output and correction-request bytes.
 
 ## Pre-launch verification
 
@@ -31,6 +34,7 @@ Generated corpora and briefings are archived per day under [`docs/runs/<date>/`]
 The complete fetch → rank and summarize → check loop that produced [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). Every count below is derived from those two committed files, so this entry can be re-derived instead of taken on trust.
 
 - Agent and execution environment: Claude Opus 5 subagent via Claude Desktop 2.1.222, in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `8f89fb6` (SHA-256 `3d470b528b257e52de3889bdda9dadda2f8f5255ac81abad4ae6010404c9885d`).
 - Corpus window: 2026-08-09 00:34 UTC → 2026-08-10 00:34 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 158 items — 27 US politics, 53 US news, 46 world, 7 AI/tech, 25 developer-community. Elapsed fetch time: 27.1 seconds.
 - Source failures: `r/ClaudeCode`, `r/LocalLLaMA` and `r/cursor` all returned HTTP 429 — three of the four subreddits. No Hacker News item cleared the window either, so both dev sub-sections drew on r/ClaudeAI alone, with no engagement signal available for any dev-community item. The briefing says so in its corpus-health section rather than just looking thin.
@@ -51,6 +55,7 @@ Note on the claim-grounding checks: the four problems they caught on arrival (th
 The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/2026-08-10/), so this entry can be re-derived instead of taken on trust.
 
 - Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `c47973a` (SHA-256 `c83082cbeaa8df013a8de6251b8e26011aceccf9728b49fee5a955894daf49b2`). This is the latest prompt change before corpus generation and the version in the parent of the contemporaneous log commit; the artifacts were archived later, after another prompt change.
 - Corpus window: 2026-08-09 17:10:48 UTC → 2026-08-10 17:10:48 UTC (24h), default caps of 25 items per source and 60 per category.
 - Corpus: 208 items — 26 US politics, 60 US news, 47 world, 15 AI/tech, 60 developer-community. Elapsed fetch time wasn't captured on the actual run; an immediate follow-up fetch under the same environment and script took 23.9 seconds, given here as representative.
 - Source failures: `r/ClaudeCode` returned HTTP 429 — the only failure. All four other Reddit sources, Hacker News, and every RSS feed cleared the window.
@@ -69,6 +74,7 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
 The complete fetch → rank and summarize → check loop requested as a dated sample. Unlike the fixed 2026-08-09 regression pair, this run is preserved as a separate dated fixture set: [`corpus-2026-08-11.json`](../fixtures/corpus-2026-08-11.json), [`briefing-2026-08-11.md`](../fixtures/briefing-2026-08-11.md), and [`briefing-config-2026-08-11.json`](../fixtures/briefing-config-2026-08-11.json).
 
 - Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `2adfeba` (SHA-256 `a5067598917874ef5e30acfd65d7b2e55c9992c5b4c6ba2368a160696fa7e72b`).
 - Corpus window: 2026-08-10 16:47:41 UTC → 2026-08-11 16:47:41 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 230 items — 40 US politics, 60 US news, 55 world, 22 AI/tech, and 53 developer-community. Elapsed fetch time: 19.5 seconds.
 - Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode` and `r/LocalLLaMA` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all three coverage gaps.
@@ -87,6 +93,7 @@ The complete fetch → rank and summarize → check loop requested as a dated sa
 The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/2026-08-12/).
 
 - Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `5e31cfa` (SHA-256 `e115aeb706bc87c3a9df87b349672d6f858e7ddf6a6b346dd6da0602b97fcf3a`).
 - Corpus window: 2026-08-11 18:54:09 UTC → 2026-08-12 18:54:09 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 210 items — 40 US politics, 60 US news, 58 world, 24 AI/tech, and 28 developer-community. Elapsed live fetch time: 25.4 seconds.
 - Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all four coverage gaps.
@@ -105,6 +112,7 @@ The complete fetch → rank and summarize → check loop run in Codex. The corpu
 The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/2026-08-13/).
 
 - Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`). The CLI also loaded unarchived startup-hook context, so this identifies only the repository prompt, not the complete model input.
 - Corpus window: 2026-08-12 16:53:27 UTC → 2026-08-13 16:53:27 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 236 items — 35 US politics, 60 US news, 58 world, 23 AI/tech, and 60 developer-community. Elapsed live fetch time: 10.5 seconds.
 - Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries. The briefing's corpus-health prose and machine-readable manifest record the resulting coverage gap.
@@ -126,6 +134,7 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
 The complete fetch → rank and summarize → check → single correction → final check loop run with OpenRouter `tencent/hy3`. The corpus, first draft, final `ERROR` briefing, configuration snapshot, and token/cost manifest are archived at [`docs/runs/2026-08-15/`](runs/2026-08-15/). This entry preserves the unhealthy result rather than replacing it with an unrecorded cleaner rerun.
 
 - Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Generation used OpenRouter `tencent/hy3` with temperature 0, no seed, reasoning disabled, an 8,192-token output ceiling, and a 300-second per-call timeout. The model received only the trusted prompt/configuration and the closed corpus; it had no tools or browsing capability.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
 - Initial environment attempt: the first sandboxed fetch had no outbound-network access and exited after 6.1 seconds with 0 usable items and 28 fetch errors. It was immediately rerun after network access was approved; the failed environment check is recorded here and is not misreported as source health.
 - Corpus window: 2026-08-14 17:09:55 UTC → 2026-08-15 17:09:55 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 185 items — 24 US politics, 60 US news, 46 world, 3 AI/tech, and 52 developer-community. The successful live fetch took 19.65 seconds according to the corpus manifest.
@@ -146,6 +155,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 
 At owner request, Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/2026-08-15/hy3-reasoning-enabled/).
 
+- Inferred prompt version (not recorded at run time): the same `briefing-prompt.md` version as the initial run, `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
 - Original-ceiling attempt: with the original 8,192-token completion budget and 300-second call timeout, Hy3 consumed the completion budget in reasoning and returned no text (`finish_reason='length'`). Because the one-off invocation did not persist the exception's usage envelope, its exact billed cost is unavailable. Using the identical retry's 33,260-token prompt count and the exhausted 8,192-token budget, the catalog-rate estimate is $0.008715696.
 - Owner-authorized retry controls: the same request was retried with a 100,000-token completion budget and a 600-second per-call timeout. No other generation control changed. The larger budget was subsequently made the evaluator's permanent default; the 10-minute timeout applied only to this follow-up.
 - First completed draft: 90.85 seconds; 33,260 prompt tokens and 19,631 completion tokens, including 15,748 reasoning and 3,883 visible-output tokens. OpenRouter reported $0.014438142. The checker found 6 errors and 16 warnings: three AI subsection labels were unrecognized because the model again emitted literal square brackets, three BBC URLs lost their required query strings, and the unsupported-figure heuristic produced 16 warnings.
