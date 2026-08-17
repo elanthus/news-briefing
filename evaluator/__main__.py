@@ -207,7 +207,12 @@ def main() -> int:
         action="store_true",
         help="run every model in each comma-delimited provider MODEL environment variable",
     )
-    run.add_argument("--prompt", action="append", default=[], help="VERSION=PATH; repeatable")
+    run.add_argument(
+        "--prompt",
+        action="append",
+        default=[],
+        help="VERSION=PATH; repeatable (final runs require at least two)",
+    )
     run.add_argument("--trials", type=int, default=1)
     run.add_argument("--timeout", type=int, default=300)
     run.add_argument(
@@ -216,6 +221,11 @@ def main() -> int:
         help="sampling temperature for API providers (default: 0)",
     )
     run.add_argument("--seed", type=int, help="optional sampling seed for API providers")
+    run.add_argument(
+        "--execution-seed",
+        type=int,
+        help="optional final-run ordering seed; generated and recorded when omitted",
+    )
     run.add_argument(
         "--reasoning",
         choices=("enabled", "disabled"),
@@ -358,6 +368,7 @@ def main() -> int:
                     progress,
                     protocol_path=args.protocol,
                     run_kind=args.run_kind,
+                    execution_seed=args.execution_seed,
                     cost_ceiling_usd=args.cost_ceiling_usd,
                     cost_ceiling_provider=args.cost_ceiling_provider,
                 )

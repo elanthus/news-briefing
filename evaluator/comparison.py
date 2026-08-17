@@ -287,6 +287,19 @@ def _required_provenance(left: dict[str, Any], right: dict[str, Any]) -> list[st
             problems.append(f"{field} is missing or invalid")
         elif left[field] != right[field]:
             problems.append(f"{field} differs")
+    execution_orders = (left.get("execution_order"), right.get("execution_order"))
+    if not all(isinstance(value, str) and value for value in execution_orders):
+        problems.append("execution_order is missing or invalid")
+    elif execution_orders[0] != execution_orders[1]:
+        problems.append("execution_order differs")
+    execution_seeds = (left.get("execution_seed"), right.get("execution_seed"))
+    if not all(
+        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        for value in execution_seeds
+    ):
+        problems.append("execution_seed is missing or invalid")
+    elif execution_seeds[0] != execution_seeds[1]:
+        problems.append("execution_seed differs")
     return problems
 
 

@@ -154,7 +154,7 @@
       "model_prompt_groups": 4,
       "planned_rows": 1200,
       "run_kind": "final",
-      "execution_order": "interleaved and randomized where adapters permit",
+      "execution_order": "deterministically randomized by the recorded execution seed and strictly interleaved across prompt versions within each provider/model",
       "cost_ceiling_usd": 4.0,
       "cost_ceiling_provider": "openrouter",
       "authorization_required": true,

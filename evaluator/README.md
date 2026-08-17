@@ -148,6 +148,11 @@ Run all four configured providers:
 python3 -m evaluator run --all-providers --trials 3
 ```
 
+Final runs require at least two prompt versions, randomize case/trial work, and strictly interleave those
+versions within each provider/model. Pass `--execution-seed` to reproduce a particular order; otherwise the
+runner generates and records a seed in the manifest. Development and pilot runs retain fixed adapter →
+prompt → case → trial order.
+
 Compare prompt versions by repeating `--prompt`:
 
 ```bash
