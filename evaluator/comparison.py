@@ -292,9 +292,13 @@ def _required_provenance(left: dict[str, Any], right: dict[str, Any]) -> list[st
 
 def _compatible(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
     problems = _required_provenance(left, right)
-    for field in ("run_kind", "trials_per_case"):
-        if left.get(field) != right.get(field):
-            problems.append(f"{field} differs")
+    if left.get("run_kind") != right.get("run_kind"):
+        problems.append("run_kind differs")
+    trial_counts = (left.get("trials_per_case"), right.get("trials_per_case"))
+    if not all(isinstance(value, int) and not isinstance(value, bool) and value > 0 for value in trial_counts):
+        problems.append("trials_per_case is missing or invalid")
+    elif trial_counts[0] != trial_counts[1]:
+        problems.append("trials_per_case differs")
     if left.get("run_kind") != "final":
         problems.append("only final runs satisfy the gated comparator")
     for label, manifest in (("baseline", left), ("candidate", right)):
@@ -482,18 +486,19 @@ def compare_runs(
     left_prompt = _infer_prompt(baseline_manifest, "production-2026-08", baseline_prompt)
     right_prompt = _infer_prompt(candidate_manifest, "reliability-v1", candidate_prompt)
 
-    models = sorted(
-        {
-            (row["provider"], row["model"])
-            for row in baseline_manifest["results"]
-            if row["prompt_version"] == left_prompt
-        }
-        & {
-            (row["provider"], row["model"])
-            for row in candidate_manifest["results"]
-            if row["prompt_version"] == right_prompt
-        }
-    )
+    baseline_models = {
+        (row["provider"], row["model"])
+        for row in baseline_manifest["results"]
+        if row["prompt_version"] == left_prompt
+    }
+    candidate_models = {
+        (row["provider"], row["model"])
+        for row in candidate_manifest["results"]
+        if row["prompt_version"] == right_prompt
+    }
+    if baseline_models != candidate_models:
+        problems.append("selected provider/model set differs")
+    models = sorted(baseline_models & candidate_models)
     if not models:
         raise ValueError("no shared provider/model groups between the selected prompts")
     problems.extend(_selected_compatibility(

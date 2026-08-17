@@ -5,9 +5,19 @@
   "scope": "Prompt or model changes evaluated with the portfolio-v1 protocol",
   "compatibility_requirements": {
     "same_suite_sha256": true,
+    "same_corpus_sha256": true,
+    "same_config_sha256": true,
+    "same_protocol_sha256": true,
     "same_run_kind": "final",
-    "same_trials_per_case": true,
+    "same_positive_trials_per_case": true,
+    "same_selected_provider_model_set": true,
+    "same_generation_controls_per_selected_provider_model": true,
+    "prompt_versions_bound_to_sha256": true,
+    "shared_prompt_versions_have_same_sha256": true,
+    "same_adjudication_completion_state_per_pair": true,
     "pair_by": ["provider", "model", "case_id", "trial"],
+    "pair_keys_must_be_exact_and_unique": true,
+    "same_row_corpus_sha256_per_pair": true,
     "incompatible_comparisons_may_be_descriptive_but_cannot_pass": true
   },
   "completion_requirements": {

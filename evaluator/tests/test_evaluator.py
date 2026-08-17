@@ -641,6 +641,33 @@ class ComparisonTest(unittest.TestCase):
                 compare_runs(paths[0], paths[1], bootstrap_samples=10)
             self.assertIn("candidate prompt hash is missing or inconsistent", str(raised.exception))
 
+    def test_missing_trial_count_and_one_sided_model_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "manifest.json"
+            rows = [
+                self._row("production-2026-08", "case", 1),
+                self._row("reliability-v1", "case", 1),
+            ]
+            extra = self._row("production-2026-08", "case", 1)
+            extra["model"] = "baseline-only"
+            rows.append(extra)
+            provenance = self._provenance("production-2026-08", "reliability-v1")
+            provenance["generation_controls"].append({
+                "provider": "provider", "model": "baseline-only", "temperature": 0,
+            })
+            path.write_text(json.dumps({
+                **provenance,
+                "suite_sha256": "suite",
+                "run_kind": "final",
+                "run_status": "complete",
+                "planned_case_trials": len(rows),
+                "results": rows,
+            }), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "trials_per_case is missing or invalid") as raised:
+                compare_runs(path, path, bootstrap_samples=10)
+            self.assertIn("selected provider/model set differs", str(raised.exception))
+
 
 class GroundingReviewPacketTest(unittest.TestCase):
     def test_packet_blinds_model_prompt_and_stratifies_double_review(self) -> None:
