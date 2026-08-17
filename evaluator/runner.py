@@ -15,6 +15,7 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
+
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
 from evaluator.cases import run_deterministic_suite
 from evaluator.metrics import latency_summary, rate
