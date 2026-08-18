@@ -118,7 +118,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(raised.exception.attempts, 1)
         self.assertEqual(opened.call_count, 1)
 
-    def test_claude_uses_explicit_empty_tool_policy(self):
+    def test_claude_allows_only_structured_output_tool(self):
         wrapper = {
             "result": '{"schema_version":1}',
             "structured_output": {"schema_version": 1},
@@ -132,8 +132,9 @@ class ProviderTests(unittest.TestCase):
             result = ClaudeCodeProvider("sonnet").generate(REQUEST)
         command = run.call_args.args[0]
         self.assertIn("--safe-mode", command)
-        self.assertEqual(command[command.index("--tools") + 1], "")
-        self.assertEqual(command[command.index("--disallowedTools") + 1], "*")
+        self.assertEqual(command[command.index("--tools") + 1], "StructuredOutput")
+        self.assertEqual(command[command.index("--allowedTools") + 1], "StructuredOutput")
+        self.assertNotIn("--disallowedTools", command)
         self.assertEqual(result.structured_output, {"schema_version": 1})
 
     def test_claude_ignores_malformed_optional_cost(self):
