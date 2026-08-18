@@ -1,0 +1,428 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "excluded_topics": {
+      "additionalProperties": false,
+      "properties": {
+        "AI Dev Practices": {
+          "description": "At most 5 excluded topics.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "citation_refs": {
+                "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "headline": {
+                "description": "A non-empty string of at most 300 characters.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "A non-empty string of at most 600 characters.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "reason",
+              "citation_refs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "AI Dev Tools": {
+          "description": "At most 5 excluded topics.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "citation_refs": {
+                "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "headline": {
+                "description": "A non-empty string of at most 300 characters.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "A non-empty string of at most 600 characters.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "reason",
+              "citation_refs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "US News": {
+          "description": "At most 5 excluded topics.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "citation_refs": {
+                "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "headline": {
+                "description": "A non-empty string of at most 300 characters.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "A non-empty string of at most 600 characters.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "reason",
+              "citation_refs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "US Politics": {
+          "description": "At most 5 excluded topics.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "citation_refs": {
+                "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "headline": {
+                "description": "A non-empty string of at most 300 characters.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "A non-empty string of at most 600 characters.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "reason",
+              "citation_refs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "World Events": {
+          "description": "At most 5 excluded topics.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "citation_refs": {
+                "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "headline": {
+                "description": "A non-empty string of at most 300 characters.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "A non-empty string of at most 600 characters.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "headline",
+              "reason",
+              "citation_refs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "US Politics",
+        "US News",
+        "World Events",
+        "AI Dev Tools",
+        "AI Dev Practices"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "enum": [
+        1
+      ],
+      "type": "integer"
+    },
+    "sections": {
+      "additionalProperties": false,
+      "properties": {
+        "AI Dev Practices": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 3 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        },
+        "AI Dev Tools": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 3 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        },
+        "AI News": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 4 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        },
+        "US News": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 4 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        },
+        "US Politics": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 3 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        },
+        "World Events": {
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "description": "At most 5 topics.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "citation_refs": {
+                    "description": "One or more distinct, eligible citation references from the supplied corpus.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "headline": {
+                    "description": "A non-empty string of at most 300 characters.",
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "A non-empty string of at most 1500 characters.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "headline",
+                  "summary",
+                  "citation_refs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "topics"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "US Politics",
+        "US News",
+        "World Events",
+        "AI News",
+        "AI Dev Tools",
+        "AI Dev Practices"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "sections",
+    "excluded_topics"
+  ],
+  "type": "object"
+}
