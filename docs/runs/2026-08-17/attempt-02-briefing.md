@@ -25,7 +25,7 @@ Corpus window: 2026-08-17T04:13:45.948041+00:00 → 2026-08-18T04:13:45.948041+0
 🔗 https://www.pbs.org/newshour/show/news-wrap-7-dead-after-storms-and-catastrophic-floods-in-midwest
 🔗 https://www.cbsnews.com/video/indiana-inundated-historic-flooding-100000-without-power/
 
-**Kindergarten vaccine exemptions reach a record high** *(consolidated)* — U.S. kindergarten vaccination rates fell again in the 2025–26 school year. Exemptions rose to 4.2 percent, increased in 41 states and the District of Columbia, and MMR coverage remained below the level cited as best for preventing widespread outbreaks.
+**Kindergarten vaccine exemptions reach a record high** *(consolidated)* — U.S. kindergarten vaccination rates fell again in the 2025–26 school year. Exemptions increased in 41 states and the District of Columbia, and MMR coverage remained below the level cited as best for preventing widespread outbreaks.
 🔗 https://www.axios.com/2026/08/17/kindergarten-vaccine-rates-fall
 🔗 https://thehill.com/policy/healthcare/6033790-mmr-vaccine-coverage-falls-below-target/
 

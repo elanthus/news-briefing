@@ -100,7 +100,7 @@ class BriefingOutputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
             project_corpus(injected)
 
-    def test_schema_restricts_section_names_and_uses_common_provider_subset(self):
+    def test_schema_restricts_sections_and_matches_runtime_constraints(self):
         _corpus, config, projected, _output = fixture_contract()
         schema = build_output_schema(config)
         self.assertFalse(schema["additionalProperties"])
@@ -108,9 +108,21 @@ class BriefingOutputTests(unittest.TestCase):
             schema["properties"]["sections"]["required"],
             [section.name for section in config.sections],
         )
-        rendered = json.dumps(schema)
-        for unsupported in ("$schema", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems"):
-            self.assertNotIn(f'"{unsupported}"', rendered)
+        self.assertNotIn("$schema", schema)
+        first = config.sections[0]
+        topics = schema["properties"]["sections"]["properties"][first.name]["properties"]["topics"]
+        self.assertEqual(topics["minItems"], 0)
+        self.assertEqual(topics["maxItems"], first.target_stories)
+        headline = topics["items"]["properties"]["headline"]
+        self.assertEqual(headline["minLength"], 1)
+        self.assertEqual(headline["maxLength"], 300)
+        refs = topics["items"]["properties"]["citation_refs"]
+        self.assertEqual(refs["minItems"], 1)
+        self.assertTrue(refs["uniqueItems"])
+        accountable = next(section for section in config.sections if section.excluded_stories)
+        excluded = schema["properties"]["excluded_topics"]["properties"][accountable.name]
+        self.assertEqual(excluded["minItems"], 0)
+        self.assertEqual(excluded["maxItems"], accountable.excluded_stories)
         self.assertTrue(projected.citations)
 
     def test_valid_output_renders_checker_clean_with_exact_urls(self):

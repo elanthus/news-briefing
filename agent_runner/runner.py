@@ -31,6 +31,22 @@ from agent_runner.output import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _portable_path(path: Path) -> str:
+    """Describe a path without recording host-specific directory details."""
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(ROOT).as_posix()
+    except ValueError:
+        return f"<external>/{resolved.name}"
+
+
+def _sanitize_process_output(text: str, replacements: Sequence[tuple[str, str]]) -> str:
+    """Replace known execution paths before process output becomes an artifact."""
+    for host_path, portable in sorted(replacements, key=lambda row: len(row[0]), reverse=True):
+        text = text.replace(host_path, portable)
+    return text
+
+
 @dataclass(frozen=True)
 class RunnerSettings:
     config_path: Path
@@ -50,13 +66,13 @@ class RunnerSettings:
         code_info: dict[str, Any],
     ) -> dict[str, Any]:
         return {
-            "config_path": str(self.config_path.resolve()),
+            "config_path": _portable_path(self.config_path),
             "config_sha256": sha256_file(self.config_path),
-            "sources_path": str(self.sources_path.resolve()),
+            "sources_path": _portable_path(self.sources_path),
             "sources_sha256": sha256_file(self.sources_path),
-            "prompt_path": str(self.prompt_path.resolve()),
+            "prompt_path": _portable_path(self.prompt_path),
             "prompt_sha256": sha256_file(self.prompt_path),
-            "output_path": str(self.output_path.resolve()),
+            "output_path": _portable_path(self.output_path),
             "hours": self.hours,
             "source_cap": self.source_cap,
             "category_cap": self.category_cap,
@@ -132,7 +148,21 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
         "--output",
         str(corpus_path),
     ]
-    store.trace("fetch_started", command=command)
+    trace_command = [
+        Path(sys.executable).name,
+        "fetch_news.py",
+        "--sources",
+        _portable_path(settings.sources_path),
+        "--hours",
+        str(settings.hours),
+        "--source-cap",
+        str(settings.source_cap),
+        "--category-cap",
+        str(settings.category_cap),
+        "--output",
+        "corpus.json",
+    ]
+    store.trace("fetch_started", command=trace_command)
     try:
         completed = subprocess.run(
             command,
@@ -146,8 +176,17 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
         raise RuntimeError(
             f"fetch_news.py exceeded the {settings.timeout_seconds}s fetch deadline"
         ) from exc
-    store.write_text("fetch.stdout", completed.stdout)
-    store.write_text("fetch.stderr", completed.stderr)
+    replacements = [
+        (str(corpus_path), "corpus.json"),
+        (str(corpus_path.resolve()), "corpus.json"),
+        (str(settings.sources_path), _portable_path(settings.sources_path)),
+        (str(settings.sources_path.resolve()), _portable_path(settings.sources_path)),
+        (str((ROOT / "fetch_news.py").resolve()), "fetch_news.py"),
+        (str(Path(sys.executable).resolve()), Path(sys.executable).name),
+        (str(ROOT), "."),
+    ]
+    store.write_text("fetch.stdout", _sanitize_process_output(completed.stdout, replacements))
+    store.write_text("fetch.stderr", _sanitize_process_output(completed.stderr, replacements))
     if completed.returncode != 0:
         raise RuntimeError(
             "fetch_news.py failed: " + (completed.stderr.strip() or f"exit status {completed.returncode}")
@@ -344,6 +383,7 @@ def _finalize_candidate(
         findings = stabilized
     else:
         findings = after
+    store.write_text("briefing.md", completed)
     final_path = store.write_text("final.md", completed)
     write_text_atomic(settings.output_path, completed)
     status = "PASS"
@@ -357,7 +397,7 @@ def _finalize_candidate(
         "findings": _finding_records(findings),
         "source_issues": len(corpus.get("errors", [])),
         "run_artifact": final_path.name,
-        "output_path": str(settings.output_path.resolve()),
+        "output_path": _portable_path(settings.output_path),
         "output_sha256": sha256_file(settings.output_path),
     }
     store.finalize(final)
@@ -401,6 +441,10 @@ def run_workflow(
         )
         config_data = json.loads(settings.config_path.read_text(encoding="utf-8"))
         config = briefing_config.parse_config(config_data)
+        recorded_artifacts = store.manifest.get("artifacts", {})
+        if not isinstance(recorded_artifacts, dict) or "briefing-config.json" not in recorded_artifacts:
+            store.write_json("briefing-config.json", config_data)
+            store.checkpoint("config_ready")
         category_problems = briefing_config.validate_corpus_categories(
             config, set(corpus["categories"])
         )

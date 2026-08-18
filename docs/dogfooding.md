@@ -42,7 +42,8 @@ The complete fetch → rank and summarize → check → single correction → fi
 - Briefing: 22 reported topics filled all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), with a 25-row exclusion log, corpus-health section, and final validation section.
 - Checker, first result: 1 error, 0 warnings — `category_ineligible_ref` because the first US Politics topic cited a `world`-category item.
 - Correction made after checking: replaced the ineligible `world` citation in “Trump threatens Oman as Iran-war peace window expires” with an eligible `us_politics` citation. No section placement or topic headline changed.
-- Checker, final result: **0 errors and 3 warnings** (`WARN`). The two `missing_discussion_link` warnings concern Hacker News entries for Cursor Origin and its status incident; one `unsupported_figure` warning concerns “4.2 percent” in the kindergarten-vaccine topic. No additional model turn was taken under the one-correction workflow. Reproduce the final result with:
+- Checker, original final result: **0 errors and 3 warnings** (`WARN`). The two `missing_discussion_link` warnings concern Hacker News entries for Cursor Origin and its status incident; one `unsupported_figure` warning concerned “4.2 percent” in the kindergarten-vaccine topic. No additional model turn was taken under the one-correction workflow.
+- PR review amendment: removed the unsupported vaccine-exemption figure from the structured output and regenerated the rendered briefings, findings, schema, and manifest while preserving the raw model response. The current final result is **0 errors and 2 warnings** (`WARN`), both for missing Hacker News discussion links. Reproduce it with:
 
   ```bash
   python3 eval_briefing.py --corpus docs/runs/2026-08-17/corpus-2026-08-17.json --briefing docs/runs/2026-08-17/briefing.md --config docs/runs/2026-08-17/briefing-config.json

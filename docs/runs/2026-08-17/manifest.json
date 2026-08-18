@@ -4,18 +4,20 @@
     "attempt-01-provider-events.jsonl": "888ac470af65940c75a2c3ccd52b5f69e8fe4ba7eb1a5375ab28eb5b9a4d82d0",
     "attempt-01-raw.txt": "331addde77de523144922860b1f058c45473fd6c37a91f047ae434eb5672e053",
     "attempt-01-structured.json": "eec0a8c2a1bae28830cef40af0c713c9db6db2d8fca8e77b1d53b361ffb15a55",
-    "attempt-02-briefing.md": "ccf87aa59d6ac348def9aee05f50d915f038ca49657a382bac7c5f9829656825",
-    "attempt-02-findings.json": "d86bafb9e5d1113643b126b8ded54a5f79358c156ce421ef5d1e7274b05bc131",
+    "attempt-02-briefing.md": "333c6f717f534d2c55a209826e3e8b514c55d39f2c0ab8ed4d7c987aff7271cb",
+    "attempt-02-findings.json": "41240002e3ad465768f6bc5341d4090365c63d65532565e840d3b8a15327b385",
     "attempt-02-provider-events.jsonl": "3d6cfe9779bfc96fd914f2eea6aa60168ce35531c2b9292c3688f2def35451a0",
     "attempt-02-raw.txt": "72d4fb2cc02e1e1efc1736d39231086868ea275648cf490bb5643d48da800a54",
-    "attempt-02-structured.json": "f85a7fa186d2b5defb9005d96e9e9fed6179ffdde4cf759062529cf8af1f85a7",
+    "attempt-02-structured.json": "5a40bef350f17bc715cb7363ae5a69244c6c4d965fe2ed7b2d025a7a60d5fda3",
+    "briefing-config.json": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "briefing.md": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
     "citation-map.json": "5728954aefc5d3e10962f5b995b9e2fc5ad9d18b9c34f4c931b91bbbfd334cdc",
     "corpus-2026-08-17.json": "a41577f16ae95543579466e72d914c35b45c25eb308ad383a957b1cc3e269b9b",
     "fetch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "fetch.stdout": "f09cabbb918ae3ab5a1a88b599faed6978df1a52bd19e627e4241aca35812ad1",
-    "final.md": "4b3fe335c76e766bad53e8b018349eb96aafdbd3c17bd7f8c56f62896968f39f",
+    "fetch.stdout": "31913ee16d00a6e06ff814f8bab5b5df26421ccd8ebbac098086e7f776d2c782",
+    "final.md": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
     "model-corpus.json": "8954785c9f68c0d717f1fb742463177243e90c1812b1d7a18432ed2a587f1cf1",
-    "output-schema.json": "b36b25697f80e979b2b6e6e600fbb1789f0a90bbdc6b9456895b3c81a7c11087",
+    "output-schema.json": "b095ace9c7ef97220b48d40794e007dc0086dcc663fa0e7671d743fbcb389447",
     "request.txt": "7bdf5bd9accffa958ca5744296d5ff222cf6f330105ec56454c14ba98bf9ead1"
   },
   "attempts": [
@@ -107,15 +109,10 @@
         "check": "missing_discussion_link",
         "level": "WARN",
         "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://status.cursor.com/incidents/l9h9vrd726jv"
-      },
-      {
-        "check": "unsupported_figure",
-        "level": "WARN",
-        "message": "US News: 'Kindergarten vaccine exemptions reach a record high' states '4.2 percent', which is not in the cited item(s)"
       }
     ],
-    "output_path": "/Users/mswailes/dev2/news-briefing/docs/runs/2026-08-17/briefing.md",
-    "output_sha256": "4b3fe335c76e766bad53e8b018349eb96aafdbd3c17bd7f8c56f62896968f39f",
+    "output_path": "docs/runs/2026-08-17/briefing.md",
+    "output_sha256": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
     "run_artifact": "final.md",
     "source_issues": 3,
     "status": "WARN"
@@ -139,12 +136,12 @@
         "run_briefing.py": "32a9510d710ad1fb4001462fdc130af168383351c1b095b968e36227a3a80a6a"
       }
     },
-    "config_path": "/Users/mswailes/dev2/news-briefing/briefing-config.json",
+    "config_path": "briefing-config.json",
     "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
     "hours": 24,
     "max_corrections": 1,
-    "output_path": "/Users/mswailes/dev2/news-briefing/docs/runs/2026-08-17/briefing.md",
-    "prompt_path": "/Users/mswailes/dev2/news-briefing/briefing-runner-prompt.md",
+    "output_path": "docs/runs/2026-08-17/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
     "prompt_sha256": "745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c",
     "provider": {
       "authentication": "Codex cached login (ChatGPT subscription or API key)",
@@ -155,7 +152,7 @@
       "version": "codex-cli 0.147.0"
     },
     "source_cap": 25,
-    "sources_path": "/Users/mswailes/dev2/news-briefing/sources.json",
+    "sources_path": "sources.json",
     "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
     "strict": false,
     "timeout_seconds": 600
@@ -169,6 +166,23 @@
     "tool_policy": "Codex has no documented remove-all-tools flag. It runs in an empty read-only sandbox; any non-message/reasoning item in its JSON trace fails the run.",
     "version": "codex-cli 0.147.0"
   },
+  "review_amendments": [
+    {
+      "preserved_model_artifacts": [
+        "attempt-02-raw.txt",
+        "attempt-02-provider-events.jsonl"
+      ],
+      "reason": "Remove an unsupported vaccine-exemption figure reported during PR review.",
+      "regenerated_artifacts": [
+        "attempt-02-structured.json",
+        "attempt-02-briefing.md",
+        "attempt-02-findings.json",
+        "briefing.md",
+        "final.md",
+        "output-schema.json"
+      ]
+    }
+  ],
   "run_id": "2026-08-17",
   "schema_version": 1,
   "started_at": "2026-08-18T04:13:45.859725+00:00",

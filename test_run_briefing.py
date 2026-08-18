@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import eval_briefing
 import run_briefing as briefing_cli
-from agent_runner.checkpoint import RunStore
+from agent_runner.checkpoint import RunStore, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
-from agent_runner.runner import RunnerSettings, RunResult, build_request, run_workflow
+from agent_runner.runner import RunnerSettings, RunResult, _fetch_corpus, build_request, run_workflow
 from test_briefing_output import ROOT, fixture_contract
 
 
@@ -77,11 +77,23 @@ class RunnerTests(unittest.TestCase):
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text())
             briefing = (root / "briefing.md").read_text()
+            run_root = root / "run"
+            artifact_hashes = {
+                name: sha256_file(run_root / name)
+                for name in ("briefing-config.json", "briefing.md")
+            }
+            host_root = str(root)
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.status, "WARN")
         self.assertEqual(manifest["status"], "complete")
         self.assertEqual(manifest["final"]["status"], "WARN")
         self.assertEqual(manifest["identity"]["provider"], manifest["provider"])
+        self.assertEqual(manifest["identity"]["config_path"], "fixtures/briefing-config-2026-08-11.json")
+        self.assertEqual(manifest["identity"]["output_path"], "<external>/briefing.md")
+        self.assertEqual(manifest["final"]["output_path"], "<external>/briefing.md")
+        self.assertNotIn(host_root, json.dumps(manifest))
+        for name, digest in artifact_hashes.items():
+            self.assertEqual(manifest["artifacts"][name], digest)
         self.assertIn("agent_runner/runner.py", manifest["identity"]["code"]["source_sha256"])
         self.assertIn("### Validation status", briefing)
         self.assertIn("**Status: WARN**", briefing)
@@ -243,6 +255,35 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(manifest["status"], "failed")
         self.assertEqual(manifest["error"]["type"], "RuntimeError")
         self.assertIn('"event": "run_failed"', trace)
+
+    def test_fetch_artifacts_do_not_record_host_paths(self):
+        corpus, _config, _projected, _output = fixture_contract()
+
+        def completed(command, **_kwargs):
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(json.dumps(corpus), encoding="utf-8")
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=f"Wrote corpus to {output}\n",
+                stderr=f"loaded by {ROOT / 'fetch_news.py'}\n",
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = RunStore.create(root / "run", identity={}, provider={}, code={})
+            with patch("agent_runner.runner.subprocess.run", side_effect=completed):
+                _fetch_corpus(store, self.settings(root / "briefing.md"))
+            trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
+            stdout = (root / "run/fetch.stdout").read_text(encoding="utf-8")
+            stderr = (root / "run/fetch.stderr").read_text(encoding="utf-8")
+            host_root = str(root)
+
+        self.assertNotIn(host_root, trace + stdout + stderr)
+        self.assertIn('"fetch_news.py"', trace)
+        self.assertIn('"corpus.json"', trace)
+        self.assertIn("corpus.json", stdout)
+        self.assertIn("fetch_news.py", stderr)
 
     def test_cli_rejects_explicit_openrouter_options_for_cli_providers(self):
         cases = {

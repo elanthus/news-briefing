@@ -14,14 +14,20 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
               },
               "headline": {
                 "description": "A non-empty string of at most 300 characters.",
+                "maxLength": 300,
+                "minLength": 1,
                 "type": "string"
               },
               "reason": {
                 "description": "A non-empty string of at most 600 characters.",
+                "maxLength": 600,
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -32,6 +38,8 @@
             ],
             "type": "object"
           },
+          "maxItems": 5,
+          "minItems": 0,
           "type": "array"
         },
         "AI Dev Tools": {
@@ -44,14 +52,20 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
               },
               "headline": {
                 "description": "A non-empty string of at most 300 characters.",
+                "maxLength": 300,
+                "minLength": 1,
                 "type": "string"
               },
               "reason": {
                 "description": "A non-empty string of at most 600 characters.",
+                "maxLength": 600,
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -62,6 +76,8 @@
             ],
             "type": "object"
           },
+          "maxItems": 5,
+          "minItems": 0,
           "type": "array"
         },
         "US News": {
@@ -74,14 +90,20 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
               },
               "headline": {
                 "description": "A non-empty string of at most 300 characters.",
+                "maxLength": 300,
+                "minLength": 1,
                 "type": "string"
               },
               "reason": {
                 "description": "A non-empty string of at most 600 characters.",
+                "maxLength": 600,
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -92,6 +114,8 @@
             ],
             "type": "object"
           },
+          "maxItems": 5,
+          "minItems": 0,
           "type": "array"
         },
         "US Politics": {
@@ -104,14 +128,20 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
               },
               "headline": {
                 "description": "A non-empty string of at most 300 characters.",
+                "maxLength": 300,
+                "minLength": 1,
                 "type": "string"
               },
               "reason": {
                 "description": "A non-empty string of at most 600 characters.",
+                "maxLength": 600,
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -122,6 +152,8 @@
             ],
             "type": "object"
           },
+          "maxItems": 5,
+          "minItems": 0,
           "type": "array"
         },
         "World Events": {
@@ -134,14 +166,20 @@
                 "items": {
                   "type": "string"
                 },
-                "type": "array"
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
               },
               "headline": {
                 "description": "A non-empty string of at most 300 characters.",
+                "maxLength": 300,
+                "minLength": 1,
                 "type": "string"
               },
               "reason": {
                 "description": "A non-empty string of at most 600 characters.",
+                "maxLength": 600,
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -152,6 +190,8 @@
             ],
             "type": "object"
           },
+          "maxItems": 5,
+          "minItems": 0,
           "type": "array"
         }
       },
@@ -186,14 +226,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -204,6 +250,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 3,
+              "minItems": 0,
               "type": "array"
             }
           },
@@ -225,14 +273,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -243,6 +297,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 3,
+              "minItems": 0,
               "type": "array"
             }
           },
@@ -264,14 +320,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -282,6 +344,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 4,
+              "minItems": 0,
               "type": "array"
             }
           },
@@ -303,14 +367,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -321,6 +391,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 4,
+              "minItems": 0,
               "type": "array"
             }
           },
@@ -342,14 +414,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -360,6 +438,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 3,
+              "minItems": 0,
               "type": "array"
             }
           },
@@ -381,14 +461,20 @@
                     "items": {
                       "type": "string"
                     },
-                    "type": "array"
+                    "minItems": 1,
+                    "type": "array",
+                    "uniqueItems": true
                   },
                   "headline": {
                     "description": "A non-empty string of at most 300 characters.",
+                    "maxLength": 300,
+                    "minLength": 1,
                     "type": "string"
                   },
                   "summary": {
                     "description": "A non-empty string of at most 1500 characters.",
+                    "maxLength": 1500,
+                    "minLength": 1,
                     "type": "string"
                   }
                 },
@@ -399,6 +485,8 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 5,
+              "minItems": 0,
               "type": "array"
             }
           },
