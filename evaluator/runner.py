@@ -21,7 +21,6 @@ import eval_briefing
 from agent_runner.output import (
     Citation,
     ModelCorpus,
-    OutputFinding,
     build_output_schema,
     project_corpus,
     render_briefing,
@@ -350,15 +349,20 @@ def _evaluate_structured_generation(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
-) -> tuple[str, dict[str, eval_briefing.Section], list[OutputFinding | eval_briefing.Finding]]:
+) -> tuple[str, dict[str, eval_briefing.Section], list[eval_briefing.Finding]]:
     """Validate and render one production-shaped structured response."""
     output = generation.structured_output
     if not isinstance(output, dict):
-        findings: list[OutputFinding | eval_briefing.Finding] = [
-            OutputFinding("ERROR", "structured_type", "provider returned no structured object")
+        findings = [
+            eval_briefing.Finding(
+                "ERROR", "structured_type", "provider returned no structured object"
+            )
         ]
         return "", eval_briefing.parse_briefing("", config), findings
-    findings = list(validate_output(output, config, citations))
+    findings = [
+        eval_briefing.Finding(finding.level, finding.check, finding.message)
+        for finding in validate_output(output, config, citations)
+    ]
     if any(finding.level == eval_briefing.ERROR for finding in findings):
         return "", eval_briefing.parse_briefing("", config), findings
     rendered = render_briefing(output, corpus, config, citations)
