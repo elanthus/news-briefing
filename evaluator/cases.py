@@ -20,10 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = Path(__file__).with_name("fixtures") / "checker-cases.json"
 
 
-# Deliberately valid heuristic boundaries and minimally changed invalid
-# neighbors. Each tuple is evidence title, evidence summary, output title,
-# and output prose. The fixed checker is expected to miss some semantic
-# equivalences; those misses are the false positives this cohort measures.
+# Authored valid-side candidates and minimally changed invalid-side neighbors.
+# Each tuple is evidence title, evidence summary, output title, and output
+# prose. The committed human labels decide which candidates are actually clean;
+# checker findings on those clean sides form the false-positive cohort.
 CLAIM_PAIR_VARIANTS: dict[str, tuple[str, str, str, str]] = {
     "claim-fraction-valid": (
         "One in two users enabled the feature",

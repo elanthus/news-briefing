@@ -73,8 +73,8 @@ _QUOTATION = re.compile(r"[\"\u201c\u201d]([^\"\u201c\u201d]{4,80})[\"\u201c\u20
 CLAIM_EVIDENCE_RATIO = 2.0
 # Links appear on their own line in the body but inline in the exclusion log
 # ("- *Title* — reason. 🔗 url"), so scan anywhere in the line rather than
-# anchoring to the start. Anchoring here silently left the exclusion log
-# unvalidated, which is exactly where an invented link would hide.
+# anchoring to the start. Both locations are part of the citation contract and
+# must be validated.
 _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 # Security validation is deliberately independent of the presentation parser.
 # The model controls the complete Markdown document, so every web destination
@@ -123,8 +123,8 @@ def output_urls(text: str) -> list[tuple[str, str]]:
 
     Each pair is ``(canonical URL, output spelling)``. HTML character
     references are decoded in a second pass because browsers decode them in
-    attributes. Raw destinations are masked first so semicolon-less legacy
-    entities inside a legitimate bare URL cannot change its identity.
+    attributes. Raw destinations are masked first so semicolonless HTML named
+    character references inside a legitimate bare URL cannot change its identity.
     """
     found: dict[str, str] = {}
     raw = url_spellings(text)

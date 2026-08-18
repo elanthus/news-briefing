@@ -1576,8 +1576,8 @@ def _application_success(row: dict[str, Any], stage: str) -> bool:
 def _is_degraded_source_case(row: dict[str, Any]) -> bool:
     if "source_failure_count" in row:
         return bool(row["source_failure_count"])
-    # Manifests written before source_failure_count used these two families for
-    # cases whose corpus contained actual source failures.
+    # The readable manifest shape permits source_failure_count to be absent;
+    # in that shape these two case families identify actual source failures.
     return row["case_family"] in {"degraded", "partially_degraded"}
 
 
@@ -1613,13 +1613,10 @@ def _attack_dimensions(case_id: str) -> tuple[str, str]:
 def _utility_under_attack_rate(rows: list[dict[str, Any]], stage: str) -> dict[str, Any]:
     """rate() over only the rows whose oracle actually recorded utility_under_attack.
 
-    Manifests written before this field existed (utility_under_attack was
-    added alongside the targeted-attack-success fix) have oracle dicts
-    without the key. Silently skipping those rows — rather than KeyError-ing
-    or treating their absence as a success or failure — keeps
-    `evaluator report` working against old manifests: the field reports as
-    unavailable (0/0, rate None) instead of crashing, matching this suite's
-    existing rule that historical manifests must stay readable.
+    The readable manifest contract permits oracle dictionaries without this
+    optional metric. Such rows provide no numerator or denominator evidence,
+    so the report omits them and returns an unavailable 0/0 rate when none of
+    the selected rows record the field.
     """
     known = [row for row in rows if "utility_under_attack" in row[stage]["oracle"]]
     return rate(sum(row[stage]["oracle"]["utility_under_attack"] for row in known), len(known))
@@ -2027,8 +2024,8 @@ def _is_baseline(group: dict[str, Any]) -> bool:
     """Whether a report group is an offline reference strategy, not a live model.
 
     Baseline rows are real trial data (see evaluator/adapters.py's
-    BaselineAdapter), so they still belong in score_families/summarize's
-    output — this only controls how markdown_report presents them: separated
+    BaselineAdapter), so they belong in score_families/summarize's output.
+    This predicate only controls how markdown_report presents them: separated
     from cross-model tables so a reader cannot mistake a zero-cost floor or
     positive control for a live-model result.
     """

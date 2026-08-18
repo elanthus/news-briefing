@@ -2,9 +2,8 @@
 """Unit tests for the briefing contract checker.
 
 Most cases run against a small synthetic corpus so the expected findings are
-obvious from reading the test. The last class runs the checker against the
-committed fixture pair, which is the actual regression guard: if a prompt
-change breaks the contract, that test fails.
+obvious from reading the test. The committed-fixture cases require the shipped
+reference briefing and prompt to satisfy the same contract.
 
 Run:
     python3 -m unittest -v
@@ -697,7 +696,7 @@ class ClaimGroundingTest(unittest.TestCase):
 
 
 class CommittedFixtureTest(unittest.TestCase):
-    """The real regression guard: the shipped reference pair must stay consistent."""
+    """The shipped reference corpus, briefing, prompt, and README stay consistent."""
 
     def test_reference_briefing_satisfies_its_corpus(self):
         corpus = load_corpus("fixtures/corpus-2026-08-09.json")
@@ -734,7 +733,7 @@ class CommittedFixtureTest(unittest.TestCase):
 
 
 class PromptSafetyContractTest(unittest.TestCase):
-    """Keep the untrusted-data and thin-evidence rules from regressing silently."""
+    """The prompt states the untrusted-data and thin-evidence boundaries."""
 
     def test_prompt_preserves_security_and_grounding_boundary(self):
         with open("briefing-prompt.md", encoding="utf-8") as prompt_file:
@@ -752,16 +751,15 @@ class PromptSafetyContractTest(unittest.TestCase):
 
 
 class PromptInjectionContainmentTest(unittest.TestCase):
-    """What the checker does when the summarizer obeys the corpus.
+    """How citation grounding handles an injected off-corpus destination.
 
     The prompt tells the model to treat corpus text as data, but a prompt is
     not an enforcement mechanism, and a public feed is exactly where an
-    instruction would be planted. These tests characterize the property that
-    actually holds: an injection can only alter the briefing in ways that
-    leave the corpus behind, and citation grounding is what notices.
-
-    This documents existing behavior rather than driving new behavior, which
-    is why no production change accompanies it.
+    instruction can be planted. These tests cover one enforceable boundary:
+    citation grounding rejects an attacker-supplied destination absent from
+    the corpus while allowing the injected corpus item itself to be reported.
+    They do not claim to detect selection or prose manipulation that stays
+    within corpus URLs.
     """
 
     CORPUS = load_corpus("fixtures/injection-corpus.json")
@@ -804,10 +802,9 @@ class TextEncodingContractTest(unittest.TestCase):
     """Every file the pipeline reads or writes is UTF-8, on every platform.
 
     Briefings and corpora carry `🔗`, em dashes and accented names. An `open`
-    without `encoding` uses the platform's locale encoding, so the same file
-    that round-trips here raises UnicodeDecodeError on a cp1252 Windows box —
-    a failure the whole test suite is blind to when it only runs on UTF-8
-    systems. The modules checked are the ones pyproject type-checks.
+    without `encoding` uses the platform's locale, which can reject or corrupt
+    those files on non-UTF-8 systems. The modules checked are the ones the root
+    pyproject type-checks.
     """
 
     PIPELINE_MODULES = ("briefing_config.py", "fetch_news.py",
@@ -831,8 +828,8 @@ class TextEncodingContractTest(unittest.TestCase):
 class CommandLineFailureTest(unittest.TestCase):
     """A bad invocation reports what is wrong; it does not dump a traceback.
 
-    Every other failure path in the project explains itself. These two reached
-    the user as a stack trace, which buried the one line worth reading.
+    Corpus and briefing path errors are user input errors, so the command-line
+    interface prints their message without an internal stack trace.
     """
 
     def _run(self, corpus_path, briefing_path="fixtures/briefing-2026-08-09.md"):

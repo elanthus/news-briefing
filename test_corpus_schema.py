@@ -205,7 +205,7 @@ class CategoryTest(unittest.TestCase):
         self.assertTrue(only(validate_corpus(c), "missing required field 'url'"))
 
     def test_unknown_item_field_is_reported(self):
-        """A renamed key shows up here rather than as a worse briefing."""
+        """Unknown item fields fail validation at the corpus boundary."""
         c = corpus()
         c["categories"]["us_politics"][0]["headline"] = "oops"
         self.assertTrue(only(validate_corpus(c), "unknown field"))

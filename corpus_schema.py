@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
-"""The corpus contract, in one place.
+"""The shared contract for `corpus.json`.
 
-Three things depend on the shape of `corpus.json`: `fetch_news.py` writes it,
-`briefing-prompt.md` instructs a model to read specific fields out of it, and
-`eval_briefing.py` checks a briefing against it. Until now that agreement
-existed only by convention — renaming a key in the fetcher produced no error
-anywhere, just a quietly worse briefing, because the prompt would ask for a
-field that had stopped existing and the model would carry on without it.
+`fetch_news.py` writes the corpus, `briefing-prompt.md` names fields a model may
+read, and `eval_briefing.py` checks a briefing against the same data. This
+module defines the field names, types, limits, URL identity rules, and health
+telemetry those components share. The fetcher validates the complete value
+before writing it, so an incompatible producer change fails at its source.
 
-This module is the agreement. The fetcher validates against it before writing,
-so drift fails at the point it is introduced rather than surfacing later as
-degraded output that nobody can attribute.
-
-`SCHEMA_VERSION` is bumped when a change would break a reader. A corpus with no
-version predates versioning and is readable; one with a version this code does
-not know is not, and says so instead of guessing.
+`SCHEMA_VERSION` is bumped when a change would break a reader. A versionless
+corpus is interpreted as generation 0. A generation above `SCHEMA_VERSION` is
+refused instead of guessed at.
 """
 
 from __future__ import annotations
@@ -24,11 +19,11 @@ import urllib.parse
 from datetime import datetime
 from typing import Any
 
-# 5 adds enforced context budgets and their truncation/drop telemetry. Older
-# readers would silently omit those controls when presenting corpus health, so
-# they must refuse this shape instead of guessing.
+# Version 5 requires enforced context budgets and their truncation/drop
+# telemetry. Readers that do not recognize version 5 must refuse it because
+# they cannot present those controls as part of corpus health.
 SCHEMA_VERSION = 5
-LEGACY_SCHEMA_VERSION = 0  # corpora written before the field existed
+LEGACY_SCHEMA_VERSION = 0  # assigned to versionless corpora
 
 ITEM_TITLE_MAX_BYTES = 512
 ITEM_TITLE_MAX_TOKENS = 128
@@ -107,17 +102,17 @@ V5_TOP_LEVEL_TYPES: dict[str, type] = {
 
 
 def corpus_version(corpus: dict[str, Any]) -> int:
-    """Schema version of a loaded corpus, treating absence as legacy."""
+    """Schema version of a loaded corpus, treating absence as generation 0."""
     version = corpus.get("schema_version", LEGACY_SCHEMA_VERSION)
     return version if isinstance(version, int) else LEGACY_SCHEMA_VERSION
 
 
 def is_readable(corpus: dict[str, Any]) -> bool:
-    """Whether this code understands the corpus well enough to act on it.
+    """Whether the declared schema generation is supported by this code.
 
-    Older is fine — the fields this code reads have only been added to, never
-    removed. Newer is not: an unknown version may have moved something, and
-    silently misreading it is worse than refusing.
+    Versionless corpora are generation 0. All generations through
+    `SCHEMA_VERSION` preserve the fields read here. A higher generation may
+    have changed them, so it is refused rather than interpreted speculatively.
     """
     return corpus_version(corpus) <= SCHEMA_VERSION
 
@@ -159,11 +154,10 @@ def valid_category_name(value: Any) -> bool:
 def canonicalize_url(url: str | None) -> str:
     """Normalize a URL for comparison while preserving meaningful parameters.
 
-    Part of the contract rather than the fetcher, because two modules have to
-    agree on it: `fetch_news.py` deduplicates with it, and `eval_briefing.py`
-    decides whether a citation is in the corpus with it. When only the fetcher
-    knew the rule, the checker compared raw strings and reported a cited link
-    that differed by a trailing slash as one the corpus did not contain.
+    This belongs to the shared contract because `fetch_news.py` uses it for
+    deduplication and `eval_briefing.py` uses it for citation identity. Keeping
+    one implementation ensures cosmetic differences such as a trailing slash
+    cannot be treated as a new article by one component but not the other.
     """
     url = (url or "").strip()
     if not url:
@@ -438,7 +432,7 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
 
 
 def _validate_legacy_sources(sources: Any) -> list[str]:
-    """Validate v3 observability records so frozen historical runs stay readable."""
+    """Validate the pre-v4 source-health shape used by readable v0–v3 corpora."""
     if not isinstance(sources, list):
         return ["'sources' should be a list"]
     required = {

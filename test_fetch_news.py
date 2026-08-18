@@ -293,7 +293,7 @@ class RelevanceTest(unittest.TestCase):
                     {"source": "The Verge", "title": title, "summary": ""}))
 
     def test_commerce_content_is_dropped_even_when_it_mentions_ai(self):
-        """The broadened vocabulary must not readmit deals pages."""
+        """AI relevance terms must not override the commerce exclusion."""
         for title in (
             "Best GPU Deals (2026): Nvidia, AMD, and More",
             "The AI-powered HP OmniBook Is $550 Off Its Retail Price Today",
@@ -318,10 +318,9 @@ class RelevanceTest(unittest.TestCase):
 class ReferenceBriefingCoverageTest(unittest.TestCase):
     """The filter must not delete stories the reference briefing led with.
 
-    Ground truth without hand-labelling: every item cited in the committed
-    briefing was judged worth reporting, so the filter has to let all of them
-    reach the corpus. This is the check that caught the filter removing the
-    data-center and self-driving stories that were AI News topics #1 and #4.
+    Every item cited in the committed briefing is a positive relevance fixture,
+    including infrastructure and autonomous-vehicle stories that do not use
+    the literal term "AI".
     """
 
     def test_no_cited_item_would_be_filtered_out(self):
@@ -466,7 +465,7 @@ class HackerNewsTest(unittest.TestCase):
         self.assertEqual(result.items[0]["summary"], "Measured details")
 
     def test_counts_hits_with_no_usable_timestamp(self):
-        """A hit without created_at_i used to raise KeyError mid-loop."""
+        """A hit without created_at_i is counted as undated without raising."""
         payload = {"hits": [
             {"objectID": "1", "title": "No date", "points": 99},
             {"objectID": "2", "title": "Dated", "url": "https://ex.com/a",
@@ -627,7 +626,7 @@ class UndatedAccountingTest(unittest.TestCase):
         self.assertEqual(stats["undated_dropped"], 4)
 
     def test_every_fetched_item_is_accounted_for(self):
-        """kept plus every drop reason must equal what was fetched."""
+        """Kept plus post-date-processing drops equals fetched; undated is separate."""
         items = [
             {"title": f"Story {n}", "url": f"https://ex.com/{n}",
              "published": f"2026-08-08T{n:02d}:00:00+00:00", "source": "NPR Politics"}
@@ -691,8 +690,7 @@ class RedditTopBucketTest(unittest.TestCase):
                 self.assertEqual(reddit_top_bucket(hours), expected)
 
     def test_bucket_never_undercovers_the_window(self):
-        """Regression guard: a bucket narrower than the window silently
-        truncates coverage without reporting an error."""
+        """A bucket narrower than the window would silently truncate coverage."""
         spans = {"hour": 1, "day": 24, "week": 168, "month": 720, "year": 8760}
         for hours in (1, 6, 23, 24, 25, 47, 48, 72, 167, 168, 400, 800):
             with self.subTest(hours=hours):
@@ -737,8 +735,7 @@ class SortItemsTest(unittest.TestCase):
                          ["newest", "middle", "older"])
 
     def test_engagement_does_not_outrank_recency(self):
-        """Regression: points used to dominate, burying every Reddit post
-        below every Hacker News post no matter how stale."""
+        """A newer unscored item sorts ahead of an older high-engagement item."""
         items = [
             {"title": "reddit today", "published": "2026-08-08T12:00:00+00:00"},
             {"title": "hn last week", "published": "2026-08-01T12:00:00+00:00",

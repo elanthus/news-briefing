@@ -289,7 +289,7 @@ def _review_batch(
 
 
 def _portable_path(path: Path) -> str:
-    """Backward-compatible wrapper for the shared path sanitizer."""
+    """Compatibility alias for callers importing this module's path sanitizer."""
     return portable_path(path)
 
 

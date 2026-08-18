@@ -69,7 +69,7 @@ SOURCE_CONTEXT_TOKENS = corpus_schema.SOURCE_CONTEXT_MAX_TOKENS
 GLOBAL_CONTEXT_BYTES = corpus_schema.GLOBAL_CONTEXT_MAX_BYTES
 GLOBAL_CONTEXT_TOKENS = corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS
 TLS_CONTEXT = ssl.create_default_context()
-HN_MIN_POINTS = 20  # this many points clears HN's noise floor
+HN_MIN_POINTS = 20  # minimum engagement required for a Hacker News item
 HN_HITS_PER_PAGE = 25
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
 REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
@@ -224,7 +224,7 @@ def load_sources(path: str | Path) -> Sources:
 REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
                       (720, "month"), (8760, "year"))
 REDDIT_BASE_LIMIT = 25
-REDDIT_MAX_LIMIT = 100  # Reddit's own ceiling for this endpoint
+REDDIT_MAX_LIMIT = 100  # cap applied to scaled anonymous RSS requests
 
 # The Verge, Ars, and Wired feeds cover all of technology (and sometimes
 # shopping/entertainment), while the GitHub Changelog covers the whole product.
@@ -236,9 +236,8 @@ AI_RELEVANCE = re.compile(
     r"language model|neural|openai|anthropic|claude|chatgpt|gpt-?\d|gemini|"
     r"deepmind|mistral|xai|grok|llama|copilot|codex|cursor|agentic|ai agent|"
     r"model training|model inference|prompt injection|"
-    # Infrastructure and autonomy: the AI stories that never say "AI".
-    # Requiring the literal word dropped the data-center build-out and the
-    # self-driving results, both of which the reference briefing led with.
+    # Infrastructure and autonomy are AI topics even when a feed item does not
+    # contain the literal term "AI".
     r"data ?cent(?:er|re)s?|gpus?|tpus?|nvidia|semiconductors?|compute|"
     r"inference|training run|self-driving|autonomous|robotaxis?|robotics?|"
     r"algorithmic|facial recognition|surveillance|agi|superintelligence)\b",
@@ -249,9 +248,8 @@ AI_RELEVANCE = re.compile(
 # would otherwise readmit things like "Best GPU deals (2026)". Checked before
 # relevance, so one signal cannot rescue the other.
 #
-# Deliberately no bare "deal": it is the standard word for an industry move,
-# and it dropped "OpenAI signs cloud deal with Oracle" while catching no noise
-# that the more specific patterns miss.
+# Deliberately no bare "deal": industry contracts and acquisitions use that
+# word too, while the more specific patterns identify the commerce noise.
 COMMERCE_NOISE = re.compile(
     r"promo code|coupon|\d+%\s*off|\$\d[\d,.]*\s*off|on sale|"
     r"\bbest\b[^.]*\(20\d\d\)|buying guide|review\s*\(20\d\d\)",
@@ -313,11 +311,10 @@ class SourceStatus(TypedDict):
 
 
 class FetchResult(NamedTuple):
-    """Items, and the number dropped because their timestamp would not parse.
+    """Fetched items plus parsed, dated, and undated entry counts.
 
-    Undated items are invisible otherwise: they never reach the category
-    counters, so a feed that changes date format contributes nothing while
-    the run still reports itself healthy.
+    Undated entries never reach category processing, so this separate count is
+    required to distinguish an incompatible date format from an empty source.
     """
 
     items: list[Item]
@@ -589,13 +586,11 @@ def _decode_bom_marked_utf32_xml(data: bytes) -> str | bytes:
 def parse_feed_xml(data: bytes) -> ET.Element:
     """Parse feed XML, refusing any DOCTYPE declaration.
 
-    ElementTree expands internal entities, so a few hundred bytes of nested
-    entity declarations expand to an unbounded string in memory — the
-    "billion laughs" pattern, which MAX_RESPONSE_BYTES does not stop because
-    the payload is tiny on the wire. Entity declarations and external entity
-    references both require a DOCTYPE, and real RSS/Atom feeds don't carry
-    one, so refusing it closes both without depending on defusedxml, which
-    would cost the project its stdlib-only property.
+    ElementTree expands internal entities, so a compact set of nested entity
+    declarations can amplify far beyond the wire-size bound. Entity
+    declarations and external entity references both require a DOCTYPE, which
+    the supported RSS/Atom subset does not need. Refusing it closes both paths
+    without adding defusedxml as a runtime dependency.
 
     Expat recognizes the document's declared encoding before calling the DTD
     handler, so UTF-16 and other supported encodings cannot hide a declaration
@@ -668,7 +663,7 @@ def _feed_summary(element: ET.Element, *paths: str) -> str:
 
 
 def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
-    """Return items newer than cutoff, plus a count of undated entries.
+    """Return items at or after cutoff, plus a count of undated entries.
 
     Handles RSS 2.0 and Atom. An entry whose timestamp won't parse is counted
     rather than silently skipped: that is how a feed changing its date format
@@ -740,8 +735,8 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
 def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
     """HN Algolia API with an exact unix-timestamp cutoff — no fuzzy recency.
 
-    Note: the Algolia API only supports numericFilters on created_at_i now;
-    points filtering must be done client-side.
+    The request filters `created_at_i`; this function applies the points
+    threshold to the returned hits.
     """
     ts = int(cutoff.timestamp())
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
@@ -829,8 +824,11 @@ def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
 
 
 def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
-    """Fetch top posts via RSS. Reddit's anonymous JSON API is blocked (403);
-    vote counts are unavailable without OAuth credentials."""
+    """Fetch top posts via anonymous RSS.
+
+    The RSS response does not expose vote counts, so these items carry no
+    engagement score.
+    """
     url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
            f"?t={reddit_top_bucket(hours)}&limit={reddit_limit(hours)}")
     ns = {"atom": "http://www.w3.org/2005/Atom"}
@@ -894,15 +892,9 @@ def dedupe(items: list[Item]) -> list[Item]:
 def sort_items(items: list[Item]) -> list[Item]:
     """Order a category newest first.
 
-    The previous key summed `points` with a never-populated `score` and used
-    the timestamp only as a tiebreak, which meant every Reddit post (no
-    points) sorted below every Hacker News post regardless of age — the dev
-    community sources were permanently buried under the HN ones.
-
     Recency is the only ordering that means the same thing across RSS, HN and
-    Reddit. Engagement stays on the item for the model to weigh; it just
-    doesn't decide corpus order, which also stops this from quietly fighting
-    the prompt's instruction to rank by impact rather than virality.
+    Reddit. Engagement stays on the item for the model to weigh but does not
+    determine corpus order or override the prompt's impact-based ranking.
     """
     def timestamp(item: Item) -> datetime:
         try:
@@ -1021,7 +1013,8 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
     """Filter, deduplicate, diversify, and bound one category for model input.
 
     Returns both the retained items and counts for observability. Caps are
-    applied newest-first and never change an item's source data.
+    applied newest-first, and field bounding works on copies rather than
+    mutating the input items.
 
     `undated_dropped` is counted by the fetchers, before an item ever reaches
     this function, and is carried through so every reason an item is missing
@@ -1310,8 +1303,8 @@ def main() -> int:
     }
 
     total = sum(len(v) for v in corpus["categories"].values())
-    # Validate before writing: a corpus that violates its own contract is a
-    # bug in this script, and the prompt and checker both read it blind.
+    # Validate before reporting success: a contract violation identifies a
+    # producer bug, and downstream consumers require this exact shape.
     schema_problems = corpus_schema.validate_corpus(corpus)
 
     if args.markdown:
@@ -1340,8 +1333,8 @@ def main() -> int:
     else:
         print(text)
 
-    # Written first either way: a malformed corpus is easier to diagnose from
-    # the file than from a description of it.
+    # The serialized value is emitted before the diagnostic either way because
+    # it contains more useful failure context than the violation list alone.
     if schema_problems:
         print(f"error: corpus violates schema v{corpus_schema.SCHEMA_VERSION}:",
               file=sys.stderr)
