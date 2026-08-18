@@ -115,6 +115,8 @@ def _text_property(max_length: int) -> dict[str, Any]:
     return {
         "type": "string",
         "description": f"A non-empty string of at most {max_length} characters.",
+        "minLength": 1,
+        "maxLength": max_length,
     }
 
 
@@ -123,6 +125,8 @@ def _citation_refs() -> dict[str, Any]:
         "type": "array",
         "description": "One or more distinct, eligible citation references from the supplied corpus.",
         "items": {"type": "string"},
+        "minItems": 1,
+        "uniqueItems": True,
     }
 
 
@@ -149,6 +153,8 @@ def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any
                     "type": "array",
                     "description": f"At most {section.target_stories} topics.",
                     "items": topic,
+                    "minItems": 0,
+                    "maxItems": section.target_stories,
                 }
             },
             "required": ["topics"],
@@ -170,6 +176,8 @@ def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any
                 "type": "array",
                 "description": f"At most {section.excluded_stories} excluded topics.",
                 "items": excluded,
+                "minItems": 0,
+                "maxItems": section.excluded_stories,
             }
     return {
         "type": "object",

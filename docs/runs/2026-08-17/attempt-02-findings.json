@@ -1,0 +1,12 @@
+[
+  {
+    "check": "missing_discussion_link",
+    "level": "WARN",
+    "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://cursor.com/changelog/origin-code-hosting"
+  },
+  {
+    "check": "missing_discussion_link",
+    "level": "WARN",
+    "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://status.cursor.com/incidents/l9h9vrd726jv"
+  }
+]

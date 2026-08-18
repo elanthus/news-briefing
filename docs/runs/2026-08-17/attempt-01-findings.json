@@ -1,0 +1,7 @@
+[
+  {
+    "check": "category_ineligible_ref",
+    "level": "ERROR",
+    "message": "topics.US Politics[0] uses citation_0118 from ineligible category world"
+  }
+]

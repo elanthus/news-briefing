@@ -29,6 +29,26 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 
 ## Daily runs
 
+### 2026-08-17 — Codex GPT-5.6 Terra dogfood run
+
+The complete fetch → rank and summarize → check → single correction → final check loop, run at the requested Terra Medium setting. The corpus, both model attempts, corrected briefing, configuration snapshot, and machine-readable manifest are archived at [`docs/runs/2026-08-17/`](runs/2026-08-17/). The Codex CLI manifest records the exact generation model as `gpt-5.6-terra`; its adapter does not expose a separate reasoning-effort field.
+
+- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Codex CLI 0.147.0 and `gpt-5.6-terra`. The generation process ran in the runner's empty read-only sandbox and rejected non-message/non-reasoning trace items.
+- Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; repository commit `748f4a9`.
+- Corpus window: 2026-08-17 04:13:45 UTC → 2026-08-18 04:13:45 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 210 items — 34 US politics, 60 US news, 49 world, 13 AI/tech, and 54 developer-community. Live fetch time: 24.655 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but had zero recognized entries; `r/ClaudeCode` and `r/cursor` returned HTTP 429. The briefing's corpus-health section lists all three coverage gaps.
+- Processing: 24 AI/tech items failed the relevance filter and the US-news category cap dropped 22 items. No duplicate, source-cap, field-budget, source-budget, or global-budget drops occurred. One hundred six summaries were truncated at the configured field limit; all counters reconcile against 256 fetched items.
+- Briefing: 22 reported topics filled all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), with a 25-row exclusion log, corpus-health section, and final validation section.
+- Checker, first result: 1 error, 0 warnings — `category_ineligible_ref` because the first US Politics topic cited a `world`-category item.
+- Correction made after checking: replaced the ineligible `world` citation in “Trump threatens Oman as Iran-war peace window expires” with an eligible `us_politics` citation. No section placement or topic headline changed.
+- Checker, original final result: **0 errors and 3 warnings** (`WARN`). The two `missing_discussion_link` warnings concern Hacker News entries for Cursor Origin and its status incident; one `unsupported_figure` warning concerned “4.2 percent” in the kindergarten-vaccine topic. No additional model turn was taken under the one-correction workflow.
+- PR review amendment: removed the unsupported vaccine-exemption figure from the structured output and regenerated the rendered briefings, findings, schema, and manifest while preserving the raw model response. The current final result is **0 errors and 2 warnings** (`WARN`), both for missing Hacker News discussion links. Reproduce it with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-17/corpus-2026-08-17.json --briefing docs/runs/2026-08-17/briefing.md --config docs/runs/2026-08-17/briefing-config.json
+  ```
+
 ### 2026-08-09 — the run behind the committed reference pair
 
 The complete fetch → rank and summarize → check loop that produced [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). Every count below is derived from those two committed files, so this entry can be re-derived instead of taken on trust.

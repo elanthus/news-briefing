@@ -1,0 +1,2776 @@
+{
+  "categories": {
+    "ai_tech": [
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0144"
+          }
+        ],
+        "item_ref": "item_0144",
+        "published": "2026-08-17T23:56:26+00:00",
+        "source": "TechCrunch AI",
+        "summary": "The model maker added $18 billion in annualized revenue in two months.",
+        "title": "Anthropic’s annualized revenue surges to $65B"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0145"
+          }
+        ],
+        "item_ref": "item_0145",
+        "published": "2026-08-17T23:46:01+00:00",
+        "source": "The Verge",
+        "summary": "Reddit is trying out a new way for people to take in content on Reddit: by turning text posts into audio / video content. As part of an experiment, some posts are being adapted into videos that use AI voices to read the text of the main post and some comments. The video highlights the […]",
+        "title": "Reddit’s AI is turning posts into podcasts and short videos"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0146"
+          }
+        ],
+        "item_ref": "item_0146",
+        "published": "2026-08-17T21:27:05+00:00",
+        "source": "TechCrunch AI",
+        "summary": "\"We have some really ambitious plans to help you work with AI in Chrome to get things done, and I’ll have more to share soon,\" Jacob Bank, Relay founder and CEO, said.",
+        "title": "AI automation startup Relay shuts down, staff joins Google’s Chrome team"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0147"
+          }
+        ],
+        "item_ref": "item_0147",
+        "published": "2026-08-17T21:18:49+00:00",
+        "source": "Ars Technica",
+        "summary": "“We're not necessarily building in a dogmatic fashion towards full autonomy.”",
+        "title": "Former SpaceX engineers are building a robotic factory for making steel parts"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0148"
+          }
+        ],
+        "item_ref": "item_0148",
+        "published": "2026-08-17T20:18:17+00:00",
+        "source": "Wired",
+        "summary": "Rogue Studios, a new cinematic adult AI-generator, is betting big on the future of “sophisticated” spicy content.",
+        "title": "This R-Rated Film Studio Wants to Be the HBO of AI"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0149"
+          }
+        ],
+        "item_ref": "item_0149",
+        "published": "2026-08-17T18:13:47+00:00",
+        "source": "Ars Technica",
+        "summary": "Amazon’s team uses a T. rex preparing to devour a book as its logo.",
+        "title": "Hidden Airtag reveals Amazon is trashing rare books to train AI"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0150"
+          }
+        ],
+        "item_ref": "item_0150",
+        "published": "2026-08-17T16:38:44+00:00",
+        "source": "TechCrunch AI",
+        "summary": "Rare books are incredibly valuable for training LLMs, since these models have already trained on whatever's available online.",
+        "title": "Amazon, which started off selling books, is destroying rare texts to train AI"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0151"
+          }
+        ],
+        "item_ref": "item_0151",
+        "published": "2026-08-17T16:15:12+00:00",
+        "source": "TechCrunch AI",
+        "summary": "Groq raised $350 million at a $3.5 billion valuation as the former AI chipmaker pivots to a neocloud business and expands its Nvidia-powered data center footprint.",
+        "title": "Groq raises $350M to fuel its pivot from AI chips to neocloud"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0152"
+          }
+        ],
+        "item_ref": "item_0152",
+        "published": "2026-08-17T15:16:24+00:00",
+        "source": "TechCrunch AI",
+        "summary": "Nvidia's investment in SoftBank's data center developer will guarantee its chips power an OpenAI data center.",
+        "title": "Nvidia investing $1.5B in SoftBank data center developer behind OpenAI project"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0153"
+          }
+        ],
+        "item_ref": "item_0153",
+        "published": "2026-08-17T14:22:54+00:00",
+        "source": "Ars Technica",
+        "summary": "Filing comes after Elon Musk announced exclusive arrangement to kit out its data centers.",
+        "title": "Nvidia discloses $21B stake in SpaceX"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0154"
+          }
+        ],
+        "item_ref": "item_0154",
+        "published": "2026-08-17T13:10:05+00:00",
+        "source": "TechCrunch AI",
+        "summary": "The funds will allow Wispr to increase its footprint as it ventures into new areas, such as meetings, with its newly released note-taker tool.",
+        "title": "Wispr raises $280M at $2B valuation as it looks beyond dictation"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0155"
+          }
+        ],
+        "item_ref": "item_0155",
+        "published": "2026-08-17T05:30:00+00:00",
+        "source": "OpenAI News",
+        "summary": "AI is reshaping cybersecurity for attackers and defenders alike. Learn how OpenAI is strengthening its defenses and what security teams can do now.",
+        "title": "The Defender’s Window"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0156"
+          }
+        ],
+        "item_ref": "item_0156",
+        "published": "2026-08-17T05:00:00+00:00",
+        "source": "OpenAI News",
+        "summary": "OpenAI joins PORTS-Pike project, expanding community investment and supporting thousands of Southern Ohio jobs",
+        "title": "OpenAI joins PORTS-Pike project"
+      }
+    ],
+    "dev_community": [
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0157"
+          }
+        ],
+        "item_ref": "item_0157",
+        "published": "2026-08-18T03:11:17+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "What does this mean? Is there something else coming? Maybe 122B? Or no models?",
+        "title": "Qwen dev says not to wait for 35B-A3B"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0158"
+          }
+        ],
+        "item_ref": "item_0158",
+        "published": "2026-08-18T01:41:16+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I've been using claude's poetry style to respond to claude to try to get it to stop using it on me.",
+        "title": "Claude Poetry"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0159"
+          }
+        ],
+        "item_ref": "item_0159",
+        "published": "2026-08-18T01:36:14+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Did they slip up and leak future pricing? Live link: [destination omitted; use citation refs] Archive link: [destination omitted; use citation refs]",
+        "title": "CDW has bumped the MSRP of the RTX Pro 6000 from $16,000 to $19,999"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0160"
+          }
+        ],
+        "item_ref": "item_0160",
+        "published": "2026-08-18T01:17:58+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "This question is for those of you doing agentic coding. Agentic coding can 10-20x speed of development and bosses are loving it. Though it seems to keep you in this constant state of being new to a codebase. And it's not as if you were actually new to a codebase because you could just end up learnin",
+        "title": "How do you guys deal with being a stranger to your own codebase?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0161"
+          }
+        ],
+        "item_ref": "item_0161",
+        "published": "2026-08-18T00:30:21+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "At this point it feels like way more than once per day and is super distracting. Is it just asking you to reload anytime an engineer commits or something? Anthropic: this should feel way more organized and like 2X per week maximum.",
+        "title": "The extreme number of updates comes off as janky and unprofessional."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0162"
+          },
+          {
+            "kind": "discussion",
+            "ref": "citation_0163"
+          }
+        ],
+        "comments": 25,
+        "item_ref": "item_0162",
+        "points": 47,
+        "published": "2026-08-17T23:58:19+00:00",
+        "query": "cursor",
+        "source": "Hacker News",
+        "summary": "",
+        "title": "Cursor Origin"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0164"
+          }
+        ],
+        "item_ref": "item_0163",
+        "published": "2026-08-17T23:06:05+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "",
+        "title": "Waiting for Qwen 3.8 35B A3B"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0165"
+          }
+        ],
+        "item_ref": "item_0164",
+        "published": "2026-08-17T22:42:19+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I prefer Claude over GPT because it feels more like a collaborator than a sycophant, but its turns of phrases are very grating--one place where GPT is head and shoulders better because it'll just communicate normally while Claude is all \"three things that improved this turn and one that I want to pu",
+        "title": "Anybody have a good method to tone down the Claude-isms?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0166"
+          }
+        ],
+        "item_ref": "item_0165",
+        "published": "2026-08-17T22:12:19+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "For the past few days, I’ve noticed Claude becoming a bit “lazy”. To work around it, I started making my documentation more structured whenever I begin a new section of a project: more concise handoffs, the current state, decisions already made, and an explicit next step. The idea is to save context",
+        "title": "Claude keeps ignoring documented work. How do you deal with this?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0167"
+          }
+        ],
+        "item_ref": "item_0166",
+        "published": "2026-08-17T21:59:58+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Been a ChatGPT/Codex user since basically day one, finally giving Claude a real shot, and I ran straight into something I didn't expect. My setup: 8 textbooks (4 biochem, 3 ochem) converted to markdown with figures stripped out. On ChatGPT this was a non-issue — I have GB of storage and the only thi",
+        "title": "Longtime ChatGPT user trying Claude for a big markdown textbook library — hit the project knowledge cap immediately"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0168"
+          }
+        ],
+        "item_ref": "item_0167",
+        "published": "2026-08-17T21:53:54+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "qwen3.8 27B has seriously impressive benchmarks on its model card, but that's for the unquantised version. Almost everyone here will run one quant or another. Are there good benchmarks for how those quants perform?  Kl divergence is only a rough proxy for how the distribution over tokens is preserve",
+        "title": "we benchmark models nobody actually runs"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0169"
+          }
+        ],
+        "item_ref": "item_0168",
+        "published": "2026-08-17T21:32:03+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Lately I've been using Claude to automate my business. Prior to Claude I was already using Zapier and Airtable. I've since added Hubspot for sales and marketing and Make to help automate daily reports. I'm having Claude help me to connect all of these resources and automate the flow of information b",
+        "title": "Is using AI to automate and connect my business a trap for me later?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0170"
+          }
+        ],
+        "item_ref": "item_0169",
+        "published": "2026-08-17T20:13:45+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "One of our users runs a small construction crew that works as a subcontractor on data center builds. He's been using an agent pipeline built on Claude, with an Atomic Mail inbox as the agent's own inbox and shared the setup with us because the interesting part turned out to be a data problem, not an",
+        "title": "Automating lead gen from public federal contract data - a data center construction case study"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0171"
+          },
+          {
+            "kind": "discussion",
+            "ref": "citation_0172"
+          }
+        ],
+        "comments": 16,
+        "item_ref": "item_0170",
+        "points": 46,
+        "published": "2026-08-17T20:13:27+00:00",
+        "query": "cursor",
+        "source": "Hacker News",
+        "summary": "",
+        "title": "GitHub degradation affects Cursor Origin, its new Git platform"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0173"
+          }
+        ],
+        "item_ref": "item_0171",
+        "published": "2026-08-17T20:09:26+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Mind you, it is 1.0 by default, yet everyone is focused on how much the new model thinks, restricting the reasoning budget and/or dropping the reasoning level. Set the temperature to 0.7 and the model will no longer write a whole book of thoughts before trying to make a small edit in the file. The q",
+        "title": "Weirdly, no one talks about Temperature setting for the Qwen3.8 27b"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0174"
+          }
+        ],
+        "item_ref": "item_0172",
+        "published": "2026-08-17T19:45:37+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "I'm starting to think there's no way to make a reasoning model that won't draw persistent vocal complaints on here. EDIT: Qwen 3.8 not Opus 4.8*, freudian slip lol",
+        "title": "\"Opus 4.8 thinks too much\", \"Muse Glimmer sits between Gemma and Qwen, that's boring\", \"Gemma 4 is too lazy\""
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0175"
+          }
+        ],
+        "item_ref": "item_0173",
+        "published": "2026-08-17T19:16:01+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "[destination omitted; use citation refs] [destination omitted; use citation refs] I’ve been running this same dumb test on every new model for a whi",
+        "title": "the h test"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0176"
+          }
+        ],
+        "item_ref": "item_0174",
+        "published": "2026-08-17T18:21:02+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Artificial analysis index scores  Qwen 3.5 27b: 35 Qwen 3.6 27b: 38 Qwen 3.8 27b: 52  What the hell kind of a jump was that? Even if it is benchmaxxed, the jump is insane.  Qwen3.6 35b A3b: 32  That's ~6 points behind its dense 27b model, but is ~5x faster for inference given only 3b active params/t",
+        "title": "Qwen 3.8 35bA3b wen?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0177"
+          }
+        ],
+        "item_ref": "item_0175",
+        "published": "2026-08-17T18:05:12+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Just wanted to raise some attention to this PR I filed if anyone would like to try it out. This adds an adaptive MTP mode to llama.cpp which employs a fairly simple counting-style state machine to determine the appropriate depth to set the MTP depth to dynamically. The goal here was to make it so pe",
+        "title": "llama.cpp adaptive MTP PR#27210"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0178"
+          }
+        ],
+        "item_ref": "item_0176",
+        "published": "2026-08-17T17:41:25+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Now that local sessions can talk to each other everything has changed for my workflow. Now Fable can orchestrate not only agents but full coding sessions. This also means every section of my build can have its own context window. Fable architects my builds, does all docs and plans work in the master",
+        "title": "Cross session communication has changed the context game. Im surprised no one is talking about this more."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0179"
+          }
+        ],
+        "item_ref": "item_0177",
+        "published": "2026-08-17T17:26:46+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "",
+        "title": "Artificial Analysis' Qwen3.8-27B benchmarks put it neck and neck with DeepSeek V4 and GPT-5.6 Luna Max"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0180"
+          },
+          {
+            "kind": "discussion",
+            "ref": "citation_0181"
+          }
+        ],
+        "comments": 72,
+        "item_ref": "item_0178",
+        "points": 118,
+        "published": "2026-08-17T17:02:44+00:00",
+        "query": "cursor",
+        "source": "Hacker News",
+        "summary": "",
+        "title": "Cursor launches Origin, GitHub alternative"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0182"
+          }
+        ],
+        "item_ref": "item_0179",
+        "published": "2026-08-17T16:53:34+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Just curious - I like to be able to see and manage the scripts my agent is working on. I find stuff like Claude Code and Open Code useful for doing stuff on my linux box but I don't understand why people would use that instead of a dedicated IDE where you can actually see the architecture of your pr",
+        "title": "Why do people like coding harnesses like opencode etc instead of an IDE?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0183"
+          }
+        ],
+        "item_ref": "item_0180",
+        "published": "2026-08-17T16:42:45+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "So, this happened recently with me while using Claude Code. I am working on a dev project using claude code to do the usual stuff. As guardrails, I have explicitly added instructions for disabling auto push of code commits and instructions for confirming before performing updates on remote. I was de",
+        "title": "Claude code doesn’t follow rules anymore"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0184"
+          }
+        ],
+        "item_ref": "item_0181",
+        "published": "2026-08-17T16:34:29+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "This Ling 3.0 Tiny 8b param with 1.3b active is the fastest, smartest model I can run on my poor old pc, with 4gb vram. It actually runs lightning fast, like 36 token / sec, as smart as Qwen 3.5 9b / Gemma 12, (Very close), and even faster because of 1.3b active parameters. The Qwen 3.5 9b is runnin",
+        "title": "Ling 3.0 Tiny is the strongest, fastest and greatest model on my low end PC!"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0185"
+          }
+        ],
+        "item_ref": "item_0182",
+        "published": "2026-08-17T16:30:27+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Hey everyone! Hope I don’t get roasted for this 😅 I’m here with a fun little intro video. My goal is simple: build something genuinely useful for everyone.I shared this on r/ClaudeCode last week and got some amazing feedback 300K views, hopefully some of you here will find it useful too. I originall",
+        "title": "I coded terminal manager for ADHD brains. 100% Opensource."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0186"
+          }
+        ],
+        "item_ref": "item_0183",
+        "published": "2026-08-17T16:22:26+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Heya folks, I posted in here a couple weeks ago about how I ported SimCity to run on my Wear OS watch. I had a lot of fun doing that project, so I decided to take on another game from my childhood, Oregon Trail. Specifically, this version was inspired by the 1985 Apple II version I'd played in the c",
+        "title": "Weekend Project: Oregon Trail for Wear OS & Web"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0187"
+          }
+        ],
+        "item_ref": "item_0184",
+        "published": "2026-08-17T15:39:48+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Hey guys, see a lot of posts and threads treating prompting claude code like its some deep skill with secret techniques. Be specific, give examples, break down the task, mention edge cases. Like yeah, that's just... how you'd explain something to a competent junior dev too. Not exactly a hidden art.",
+        "title": "Hot take: Most \"prompt engineering\" advice for claude code is just common sense dressed up as a skill."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0188"
+          }
+        ],
+        "item_ref": "item_0185",
+        "published": "2026-08-17T15:36:49+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Yes, it sucks to waste time waiting on 16K+ reasoning tokens alone. But here's the thing, this is only a 27B model trying to perform on par with 1T+ parameter models. Something has to be sacrificed, and that sacrifice is the amount of reasoning or trajectory tokens. This isn't new to LLMs whatsoever",
+        "title": "Qwen 3.8 27B Overthinking, It has to be done, it has to be overthinking to punch Opus 4.6"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0189"
+          },
+          {
+            "kind": "discussion",
+            "ref": "citation_0190"
+          }
+        ],
+        "comments": 53,
+        "item_ref": "item_0186",
+        "points": 94,
+        "published": "2026-08-17T15:36:18+00:00",
+        "query": "llm agent",
+        "source": "Hacker News",
+        "summary": "Hi HN! I'm Bek, founder of Speko, a platform that finds an optimal combination of speech-to-text, LLM, and text-to-speech models, given your constraints, among all our public benchmarked options, and tells you why.Demo: [destination omitted; use citation refs] production voice agent is an ",
+        "title": "Launch HN: Speko (YC S26) – OpenRouter for Voice AI"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0191"
+          }
+        ],
+        "item_ref": "item_0187",
+        "published": "2026-08-17T15:15:18+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I've been experimenting more with Claude Code, Skills and custom instructions lately, and I feel like I'm only scratching the surface. I keep finding really good Skills and workflows randomly across Reddit, GitHub and other communities. So I'm curious: Where do you guys find the good stuff? GitHub? ",
+        "title": "How are you guys discovering new Claude Skills and workflows? I feel like I'm missing a lot"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0192"
+          }
+        ],
+        "item_ref": "item_0188",
+        "published": "2026-08-17T14:54:57+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Guys, could someone smarter than me explain what makes Deepseek Harness so efficient? I run it with local Qwen 3.8 (Q6). I tried Opencode/Openchamber (my favourite so far), Pi agent and Hermes. New Qwen seems to overthing by default but this could be minimized with some effort. On another hand - in ",
+        "title": "Deepseek Harnness - why is feels better"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0193"
+          }
+        ],
+        "item_ref": "item_0189",
+        "published": "2026-08-17T14:02:07+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "For a large end to end task, I first asked Opus to generate a comprehensive step by step plan. Now for executing these steps (i.e. the actual coding), can I use Haiku over Sonnet? I know Sonnet already does it pretty good, but from purely token saving perspective, and if the plan is already laid dow",
+        "title": "If a plan is already prepared by Opus, can I use Haiku to execute it instead of Sonnet?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0194"
+          }
+        ],
+        "item_ref": "item_0190",
+        "published": "2026-08-17T13:58:08+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Resolved - This incident has been resolved. Aug 17, 15:29 UTC Monitoring - A fix has been implemented and we are monitoring the results. Aug 17, 14:39 UTC Update - Claude Opus 5 is operational. Claude Sonnet 5 is degraded. We are investigating. Aug 17, 14:25 UTC Investigating - We are investigating ",
+        "title": "Discussion Hub for new Claude incident: Degraded performance for Claude Opus 5 on Aug 17, 2026"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0195"
+          }
+        ],
+        "item_ref": "item_0191",
+        "published": "2026-08-17T13:53:51+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "llama.cpp is apparently moving to semantic versioning instead of just sequential build numbers (like b10456). The first semantic version tag was created today: [destination omitted; use citation refs] Congrats to llama.cpp on version v0.1.0!",
+        "title": "llama.cpp version v0.1.0 has been released"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0196"
+          }
+        ],
+        "item_ref": "item_0192",
+        "published": "2026-08-17T13:25:31+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I've been using Claude - mostly Claude Code, but regular Chat as well - almost since it came out. It's been incredibly useful and seemed to only get better with new releases. I've seen lots of posts in this sub and related subs when new models would come out about them not being as capable or gettin",
+        "title": "Claude is Losing Me After Being Heavy User Since Release"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0197"
+          }
+        ],
+        "item_ref": "item_0193",
+        "published": "2026-08-17T13:22:43+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Not quite the wizard I had in mind, but honestly… I kind of love it.",
+        "title": "I let Opus 5 loose in Blender and asked it to render a wizard. This is what I got."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0198"
+          }
+        ],
+        "item_ref": "item_0194",
+        "published": "2026-08-17T13:05:26+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Following up on my previous post about my budget server setup (Intel N100 + RTX 5060 Ti 16GB), a few of you asked for a deeper dive into my actual inference config and real-world agentic performance. Like many of you, I was refreshing the page waiting to download Qwen 3.8 27B the second it dropped. ",
+        "title": "After pushing 1M+ tokens through Qwen 3.8 27B, here is my optimal llama.cpp config for 16GB VRAM (73k Context, Agentic Coding)"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0199"
+          }
+        ],
+        "item_ref": "item_0195",
+        "published": "2026-08-17T12:49:03+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "We introduce Mobius-v0, an architecture that comprises a globally shared Memory (FFN) that stores knowledge vectors and multiple Reasoners (Self-Attn) that iteratively achieve compositional reasoning. Using hidden states as cache and carrier, reasoners repeatedly query memory for required knowledge-",
+        "title": "[Paper] Intern-S2-Mobius: Foundation Model with Decoupled Knowledge and Reasoning"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0200"
+          }
+        ],
+        "item_ref": "item_0196",
+        "published": "2026-08-17T12:43:56+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I need to hear from people who've been doing this longer than me, because this has been eating me alive for about a month now. Context: I've spent the last year building a voice agent system that's live and handling 1000+ calls, deployed on Azure. On top of that I building SDK which analyzes those c",
+        "title": "If Claude writes all my code, what exactly is my skill? Genuinely losing sleep over this."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0201"
+          }
+        ],
+        "item_ref": "item_0197",
+        "published": "2026-08-17T12:35:41+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Hey all! I’ve been working on a personal project called Dagflo, animated visual explanations for software teams! Dagflo lets coding agents like Claude, Codex, and Cursor turn codebases, pull requests, systems, articles, diagrams, and algorithms into animated, step-by-step visualizations. After four ",
+        "title": "I gave Claude Code a visual output: Turn codebases into animated walkthroughs"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0202"
+          }
+        ],
+        "item_ref": "item_0198",
+        "published": "2026-08-17T12:02:42+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "For anyone wondering, the app I'm working on is [destination omitted; use citation refs]. It helps people discover web and mobile apps from across the internet by showing them one app at a time. People like apps in order to get personalized app recommendations. If you run a software startup or side project, you can ",
+        "title": "why do i get like this"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0203"
+          }
+        ],
+        "item_ref": "item_0199",
+        "published": "2026-08-17T11:57:18+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "I use Claude for writing and coding, and I am now incredibly more productive than I ever was. The problem is how i spend the time while Claude thinks for me. It's not usually enough time for me to pick up something else, but long enough to get bored. So I doomscroll. Reddit, the news, whatever... Wr",
+        "title": "More productive but way more scattered"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0204"
+          }
+        ],
+        "item_ref": "item_0200",
+        "published": "2026-08-17T11:43:53+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "Wanted to share something I built using Claude — an animated arrow background for Framer where small arrow particles drift and react to cursor movement. I'm not a developer by trade, so this was a good test of how far Claude could take me on something with actual animation logic (easing, particle pe",
+        "title": "Built a mouse-tracking arrow background component entirely with Claude"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0205"
+          }
+        ],
+        "item_ref": "item_0201",
+        "published": "2026-08-17T11:11:37+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Qwen 27b Q3_K_M 2x rx 580 8gb (~50$ each in my country, edge cases 60$ per gpu) gives us 16gb vram We used it on an old already existing ddr3 motherboard with 2 gpu slots(you can buy it ror around 200$ with 32 gb of ddr3 ram, a workstation xeon cpu and a workstation motherboard, used) Its not the be",
+        "title": "100$ worth of gpu runs qwen 3.8 27b at 7.39 t/s"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0206"
+          }
+        ],
+        "item_ref": "item_0202",
+        "published": "2026-08-17T09:58:16+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "",
+        "title": "LLM's can't \"jump\" - a paper by Deepmind showing LLMs can't generate novel explanatory hypotheses"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0207"
+          }
+        ],
+        "item_ref": "item_0203",
+        "published": "2026-08-17T09:53:27+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Yes it uses a ton more reasoning tokens than 3.6 did But test in on the same tasks with the other chinese models, glm 5.3, deepseek v4 flash and pro, etc it's really similar, and they are needed The reality is, we're just frustrated because our hardware do not allow most of us to have 1M context (I ",
+        "title": "Unpopular opinion : Qwen 3.8 27b is not an overthinker"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0208"
+          }
+        ],
+        "item_ref": "item_0204",
+        "published": "2026-08-17T09:20:53+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Every time I see a post about a newly released model, whether it be a comparison or shitting on it, I have to dig through the endless comments to see what quants they used and what their specs were. Its quite a common occurrence here in this sub to ask someone that's saying a model is underperformin",
+        "title": "Petition to add a rule for people to add their DAMN quant levels to their posts"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0209"
+          }
+        ],
+        "item_ref": "item_0205",
+        "published": "2026-08-17T08:58:00+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Support for the new ling 3.0 models has been merged into llama.cpp: [destination omitted; use citation refs] Ling tiny 8b1b - [destination omitted; use citation refs] Ling flash 124b5b - [destination omitted; use citation refs] Both are reasoning models con",
+        "title": "Ling 3.0 support merged into llama.cpp"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0210"
+          }
+        ],
+        "item_ref": "item_0206",
+        "published": "2026-08-17T08:24:35+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Sorry for the slop, but I was impressed by this model as I have been testing Qwen3.8-27B Q8_0 locally on my ROG Flow Z13 (Ryzen AI Max+ 395, 128 GB unified memory) and this model was the only one who could made this short simulator (and I have tested a lot of models). Prompt: \"Create a beautiful, re",
+        "title": "Qwen3.8-27B Q8_0 on Strix Halo is seriously impressive"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0211"
+          }
+        ],
+        "item_ref": "item_0207",
+        "published": "2026-08-17T08:09:40+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Hi all! I finally just got around to testing out Qwen 3.8 27b. I'm using Unsloth's UD-Q8_K_XL quant as a sit-in replacement to Qwen 3.6 27b, same quant size. Wow -- this thing isn't messing around. I have many baseline test prompts to gauge the 'intelligence' and usability of the model, but a go-to ",
+        "title": "Long Review: Qwen 3.8 27B is VERY good at tapping into it's real-world knowledge. It's \"overthinking\" brings it to Sonnet level performance with the potential for Opus level results."
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0212"
+          }
+        ],
+        "item_ref": "item_0208",
+        "published": "2026-08-17T07:29:31+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "another one ..",
+        "title": "Stripe will reportedly acquire AI gateway startup OpenRouter for $7B+"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0213"
+          }
+        ],
+        "item_ref": "item_0209",
+        "published": "2026-08-17T05:32:19+00:00",
+        "source": "r/LocalLLaMA",
+        "summary": "Trying to get a feel for where I stand. If you can list your relevant hardware and model used, that would be awesome. Here's mine: Model: Qwen3.8-27B-heretic-ara, Q5_K_M GGUF T/s by context saturation: I found that t/s output depends on how saturated the context is. The more saturated, the slower th",
+        "title": "How many tokens/second output are you getting with Qwen3.8-27B?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0214"
+          }
+        ],
+        "item_ref": "item_0210",
+        "published": "2026-08-17T04:21:53+00:00",
+        "source": "r/ClaudeAI",
+        "summary": "This started yesterday. When I start a new conversation, most of the time I am hit something along the line of what the picture shows. It’s not the same every time with some differences, but same gist. I only had two preferences: to keep answer brief, and to talk in a natural way. I have never once ",
+        "title": "Weird statement when new conversation is started"
+      }
+    ],
+    "us_news": [
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0035"
+          }
+        ],
+        "item_ref": "item_0035",
+        "published": "2026-08-18T03:19:57+00:00",
+        "source": "The Guardian US",
+        "summary": "Jeanie Buss wants to remain as controlling ownerFamily were set to sell stake to Bob Iger and Josh JushnerJeanie Buss is reportedly challenging her siblings’ attempt to sell the family’s remaining stake in the Los Angeles Lakers.Hours after the Buss family released a statement revealing their ⁠inten",
+        "title": "Jeanie Buss reportedly attempting to halt her siblings’ attempt to sell remaining stake in Lakers"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0036"
+          }
+        ],
+        "item_ref": "item_0036",
+        "published": "2026-08-18T02:54:59+00:00",
+        "source": "CBS News US",
+        "summary": "In May, a federal judge dismissed a criminal indictment against Abrego Garcia, who had been accused of smuggling immigrants in the U.S. illegally.",
+        "title": "DOJ asks court to reinstate criminal charges against Abrego Garcia"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0037"
+          }
+        ],
+        "item_ref": "item_0037",
+        "published": "2026-08-18T02:04:28+00:00",
+        "source": "The Guardian US",
+        "summary": "CNN says attack ‘beneath the office’ after Kristen Holmes asked president about Jon Ossoff’s comments on key aideThe White House launched a personal attack against a CNN reporter on Monday with a social media post that mentioned her children and accused her of asking a “disgusting and inhumane quest",
+        "title": "White House launches personal attack on CNN reporter over question to Trump"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0038"
+          }
+        ],
+        "item_ref": "item_0038",
+        "published": "2026-08-18T01:57:12+00:00",
+        "source": "The Guardian US",
+        "summary": "This blog is now closed. Read more hereSign up for the Breaking News US emailRepublican senator Thom Tillis deplored Trump’s decision to cut US military drills with South Korea, which comes despite military officials from both countries warning that Kim Jong-un’s regime is learning new battlefield e",
+        "title": "Trump says Kim Jong-un has responded to his overtures when asked about scaling back US drills with South Korea – as it happened"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0039"
+          }
+        ],
+        "item_ref": "item_0039",
+        "published": "2026-08-18T01:53:25+00:00",
+        "source": "CBS News US",
+        "summary": "U.S. District Judge Theodore Chuang ruled that the Trump administration's move to divert funding and cancel a plan to move the FBI to Maryland was \"arbitrary and capricious and not in accordance with law.\"",
+        "title": "Judge blocks plan to move FBI headquarters to Reagan Building"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0040"
+          }
+        ],
+        "item_ref": "item_0040",
+        "published": "2026-08-18T01:31:07+00:00",
+        "source": "CBS News US",
+        "summary": "\"The boulders that were coming down were so heavy they were like shaking the ground,\" resident Alice Birnbaum told CBS News.",
+        "title": "Homes destroyed by mudslide brought by Lala on Hawaii's Big Island"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0041"
+          }
+        ],
+        "item_ref": "item_0041",
+        "published": "2026-08-18T01:10:05+00:00",
+        "source": "The Guardian US",
+        "summary": "President, who has decried mail-in ballots amid false claims of election fraud, issued March order to curb voting by mailDonald Trump voted by mail in Florida’s Republican primary, Politico reports, citing Palm Beach county voting records. The White House has confirmed the president’s mail-in vote, ",
+        "title": "Trump reportedly casts mail-in ballot in Florida Republican primary"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0042"
+          }
+        ],
+        "item_ref": "item_0042",
+        "published": "2026-08-18T00:09:01+00:00",
+        "source": "CBS News US",
+        "summary": "Co-stars and friends of Hayden Panettiere​ are remembering her for her friendship, intelligence and talent after her shocking death on Sunday.",
+        "title": "Hayden Panettiere remembered by co-stars and friends after her death"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0043"
+          }
+        ],
+        "item_ref": "item_0043",
+        "published": "2026-08-18T00:08:09+00:00",
+        "source": "CBS News US",
+        "summary": "Hayden Panettiere, who starred in \"Remember the Titans\" as a child actor and rose to fame in the series \"Heroes,\" has died at the age of 36. The coroner's office says she was found in cardiac arrest.",
+        "title": "Hayden Panettiere, known for \"Heroes\" and \"Remember the Titans,\" dies at 36"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0044"
+          }
+        ],
+        "item_ref": "item_0044",
+        "published": "2026-08-18T00:05:00+00:00",
+        "source": "CBS News US",
+        "summary": "Lindsay Clancy has pleaded not guilty to murdering her children, but her attorneys don't deny that she caused the deaths of 5-year-old Cora, 3-year-old Dawson and 8-month-old Callan.",
+        "title": "Key moments from the Lindsay Clancy trial as the defense starts to make its case"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0045"
+          }
+        ],
+        "item_ref": "item_0045",
+        "published": "2026-08-18T00:05:00+00:00",
+        "source": "The Guardian US",
+        "summary": "Shasta county, hotbed of US election denialism movement, set to appoint ex-Colorado clerk who served prison termA northern California county that has become a hotbed of activism for those who sow doubts about the reliability of voting machines plans to hire Tina Peters, the prominent Colorado electi",
+        "title": "Election denier Tina Peters to be hired as elections consultant in conservative California county"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0046"
+          }
+        ],
+        "item_ref": "item_0046",
+        "published": "2026-08-18T00:00:49+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Wyoming voters will choose nominees for an unusually high number of open-seat races in a state primary Tuesday, thanks to two prominent Republican officials whose retirement announcements set off a scramble for contests throughout the ballot.",
+        "title": "Live Results: Wyoming midterm primaries"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0047"
+          }
+        ],
+        "item_ref": "item_0047",
+        "published": "2026-08-18T00:00:32+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Alaska voters will narrow down a long list of contenders Tuesday for a competitive U.S. Senate seat that's expected to play a pivotal role in determining which party will hold a majority in the chamber next year.",
+        "title": "Live Results: Alaska midterm primaries"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0048"
+          }
+        ],
+        "item_ref": "item_0048",
+        "published": "2026-08-18T00:00:04+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Florida voters will select nominees Tuesday to replace term-limited Republican Gov. Ron DeSantis and to complete the remainder of Secretary of State Marco Rubio's unexpired U.S. Senate term.",
+        "title": "Live Results: Florida midterm primaries"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0049"
+          }
+        ],
+        "item_ref": "item_0049",
+        "published": "2026-08-18T00:00:01+00:00",
+        "source": "PBS NewsHour",
+        "summary": "With two Democrats competing on the ballot, the seat in California's 14th Congressional District is guaranteed to remain under Democratic control and further narrow an already fragile Republican majority in the chamber.",
+        "title": "Live Results: California special election to replace former Rep. Eric Swalwell"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0050"
+          }
+        ],
+        "item_ref": "item_0050",
+        "published": "2026-08-17T23:49:40+00:00",
+        "source": "CBS News US",
+        "summary": "Lala was weakening but still packing a punch as it moved away from the islands, forecasters said.",
+        "title": "Former Hurricane Lala drenches Hawaii, flash floods sweep away Big Island homes"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0051"
+          }
+        ],
+        "item_ref": "item_0051",
+        "published": "2026-08-17T23:45:00+00:00",
+        "source": "CBS News US",
+        "summary": "Lightning struck a natural gas tank south of Tulsa, Oklahoma, sparking a massive fire that spread to nearby tanks. Jason Allen has new developments.",
+        "title": "Gray skies turn bright yellow after lightning strike causes gas tanks to explode in Oklahoma"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0052"
+          }
+        ],
+        "item_ref": "item_0052",
+        "published": "2026-08-17T23:44:44+00:00",
+        "source": "CBS News US",
+        "summary": "After a 63-year-old woman in Las Vegas didn't return from a trip to the drugstore, her family said they started getting text messages from the woman's phone. The family spoke with Nicole Valdes.",
+        "title": "After a mother went missing in Las Vegas, her family received texts from her phone"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0053"
+          }
+        ],
+        "item_ref": "item_0053",
+        "published": "2026-08-17T23:38:34+00:00",
+        "source": "CBS News US",
+        "summary": "With no deal in sight to end the conflict in Iran or reopen the Strait of Hormuz, oil prices are up once again. Charlie D'Agata reports.",
+        "title": "Trump takes aim at longtime ally Oman as Strait of Hormuz remains gridlocked"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0054"
+          }
+        ],
+        "item_ref": "item_0054",
+        "published": "2026-08-17T23:36:32+00:00",
+        "source": "CBS News US",
+        "summary": "The defense began its work on Monday in the case of Lindsay Clancy, the Massachusetts woman on trial for killing her three children. Her mother and sister took the stand and Shanelle Kaul has the details.",
+        "title": "Details as Lindsay Clancy's mom and sister take the stand"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0055"
+          }
+        ],
+        "item_ref": "item_0055",
+        "published": "2026-08-17T23:33:20+00:00",
+        "source": "CBS News US",
+        "summary": "Thirteen former and current Penn State students, and one student's father, are facing charges related to an alleged cocaine ring. Prosecutors allege drugs were cut and packaged at two frat houses, sometimes by pledges. Michael George reports.",
+        "title": "14 charged in alleged Penn State cocaine ring"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0056"
+          }
+        ],
+        "item_ref": "item_0056",
+        "published": "2026-08-17T23:30:15+00:00",
+        "source": "CBS News US",
+        "summary": "Flooding continued to inundate parts of the central and southern regions of Indiana on Monday. Tom Hanson reports.",
+        "title": "Indiana inundated with historic flooding, more than 100,000 without power"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0057"
+          }
+        ],
+        "item_ref": "item_0057",
+        "published": "2026-08-17T23:28:00+00:00",
+        "source": "CBS News US",
+        "summary": "The eye of Lala passed just 30 miles off the Big Island of Hawaii's coast over the weekend, but it was the rain that caused catastrophe for its residents. Jonathan Vigliotti reports.",
+        "title": "Hawaii reels in the aftermath of Hurricane Lala"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0058"
+          }
+        ],
+        "item_ref": "item_0058",
+        "published": "2026-08-17T23:26:00+00:00",
+        "source": "CBS News US",
+        "summary": "With no signs of foul play or trauma, authorities said the investigation into actor Hayden Panettiere's death is just beginning. The former child star was on \"Guiding Light\" and also had breakout roles in \"Heroes\" and \"Nashville.\" She died at 36 years old. Mark Strassmann reports.",
+        "title": "Hollywood grieves Hayden Panettiere as authorities investigate her death at 36"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0059"
+          }
+        ],
+        "item_ref": "item_0059",
+        "published": "2026-08-17T23:09:17+00:00",
+        "source": "The Guardian US",
+        "summary": "President hosts Nathanial Rai and lifeguard Ryder Williams at White House after video of California rescue went viral Nathanial Rai had been swept off his feet along the California coast, was rescued by a 16-year-old lifeguard – and was now sitting in the Oval Office with Donald Trump.Of the rescuer",
+        "title": "Trump tells 10-year-old rescued by teen lifeguard: ‘I don’t know if I’d do it’"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0060"
+          }
+        ],
+        "item_ref": "item_0060",
+        "published": "2026-08-17T23:05:48+00:00",
+        "source": "CBS News US",
+        "summary": "The baby was born with hypoplastic left heart syndrome, which requires a series of surgeries. The parents had asked the surrogate to get an abortion when they learned of the diagnosis.",
+        "title": "Baby with heart defect at center of surrogate dispute receives first surgery"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0061"
+          }
+        ],
+        "item_ref": "item_0061",
+        "published": "2026-08-17T22:55:06+00:00",
+        "source": "PBS NewsHour",
+        "summary": "President Trump lashed out at U.S. allies on Monday as the deadline to reach a deal to end the war with Iran expires. Trump threatened to bomb Oman, which has been mediating negotiations, and called for military exercises with South Korea to be scaled back, in part for refusing to join the war. Amna",
+        "title": "Where the Iran war stands as 60-day window to reach peace deal expires"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0062"
+          }
+        ],
+        "item_ref": "item_0062",
+        "published": "2026-08-17T22:50:23+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Exercises between the American and South Korean militaries began as scheduled on Monday, even after President Trump demanded they be scaled back. Trump said the war games were unnecessarily provocative, and a challenge to North Korean leader Kim Jong Un, despite recent praise of South Korea by the a",
+        "title": "Trump lashes out at South Korea over its refusal to join Iran war"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0063"
+          }
+        ],
+        "item_ref": "item_0063",
+        "published": "2026-08-17T22:46:23+00:00",
+        "source": "PBS NewsHour",
+        "summary": "The review will examine government policies and wiretap investigations in which the U.S. Drug Enforcement Administration may have learned of fentanyl deliveries before they happened but stood down to avoid jeopardizing larger prosecutions.",
+        "title": "Justice Department watchdog to review DEA tactic that permitted deadly fentanyl to hit streets"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0064"
+          }
+        ],
+        "item_ref": "item_0064",
+        "published": "2026-08-17T22:45:11+00:00",
+        "source": "PBS NewsHour",
+        "summary": "In our news wrap Monday, a week of heavy storms and catastrophic floods in the Midwest has killed at least seven people, Hurricane Lala left a trail of destruction across the Big Island of Hawaii and the other Hawaiian islands and U.S. envoy and Trump son-in-law Jared Kushner left Israel without a b",
+        "title": "News Wrap: 7 dead after storms and catastrophic floods in Midwest"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0065"
+          }
+        ],
+        "item_ref": "item_0065",
+        "published": "2026-08-17T22:42:21+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Hayden Panettiere has died at the age of 36. No official cause of death was given for the versatile actress and Golden Globe nominee. Emergency responders found her in cardiac arrest before she was pronounced dead at a home in South Carolina. Police say there was no evidence of foul play. Senior art",
+        "title": "Remembering the life and career of Hayden Panettiere"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0066"
+          }
+        ],
+        "item_ref": "item_0066",
+        "published": "2026-08-17T22:40:49+00:00",
+        "source": "PBS NewsHour",
+        "summary": "The national debt is expected to hit a record high as soon as this week, crossing a major threshold of $40 trillion. Congressional correspondent Lisa Desjardins explains why that milestone is a warning sign for many economists.",
+        "title": "National debt nears $40 trillion: How we got here and why it matters"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0067"
+          }
+        ],
+        "item_ref": "item_0067",
+        "published": "2026-08-17T22:37:58+00:00",
+        "source": "NPR National",
+        "summary": "A federal judge's decision in Texas has major implications for the National Firearms Act. What does this mean for certain guns and other weapons?",
+        "title": "Part of a key firearms law lapsed following a federal court decision. What happens now?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0068"
+          }
+        ],
+        "item_ref": "item_0068",
+        "published": "2026-08-17T22:35:13+00:00",
+        "source": "PBS NewsHour",
+        "summary": "At a time when the impact of climate change is undeniable, some researchers suggest we need to start work on far more ambitious approaches for tackling these problems. These proposals are often referred to as geoengineering. Science correspondent Miles O'Brien looks at one such concept to deal with ",
+        "title": "Scientists explore large-scale geoengineering to slow glacier melt"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0069"
+          }
+        ],
+        "item_ref": "item_0069",
+        "published": "2026-08-17T22:30:12+00:00",
+        "source": "PBS NewsHour",
+        "summary": "NPR's Tamara Keith and Amy Walter of the Cook Political Report with Amy Walter join Amna Nawaz to discuss the latest political news, including the 2026 primary season entering the home stretch and a look at notable races in Alaska, Florida, and Wyoming.",
+        "title": "Tamara Keith and Amy Walter on primary races to watch in Florida and Alaska"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0070"
+          }
+        ],
+        "item_ref": "item_0070",
+        "published": "2026-08-17T22:30:00+00:00",
+        "source": "CBS News US",
+        "summary": "Hayden Panettiere died at 36; parts of Hawaii were buried in mud from Hurricane Lala.",
+        "title": "8/17: CBS Evening News"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0071"
+          }
+        ],
+        "item_ref": "item_0071",
+        "published": "2026-08-17T22:29:06+00:00",
+        "source": "PBS NewsHour",
+        "summary": "U.S. Immigration and Customs Enforcement is pitching a plan to help shield local police officers who make immigration arrests from possible financial consequences if they are accused of on-duty misconduct.",
+        "title": "ICE pitches legal insurance to help shield local officers who make immigration arrests"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0072"
+          }
+        ],
+        "item_ref": "item_0072",
+        "published": "2026-08-17T22:25:57+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Last month, Eddie Smith, the owner of Grady-White Boats in Greenville, North Carolina, made waves when he announced that he was pledging nearly all his company's future profits to charity. Instead of selling Grady-White, Smith chose to gift it to a perpetual purpose trust that will distribute profit",
+        "title": "Instead of selling, business owner donates company to trust for charity"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0073"
+          }
+        ],
+        "item_ref": "item_0073",
+        "published": "2026-08-17T21:49:13+00:00",
+        "source": "The Guardian US",
+        "summary": "Paula Musgrove stated her daughter had said medications were ‘destroying’ her mind and she was becoming ‘paranoid’The defense in the Lindsay Clancy filicide case called the defendant’s mother as one of its first witnesses Monday, after three weeks of prosecution evidence laid out, in often harrowing",
+        "title": "Lindsay Clancy had ‘thoughts of harming the children’, her mother testifies at trial"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0074"
+          }
+        ],
+        "item_ref": "item_0074",
+        "published": "2026-08-17T21:43:01+00:00",
+        "source": "CBS News US",
+        "summary": "Becky G speaks with Gayle King about the latest developments in her career, her new music, the intersection of advocacy and art in her latest videos and more.",
+        "title": "Extended interview: Becky G on her music, her rise to fame and more"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0075"
+          }
+        ],
+        "item_ref": "item_0075",
+        "published": "2026-08-17T21:41:03+00:00",
+        "source": "NPR National",
+        "summary": "Opening statements began Monday in the murder trial of rapper Tupac Shakur. The man implicated in the 1996 killing in Las Vegas is a former gang member.",
+        "title": "Testimony begins in the trial of rapper Tupac Shakur's 1996 killing"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0076"
+          }
+        ],
+        "item_ref": "item_0076",
+        "published": "2026-08-17T21:37:30+00:00",
+        "source": "The Guardian US",
+        "summary": "Donald Trump berated a CNN reporter at a press availability, insisting that she 'be quiet' after she asked about a reduction in US military exercises with South Korea. The CNN correspondent, Kristen Holmes, pressed Trump on whether Kim Jong-un had requested a reduction in military activities. When a",
+        "title": "Trump tells CNN reporter to 'be quiet' during Oval Office clash – video"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0077"
+          }
+        ],
+        "item_ref": "item_0077",
+        "published": "2026-08-17T21:33:05+00:00",
+        "source": "PBS NewsHour",
+        "summary": "In their Supreme Court brief, the families' attorneys argue that the law violates basic First Amendment principles governing the separation of church and state.",
+        "title": "Supreme Court asked to review Texas law requiring the Ten Commandments in public schools"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0078"
+          }
+        ],
+        "item_ref": "item_0078",
+        "published": "2026-08-17T21:32:13+00:00",
+        "source": "NPR National",
+        "summary": "Walton County, Fla., relies heavily on immigrant labor for its booming construction and tourism industries. We look at how county sheriffs' cooperation with ICE affects things.",
+        "title": "One Florida county sees the ripple effects of its cooperation with ICE"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0079"
+          }
+        ],
+        "item_ref": "item_0079",
+        "published": "2026-08-17T21:26:43+00:00",
+        "source": "The Guardian US",
+        "summary": "Lawyers seek dismissal of state charges after Mangione pleaded guilty in federal case over Brian Thompson killingA New York state ⁠judge on Monday ⁠effectively ​postponed Luigi Mangione’s trial on murder and weapons charges over ⁠the 2024 killing of a health insurance company CEO, after Mangione ple",
+        "title": "Luigi Mangione New York murder trial postponed after guilty plea in federal case"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0080"
+          }
+        ],
+        "item_ref": "item_0080",
+        "published": "2026-08-17T21:25:30+00:00",
+        "source": "CBS News US",
+        "summary": "Jared Bridegan was repeatedly shot outside his vehicle while his 2-year-old child was strapped in a car seat.",
+        "title": "Trial starts in Microsoft exec's murder allegedly hatched by ex-wife"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0081"
+          }
+        ],
+        "item_ref": "item_0081",
+        "published": "2026-08-17T21:24:08+00:00",
+        "source": "PBS NewsHour",
+        "summary": "It's the latest move by President Donald Trump's administration to ease firearms restrictions.",
+        "title": "Justice Department creates a new pathway to restore gun rights for some people convicted of felonies"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0082"
+          }
+        ],
+        "item_ref": "item_0082",
+        "published": "2026-08-17T21:16:26+00:00",
+        "source": "CBS News US",
+        "summary": "U.S. kindergarten vaccination rates have declined again, with exemptions reaching a record high for the 2025-2026 school year",
+        "title": "School vaccination rates inch down again to record low"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0083"
+          }
+        ],
+        "item_ref": "item_0083",
+        "published": "2026-08-17T21:01:54+00:00",
+        "source": "NPR National",
+        "summary": "A federal prosecutor who was fired earlier this year is suing the DOJ, alleging she was unlawfully dismissed for political reasons tied to her work prosecuting a case against anti-abortion activists.",
+        "title": "Former federal prosecutor is suing DOJ for 'unlawful and retaliatory' firing"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0084"
+          }
+        ],
+        "item_ref": "item_0084",
+        "published": "2026-08-17T21:01:20+00:00",
+        "source": "The Guardian US",
+        "summary": "USS Benfold lost power after ‘engineering casualty’ leaving sailors without galley services, toilets and air conditioningA US guided-missile destroyer reportedly spent four days adrift and without power in the South China Sea in July, furthering concerns about strain being placed on deployed militar",
+        "title": "US Navy destroyer adrift in South China Sea for four days after losing power"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0085"
+          }
+        ],
+        "item_ref": "item_0085",
+        "published": "2026-08-17T21:00:00+00:00",
+        "source": "CBS News US",
+        "summary": "Iran war continues 60 days after memorandum of understanding signed; Florida primaries on Tuesday.",
+        "title": "8/17: The Takeout with Major Garrett"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0086"
+          }
+        ],
+        "item_ref": "item_0086",
+        "published": "2026-08-17T20:57:04+00:00",
+        "source": "The Guardian US",
+        "summary": "Storm that brought heavy rains and winds left one person dead and more than 100,000 without power and damaged at least 100 homes and bridgesHawaii residents began to clean up after tropical storm Lala blew past the Big Island, leaving more than 100,000 without power, damaging at least 100 homes and ",
+        "title": "Tropical storm Lala wreaks ‘devastation’ to some areas of Hawaii’s Big Island"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0087"
+          }
+        ],
+        "item_ref": "item_0087",
+        "published": "2026-08-17T20:54:07+00:00",
+        "source": "CBS News US",
+        "summary": "The car manufacturer is also recalling another 107,000 vehicles outside the U.S. over the same issue.",
+        "title": "Stellantis recalls nearly 850,000 vehicles over rearview camera issue"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0088"
+          }
+        ],
+        "item_ref": "item_0088",
+        "published": "2026-08-17T20:45:04+00:00",
+        "source": "The Guardian US",
+        "summary": "When 18-year-old Nolan Wells went missing, his story immediately touched a nerve in Black families. He was last seen while hanging out with a group of white friends, at a popular beach near Ocean Springs, Mississippi. Wells never came home from the trip, and he was found dead days later. Many questi",
+        "title": "Nolan Wells’ death made Black parents say the quiet part out loud – Stateside with Kai and Carter"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0089"
+          }
+        ],
+        "item_ref": "item_0089",
+        "published": "2026-08-17T20:33:14+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Judge Gregory Carro issued an order Monday canceling the trial and giving the Manhattan District Attorney's office, which is prosecuting the state case, until Oct. 9 to respond to the defense's double jeopardy claims.",
+        "title": "Luigi Mangione's state murder trial postponed indefinitely as double jeopardy fight plays out"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0090"
+          }
+        ],
+        "item_ref": "item_0090",
+        "published": "2026-08-17T20:25:24+00:00",
+        "source": "PBS NewsHour",
+        "summary": "It's the fourth consecutive year that the national average exemption rate has reached a new record, and the vast majority are parents withholding shots for nonmedical reasons.",
+        "title": "U.S. school vaccination rates inch down again as exemptions reach record high"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0091"
+          }
+        ],
+        "item_ref": "item_0091",
+        "published": "2026-08-17T20:06:25+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Clancy's mother and sister recounted how they saw her become increasingly anxious, paranoid and suicidal in the months before she killed her three children.",
+        "title": "Mom and sister testify about Lindsay Clancy's declining mental state before she killed her children"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0092"
+          }
+        ],
+        "item_ref": "item_0092",
+        "published": "2026-08-17T19:55:23+00:00",
+        "source": "The Guardian US",
+        "summary": "Controversial project has faced bipartisan opposition by critics who say it mars pristine environmental area in TexasConstruction on a US-Mexico border project in Big Bend national park has halted, the Trump administration said Monday, as Customs and Border Protection (CBP) evaluates the controversi",
+        "title": "Trump administration pauses border construction in Big Bend national park"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0093"
+          }
+        ],
+        "item_ref": "item_0093",
+        "published": "2026-08-17T19:47:14+00:00",
+        "source": "PBS NewsHour",
+        "summary": "Trump has repeatedly blamed vandals for damage to his renovation projects in the nation's capital, often without evidence and sometimes despite opposing accounts from his officials.",
+        "title": "Trump blames vandals for damaged grass in the spot where he held his July 4 celebration"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0094"
+          }
+        ],
+        "item_ref": "item_0094",
+        "published": "2026-08-17T19:31:35+00:00",
+        "source": "The Guardian US",
+        "summary": "NBA is looking into claims of salary cap circumventionESPN says league has no proof owner funneled moneySteve Ballmer denies allegations; Leonard trade on holdThe NBA has disputed an ESPN report on the league’s investigation into possible salary cap circumvention by the Los Angeles Clippers.On Monda",
+        "title": "NBA blasts ESPN for ‘inaccuracies’ in report on Kawhi Leonard-Clippers investigation"
+      }
+    ],
+    "us_politics": [
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0001"
+          }
+        ],
+        "item_ref": "item_0001",
+        "published": "2026-08-18T02:56:02+00:00",
+        "source": "The Hill",
+        "summary": "A poll released earlier this month claiming Los Angeles Mayor Karen Bass had a wide lead over Los Angeles City Council member Nithya Raman in the city's mayoral race was bogus, according to the company that released it. Median Strategies on Monday said in its announcement about the mayoral race poll",
+        "title": "Poll showing LA Mayor Karen Bass leading Nithya Raman by a wide margin was fake: company"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0002"
+          }
+        ],
+        "item_ref": "item_0002",
+        "published": "2026-08-18T02:20:15+00:00",
+        "source": "The Hill",
+        "summary": "Former Rep. Marjorie Taylor Greene (R-Ga.) on Monday quipped that she \"can't remember the last time\" she saw someone wear President Trump's trademark MAGA hat. The former lawmaker shared a post on the social platform X showing a billboard that read \"Trump Superstore,\" with an adjacent sign saying th",
+        "title": "Greene: ‘I can’t remember the last time’ I saw someone wear MAGA hat"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0003"
+          }
+        ],
+        "item_ref": "item_0003",
+        "published": "2026-08-18T02:00:01+00:00",
+        "source": "The Hill",
+        "summary": "House Minority Leader Hakeem Jeffries (D-N.Y.) on Monday urged the Trump administration to tell Israel to protect Palestinians being attacked by \"lawbreaking settlers\" in the West Bank. \"The ongoing siege of Palestinian homes in the West Bank by violent, lawbreaking settlers is unacceptable. Enough,",
+        "title": "Jeffries: Trump administration must protect Palestinians from ‘lawbreaking settlers’"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0004"
+          }
+        ],
+        "item_ref": "item_0004",
+        "published": "2026-08-18T00:01:21+00:00",
+        "source": "The Hill",
+        "summary": "President Trump on Monday said concerns over the status of service members aboard the USS Abraham Lincoln were \"a CNN fake report.\" Trump lashed out at a CNN reporter amid questions from journalists in the Oval Office, telling her, \"Quiet, quiet. You're very disrespectful,\" after moving on to the ne",
+        "title": "Trump says concern about USS Abraham Lincoln is 'a CNN fake report'"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0005"
+          }
+        ],
+        "item_ref": "item_0005",
+        "published": "2026-08-17T23:37:16+00:00",
+        "source": "The Hill",
+        "summary": "On Monday, acting Navy Secretary Hung Cao announced that the U.S. Navy awarded a $22.9 billion contract to Raytheon to accelerate production of Tomahawk missiles amid a munitions shortage in the months after the start of the Iran war. The contract \"reinforces the Department’s commitment to rebuildin",
+        "title": "Navy awarded $22.9B contract to Raytheon to accelerate Tomahawk missile production"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0006"
+          }
+        ],
+        "item_ref": "item_0006",
+        "published": "2026-08-17T23:14:36+00:00",
+        "source": "Axios",
+        "summary": "Congressional Democrats are planning a new push to constrain President Trump's war powers after he threatened Monday to \"bomb the shit\" out of Oman.Why it matters: War powers resolutions, though largely symbolic, have become Democrats' go-to tool for trying to rein in what they see as a far too trig",
+        "title": "Congressional Democrats plan Oman war powers push after Trump threatens bombing"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0007"
+          }
+        ],
+        "item_ref": "item_0007",
+        "published": "2026-08-17T22:39:27+00:00",
+        "source": "The Hill",
+        "summary": "President Trump last week returned a mail-in ballot ahead of Florida's primary election on Tuesday, Politico reported Monday, the second time he has done so amid his unfounded claims that mail-in voting contributes to election fraud. The outlet added that Trump requested his ballot in late July and ",
+        "title": "Trump voted by mail in Florida primary election: Report"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0008"
+          }
+        ],
+        "item_ref": "item_0008",
+        "published": "2026-08-17T22:35:34+00:00",
+        "source": "The Hill",
+        "summary": "President Trump’s decision to reduce joint military exercises with South Korea is being met with derision from Democrats and fears from other allies who are already worried over the president’s past willingness to toss aside longtime defense commitments. Trump said it was too late to fully cancel wh",
+        "title": "Trump’s South Korea move rattles foreign policy world"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0009"
+          }
+        ],
+        "item_ref": "item_0009",
+        "published": "2026-08-17T22:24:49+00:00",
+        "source": "The Hill",
+        "summary": "Welcome to The Hill's Defense & NatSec newsletter {beacon} Defense &National Security Defense &National Security   The Big Story  Trump explains reduced  joint drills with South Korea President Trump said he was turned off by South Korea not agreeing to help the U.S. denuclearize Iran, spurring him ",
+        "title": "Trump explains reduced joint drills with South Korea"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0010"
+          }
+        ],
+        "item_ref": "item_0010",
+        "published": "2026-08-17T22:04:24+00:00",
+        "source": "The Hill",
+        "summary": "Click in for more news from The Hill {beacon} Healthcare Healthcare   The Big Story  Kindergarten vaccine exemptions hit all time high  The percentage of American kindergartners exempted from MMR vaccines rose sharply in the 2025-26 school year, as overall vaccination rates continued to fall. © AP P",
+        "title": "Kindergarten vaccine exemptions hit all time high"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0011"
+          }
+        ],
+        "item_ref": "item_0011",
+        "published": "2026-08-17T22:00:39+00:00",
+        "source": "The Hill",
+        "summary": "President Trump is lashing out at rivals and allies alike amid an escalating game of economic chicken between the U.S. and Iran. On Monday, he threatened to \"bomb the s‑‑‑ out of\" Oman, a day after he told Defense Secretary Pete Hegseth to substantially reduce joint military exercises with South Kor",
+        "title": "Trump rips allies Oman, South Korea amid escalating tensions with Iran"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0012"
+          }
+        ],
+        "item_ref": "item_0012",
+        "published": "2026-08-17T21:47:33+00:00",
+        "source": "The Hill",
+        "summary": "{beacon} Energy & Environment Energy & Environment   The Big Story  CBP halts Big Bend National Park border construction Customs and Border Protection (CBP) Commissioner Rodney Scott said he would halt construction activity in Big Bend National Park as efforts to erect a border barrier have been met",
+        "title": "CBP halts Big Bend National Park border construction"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0013"
+          }
+        ],
+        "item_ref": "item_0013",
+        "published": "2026-08-17T21:45:25+00:00",
+        "source": "The Hill",
+        "summary": "Fewer American adults are gambling than a decade ago, according to a new poll. In the Gallup poll, 45 percent of respondents said they had taken part in one or more forms of gambling over the past year, down from 64 percent a decade ago and 63 percent in 2007. Among respondents’ gambling activities ",
+        "title": "Fewer adults in new poll say they gamble"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0014"
+          }
+        ],
+        "item_ref": "item_0014",
+        "published": "2026-08-17T21:40:32+00:00",
+        "source": "The Hill",
+        "summary": "{beacon} Technology Technology   The Big Story  Flock tries to quell surveillance fears Flock Safety is facing a growing backlash across the country from communities and civil liberties advocates concerned over the surveillance technology company’s network of AI-powered license plate readers.   © Gr",
+        "title": "Flock tries to quell surveillance fears"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0015"
+          }
+        ],
+        "item_ref": "item_0015",
+        "published": "2026-08-17T21:26:17+00:00",
+        "source": "NPR Politics",
+        "summary": "\"Carpetbagger\" describes people who move somewhere to run for office. In Southwest Florida, six former congressional hopefuls from other states are taking their shot in this conservative stronghold.",
+        "title": "Florida GOP race draws accusations of carpetbagging"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0016"
+          }
+        ],
+        "item_ref": "item_0016",
+        "published": "2026-08-17T21:24:56+00:00",
+        "source": "Axios",
+        "summary": "Vaccination rates among American kindergartners decreased during the 2025–2026 school year for all tracked vaccines, the Centers for Disease Control and Prevention reported on Monday.Exemptions from getting one or more vaccines increased in 41 states and the District of Columbia, growing to 4.2% fro",
+        "title": "Kindergarten vaccine exemptions rose in 2025-2026: CDC"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0017"
+          }
+        ],
+        "item_ref": "item_0017",
+        "published": "2026-08-17T21:09:24+00:00",
+        "source": "The Hill",
+        "summary": "Welcome to The Hill's Business & Economy newsletter {beacon} Business & Economy Business & Economy   The Big Story  Californians divided over billionaire tax A recent poll shows Californians are split on the one-time tax that would charge the state’s 200 billionaires with a 5 percent tax on their ne",
+        "title": "Californians divided over billionaire tax"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0018"
+          }
+        ],
+        "item_ref": "item_0018",
+        "published": "2026-08-17T21:01:54+00:00",
+        "source": "NPR Politics",
+        "summary": "A federal prosecutor who was fired earlier this year is suing the DOJ, alleging she was unlawfully dismissed for political reasons tied to her work prosecuting a case against anti-abortion activists.",
+        "title": "Former federal prosecutor is suing DOJ for 'unlawful and retaliatory' firing"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0019"
+          }
+        ],
+        "item_ref": "item_0019",
+        "published": "2026-08-17T20:56:40+00:00",
+        "source": "The Hill",
+        "summary": "Vaccination coverage for measles, mumps and rubella (MMR) among kindergarteners in the U.S. remains below the ideal rate needed to best prevent widespread outbreaks, according to the latest data from the Centers for Disease Control and Prevention (CDC), with the number of exemptions going up. The CD",
+        "title": "Kindergarten MMR vaccine coverage still below ideal rate to prevent outbreaks: CDC"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0020"
+          }
+        ],
+        "item_ref": "item_0020",
+        "published": "2026-08-17T20:10:22+00:00",
+        "source": "Axios",
+        "summary": "The USS George Washington's deployment from Japan to the Middle East to relieve the USS Abraham Lincoln will leave the U.S. without an aircraft carrier in the western Pacific — just as adversaries in the area are flexing their military power.Why it matters: Temporary carrier gaps are not uncommon, b",
+        "title": "Middle East demands are testing America's Pacific presence"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0021"
+          }
+        ],
+        "item_ref": "item_0021",
+        "published": "2026-08-17T19:53:37+00:00",
+        "source": "NPR Politics",
+        "summary": "The California Democrat has admitted to \"personal mistakes\" outside his marriage but also says his actions were consensual in nature and did not violate House ethics rules.",
+        "title": "Democratic Rep. Jimmy Gomez being investigated over sexual misconduct allegations"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0022"
+          }
+        ],
+        "item_ref": "item_0022",
+        "published": "2026-08-17T19:01:03+00:00",
+        "source": "Axios",
+        "summary": "The Trump administration temporarily paused border wall construction at Big Bend National Park in Texas while U.S. Customs and Border Protection Commissioner Rodney Scott visits the site, Scott announced Monday.Why it matters: The wall's construction inside the national park has been the subject of ",
+        "title": "Big Bend border wall construction paused by Trump administration"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0023"
+          }
+        ],
+        "item_ref": "item_0023",
+        "published": "2026-08-17T18:59:28+00:00",
+        "source": "Axios",
+        "summary": "The House Ethics Committee announced Monday that it is investigating Congressman Jimmy Gomez (D-Calif.) over allegations of sexual misconduct.Why it matters: Gomez is the latest House member to face scrutiny over alleged sexual misconduct amid a string of incidents that have prompted calls to tighte",
+        "title": "House Ethics investigating Rep. Jimmy Gomez over sexual misconduct allegations"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0024"
+          }
+        ],
+        "item_ref": "item_0024",
+        "published": "2026-08-17T18:41:29+00:00",
+        "source": "Axios",
+        "summary": "President Trump adviser Jared Kushner told Israeli Prime Minister Benjamin Netanyahu on Monday that the U.S. wants Israel to take \"small steps\" in Gaza to test whether Hamas' commitment to start disarming is genuine, a U.S. official said.Why it matters: The four-hour meeting took place amid deep ske",
+        "title": "Kushner urges Netanyahu to test Hamas disarmament in Gaza"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0025"
+          }
+        ],
+        "item_ref": "item_0025",
+        "published": "2026-08-17T15:22:36+00:00",
+        "source": "Axios",
+        "summary": "The Supreme Court once again declined to take up President Trump's attempt to toss a jury's $5 million finding that he sexually abused and defamed E. Jean Carroll.The big picture: Carroll's payday had been long delayed as the president fought the verdict. The Supreme Court already declined to throw ",
+        "title": "Trump fails to undo E. Jean Carroll verdict at Supreme Court"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0026"
+          }
+        ],
+        "item_ref": "item_0026",
+        "published": "2026-08-17T15:20:27+00:00",
+        "source": "Axios",
+        "summary": "House Democrats who have comfortably held their seats for decades are suddenly finding the ground shifting beneath their feet as primary voters revolt against the party's old guard.Why it matters: The anti-establishment revolution that has swept Democratic primaries this year is poised to drasticall",
+        "title": "Older Democrats walloped by midterms anti-establishment revolt"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0027"
+          }
+        ],
+        "item_ref": "item_0027",
+        "published": "2026-08-17T13:31:13+00:00",
+        "source": "NPR Politics",
+        "summary": "Federal officials acknowledged that ICE special agents tracked a New York man to his house, the airport and a hotel to question him about a critical email he sent to the former head of ICE in January.",
+        "title": "DHS defends investigating agency critics and giving them warning notices"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0028"
+          }
+        ],
+        "item_ref": "item_0028",
+        "published": "2026-08-17T10:49:59+00:00",
+        "source": "NPR Politics",
+        "summary": "NPR's Sacha Pfeiffer talks with Democratic Sen. Mark Kelly of Arizona about conditions aboard the USS Lincoln and his calls for an investigation into sailors' treatment.",
+        "title": "Sen. Mark Kelly says USS Lincoln sailors 'can't get basic needs met'"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0029"
+          }
+        ],
+        "item_ref": "item_0029",
+        "published": "2026-08-17T09:40:05+00:00",
+        "source": "Axios",
+        "summary": "Young people raised on swiping, DMing and streaming are doing something bold: going out.Why it matters: Amid a loneliness epidemic, millennials and Gen Zers are craving IRL connection — enough to show up for meetups built around activities once considered solitary, or \"grandma hobbies.\"The latest: T",
+        "title": "Birding, silent book club, Mahjong and more: America's meetup explosion"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0030"
+          }
+        ],
+        "item_ref": "item_0030",
+        "published": "2026-08-17T09:30:06+00:00",
+        "source": "Axios",
+        "summary": "Data: Bureau of Labor Statistics; Chart: Courtenay Brown/AxiosAmerica is experiencing its biggest prescription drug price deflation in generations. Why it matters: By one important measure, there is a striking reversal underway for one of health care's most stubbornly expensive necessities amid a ma",
+        "title": "Why prescription drug prices are plunging"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0031"
+          }
+        ],
+        "item_ref": "item_0031",
+        "published": "2026-08-17T09:20:05+00:00",
+        "source": "Axios",
+        "summary": "The centrist Democratic group Third Way recently declared \"war\" on democratic socialists to head off what they fear could be a far-left hijacking of the party ahead of 2028.But establishment Democrats have made clear what they're against without making much of a case for what they're for.Why it matt",
+        "title": "The Democratic establishment's ideas deficit"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0032"
+          }
+        ],
+        "item_ref": "item_0032",
+        "published": "2026-08-17T09:15:05+00:00",
+        "source": "Axios",
+        "summary": "Years of destructive fires are forcing utilities to prioritize wildfire resilience as they plan the next generation of the U.S. electric grid.Why it matters: Utilities aren't just expanding the electric grid — they're designing it to withstand a more fire-prone climate.This year's wildfire season is",
+        "title": "How wildfires are changing the U.S. electric grid"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0033"
+          }
+        ],
+        "item_ref": "item_0033",
+        "published": "2026-08-17T09:00:04+00:00",
+        "source": "Axios",
+        "summary": "Imagine a chatbot built to keep you talking a little longer. To change your mind about something. Or persuade you to buy something.Now imagine it could draw on everything it knows about you — including the fears, insecurities and private details you shared in conversation — to do it.Why it matters: ",
+        "title": "What happens to what you share with AI"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0034"
+          }
+        ],
+        "item_ref": "item_0034",
+        "published": "2026-08-17T09:00:00+00:00",
+        "source": "NPR Politics",
+        "summary": "New bans on using student IDs for voting in Indiana and New Hampshire have sparked lawsuits after creating the latest hurdles to the ballot box for the U.S. voting-age group least likely to vote.",
+        "title": "Advocates worry new bans on student IDs will trip up younger voters"
+      }
+    ],
+    "world": [
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0095"
+          }
+        ],
+        "item_ref": "item_0095",
+        "published": "2026-08-18T03:17:58+00:00",
+        "source": "Al Jazeera",
+        "summary": "Mourners blame relentless and 'racist' media scrutiny for former Cambridge University professor's death.",
+        "title": "Thousands mourn Jason Arday in London, blaming ‘racist’ press for his death"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0096"
+          }
+        ],
+        "item_ref": "item_0096",
+        "published": "2026-08-18T02:51:22+00:00",
+        "source": "Al Jazeera",
+        "summary": "Mayor Khymer Adan Olaso says the casualties in Zamboanga were both students and included the gunman.",
+        "title": "Two killed as student opens fire at Philippines high school, officials say"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0097"
+          }
+        ],
+        "item_ref": "item_0097",
+        "published": "2026-08-18T02:06:04+00:00",
+        "source": "BBC World",
+        "summary": "After he was shot multiple times, Tupac Shakur refused to cooperate with police and told an officer, \"We'll take care of it,\" an officer testified.",
+        "title": "Tupac murder trial: 'All hell broke loose' night of rapper's shooting, witness says"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0098"
+          }
+        ],
+        "item_ref": "item_0098",
+        "published": "2026-08-18T01:58:11+00:00",
+        "source": "Al Jazeera",
+        "summary": "US President Donald Trump has revealed North Korea’s leader Kim Jong Un has responded ‘very positively’",
+        "title": "Trump says talking to North Korea’s Kim makes the south safer"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0099"
+          }
+        ],
+        "item_ref": "item_0099",
+        "published": "2026-08-18T01:54:01+00:00",
+        "source": "Al Jazeera",
+        "summary": "At least 20 injured and dozens of fuel tankers destroyed as flames rip through warehouse near northern Kurdish city.",
+        "title": "Large fire breaks out at fuel depot near Iraq’s Sulaimaniyah"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0100"
+          }
+        ],
+        "item_ref": "item_0100",
+        "published": "2026-08-18T01:26:31+00:00",
+        "source": "Al Jazeera",
+        "summary": "Thousands mourned Jason Arday in central London, and voiced anger over the Cambridge professor’s media treatment.",
+        "title": "Vigil held in central London for late Cambridge professor Jason Arday"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0101"
+          }
+        ],
+        "item_ref": "item_0101",
+        "published": "2026-08-18T01:17:50+00:00",
+        "source": "Al Jazeera",
+        "summary": "Official results show incumbent receiving about 61 percent of votes, compared with ⁠38 percent for his main challenger.",
+        "title": "Zambia’s President Hakainde Hichilema wins second term"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0102"
+          }
+        ],
+        "item_ref": "item_0102",
+        "published": "2026-08-18T01:16:41+00:00",
+        "source": "BBC World",
+        "summary": "An MoD spokesperson responds by saying Britain stands \"shoulder to shoulder\" with Ukraine.",
+        "title": "Russia warns UK over supplying drones to Ukraine"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0103"
+          }
+        ],
+        "item_ref": "item_0103",
+        "published": "2026-08-18T00:00:00+00:00",
+        "source": "Al Jazeera",
+        "summary": "US president says Iran should 'put up the white flag of surrender' as the two nations’ MoU expired on Monday.",
+        "title": "Iran war live: Trump rejects MoU extension as US claims control of Hormuz"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0104"
+          }
+        ],
+        "item_ref": "item_0104",
+        "published": "2026-08-17T23:42:38+00:00",
+        "source": "BBC World",
+        "summary": "Trump said the US will \"substantially reduce\" joint military exercises with South Korea, citing his \"very good relationship\" with Kim Jong Un.",
+        "title": "BBC breaks down Trump's latest shift on North and South Korea"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0105"
+          }
+        ],
+        "item_ref": "item_0105",
+        "published": "2026-08-17T23:28:54+00:00",
+        "source": "BBC World",
+        "summary": "The US actress, who has died at the age of 36, starred in the TV shows Heroes and Nashville.",
+        "title": "Tributes to actress Hayden Panettiere as coroner finds 'no signs of trauma'"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0106"
+          }
+        ],
+        "item_ref": "item_0106",
+        "published": "2026-08-17T23:25:17+00:00",
+        "source": "Al Jazeera",
+        "summary": "Trump's son-in-law and envoy says US will not 'restrict Israel's right to defend itself' as strikes on Gaza continue.",
+        "title": "‘We will not allow Gaza to be rebuilt’ until Hamas disarms, Kushner says"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0107"
+          }
+        ],
+        "item_ref": "item_0107",
+        "published": "2026-08-17T22:26:12+00:00",
+        "source": "Al Jazeera",
+        "summary": "A week after a deadly quake, Colombia turns from rescue efforts to shelter, aid and rebuilding.",
+        "title": "As rubble clears, Colombia begins focusing on recovery after the earthquake"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0108"
+          }
+        ],
+        "item_ref": "item_0108",
+        "published": "2026-08-17T21:39:22+00:00",
+        "source": "Al Jazeera",
+        "summary": "Prosecutors claim Duane Davis was ‘on-site commander’ in murder of Shakur, who died after drive-by shooting in 1996.",
+        "title": "‘Truth or fiction’: US trial of Tupac Shakur’s accused killer begins"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0109"
+          }
+        ],
+        "item_ref": "item_0109",
+        "published": "2026-08-17T21:34:26+00:00",
+        "source": "BBC World",
+        "summary": "The 89-year-old - one of Europe's longest-serving monarchs - is suffering from a rare blood condition.",
+        "title": "Norway's king admitted to hospital and put on sick leave"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0110"
+          }
+        ],
+        "item_ref": "item_0110",
+        "published": "2026-08-17T20:57:19+00:00",
+        "source": "Al Jazeera",
+        "summary": "Videos show the first moments Palestinian-American Loui Ridi arrived at his home in Qusra.",
+        "title": "Palestinian American reunites with family under siege in West Bank"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0111"
+          }
+        ],
+        "item_ref": "item_0111",
+        "published": "2026-08-17T20:54:03+00:00",
+        "source": "Al Jazeera",
+        "summary": "UN peacekeeping force recorded an average of 137 projectiles fired daily in the region over the last two weeks.",
+        "title": "Civilians paying price as Israeli military raises stakes in Lebanon: UNIFIL"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0112"
+          }
+        ],
+        "item_ref": "item_0112",
+        "published": "2026-08-17T20:49:30+00:00",
+        "source": "Al Jazeera",
+        "summary": "Trump says Iran will not make the deal he believes is necessary",
+        "title": "Trump says Iran will not make the deal he believes is necessary"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0113"
+          }
+        ],
+        "item_ref": "item_0113",
+        "published": "2026-08-17T20:46:34+00:00",
+        "source": "Al Jazeera",
+        "summary": "E Jean Carroll secures another legal victory as US Supreme Court refuses Donald Trump’s appeal over 1996 abuse claims.",
+        "title": "Trump loses second Supreme Court bid over E Jean Carroll sex abuse case"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0114"
+          }
+        ],
+        "item_ref": "item_0114",
+        "published": "2026-08-17T20:41:39+00:00",
+        "source": "Al Jazeera",
+        "summary": "Heavy rains have flooded oads in Lima, while river overflows, landslides, and road closures continue to affect Peru.",
+        "title": "Torrential rains flood homes and roads across Lima, Peru"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0115"
+          }
+        ],
+        "item_ref": "item_0115",
+        "published": "2026-08-17T20:41:31+00:00",
+        "source": "Al Jazeera",
+        "summary": "New poll found a majority of US citizens concerned about the US war on Iran.",
+        "title": "Trump’s approval rating sinks to new low at 33 percent"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0116"
+          }
+        ],
+        "item_ref": "item_0116",
+        "published": "2026-08-17T19:34:20+00:00",
+        "source": "Al Jazeera",
+        "summary": "US president cites good relationship with North Korean leader Kim Jong Un",
+        "title": "Why did Trump scale back war games with South Korea?"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0117"
+          }
+        ],
+        "item_ref": "item_0117",
+        "published": "2026-08-17T19:32:06+00:00",
+        "source": "Al Jazeera",
+        "summary": "A boat has left Bristol as part of a wider campaign to break Israel’s blockade and deliver aid to Gaza.",
+        "title": "Gaza flotilla sets sail from the UK in bid to break Israeli siege"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0118"
+          }
+        ],
+        "item_ref": "item_0118",
+        "published": "2026-08-17T19:25:05+00:00",
+        "source": "BBC World",
+        "summary": "Trump's threat on Oman, which has been holding its own talks with Iran to reopen the Strait of Hormuz, comes as a 60-day window for peace negotiations expires.",
+        "title": "Trump threatens to bomb US ally Oman if it 'gets in the way' over Iran deal"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0119"
+          }
+        ],
+        "item_ref": "item_0119",
+        "published": "2026-08-17T19:22:54+00:00",
+        "source": "Al Jazeera",
+        "summary": "At least 68 killed in eastern Indonesia as aftershocks and landslides hamper aid.",
+        "title": "Photos: Indonesia earthquake rescue efforts continue as death toll hits 68"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0120"
+          }
+        ],
+        "item_ref": "item_0120",
+        "published": "2026-08-17T19:12:19+00:00",
+        "source": "Al Jazeera",
+        "summary": "Search efforts to recover the remaining victims are still underway.",
+        "title": "At least 92 dead in Zimbabwe after Lake Kariba ferry disaster"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0121"
+          }
+        ],
+        "item_ref": "item_0121",
+        "published": "2026-08-17T18:53:06+00:00",
+        "source": "Al Jazeera",
+        "summary": "Lev Shlosberg, a senior member of the Yabloko party, was sentenced to 11 years and one month in prison on Monday.",
+        "title": "Russian politician sentenced to 11 years for opposing war in Ukraine"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0122"
+          }
+        ],
+        "item_ref": "item_0122",
+        "published": "2026-08-17T18:46:12+00:00",
+        "source": "Al Jazeera",
+        "summary": "Supreme Court ruling supports Kremlin's clampdown on the political party ahead of September's parliamentary vote.",
+        "title": "Russia maintains election ban on opposition Yabloko, jails deputy head"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0123"
+          }
+        ],
+        "item_ref": "item_0123",
+        "published": "2026-08-17T18:45:59+00:00",
+        "source": "BBC World",
+        "summary": "The US president has already paid the writer over $5m in damages in the assault and defamation case.",
+        "title": "Supreme Court again rejects Trump's bid to overturn E Jean Carroll  sex abuse case"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0124"
+          }
+        ],
+        "item_ref": "item_0124",
+        "published": "2026-08-17T18:39:39+00:00",
+        "source": "BBC World",
+        "summary": "Trump cites his \"very good relationship\" with North Korea's leader in deciding to downsize the exercises.",
+        "title": "Trump says US to reduce military drills with South Korea after it stayed out of Iran war"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0125"
+          }
+        ],
+        "item_ref": "item_0125",
+        "published": "2026-08-17T18:03:23+00:00",
+        "source": "BBC World",
+        "summary": "The Australian, who notoriously poisoned her family members, is trying to overturn her conviction.",
+        "title": "Mushroom murderer Erin Patterson is appealing - here's what you need to know"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0126"
+          }
+        ],
+        "item_ref": "item_0126",
+        "published": "2026-08-17T18:02:15+00:00",
+        "source": "Al Jazeera",
+        "summary": "Abbott accuses airports of religious discrimination over wudu stations, calls for federal investigation.",
+        "title": "CAIR slams Abbott’s ‘anti-Muslim stunt’ on Texas airport washing stations"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0127"
+          }
+        ],
+        "item_ref": "item_0127",
+        "published": "2026-08-17T18:00:55+00:00",
+        "source": "BBC World",
+        "summary": "The prime minister announced on Monday €12m worth of aid to French regions that had been worst affected by the fires.",
+        "title": "French PM heckled over wildfire response as blazes continue across Europe"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0128"
+          }
+        ],
+        "item_ref": "item_0128",
+        "published": "2026-08-17T17:42:02+00:00",
+        "source": "Al Jazeera",
+        "summary": "Heavy clashes broke out in Baidoa, Somalia between federal troops and armed opposition groups.",
+        "title": "Clashes between government and opposition fighters in Somalia’s Baidoa"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0129"
+          }
+        ],
+        "item_ref": "item_0129",
+        "published": "2026-08-17T17:37:31+00:00",
+        "source": "Al Jazeera",
+        "summary": "Family members allege security officers ignored warnings about the man's hemophilia and subjected him to severe abuse.",
+        "title": "Syria launches probe into death of ‘White Helmet’ rescuer in police custody"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0130"
+          }
+        ],
+        "item_ref": "item_0130",
+        "published": "2026-08-17T16:17:34+00:00",
+        "source": "BBC World",
+        "summary": "Lev Schlosberg is found guilty of \"discrediting\" Russia's army - a verdict he condemns as punishment for his political position.",
+        "title": "Russia's prominent anti-war politician jailed for 11 years"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0131"
+          }
+        ],
+        "item_ref": "item_0131",
+        "published": "2026-08-17T16:02:58+00:00",
+        "source": "BBC World",
+        "summary": "Donald Trump's Middle East envoy and son-in-law, Jared Kushner, is seeking to gain Israeli backing for the US-backed Gaza peace plan.",
+        "title": "Kushner hails 'very good' meeting with Netanyahu after Hamas talks on Gaza peace plan"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0132"
+          }
+        ],
+        "item_ref": "item_0132",
+        "published": "2026-08-17T14:23:04+00:00",
+        "source": "BBC World",
+        "summary": "The leading opposition candidate calls allegations of a planned insurrection \"total fabrications\".",
+        "title": "Top Zambian opposition figures arrested days after presidential vote"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0133"
+          }
+        ],
+        "item_ref": "item_0133",
+        "published": "2026-08-17T13:16:50+00:00",
+        "source": "BBC World",
+        "summary": "Moscow says nine people have been killed in the past 24 hours, while Kyiv reports four deaths.",
+        "title": "Russia and Ukraine trade more deadly strikes"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0134"
+          }
+        ],
+        "item_ref": "item_0134",
+        "published": "2026-08-17T12:23:26+00:00",
+        "source": "BBC World",
+        "summary": "The 30-year-old was on the active volcano when a thunderstorm developed, local media report.",
+        "title": "US hiker dies after being struck by lightning on Mount Etna"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0135"
+          }
+        ],
+        "item_ref": "item_0135",
+        "published": "2026-08-17T11:48:21+00:00",
+        "source": "NPR World",
+        "summary": "The USS Washington is on its way to the Middle East to relieve the USS Lincoln amid concerns about conditions aboard. And, Jared Kushner is expected to meet with Prime Minister Netanyahu to move Gaza talks forward.",
+        "title": "USS Washington to relieve USS Lincoln. And, Jared Kushner to meet with Netanyahu"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0136"
+          }
+        ],
+        "item_ref": "item_0136",
+        "published": "2026-08-17T10:39:24+00:00",
+        "source": "BBC World",
+        "summary": "Some 53 people were killed and thousands displaced by the earthquake, which struck early on Saturday.",
+        "title": "Aid shortages and fears of starvation as Indonesia reels from deadly earthquake"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0137"
+          }
+        ],
+        "item_ref": "item_0137",
+        "published": "2026-08-17T08:50:38+00:00",
+        "source": "NPR World",
+        "summary": "Ukraine launched one of its largest aerial attacks of the war on Russia, killing at least six people. How are Russians feeling as the war grinds on?",
+        "title": "At least 6 dead after Ukraine launches aerial attack on Russia"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0138"
+          }
+        ],
+        "item_ref": "item_0138",
+        "published": "2026-08-17T08:50:29+00:00",
+        "source": "NPR World",
+        "summary": "NPR's Sacha Pfeiffer speaks with Nina Krushcheva, professor of international affairs at the New School, about the current geopolitical climate in Russia.",
+        "title": "As war with Ukraine wages on, a look at life inside Russia"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0139"
+          }
+        ],
+        "item_ref": "item_0139",
+        "published": "2026-08-17T08:35:07+00:00",
+        "source": "BBC World",
+        "summary": "Niu Lai's confusing plot and laughable animation quality has won ironic fans on the internet.",
+        "title": "Movie that went viral for terrible animation becomes China box office hit"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0140"
+          }
+        ],
+        "item_ref": "item_0140",
+        "published": "2026-08-17T05:46:45+00:00",
+        "source": "BBC World",
+        "summary": "The Sydney Swans confirmed an incident had occurred in the hours after the team's win on Sunday.",
+        "title": "Aussie rules footy players under investigation as police probe sexual assault claim"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0141"
+          }
+        ],
+        "item_ref": "item_0141",
+        "published": "2026-08-17T05:21:39+00:00",
+        "source": "NPR World",
+        "summary": "President Trump explained the decision by saying South Korea had declined to help with the \"denuclearization\" of Iran and he cited his good relationship with North Korea's leader.",
+        "title": "Trump orders Pentagon to scale back joint exercises with South Korea"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0142"
+          }
+        ],
+        "item_ref": "item_0142",
+        "published": "2026-08-17T04:41:31+00:00",
+        "source": "BBC World",
+        "summary": "The outbreak was already the fastest growing on record, caused by a rare species of Ebola called Bundibugyo.",
+        "title": "Ebola outbreak in DR Congo becomes deadliest in its history"
+      },
+      {
+        "citations": [
+          {
+            "kind": "article",
+            "ref": "citation_0143"
+          }
+        ],
+        "item_ref": "item_0143",
+        "published": "2026-08-17T04:34:09+00:00",
+        "source": "BBC World",
+        "summary": "It comes as large swathes of East and South East Asia have been pummelled by dats of heavy rain.",
+        "title": "Record rains drench South Korean city as landslide kills one"
+      }
+    ]
+  },
+  "cutoff": "2026-08-17T04:13:45.948041+00:00",
+  "generated_at": "2026-08-18T04:13:45.948041+00:00",
+  "schema_version": 5,
+  "window_hours": 24
+}

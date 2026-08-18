@@ -3,6 +3,17 @@ base_ref = "main"
 
 [diff]
 max_bytes = 250000
+exclude = [
+  "*.lock",
+  "*-lock.json",
+  "vendor/**",
+  "**/*.min.js",
+  "**/*.min.css",
+  "**/__snapshots__/**",
+  "**/*.pb.go",
+  "**/*_pb2.py",
+  "docs/runs/**",
+]
 
 [commands]
 test = "uv run --python 3.11 --no-project python -m unittest --verbose"

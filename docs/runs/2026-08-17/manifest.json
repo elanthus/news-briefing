@@ -1,0 +1,191 @@
+{
+  "artifacts": {
+    "attempt-01-findings.json": "9771b34ec08c7d3be1080be316e10b4258bedcac21fb7fcddf6e87827a1dd562",
+    "attempt-01-provider-events.jsonl": "888ac470af65940c75a2c3ccd52b5f69e8fe4ba7eb1a5375ab28eb5b9a4d82d0",
+    "attempt-01-raw.txt": "331addde77de523144922860b1f058c45473fd6c37a91f047ae434eb5672e053",
+    "attempt-01-structured.json": "eec0a8c2a1bae28830cef40af0c713c9db6db2d8fca8e77b1d53b361ffb15a55",
+    "attempt-02-briefing.md": "333c6f717f534d2c55a209826e3e8b514c55d39f2c0ab8ed4d7c987aff7271cb",
+    "attempt-02-findings.json": "41240002e3ad465768f6bc5341d4090365c63d65532565e840d3b8a15327b385",
+    "attempt-02-provider-events.jsonl": "3d6cfe9779bfc96fd914f2eea6aa60168ce35531c2b9292c3688f2def35451a0",
+    "attempt-02-raw.txt": "72d4fb2cc02e1e1efc1736d39231086868ea275648cf490bb5643d48da800a54",
+    "attempt-02-structured.json": "5a40bef350f17bc715cb7363ae5a69244c6c4d965fe2ed7b2d025a7a60d5fda3",
+    "briefing-config.json": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "briefing.md": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
+    "citation-map.json": "5728954aefc5d3e10962f5b995b9e2fc5ad9d18b9c34f4c931b91bbbfd334cdc",
+    "corpus-2026-08-17.json": "a41577f16ae95543579466e72d914c35b45c25eb308ad383a957b1cc3e269b9b",
+    "fetch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fetch.stdout": "31913ee16d00a6e06ff814f8bab5b5df26421ccd8ebbac098086e7f776d2c782",
+    "final.md": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
+    "model-corpus.json": "8954785c9f68c0d717f1fb742463177243e90c1812b1d7a18432ed2a587f1cf1",
+    "output-schema.json": "b095ace9c7ef97220b48d40794e007dc0086dcc663fa0e7671d743fbcb389447",
+    "request.txt": "7bdf5bd9accffa958ca5744296d5ff222cf6f330105ec56454c14ba98bf9ead1"
+  },
+  "attempts": [
+    {
+      "briefing_artifact": null,
+      "contract_success": false,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 46606,
+        "latency_ms": 59412.60900022462,
+        "output_tokens": 2916,
+        "provider_request_id": "01a01313-ac34-7411-aec6-5178da9e6a15",
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 46606,
+          "output_tokens": 2916,
+          "reasoning_output_tokens": 265
+        }
+      },
+      "index": 1,
+      "kind": "initial",
+      "provider_events_artifact": "attempt-01-provider-events.jsonl",
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-08-18T04:15:10.080206+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
+    },
+    {
+      "briefing_artifact": "attempt-02-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-02-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 49618,
+        "latency_ms": 53343.04208308458,
+        "output_tokens": 2717,
+        "provider_request_id": "01a01314-93c0-73c3-ab4a-0b38e0994618",
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 49618,
+          "output_tokens": 2717,
+          "reasoning_output_tokens": 89
+        }
+      },
+      "index": 2,
+      "kind": "correction",
+      "provider_events_artifact": "attempt-02-provider-events.jsonl",
+      "raw_artifact": "attempt-02-raw.txt",
+      "received_at": "2026-08-18T04:16:03.433501+00:00",
+      "structured_artifact": "attempt-02-structured.json",
+      "validated": true
+    }
+  ],
+  "checkpointed_at": "2026-08-18T04:16:03.468587+00:00",
+  "code": {
+    "commit": "748f4a903ba21a86cf16805a368b8e3527c2b658",
+    "dirty": false,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "f9d8410dc173bb2cc5db224ae115bb859a36c463c170ee5aec5c8ff79b679d53",
+      "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+      "agent_runner/output.py": "8c6806250a8338e0d8582794f2ff569b3d9ffb768818c047de3a8f8c36b0f215",
+      "agent_runner/providers.py": "95d402790d7b8d40637595f9848ce33de1e761a16fd105470633ffa879bb5528",
+      "agent_runner/runner.py": "90c17865612d9469ebee7b6fd230c4f299eff814a47e58043db3ac9afbf25fa6",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "da361890d8c4fc28de3fd0741be2758d0b558f1aba3a2d9395a06294a21afd6c",
+      "eval_briefing.py": "5826ab12f01cb410a443f6dba8ae9a0eab1510ada07bf252d2f27c356753aace",
+      "fetch_news.py": "0d7eebc495e47932faecb3c492d7192c7be41451b2c37a8b58e62358536ab93b",
+      "run_briefing.py": "32a9510d710ad1fb4001462fdc130af168383351c1b095b968e36227a3a80a6a"
+    }
+  },
+  "completed_at": "2026-08-18T04:16:03.468382+00:00",
+  "final": {
+    "attempt": 2,
+    "findings": [
+      {
+        "check": "missing_discussion_link",
+        "level": "WARN",
+        "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://cursor.com/changelog/origin-code-hosting"
+      },
+      {
+        "check": "missing_discussion_link",
+        "level": "WARN",
+        "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://status.cursor.com/incidents/l9h9vrd726jv"
+      }
+    ],
+    "output_path": "docs/runs/2026-08-17/briefing.md",
+    "output_sha256": "b340dd71183e0134f9c45acb0842e67723a9e7392da4f7cf64df5e9ab67ed628",
+    "run_artifact": "final.md",
+    "source_issues": 3,
+    "status": "WARN"
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "748f4a903ba21a86cf16805a368b8e3527c2b658",
+      "python": "3.14.6",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "f9d8410dc173bb2cc5db224ae115bb859a36c463c170ee5aec5c8ff79b679d53",
+        "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+        "agent_runner/output.py": "8c6806250a8338e0d8582794f2ff569b3d9ffb768818c047de3a8f8c36b0f215",
+        "agent_runner/providers.py": "95d402790d7b8d40637595f9848ce33de1e761a16fd105470633ffa879bb5528",
+        "agent_runner/runner.py": "90c17865612d9469ebee7b6fd230c4f299eff814a47e58043db3ac9afbf25fa6",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "da361890d8c4fc28de3fd0741be2758d0b558f1aba3a2d9395a06294a21afd6c",
+        "eval_briefing.py": "5826ab12f01cb410a443f6dba8ae9a0eab1510ada07bf252d2f27c356753aace",
+        "fetch_news.py": "0d7eebc495e47932faecb3c492d7192c7be41451b2c37a8b58e62358536ab93b",
+        "run_briefing.py": "32a9510d710ad1fb4001462fdc130af168383351c1b095b968e36227a3a80a6a"
+      }
+    },
+    "config_path": "briefing-config.json",
+    "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "docs/runs/2026-08-17/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c",
+    "provider": {
+      "authentication": "Codex cached login (ChatGPT subscription or API key)",
+      "command": "codex",
+      "model": "gpt-5.6-terra",
+      "provider": "codex-cli",
+      "tool_policy": "Codex has no documented remove-all-tools flag. It runs in an empty read-only sandbox; any non-message/reasoning item in its JSON trace fails the run.",
+      "version": "codex-cli 0.147.0"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
+    "strict": false,
+    "timeout_seconds": 600
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "Codex cached login (ChatGPT subscription or API key)",
+    "command": "codex",
+    "model": "gpt-5.6-terra",
+    "provider": "codex-cli",
+    "tool_policy": "Codex has no documented remove-all-tools flag. It runs in an empty read-only sandbox; any non-message/reasoning item in its JSON trace fails the run.",
+    "version": "codex-cli 0.147.0"
+  },
+  "review_amendments": [
+    {
+      "preserved_model_artifacts": [
+        "attempt-02-raw.txt",
+        "attempt-02-provider-events.jsonl"
+      ],
+      "reason": "Remove an unsupported vaccine-exemption figure reported during PR review.",
+      "regenerated_artifacts": [
+        "attempt-02-structured.json",
+        "attempt-02-briefing.md",
+        "attempt-02-findings.json",
+        "briefing.md",
+        "final.md",
+        "output-schema.json"
+      ]
+    }
+  ],
+  "run_id": "2026-08-17",
+  "schema_version": 1,
+  "started_at": "2026-08-18T04:13:45.859725+00:00",
+  "status": "complete",
+  "trace_id": "026b9a5afd77a10d4cc67565a08f1134"
+}

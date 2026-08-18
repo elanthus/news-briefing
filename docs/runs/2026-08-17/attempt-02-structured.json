@@ -1,0 +1,384 @@
+{
+  "excluded_topics": {
+    "AI Dev Practices": [
+      {
+        "citation_refs": [
+          "citation_0187"
+        ],
+        "headline": "Prompt specificity and edge cases debated as common-sense practice",
+        "reason": "The post offers an opinion about prompting rather than evidence of a distinct, validated workflow."
+      },
+      {
+        "citation_refs": [
+          "citation_0193"
+        ],
+        "headline": "Planning with a larger model and executing with a smaller one",
+        "reason": "A question about a possible cost-saving workflow, not a demonstrated outcome or community-validated practice."
+      },
+      {
+        "citation_refs": [
+          "citation_0160"
+        ],
+        "headline": "Agentic coding can leave developers unfamiliar with their own codebases",
+        "reason": "Important workflow concern, but presented as a question without a concrete mitigation practice."
+      },
+      {
+        "citation_refs": [
+          "citation_0182"
+        ],
+        "headline": "Users debate IDEs versus coding harnesses",
+        "reason": "General preference discussion rather than a transferable practice with supporting results."
+      },
+      {
+        "citation_refs": [
+          "citation_0173"
+        ],
+        "headline": "Temperature adjustment suggested to reduce local-model overthinking",
+        "reason": "An individual tuning recommendation for a specific model, with no independent validation in the corpus."
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "citation_refs": [
+          "citation_0177"
+        ],
+        "headline": "Adaptive MTP pull request proposed for llama.cpp",
+        "reason": "A community-submitted pull request, rather than a confirmed release; it is less broadly significant than the selected tool launches and shipped support."
+      },
+      {
+        "citation_refs": [
+          "citation_0184"
+        ],
+        "headline": "Ling 3.0 Tiny praised for low-end local hardware",
+        "reason": "An individual performance report rather than a broadly verified tool update."
+      },
+      {
+        "citation_refs": [
+          "citation_0201"
+        ],
+        "headline": "Dagflo proposes animated codebase walkthroughs for coding agents",
+        "reason": "Early personal-project announcement with limited evidence of availability or adoption."
+      },
+      {
+        "citation_refs": [
+          "citation_0157"
+        ],
+        "headline": "Qwen developer says not to wait for 35B-A3B",
+        "reason": "Ambiguous developer-community speculation without a confirmed product announcement."
+      },
+      {
+        "citation_refs": [
+          "citation_0194"
+        ],
+        "headline": "Claude Opus 5 incident reported resolved",
+        "reason": "Service incident was resolved and is less durable than tool releases and launches."
+      }
+    ],
+    "US News": [
+      {
+        "citation_refs": [
+          "citation_0066"
+        ],
+        "headline": "National debt approaches $40 trillion",
+        "reason": "Important economic milestone, but the corpus says it is expected as soon as this week rather than reporting a completed event."
+      },
+      {
+        "citation_refs": [
+          "citation_0067"
+        ],
+        "headline": "Texas firearms ruling affects part of the National Firearms Act",
+        "reason": "Potentially significant legal development, but the corpus provides limited specifics about the ruling’s practical reach."
+      },
+      {
+        "citation_refs": [
+          "citation_0087"
+        ],
+        "headline": "Stellantis recalls nearly 850,000 U.S. vehicles",
+        "reason": "Large consumer-safety recall, but less broad immediate impact than the selected disasters, public-health trend, and federal watchdog review."
+      },
+      {
+        "citation_refs": [
+          "citation_0036"
+        ],
+        "headline": "DOJ seeks to reinstate charges against Abrego Garcia",
+        "reason": "A notable court filing, but the corpus provides only the dismissal history and alleged smuggling charge."
+      },
+      {
+        "citation_refs": [
+          "citation_0081"
+        ],
+        "headline": "Justice Department creates felony gun-rights restoration pathway",
+        "reason": "Federal policy change affecting some people convicted of felonies, but it is ranked below the more immediate public-safety and public-health stories."
+      }
+    ],
+    "US Politics": [
+      {
+        "citation_refs": [
+          "citation_0022"
+        ],
+        "headline": "Big Bend border-wall construction paused",
+        "reason": "Significant federal-policy development, but ranked after the Iran escalation, South Korea exercises decision, and Supreme Court action."
+      },
+      {
+        "citation_refs": [
+          "citation_0023"
+        ],
+        "headline": "House Ethics investigates Rep. Jimmy Gomez",
+        "reason": "A congressional ethics investigation, but narrower in national policy impact than selected topics."
+      },
+      {
+        "citation_refs": [
+          "citation_0027"
+        ],
+        "headline": "DHS defends investigations of agency critics",
+        "reason": "Raises civil-liberties concerns, but the corpus provides limited detail relative to higher-impact selected stories."
+      },
+      {
+        "citation_refs": [
+          "citation_0007"
+        ],
+        "headline": "Trump voted by mail in Florida primary",
+        "reason": "Politically notable given the report’s reference to his prior claims about mail voting, but not as consequential as the selected federal actions."
+      },
+      {
+        "citation_refs": [
+          "citation_0039"
+        ],
+        "headline": "Judge blocks FBI headquarters move",
+        "reason": "Federal court ruling on an administration headquarters plan, but more limited in scope than selected national-policy stories."
+      }
+    ],
+    "World Events": [
+      {
+        "citation_refs": [
+          "citation_0102"
+        ],
+        "headline": "Russia warns Britain over drone supplies to Ukraine",
+        "reason": "Important diplomatic escalation related to the war, but less consequential than the selected reporting on active deadly strikes."
+      },
+      {
+        "citation_refs": [
+          "citation_0111"
+        ],
+        "headline": "UNIFIL reports intensified fire in Lebanon",
+        "reason": "The peacekeeping force reported an average of 137 projectiles daily over two weeks, but the corpus offers limited detail on broader consequences."
+      },
+      {
+        "citation_refs": [
+          "citation_0120"
+        ],
+        "headline": "Lake Kariba ferry disaster kills at least 92 in Zimbabwe",
+        "reason": "Major fatal disaster, but selected stories were prioritized for conflict, election, epidemic, and earthquake developments with broader regional implications."
+      },
+      {
+        "citation_refs": [
+          "citation_0130"
+        ],
+        "headline": "Russian anti-war politician sentenced to 11 years",
+        "reason": "Significant repression of opposition, but ranked after the selected international security and humanitarian developments."
+      },
+      {
+        "citation_refs": [
+          "citation_0127"
+        ],
+        "headline": "French wildfire response draws protests as fires continue",
+        "reason": "The French prime minister announced €12 million in aid, but the corpus gives limited information about the scale of the continuing fires."
+      }
+    ]
+  },
+  "schema_version": 1,
+  "sections": {
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0166"
+          ],
+          "headline": "Structured handoffs are proposed to reduce agents ignoring prior work",
+          "summary": "A developer reported mitigating an agent’s failure to follow documented work by using concise, structured handoffs that state the current project state, prior decisions, and an explicit next step. This is a community-reported practice, not independently validated evidence."
+        },
+        {
+          "citation_refs": [
+            "citation_0178"
+          ],
+          "headline": "Cross-session orchestration is presented as a way to partition context",
+          "summary": "A community member described using cross-session communication to give separate build areas their own context windows, with a master session handling planning and documentation. This is an individual workflow report."
+        },
+        {
+          "citation_refs": [
+            "citation_0183"
+          ],
+          "headline": "Explicit safeguards for remote changes remain important in agent workflows",
+          "summary": "A developer reported that Claude Code did not follow rules intended to disable automatic pushes and require confirmation before remote updates, highlighting a community concern about enforcing safeguards around remote operations."
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0180",
+            "citation_0171"
+          ],
+          "headline": "Cursor launches Origin, a GitHub alternative",
+          "summary": "Cursor launched Origin, described in the corpus as a GitHub alternative. A separate item reported that a GitHub degradation affected the new platform."
+        },
+        {
+          "citation_refs": [
+            "citation_0195",
+            "citation_0209"
+          ],
+          "headline": "llama.cpp adopts semantic versioning and adds Ling 3.0 support",
+          "summary": "Community reports said llama.cpp released v0.1.0 as its first semantic-versioned tag and merged support for Ling 3.0 reasoning models, including Tiny and Flash variants."
+        },
+        {
+          "citation_refs": [
+            "citation_0189",
+            "citation_0190"
+          ],
+          "headline": "Speko launches a voice-AI model-routing platform",
+          "summary": "Speko launched as a platform that selects combinations of speech-to-text, language, and text-to-speech models based on user constraints and provides an explanation for its choice."
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0144"
+          ],
+          "headline": "Anthropic annualized revenue reaches $65 billion",
+          "summary": "Anthropic’s annualized revenue reportedly rose to $65 billion after the company added $18 billion in annualized revenue in two months."
+        },
+        {
+          "citation_refs": [
+            "citation_0153",
+            "citation_0152"
+          ],
+          "headline": "Nvidia expands investments tied to AI data-center capacity",
+          "summary": "Nvidia disclosed a $21 billion stake in SpaceX and separately planned a $1.5 billion investment in a SoftBank data-center developer behind an OpenAI project; the latter investment would secure Nvidia chips for an OpenAI data center."
+        },
+        {
+          "citation_refs": [
+            "citation_0151"
+          ],
+          "headline": "Groq raises $350 million while pivoting to a neocloud business",
+          "summary": "Groq raised $350 million at a $3.5 billion valuation as it shifts from AI chips toward a neocloud business and expands Nvidia-powered data-center capacity."
+        },
+        {
+          "citation_refs": [
+            "citation_0149",
+            "citation_0150"
+          ],
+          "headline": "Reports allege Amazon is destroying rare books for AI training",
+          "summary": "Reports said Amazon is using rare texts for AI training and alleged that a tracking device revealed books being discarded. The evidence provided is limited to the reports’ descriptions."
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0086",
+            "citation_0040"
+          ],
+          "headline": "Hurricane Lala leaves deadly destruction and widespread outages in Hawaii",
+          "summary": "Former Hurricane Lala brought flooding and mudslides to Hawaii. Reports said one person died, more than 100,000 customers lost power, and at least 100 homes and bridges were damaged; homes on the Big Island were swept away or destroyed by mudslides."
+        },
+        {
+          "citation_refs": [
+            "citation_0064",
+            "citation_0056"
+          ],
+          "headline": "Midwest storms and floods kill at least seven",
+          "summary": "A week of heavy storms and catastrophic flooding in the Midwest had killed at least seven people. Flooding continued in central and southern Indiana, where more than 100,000 customers were without power."
+        },
+        {
+          "citation_refs": [
+            "citation_0016",
+            "citation_0019"
+          ],
+          "headline": "Kindergarten vaccine exemptions reach a record high",
+          "summary": "U.S. kindergarten vaccination rates fell again in the 2025–26 school year. Exemptions increased in 41 states and the District of Columbia, and MMR coverage remained below the level cited as best for preventing widespread outbreaks."
+        },
+        {
+          "citation_refs": [
+            "citation_0063"
+          ],
+          "headline": "Justice Department watchdog to review DEA fentanyl-investigation tactic",
+          "summary": "The Justice Department inspector general will review policies and wiretap investigations in which the DEA may have learned of fentanyl deliveries before they occurred but did not intervene to avoid jeopardizing larger prosecutions."
+        }
+      ]
+    },
+    "US Politics": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0006",
+            "citation_0011"
+          ],
+          "headline": "Trump threatens Oman as Iran-war peace window expires",
+          "summary": "President Trump threatened to bomb Oman amid escalating tensions with Iran. Congressional Democrats were preparing a war-powers push in response."
+        },
+        {
+          "citation_refs": [
+            "citation_0008",
+            "citation_0009"
+          ],
+          "headline": "Trump orders reduction of joint military exercises with South Korea",
+          "summary": "Trump said the United States would substantially reduce joint exercises with South Korea, citing its refusal to help with Iran’s denuclearization and his relationship with North Korean leader Kim Jong Un. The decision drew concern from allies and Democrats."
+        },
+        {
+          "citation_refs": [
+            "citation_0025"
+          ],
+          "headline": "Supreme Court declines Trump appeal in E. Jean Carroll case",
+          "summary": "The Supreme Court again declined to take up Trump’s effort to overturn a jury finding that he sexually abused and defamed E. Jean Carroll, leaving the $5 million finding intact."
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0131",
+            "citation_0106"
+          ],
+          "headline": "Gaza talks focus on Hamas disarmament as strikes continue",
+          "summary": "Jared Kushner met with Benjamin Netanyahu as the United States sought Israeli backing for a Gaza peace plan. Kushner said reconstruction would not proceed until Hamas disarms, while reports said Israeli strikes continued."
+        },
+        {
+          "citation_refs": [
+            "citation_0119",
+            "citation_0136"
+          ],
+          "headline": "Indonesia earthquake death toll rises to at least 68",
+          "summary": "Rescue efforts continued in eastern Indonesia after an earthquake. At least 68 people were reported dead, with aftershocks and landslides hampering aid; earlier reporting described shortages and thousands displaced."
+        },
+        {
+          "citation_refs": [
+            "citation_0133",
+            "citation_0137"
+          ],
+          "headline": "Russia and Ukraine exchange deadly strikes",
+          "summary": "Russia and Ukraine traded further attacks: Moscow reported nine deaths in the previous 24 hours, while Kyiv reported four. Separate reporting described one of Ukraine’s largest aerial attacks of the war killing at least six people in Russia."
+        },
+        {
+          "citation_refs": [
+            "citation_0101",
+            "citation_0132"
+          ],
+          "headline": "Zambia’s Hakainde Hichilema wins a second term",
+          "summary": "Official results gave President Hakainde Hichilema about 61 percent of the vote, against 38 percent for his main challenger. The result followed reports that leading opposition figures had been arrested days after the vote."
+        },
+        {
+          "citation_refs": [
+            "citation_0142"
+          ],
+          "headline": "DR Congo Ebola outbreak becomes the country’s deadliest",
+          "summary": "The Ebola outbreak in the Democratic Republic of Congo was reported to have become the country’s deadliest and fastest growing on record, involving the Bundibugyo species."
+        }
+      ]
+    }
+  }
+}
