@@ -235,7 +235,7 @@ def corpus_link_categories(corpus: dict[str, Any]) -> dict[str, set[str]]:
 
 
 def hacker_news_links(corpus: dict[str, Any]) -> dict[str, str]:
-    """Article URL -> discussion URL, for items that carry engagement signal."""
+    """Map each Hacker News article URL to its discussion URL."""
     pairs = {}
     for items in corpus.get("categories", {}).values():
         for item in items:
@@ -571,7 +571,7 @@ def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
 
 def check_hn_discussion_links(sections: dict[str, Section],
                               hn_pairs: dict[str, str]) -> list[Finding]:
-    """Engagement signal is the reason HN is in the corpus; don't drop it."""
+    """Keep the useful HN discussion link even though metrics are omitted."""
     findings: list[Finding] = []
     for name, bucket in sections.items():
         if name == EXCLUDED:

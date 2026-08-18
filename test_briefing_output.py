@@ -89,6 +89,27 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertNotIn("double-encoded.example", reprojected_text)
         self.assertGreaterEqual(reprojected_text.count("destination omitted"), 4)
 
+    def test_projection_omits_mutable_hn_engagement_but_raw_corpus_keeps_it(self):
+        corpus, _config, projected, _output = fixture_contract()
+        raw_hn_items = [
+            item
+            for items in corpus["categories"].values()
+            for item in items
+            if "points" in item or "comments" in item
+        ]
+        self.assertTrue(raw_hn_items)
+
+        projected_hn_items = [
+            item
+            for items in projected.document["categories"].values()
+            for item in items
+            if item.get("source") == "Hacker News"
+        ]
+        self.assertTrue(projected_hn_items)
+        for item in projected_hn_items:
+            self.assertNotIn("points", item)
+            self.assertNotIn("comments", item)
+
     def test_redaction_rejects_destination_bearing_dictionary_keys(self):
         with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
             redact_destinations({"https&amp;#x3A;//attacker.invalid": "value"})

@@ -35,6 +35,7 @@ class ModelCorpus:
 
 
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+MODEL_EXCLUDED_ITEM_FIELDS = frozenset({"url", "discussion", "points", "comments"})
 
 
 def _redact_text_destinations(value: str) -> str:
@@ -88,7 +89,12 @@ def redact_preview_value(value: Any) -> Any:
 
 
 def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
-    """Replace model-visible URLs with compact, code-owned citation references."""
+    """Replace mutable/source-owned fields with code-owned citation references.
+
+    Hacker News engagement remains in the raw corpus for fetch admission and
+    audit, but points and comment counts are mutable snapshots that should not
+    become briefing claims.
+    """
     projected_categories: dict[str, list[dict[str, Any]]] = {}
     citations: dict[str, Citation] = {}
     item_number = 0
@@ -101,7 +107,7 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
             projected = {
                 key: redact_destinations(value)
                 for key, value in item.items()
-                if key not in {"url", "discussion"}
+                if key not in MODEL_EXCLUDED_ITEM_FIELDS
             }
             projected["item_ref"] = item_ref
             projected_citations = []
