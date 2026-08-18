@@ -7,7 +7,13 @@ import urllib.error
 from unittest.mock import patch
 
 from agent_runner.models import GenerationRequest, ProviderError
-from agent_runner.providers import ClaudeCodeProvider, CodexCliProvider, OpenRouterProvider, _run_cli
+from agent_runner.providers import (
+    ClaudeCodeProvider,
+    CodexCliProvider,
+    OpenRouterProvider,
+    _command_version,
+    _run_cli,
+)
 
 SCHEMA = {
     "type": "object",
@@ -68,6 +74,19 @@ class ProviderTests(unittest.TestCase):
         ), self.assertRaisesRegex(ProviderError, "empty tool policy"):
             provider.generate(REQUEST)
 
+    def test_openrouter_ignores_malformed_optional_cost(self):
+        payload = {
+            "id": "gen-1",
+            "choices": [{"message": {"content": '{"schema_version":1}'}}],
+            "usage": {"cost": "not-a-number"},
+        }
+        provider = OpenRouterProvider("vendor/model")
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "urllib.request.urlopen", return_value=FakeResponse(payload)
+        ):
+            result = provider.generate(REQUEST)
+        self.assertIsNone(result.cost_usd)
+
     def test_openrouter_retries_429_and_honors_retry_after(self):
         error = urllib.error.HTTPError(
             "https://example.invalid",
@@ -116,6 +135,29 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(command[command.index("--tools") + 1], "")
         self.assertEqual(command[command.index("--disallowedTools") + 1], "*")
         self.assertEqual(result.structured_output, {"schema_version": 1})
+
+    def test_claude_ignores_malformed_optional_cost(self):
+        wrapper = {
+            "result": '{"schema_version":1}',
+            "structured_output": {"schema_version": 1},
+            "total_cost_usd": {"unexpected": "shape"},
+        }
+        completed = subprocess.CompletedProcess([], 0, json.dumps(wrapper), "")
+        with patch("shutil.which", return_value="/bin/claude"), patch(
+            "agent_runner.providers._run_cli", return_value=(completed, 12.0, 1)
+        ):
+            result = ClaudeCodeProvider("sonnet").generate(REQUEST)
+        self.assertIsNone(result.cost_usd)
+
+    def test_command_version_returns_none_when_probe_fails(self):
+        for failure in (
+            subprocess.TimeoutExpired(["claude", "--version"], 10),
+            OSError("cannot execute"),
+        ):
+            with self.subTest(failure=type(failure).__name__), patch(
+                "shutil.which", return_value="/bin/claude"
+            ), patch("subprocess.run", side_effect=failure):
+                self.assertIsNone(_command_version("claude"))
 
     def test_cli_retries_transient_failure_before_output(self):
         failed = subprocess.CompletedProcess([], 1, "", "service unavailable")

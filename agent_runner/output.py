@@ -37,7 +37,12 @@ DESTINATION_REDACTION = "[destination omitted; use citation refs]"
 
 
 def _redact_text_destinations(value: str) -> str:
-    decoded = html.unescape(value)
+    decoded = value
+    while True:
+        decoded_once = html.unescape(decoded)
+        if decoded_once == decoded:
+            break
+        decoded = decoded_once
     spellings = eval_briefing.url_spellings(decoded)
     if not spellings:
         return value
@@ -55,7 +60,12 @@ def redact_destinations(value: Any) -> Any:
     if isinstance(value, list):
         return [redact_destinations(item) for item in value]
     if isinstance(value, dict):
-        return {key: redact_destinations(item) for key, item in value.items()}
+        redacted: dict[Any, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and _redact_text_destinations(key) != key:
+                raise ValueError("model input contains a destination-bearing dictionary key")
+            redacted[key] = redact_destinations(item)
+        return redacted
     return value
 
 
@@ -89,16 +99,16 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
             projected["citations"] = projected_citations
             projected_items.append(projected)
         projected_categories[category] = projected_items
-    return ModelCorpus(
-        document={
-            "schema_version": corpus["schema_version"],
-            "generated_at": corpus["generated_at"],
-            "cutoff": corpus["cutoff"],
-            "window_hours": corpus["window_hours"],
-            "categories": projected_categories,
-        },
-        citations=citations,
-    )
+    document = redact_destinations({
+        "schema_version": corpus["schema_version"],
+        "generated_at": corpus["generated_at"],
+        "cutoff": corpus["cutoff"],
+        "window_hours": corpus["window_hours"],
+        "categories": projected_categories,
+    })
+    if not isinstance(document, dict):
+        raise AssertionError("projected model corpus must be an object")
+    return ModelCorpus(document=document, citations=citations)
 
 
 def _text_property(max_length: int) -> dict[str, Any]:

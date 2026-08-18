@@ -8,6 +8,7 @@ import eval_briefing
 from agent_runner.output import (
     build_output_schema,
     project_corpus,
+    redact_destinations,
     render_briefing,
     validate_output,
 )
@@ -76,14 +77,28 @@ class BriefingOutputTests(unittest.TestCase):
         first_category = next(iter(injected["categories"].values()))
         first_category[0]["summary"] = (
             "Read https://EXAMPLE.com/path and https://example.com/path/ "
-            "plus https&#x3A;//encoded.example/instruction"
+            "plus https&#x3A;//encoded.example/instruction and "
+            "https&amp;#x3A;//double-encoded.example/instruction"
         )
         reprojected = project_corpus(injected)
         reprojected_text = json.dumps(reprojected.document)
         self.assertNotIn("EXAMPLE.com", reprojected_text)
         self.assertNotIn("example.com", reprojected_text)
         self.assertNotIn("encoded.example", reprojected_text)
-        self.assertGreaterEqual(reprojected_text.count("destination omitted"), 3)
+        self.assertNotIn("double-encoded.example", reprojected_text)
+        self.assertGreaterEqual(reprojected_text.count("destination omitted"), 4)
+
+    def test_redaction_rejects_destination_bearing_dictionary_keys(self):
+        with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
+            redact_destinations({"https&amp;#x3A;//attacker.invalid": "value"})
+
+        corpus, _config, _projected, _output = fixture_contract()
+        injected = copy.deepcopy(corpus)
+        category, items = next(iter(injected["categories"].items()))
+        del injected["categories"][category]
+        injected["categories"]["https://attacker.invalid/category"] = items
+        with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
+            project_corpus(injected)
 
     def test_schema_restricts_section_names_and_uses_common_provider_subset(self):
         _corpus, config, projected, _output = fixture_contract()
@@ -126,6 +141,28 @@ class BriefingOutputTests(unittest.TestCase):
         broken["sections"][second_section]["topics"][0] = repeated
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("duplicate_item", checks)
+
+    def test_structured_item_limit_is_enforced_in_code(self):
+        _corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        topics = broken["sections"][section.name]["topics"]
+        topics.append(copy.deepcopy(topics[0]))
+        checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
+        self.assertIn("structured_item_limit", checks)
+
+    def test_citation_must_be_eligible_for_its_section(self):
+        _corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
+        self.assertIn("category_ineligible_ref", checks)
 
 
 if __name__ == "__main__":

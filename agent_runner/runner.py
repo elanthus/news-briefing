@@ -133,7 +133,19 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
         str(corpus_path),
     ]
     store.trace("fetch_started", command=command)
-    completed = subprocess.run(command, text=True, capture_output=True, check=False, cwd=ROOT)
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            check=False,
+            cwd=ROOT,
+            timeout=settings.timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"fetch_news.py exceeded the {settings.timeout_seconds}s fetch deadline"
+        ) from exc
     store.write_text("fetch.stdout", completed.stdout)
     store.write_text("fetch.stderr", completed.stderr)
     if completed.returncode != 0:

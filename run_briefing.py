@@ -58,11 +58,16 @@ def main() -> int:
     parser.add_argument("--hours", type=_positive_int, default=fetch_news.DEFAULT_WINDOW_HOURS)
     parser.add_argument("--source-cap", type=_positive_int, default=fetch_news.DEFAULT_SOURCE_CAP)
     parser.add_argument("--category-cap", type=_positive_int, default=fetch_news.DEFAULT_CATEGORY_CAP)
-    parser.add_argument("--timeout", type=_positive_int, default=600)
+    parser.add_argument(
+        "--timeout",
+        type=_positive_int,
+        default=600,
+        help="per-fetch and per-model-call deadline in seconds",
+    )
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=1)
     parser.add_argument("--strict", action="store_true", help="return nonzero for WARN as well as ERROR")
-    parser.add_argument("--temperature", type=float, default=0, help="OpenRouter sampling temperature")
-    parser.add_argument("--max-tokens", type=_positive_int, default=100_000, help="OpenRouter output ceiling")
+    parser.add_argument("--temperature", type=float, help="OpenRouter sampling temperature (default: 0)")
+    parser.add_argument("--max-tokens", type=_positive_int, help="OpenRouter output ceiling (default: 100000)")
     parser.add_argument(
         "--reasoning",
         choices=("enabled", "disabled"),
@@ -82,16 +87,31 @@ def main() -> int:
     for label, path in (("config", args.config), ("sources", args.sources), ("prompt", args.prompt)):
         if not path.is_file():
             parser.error(f"{label} file does not exist: {path}")
+    if args.provider != "openrouter":
+        openrouter_options = [
+            option
+            for option, value in (
+                ("--temperature", args.temperature),
+                ("--max-tokens", args.max_tokens),
+                ("--reasoning", args.reasoning),
+                ("--reasoning-effort", args.reasoning_effort),
+            )
+            if value is not None
+        ]
+        if openrouter_options:
+            parser.error(
+                f"{', '.join(openrouter_options)} applies to --provider openrouter only"
+            )
 
     reasoning_enabled = None if args.reasoning is None else args.reasoning == "enabled"
     try:
         provider = provider_for(
             args.provider,
             args.model,
-            temperature=args.temperature,
+            temperature=0 if args.temperature is None else args.temperature,
             reasoning_enabled=reasoning_enabled,
             reasoning_effort=args.reasoning_effort,
-            max_tokens=args.max_tokens,
+            max_tokens=100_000 if args.max_tokens is None else args.max_tokens,
         )
         settings = RunnerSettings(
             config_path=args.config.resolve(),

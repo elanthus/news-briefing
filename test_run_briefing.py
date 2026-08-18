@@ -1,13 +1,19 @@
 import copy
+import io
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import eval_briefing
+import run_briefing as briefing_cli
 from agent_runner.checkpoint import RunStore
 from agent_runner.models import GenerationRequest, ModelResponse
-from agent_runner.runner import RunnerSettings, build_request, run_workflow
+from agent_runner.runner import RunnerSettings, RunResult, build_request, run_workflow
 from test_briefing_output import ROOT, fixture_contract
 
 
@@ -80,6 +86,31 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("### Validation status", briefing)
         self.assertIn("**Status: WARN**", briefing)
         self.assertEqual(len(provider.requests), 1)
+
+    def test_warn_is_a_failure_in_strict_mode(self):
+        corpus, _config, _projected, output = fixture_contract()
+        provider = FakeProvider([output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            settings = replace(self.settings(root / "briefing.md"), strict=True)
+            result = run_workflow(provider, settings, root / "run")
+        self.assertEqual(result.status, "WARN")
+        self.assertEqual(result.exit_code, 1)
+
+    def test_error_status_returns_failure_exit_code(self):
+        corpus, _config, _projected, output = fixture_contract()
+        provider = FakeProvider([output])
+        forced = eval_briefing.Finding(eval_briefing.ERROR, "forced_error", "forced error")
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            root = Path(directory)
+            settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
+            result = run_workflow(provider, settings, root / "run")
+        self.assertEqual(result.status, "ERROR")
+        self.assertEqual(result.exit_code, 1)
 
     def test_request_redacts_destinations_from_trusted_config_too(self):
         _corpus, _config, projected, _output = fixture_contract()
@@ -188,6 +219,93 @@ class RunnerTests(unittest.TestCase):
             changed = FakeProvider([], generation_controls={"temperature": 1})
             with self.assertRaisesRegex(ValueError, "invocation identity differs"):
                 run_workflow(changed, settings, root / "run", resume=True)
+
+    def test_fetch_timeout_fails_and_is_recorded(self):
+        code_info = {
+            "commit": None,
+            "dirty": None,
+            "python": "test",
+            "platform": "test",
+            "source_sha256": {},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self.settings(root / "briefing.md")
+            with patch("agent_runner.runner._git_provenance", return_value=code_info), patch(
+                "agent_runner.runner.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["fetch_news.py"], 30),
+            ) as run:
+                with self.assertRaisesRegex(RuntimeError, "30s fetch deadline"):
+                    run_workflow(FakeProvider([]), settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            trace = (root / "run/trace.jsonl").read_text()
+        self.assertEqual(run.call_args.kwargs["timeout"], 30)
+        self.assertEqual(manifest["status"], "failed")
+        self.assertEqual(manifest["error"]["type"], "RuntimeError")
+        self.assertIn('"event": "run_failed"', trace)
+
+    def test_cli_rejects_explicit_openrouter_options_for_cli_providers(self):
+        cases = {
+            "--temperature": "0.5",
+            "--max-tokens": "1234",
+            "--reasoning": "enabled",
+            "--reasoning-effort": "high",
+        }
+        for provider in ("claude-code-cli", "codex-cli"):
+            for option, value in cases.items():
+                with self.subTest(
+                    provider=provider, option=option
+                ), tempfile.TemporaryDirectory() as directory:
+                    argv = [
+                        "run_briefing.py",
+                        "--provider",
+                        provider,
+                        "--model",
+                        "test-model",
+                        "--output",
+                        str(Path(directory) / "briefing.md"),
+                        option,
+                        value,
+                    ]
+                    with patch.object(sys, "argv", argv), patch.object(
+                        sys, "stderr", io.StringIO()
+                    ) as stderr, patch.object(briefing_cli, "provider_for") as provider_for:
+                        with self.assertRaises(SystemExit) as raised:
+                            briefing_cli.main()
+                    self.assertEqual(raised.exception.code, 2)
+                    self.assertIn("applies to --provider openrouter only", stderr.getvalue())
+                    provider_for.assert_not_called()
+
+    def test_cli_propagates_runner_exit_code_and_cli_provider_defaults(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "briefing.md"
+            argv = [
+                "run_briefing.py",
+                "--provider",
+                "codex-cli",
+                "--model",
+                "test-model",
+                "--output",
+                str(output),
+            ]
+            provider = FakeProvider([])
+            result = RunResult(1, root / "run", output, "ERROR")
+            with patch.object(sys, "argv", argv), patch.object(
+                briefing_cli, "provider_for", return_value=provider
+            ) as provider_for, patch.object(
+                briefing_cli, "run_workflow", return_value=result
+            ), patch("builtins.print"):
+                exit_code = briefing_cli.main()
+        self.assertEqual(exit_code, 1)
+        provider_for.assert_called_once_with(
+            "codex-cli",
+            "test-model",
+            temperature=0,
+            reasoning_enabled=None,
+            reasoning_effort=None,
+            max_tokens=100_000,
+        )
 
 
 if __name__ == "__main__":

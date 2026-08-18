@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -45,11 +46,24 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
 def _command_version(command: str) -> str | None:
     if shutil.which(command) is None:
         return None
-    completed = subprocess.run(
-        [command, "--version"], text=True, capture_output=True, check=False, timeout=10
-    )
+    try:
+        completed = subprocess.run(
+            [command, "--version"], text=True, capture_output=True, check=False, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
     rendered = completed.stdout.strip() or completed.stderr.strip()
     return rendered.splitlines()[0] if rendered else None
+
+
+def _optional_float(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _retry_after_seconds(value: str | None, now: datetime | None = None) -> float | None:
@@ -300,7 +314,7 @@ class OpenRouterProvider(ModelProvider):
             latency_ms=latency_ms,
             input_tokens=usage.get("prompt_tokens"),
             output_tokens=usage.get("completion_tokens"),
-            cost_usd=float(cost) if cost is not None else None,
+            cost_usd=_optional_float(cost),
             provider_request_id=payload.get("id") or request_id,
             usage=usage,
             attempts=attempt,
@@ -377,7 +391,7 @@ class ClaudeCodeProvider(ModelProvider):
             latency_ms=latency_ms,
             input_tokens=usage.get("input_tokens"),
             output_tokens=usage.get("output_tokens"),
-            cost_usd=float(total_cost) if total_cost is not None else None,
+            cost_usd=_optional_float(total_cost),
             provider_request_id=payload.get("session_id"),
             usage=usage,
             attempts=attempts,
