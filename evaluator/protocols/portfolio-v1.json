@@ -98,13 +98,13 @@
       "id": "production-2026-08",
       "role": "frozen_production_control",
       "path": "evaluator/prompts/production-2026-08.md",
-      "sha256": "41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c"
+      "sha256": "1c14f6cd04adbc8f86e5b269c361bef7aaaa068be6bd0380a7df9febbabc4639"
     },
     {
       "id": "reliability-v1",
       "role": "candidate",
       "path": "evaluator/prompts/reliability-v1.md",
-      "sha256": "f1d0eaf852a955559faa3dbdf850c606d1dedf079c1dc590ea62958dd3f2317e"
+      "sha256": "bdb738b04288ae543ad49f4538ffa3d2e24bdc5066057ada8055dcf3b12fb04c"
     }
   ],
   "model_groups": [

@@ -56,10 +56,9 @@ For each topic across all categories:
 **[Topic headline]** — [1-3 concise sentences, containing only facts supported by the selected corpus item(s)]
 🔗 [URL from the corpus item]
 
-For Hacker News items whose article (`url`) and HN discussion (`discussion`) resolve to different destinations, include both links, each on its own 🔗 line. If they resolve to the same destination (as with an HN self-post), print that URL only once. Then print the engagement signal on its own line:
+For Hacker News items whose article (`url`) and HN discussion (`discussion`) resolve to different destinations, include both links, each on its own 🔗 line. If they resolve to the same destination (as with an HN self-post), print that URL only once. Do not print Hacker News points or comment counts:
 🔗 [article URL]
 🔗 HN: [discussion URL]
-`↑ [points] pts · [comments] comments`
 Reddit vote counts are not available (Reddit blocks anonymous API access); omit any score line for Reddit items.
 
 ---

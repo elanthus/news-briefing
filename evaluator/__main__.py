@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
-from evaluator.adapters import adapter_for, load_dotenv
+from evaluator.adapters import adapter_for, load_dotenv, production_adapter_for
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
@@ -76,7 +76,9 @@ def _models_from_env(name: str, default: str) -> list[str]:
     return models
 
 
-def _provider_values(values: list[str], all_providers: bool) -> list[tuple[str, str]]:
+def _provider_values(
+    values: list[str], all_providers: bool, generation_path: str = "markdown"
+) -> list[tuple[str, str]]:
     env_models = {
         "codex-cli": ("CODEX_MODEL", "gpt-5.6-terra"),
         "claude-code-cli": ("CLAUDE_CODE_MODEL", "claude-sonnet-5"),
@@ -84,9 +86,14 @@ def _provider_values(values: list[str], all_providers: bool) -> list[tuple[str, 
         "nvidia": ("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b"),
     }
     if all_providers:
+        selected = (
+            {key: value for key, value in env_models.items() if key != "nvidia"}
+            if generation_path == "production-parity"
+            else env_models
+        )
         return [
             (provider, model)
-            for provider, (name, default) in env_models.items()
+            for provider, (name, default) in selected.items()
             for model in _models_from_env(name, default)
         ]
     parsed = []
@@ -102,9 +109,14 @@ def _provider_values(values: list[str], all_providers: bool) -> list[tuple[str, 
     return parsed
 
 
-def _prompt_values(values: list[str]) -> dict[str, Path]:
+def _prompt_values(values: list[str], generation_path: str = "markdown") -> dict[str, Path]:
     if not values:
-        return {"production": ROOT / "briefing-prompt.md"}
+        default = (
+            ROOT / "briefing-runner-prompt.md"
+            if generation_path == "production-parity"
+            else ROOT / "briefing-prompt.md"
+        )
+        return {"production": default}
     prompts = {}
     for value in values:
         if "=" not in value:
@@ -212,6 +224,16 @@ def main() -> int:
         action="append",
         default=[],
         help="VERSION=PATH; repeatable (final runs require at least two)",
+    )
+    run.add_argument(
+        "--generation-path",
+        choices=("markdown", "production-parity"),
+        default="markdown",
+        help=(
+            "markdown asks the model for the historical direct-Markdown contract; "
+            "production-parity uses the real structured transport, corpus projection, "
+            "validator, and renderer"
+        ),
     )
     run.add_argument("--trials", type=int, default=1)
     run.add_argument("--timeout", type=int, default=300)
@@ -344,10 +366,17 @@ def main() -> int:
             if args.resume and args.output_dir is None:
                 raise ValueError("--resume requires --output-dir")
             load_dotenv(args.env_file)
-            providers = _provider_values(args.provider, args.all_providers)
+            providers = _provider_values(
+                args.provider, args.all_providers, args.generation_path
+            )
             _preflight(providers)
+            adapter_factory = (
+                production_adapter_for
+                if args.generation_path == "production-parity"
+                else adapter_for
+            )
             adapters = [
-                adapter_for(
+                adapter_factory(
                     provider,
                     model,
                     args.timeout,
@@ -360,7 +389,7 @@ def main() -> int:
                 )
                 for provider, model in providers
             ]
-            prompts = _prompt_values(args.prompt)
+            prompts = _prompt_values(args.prompt, args.generation_path)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / stamp
             progress = ProgressBar()
@@ -379,6 +408,7 @@ def main() -> int:
                     cost_ceiling_usd=args.cost_ceiling_usd,
                     cost_ceiling_provider=args.cost_ceiling_provider,
                     resume=args.resume,
+                    generation_path=args.generation_path,
                 )
             finally:
                 progress.finish()
