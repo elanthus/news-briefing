@@ -123,6 +123,8 @@ class BriefingOutputTests(unittest.TestCase):
         excluded = schema["properties"]["excluded_topics"]["properties"][accountable.name]
         self.assertEqual(excluded["minItems"], 0)
         self.assertEqual(excluded["maxItems"], accountable.excluded_stories)
+        excluded_refs = excluded["items"]["properties"]["citation_refs"]
+        self.assertNotIn("uniqueItems", excluded_refs)
         self.assertTrue(projected.citations)
 
     def test_valid_output_renders_checker_clean_with_exact_urls(self):
