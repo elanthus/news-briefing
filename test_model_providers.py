@@ -4,6 +4,7 @@ import os
 import subprocess
 import unittest
 import urllib.error
+from pathlib import Path
 from unittest.mock import patch
 
 from agent_runner.models import GenerationRequest, ProviderError
@@ -193,10 +194,23 @@ class ProviderTests(unittest.TestCase):
         )
         with patch("shutil.which", return_value="/bin/codex"), patch(
             "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
-        ):
+        ) as run:
             result = CodexCliProvider("gpt").generate(REQUEST)
         self.assertEqual(result.provider_request_id, "thread-1")
         self.assertEqual(result.structured_output, {"schema_version": 1})
+        command = run.call_args.args[0]
+        pairs = [command[i : i + 2] for i in range(len(command) - 1)]
+        self.assertIn(["--disable", "shell_tool"], pairs)
+        self.assertIn(["--disable", "multi_agent"], pairs)
+        self.assertIn(["--disable", "remote_plugin"], pairs)
+        self.assertIn(["-c", "tools.web_search=false"], pairs)
+        self.assertIn(["-c", "tools.view_image=false"], pairs)
+        self.assertIn(["-c", 'model_reasoning_effort="medium"'], pairs)
+
+    def test_briefing_prompt_does_not_tell_model_to_fetch_corpus(self):
+        prompt = Path("briefing-prompt.md").read_text(encoding="utf-8")
+        self.assertNotIn("python3 fetch_news.py", prompt)
+        self.assertIn("runner has already fetched", prompt)
 
     def test_codex_rejects_any_tool_event(self):
         events = [

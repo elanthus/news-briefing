@@ -423,8 +423,9 @@ class CodexCliProvider(ModelProvider):
             "version": _command_version("codex"),
             "authentication": "Codex cached login (ChatGPT subscription or API key)",
             "tool_policy": (
-                "Codex has no documented remove-all-tools flag. It runs in an empty read-only sandbox; "
-                "any non-message/reasoning item in its JSON trace fails the run."
+                "Codex shell, multi-agent, remote-plugin, web-search, and image tools are explicitly "
+                "disabled. It also runs in an empty read-only sandbox, and any non-message/reasoning "
+                "item in its JSON trace fails the run."
             ),
         }
 
@@ -441,6 +442,18 @@ class CodexCliProvider(ModelProvider):
                 "--ignore-user-config",
                 "--ignore-rules",
                 "--skip-git-repo-check",
+                "--disable",
+                "shell_tool",
+                "--disable",
+                "multi_agent",
+                "--disable",
+                "remote_plugin",
+                "-c",
+                "tools.web_search=false",
+                "-c",
+                "tools.view_image=false",
+                "-c",
+                'model_reasoning_effort="medium"',
                 "--sandbox",
                 "read-only",
                 "--color",
