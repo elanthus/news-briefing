@@ -278,7 +278,18 @@ Each run fetches a fresh corpus, replaces model-visible destinations with opaque
 
 Run artifacts are stored under `.news-briefing/runs/` by default: the corpus and citation map, exact request and schema, raw and structured responses, provider events, deterministic findings, manifest, hashes, and append-only JSONL trace. Supply `--run-dir path` to choose the location. To resume a safely checkpointed interruption without repeating completed model work, repeat the same invocation and replace `--run-dir path` with `--resume path`. The runner refuses an interrupted in-flight call because its completion and billing are unknowable.
 
-Use `--strict` to return nonzero for warnings, `--max-corrections 0` to disable correction, and `--force` to replace an existing output. `python3 run_briefing.py --help` lists fetch caps and OpenRouter reasoning controls.
+The manifest keeps operational state (`running`, `complete`, or `failed`) separate from the candidate's publication disposition:
+
+| Disposition | Meaning | Artifact behavior |
+|---|---|---|
+| **`ready`** | The protocol completed, the application contract was accepted, and no evidence-review signal remains. Source coverage may still be degraded. | Writes `final.md` and the requested output path. |
+| **`review_required`** | A useful candidate exists, but editorial/schema errors or heuristic evidence concerns need a person. | Writes a quarantined `preview.md`; never touches the requested output path. |
+| **`rejected`** | A hard corpus boundary was violated, such as an outside URL, unknown citation, or uncited topic. | Writes a destination-redacted `preview.md`; never touches the requested output path. |
+| **`no_result`** | Provider, transport, tool-policy, or empty-response failure prevented a candidate. | Records the failure and axes in the manifest; produces no briefing. |
+
+Every completed result also records `protocol`, `contract`, `evidence`, and `coverage` axes. `corpus_bound` means every rendered destination and citation resolves through the supplied corpus; it does not claim that arbitrary prose was semantically proven. Figure, quotation, and evidence-length heuristics therefore produce `evidence=review_required`, while source 429s produce `coverage=degraded` without turning an accepted briefing into a model failure.
+
+Use `--strict` to return nonzero for any finding or degraded source coverage, `--max-corrections 0` to disable correction, and `--force` to replace an existing output. `python3 run_briefing.py --help` lists fetch caps and OpenRouter reasoning controls.
 
 ### 3. Schedule it
 
@@ -410,7 +421,7 @@ python3 eval_briefing.py --corpus corpus.json --briefing briefing.md --config br
 | **ERROR** | The parsed briefing violates a structural contract. The run isn't trustworthy without review. | any web destination that isn't in the corpus; a URL altered from its corpus spelling; a duplicate citation; a story listed as both included and excluded; a section exceeding its reserved slots; a story reported in two sections; a failed source reported with the wrong status; a degraded run reported as healthy |
 | **WARN** | A quality target a thin corpus can legitimately miss, or a claim-grounding signal a human should read. | fewer topics than slots; a short exclusion log; an HN item cited without its discussion link; a figure or quotation absent from the cited item; a summary longer than the evidence behind it |
 
-If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's, and failing the run for it would train you to ignore the checker. A citation the corpus does not contain is never acceptable. Use `--strict` to fail on warnings too.
+Finding level and publication disposition are deliberately not synonyms. Editorial or schema `ERROR`s yield `review_required`; explicit corpus-boundary `ERROR`s yield `rejected`; evidence-related `WARN`s yield `review_required`; quality-only warnings and source gaps can remain `ready` with visible notes. If only two dev-practices posts cleared the cutoff, three slots *cannot* be filled — that is the corpus's fault, not the model's. A citation the corpus does not contain is never acceptable. Use `--strict` when any warning or coverage gap should return nonzero.
 
 Output URLs are compared in canonical form, so a trailing slash, host casing, parameter order, or `utm_` noise does not turn a real corpus destination into a false alarm.
 
@@ -421,7 +432,7 @@ An output URL that still fails is reported as `altered_link` only when a single 
 1. **Fetch (code-enforced, no LLM).** [`fetch_news.py`](fetch_news.py) pulls public RSS feeds, the Hacker News Algolia API, and Reddit RSS into a single JSON corpus. Network requests are restricted to DNS-pinned public HTTP(S) destinations with redirect revalidation. Everything older than a hard cutoff (default 24h) is dropped in code, and field/source/global context budgets bound what reaches the model. Every item carries a parsed, timezone-normalized publish timestamp. Live retrieval varies with feed contents, timing, rate limits, and network failures; those failures and all budget truncations/drops are recorded in the corpus.
 2. **Project and constrain (code-enforced, no LLM).** [`agent_runner/output.py`](agent_runner/output.py) replaces every model-visible destination with an opaque citation reference and builds a config-specific strict output schema. Exact destinations remain only in a code-owned citation map.
 3. **Rank and summarize (LLM, no action-capable tools).** [`agent_runner/providers.py`](agent_runner/providers.py) exposes one provider-neutral model interface for OpenRouter, Claude Code, and Codex. Claude Code receives only its internal schema-emission tool. [`briefing-runner-prompt.md`](briefing-runner-prompt.md) supplies the generation policy; trusted [`briefing-config.json`](briefing-config.json) supplies ordered sections, category eligibility, story targets, and exclusion targets.
-4. **Validate, correct, and render (code-enforced, no LLM except correction).** The runner independently validates types, fields, limits, citation eligibility, and deduplication, then renders Markdown with exact mapped URLs and runs [`eval_briefing.py`](eval_briefing.py). Errors feed a bounded correction request. The final status is derived from the last deterministic check, never from a model claim.
+4. **Validate, correct, classify, and render (code-enforced, no LLM except correction).** The runner independently validates types, fields, limits, citation eligibility, and deduplication, then renders Markdown with exact mapped URLs and runs [`eval_briefing.py`](eval_briefing.py). Errors feed a bounded correction request. Accepted candidates become final output; reviewable or rejected candidates become quarantined previews. The outcome axes are derived from deterministic findings, never from a model claim.
 5. **Trace and checkpoint (code-enforced).** Every state transition and artifact is recorded under a run directory with content hashes. Safe checkpoints resume without redoing completed calls; an interrupted in-flight call is refused rather than guessed or silently retried.
 6. **Evaluate models (optional).** [`evaluator/`](evaluator/) runs the fixed clean, failure-mode, and attack suites against supported providers and records reproducible utility, attack-success, correction, grounding, latency, cost, confidence-interval, and provenance artifacts.
 

@@ -10,6 +10,7 @@ from typing import Any, NamedTuple
 
 import briefing_config
 import eval_briefing
+from agent_runner.outcomes import Outcome, classify_outcome, finding_domain
 
 
 class OutputFinding(NamedTuple):
@@ -65,6 +66,23 @@ def redact_destinations(value: Any) -> Any:
             if isinstance(key, str) and _redact_text_destinations(key) != key:
                 raise ValueError("model input contains a destination-bearing dictionary key")
             redacted[key] = redact_destinations(item)
+        return redacted
+    return value
+
+
+def redact_preview_value(value: Any) -> Any:
+    """Redact destinations even in malformed dictionary keys for quarantine artifacts."""
+    if isinstance(value, str):
+        return _redact_text_destinations(value)
+    if isinstance(value, list):
+        return [redact_preview_value(item) for item in value]
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for index, (key, item) in enumerate(value.items()):
+            rendered_key = _redact_text_destinations(key) if isinstance(key, str) else str(key)
+            if rendered_key in redacted:
+                rendered_key = f"{rendered_key} [duplicate key {index}]"
+            redacted[rendered_key] = redact_preview_value(item)
         return redacted
     return value
 
@@ -463,27 +481,145 @@ def render_briefing(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_validation_status(
-    findings: list[eval_briefing.Finding],
+def _preview_text(value: Any, fallback: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        return fallback
+    return str(redact_destinations(value.strip()))
+
+
+def _finding_value(finding: Any, key: str) -> Any:
+    if isinstance(finding, dict):
+        return finding.get(key)
+    return getattr(finding, key, None)
+
+
+def _preview_entries(
+    entries: Any,
+    *,
+    citations: dict[str, Citation],
+    excluded: bool,
+) -> list[str]:
+    if not isinstance(entries, list):
+        return ["_Candidate did not provide an entry list._", ""]
+    lines: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            lines.extend(["_Malformed candidate entry omitted._", ""])
+            continue
+        headline = _preview_text(entry.get("headline"), "[missing headline]")
+        prose_key = "reason" if excluded else "summary"
+        prose = entry.get(prose_key)
+        if excluded and not isinstance(prose, str) and isinstance(entry.get("summary"), str):
+            prose = entry["summary"]
+            prose_note = " _(candidate supplied this as `summary`, not `reason`)_"
+        else:
+            prose_note = ""
+        rendered_prose = _preview_text(prose, "[missing candidate text]")
+        marker = "- " if excluded else ""
+        lines.append(f"{marker}**{headline}** — {rendered_prose}{prose_note}")
+        refs = entry.get("citation_refs")
+        if isinstance(refs, list):
+            for ref in refs:
+                citation = citations.get(ref) if isinstance(ref, str) else None
+                if citation is None:
+                    lines.append("  - Unknown citation reference omitted.")
+                    continue
+                prefix = "HN: " if citation.kind == "discussion" else ""
+                lines.append(f"🔗 {prefix}{citation.url}")
+        else:
+            lines.append("  - No citation references supplied.")
+        lines.append("")
+    return lines
+
+
+def render_candidate_preview(
+    output: Any,
     corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    findings: list[Any],
+    outcome: Outcome,
 ) -> str:
-    errors = [finding for finding in findings if finding.level == eval_briefing.ERROR]
-    warnings = [finding for finding in findings if finding.level == eval_briefing.WARN]
+    """Render a quarantined best-effort preview without creating a publishable artifact."""
+    lines = [
+        "# UNPUBLISHED BRIEFING CANDIDATE",
+        "",
+        "This candidate requires review and was not written to the configured output path.",
+        "Unknown citations are omitted and model-authored web destinations are redacted.",
+        "",
+        f"Candidate date: {_date_label(corpus['generated_at'])}",
+        f"Corpus window: {corpus['cutoff']} → {corpus['generated_at']}",
+        "",
+    ]
+    root = output if isinstance(output, dict) else {}
+    sections_value = root.get("sections")
+    sections: dict[Any, Any] = sections_value if isinstance(sections_value, dict) else {}
+    for section in config.sections:
+        lines.extend([f"## {section.name}", ""])
+        section_value = sections.get(section.name)
+        topics = section_value.get("topics") if isinstance(section_value, dict) else None
+        lines.extend(_preview_entries(topics, citations=citations, excluded=False))
+
+    lines.extend(["---", "", "### Excluded Topics (candidate)", ""])
+    excluded_value = root.get("excluded_topics")
+    excluded_topics: dict[Any, Any] = (
+        excluded_value if isinstance(excluded_value, dict) else {}
+    )
+    for section in config.sections:
+        if not section.excluded_stories:
+            continue
+        lines.extend([f"**{section.name}**", ""])
+        lines.extend(
+            _preview_entries(
+                excluded_topics.get(section.name), citations=citations, excluded=True
+            )
+        )
+
+    return "\n".join(lines).rstrip() + "\n" + render_validation_status(
+        findings, corpus, outcome=outcome
+    )
+
+
+def render_validation_status(
+    findings: list[Any],
+    corpus: dict[str, Any],
+    *,
+    outcome: Outcome | None = None,
+) -> str:
+    errors = [
+        finding
+        for finding in findings
+        if _finding_value(finding, "level") == eval_briefing.ERROR
+    ]
+    warnings = [
+        finding
+        for finding in findings
+        if _finding_value(finding, "level") == eval_briefing.WARN
+    ]
     source_issues = corpus.get("errors", [])
-    if errors:
-        status = "ERROR"
-        cause = f"{len(errors)} deterministic checker error(s) remain."
-    elif warnings or source_issues:
-        status = "WARN"
-        cause = "The checker reported warnings or source coverage was degraded."
-    else:
-        status = "PASS"
-        cause = "The deterministic checker passed and all configured sources were healthy."
-    lines = ["", "### Validation status", f"**Status: {status}** — Cause: {cause}", ""]
+    resolved = outcome or classify_outcome(findings, source_issues)
+    label = resolved.disposition.replace("_", " ").upper()
+    lines = [
+        "",
+        "### Run outcome",
+        f"**Disposition: {label}**",
+        "",
+        f"- Protocol: `{resolved.protocol}`",
+        f"- Contract: `{resolved.contract}`",
+        f"- Evidence: `{resolved.evidence}`",
+        f"- Coverage: `{resolved.coverage}`",
+        "",
+    ]
     for label, rows in (("Errors", errors), ("Warnings", warnings)):
         lines.append(f"**{label}**")
         if rows:
-            lines.extend(f"- {row.level} [{row.check}] — Cause: {row.message}" for row in rows)
+            lines.extend(
+                f"- {_finding_value(row, 'level')} "
+                f"[{finding_domain(str(_finding_value(row, 'check')))}/"
+                f"{_finding_value(row, 'check')}] — Cause: "
+                f"{_preview_text(_finding_value(row, 'message'), '[missing finding detail]')}"
+                for row in rows
+            )
         else:
             lines.append("None")
         lines.append("")

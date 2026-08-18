@@ -14,6 +14,8 @@ For a complete daily run, record:
 
 Generated corpora and briefings are archived per day under [`docs/runs/<date>/`](runs/) (corpus, briefing, and the `briefing-config.json` snapshot used), so each entry below can be re-derived instead of taken on trust. The frozen regression pair in `fixtures/` is separate: it is the fixed example the test suite pins to, and daily runs do not update it.
 
+Runs recorded before the multi-axis outcome model use the historical `PASS`/`WARN`/`ERROR` final labels and `failed` workflow wording. New runs record publication disposition (`ready`, `review_required`, `rejected`, or `no_result`) separately from protocol, contract, evidence, and coverage. Historical entries remain unchanged so their archived manifests and prose continue to agree.
+
 Prompt versions for runs before 2026-08-16 were not recorded at run time. The historical entries below now identify the committed `briefing-prompt.md` version inferred from the corpus generation time, prompt-change history, and the parent of the contemporaneous run or log commit. These retroactive values identify the most strongly supported repository prompt bytes, not the complete request delivered to the model: they cannot rule out uncommitted changes, recover provider or CLI system instructions, or reconstruct missing first-output and correction-request bytes.
 
 ## Pre-launch verification

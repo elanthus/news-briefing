@@ -16,6 +16,7 @@ import corpus_schema
 import eval_briefing
 from agent_runner.checkpoint import RunStore, sha256_file, utc_now, write_text_atomic
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
+from agent_runner.outcomes import classify_outcome, finding_domain
 from agent_runner.output import (
     Citation,
     ModelCorpus,
@@ -23,7 +24,9 @@ from agent_runner.output import (
     build_output_schema,
     project_corpus,
     redact_destinations,
+    redact_preview_value,
     render_briefing,
+    render_candidate_preview,
     render_validation_status,
     validate_output,
 )
@@ -250,7 +253,12 @@ def _finding_records(
     findings: Sequence[OutputFinding | eval_briefing.Finding],
 ) -> list[dict[str, str]]:
     return [
-        {"level": finding.level, "check": finding.check, "message": finding.message}
+        {
+            "level": finding.level,
+            "check": finding.check,
+            "domain": finding_domain(finding.check),
+            "message": finding.message,
+        }
         for finding in findings
     ]
 
@@ -373,43 +381,101 @@ def _finalize_candidate(
         raise RuntimeError("the final structured candidate could not be rendered")
     briefing = (store.root / briefing_name).read_text(encoding="utf-8")
     findings = eval_briefing.evaluate(corpus, briefing, config)
-    completed = briefing.rstrip() + "\n" + render_validation_status(findings, corpus)
+    outcome = classify_outcome(findings, corpus.get("errors", []))
+    completed = briefing.rstrip() + "\n" + render_validation_status(
+        findings, corpus, outcome=outcome
+    )
     after = eval_briefing.evaluate(corpus, completed, config)
     if _checker_fingerprint(after) != _checker_fingerprint(findings):
-        completed = briefing.rstrip() + "\n" + render_validation_status(after, corpus)
+        outcome = classify_outcome(after, corpus.get("errors", []))
+        completed = briefing.rstrip() + "\n" + render_validation_status(
+            after, corpus, outcome=outcome
+        )
         stabilized = eval_briefing.evaluate(corpus, completed, config)
         if _checker_fingerprint(stabilized) != _checker_fingerprint(after):
             raise RuntimeError("validation status did not stabilize after two completed-briefing checks")
         findings = stabilized
     else:
         findings = after
-    store.write_text("briefing.md", completed)
-    final_path = store.write_text("final.md", completed)
-    write_text_atomic(settings.output_path, completed)
-    status = "PASS"
-    if any(finding.level == eval_briefing.ERROR for finding in findings):
-        status = "ERROR"
-    elif findings or corpus.get("errors"):
-        status = "WARN"
+    outcome = classify_outcome(findings, corpus.get("errors", []))
+    if outcome.disposition == "ready":
+        store.write_text("briefing.md", completed)
+        run_path = store.write_text("final.md", completed)
+        write_text_atomic(settings.output_path, completed)
+        output_path: Path | None = settings.output_path
+        output_sha256: str | None = sha256_file(settings.output_path)
+        artifact_type = "final"
+    else:
+        preview = (
+            "# UNPUBLISHED BRIEFING CANDIDATE\n\n"
+            "This candidate requires review and was not written to the configured output path.\n\n"
+            + completed
+        )
+        run_path = store.write_text("preview.md", preview)
+        output_path = run_path
+        output_sha256 = None
+        artifact_type = "preview"
     final = {
-        "status": status,
+        "status": outcome.disposition,
+        "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": _finding_records(findings),
         "source_issues": len(corpus.get("errors", [])),
-        "run_artifact": final_path.name,
-        "output_path": _portable_path(settings.output_path),
-        "output_sha256": sha256_file(settings.output_path),
+        "artifact_type": artifact_type,
+        "run_artifact": run_path.name,
+        "requested_output_path": _portable_path(settings.output_path),
+        "output_path": _portable_path(settings.output_path) if artifact_type == "final" else None,
+        "output_sha256": output_sha256,
     }
     store.finalize(final)
-    failed = status == "ERROR" or (settings.strict and status == "WARN")
-    return RunResult(1 if failed else 0, store.root, settings.output_path, status)
+    failed = outcome.disposition != "ready" or (
+        settings.strict and bool(findings or corpus.get("errors"))
+    )
+    return RunResult(1 if failed else 0, store.root, output_path, outcome.disposition)
 
 
-def _latest_renderable_attempt(attempts: list[dict[str, Any]]) -> dict[str, Any]:
-    for attempt in reversed(attempts):
-        if isinstance(attempt.get("briefing_artifact"), str):
-            return attempt
-    raise RuntimeError("no schema-valid candidate is available to finalize")
+def _finalize_structured_preview(
+    store: RunStore,
+    attempt: dict[str, Any],
+    *,
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    settings: RunnerSettings,
+) -> RunResult:
+    output = json.loads(
+        (store.root / attempt["structured_artifact"]).read_text(encoding="utf-8")
+    )
+    findings = json.loads(
+        (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
+    )
+    outcome = classify_outcome(findings, corpus.get("errors", []))
+    if outcome.disposition == "ready":
+        raise RuntimeError("an invalid structured candidate was unexpectedly classified as ready")
+    store.write_json("preview-structured.json", redact_preview_value(output))
+    preview = render_candidate_preview(
+        output,
+        corpus,
+        config,
+        citations,
+        findings,
+        outcome,
+    )
+    preview_path = store.write_text("preview.md", preview)
+    final = {
+        "status": outcome.disposition,
+        "outcome": outcome.record(),
+        "attempt": attempt["index"],
+        "findings": findings,
+        "source_issues": len(corpus.get("errors", [])),
+        "artifact_type": "preview",
+        "run_artifact": preview_path.name,
+        "requested_output_path": _portable_path(settings.output_path),
+        "output_path": None,
+        "output_sha256": None,
+    }
+    store.finalize(final)
+    return RunResult(1, store.root, preview_path, outcome.disposition)
 
 
 def run_workflow(
@@ -433,6 +499,7 @@ def run_workflow(
             code=code_info,
         )
     )
+    corpus: dict[str, Any] | None = None
     try:
         corpus = (
             _load_corpus(store)
@@ -502,11 +569,16 @@ def run_workflow(
                 )
             corrections_used = sum(row["kind"] == "correction" for row in store.manifest["attempts"])
             if corrections_used >= settings.max_corrections:
-                return _finalize_candidate(
+                if attempt.get("briefing_artifact"):
+                    return _finalize_candidate(
+                        store, attempt, corpus=corpus, config=config, settings=settings
+                    )
+                return _finalize_structured_preview(
                     store,
-                    _latest_renderable_attempt(store.manifest["attempts"]),
+                    attempt,
                     corpus=corpus,
                     config=config,
+                    citations=projected.citations,
                     settings=settings,
                 )
             correction = correction_request(original_request, output, findings)
@@ -527,12 +599,21 @@ def run_workflow(
                     return _finalize_candidate(
                         store, attempt, corpus=corpus, config=config, settings=settings
                     )
-                raise
+                return _finalize_structured_preview(
+                    store,
+                    attempt,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
+                    settings=settings,
+                )
     except Exception as exc:
         error = (
             exc.record()
             if isinstance(exc, ProviderError)
             else {"type": type(exc).__name__, "message": str(exc)}
         )
-        store.fail(error)
+        source_issues = corpus.get("errors", []) if corpus is not None else []
+        outcome = classify_outcome([], source_issues, protocol_completed=False)
+        store.fail(error, outcome=outcome.record())
         raise

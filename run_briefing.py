@@ -65,7 +65,11 @@ def main() -> int:
         help="per-fetch and per-model-call deadline in seconds",
     )
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=1)
-    parser.add_argument("--strict", action="store_true", help="return nonzero for WARN as well as ERROR")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="return nonzero for any finding or degraded source coverage",
+    )
     parser.add_argument("--temperature", type=float, help="OpenRouter sampling temperature (default: 0)")
     parser.add_argument("--max-tokens", type=_positive_int, help="OpenRouter output ceiling (default: 100000)")
     parser.add_argument(
@@ -130,7 +134,9 @@ def main() -> int:
     except (OSError, ValueError, RuntimeError, ProviderError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"{result.status}: wrote {result.output_path} (artifacts: {result.run_dir})")
+    disposition = result.status.replace("_", " ").upper()
+    artifact = "final output" if result.status == "ready" else "unpublished preview"
+    print(f"{disposition}: {artifact} at {result.output_path} (artifacts: {result.run_dir})")
     return result.exit_code
 
 
