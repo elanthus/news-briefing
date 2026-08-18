@@ -44,6 +44,10 @@ LABEL_RUBRIC = {
     "feed_empty": "The XML is a valid RSS/Atom feed but contains no item or entry.",
     "feed_rejected": "The XML is malformed or contains a DOCTYPE, which the feed security contract rejects.",
     "feed_shape_unrecognized": "The XML is well formed but its root is neither RSS nor Atom feed.",
+    "figure_supported_elsewhere": (
+        "A numeric claim is absent from its cited excerpts but appears in a topically matching "
+        "item elsewhere in the supplied corpus."
+    ),
     "included_and_excluded": "The same corpus story appears in the briefing and its exclusion log.",
     "missing_discussion_link": "A cited Hacker News story omits its corpus-provided discussion URL.",
     "missing_section": "A configured briefing section or required Excluded Topics section is absent.",

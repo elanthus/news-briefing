@@ -34,7 +34,7 @@ from agent_runner.runner import (
 )
 
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
-from evaluator.cases import run_deterministic_suite
+from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.metrics import latency_summary, rate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -2460,7 +2460,7 @@ def markdown_report(report: dict[str, Any]) -> str:
                 "| Heuristic check | False positives / eligible negatives | Rate (95% Wilson CI) |",
                 "|---|---:|---:|",
             ]
-            for check in ("unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"):
+            for check in HEURISTIC_CLAIM_CHECKS:
                 row = per_check_rates.get(check)
                 if row is not None:
                     lines.append(

@@ -33,10 +33,11 @@ from evaluator.adapters import (
     adapter_for,
     production_adapter_for,
 )
-from evaluator.cases import run_deterministic_suite
+from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_review import _double_sample, export_grounding_review_packets
 from evaluator.label_review import (
+    LABEL_RUBRIC,
     _parse_reviews,
     _portable_path,
     blinded_cases,
@@ -94,6 +95,7 @@ class FixedSuiteTest(unittest.TestCase):
 
     def test_known_checker_limits_are_reported_not_hidden(self) -> None:
         result = run_deterministic_suite()
+        self.assertTrue(set(HEURISTIC_CLAIM_CHECKS).issubset(LABEL_RUBRIC))
         misses = {
             label
             for case in result["cases"] if case["component"] == "checker"
@@ -105,7 +107,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertGreaterEqual(result["heuristic_claim_false_positive_rate"]["trials"], 12)
         self.assertEqual(
             set(result["heuristic_claim_false_positive_rates"]),
-            {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"},
+            set(HEURISTIC_CLAIM_CHECKS),
         )
         for row in result["heuristic_claim_false_positive_rates"].values():
             self.assertGreater(row["trials"], 0)
@@ -118,7 +120,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertEqual(replacement["human_labels"], [])
         self.assertFalse(
             set(replacement["predicted_labels"])
-            & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+            & set(HEURISTIC_CLAIM_CHECKS)
         )
 
     def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
@@ -180,7 +182,7 @@ class FixedSuiteTest(unittest.TestCase):
                 self.assertEqual(cases[valid_id]["human_labels"], [])
             self.assertTrue(
                 set(cases[invalid_id]["human_labels"])
-                & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+                & set(HEURISTIC_CLAIM_CHECKS)
             )
 
     def test_focused_generation_cases_require_the_mutated_item(self) -> None:
@@ -3609,6 +3611,16 @@ class LabelReviewTest(unittest.TestCase):
             {"case-001"},
         )
         self.assertEqual(parsed["case-001"]["labels"], [])
+
+    def test_review_parser_accepts_figure_supported_elsewhere(self) -> None:
+        parsed = _parse_reviews(
+            '{"reviews":[{"case":"case-001","labels":["figure_supported_elsewhere"],'
+            '"rationale":"the exact figure appears in a matching corpus item"}]}',
+            {"case-001"},
+        )
+        self.assertEqual(
+            parsed["case-001"]["labels"], ["figure_supported_elsewhere"]
+        )
 
     def test_blinded_payload_omits_fixture_metadata_and_human_labels(self) -> None:
         suite = {

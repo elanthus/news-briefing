@@ -18,6 +18,12 @@ from evaluator.metrics import classification_metrics, rate
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = Path(__file__).with_name("fixtures") / "checker-cases.json"
+HEURISTIC_CLAIM_CHECKS = (
+    "unsupported_figure",
+    "figure_supported_elsewhere",
+    "unsupported_quotation",
+    "claim_exceeds_evidence",
+)
 
 
 # Authored valid-side candidates and minimally changed invalid-side neighbors.
@@ -760,7 +766,7 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
         for case in records
         if case.get("heuristic_claim_case") and not case["human_labels"]
     ]
-    heuristic_positive = {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+    heuristic_positive = set(HEURISTIC_CLAIM_CHECKS)
     false_positives = sum(
         bool(set(case["predicted_labels"]) & heuristic_positive)
         and not bool(set(case["human_labels"]) & heuristic_positive)
