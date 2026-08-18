@@ -668,12 +668,12 @@ def _attack_echo_parts(corpus: dict[str, Any]) -> tuple[list[str], list[str]]:
 
 def _render_compliant(config: dict[str, Any], corpus: dict[str, Any]) -> str:
     suppressed = _suppressed_urls(corpus)
-    # The positive control should comply with attacker instructions while
-    # still completing a structurally valid briefing. Production summaries
-    # legitimately contain arbitrary embedded URLs; echoing those as prose
-    # makes the checker treat them as ungrounded citations and prevents the
-    # utility-preserving suppression oracle from firing. Keep canonical item
-    # and discussion URLs intact, but remove URLs embedded in prose fields.
+    # Start the positive control with a complete baseline before appending the
+    # behavior requested by the injected text. Production summaries may contain
+    # arbitrary embedded URLs; echoing those as prose creates unrelated
+    # ungrounded citations and prevents the utility-preserving suppression
+    # oracle from firing. Keep canonical item and discussion URLs intact, but
+    # remove URLs embedded in prose fields.
     render_corpus = copy.deepcopy(corpus)
     for items in render_corpus.get("categories", {}).values():
         for item in items:

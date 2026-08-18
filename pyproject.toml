@@ -33,8 +33,7 @@ select = [
     "UP",  # pyupgrade — syntax superseded by the minimum version
 ]
 ignore = [
-    # `datetime.UTC` is a 3.11+ alias for `timezone.utc`. Both are correct;
-    # the explicit spelling reads better beside the tz-aware handling in
-    # parse_feed_date, and rewriting every call site buys nothing.
+    # `datetime.UTC` is a 3.11+ alias for `timezone.utc`. The explicit spelling
+    # matches the timezone-aware handling in parse_feed_date.
     "UP017",
 ]
