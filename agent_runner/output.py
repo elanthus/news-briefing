@@ -126,7 +126,6 @@ def _citation_refs() -> dict[str, Any]:
         "description": "One or more distinct, eligible citation references from the supplied corpus.",
         "items": {"type": "string"},
         "minItems": 1,
-        "uniqueItems": True,
     }
 
 

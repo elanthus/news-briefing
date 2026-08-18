@@ -118,7 +118,7 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(headline["maxLength"], 300)
         refs = topics["items"]["properties"]["citation_refs"]
         self.assertEqual(refs["minItems"], 1)
-        self.assertTrue(refs["uniqueItems"])
+        self.assertNotIn("uniqueItems", refs)
         accountable = next(section for section in config.sections if section.excluded_stories)
         excluded = schema["properties"]["excluded_topics"]["properties"][accountable.name]
         self.assertEqual(excluded["minItems"], 0)
@@ -143,6 +143,17 @@ class BriefingOutputTests(unittest.TestCase):
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("freeform_url", checks)
         self.assertIn("unknown_citation_ref", checks)
+
+    def test_duplicate_citation_reference_is_enforced_in_code(self):
+        _corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        topic = broken["sections"][config.sections[0].name]["topics"][0]
+        topic["citation_refs"].append(topic["citation_refs"][0])
+        checks = {
+            finding.check
+            for finding in validate_output(broken, config, projected.citations)
+        }
+        self.assertIn("duplicate_citation_ref", checks)
 
     def test_same_item_cannot_be_reported_twice(self):
         _corpus, config, projected, output = fixture_contract()
