@@ -1,0 +1,5 @@
+{"event": "run_initialized", "timestamp": "2026-08-18T17:09:08.009712+00:00", "trace_id": "284f43efe03e47fef2aae79b21a658ee"}
+{"command": ["python3.14", "fetch_news.py", "--sources", "sources.json", "--hours", "24", "--source-cap", "25", "--category-cap", "60", "--output", "corpus.json"], "event": "fetch_started", "timestamp": "2026-08-18T17:09:08.009855+00:00", "trace_id": "284f43efe03e47fef2aae79b21a658ee"}
+{"event": "fetch_completed", "retained_items": 196, "source_issues": 4, "timestamp": "2026-08-18T17:09:32.651759+00:00", "trace_id": "284f43efe03e47fef2aae79b21a658ee"}
+{"attempt": 1, "event": "provider_call_started", "kind": "initial", "model": "claude-sonnet-5", "provider": "claude-code-cli", "timestamp": "2026-08-18T17:09:32.664287+00:00", "trace_id": "284f43efe03e47fef2aae79b21a658ee"}
+{"error_type": "ProviderError", "event": "run_failed", "message": "claude-code-cli returned invalid JSON: Expecting value: line 1 column 1 (char 0)", "timestamp": "2026-08-18T17:14:14.287581+00:00", "trace_id": "284f43efe03e47fef2aae79b21a658ee"}

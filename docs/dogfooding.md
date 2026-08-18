@@ -29,6 +29,38 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 
 ## Daily runs
 
+### 2026-08-18 — Claude Code Sonnet 5 failed dogfood run
+
+The first complete-run attempt of the day stopped during the initial model call, before a schema-valid briefing or checker result existed. The failed run is preserved under [`docs/runs/2026-08-18/`](runs/2026-08-18/) rather than being replaced by a cleaner rerun. Its manifest, closed corpus, exact request and schema, source/configuration snapshots, and append-only trace are archived there.
+
+- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Claude Code CLI 2.1.224 and exact model identifier `claude-sonnet-5`.
+- Provider boundary: the adapter invoked Claude Code with `--safe-mode`, no tools, a deny-all tool rule, disabled slash commands, no session persistence, and the runner's JSON schema. The model had no browsing or external retrieval path.
+- Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; repository commit `ab53f60`.
+- Corpus window: 2026-08-17 17:09:08 UTC → 2026-08-18 17:09:08 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 196 items — 34 US politics, 60 US news, 53 world, 18 AI/tech, and 31 developer-community. Live fetch time: 24.642 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but had zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429.
+- Processing: 33 AI/tech items failed the relevance filter, one US-news item exceeded the per-source cap, and the US-news category cap dropped 17 items. No duplicate, field-budget, source-budget, or global-budget drops occurred. Eighty-five summaries were truncated at the configured field limit; all counters reconcile from 247 fetched items to 196 retained items.
+- Provider failure: after 281.623 seconds, Claude Code returned a successful outer result but no structured output and an empty text result. The adapter failed closed with `claude-code-cli returned invalid JSON: Expecting value: line 1 column 1 (char 0)`. It recorded no attempt because no schema-valid provider output existed. Usage and cost for this production call are unavailable because the failing wrapper was not persisted.
+- Root-cause diagnostic: a separate minimal structured-output call using the same model and tool policy reproduced the behavior. Claude Code reported two denied `StructuredOutput` tool calls and then returned prose asking for tool approval. The diagnostic confirms that the adapter's `--disallowedTools '*'` rule also blocks the internal structured-output mechanism required by `--json-schema`; this is an adapter-policy conflict, not a briefing checker failure. The diagnostic used no web search or fetch, cost $0.0216557, and is not counted as a production retry.
+- Briefing and checker: no briefing was produced, so there was no first checker result, correction pass, or final checker result. The run status is **failed** and `briefing.md` does not exist.
+
+#### Structured-output-enabled follow-up
+
+After preserving the failed first run, the Claude Code adapter was changed to expose and permit only its internal `StructuredOutput` tool: `--tools StructuredOutput --allowedTools StructuredOutput`. Safe mode, disabled slash commands, and no session persistence remained in force. The implementation and regression test are in commit `0a06c30`. A minimal Sonnet 5 probe of the exact new policy returned schema-valid structured output with no permission denials or web requests; it cost $0.0128138 and is not counted as a production call.
+
+The complete live workflow was then rerun against a fresh corpus. Its artifacts are archived under [`structured-output-enabled/`](runs/2026-08-18/structured-output-enabled/). This is a follow-up to diagnose and verify the adapter fix, not a replacement for the failed first run.
+
+- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Claude Code CLI 2.1.224 and exact model identifier `claude-sonnet-5`.
+- Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; clean repository commit `0a06c30`.
+- Corpus window: 2026-08-17 17:41:05 UTC → 2026-08-18 17:41:05 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 196 items — 34 US politics, 60 US news, 53 world, 19 AI/tech, and 30 developer-community. Live fetch time: 24.559 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but had zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429. The final briefing reports all four gaps.
+- Processing: 38 AI/tech items failed the relevance filter, one US-news item exceeded the per-source cap, and the US-news category cap dropped 17 items. No duplicate, field-budget, source-budget, or global-budget drops occurred. Eighty-four summaries were truncated at the configured field limit; all counters reconcile from 252 fetched items to 196 retained items.
+- Briefing: the first model response filled all 22 configured slots (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), supplied all 25 configured exclusions, and included the required corpus-health and validation sections.
+- Checker, first and final result: **0 errors and 3 warnings** (`WARN`). Two `unsupported_figure` warnings concern “60” in the Iran ceasefire topic and “$12,000” in the Asana Codex topic. One `claim_exceeds_evidence` warning concerns the Cursor Origin summary expanding beyond the thin cited evidence. Because warnings do not fail the briefing contract, the runner finalized the first candidate and made no correction call.
+- Provider behavior: the one production call completed on its first transport attempt in 399.413 seconds. Claude Code reported 1 uncached input token, 42,813 cache-creation input tokens, 7,044 cache-read input tokens, and 44,390 output tokens; it exposed no separate reasoning-token count. Cost was $0.9580372. Server usage reported zero web searches and zero web fetches.
+- Result: the run status is **complete** and the final briefing status is **WARN**. This confirms that permitting only `StructuredOutput` restores schema-constrained Claude Code generation without reopening browsing or general tool access.
+
 ### 2026-08-17 — Codex GPT-5.6 Terra dogfood run
 
 The complete fetch → rank and summarize → check → single correction → final check loop, run at the requested Terra Medium setting. The corpus, both model attempts, corrected briefing, configuration snapshot, and machine-readable manifest are archived at [`docs/runs/2026-08-17/`](runs/2026-08-17/). The Codex CLI manifest records the exact generation model as `gpt-5.6-terra`; its adapter does not expose a separate reasoning-effort field.

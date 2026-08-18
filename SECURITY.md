@@ -28,7 +28,7 @@ configuration, such as:
 - ways to introduce a briefing URL that is absent from the fetched corpus;
 - parser or resource-exhaustion flaws that violate the documented input bounds;
 - credential exposure from the runner or optional evaluator;
-- bypasses of the runner's OpenRouter or Claude Code empty-tool policy, citation
+- bypasses of the runner's OpenRouter or Claude Code action-tool policy, citation
   projection, checkpoint integrity, or fail-closed provider-event validation; and
 - prompt-injection paths that cross a boundary the project claims to enforce.
 

@@ -1,0 +1,1416 @@
+{
+  "citation_0001": {
+    "category": "us_politics",
+    "item_ref": "item_0001",
+    "kind": "article",
+    "ref": "citation_0001",
+    "url": "https://thehill.com/homenews/state-watch/6035446-nancy-mace-conservative-tattoos-controversy-podcast/"
+  },
+  "citation_0002": {
+    "category": "us_politics",
+    "item_ref": "item_0002",
+    "kind": "article",
+    "ref": "citation_0002",
+    "url": "https://thehill.com/policy/international/6035420-tom-barrack-condemns-israel-syria-strikes/"
+  },
+  "citation_0003": {
+    "category": "us_politics",
+    "item_ref": "item_0003",
+    "kind": "article",
+    "ref": "citation_0003",
+    "url": "https://thehill.com/policy/international/6035541-congo-ebola-outbreak-deadliest/"
+  },
+  "citation_0004": {
+    "category": "us_politics",
+    "item_ref": "item_0004",
+    "kind": "article",
+    "ref": "citation_0004",
+    "url": "https://thehill.com/newsletters/1230-report/6035591-how-will-the-dominoes-fall-in-florida-and-alaska/"
+  },
+  "citation_0005": {
+    "category": "us_politics",
+    "item_ref": "item_0005",
+    "kind": "article",
+    "ref": "citation_0005",
+    "url": "https://thehill.com/homenews/campaign/6035465-trump-attacks-drummond-oklahoma-governor-runoff/"
+  },
+  "citation_0006": {
+    "category": "us_politics",
+    "item_ref": "item_0006",
+    "kind": "article",
+    "ref": "citation_0006",
+    "url": "https://thehill.com/policy/energy-environment/6035505-gallup-poll-weather-damage/"
+  },
+  "citation_0007": {
+    "category": "us_politics",
+    "item_ref": "item_0007",
+    "kind": "article",
+    "ref": "citation_0007",
+    "url": "https://www.axios.com/2026/08/18/syria-nuclear-reactors-iaea"
+  },
+  "citation_0008": {
+    "category": "us_politics",
+    "item_ref": "item_0008",
+    "kind": "article",
+    "ref": "citation_0008",
+    "url": "https://thehill.com/policy/energy-environment/6035538-us-forest-service-trump-administration-roadless-rule-protections-stripped-44m-acres/"
+  },
+  "citation_0009": {
+    "category": "us_politics",
+    "item_ref": "item_0009",
+    "kind": "article",
+    "ref": "citation_0009",
+    "url": "https://thehill.com/regulation/court-battles/6035436-national-trust-for-historic-preservation-supreme-court-donald-trump-white-house-ballroom-pause/"
+  },
+  "citation_0010": {
+    "category": "us_politics",
+    "item_ref": "item_0010",
+    "kind": "article",
+    "ref": "citation_0010",
+    "url": "https://thehill.com/homenews/house/6035400-fallon-dismisses-uss-lincoln-reports/"
+  },
+  "citation_0011": {
+    "category": "us_politics",
+    "item_ref": "item_0011",
+    "kind": "article",
+    "ref": "citation_0011",
+    "url": "https://thehill.com/homenews/campaign/6035398-planned-parenthood-super-pac-maine-senate-race-targets-susan-collins/"
+  },
+  "citation_0012": {
+    "category": "us_politics",
+    "item_ref": "item_0012",
+    "kind": "article",
+    "ref": "citation_0012",
+    "url": "https://www.axios.com/2026/08/18/debt-revenue-interest-defense-spending"
+  },
+  "citation_0013": {
+    "category": "us_politics",
+    "item_ref": "item_0013",
+    "kind": "article",
+    "ref": "citation_0013",
+    "url": "https://thehill.com/business/6035036-eligible-state-farm-customers-could-receive-10-or-more-what-to-know/"
+  },
+  "citation_0014": {
+    "category": "us_politics",
+    "item_ref": "item_0014",
+    "kind": "article",
+    "ref": "citation_0014",
+    "url": "https://thehill.com/opinion/energy-environment/6034522-truth-labeling-act-plastics/"
+  },
+  "citation_0015": {
+    "category": "us_politics",
+    "item_ref": "item_0015",
+    "kind": "article",
+    "ref": "citation_0015",
+    "url": "https://thehill.com/video-clips/6033761-watch-live-primaries-florida-wyoming-alaska-ddhq/"
+  },
+  "citation_0016": {
+    "category": "us_politics",
+    "item_ref": "item_0016",
+    "kind": "article",
+    "ref": "citation_0016",
+    "url": "https://thehill.com/national-security/6035293-eric-swalwell-fbi-documents-christine-fang/"
+  },
+  "citation_0017": {
+    "category": "us_politics",
+    "item_ref": "item_0017",
+    "kind": "article",
+    "ref": "citation_0017",
+    "url": "https://thehill.com/homenews/campaign/6035292-doj-deploys-poll-monitors/"
+  },
+  "citation_0018": {
+    "category": "us_politics",
+    "item_ref": "item_0018",
+    "kind": "article",
+    "ref": "citation_0018",
+    "url": "https://www.axios.com/2026/08/18/democrats-social-media-ossoff-el-sayed"
+  },
+  "citation_0019": {
+    "category": "us_politics",
+    "item_ref": "item_0019",
+    "kind": "article",
+    "ref": "citation_0019",
+    "url": "https://www.axios.com/2026/08/18/florida-weird-primary-election-2026"
+  },
+  "citation_0020": {
+    "category": "us_politics",
+    "item_ref": "item_0020",
+    "kind": "article",
+    "ref": "citation_0020",
+    "url": "https://www.axios.com/2026/08/18/fbi-violent-crime-drop-2025"
+  },
+  "citation_0021": {
+    "category": "us_politics",
+    "item_ref": "item_0021",
+    "kind": "article",
+    "ref": "citation_0021",
+    "url": "https://www.axios.com/2026/08/18/democrats-republicans-midterms-political-shenanigans"
+  },
+  "citation_0022": {
+    "category": "us_politics",
+    "item_ref": "item_0022",
+    "kind": "article",
+    "ref": "citation_0022",
+    "url": "https://www.axios.com/2026/08/18/trump-south-korea-allies-iran-war"
+  },
+  "citation_0023": {
+    "category": "us_politics",
+    "item_ref": "item_0023",
+    "kind": "article",
+    "ref": "citation_0023",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5930699/florida-republican-19th-district-carpetbaggers"
+  },
+  "citation_0024": {
+    "category": "us_politics",
+    "item_ref": "item_0024",
+    "kind": "article",
+    "ref": "citation_0024",
+    "url": "https://www.politico.com/news/2026/08/18/jon-ossoff-georgia-viral-controlled-campaign-01039859"
+  },
+  "citation_0025": {
+    "category": "us_politics",
+    "item_ref": "item_0025",
+    "kind": "article",
+    "ref": "citation_0025",
+    "url": "https://www.axios.com/2026/08/18/ai-women-jobs-hiring"
+  },
+  "citation_0026": {
+    "category": "us_politics",
+    "item_ref": "item_0026",
+    "kind": "article",
+    "ref": "citation_0026",
+    "url": "https://www.axios.com/2026/08/17/trump-oman-democrats-congress-war-powers-iran"
+  },
+  "citation_0027": {
+    "category": "us_politics",
+    "item_ref": "item_0027",
+    "kind": "article",
+    "ref": "citation_0027",
+    "url": "https://www.npr.org/2026/08/17/nx-s1-5913672/florida-gop-race-draws-accusations-of-carpetbagging"
+  },
+  "citation_0028": {
+    "category": "us_politics",
+    "item_ref": "item_0028",
+    "kind": "article",
+    "ref": "citation_0028",
+    "url": "https://www.axios.com/2026/08/17/kindergarten-vaccine-rates-fall"
+  },
+  "citation_0029": {
+    "category": "us_politics",
+    "item_ref": "item_0029",
+    "kind": "article",
+    "ref": "citation_0029",
+    "url": "https://www.npr.org/2026/08/17/g-s1-138997/former-federal-prosecutor-sue-doj-retaliatory-firing"
+  },
+  "citation_0030": {
+    "category": "us_politics",
+    "item_ref": "item_0030",
+    "kind": "article",
+    "ref": "citation_0030",
+    "url": "https://www.axios.com/2026/08/17/us-allies-pacific-aircraft-carrier-gap"
+  },
+  "citation_0031": {
+    "category": "us_politics",
+    "item_ref": "item_0031",
+    "kind": "article",
+    "ref": "citation_0031",
+    "url": "https://www.npr.org/2026/08/17/nx-s1-5935513/jimmy-gomez-house-ethics-investigation"
+  },
+  "citation_0032": {
+    "category": "us_politics",
+    "item_ref": "item_0032",
+    "kind": "article",
+    "ref": "citation_0032",
+    "url": "https://www.axios.com/2026/08/17/trump-big-bend-border-wall-construction-paused"
+  },
+  "citation_0033": {
+    "category": "us_politics",
+    "item_ref": "item_0033",
+    "kind": "article",
+    "ref": "citation_0033",
+    "url": "https://www.axios.com/2026/08/17/ethics-investigating-jimmy-gomez-sexual-misconduct"
+  },
+  "citation_0034": {
+    "category": "us_politics",
+    "item_ref": "item_0034",
+    "kind": "article",
+    "ref": "citation_0034",
+    "url": "https://www.axios.com/2026/08/17/kushner-netanyahu-hamas-gaza"
+  },
+  "citation_0035": {
+    "category": "us_news",
+    "item_ref": "item_0035",
+    "kind": "article",
+    "ref": "citation_0035",
+    "url": "https://www.theguardian.com/us-news/live/2026/aug/18/donald-trump-florida-alaska-wyoming-primaries-midterms-white-house-ballroom-iran-cnn-latest-news-updates"
+  },
+  "citation_0036": {
+    "category": "us_news",
+    "item_ref": "item_0036",
+    "kind": "article",
+    "ref": "citation_0036",
+    "url": "https://www.cbsnews.com/news/disney-abc-sue-fcc-early-license-renewal/"
+  },
+  "citation_0037": {
+    "category": "us_news",
+    "item_ref": "item_0037",
+    "kind": "article",
+    "ref": "citation_0037",
+    "url": "https://www.cbsnews.com/news/meta-federal-trial-child-social-media-addiction/"
+  },
+  "citation_0038": {
+    "category": "us_news",
+    "item_ref": "item_0038",
+    "kind": "article",
+    "ref": "citation_0038",
+    "url": "https://www.theguardian.com/us-news/live/2026/aug/18/tupac-shakur-gang-killing-murder-trial-live"
+  },
+  "citation_0039": {
+    "category": "us_news",
+    "item_ref": "item_0039",
+    "kind": "article",
+    "ref": "citation_0039",
+    "url": "https://www.cbsnews.com/news/madonna-leads-2026-mtv-video-music-awards-nominations-followed-by-taylor-swift/"
+  },
+  "citation_0040": {
+    "category": "us_news",
+    "item_ref": "item_0040",
+    "kind": "article",
+    "ref": "citation_0040",
+    "url": "https://www.cbsnews.com/news/appeals-court-blocks-immigration-arrests-houses-worship/"
+  },
+  "citation_0041": {
+    "category": "us_news",
+    "item_ref": "item_0041",
+    "kind": "article",
+    "ref": "citation_0041",
+    "url": "https://www.cbsnews.com/news/justice-department-election-monitors-midterms/"
+  },
+  "citation_0042": {
+    "category": "us_news",
+    "item_ref": "item_0042",
+    "kind": "article",
+    "ref": "citation_0042",
+    "url": "https://www.cbsnews.com/news/lake-mead-human-remains-water-levels-record-low/"
+  },
+  "citation_0043": {
+    "category": "us_news",
+    "item_ref": "item_0043",
+    "kind": "article",
+    "ref": "citation_0043",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/penn-state-cocaine-trafficking-ring"
+  },
+  "citation_0044": {
+    "category": "us_news",
+    "item_ref": "item_0044",
+    "kind": "article",
+    "ref": "citation_0044",
+    "url": "https://www.cbsnews.com/news/justice-department-peer-review-grant-applications/"
+  },
+  "citation_0045": {
+    "category": "us_news",
+    "item_ref": "item_0045",
+    "kind": "article",
+    "ref": "citation_0045",
+    "url": "https://www.pbs.org/newshour/politics/dan-sullivan-another-dan-sullivan-and-an-ex-congresswoman-face-off-in-alaskas-u-s-senate-primary"
+  },
+  "citation_0046": {
+    "category": "us_news",
+    "item_ref": "item_0046",
+    "kind": "article",
+    "ref": "citation_0046",
+    "url": "https://www.pbs.org/newshour/world/u-s-and-canada-hold-last-minute-negotiations-to-prevent-trumps-50-tariffs"
+  },
+  "citation_0047": {
+    "category": "us_news",
+    "item_ref": "item_0047",
+    "kind": "article",
+    "ref": "citation_0047",
+    "url": "https://www.cbsnews.com/news/outshine-fruit-bars-recall-glass-contamination-dreyers/"
+  },
+  "citation_0048": {
+    "category": "us_news",
+    "item_ref": "item_0048",
+    "kind": "article",
+    "ref": "citation_0048",
+    "url": "https://www.cbsnews.com/news/irs-proposal-nonprofits-fraud-terrorism/"
+  },
+  "citation_0049": {
+    "category": "us_news",
+    "item_ref": "item_0049",
+    "kind": "article",
+    "ref": "citation_0049",
+    "url": "https://www.pbs.org/newshour/politics/florida-holds-primaries-for-governor-and-congress-testing-trumps-grip-on-adopted-state"
+  },
+  "citation_0050": {
+    "category": "us_news",
+    "item_ref": "item_0050",
+    "kind": "article",
+    "ref": "citation_0050",
+    "url": "https://www.cbsnews.com/news/alisa-goods-missing-las-vegas-texts/"
+  },
+  "citation_0051": {
+    "category": "us_news",
+    "item_ref": "item_0051",
+    "kind": "article",
+    "ref": "citation_0051",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/abc-sues-trump-federal-communications-commission"
+  },
+  "citation_0052": {
+    "category": "us_news",
+    "item_ref": "item_0052",
+    "kind": "article",
+    "ref": "citation_0052",
+    "url": "https://www.cbsnews.com/video/lindsay-clancys-mom-trial/"
+  },
+  "citation_0053": {
+    "category": "us_news",
+    "item_ref": "item_0053",
+    "kind": "article",
+    "ref": "citation_0053",
+    "url": "https://www.cbsnews.com/video/us-navy-destroyer-lost-power-deployed-south-china-sea/"
+  },
+  "citation_0054": {
+    "category": "us_news",
+    "item_ref": "item_0054",
+    "kind": "article",
+    "ref": "citation_0054",
+    "url": "https://www.cbsnews.com/video/an-ny-grandma-of-5-went-missing-in-vegas-now-her-family-is-getting-messages-asking-for-bitcoin/"
+  },
+  "citation_0055": {
+    "category": "us_news",
+    "item_ref": "item_0055",
+    "kind": "article",
+    "ref": "citation_0055",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/kilmar-abrego-garcia-trump-charges"
+  },
+  "citation_0056": {
+    "category": "us_news",
+    "item_ref": "item_0056",
+    "kind": "article",
+    "ref": "citation_0056",
+    "url": "https://www.cbsnews.com/video/wisconsin-dog-breeder-faced-nearly-500-state-violations-but-didnt-see-federal-enforcement/"
+  },
+  "citation_0057": {
+    "category": "us_news",
+    "item_ref": "item_0057",
+    "kind": "article",
+    "ref": "citation_0057",
+    "url": "https://www.cbsnews.com/video/hayden-panettiere-was-found-in-cardiac-arrest-with-no-signs-of-foul-play/"
+  },
+  "citation_0058": {
+    "category": "us_news",
+    "item_ref": "item_0058",
+    "kind": "article",
+    "ref": "citation_0058",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/scientists-onlyfans-marmots-crypto"
+  },
+  "citation_0059": {
+    "category": "us_news",
+    "item_ref": "item_0059",
+    "kind": "article",
+    "ref": "citation_0059",
+    "url": "https://www.cbsnews.com/video/over-a-dozen-charged-in-alleged-cocaine-trafficking-ring-at-penn-state/"
+  },
+  "citation_0060": {
+    "category": "us_news",
+    "item_ref": "item_0060",
+    "kind": "article",
+    "ref": "citation_0060",
+    "url": "https://www.cbsnews.com/news/hayden-panettiere-ex-fiance-wladimir-klitschko-profound-shock-after-death/"
+  },
+  "citation_0061": {
+    "category": "us_news",
+    "item_ref": "item_0061",
+    "kind": "article",
+    "ref": "citation_0061",
+    "url": "https://www.cbsnews.com/video/woman-returns-to-her-community-to-survey-damage-from-hurricane-lala-in-hawaii-we-need-help/"
+  },
+  "citation_0062": {
+    "category": "us_news",
+    "item_ref": "item_0062",
+    "kind": "article",
+    "ref": "citation_0062",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/georgia-man-ponzi-scheme-deported-fiji"
+  },
+  "citation_0063": {
+    "category": "us_news",
+    "item_ref": "item_0063",
+    "kind": "article",
+    "ref": "citation_0063",
+    "url": "https://www.theguardian.com/business/2026/aug/18/oil-prices-rise-us-iran-brent-crude-donald-trump"
+  },
+  "citation_0064": {
+    "category": "us_news",
+    "item_ref": "item_0064",
+    "kind": "article",
+    "ref": "citation_0064",
+    "url": "https://www.cbsnews.com/news/hayden-panettiere-death-celebrity-tributes-reactions/"
+  },
+  "citation_0065": {
+    "category": "us_news",
+    "item_ref": "item_0065",
+    "kind": "article",
+    "ref": "citation_0065",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/first-thing-meta-treatment-children-social-media-landmark-trial"
+  },
+  "citation_0066": {
+    "category": "us_news",
+    "item_ref": "item_0066",
+    "kind": "article",
+    "ref": "citation_0066",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/miami-sargassum-seaweed-problem-climate-crisis"
+  },
+  "citation_0067": {
+    "category": "us_news",
+    "item_ref": "item_0067",
+    "kind": "article",
+    "ref": "citation_0067",
+    "url": "https://www.theguardian.com/us-news/ng-interactive/2026/aug/18/trump-federal-data-deleted-altered"
+  },
+  "citation_0068": {
+    "category": "us_news",
+    "item_ref": "item_0068",
+    "kind": "article",
+    "ref": "citation_0068",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5935518/portland-oregon-soap-box-derby-race-pdx"
+  },
+  "citation_0069": {
+    "category": "us_news",
+    "item_ref": "item_0069",
+    "kind": "article",
+    "ref": "citation_0069",
+    "url": "https://www.cbsnews.com/news/tropical-storm-lala-hawaii-big-island-mudslide/"
+  },
+  "citation_0070": {
+    "category": "us_news",
+    "item_ref": "item_0070",
+    "kind": "article",
+    "ref": "citation_0070",
+    "url": "https://www.theguardian.com/us-news/2026/aug/18/florida-primary-election-senate-governor-races"
+  },
+  "citation_0071": {
+    "category": "us_news",
+    "item_ref": "item_0071",
+    "kind": "article",
+    "ref": "citation_0071",
+    "url": "https://www.theguardian.com/sport/2026/aug/18/tony-romo-cbs-nfl-future"
+  },
+  "citation_0072": {
+    "category": "us_news",
+    "item_ref": "item_0072",
+    "kind": "article",
+    "ref": "citation_0072",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5910677/recent-college-graduates-employment-job-artificial-intelligence"
+  },
+  "citation_0073": {
+    "category": "us_news",
+    "item_ref": "item_0073",
+    "kind": "article",
+    "ref": "citation_0073",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5935396/jason-arday-former-cambridge-professor-found-dead-after-allegations-about-his-work"
+  },
+  "citation_0074": {
+    "category": "us_news",
+    "item_ref": "item_0074",
+    "kind": "article",
+    "ref": "citation_0074",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5935579/border-construction-paused-at-big-bend-national-park-after-public-outcry"
+  },
+  "citation_0075": {
+    "category": "us_news",
+    "item_ref": "item_0075",
+    "kind": "article",
+    "ref": "citation_0075",
+    "url": "https://www.npr.org/2026/08/18/g-s1-139061/tupac-shakur-killing-trial"
+  },
+  "citation_0076": {
+    "category": "us_news",
+    "item_ref": "item_0076",
+    "kind": "article",
+    "ref": "citation_0076",
+    "url": "https://www.theguardian.com/sport/2026/aug/18/tennis-venus-serena-williams-sisters-cincinnati-doubles"
+  },
+  "citation_0077": {
+    "category": "us_news",
+    "item_ref": "item_0077",
+    "kind": "article",
+    "ref": "citation_0077",
+    "url": "https://www.theguardian.com/sport/2026/aug/17/jeanie-buss-reportedly-attempting-to-halt-her-siblings-attempt-to-sell-remaining-stake-in-lakers"
+  },
+  "citation_0078": {
+    "category": "us_news",
+    "item_ref": "item_0078",
+    "kind": "article",
+    "ref": "citation_0078",
+    "url": "https://www.cbsnews.com/news/doj-asks-court-reinstate-charges-kilmar-abrego-garcia/"
+  },
+  "citation_0079": {
+    "category": "us_news",
+    "item_ref": "item_0079",
+    "kind": "article",
+    "ref": "citation_0079",
+    "url": "https://www.cbsnews.com/news/fbi-reagan-building/"
+  },
+  "citation_0080": {
+    "category": "us_news",
+    "item_ref": "item_0080",
+    "kind": "article",
+    "ref": "citation_0080",
+    "url": "https://www.theguardian.com/us-news/2026/aug/17/trump-mail-vote-florida-republican-primary"
+  },
+  "citation_0081": {
+    "category": "us_news",
+    "item_ref": "item_0081",
+    "kind": "article",
+    "ref": "citation_0081",
+    "url": "https://www.cbsnews.com/news/hayden-panettiere-dies-at-36/"
+  },
+  "citation_0082": {
+    "category": "us_news",
+    "item_ref": "item_0082",
+    "kind": "article",
+    "ref": "citation_0082",
+    "url": "https://www.cbsnews.com/news/lindsay-clancy-trial-key-moments/"
+  },
+  "citation_0083": {
+    "category": "us_news",
+    "item_ref": "item_0083",
+    "kind": "article",
+    "ref": "citation_0083",
+    "url": "https://www.theguardian.com/us-news/2026/aug/17/election-denier-tina-peters-shasta-county"
+  },
+  "citation_0084": {
+    "category": "us_news",
+    "item_ref": "item_0084",
+    "kind": "article",
+    "ref": "citation_0084",
+    "url": "https://www.pbs.org/newshour/politics/live-results-wyoming-midterm-primaries"
+  },
+  "citation_0085": {
+    "category": "us_news",
+    "item_ref": "item_0085",
+    "kind": "article",
+    "ref": "citation_0085",
+    "url": "https://www.pbs.org/newshour/politics/live-results-alaska-midterm-primaries"
+  },
+  "citation_0086": {
+    "category": "us_news",
+    "item_ref": "item_0086",
+    "kind": "article",
+    "ref": "citation_0086",
+    "url": "https://www.pbs.org/newshour/politics/live-results-florida-midterm-primaries"
+  },
+  "citation_0087": {
+    "category": "us_news",
+    "item_ref": "item_0087",
+    "kind": "article",
+    "ref": "citation_0087",
+    "url": "https://www.pbs.org/newshour/politics/live-results-california-special-election-to-replace-former-rep-eric-swalwell"
+  },
+  "citation_0088": {
+    "category": "us_news",
+    "item_ref": "item_0088",
+    "kind": "article",
+    "ref": "citation_0088",
+    "url": "https://www.cbsnews.com/video/hawaii-reels-aftermath-hurricane-lala/"
+  },
+  "citation_0089": {
+    "category": "us_news",
+    "item_ref": "item_0089",
+    "kind": "article",
+    "ref": "citation_0089",
+    "url": "https://www.pbs.org/newshour/show/war-with-iran"
+  },
+  "citation_0090": {
+    "category": "us_news",
+    "item_ref": "item_0090",
+    "kind": "article",
+    "ref": "citation_0090",
+    "url": "https://www.pbs.org/newshour/show/trump-lashes-out-at-south-korea-over-its-refusal-to-join-iran-war"
+  },
+  "citation_0091": {
+    "category": "us_news",
+    "item_ref": "item_0091",
+    "kind": "article",
+    "ref": "citation_0091",
+    "url": "https://www.pbs.org/newshour/politics/justice-department-watchdog-to-review-dea-tactic-that-permitted-deadly-fentanyl-to-hit-streets"
+  },
+  "citation_0092": {
+    "category": "us_news",
+    "item_ref": "item_0092",
+    "kind": "article",
+    "ref": "citation_0092",
+    "url": "https://www.pbs.org/newshour/show/news-wrap-7-dead-after-storms-and-catastrophic-floods-in-midwest"
+  },
+  "citation_0093": {
+    "category": "us_news",
+    "item_ref": "item_0093",
+    "kind": "article",
+    "ref": "citation_0093",
+    "url": "https://www.pbs.org/newshour/show/remembering-the-life-and-career-of-hayden-panettiere"
+  },
+  "citation_0094": {
+    "category": "us_news",
+    "item_ref": "item_0094",
+    "kind": "article",
+    "ref": "citation_0094",
+    "url": "https://www.pbs.org/newshour/show/national-debt-nears-40-trillion-how-we-got-here-and-why-it-matters"
+  },
+  "citation_0095": {
+    "category": "world",
+    "item_ref": "item_0095",
+    "kind": "article",
+    "ref": "citation_0095",
+    "url": "https://www.bbc.co.uk/news/articles/c5y6j4jl03xo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0096": {
+    "category": "world",
+    "item_ref": "item_0096",
+    "kind": "article",
+    "ref": "citation_0096",
+    "url": "https://www.bbc.co.uk/news/articles/c1e155428qyo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0097": {
+    "category": "world",
+    "item_ref": "item_0097",
+    "kind": "article",
+    "ref": "citation_0097",
+    "url": "https://www.bbc.co.uk/news/articles/cx2rzr49vr2o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0098": {
+    "category": "world",
+    "item_ref": "item_0098",
+    "kind": "article",
+    "ref": "citation_0098",
+    "url": "https://www.aljazeera.com/news/2026/8/18/iran-prepares-to-keep-economy-alive-as-us-threatens-further-sanctions?traffic_source=rss"
+  },
+  "citation_0099": {
+    "category": "world",
+    "item_ref": "item_0099",
+    "kind": "article",
+    "ref": "citation_0099",
+    "url": "https://www.aljazeera.com/economy/2026/8/18/disney-sues-us-regulator-claiming-political-retaliation-over-abc-stations?traffic_source=rss"
+  },
+  "citation_0100": {
+    "category": "world",
+    "item_ref": "item_0100",
+    "kind": "article",
+    "ref": "citation_0100",
+    "url": "https://www.aljazeera.com/sports/2026/8/18/real-madrid-officially-presents-mourinho-in-bizarre-closed-door-ceremony?traffic_source=rss"
+  },
+  "citation_0101": {
+    "category": "world",
+    "item_ref": "item_0101",
+    "kind": "article",
+    "ref": "citation_0101",
+    "url": "https://www.bbc.co.uk/news/articles/cy4kzzlydrro?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0102": {
+    "category": "world",
+    "item_ref": "item_0102",
+    "kind": "article",
+    "ref": "citation_0102",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/spain-builds-tent-cities-for-the-thousands-stuck-in-ceuta?traffic_source=rss"
+  },
+  "citation_0103": {
+    "category": "world",
+    "item_ref": "item_0103",
+    "kind": "article",
+    "ref": "citation_0103",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/palestinian-living-in-caves-older-than-israel?traffic_source=rss"
+  },
+  "citation_0104": {
+    "category": "world",
+    "item_ref": "item_0104",
+    "kind": "article",
+    "ref": "citation_0104",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/i-fear-for-my-familys-lives-says-loui-ridi-as-settlers-besiege-home?traffic_source=rss"
+  },
+  "citation_0105": {
+    "category": "world",
+    "item_ref": "item_0105",
+    "kind": "article",
+    "ref": "citation_0105",
+    "url": "https://www.npr.org/2026/08/18/g-s1-139096/s-korea-stresses-us-alliance-amid-confusion-over-trump-drill-cut"
+  },
+  "citation_0106": {
+    "category": "world",
+    "item_ref": "item_0106",
+    "kind": "article",
+    "ref": "citation_0106",
+    "url": "https://www.aljazeera.com/sports/2026/8/18/iran-clubs-to-play-qatar-and-uae-champions-league-games-at-neutral-venues?traffic_source=rss"
+  },
+  "citation_0107": {
+    "category": "world",
+    "item_ref": "item_0107",
+    "kind": "article",
+    "ref": "citation_0107",
+    "url": "https://www.aljazeera.com/news/2026/8/18/us-cites-india-on-voter-ids-but-are-elections-under-modi-clean?traffic_source=rss"
+  },
+  "citation_0108": {
+    "category": "world",
+    "item_ref": "item_0108",
+    "kind": "article",
+    "ref": "citation_0108",
+    "url": "https://www.aljazeera.com/news/2026/8/18/why-is-russia-threatening-uk-with-consequences-over-ukraine-drones?traffic_source=rss"
+  },
+  "citation_0109": {
+    "category": "world",
+    "item_ref": "item_0109",
+    "kind": "article",
+    "ref": "citation_0109",
+    "url": "https://www.aljazeera.com/sports/2026/8/18/patrick-vieira-appointed-senegal-head-coach-with-afcon-qualifiers-looming?traffic_source=rss"
+  },
+  "citation_0110": {
+    "category": "world",
+    "item_ref": "item_0110",
+    "kind": "article",
+    "ref": "citation_0110",
+    "url": "https://www.aljazeera.com/news/2026/8/18/what-to-watch-in-the-alaska-and-wyoming-primary-elections?traffic_source=rss"
+  },
+  "citation_0111": {
+    "category": "world",
+    "item_ref": "item_0111",
+    "kind": "article",
+    "ref": "citation_0111",
+    "url": "https://www.aljazeera.com/news/2026/8/18/hichilema-re-elected-as-zambia-president-amid-opposition-concerns-over-vote?traffic_source=rss"
+  },
+  "citation_0112": {
+    "category": "world",
+    "item_ref": "item_0112",
+    "kind": "article",
+    "ref": "citation_0112",
+    "url": "https://www.aljazeera.com/news/2026/8/18/what-to-know-about-gaza-working-groups-and-their-mandate?traffic_source=rss"
+  },
+  "citation_0113": {
+    "category": "world",
+    "item_ref": "item_0113",
+    "kind": "article",
+    "ref": "citation_0113",
+    "url": "https://www.aljazeera.com/news/2026/8/18/yemeni-government-escalates-attacks-against-houthis-whats-next?traffic_source=rss"
+  },
+  "citation_0114": {
+    "category": "world",
+    "item_ref": "item_0114",
+    "kind": "article",
+    "ref": "citation_0114",
+    "url": "https://www.bbc.co.uk/news/articles/c4gd7xd8e8lo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0115": {
+    "category": "world",
+    "item_ref": "item_0115",
+    "kind": "article",
+    "ref": "citation_0115",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/qatar-irans-claim-that-doha-is-holding-missing-pilots-is-a-media-ploy?traffic_source=rss"
+  },
+  "citation_0116": {
+    "category": "world",
+    "item_ref": "item_0116",
+    "kind": "article",
+    "ref": "citation_0116",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/palestinian-american-confronts-israeli-settler-at-his-besieged-home?traffic_source=rss"
+  },
+  "citation_0117": {
+    "category": "world",
+    "item_ref": "item_0117",
+    "kind": "article",
+    "ref": "citation_0117",
+    "url": "https://www.aljazeera.com/news/2026/8/18/who-is-wassim-al-assad-sentenced-to-death-for-syria-war-atrocities?traffic_source=rss"
+  },
+  "citation_0118": {
+    "category": "world",
+    "item_ref": "item_0118",
+    "kind": "article",
+    "ref": "citation_0118",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/japanese-activist-keeps-protesting-against-israels-genocide-in-gaza?traffic_source=rss"
+  },
+  "citation_0119": {
+    "category": "world",
+    "item_ref": "item_0119",
+    "kind": "article",
+    "ref": "citation_0119",
+    "url": "https://www.aljazeera.com/video/newsfeed/2026/8/18/bashar-al-assads-cousin-wassim-sentenced-to-death-in-syria?traffic_source=rss"
+  },
+  "citation_0120": {
+    "category": "world",
+    "item_ref": "item_0120",
+    "kind": "article",
+    "ref": "citation_0120",
+    "url": "https://www.aljazeera.com/news/2026/8/18/qatar-rejects-irans-false-claims-about-missing-pilots?traffic_source=rss"
+  },
+  "citation_0121": {
+    "category": "world",
+    "item_ref": "item_0121",
+    "kind": "article",
+    "ref": "citation_0121",
+    "url": "https://www.bbc.co.uk/news/articles/cy5dz0kkn0wo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0122": {
+    "category": "world",
+    "item_ref": "item_0122",
+    "kind": "article",
+    "ref": "citation_0122",
+    "url": "https://www.aljazeera.com/video/aljazeerauntangles/2026/8/18/myanmar-the-architecture-of-statelessness?traffic_source=rss"
+  },
+  "citation_0123": {
+    "category": "world",
+    "item_ref": "item_0123",
+    "kind": "article",
+    "ref": "citation_0123",
+    "url": "https://www.bbc.co.uk/news/articles/cjwx58n1153o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0124": {
+    "category": "world",
+    "item_ref": "item_0124",
+    "kind": "article",
+    "ref": "citation_0124",
+    "url": "https://www.npr.org/2026/08/18/g-s1-139072/up-first-newsletter-iran-south-korea-jared-kushner-florida-wyoming-alaska-primaries-luigi-mangione"
+  },
+  "citation_0125": {
+    "category": "world",
+    "item_ref": "item_0125",
+    "kind": "article",
+    "ref": "citation_0125",
+    "url": "https://www.aljazeera.com/news/2026/8/18/russia-protests-japan-pms-comments-after-putins-kuril-visit?traffic_source=rss"
+  },
+  "citation_0126": {
+    "category": "world",
+    "item_ref": "item_0126",
+    "kind": "article",
+    "ref": "citation_0126",
+    "url": "https://www.aljazeera.com/news/2026/8/18/why-has-trump-threatened-to-bomb-oman-for-a-second-time?traffic_source=rss"
+  },
+  "citation_0127": {
+    "category": "world",
+    "item_ref": "item_0127",
+    "kind": "article",
+    "ref": "citation_0127",
+    "url": "https://www.aljazeera.com/sports/2026/8/18/premier-league-football-what-to-know-schedule-prediction-transfers-2026-27-season?traffic_source=rss"
+  },
+  "citation_0128": {
+    "category": "world",
+    "item_ref": "item_0128",
+    "kind": "article",
+    "ref": "citation_0128",
+    "url": "https://www.aljazeera.com/news/2026/8/18/what-to-know-about-californias-special-election-to-replace-eric-swalwell?traffic_source=rss"
+  },
+  "citation_0129": {
+    "category": "world",
+    "item_ref": "item_0129",
+    "kind": "article",
+    "ref": "citation_0129",
+    "url": "https://www.bbc.co.uk/news/articles/c5ywe951z80o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0130": {
+    "category": "world",
+    "item_ref": "item_0130",
+    "kind": "article",
+    "ref": "citation_0130",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5935396/jason-arday-former-cambridge-professor-found-dead-after-allegations-about-his-work"
+  },
+  "citation_0131": {
+    "category": "world",
+    "item_ref": "item_0131",
+    "kind": "article",
+    "ref": "citation_0131",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5935425/war-between-u-s-and-iran-shifts-key-resources-away-from-asia"
+  },
+  "citation_0132": {
+    "category": "world",
+    "item_ref": "item_0132",
+    "kind": "article",
+    "ref": "citation_0132",
+    "url": "https://www.bbc.co.uk/news/articles/c75gv9xnr3po?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0133": {
+    "category": "world",
+    "item_ref": "item_0133",
+    "kind": "article",
+    "ref": "citation_0133",
+    "url": "https://www.bbc.co.uk/news/articles/cly8m31nvmgo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0134": {
+    "category": "world",
+    "item_ref": "item_0134",
+    "kind": "article",
+    "ref": "citation_0134",
+    "url": "https://www.bbc.co.uk/news/articles/c8dn3rqlyrgo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0135": {
+    "category": "world",
+    "item_ref": "item_0135",
+    "kind": "article",
+    "ref": "citation_0135",
+    "url": "https://www.bbc.co.uk/news/articles/cg5l9n7d803o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0136": {
+    "category": "world",
+    "item_ref": "item_0136",
+    "kind": "article",
+    "ref": "citation_0136",
+    "url": "https://www.npr.org/2026/08/18/nx-s1-5936098/palestinian-american-return-west-bank"
+  },
+  "citation_0137": {
+    "category": "world",
+    "item_ref": "item_0137",
+    "kind": "article",
+    "ref": "citation_0137",
+    "url": "https://www.bbc.co.uk/news/articles/cp3r0kz775ko?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0138": {
+    "category": "world",
+    "item_ref": "item_0138",
+    "kind": "article",
+    "ref": "citation_0138",
+    "url": "https://www.bbc.co.uk/news/articles/c5y6z4krrx3o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0139": {
+    "category": "world",
+    "item_ref": "item_0139",
+    "kind": "article",
+    "ref": "citation_0139",
+    "url": "https://www.bbc.co.uk/news/articles/cpq809zrvqdo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0140": {
+    "category": "world",
+    "item_ref": "item_0140",
+    "kind": "article",
+    "ref": "citation_0140",
+    "url": "https://www.bbc.co.uk/news/articles/c171j0k74d8o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0141": {
+    "category": "world",
+    "item_ref": "item_0141",
+    "kind": "article",
+    "ref": "citation_0141",
+    "url": "https://www.bbc.co.uk/news/videos/cevmw1pl9kvo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0142": {
+    "category": "world",
+    "item_ref": "item_0142",
+    "kind": "article",
+    "ref": "citation_0142",
+    "url": "https://www.bbc.co.uk/news/articles/c1e154qjw96o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0143": {
+    "category": "world",
+    "item_ref": "item_0143",
+    "kind": "article",
+    "ref": "citation_0143",
+    "url": "https://www.bbc.co.uk/news/videos/cy45zjw424xo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0144": {
+    "category": "world",
+    "item_ref": "item_0144",
+    "kind": "article",
+    "ref": "citation_0144",
+    "url": "https://www.bbc.co.uk/news/articles/c3w03y2wgxeo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0145": {
+    "category": "world",
+    "item_ref": "item_0145",
+    "kind": "article",
+    "ref": "citation_0145",
+    "url": "https://www.bbc.co.uk/news/articles/c4g3qdj1z77o?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0146": {
+    "category": "world",
+    "item_ref": "item_0146",
+    "kind": "article",
+    "ref": "citation_0146",
+    "url": "https://www.npr.org/2026/08/17/nx-s1-5933860/palestinian-american-family-in-west-bank-fear-settler-violence-will-rob-them-of-home"
+  },
+  "citation_0147": {
+    "category": "world",
+    "item_ref": "item_0147",
+    "kind": "article",
+    "ref": "citation_0147",
+    "url": "https://www.bbc.co.uk/news/articles/cj9dx03jrgjo?at_medium=RSS&at_campaign=rss"
+  },
+  "citation_0148": {
+    "category": "ai_tech",
+    "item_ref": "item_0148",
+    "kind": "article",
+    "ref": "citation_0148",
+    "url": "https://techcrunch.com/2026/08/18/why-apples-camera-equipped-airpods-may-not-be-the-pervert-pods-consumers-fear/"
+  },
+  "citation_0149": {
+    "category": "ai_tech",
+    "item_ref": "item_0149",
+    "kind": "article",
+    "ref": "citation_0149",
+    "url": "https://techcrunch.com/2026/08/18/warps-new-system-is-an-out-of-the-box-software-factory-for-ai-development/"
+  },
+  "citation_0150": {
+    "category": "ai_tech",
+    "item_ref": "item_0150",
+    "kind": "article",
+    "ref": "citation_0150",
+    "url": "https://techcrunch.com/2026/08/18/openai-launches-a-safer-chatgpt-for-teens-years-after-teens-started-using-it/"
+  },
+  "citation_0151": {
+    "category": "ai_tech",
+    "item_ref": "item_0151",
+    "kind": "article",
+    "ref": "citation_0151",
+    "url": "https://techcrunch.com/2026/08/18/perplexitys-free-ai-offer-left-it-with-millions-more-users-in-india/"
+  },
+  "citation_0152": {
+    "category": "ai_tech",
+    "item_ref": "item_0152",
+    "kind": "article",
+    "ref": "citation_0152",
+    "url": "https://arstechnica.com/security/2026/08/microsoft-copilot-reveals-secret-input-that-allowed-it-to-be-hacked/"
+  },
+  "citation_0153": {
+    "category": "ai_tech",
+    "item_ref": "item_0153",
+    "kind": "article",
+    "ref": "citation_0153",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/981283/mozilla-firefox-smart-window-ai-features"
+  },
+  "citation_0154": {
+    "category": "ai_tech",
+    "item_ref": "item_0154",
+    "kind": "article",
+    "ref": "citation_0154",
+    "url": "https://www.theverge.com/tech/981269/google-home-gemini-pet-memory-nest-camera-review"
+  },
+  "citation_0155": {
+    "category": "ai_tech",
+    "item_ref": "item_0155",
+    "kind": "article",
+    "ref": "citation_0155",
+    "url": "https://openai.com/index/partnering-with-codeai"
+  },
+  "citation_0156": {
+    "category": "ai_tech",
+    "item_ref": "item_0156",
+    "kind": "article",
+    "ref": "citation_0156",
+    "url": "https://openai.com/index/chatgpt-for-teens"
+  },
+  "citation_0157": {
+    "category": "ai_tech",
+    "item_ref": "item_0157",
+    "kind": "article",
+    "ref": "citation_0157",
+    "url": "https://www.wired.com/story/the-big-interview-podcast-andy-yen-proton/"
+  },
+  "citation_0158": {
+    "category": "ai_tech",
+    "item_ref": "item_0158",
+    "kind": "article",
+    "ref": "citation_0158",
+    "url": "https://www.wired.com/story/the-cop-who-took-on-flock/"
+  },
+  "citation_0159": {
+    "category": "ai_tech",
+    "item_ref": "item_0159",
+    "kind": "article",
+    "ref": "citation_0159",
+    "url": "https://www.wired.com/story/zai-open-weight-ai-models-release-cybersecurity-hacking/"
+  },
+  "citation_0160": {
+    "category": "ai_tech",
+    "item_ref": "item_0160",
+    "kind": "article",
+    "ref": "citation_0160",
+    "url": "https://openai.com/index/asana"
+  },
+  "citation_0161": {
+    "category": "ai_tech",
+    "item_ref": "item_0161",
+    "kind": "article",
+    "ref": "citation_0161",
+    "url": "https://techcrunch.com/2026/08/17/anthropics-annualized-revenue-surges-to-65b/"
+  },
+  "citation_0162": {
+    "category": "ai_tech",
+    "item_ref": "item_0162",
+    "kind": "article",
+    "ref": "citation_0162",
+    "url": "https://techcrunch.com/2026/08/17/ai-automation-startup-relay-shuts-down-staff-joins-googles-chrome-team/"
+  },
+  "citation_0163": {
+    "category": "ai_tech",
+    "item_ref": "item_0163",
+    "kind": "article",
+    "ref": "citation_0163",
+    "url": "https://arstechnica.com/ai/2026/08/former-spacex-engineers-are-building-a-robotic-factory-for-making-steel-parts/"
+  },
+  "citation_0164": {
+    "category": "ai_tech",
+    "item_ref": "item_0164",
+    "kind": "article",
+    "ref": "citation_0164",
+    "url": "https://www.wired.com/story/this-r-rated-film-studio-wants-to-be-the-hbo-of-ai/"
+  },
+  "citation_0165": {
+    "category": "ai_tech",
+    "item_ref": "item_0165",
+    "kind": "article",
+    "ref": "citation_0165",
+    "url": "https://arstechnica.com/tech-policy/2026/08/hidden-airtag-reveals-amazon-is-trashing-rare-books-to-train-ai/"
+  },
+  "citation_0166": {
+    "category": "dev_community",
+    "item_ref": "item_0166",
+    "kind": "article",
+    "ref": "citation_0166",
+    "url": "https://status.claude.com/incidents/q7txxvbsftgq"
+  },
+  "citation_0167": {
+    "category": "dev_community",
+    "item_ref": "item_0166",
+    "kind": "discussion",
+    "ref": "citation_0167",
+    "url": "https://news.ycombinator.com/item?id=49348163"
+  },
+  "citation_0168": {
+    "category": "dev_community",
+    "item_ref": "item_0167",
+    "kind": "article",
+    "ref": "citation_0168",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrtyin/discussion_hub_for_new_claude_incident_degraded/"
+  },
+  "citation_0169": {
+    "category": "dev_community",
+    "item_ref": "item_0168",
+    "kind": "article",
+    "ref": "citation_0169",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrtx78/fable_5_with_opus_48_subagents_vs_opus_5_subagents/"
+  },
+  "citation_0170": {
+    "category": "dev_community",
+    "item_ref": "item_0169",
+    "kind": "article",
+    "ref": "citation_0170",
+    "url": "https://arxiv.org/abs/2607.22738"
+  },
+  "citation_0171": {
+    "category": "dev_community",
+    "item_ref": "item_0169",
+    "kind": "discussion",
+    "ref": "citation_0171",
+    "url": "https://news.ycombinator.com/item?id=49346538"
+  },
+  "citation_0172": {
+    "category": "dev_community",
+    "item_ref": "item_0170",
+    "kind": "article",
+    "ref": "citation_0172",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrrf2g/i_made_this_game_with_claude_dead_reckon/"
+  },
+  "citation_0173": {
+    "category": "dev_community",
+    "item_ref": "item_0171",
+    "kind": "article",
+    "ref": "citation_0173",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrpopr/is_less_memory_actually_better/"
+  },
+  "citation_0174": {
+    "category": "dev_community",
+    "item_ref": "item_0172",
+    "kind": "article",
+    "ref": "citation_0174",
+    "url": "https://github.com/pitiflautico/neobrowser"
+  },
+  "citation_0175": {
+    "category": "dev_community",
+    "item_ref": "item_0172",
+    "kind": "discussion",
+    "ref": "citation_0175",
+    "url": "https://news.ycombinator.com/item?id=49345320"
+  },
+  "citation_0176": {
+    "category": "dev_community",
+    "item_ref": "item_0173",
+    "kind": "article",
+    "ref": "citation_0176",
+    "url": "https://github.com/mukundzha/avouch"
+  },
+  "citation_0177": {
+    "category": "dev_community",
+    "item_ref": "item_0173",
+    "kind": "discussion",
+    "ref": "citation_0177",
+    "url": "https://news.ycombinator.com/item?id=49345154"
+  },
+  "citation_0178": {
+    "category": "dev_community",
+    "item_ref": "item_0174",
+    "kind": "article",
+    "ref": "citation_0178",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrops5/fix_claude_with_this_one_system_prompt/"
+  },
+  "citation_0179": {
+    "category": "dev_community",
+    "item_ref": "item_0175",
+    "kind": "article",
+    "ref": "citation_0179",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrm9nj/people_who_hit_their_usage_limits_fast_which/"
+  },
+  "citation_0180": {
+    "category": "dev_community",
+    "item_ref": "item_0176",
+    "kind": "article",
+    "ref": "citation_0180",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrlrud/gaslighting_claude_with_its_own_verbal_tics/"
+  },
+  "citation_0181": {
+    "category": "dev_community",
+    "item_ref": "item_0177",
+    "kind": "article",
+    "ref": "citation_0181",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrl9ng/passed_the_claude_certified_architect/"
+  },
+  "citation_0182": {
+    "category": "dev_community",
+    "item_ref": "item_0178",
+    "kind": "article",
+    "ref": "citation_0182",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrl4qy/simulating_traditional_art_materials_with_claude/"
+  },
+  "citation_0183": {
+    "category": "dev_community",
+    "item_ref": "item_0179",
+    "kind": "article",
+    "ref": "citation_0183",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrkg1q/i_built_a_local_gateway_so_claude_code_can_use_48/"
+  },
+  "citation_0184": {
+    "category": "dev_community",
+    "item_ref": "item_0180",
+    "kind": "article",
+    "ref": "citation_0184",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrkayg/claude_code_is_not_a_junior_dev_and_we_need_to/"
+  },
+  "citation_0185": {
+    "category": "dev_community",
+    "item_ref": "item_0181",
+    "kind": "article",
+    "ref": "citation_0185",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrka9l/classic_opus_5/"
+  },
+  "citation_0186": {
+    "category": "dev_community",
+    "item_ref": "item_0182",
+    "kind": "article",
+    "ref": "citation_0186",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrjryf/week_3_of_making_my_fishing_game_entirely_with_ai/"
+  },
+  "citation_0187": {
+    "category": "dev_community",
+    "item_ref": "item_0183",
+    "kind": "article",
+    "ref": "citation_0187",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrhbae/how_do_you_deal_with_losing_your_sense_of/"
+  },
+  "citation_0188": {
+    "category": "dev_community",
+    "item_ref": "item_0184",
+    "kind": "article",
+    "ref": "citation_0188",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrdyv2/claudes_verbal_dementiadegradation_my_opinions/"
+  },
+  "citation_0189": {
+    "category": "dev_community",
+    "item_ref": "item_0185",
+    "kind": "article",
+    "ref": "citation_0189",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrdgq8/building_a_website_from_scratch_feasibility/"
+  },
+  "citation_0190": {
+    "category": "dev_community",
+    "item_ref": "item_0186",
+    "kind": "article",
+    "ref": "citation_0190",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrbgqz/claude_poetry/"
+  },
+  "citation_0191": {
+    "category": "dev_community",
+    "item_ref": "item_0187",
+    "kind": "article",
+    "ref": "citation_0191",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrba9i/made_a_game_where_you_operate_a_toll_road_and/"
+  },
+  "citation_0192": {
+    "category": "dev_community",
+    "item_ref": "item_0188",
+    "kind": "article",
+    "ref": "citation_0192",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vrayh1/how_do_you_guys_deal_with_being_a_stranger_to/"
+  },
+  "citation_0193": {
+    "category": "dev_community",
+    "item_ref": "item_0189",
+    "kind": "article",
+    "ref": "citation_0193",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vr9vri/the_extreme_number_of_updates_comes_off_as_janky/"
+  },
+  "citation_0194": {
+    "category": "dev_community",
+    "item_ref": "item_0190",
+    "kind": "article",
+    "ref": "citation_0194",
+    "url": "https://cursor.com/docs/origin"
+  },
+  "citation_0195": {
+    "category": "dev_community",
+    "item_ref": "item_0190",
+    "kind": "discussion",
+    "ref": "citation_0195",
+    "url": "https://news.ycombinator.com/item?id=49339359"
+  },
+  "citation_0196": {
+    "category": "dev_community",
+    "item_ref": "item_0191",
+    "kind": "article",
+    "ref": "citation_0196",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vr7bqj/anybody_have_a_good_method_to_tone_down_the/"
+  },
+  "citation_0197": {
+    "category": "dev_community",
+    "item_ref": "item_0192",
+    "kind": "article",
+    "ref": "citation_0197",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vr69kx/longtime_chatgpt_user_trying_claude_for_a_big/"
+  },
+  "citation_0198": {
+    "category": "dev_community",
+    "item_ref": "item_0193",
+    "kind": "article",
+    "ref": "citation_0198",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vr5k4o/is_using_ai_to_automate_and_connect_my_business_a/"
+  },
+  "citation_0199": {
+    "category": "dev_community",
+    "item_ref": "item_0194",
+    "kind": "article",
+    "ref": "citation_0199",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vr3gvl/automating_lead_gen_from_public_federal_contract/"
+  },
+  "citation_0200": {
+    "category": "dev_community",
+    "item_ref": "item_0195",
+    "kind": "article",
+    "ref": "citation_0200",
+    "url": "https://status.cursor.com/incidents/l9h9vrd726jv"
+  },
+  "citation_0201": {
+    "category": "dev_community",
+    "item_ref": "item_0195",
+    "kind": "discussion",
+    "ref": "citation_0201",
+    "url": "https://news.ycombinator.com/item?id=49336919"
+  },
+  "citation_0202": {
+    "category": "dev_community",
+    "item_ref": "item_0196",
+    "kind": "article",
+    "ref": "citation_0202",
+    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vqz5kg/cross_session_communication_has_changed_the/"
+  }
+}

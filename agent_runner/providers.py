@@ -335,8 +335,9 @@ class ClaudeCodeProvider(ModelProvider):
             "version": _command_version("claude"),
             "authentication": "Claude Code cached login (subscription or Console)",
             "tool_policy": (
-                "--safe-mode disables customizations; --tools '' plus --disallowedTools '*' "
-                "removes built-in and MCP tools."
+                "--safe-mode disables customizations; --tools StructuredOutput plus "
+                "--allowedTools StructuredOutput exposes and permits only the internal "
+                "schema-output tool."
             ),
         }
 
@@ -352,9 +353,9 @@ class ClaudeCodeProvider(ModelProvider):
             "--model",
             self.model,
             "--tools",
-            "",
-            "--disallowedTools",
-            "*",
+            "StructuredOutput",
+            "--allowedTools",
+            "StructuredOutput",
             "--disable-slash-commands",
             "--no-session-persistence",
             "--json-schema",
