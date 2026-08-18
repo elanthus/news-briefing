@@ -9,6 +9,7 @@ from agent_runner.output import (
     build_output_schema,
     project_corpus,
     redact_destinations,
+    redact_preview_value,
     render_briefing,
     validate_output,
 )
@@ -99,6 +100,14 @@ class BriefingOutputTests(unittest.TestCase):
         injected["categories"]["https://attacker.invalid/category"] = items
         with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
             project_corpus(injected)
+
+    def test_preview_redaction_handles_destinations_in_keys_and_values(self):
+        preview = redact_preview_value({
+            "https://attacker.invalid/key": "https://attacker.invalid/value",
+        })
+        rendered = json.dumps(preview)
+        self.assertNotIn("attacker.invalid", rendered)
+        self.assertGreaterEqual(rendered.count("destination omitted"), 2)
 
     def test_schema_restricts_sections_and_matches_runtime_constraints(self):
         _corpus, config, projected, _output = fixture_contract()

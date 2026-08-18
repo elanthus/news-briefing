@@ -69,6 +69,7 @@ class RunStore:
             "provider": provider,
             "code": code,
             "attempts": [],
+            "outcome": None,
             "final": None,
         }
         store = cls(root, manifest)
@@ -167,16 +168,24 @@ class RunStore:
         self.manifest["checkpointed_at"] = utc_now()
         write_json_atomic(self.root / "manifest.json", self.manifest)
 
-    def fail(self, error: dict[str, Any]) -> None:
+    def fail(self, error: dict[str, Any], *, outcome: dict[str, str] | None = None) -> None:
         self.manifest["status"] = "failed"
         self.manifest["error"] = error
+        if outcome is not None:
+            self.manifest["outcome"] = outcome
         self.manifest["completed_at"] = utc_now()
-        self.trace("run_failed", error_type=error.get("type"), message=error.get("message"))
+        self.trace(
+            "run_failed",
+            disposition=outcome.get("disposition") if outcome else None,
+            error_type=error.get("type"),
+            message=error.get("message"),
+        )
         self.checkpoint("failed")
 
     def finalize(self, final: dict[str, Any]) -> None:
         self.manifest["status"] = "complete"
         self.manifest["final"] = final
+        self.manifest["outcome"] = final.get("outcome")
         self.manifest["completed_at"] = utc_now()
         self.trace("run_finalized", status=final.get("status"))
         self.checkpoint("finalized")

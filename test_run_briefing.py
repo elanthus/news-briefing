@@ -84,9 +84,18 @@ class RunnerTests(unittest.TestCase):
             }
             host_root = str(root)
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.status, "WARN")
+        self.assertEqual(result.status, "ready")
         self.assertEqual(manifest["status"], "complete")
-        self.assertEqual(manifest["final"]["status"], "WARN")
+        self.assertEqual(manifest["final"]["status"], "ready")
+        self.assertEqual(manifest["final"]["artifact_type"], "final")
+        self.assertEqual(manifest["final"]["outcome"], {
+            "contract": "accepted",
+            "coverage": "degraded",
+            "disposition": "ready",
+            "evidence": "corpus_bound",
+            "protocol": "completed",
+        })
+        self.assertEqual(manifest["outcome"], manifest["final"]["outcome"])
         self.assertEqual(manifest["identity"]["provider"], manifest["provider"])
         self.assertEqual(manifest["identity"]["config_path"], "fixtures/briefing-config-2026-08-11.json")
         self.assertEqual(manifest["identity"]["output_path"], "<external>/briefing.md")
@@ -95,11 +104,12 @@ class RunnerTests(unittest.TestCase):
         for name, digest in artifact_hashes.items():
             self.assertEqual(manifest["artifacts"][name], digest)
         self.assertIn("agent_runner/runner.py", manifest["identity"]["code"]["source_sha256"])
-        self.assertIn("### Validation status", briefing)
-        self.assertIn("**Status: WARN**", briefing)
+        self.assertIn("### Run outcome", briefing)
+        self.assertIn("**Disposition: READY**", briefing)
+        self.assertIn("- Coverage: `degraded`", briefing)
         self.assertEqual(len(provider.requests), 1)
 
-    def test_warn_is_a_failure_in_strict_mode(self):
+    def test_strict_mode_fails_a_ready_candidate_with_findings(self):
         corpus, _config, _projected, output = fixture_contract()
         provider = FakeProvider([output])
         with tempfile.TemporaryDirectory() as directory, patch(
@@ -108,21 +118,75 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), strict=True)
             result = run_workflow(provider, settings, root / "run")
-        self.assertEqual(result.status, "WARN")
+        self.assertEqual(result.status, "ready")
         self.assertEqual(result.exit_code, 1)
 
-    def test_error_status_returns_failure_exit_code(self):
+    def test_editorial_error_produces_unpublished_review_preview(self):
         corpus, _config, _projected, output = fixture_contract()
         provider = FakeProvider([output])
-        forced = eval_briefing.Finding(eval_briefing.ERROR, "forced_error", "forced error")
+        forced = eval_briefing.Finding(
+            eval_briefing.ERROR, "category_ineligible", "forced editorial error"
+        )
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
             root = Path(directory)
-            settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
+            requested_output = root / "briefing.md"
+            settings = replace(self.settings(requested_output), max_corrections=0)
             result = run_workflow(provider, settings, root / "run")
-        self.assertEqual(result.status, "ERROR")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            preview = (root / "run/preview.md").read_text()
+            output_exists = requested_output.exists()
+        self.assertEqual(result.status, "review_required")
         self.assertEqual(result.exit_code, 1)
+        self.assertFalse(output_exists)
+        self.assertEqual(manifest["status"], "complete")
+        self.assertEqual(manifest["final"]["artifact_type"], "preview")
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
+        self.assertIn("**Disposition: REVIEW REQUIRED**", preview)
+
+    def test_rendered_candidate_is_rebuilt_by_destination_safe_preview_renderer(self):
+        corpus, config, _projected, output = fixture_contract()
+        forced = eval_briefing.Finding(
+            eval_briefing.ERROR, "category_ineligible", "forced editorial error"
+        )
+        unsafe_render = "# Briefing\n\nhttps://attacker.invalid/rendered\n"
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch(
+            "agent_runner.runner.render_briefing", return_value=unsafe_render
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            root = Path(directory)
+            result = run_workflow(
+                FakeProvider([output]),
+                replace(self.settings(root / "briefing.md"), max_corrections=0),
+                root / "run",
+            )
+            preview = (root / "run/preview.md").read_text()
+        self.assertEqual(result.status, "review_required")
+        self.assertNotIn("attacker.invalid", preview)
+        section_name = config.sections[0].name
+        self.assertIn(output["sections"][section_name]["topics"][0]["headline"], preview)
+
+    def test_ungrounded_error_is_rejected_not_reviewable(self):
+        corpus, _config, _projected, output = fixture_contract()
+        provider = FakeProvider([output])
+        forced = eval_briefing.Finding(
+            eval_briefing.ERROR, "ungrounded_link", "outside corpus"
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            root = Path(directory)
+            result = run_workflow(
+                provider,
+                replace(self.settings(root / "briefing.md"), max_corrections=0),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "violated")
 
     def test_request_redacts_destinations_from_trusted_config_too(self):
         _corpus, _config, projected, _output = fixture_contract()
@@ -150,7 +214,7 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text())
-        self.assertEqual(result.status, "WARN")
+        self.assertEqual(result.status, "ready")
         self.assertEqual([row["kind"] for row in manifest["attempts"]], ["initial", "correction"])
         self.assertFalse(manifest["attempts"][0]["contract_success"])
         self.assertTrue(manifest["attempts"][1]["contract_success"])
@@ -158,6 +222,60 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("unknown_citation_ref", provider.requests[1].prompt)
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
+
+    def test_category_error_preserves_corpus_bound_candidate_as_review_preview(self):
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            requested_output = root / "briefing.md"
+            result = run_workflow(
+                FakeProvider([broken]),
+                replace(self.settings(requested_output), max_corrections=0),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            preview = (root / "run/preview.md").read_text()
+        self.assertEqual(result.status, "review_required")
+        self.assertFalse(requested_output.exists())
+        self.assertEqual(manifest["status"], "complete")
+        self.assertEqual(manifest["final"]["outcome"]["contract"], "review_required")
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
+        self.assertIn(broken["sections"][section.name]["topics"][0]["headline"], preview)
+        self.assertIn(projected.citations[ineligible_ref].url, preview)
+
+    def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        topic = broken["sections"][config.sections[0].name]["topics"][0]
+        topic["summary"] += " https://attacker.invalid/instruction"
+        topic["citation_refs"] = ["https://attacker.invalid/citation"]
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(
+                FakeProvider([broken]),
+                replace(self.settings(root / "briefing.md"), max_corrections=0),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            preview = (root / "run/preview.md").read_text()
+            structured_preview = (root / "run/preview-structured.json").read_text()
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "violated")
+        self.assertNotIn("attacker.invalid", preview)
+        self.assertNotIn("attacker.invalid", structured_preview)
+        self.assertIn("[destination omitted; use citation refs]", preview)
 
     def test_checkpoint_resume_rejects_tampering_and_inflight_calls(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -196,7 +314,7 @@ class RunnerTests(unittest.TestCase):
                 resume=True,
             )
             manifest = json.loads((root / "run/manifest.json").read_text())
-            self.assertEqual(result.status, "WARN")
+            self.assertEqual(result.status, "ready")
             self.assertEqual(manifest["status"], "complete")
             self.assertEqual(resumed_provider.requests, [])
 
@@ -254,6 +372,8 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["timeout"], 30)
         self.assertEqual(manifest["status"], "failed")
         self.assertEqual(manifest["error"]["type"], "RuntimeError")
+        self.assertEqual(manifest["outcome"]["disposition"], "no_result")
+        self.assertEqual(manifest["outcome"]["protocol"], "no_result")
         self.assertIn('"event": "run_failed"', trace)
 
     def test_fetch_artifacts_do_not_record_host_paths(self):
@@ -331,14 +451,15 @@ class RunnerTests(unittest.TestCase):
                 str(output),
             ]
             provider = FakeProvider([])
-            result = RunResult(1, root / "run", output, "ERROR")
+            result = RunResult(1, root / "run", output, "review_required")
             with patch.object(sys, "argv", argv), patch.object(
                 briefing_cli, "provider_for", return_value=provider
             ) as provider_for, patch.object(
                 briefing_cli, "run_workflow", return_value=result
-            ), patch("builtins.print"):
+            ), patch("builtins.print") as printed:
                 exit_code = briefing_cli.main()
         self.assertEqual(exit_code, 1)
+        self.assertIn("REVIEW REQUIRED: unpublished preview", printed.call_args.args[0])
         provider_for.assert_called_once_with(
             "codex-cli",
             "test-model",
