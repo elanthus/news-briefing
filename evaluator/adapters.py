@@ -848,11 +848,21 @@ def production_adapter_for(
         max_tokens=max_tokens,
     )
     info = runner_provider.info()
+    effective_reasoning_enabled = (
+        True
+        if provider == "codex-cli" or (provider == "openrouter" and reasoning_effort is not None)
+        else reasoning_enabled if provider == "openrouter" else None
+    )
+    effective_reasoning_effort = (
+        "medium"
+        if provider == "codex-cli"
+        else reasoning_effort if provider == "openrouter" else None
+    )
     controls = {
         "temperature": resolved_temperature if provider == "openrouter" else None,
         "seed": None,
-        "reasoning_enabled": reasoning_enabled if provider == "openrouter" else None,
-        "reasoning_effort": reasoning_effort if provider == "openrouter" else None,
+        "reasoning_enabled": effective_reasoning_enabled,
+        "reasoning_effort": effective_reasoning_effort,
         "tool_policy": info.get("tool_policy"),
         "disclosure": (
             "Uses the production structured-output transport, empty application-tool policy, "

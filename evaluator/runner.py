@@ -846,10 +846,15 @@ def _base_result(
 _RUNNER_ARTIFACT_FILES = (
     "corpus.json",
     "request.txt",
+    "model-corpus.json",
+    "citation-map.json",
+    "output-schema.json",
     "error.json",
     "correction-error.json",
     "first.md",
     "final.md",
+    "first-structured.json",
+    "final-structured.json",
     "grounding-adjudication.json",
     "semantic-adjudication.json",
 )
@@ -886,12 +891,21 @@ def _load_resume_manifest(output_dir: Path) -> dict[str, Any]:
 
 
 def _validate_checkpoint_artifacts(
-    row: dict[str, Any], output_dir: Path, expected_artifact_dir: str
+    row: dict[str, Any],
+    output_dir: Path,
+    expected_artifact_dir: str,
+    generation_path: str,
 ) -> None:
     if row.get("artifact_dir") != expected_artifact_dir:
         raise ValueError("cannot resume corrupt checkpoint: result artifact_dir is inconsistent")
     case_dir = output_dir / expected_artifact_dir
     required = [case_dir / "corpus.json", case_dir / "request.txt"]
+    if generation_path == "production-parity":
+        required.extend([
+            case_dir / "model-corpus.json",
+            case_dir / "citation-map.json",
+            case_dir / "output-schema.json",
+        ])
     status = row.get("status")
     if status in {"provider_error", "skipped_circuit_open"}:
         required.append(case_dir / "error.json")
@@ -907,6 +921,11 @@ def _validate_checkpoint_artifacts(
             case_dir / "final.md",
             case_dir / "grounding-adjudication.json",
         ])
+        if generation_path == "production-parity":
+            required.extend([
+                case_dir / "first-structured.json",
+                case_dir / "final-structured.json",
+            ])
         if status == "completed_with_correction_error":
             required.append(case_dir / "correction-error.json")
         semantic_path = row.get("semantic_adjudication")
@@ -1217,7 +1236,12 @@ def run_evaluation(
                     raise ValueError(
                         "cannot resume corrupt checkpoint: semantic adjudication presence is inconsistent"
                     )
-            _validate_checkpoint_artifacts(row, output_dir, planned_artifact_dirs[index])
+            _validate_checkpoint_artifacts(
+                row,
+                output_dir,
+                planned_artifact_dirs[index],
+                generation_path,
+            )
         observed_ceiling_cost_usd = (
             _reconstruct_observed_cost(results, cost_ceiling_provider)
             if cost_ceiling_usd is not None else 0.0

@@ -31,6 +31,7 @@ from evaluator.adapters import (
     ProviderRequestError,
     _retry_after_seconds,
     adapter_for,
+    production_adapter_for,
 )
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
@@ -1253,6 +1254,44 @@ class RunnerTest(unittest.TestCase):
                 (artifact / "final.md").read_text(encoding="utf-8"),
             )
 
+    def test_production_parity_resume_requires_structured_artifacts(self) -> None:
+        class InterruptSecondStructuredCall(StructuredFakeAdapter):
+            def generate_structured(
+                self, prompt: str, output_schema: dict[str, Any], trace_id: str
+            ) -> Generation:
+                if len(self.requests) == 1:
+                    raise KeyboardInterrupt("simulated structured interruption")
+                return super().generate_structured(prompt, output_schema, trace_id)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=2)
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [InterruptSecondStructuredCall("fixture")],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    generation_path="production-parity",
+                )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            first_artifact = output / manifest["results"][0]["artifact_dir"]
+            (first_artifact / "first-structured.json").unlink()
+            resumed = StructuredFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "missing artifact files"):
+                run_evaluation(
+                    [resumed],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    generation_path="production-parity",
+                    resume=True,
+                )
+            self.assertEqual(resumed.requests, [])
+
     def test_operations_markdown_renders_median_and_p95_latency(self) -> None:
         rendered = _operations_row({
             "provider": "provider",
@@ -1434,6 +1473,11 @@ class RunnerTest(unittest.TestCase):
                 "error.json",
                 "correction-error.json",
                 "semantic-adjudication.json",
+                "model-corpus.json",
+                "citation-map.json",
+                "output-schema.json",
+                "first-structured.json",
+                "final-structured.json",
             )
             for name in stale_names:
                 (interrupted_dir / name).write_text("stale interrupted artifact", encoding="utf-8")
@@ -2707,6 +2751,19 @@ class RunnerTest(unittest.TestCase):
     def test_production_parity_defaults_to_the_structured_runner_prompt(self) -> None:
         prompts = _prompt_values([], "production-parity")
         self.assertEqual(prompts, {"production": ROOT / "briefing-runner-prompt.md"})
+
+    def test_production_parity_records_effective_reasoning_controls(self) -> None:
+        codex = production_adapter_for("codex-cli", "gpt-5.6-terra")
+        self.assertEqual(codex.generation_controls()["reasoning_enabled"], True)
+        self.assertEqual(codex.generation_controls()["reasoning_effort"], "medium")
+
+        openrouter = production_adapter_for(
+            "openrouter",
+            "deepseek/deepseek-v4-flash",
+            reasoning_effort="high",
+        )
+        self.assertEqual(openrouter.generation_controls()["reasoning_enabled"], True)
+        self.assertEqual(openrouter.generation_controls()["reasoning_effort"], "high")
 
     @patch.dict(os.environ, {"OPENROUTER_MODEL": "openai/gpt-5.6-terra,,anthropic/claude-sonnet-5"})
     def test_all_providers_rejects_empty_model_list_entries(self) -> None:

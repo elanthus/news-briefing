@@ -87,7 +87,9 @@ than silently evaluating a different transport. Each trial preserves the raw
 corpus, projected corpus, citation map, output schema, structured response and
 rendered Markdown. The default `markdown` path remains available for historical
 prompt and direct-format reliability comparisons. Both direct-Markdown prompts
-omit mutable Hacker News points and comment counts.
+omit mutable Hacker News points and comment counts. Production-parity manifests
+record Codex's fixed medium reasoning and OpenRouter's effective reasoning
+enablement/effort; Claude Code remains provider-controlled.
 
 The portfolio protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
 Its one-trial pilot began with the versioned `production-2026-08` and `reliability-v1`
