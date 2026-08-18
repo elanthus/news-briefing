@@ -15,9 +15,10 @@ class FakeProvider:
     name = "fake"
     model = "deterministic"
 
-    def __init__(self, outputs):
+    def __init__(self, outputs, *, generation_controls=None):
         self.outputs = list(outputs)
         self.requests: list[GenerationRequest] = []
+        self.generation_controls = generation_controls or {}
 
     def info(self):
         return {
@@ -25,6 +26,7 @@ class FakeProvider:
             "model": self.model,
             "authentication": "none",
             "tool_policy": "no tools",
+            **self.generation_controls,
         }
 
     def generate(self, request):
@@ -73,6 +75,8 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "WARN")
         self.assertEqual(manifest["status"], "complete")
         self.assertEqual(manifest["final"]["status"], "WARN")
+        self.assertEqual(manifest["identity"]["provider"], manifest["provider"])
+        self.assertIn("agent_runner/runner.py", manifest["identity"]["code"]["source_sha256"])
         self.assertIn("### Validation status", briefing)
         self.assertIn("**Status: WARN**", briefing)
         self.assertEqual(len(provider.requests), 1)
@@ -91,7 +95,7 @@ class RunnerTests(unittest.TestCase):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         broken["sections"][config.sections[0].name]["topics"][0]["summary"] += (
-            " https://attacker.invalid/instruction"
+            " https://ATTACKER.invalid/instruction https://attacker.invalid/instruction/"
         )
         broken["sections"][config.sections[0].name]["topics"][0]["citation_refs"] = [
             "citation_9999"
@@ -110,6 +114,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
         self.assertIn("unknown_citation_ref", provider.requests[1].prompt)
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
+        self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
     def test_checkpoint_resume_rejects_tampering_and_inflight_calls(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -151,6 +156,38 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(result.status, "WARN")
             self.assertEqual(manifest["status"], "complete")
             self.assertEqual(resumed_provider.requests, [])
+
+    def test_resume_rejects_unrecorded_corpus_file(self):
+        corpus, _config, _projected, _output = fixture_contract()
+
+        def interrupted_fetch(store, _settings):
+            (store.root / "corpus.json").write_text(json.dumps(corpus), encoding="utf-8")
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self.settings(root / "briefing.md")
+            provider = FakeProvider([])
+            with patch("agent_runner.runner._fetch_corpus", side_effect=interrupted_fetch):
+                with self.assertRaises(KeyboardInterrupt):
+                    run_workflow(provider, settings, root / "run")
+            with self.assertRaisesRegex(ValueError, "corpus.json is not recorded"):
+                run_workflow(provider, settings, root / "run", resume=True)
+
+    def test_resume_identity_includes_provider_generation_controls(self):
+        def interrupt_fetch(_store, _settings):
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self.settings(root / "briefing.md")
+            initial = FakeProvider([], generation_controls={"temperature": 0})
+            with patch("agent_runner.runner._fetch_corpus", side_effect=interrupt_fetch):
+                with self.assertRaises(KeyboardInterrupt):
+                    run_workflow(initial, settings, root / "run")
+            changed = FakeProvider([], generation_controls={"temperature": 1})
+            with self.assertRaisesRegex(ValueError, "invocation identity differs"):
+                run_workflow(changed, settings, root / "run", resume=True)
 
 
 if __name__ == "__main__":

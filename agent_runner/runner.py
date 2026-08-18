@@ -22,6 +22,7 @@ from agent_runner.output import (
     OutputFinding,
     build_output_schema,
     project_corpus,
+    redact_destinations,
     render_briefing,
     render_validation_status,
     validate_output,
@@ -43,7 +44,11 @@ class RunnerSettings:
     max_corrections: int = 1
     strict: bool = False
 
-    def identity(self, provider: ModelProvider) -> dict[str, Any]:
+    def identity(
+        self,
+        provider_info: dict[str, Any],
+        code_info: dict[str, Any],
+    ) -> dict[str, Any]:
         return {
             "config_path": str(self.config_path.resolve()),
             "config_sha256": sha256_file(self.config_path),
@@ -58,8 +63,11 @@ class RunnerSettings:
             "timeout_seconds": self.timeout_seconds,
             "max_corrections": self.max_corrections,
             "strict": self.strict,
-            "provider": provider.name,
-            "model": provider.model,
+            "provider": provider_info,
+            "code": {
+                key: code_info[key]
+                for key in ("commit", "python", "source_sha256")
+            },
         }
 
 
@@ -72,17 +80,39 @@ class RunResult:
 
 
 def _git_provenance() -> dict[str, Any]:
-    commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=False
-    ).stdout.strip()
-    dirty = bool(subprocess.run(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True, capture_output=True, check=False
-    ).stdout.strip())
+    def git_output(arguments: list[str]) -> str | None:
+        try:
+            completed = subprocess.run(
+                ["git", *arguments],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return completed.stdout.strip() if completed.returncode == 0 else None
+
+    commit = git_output(["rev-parse", "HEAD"])
+    status = git_output(["status", "--porcelain"])
+    runtime_paths = [
+        ROOT / "briefing_config.py",
+        ROOT / "corpus_schema.py",
+        ROOT / "eval_briefing.py",
+        ROOT / "fetch_news.py",
+        ROOT / "run_briefing.py",
+        *sorted((ROOT / "agent_runner").glob("*.py")),
+    ]
     return {
-        "commit": commit or None,
-        "dirty": dirty,
+        "commit": commit,
+        "dirty": bool(status) if status is not None else None,
         "python": platform.python_version(),
         "platform": platform.platform(),
+        "source_sha256": {
+            str(path.relative_to(ROOT)): sha256_file(path)
+            for path in runtime_paths
+        },
     }
 
 
@@ -128,7 +158,7 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
 
 
 def _load_corpus(store: RunStore) -> dict[str, Any]:
-    corpus = json.loads((store.root / "corpus.json").read_text(encoding="utf-8"))
+    corpus = json.loads(store.read_verified_text("corpus.json"))
     problems = corpus_schema.validate_corpus(corpus)
     if problems:
         raise ValueError("checkpoint corpus violates its schema: " + "; ".join(problems))
@@ -140,7 +170,7 @@ def build_request(
     config_data: dict[str, Any],
     projected: ModelCorpus,
 ) -> str:
-    safe_config = _redact_model_destinations(config_data)
+    safe_config = redact_destinations(config_data)
     return (
         f"{policy.rstrip()}\n\n"
         "--- TRUSTED BRIEFING CONFIG (JSON) ---\n"
@@ -155,8 +185,8 @@ def correction_request(
     prior_output: dict[str, Any],
     findings: list[dict[str, str]],
 ) -> str:
-    safe_output = _redact_model_destinations(prior_output)
-    safe_findings = _redact_model_destinations(findings)
+    safe_output = redact_destinations(prior_output)
+    safe_findings = redact_destinations(findings)
     return (
         f"{original}\n\n"
         "--- CORRECTION PASS ---\n"
@@ -165,21 +195,6 @@ def correction_request(
         f"Findings: {json.dumps(safe_findings, ensure_ascii=False)}\n"
         f"Previous structured output: {json.dumps(safe_output, ensure_ascii=False)}\n"
     )
-
-
-def _redact_model_destinations(value: Any) -> Any:
-    if isinstance(value, str):
-        redacted = value
-        for _canonical, spelling in eval_briefing.output_urls(value):
-            redacted = redacted.replace(spelling, "[destination omitted; use citation refs]")
-        return redacted
-    if isinstance(value, list):
-        return [_redact_model_destinations(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _redact_model_destinations(item) for key, item in value.items()}
-    return value
-
-
 def _finding_records(
     findings: Sequence[OutputFinding | eval_briefing.Finding],
 ) -> list[dict[str, str]]:
@@ -353,15 +368,17 @@ def run_workflow(
     resume: bool = False,
 ) -> RunResult:
     """Run or resume one complete briefing workflow."""
-    identity = settings.identity(provider)
+    provider_info = provider.info()
+    code_info = _git_provenance()
+    identity = settings.identity(provider_info, code_info)
     store = (
         RunStore.resume(run_dir, identity=identity)
         if resume
         else RunStore.create(
             run_dir,
             identity=identity,
-            provider=provider.info(),
-            code=_git_provenance(),
+            provider=provider_info,
+            code=code_info,
         )
     )
     try:

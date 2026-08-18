@@ -117,6 +117,20 @@ class RunStore:
             if sha256_file(path) != expected:
                 raise ValueError(f"cannot resume corrupt checkpoint: artifact hash differs for {name}")
 
+    def read_verified_text(self, name: str) -> str:
+        """Read exactly the recorded, hash-matched bytes for one text artifact."""
+        artifacts = self.manifest.get("artifacts")
+        expected = artifacts.get(name) if isinstance(artifacts, dict) else None
+        if not isinstance(expected, str):
+            raise ValueError(f"cannot load unverified checkpoint artifact: {name} is not recorded")
+        path = self.root / name
+        if not path.is_file():
+            raise ValueError(f"cannot load unverified checkpoint artifact: missing {name}")
+        payload = path.read_bytes()
+        if sha256_bytes(payload) != expected:
+            raise ValueError(f"cannot load unverified checkpoint artifact: hash differs for {name}")
+        return payload.decode("utf-8")
+
     def trace(self, event: str, **fields: Any) -> None:
         record = {
             "timestamp": utc_now(),

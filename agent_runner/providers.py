@@ -154,6 +154,7 @@ class OpenRouterProvider(ModelProvider):
             "provider": self.name,
             "model": self.model,
             "transport": "OpenRouter chat completions API",
+            "endpoint": self.endpoint,
             "authentication": "OPENROUTER_API_KEY",
             "tool_policy": "No tools are included; any returned tool_calls are rejected.",
             "temperature": self.temperature,
@@ -234,7 +235,21 @@ class OpenRouterProvider(ModelProvider):
                     retry_after=retry_after,
                 )
                 cause = exc
-            except (TimeoutError, urllib.error.URLError) as exc:
+            except TimeoutError as exc:
+                raise ProviderError(
+                    "openrouter request timed out after transmission may have begun; completion is ambiguous",
+                    transient=True,
+                    attempts=attempt,
+                    ambiguous_completion=True,
+                ) from exc
+            except urllib.error.URLError as exc:
+                if isinstance(exc.reason, TimeoutError):
+                    raise ProviderError(
+                        "openrouter request timed out after transmission may have begun; completion is ambiguous",
+                        transient=True,
+                        attempts=attempt,
+                        ambiguous_completion=True,
+                    ) from exc
                 failure = ProviderError(
                     f"openrouter request failed: {exc}", transient=True, attempts=attempt
                 )
@@ -372,6 +387,15 @@ class ClaudeCodeProvider(ModelProvider):
 class CodexCliProvider(ModelProvider):
     name = "codex-cli"
     _ALLOWED_ITEM_TYPES = {"agent_message", "reasoning"}
+    _ALLOWED_EVENT_TYPES = {
+        "thread.started",
+        "turn.started",
+        "item.started",
+        "item.updated",
+        "item.completed",
+        "turn.completed",
+    }
+    _ITEM_EVENT_TYPES = {"item.started", "item.updated", "item.completed"}
 
     def __init__(self, model: str):
         self.model = model
@@ -422,24 +446,40 @@ class CodexCliProvider(ModelProvider):
         request_id: str | None = None
         tool_items: list[str] = []
         for line in completed.stdout.splitlines():
+            if not line.strip():
+                continue
             try:
                 event = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ProviderError("codex-cli returned invalid JSONL", transient=False) from exc
             if not isinstance(event, dict):
-                continue
+                raise ProviderError("codex-cli returned a non-object JSONL event", transient=False)
+            event_type = event.get("type")
+            if not isinstance(event_type, str) or event_type not in self._ALLOWED_EVENT_TYPES:
+                raise ProviderError(
+                    f"codex-cli returned an unsupported lifecycle event: {event_type!r}",
+                    transient=False,
+                )
             events.append(event)
-            request_id = request_id or event.get("thread_id")
+            thread_id = event.get("thread_id")
+            if request_id is None and isinstance(thread_id, str):
+                request_id = thread_id
             item = event.get("item")
-            if isinstance(item, dict):
+            if event_type in self._ITEM_EVENT_TYPES:
+                if not isinstance(item, dict):
+                    raise ProviderError("codex-cli returned a malformed item record", transient=False)
                 item_type = item.get("type")
-                if isinstance(item_type, str) and item_type not in self._ALLOWED_ITEM_TYPES:
+                if not isinstance(item_type, str):
+                    raise ProviderError("codex-cli returned a malformed item record", transient=False)
+                if item_type not in self._ALLOWED_ITEM_TYPES:
                     tool_items.append(item_type)
-                if event.get("type") == "item.completed" and item_type == "agent_message":
+                if event_type == "item.completed" and item_type == "agent_message":
                     candidate = item.get("text")
                     if isinstance(candidate, str):
                         text = candidate
-            if event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
+            elif item is not None:
+                raise ProviderError("codex-cli returned an item on a non-item event", transient=False)
+            if event_type == "turn.completed" and isinstance(event.get("usage"), dict):
                 usage = event["usage"]
         if tool_items:
             rendered = ", ".join(sorted(set(tool_items)))

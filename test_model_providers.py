@@ -33,6 +33,11 @@ class FakeResponse:
         return self.payload
 
 
+class TimeoutResponse(FakeResponse):
+    def read(self):
+        raise TimeoutError("response read timed out")
+
+
 class ProviderTests(unittest.TestCase):
     def test_openrouter_sends_schema_and_parses_usage(self):
         payload = {
@@ -84,6 +89,16 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(opened.call_count, 2)
         self.assertEqual(result.attempts, 2)
 
+    def test_openrouter_does_not_retry_ambiguous_response_timeout(self):
+        provider = OpenRouterProvider("vendor/model")
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "urllib.request.urlopen", return_value=TimeoutResponse({})
+        ) as opened, self.assertRaises(ProviderError) as raised:
+            provider.generate(REQUEST)
+        self.assertTrue(raised.exception.ambiguous_completion)
+        self.assertEqual(raised.exception.attempts, 1)
+        self.assertEqual(opened.call_count, 1)
+
     def test_claude_uses_explicit_empty_tool_policy(self):
         wrapper = {
             "result": '{"schema_version":1}',
@@ -123,13 +138,16 @@ class ProviderTests(unittest.TestCase):
     def test_codex_accepts_only_message_and_reasoning_events(self):
         events = [
             {"thread_id": "thread-1", "type": "thread.started"},
+            {"type": "turn.started"},
             {
                 "type": "item.completed",
                 "item": {"type": "agent_message", "text": '{"schema_version":1}'},
             },
             {"type": "turn.completed", "usage": {"input_tokens": 4, "output_tokens": 2}},
         ]
-        completed = subprocess.CompletedProcess([], 0, "\n".join(map(json.dumps, events)), "")
+        completed = subprocess.CompletedProcess(
+            [], 0, "\n\n" + "\n".join(map(json.dumps, events)) + "\n\n", ""
+        )
         with patch("shutil.which", return_value="/bin/codex"), patch(
             "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
         ):
@@ -152,6 +170,32 @@ class ProviderTests(unittest.TestCase):
         with patch("shutil.which", return_value="/bin/codex"), patch(
             "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
         ), self.assertRaisesRegex(ProviderError, "empty tool policy"):
+            CodexCliProvider("gpt").generate(REQUEST)
+
+    def test_codex_rejects_malformed_item_without_string_type(self):
+        events = [
+            {
+                "type": "item.completed",
+                "item": {"command": "cat /secret"},
+            },
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": '{"schema_version":1}'},
+            },
+        ]
+        completed = subprocess.CompletedProcess([], 0, "\n".join(map(json.dumps, events)), "")
+        with patch("shutil.which", return_value="/bin/codex"), patch(
+            "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
+        ), self.assertRaisesRegex(ProviderError, "malformed item record"):
+            CodexCliProvider("gpt").generate(REQUEST)
+
+    def test_codex_rejects_unknown_lifecycle_event(self):
+        completed = subprocess.CompletedProcess(
+            [], 0, json.dumps({"type": "future.event", "payload": {}}), ""
+        )
+        with patch("shutil.which", return_value="/bin/codex"), patch(
+            "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
+        ), self.assertRaisesRegex(ProviderError, "unsupported lifecycle event"):
             CodexCliProvider("gpt").generate(REQUEST)
 
 

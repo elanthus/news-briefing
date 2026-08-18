@@ -274,7 +274,7 @@ python3 run_briefing.py \
   --provider codex-cli --model CODEX_MODEL_ID --output briefing.md
 ```
 
-Each run fetches a fresh corpus, replaces model-visible destinations with opaque citation references, requests one schema-constrained JSON object, validates it in code, and renders the Markdown itself with the exact corpus URLs. A structural error receives one correction pass by default. Transient transport failures receive at most three attempts within the single `--timeout` deadline; a timeout or CLI failure after output begins is treated as ambiguous and is not retried.
+Each run fetches a fresh corpus, replaces model-visible destinations with opaque citation references, requests one schema-constrained JSON object, validates it in code, and renders the Markdown itself with the exact corpus URLs. A structural error receives one correction pass by default. Safe transient transport failures receive at most three attempts within the single `--timeout` deadline. OpenRouter and CLI timeouts are treated as ambiguous and are not retried because a request may already have completed and been billed; a CLI failure after output begins is handled the same way.
 
 Run artifacts are stored under `.news-briefing/runs/` by default: the corpus and citation map, exact request and schema, raw and structured responses, provider events, deterministic findings, manifest, hashes, and append-only JSONL trace. Supply `--run-dir path` to choose the location. To resume a safely checkpointed interruption without repeating completed model work, repeat the same invocation and replace `--run-dir path` with `--resume path`. The runner refuses an interrupted in-flight call because its completion and billing are unknowable.
 

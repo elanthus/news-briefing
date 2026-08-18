@@ -97,7 +97,7 @@ def _clean_link_url(value: str) -> str:
     return url
 
 
-def _url_spellings(text: str) -> list[tuple[int, int, str, str]]:
+def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
     """Return non-overlapping web destinations and their absolute forms."""
     candidates: list[tuple[int, int, str, str]] = []
     occupied: list[tuple[int, int]] = []
@@ -127,7 +127,7 @@ def output_urls(text: str) -> list[tuple[str, str]]:
     entities inside a legitimate bare URL cannot change its identity.
     """
     found: dict[str, str] = {}
-    raw = _url_spellings(text)
+    raw = url_spellings(text)
     for _start, _end, spelled, absolute in raw:
         canonical = corpus_schema.canonicalize_url(absolute)
         found.setdefault(canonical, spelled)
@@ -136,7 +136,7 @@ def output_urls(text: str) -> list[tuple[str, str]]:
     for start, end, _spelled, _absolute in raw:
         masked[start:end] = " " * (end - start)
     decoded = html.unescape("".join(masked))
-    for _start, _end, spelled, absolute in _url_spellings(decoded):
+    for _start, _end, spelled, absolute in url_spellings(decoded):
         canonical = corpus_schema.canonicalize_url(absolute)
         found.setdefault(canonical, spelled)
     return list(found.items())

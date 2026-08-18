@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,11 +33,30 @@ class ModelCorpus:
     citations: dict[str, Citation]
 
 
-def _redact_destinations(value: str) -> str:
-    redacted = value
-    for _canonical, spelling in eval_briefing.output_urls(value):
-        redacted = redacted.replace(spelling, "[destination omitted; use citation refs]")
+DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+
+
+def _redact_text_destinations(value: str) -> str:
+    decoded = html.unescape(value)
+    spellings = eval_briefing.url_spellings(decoded)
+    if not spellings:
+        return value
+
+    redacted = decoded
+    for start, _end, spelling, _absolute in reversed(spellings):
+        redacted = redacted[:start] + DESTINATION_REDACTION + redacted[start + len(spelling):]
     return redacted
+
+
+def redact_destinations(value: Any) -> Any:
+    """Recursively remove every model-visible web destination spelling."""
+    if isinstance(value, str):
+        return _redact_text_destinations(value)
+    if isinstance(value, list):
+        return [redact_destinations(item) for item in value]
+    if isinstance(value, dict):
+        return {key: redact_destinations(item) for key, item in value.items()}
+    return value
 
 
 def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
@@ -51,7 +71,7 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
             item_number += 1
             item_ref = f"item_{item_number:04d}"
             projected = {
-                key: _redact_destinations(value) if isinstance(value, str) else value
+                key: redact_destinations(value)
                 for key, value in item.items()
                 if key not in {"url", "discussion"}
             }
