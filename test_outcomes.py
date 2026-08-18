@@ -28,6 +28,15 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.contract, "review_required")
         self.assertEqual(outcome.evidence, "review_required")
 
+    def test_figure_supported_elsewhere_is_a_nonblocking_quality_note(self):
+        finding = OutputFinding(
+            "WARN", "figure_supported_elsewhere", "figure in matching corpus item")
+        outcome = classify_outcome([finding], [])
+        self.assertEqual(finding_domain(finding.check), "quality")
+        self.assertEqual(outcome.disposition, "ready")
+        self.assertEqual(outcome.contract, "accepted")
+        self.assertEqual(outcome.evidence, "corpus_bound")
+
     def test_editorial_error_is_reviewable_but_unknown_citation_is_rejected(self):
         reviewable = classify_outcome([
             OutputFinding("ERROR", "category_ineligible_ref", "wrong section")

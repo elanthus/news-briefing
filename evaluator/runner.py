@@ -508,6 +508,7 @@ def _grounding_topics(
     """
     allowed = set(eval_briefing.corpus_links(corpus))
     evidence = eval_briefing.corpus_evidence(corpus)
+    all_evidence = eval_briefing.corpus_evidence_items(corpus)
     topics = 0
     errors = 0
     for name, bucket in sections.items():
@@ -531,7 +532,7 @@ def _grounding_topics(
             if (
                 not links
                 or any(link not in allowed for link in links)
-                or eval_briefing.check_claims_supported(mini, evidence)
+                or eval_briefing.check_claims_supported(mini, evidence, all_evidence)
             ):
                 errors += 1
     return topics, errors
