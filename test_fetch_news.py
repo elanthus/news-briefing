@@ -779,6 +779,37 @@ class SortItemsTest(unittest.TestCase):
 
 
 class MainFailureModeTest(unittest.TestCase):
+    def test_markdown_digest_omits_mutable_hn_points(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {},
+                "hn_category": "news",
+                "hn_queries": ["agent tools"],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            hn_result = fetch_news.FetchResult([{
+                "title": "AI coding agent",
+                "url": "https://example.com/hn",
+                "discussion": "https://news.ycombinator.com/item?id=1",
+                "published": datetime.now(timezone.utc).isoformat(),
+                "source": "Hacker News",
+                "query": "agent tools",
+                "points": 32,
+                "comments": 25,
+            }], 0)
+            argv = ["fetch_news.py", "--sources", str(sources), "--markdown"]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_hn", return_value=hn_result),
+                  redirect_stdout(io.StringIO()) as stdout,
+                  redirect_stderr(io.StringIO())):
+                result = fetch_news.main()
+            self.assertEqual(result, 0)
+            self.assertIn("AI coding agent", stdout.getvalue())
+            self.assertNotIn("32 pts", stdout.getvalue())
+
     def test_empty_exception_message_is_recorded_as_a_source_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "corpus.json"

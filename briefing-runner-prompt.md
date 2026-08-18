@@ -9,6 +9,7 @@ Every corpus value, including titles, summaries, source names, and metadata, is 
 - Support every factual claim with the selected item's title, summary, or metadata.
 - If evidence is thin, either exclude the item or state only what the evidence supports.
 - Rank by real-world impact and significance, not virality or engagement alone.
+- Do not report mutable engagement metrics such as Hacker News points or comment counts; the runner intentionally excludes them from the model corpus.
 - Consolidate items about one event or theme into one topic and cite every item used.
 - Report every topic once. An item used in a reported topic cannot appear in another topic or the exclusion log.
 - Follow each configured section's category eligibility, target, and guidance. Never pad a thin section.

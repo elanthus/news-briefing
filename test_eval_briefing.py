@@ -57,7 +57,8 @@ CORPUS = {
         "dev_community": _items("t", 8) + _items("d", 8),
     },
 }
-# t1 is the Hacker News item: it carries a discussion link and engagement.
+# t1 is the Hacker News item: raw engagement remains available for audit, but
+# reports need only carry its discussion link.
 CORPUS["categories"]["dev_community"][0].update(
     discussion="https://news.ycombinator.com/item?id=1", points=40, comments=12)
 
@@ -73,7 +74,6 @@ def briefing(politics=3, us_news=4, world=5, ai_news=4, tools=3, practices=3,
             out.append(f"🔗 https://ex.com/{base}{n}")
             if base == "t" and n == 1:
                 out.append("🔗 HN: https://news.ycombinator.com/item?id=1")
-                out.append("`↑ 40 pts · 12 comments`")
         return "\n".join(out)
 
     def log(name, base, count, start):
@@ -503,7 +503,7 @@ class DoubleListingTest(unittest.TestCase):
         self.assertIn("repeated_topic", checks(evaluate(CORPUS, text), ERROR))
 
 
-class EngagementSignalTest(unittest.TestCase):
+class HackerNewsDiscussionLinkTest(unittest.TestCase):
     def test_hn_item_cited_without_its_discussion_link_warns(self):
         text = briefing().replace("🔗 HN: https://news.ycombinator.com/item?id=1\n", "")
         self.assertIn("missing_discussion_link", checks(evaluate(CORPUS, text), WARN))
@@ -748,6 +748,19 @@ class PromptSafetyContractTest(unittest.TestCase):
                               "ai news and ai dev tools"):
             with self.subTest(stale_wording=stale_wording):
                 self.assertNotIn(stale_wording, prompt)
+
+    def test_prompts_omit_mutable_hn_engagement_metrics(self):
+        prompts = {
+            path: Path(path).read_text(encoding="utf-8").lower()
+            for path in ("briefing-prompt.md", "briefing-runner-prompt.md")
+        }
+        self.assertIn("do not print hacker news points", prompts["briefing-prompt.md"])
+        self.assertIn("do not report mutable engagement metrics",
+                      prompts["briefing-runner-prompt.md"])
+        for path, prompt in prompts.items():
+            with self.subTest(path=path):
+                self.assertNotIn("↑ [points] pts", prompt)
+                self.assertNotIn("engagement signal on its own line", prompt)
 
 
 class PromptInjectionContainmentTest(unittest.TestCase):

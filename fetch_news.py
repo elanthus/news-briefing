@@ -1313,8 +1313,7 @@ def main() -> int:
         for category, items in corpus["categories"].items():
             lines.append(f"\n## {category} ({len(items)} items)\n")
             for item in items:
-                meta = f" · {item['points']} pts" if "points" in item else ""
-                lines.append(f"- **{item['title']}** ({item['source']}{meta}, {item['published'][:16]})\n"
+                lines.append(f"- **{item['title']}** ({item['source']}, {item['published'][:16]})\n"
                              f"  {item['url']}")
         if corpus["errors"]:
             lines.append("\n## Fetch errors\n")

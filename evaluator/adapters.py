@@ -461,8 +461,6 @@ def _topic_lines(item: dict[str, Any]) -> list[str]:
     discussion = item.get("discussion")
     if discussion and corpus_schema.canonicalize_url(discussion) != corpus_schema.canonicalize_url(item["url"]):
         lines.append(f"🔗 HN: {discussion}")
-    if "points" in item and "comments" in item:
-        lines.append(f"`↑ {item['points']} pts · {item['comments']} comments`")
     lines.append("")
     return lines
 
