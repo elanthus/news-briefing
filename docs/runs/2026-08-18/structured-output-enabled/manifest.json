@@ -1,0 +1,170 @@
+{
+  "artifacts": {
+    "attempt-01-briefing.md": "41ef1ce4f9cfcaf8d447673b2b6b453f7d0f0e1077c090fefa4062acb997422a",
+    "attempt-01-findings.json": "09c4cbb3e9347bbe3963cd3de86bd96c6f84ee2de8bb6b89de1a84775d5df561",
+    "attempt-01-raw.txt": "9b4ddd6afc7147afc51b7d41409735a406e21c7ef1be565e4fc7caa0a6efbf03",
+    "attempt-01-structured.json": "7cdc5e90c802596902186fc6b07da50941d5dfaa09c0cb24e932f6e28e9599fb",
+    "briefing-config.json": "cf4f09719fa58dfeebdbb0b29a6b80442417480f49cab9d14303de5e81f04789",
+    "briefing.md": "9bd92e020efff987c7f98d2024b2bd7d4cf6785f6e45b788dc5dbc7759e93554",
+    "citation-map.json": "e0ae36efab5623789b8cc779c9e6f2ba019710c7ad69616b5b2983f2136c0593",
+    "corpus-2026-08-18.json": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "fetch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fetch.stdout": "82130f90f5f20efe059c24b84e85d843aa3ed3fd2a773fa9a90b941301896974",
+    "final.md": "9bd92e020efff987c7f98d2024b2bd7d4cf6785f6e45b788dc5dbc7759e93554",
+    "model-corpus.json": "fec11dd1ca7e1e53a8d2f3042d33e596e689ed658a6d2a29178eeb2db70433ff",
+    "output-schema.json": "b095ace9c7ef97220b48d40794e007dc0086dcc663fa0e7671d743fbcb389447",
+    "request.txt": "ecb0190274968db495e24a4acd13964c09b04ef0017587f4b1d9892a151d3b60"
+  },
+  "attempts": [
+    {
+      "briefing_artifact": "attempt-01-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": 0.9580371999999999,
+        "input_tokens": 1,
+        "latency_ms": 399412.83524991013,
+        "output_tokens": 44390,
+        "provider_request_id": "b0ae1c72-674a-4abf-b0c3-d3b60526c552",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 42813,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 42813,
+          "cache_read_input_tokens": 7044,
+          "inference_geo": "not_available",
+          "input_tokens": 1,
+          "iterations": [
+            {
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 42813,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "cache_creation_input_tokens": 42813,
+              "cache_read_input_tokens": 7044,
+              "input_tokens": 1,
+              "output_tokens": 44390,
+              "type": "message"
+            }
+          ],
+          "output_tokens": 44390,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "index": 1,
+      "kind": "initial",
+      "provider_events_artifact": null,
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-08-18T17:48:09.243563+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
+    }
+  ],
+  "checkpointed_at": "2026-08-18T17:48:09.278991+00:00",
+  "code": {
+    "commit": "0a06c308e17ed044fa00a6d0806a1d673cc8f19a",
+    "dirty": false,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "f9d8410dc173bb2cc5db224ae115bb859a36c463c170ee5aec5c8ff79b679d53",
+      "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+      "agent_runner/output.py": "b752427ca1f9f5b7ebd363d984783f18c900179551969cd5b22ff23a77b09ea3",
+      "agent_runner/providers.py": "e44d2e8c6f8fec61cf1c48f0c5ba62fa54271d434694949ef397b5913be5e043",
+      "agent_runner/runner.py": "d3a30ead77fb62a294c084b18423daf51257de63c9ad91034813f661d1d2fbd6",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "da361890d8c4fc28de3fd0741be2758d0b558f1aba3a2d9395a06294a21afd6c",
+      "eval_briefing.py": "5826ab12f01cb410a443f6dba8ae9a0eab1510ada07bf252d2f27c356753aace",
+      "fetch_news.py": "0d7eebc495e47932faecb3c492d7192c7be41451b2c37a8b58e62358536ab93b",
+      "run_briefing.py": "32a9510d710ad1fb4001462fdc130af168383351c1b095b968e36227a3a80a6a"
+    }
+  },
+  "completed_at": "2026-08-18T17:48:09.278783+00:00",
+  "final": {
+    "attempt": 1,
+    "findings": [
+      {
+        "check": "unsupported_figure",
+        "level": "WARN",
+        "message": "World Events: 'Iran-US ceasefire deadline lapses as Trump threatens to bomb Oman' states '60', which is not in the cited item(s)"
+      },
+      {
+        "check": "unsupported_figure",
+        "level": "WARN",
+        "message": "AI News: \"Asana says OpenAI's Codex let it complete 5 years of engineering work in 2 weeks\" states '12,000,', which is not in the cited item(s)"
+      },
+      {
+        "check": "claim_exceeds_evidence",
+        "level": "WARN",
+        "message": "AI Dev Tools: \"Cursor launches 'Cursor Origin,' a new Git platform\" has 299 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+      }
+    ],
+    "output_path": "docs/runs/2026-08-18/structured-output-enabled/briefing.md",
+    "output_sha256": "9bd92e020efff987c7f98d2024b2bd7d4cf6785f6e45b788dc5dbc7759e93554",
+    "run_artifact": "final.md",
+    "source_issues": 4,
+    "status": "WARN"
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "0a06c308e17ed044fa00a6d0806a1d673cc8f19a",
+      "python": "3.14.6",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "f9d8410dc173bb2cc5db224ae115bb859a36c463c170ee5aec5c8ff79b679d53",
+        "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+        "agent_runner/output.py": "b752427ca1f9f5b7ebd363d984783f18c900179551969cd5b22ff23a77b09ea3",
+        "agent_runner/providers.py": "e44d2e8c6f8fec61cf1c48f0c5ba62fa54271d434694949ef397b5913be5e043",
+        "agent_runner/runner.py": "d3a30ead77fb62a294c084b18423daf51257de63c9ad91034813f661d1d2fbd6",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "da361890d8c4fc28de3fd0741be2758d0b558f1aba3a2d9395a06294a21afd6c",
+        "eval_briefing.py": "5826ab12f01cb410a443f6dba8ae9a0eab1510ada07bf252d2f27c356753aace",
+        "fetch_news.py": "0d7eebc495e47932faecb3c492d7192c7be41451b2c37a8b58e62358536ab93b",
+        "run_briefing.py": "32a9510d710ad1fb4001462fdc130af168383351c1b095b968e36227a3a80a6a"
+      }
+    },
+    "config_path": "briefing-config.json",
+    "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "docs/runs/2026-08-18/structured-output-enabled/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c",
+    "provider": {
+      "authentication": "Claude Code cached login (subscription or Console)",
+      "command": "claude",
+      "model": "claude-sonnet-5",
+      "provider": "claude-code-cli",
+      "tool_policy": "--safe-mode disables customizations; --tools StructuredOutput plus --allowedTools StructuredOutput exposes and permits only the internal schema-output tool.",
+      "version": "2.1.224 (Claude Code)"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
+    "strict": false,
+    "timeout_seconds": 600
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "Claude Code cached login (subscription or Console)",
+    "command": "claude",
+    "model": "claude-sonnet-5",
+    "provider": "claude-code-cli",
+    "tool_policy": "--safe-mode disables customizations; --tools StructuredOutput plus --allowedTools StructuredOutput exposes and permits only the internal schema-output tool.",
+    "version": "2.1.224 (Claude Code)"
+  },
+  "run_id": "structured-output-enabled",
+  "schema_version": 1,
+  "started_at": "2026-08-18T17:41:05.252787+00:00",
+  "status": "complete",
+  "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"
+}

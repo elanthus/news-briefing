@@ -1,0 +1,7 @@
+{"event": "run_initialized", "timestamp": "2026-08-18T17:41:05.253400+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"}
+{"command": ["python3.14", "fetch_news.py", "--sources", "sources.json", "--hours", "24", "--source-cap", "25", "--category-cap", "60", "--output", "corpus.json"], "event": "fetch_started", "timestamp": "2026-08-18T17:41:05.253562+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"}
+{"event": "fetch_completed", "retained_items": 196, "source_issues": 4, "timestamp": "2026-08-18T17:41:29.812386+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"}
+{"attempt": 1, "event": "provider_call_started", "kind": "initial", "model": "claude-sonnet-5", "provider": "claude-code-cli", "timestamp": "2026-08-18T17:41:29.824904+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"}
+{"attempt": 1, "event": "provider_call_completed", "kind": "initial", "latency_ms": 399412.83524991013, "provider_request_id": "b0ae1c72-674a-4abf-b0c3-d3b60526c552", "timestamp": "2026-08-18T17:48:09.243733+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8", "transport_attempts": 1}
+{"attempt": 1, "errors": 0, "event": "candidate_validated", "timestamp": "2026-08-18T17:48:09.258379+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8", "warnings": 3}
+{"event": "run_finalized", "status": "WARN", "timestamp": "2026-08-18T17:48:09.278789+00:00", "trace_id": "6bb54b7d2d9ed4964d85fcbc3dfc23c8"}

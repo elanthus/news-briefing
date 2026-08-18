@@ -1,0 +1,17 @@
+[
+  {
+    "check": "unsupported_figure",
+    "level": "WARN",
+    "message": "World Events: 'Iran-US ceasefire deadline lapses as Trump threatens to bomb Oman' states '60', which is not in the cited item(s)"
+  },
+  {
+    "check": "unsupported_figure",
+    "level": "WARN",
+    "message": "AI News: \"Asana says OpenAI's Codex let it complete 5 years of engineering work in 2 weeks\" states '12,000,', which is not in the cited item(s)"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: \"Cursor launches 'Cursor Origin,' a new Git platform\" has 299 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+  }
+]
