@@ -598,11 +598,11 @@ def render_validation_status(
     ]
     source_issues = corpus.get("errors", [])
     resolved = outcome or classify_outcome(findings, source_issues)
-    label = resolved.disposition.replace("_", " ").upper()
+    disposition_label = resolved.disposition.replace("_", " ").upper()
     lines = [
         "",
         "### Run outcome",
-        f"**Disposition: {label}**",
+        f"**Disposition: {disposition_label}**",
         "",
         f"- Protocol: `{resolved.protocol}`",
         f"- Contract: `{resolved.contract}`",
@@ -610,8 +610,8 @@ def render_validation_status(
         f"- Coverage: `{resolved.coverage}`",
         "",
     ]
-    for label, rows in (("Errors", errors), ("Warnings", warnings)):
-        lines.append(f"**{label}**")
+    for group, rows in (("Errors", errors), ("Warnings", warnings)):
+        lines.append(f"**{group}**")
         if rows:
             lines.extend(
                 f"- {_finding_value(row, 'level')} "

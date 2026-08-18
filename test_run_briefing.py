@@ -109,7 +109,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("- Coverage: `degraded`", briefing)
         self.assertEqual(len(provider.requests), 1)
 
-    def test_warn_is_a_failure_in_strict_mode(self):
+    def test_strict_mode_fails_a_ready_candidate_with_findings(self):
         corpus, _config, _projected, output = fixture_contract()
         provider = FakeProvider([output])
         with tempfile.TemporaryDirectory() as directory, patch(
@@ -144,6 +144,29 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(manifest["final"]["artifact_type"], "preview")
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
         self.assertIn("**Disposition: REVIEW REQUIRED**", preview)
+
+    def test_rendered_candidate_is_rebuilt_by_destination_safe_preview_renderer(self):
+        corpus, config, _projected, output = fixture_contract()
+        forced = eval_briefing.Finding(
+            eval_briefing.ERROR, "category_ineligible", "forced editorial error"
+        )
+        unsafe_render = "# Briefing\n\nhttps://attacker.invalid/rendered\n"
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch(
+            "agent_runner.runner.render_briefing", return_value=unsafe_render
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            root = Path(directory)
+            result = run_workflow(
+                FakeProvider([output]),
+                replace(self.settings(root / "briefing.md"), max_corrections=0),
+                root / "run",
+            )
+            preview = (root / "run/preview.md").read_text()
+        self.assertEqual(result.status, "review_required")
+        self.assertNotIn("attacker.invalid", preview)
+        section_name = config.sections[0].name
+        self.assertIn(output["sections"][section_name]["topics"][0]["headline"], preview)
 
     def test_ungrounded_error_is_rejected_not_reviewable(self):
         corpus, _config, _projected, output = fixture_contract()

@@ -95,21 +95,26 @@ def classify_outcome(
     assessment_blocked = bool(checks & ASSESSMENT_BLOCKED_CHECKS)
 
     if evidence_violated:
+        evidence = "violated"
+    elif assessment_blocked:
+        evidence = "unassessed"
+    elif evidence_review:
+        evidence = "review_required"
+    else:
+        evidence = "corpus_bound"
+
+    if evidence_violated:
         disposition = "rejected"
         contract = "rejected"
-        evidence = "violated"
     elif errors:
         disposition = "review_required"
         contract = "review_required"
-        evidence = "unassessed" if assessment_blocked else "corpus_bound"
     elif evidence_review:
         disposition = "review_required"
         contract = "accepted"
-        evidence = "review_required"
     else:
         disposition = "ready"
         contract = "accepted"
-        evidence = "corpus_bound"
 
     return Outcome(
         disposition=disposition,

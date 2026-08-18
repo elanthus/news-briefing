@@ -374,6 +374,7 @@ def _finalize_candidate(
     *,
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
     settings: RunnerSettings,
 ) -> RunResult:
     briefing_name = attempt.get("briefing_artifact")
@@ -406,10 +407,16 @@ def _finalize_candidate(
         output_sha256: str | None = sha256_file(settings.output_path)
         artifact_type = "final"
     else:
-        preview = (
-            "# UNPUBLISHED BRIEFING CANDIDATE\n\n"
-            "This candidate requires review and was not written to the configured output path.\n\n"
-            + completed
+        output = json.loads(
+            (store.root / attempt["structured_artifact"]).read_text(encoding="utf-8")
+        )
+        preview = render_candidate_preview(
+            output,
+            corpus,
+            config,
+            citations,
+            findings,
+            outcome,
         )
         run_path = store.write_text("preview.md", preview)
         output_path = run_path
@@ -565,13 +572,23 @@ def run_workflow(
                 )
             if attempt["contract_success"]:
                 return _finalize_candidate(
-                    store, attempt, corpus=corpus, config=config, settings=settings
+                    store,
+                    attempt,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
+                    settings=settings,
                 )
             corrections_used = sum(row["kind"] == "correction" for row in store.manifest["attempts"])
             if corrections_used >= settings.max_corrections:
                 if attempt.get("briefing_artifact"):
                     return _finalize_candidate(
-                        store, attempt, corpus=corpus, config=config, settings=settings
+                        store,
+                        attempt,
+                        corpus=corpus,
+                        config=config,
+                        citations=projected.citations,
+                        settings=settings,
                     )
                 return _finalize_structured_preview(
                     store,
@@ -597,7 +614,12 @@ def run_workflow(
                 store.checkpoint("correction_failed")
                 if attempt.get("briefing_artifact"):
                     return _finalize_candidate(
-                        store, attempt, corpus=corpus, config=config, settings=settings
+                        store,
+                        attempt,
+                        corpus=corpus,
+                        config=config,
+                        citations=projected.citations,
+                        settings=settings,
                     )
                 return _finalize_structured_preview(
                     store,

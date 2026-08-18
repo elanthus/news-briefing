@@ -19,6 +19,15 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.contract, "accepted")
         self.assertEqual(outcome.evidence, "review_required")
 
+    def test_editorial_error_does_not_hide_evidence_review(self):
+        outcome = classify_outcome([
+            OutputFinding("ERROR", "category_ineligible_ref", "wrong section"),
+            OutputFinding("WARN", "unsupported_figure", "figure not found"),
+        ], [])
+        self.assertEqual(outcome.disposition, "review_required")
+        self.assertEqual(outcome.contract, "review_required")
+        self.assertEqual(outcome.evidence, "review_required")
+
     def test_editorial_error_is_reviewable_but_unknown_citation_is_rejected(self):
         reviewable = classify_outcome([
             OutputFinding("ERROR", "category_ineligible_ref", "wrong section")
