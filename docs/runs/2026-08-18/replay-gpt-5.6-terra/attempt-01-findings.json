@@ -1,0 +1,20 @@
+[
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[1] uses citation_0011 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[3] uses citation_0007 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.AI News[3] uses citation_0025 from ineligible category us_politics"
+  }
+]

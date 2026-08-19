@@ -1,0 +1,8 @@
+[
+  {
+    "check": "unsupported_figure",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "US News: 'CDC reports rising kindergarten vaccine exemptions' states '26', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+  }
+]

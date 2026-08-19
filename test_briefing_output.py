@@ -155,6 +155,10 @@ class BriefingOutputTests(unittest.TestCase):
     def test_schema_restricts_sections_and_matches_runtime_constraints(self):
         _corpus, config, projected, _output = fixture_contract()
         schema = build_output_schema(config)
+        self.assertEqual(
+            schema["properties"]["schema_version"],
+            {"type": "integer", "minimum": 1, "maximum": 1},
+        )
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(
             schema["properties"]["sections"]["required"],

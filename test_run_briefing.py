@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import eval_briefing
 import run_briefing as briefing_cli
-from agent_runner.checkpoint import RunStore, sha256_file
+from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.runner import RunnerSettings, RunResult, _fetch_corpus, build_request, run_workflow
 from test_briefing_output import ROOT, fixture_contract
@@ -108,6 +108,62 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("**Disposition: READY**", briefing)
         self.assertIn("- Coverage: `degraded`", briefing)
         self.assertEqual(len(provider.requests), 1)
+
+    def test_replays_exact_corpus_without_fetching(self):
+        corpus, _config, _projected, output = fixture_contract()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source-corpus.json"
+            payload = json.dumps(corpus, ensure_ascii=False) + "\n"
+            source.write_text(payload, encoding="utf-8")
+            source_sha256 = sha256_file(source)
+            settings = replace(
+                self.settings(root / "briefing.md"),
+                corpus_path=source,
+            )
+            with patch("agent_runner.runner._fetch_corpus") as fetch:
+                result = run_workflow(FakeProvider([output]), settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            replayed = (root / "run/corpus.json").read_text(encoding="utf-8")
+            trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(replayed, payload)
+        self.assertEqual(manifest["identity"]["corpus_sha256"], source_sha256)
+        self.assertNotIn("sources_path", manifest["identity"])
+        self.assertNotIn("hours", manifest["identity"])
+        self.assertIn("corpus_replay_completed", trace)
+        fetch.assert_not_called()
+
+    def test_replay_identity_and_archive_share_one_immutable_snapshot(self):
+        corpus, _config, _projected, output = fixture_contract()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source-corpus.json"
+            original = (json.dumps(corpus, ensure_ascii=False) + "\r\n").encode()
+            source.write_bytes(original)
+            original_read_bytes = Path.read_bytes
+
+            def mutate_after_snapshot(path: Path) -> bytes:
+                payload = original_read_bytes(path)
+                if path == source:
+                    source.write_text('{"changed":true}\n', encoding="utf-8")
+                return payload
+
+            settings = replace(
+                self.settings(root / "briefing.md"),
+                corpus_path=source,
+            )
+            with patch.object(Path, "read_bytes", mutate_after_snapshot), patch(
+                "agent_runner.runner._fetch_corpus"
+            ) as fetch:
+                result = run_workflow(FakeProvider([output]), settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            archived = (root / "run/corpus.json").read_bytes()
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(archived, original)
+        self.assertEqual(manifest["identity"]["corpus_sha256"], sha256_bytes(original))
+        fetch.assert_not_called()
 
     def test_strict_mode_fails_a_ready_candidate_with_findings(self):
         corpus, _config, _projected, output = fixture_contract()
@@ -286,6 +342,12 @@ class RunnerTests(unittest.TestCase):
             store.checkpoint("artifact_ready")
             resumed = RunStore.resume(root, identity=identity)
             self.assertEqual(resumed.manifest["phase"], "artifact_ready")
+            trace = (root / "trace.jsonl").read_bytes()
+            (root / "trace.jsonl").write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash differs for trace.jsonl"):
+                RunStore.resume(root, identity=identity)
+            (root / "trace.jsonl").write_bytes(trace)
+            resumed.trace("trace_restored")
             (root / "artifact.txt").write_text("tampered")
             with self.assertRaisesRegex(ValueError, "hash differs"):
                 RunStore.resume(root, identity=identity)
@@ -294,6 +356,29 @@ class RunnerTests(unittest.TestCase):
             store.checkpoint("initial_call_started")
             with self.assertRaisesRegex(ValueError, "in-flight"):
                 RunStore.resume(root, identity=identity)
+
+    def test_resume_discards_trace_suffix_left_before_manifest_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "run"
+            identity = {"provider": "fake"}
+            store = RunStore.create(root, identity=identity, provider={}, code={})
+            store.checkpoint("artifact_ready")
+
+            with patch(
+                "agent_runner.checkpoint.write_json_atomic",
+                side_effect=KeyboardInterrupt,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    store.trace("uncommitted_trace_event")
+
+            resumed = RunStore.resume(root, identity=identity)
+            trace = (root / "trace.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn("uncommitted_trace_event", trace)
+            self.assertIn('"event": "run_resumed"', trace)
+            self.assertEqual(
+                resumed.manifest["trace_commit"]["bytes"],
+                len((root / "trace.jsonl").read_bytes()),
+            )
 
     def test_resume_after_validation_does_not_call_model_again(self):
         corpus, _config, _projected, output = fixture_contract()
@@ -465,6 +550,36 @@ class RunnerTests(unittest.TestCase):
             "test-model",
             temperature=0,
             reasoning_enabled=None,
+            reasoning_effort=None,
+            max_tokens=100_000,
+        )
+
+    def test_cli_enables_openrouter_reasoning_by_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "briefing.md"
+            argv = [
+                "run_briefing.py",
+                "--provider",
+                "openrouter",
+                "--model",
+                "test-model",
+                "--output",
+                str(output),
+            ]
+            result = RunResult(0, root / "run", output, "ready")
+            with patch.object(sys, "argv", argv), patch.object(
+                briefing_cli, "provider_for", return_value=FakeProvider([])
+            ) as provider_for, patch.object(
+                briefing_cli, "run_workflow", return_value=result
+            ), patch("builtins.print"):
+                exit_code = briefing_cli.main()
+        self.assertEqual(exit_code, 0)
+        provider_for.assert_called_once_with(
+            "openrouter",
+            "test-model",
+            temperature=0,
+            reasoning_enabled=True,
             reasoning_effort=None,
             max_tokens=100_000,
         )

@@ -1,0 +1,238 @@
+{
+  "artifacts": {
+    "attempt-01-findings.json": "fe481f85a4987c015e89a8406353edb25af1bfaaeb8070a818c8e8e9b67642c8",
+    "attempt-01-raw.txt": "b32ed8144dc3a8fc00bebcf6f686bda23b2035db9e9cb1684069d5751a07b325",
+    "attempt-01-structured.json": "8212c28e300267837e37cfab4ef1e0926120f4a6f496b9ea75741a6266b6c073",
+    "attempt-02-briefing.md": "03b1a407405173e17bcf24b4c95372204aa63c2eef21bec39e96bf45137bdd9f",
+    "attempt-02-findings.json": "1687c50823e39d28a6fd409c727be7c0b8cb6cc5210cd63f638f564404d442ba",
+    "attempt-02-raw.txt": "ebffd5b30b80f6ac534ea37666be8bc17d371bd5c7824aa2b58375ca12893740",
+    "attempt-02-structured.json": "8f7e3ab2f5ac181f40d1f9430852fbe944730baa5f2cca04440d8f4fdbb8d503",
+    "briefing-config.json": "cf4f09719fa58dfeebdbb0b29a6b80442417480f49cab9d14303de5e81f04789",
+    "citation-map.json": "e0ae36efab5623789b8cc779c9e6f2ba019710c7ad69616b5b2983f2136c0593",
+    "corpus.json": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "model-corpus.json": "09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301",
+    "output-schema.json": "91f760c6ddb0df4b8b80522bc308d92fcbc37e176f314a18216fdb3afe34c2f2",
+    "preview.md": "4600398cfa29dd080653bc7c9e78d6cbd650e867756e77af6c83d992d329e778",
+    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0",
+    "trace.jsonl": "efaae2a31b581a673a0148f83e8eb84161ecfc5e7b41e8011c49aba78e349d02"
+  },
+  "attempts": [
+    {
+      "briefing_artifact": null,
+      "contract_success": false,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": 0.06141,
+        "input_tokens": 34030,
+        "latency_ms": 26232.6409581583,
+        "output_tokens": 9570,
+        "provider_request_id": "gen-1787099548-FtvQrU1vK5MSh4meaWAY",
+        "usage": {
+          "completion_tokens": 9570,
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 5336
+          },
+          "cost": 0.06141,
+          "cost_details": {
+            "upstream_inference_completions_cost": 0.0358875,
+            "upstream_inference_cost": 0.06141,
+            "upstream_inference_prompt_cost": 0.0255225
+          },
+          "is_byok": false,
+          "prompt_tokens": 34030,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "video_tokens": 0
+          },
+          "total_tokens": 43600
+        }
+      },
+      "index": 1,
+      "kind": "initial",
+      "provider_events_artifact": null,
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-08-19T00:32:53.879434+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
+    },
+    {
+      "briefing_artifact": "attempt-02-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-02-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": 0.0541845,
+        "input_tokens": 37881,
+        "latency_ms": 15238.973665982485,
+        "output_tokens": 6873,
+        "provider_request_id": "gen-1787099574-2F6JjZQ4zlnCp30DYlPK",
+        "usage": {
+          "completion_tokens": 6873,
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 3727
+          },
+          "cost": 0.0541845,
+          "cost_details": {
+            "upstream_inference_completions_cost": 0.02577375,
+            "upstream_inference_cost": 0.0541845,
+            "upstream_inference_prompt_cost": 0.02841075
+          },
+          "is_byok": false,
+          "prompt_tokens": 37881,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "video_tokens": 0
+          },
+          "total_tokens": 44754
+        }
+      },
+      "index": 2,
+      "kind": "correction",
+      "provider_events_artifact": null,
+      "raw_artifact": "attempt-02-raw.txt",
+      "received_at": "2026-08-19T00:33:09.130144+00:00",
+      "structured_artifact": "attempt-02-structured.json",
+      "validated": true
+    }
+  ],
+  "checkpointed_at": "2026-08-19T00:33:09.166845+00:00",
+  "code": {
+    "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+    "dirty": true,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+      "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+      "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+      "agent_runner/output.py": "296138146ddd7984df1a9980b7c77af9dc066d946620d552216c2546f6c48b6a",
+      "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+      "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+      "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+      "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+      "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+    }
+  },
+  "completed_at": "2026-08-19T00:33:09.166648+00:00",
+  "final": {
+    "artifact_type": "preview",
+    "attempt": 2,
+    "findings": [
+      {
+        "check": "exclusion_log_short",
+        "domain": "quality",
+        "level": "WARN",
+        "message": "exclusion log for 'AI Dev Tools': 3 entries, expected 5"
+      },
+      {
+        "check": "claim_exceeds_evidence",
+        "domain": "evidence",
+        "level": "WARN",
+        "message": "AI Dev Tools: 'Cursor Origin Git Platform Rolls Out Amid Upstream Infrastructure Disruptions' has 192 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+      },
+      {
+        "check": "claim_exceeds_evidence",
+        "domain": "evidence",
+        "level": "WARN",
+        "message": "AI Dev Tools: 'NeoBrowser Model Context Protocol Server Connects Agents to Active Browser Sessions' has 209 characters of summary from 78 characters of evidence — the surplus is not grounded in the corpus"
+      }
+    ],
+    "outcome": {
+      "contract": "accepted",
+      "coverage": "degraded",
+      "disposition": "review_required",
+      "evidence": "review_required",
+      "protocol": "completed"
+    },
+    "output_path": null,
+    "output_sha256": null,
+    "requested_output_path": "docs/runs/2026-08-18/replay-gemini-3.7-flash-schema-fixed/briefing.md",
+    "run_artifact": "preview.md",
+    "source_issues": 4,
+    "status": "review_required"
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+      "python": "3.14.6",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+        "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+        "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+        "agent_runner/output.py": "296138146ddd7984df1a9980b7c77af9dc066d946620d552216c2546f6c48b6a",
+        "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+        "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+        "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+        "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+        "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+      }
+    },
+    "config_path": "briefing-config.json",
+    "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "corpus_path": "docs/runs/2026-08-18/structured-output-enabled/corpus-2026-08-18.json",
+    "corpus_sha256": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "docs/runs/2026-08-18/replay-gemini-3.7-flash-schema-fixed/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "50373c30bf4471dc056b3eb97c3d5eeb3f7ae1e9464c6c0c782493360e1d022b",
+    "provider": {
+      "authentication": "OPENROUTER_API_KEY",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "max_tokens": 65536,
+      "model": "google/gemini-3.7-flash",
+      "provider": "openrouter",
+      "reasoning_effort": null,
+      "reasoning_enabled": true,
+      "temperature": 0,
+      "tool_policy": "No tools are included; any returned tool_calls are rejected.",
+      "transport": "OpenRouter chat completions API"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
+    "strict": false,
+    "timeout_seconds": 600
+  },
+  "outcome": {
+    "contract": "accepted",
+    "coverage": "degraded",
+    "disposition": "review_required",
+    "evidence": "review_required",
+    "protocol": "completed"
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "OPENROUTER_API_KEY",
+    "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "max_tokens": 65536,
+    "model": "google/gemini-3.7-flash",
+    "provider": "openrouter",
+    "reasoning_effort": null,
+    "reasoning_enabled": true,
+    "temperature": 0,
+    "tool_policy": "No tools are included; any returned tool_calls are rejected.",
+    "transport": "OpenRouter chat completions API"
+  },
+  "run_id": "replay-gemini-3.7-flash-schema-fixed",
+  "schema_version": 1,
+  "started_at": "2026-08-19T00:32:27.623840+00:00",
+  "status": "complete",
+  "trace_id": "b1e1d73d718da7f815f0fbd897c96c54"
+}

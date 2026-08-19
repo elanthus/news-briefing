@@ -1,0 +1,32 @@
+[
+  {
+    "check": "unsupported_figure",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "US Politics: 'Congressional Democrats plan war powers push after Trump threatens to bomb Oman' states '60', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+  },
+  {
+    "check": "unsupported_figure",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "World Events: 'US and Iran miss peace talks deadline as Trump threatens Oman' states '90', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+  },
+  {
+    "check": "unsupported_figure",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI News: 'OpenAI launches safer ChatGPT for Teens with parental controls' states '13', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: 'NeoBrowser MCP server drives real Chrome with logged-in sessions' has 190 characters of summary from 78 characters of evidence — the surplus is not grounded in the corpus"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: 'Cursor Origin launches as new Git platform, faces GitHub degradation' has 178 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+  }
+]

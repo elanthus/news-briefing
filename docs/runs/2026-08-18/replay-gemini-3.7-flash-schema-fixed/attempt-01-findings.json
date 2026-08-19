@@ -1,0 +1,44 @@
+[
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "excluded_topics.US Politics[2] uses citation_0107 from ineligible category world"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[0] uses citation_0006 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[0] uses citation_0022 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[0] uses citation_0030 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[0] uses citation_0034 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[1] uses citation_0007 from ineligible category us_politics"
+  },
+  {
+    "check": "category_ineligible_ref",
+    "domain": "editorial",
+    "level": "ERROR",
+    "message": "topics.World Events[2] uses citation_0011 from ineligible category us_politics"
+  }
+]

@@ -210,7 +210,7 @@ def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any
     return {
         "type": "object",
         "properties": {
-            "schema_version": {"type": "integer", "enum": [1]},
+            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
             "sections": {
                 "type": "object",
                 "properties": section_properties,

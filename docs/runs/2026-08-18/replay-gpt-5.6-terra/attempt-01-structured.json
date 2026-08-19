@@ -1,0 +1,378 @@
+{
+  "excluded_topics": {
+    "AI Dev Practices": [
+      {
+        "citation_refs": [
+          "citation_0178"
+        ],
+        "headline": "Prompt template proposes enforcing an answer-first style",
+        "reason": "The corpus is primarily a prescriptive prompt and does not provide evidence of validation or reproducible outcomes."
+      },
+      {
+        "citation_refs": [
+          "citation_0187"
+        ],
+        "headline": "Community members discuss losing ownership of AI-generated code",
+        "reason": "A valuable workflow concern, but the item is largely reflective and offers limited concrete practice guidance."
+      },
+      {
+        "citation_refs": [
+          "citation_0191"
+        ],
+        "headline": "Agentic coding may leave developers unfamiliar with their codebases",
+        "reason": "The post raises an important risk but does not substantiate its claimed development-speed multiplier or prescribe a tested mitigation."
+      },
+      {
+        "citation_refs": [
+          "citation_0186"
+        ],
+        "headline": "Practitioner documents a fully AI-assisted game-making workflow",
+        "reason": "A single project anecdote; the available summary is incomplete and does not establish a broadly validated practice."
+      },
+      {
+        "citation_refs": [
+          "citation_0197"
+        ],
+        "headline": "Community discussion questions automation of business workflows with AI",
+        "reason": "The item is framed as an individual question rather than evidence-backed guidance or a demonstrated workflow pattern."
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "citation_refs": [
+          "citation_0168"
+        ],
+        "headline": "Claude service incident affects multiple models",
+        "reason": "The corpus reports elevated errors under investigation, but it is an incident report rather than a durable tool release or integration."
+      },
+      {
+        "citation_refs": [
+          "citation_0176"
+        ],
+        "headline": "Local AI code-reviewer project is introduced",
+        "reason": "Potentially useful developer tooling, but the corpus supplies no summary of capabilities, limitations, or adoption."
+      },
+      {
+        "citation_refs": [
+          "citation_0183"
+        ],
+        "headline": "Claude Code gateway claims access to 48 AI providers",
+        "reason": "A community project claims broad provider access, but the evidence is a self-report with no independently described technical details."
+      },
+      {
+        "citation_refs": [
+          "citation_0167"
+        ],
+        "headline": "Claude Code’s additional weekly usage allowance is ending",
+        "reason": "A temporary usage-limit reminder, not a product release or material developer-tool change."
+      },
+      {
+        "citation_refs": [
+          "citation_0170"
+        ],
+        "headline": "Code-native programmable 3D asset generation is showcased",
+        "reason": "Potentially relevant creative tooling, but the corpus provides no supporting summary to assess its practical developer impact."
+      }
+    ],
+    "US News": [
+      {
+        "citation_refs": [
+          "citation_0038"
+        ],
+        "headline": "Florida prepares to carry out its 13th execution of the year",
+        "reason": "A serious state criminal-justice event, but more geographically limited than the selected disaster, public-health, platform-accountability, and national crime-data stories."
+      },
+      {
+        "citation_refs": [
+          "citation_0062"
+        ],
+        "headline": "Penn State students charged in alleged cocaine-trafficking ring",
+        "reason": "A substantial criminal case, but its immediate impact is more local than the selected national stories."
+      },
+      {
+        "citation_refs": [
+          "citation_0050"
+        ],
+        "headline": "Outshine Fruit Bars recalled over possible glass contamination",
+        "reason": "A nationwide consumer-safety recall, but the corpus gives limited detail on scale and outcomes."
+      },
+      {
+        "citation_refs": [
+          "citation_0093"
+        ],
+        "headline": "DOJ watchdog to review DEA fentanyl-delivery tactic",
+        "reason": "Potentially important accountability review, but it is an investigation rather than a concluded finding or policy change."
+      },
+      {
+        "citation_refs": [
+          "citation_0045"
+        ],
+        "headline": "Lake Mead record low exposes human remains",
+        "reason": "A notable sign of drought conditions, but the report concerns a single discovery and offers limited broader impact evidence."
+      }
+    ],
+    "US Politics": [
+      {
+        "citation_refs": [
+          "citation_0004"
+        ],
+        "headline": "Trump promotes the SAVE America Act using India’s voter-ID rules",
+        "reason": "A consequential election-policy proposal, but ranked below the selected federal land, media-regulation, and election-administration developments."
+      },
+      {
+        "citation_refs": [
+          "citation_0081"
+        ],
+        "headline": "Federal judge blocks proposed FBI headquarters move",
+        "reason": "A significant administration setback, but narrower in immediate national effect than the selected topics."
+      },
+      {
+        "citation_refs": [
+          "citation_0043"
+        ],
+        "headline": "Appeals court upholds limits on immigration arrests at houses of worship",
+        "reason": "Important federal-policy ruling, but the corpus summary provides limited detail beyond the decision and affected religious groups."
+      },
+      {
+        "citation_refs": [
+          "citation_0032"
+        ],
+        "headline": "Trump administration pauses Big Bend border-wall construction",
+        "reason": "A notable border-policy development, but described as temporary and site-specific."
+      },
+      {
+        "citation_refs": [
+          "citation_0026"
+        ],
+        "headline": "Congressional Democrats plan Oman war-powers push",
+        "reason": "The proposed resolution is described as largely symbolic and remains a planned action rather than an enacted constraint."
+      }
+    ],
+    "World Events": [
+      {
+        "citation_refs": [
+          "citation_0121"
+        ],
+        "headline": "Russia warns the UK over drone support for Ukraine",
+        "reason": "A serious escalation signal, but the corpus provides less concrete evidence of an immediate policy or military change than the selected developments."
+      },
+      {
+        "citation_refs": [
+          "citation_0113"
+        ],
+        "headline": "Yemeni government intensifies fighting against Houthis",
+        "reason": "The report describes fighting across multiple fronts, but provides limited specific developments or confirmed consequences."
+      },
+      {
+        "citation_refs": [
+          "citation_0102"
+        ],
+        "headline": "Spain builds temporary sites for migrants stranded in Ceuta",
+        "reason": "An important humanitarian response affecting an estimated 5,000 migrants, but less globally consequential than the selected conflicts and health emergency."
+      },
+      {
+        "citation_refs": [
+          "citation_0123"
+        ],
+        "headline": "Zimbabwe ferry disaster death toll rises to 93",
+        "reason": "A major tragedy, but its impact is principally national and recovery efforts are continuing."
+      },
+      {
+        "citation_refs": [
+          "citation_0101"
+        ],
+        "headline": "Pakistan’s top court orders Imran Khan moved to hospital",
+        "reason": "A significant development for Pakistan’s former prime minister, but the summary is limited to the court order and his detention context."
+      }
+    ]
+  },
+  "schema_version": 1,
+  "sections": {
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0173"
+          ],
+          "headline": "Developers debate minimizing persistent agent memory",
+          "summary": "A community post argues that accumulating memory and documentation can become counterproductive, describing a preference for less retained context and a ticketing interface for agents."
+        },
+        {
+          "citation_refs": [
+            "citation_0184"
+          ],
+          "headline": "Community discussion emphasizes treating coding agents as session-reset tools",
+          "summary": "A practitioner argues that an agentic coding tool starts from zero each session, unlike a junior developer who builds a codebase model over time, and that workflows should account for this limitation."
+        },
+        {
+          "citation_refs": [
+            "citation_0201"
+          ],
+          "headline": "Cross-session orchestration is proposed as a way to separate contexts",
+          "summary": "A practitioner describes using local sessions that communicate with one another so an orchestrator can assign separate context windows to distinct parts of a build."
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0150"
+          ],
+          "headline": "Warp launches Warp Factories for AI software development",
+          "summary": "Warp introduced Warp Factories, infrastructure intended to make building AI software factories easier."
+        },
+        {
+          "citation_refs": [
+            "citation_0174"
+          ],
+          "headline": "NeoBrowser presents an MCP server for controlling logged-in Chrome sessions",
+          "summary": "NeoBrowser is presented as an MCP server that drives a real Chrome browser using the user’s logged-in sessions."
+        },
+        {
+          "citation_refs": [
+            "citation_0193",
+            "citation_0199"
+          ],
+          "headline": "Cursor Origin is introduced as a new Git platform",
+          "summary": "The corpus includes the launch of Cursor Origin; a separate report says GitHub degradation affected the new platform."
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0148"
+          ],
+          "headline": "Etched says valuation doubled to $21 billion in a month",
+          "summary": "Etched says Jane Street installed its first shipped AI cluster system and then led another funding round, doubling the startup’s stated valuation to $21 billion in a month."
+        },
+        {
+          "citation_refs": [
+            "citation_0157",
+            "citation_0151"
+          ],
+          "headline": "OpenAI introduces ChatGPT for Teens",
+          "summary": "OpenAI announced a teen-focused ChatGPT offering with stronger built-in protections, healthy-use features, parental controls, and learning tools."
+        },
+        {
+          "citation_refs": [
+            "citation_0162"
+          ],
+          "headline": "Anthropic annualized revenue reportedly reaches $65 billion",
+          "summary": "Anthropic’s annualized revenue reportedly rose to $65 billion after adding $18 billion in annualized revenue over two months."
+        },
+        {
+          "citation_refs": [
+            "citation_0025"
+          ],
+          "headline": "LinkedIn data show women underrepresented in new U.S. AI hires",
+          "summary": "LinkedIn data cited in the report show women accounted for just over one-quarter of U.S. hires into AI roles last year, versus half of hires in non-AI occupations."
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0064",
+            "citation_0071",
+            "citation_0090"
+          ],
+          "headline": "Hurricane Lala leaves catastrophic flooding and mudslides in Hawaii",
+          "summary": "Hurricane Lala caused flash flooding and mudslides across parts of Hawaii. One Big Island community remained cut off after its access road washed away, while other residents returned to assess damage."
+        },
+        {
+          "citation_refs": [
+            "citation_0041",
+            "citation_0035"
+          ],
+          "headline": "Meta faces federal trial over alleged harms to children",
+          "summary": "A federal trial concerning Meta begins with states seeking billions of dollars. The lawsuit alleges that the company deliberately designed features that addict children and contributed to a youth mental-health crisis."
+        },
+        {
+          "citation_refs": [
+            "citation_0028"
+          ],
+          "headline": "CDC reports rising kindergarten vaccine exemptions",
+          "summary": "CDC reported that vaccination rates among U.S. kindergartners fell for every tracked vaccine in the 2025–26 school year, while exemptions rose in 41 states and Washington, D.C., to 4.2%."
+        },
+        {
+          "citation_refs": [
+            "citation_0020"
+          ],
+          "headline": "FBI data show a 9.7% fall in violent crime in 2025",
+          "summary": "FBI data released Friday show the U.S. violent-crime rate fell 9.7% in 2025, described as the largest annual decline since the bureau’s national estimates began in 1936."
+        }
+      ]
+    },
+    "US Politics": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0012"
+          ],
+          "headline": "Trump administration proposes rescinding protections across 44 million acres of national forest",
+          "summary": "The U.S. Forest Service has proposed rescinding the 2001 Roadless Rule, which prohibits road construction and logging in roadless portions of national forests; the report says the change would affect 44 million acres."
+        },
+        {
+          "citation_refs": [
+            "citation_0040"
+          ],
+          "headline": "Disney and ABC sue FCC over early television-license renewals",
+          "summary": "Disney and ABC sued after the FCC ordered ABC to seek renewals years before its station licenses were due to expire. The lawsuit alleges retaliation."
+        },
+        {
+          "citation_refs": [
+            "citation_0044"
+          ],
+          "headline": "Justice Department plans record deployment of election monitors",
+          "summary": "The Justice Department plans to send 1,000 federal monitors to polling places for the midterm elections, according to the report."
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0124",
+            "citation_0126",
+            "citation_0066"
+          ],
+          "headline": "U.S.-Iran peace-talk deadline lapses amid threats toward Oman",
+          "summary": "The deadline to begin U.S.-Iran peace talks passed without an agreement. Reports say President Trump threatened Oman, a mediator, while the wider war has depleted U.S. resources and pushed oil prices higher."
+        },
+        {
+          "citation_refs": [
+            "citation_0011"
+          ],
+          "headline": "UN inspectors visit previously undeclared Syrian nuclear sites",
+          "summary": "IAEA Director General Rafael Grossi and his team visited several undeclared Assad-era Syrian nuclear sites, including locations used to store nuclear material, for the first time."
+        },
+        {
+          "citation_refs": [
+            "citation_0105",
+            "citation_0092"
+          ],
+          "headline": "U.S.-South Korea exercises face uncertainty after Trump calls for cuts",
+          "summary": "South Korea stressed the importance of its U.S. alliance after President Trump abruptly ordered joint exercises to be substantially reduced. Exercises nevertheless began as scheduled, according to a separate report."
+        },
+        {
+          "citation_refs": [
+            "citation_0007"
+          ],
+          "headline": "Congo Ebola outbreak becomes the country’s deadliest",
+          "summary": "New government data put the Congo outbreak at 4,945 confirmed cases and 2,325 deaths since May, surpassing the country’s previous record for Ebola deaths."
+        },
+        {
+          "citation_refs": [
+            "citation_0112"
+          ],
+          "headline": "Gaza working groups focus on disarmament and humanitarian aid",
+          "summary": "New Gaza working groups are centering disarmament and humanitarian aid, with reconstruction conditioned on immediate disarmament, according to the report."
+        }
+      ]
+    }
+  }
+}

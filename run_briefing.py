@@ -54,6 +54,11 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--config", type=Path, default=briefing_config.DEFAULT_CONFIG_PATH)
     parser.add_argument("--sources", type=Path, default=fetch_news.DEFAULT_SOURCES_PATH)
+    parser.add_argument(
+        "--corpus",
+        type=Path,
+        help="replay an existing corpus instead of fetching live sources",
+    )
     parser.add_argument("--prompt", type=Path, default=ROOT / "briefing-runner-prompt.md")
     parser.add_argument("--hours", type=_positive_int, default=fetch_news.DEFAULT_WINDOW_HOURS)
     parser.add_argument("--source-cap", type=_positive_int, default=fetch_news.DEFAULT_SOURCE_CAP)
@@ -75,7 +80,7 @@ def main() -> int:
     parser.add_argument(
         "--reasoning",
         choices=("enabled", "disabled"),
-        help="optional OpenRouter reasoning control",
+        help="OpenRouter reasoning control (default: enabled)",
     )
     parser.add_argument(
         "--reasoning-effort",
@@ -88,7 +93,12 @@ def main() -> int:
         parser.error("--resume and --run-dir cannot be combined")
     if args.output.exists() and not args.force and not args.resume:
         parser.error(f"output already exists: {args.output}; pass --force to replace it")
-    for label, path in (("config", args.config), ("sources", args.sources), ("prompt", args.prompt)):
+    required_paths = [("config", args.config), ("prompt", args.prompt)]
+    if args.corpus is not None:
+        required_paths.append(("corpus", args.corpus))
+    else:
+        required_paths.append(("sources", args.sources))
+    for label, path in required_paths:
         if not path.is_file():
             parser.error(f"{label} file does not exist: {path}")
     if args.provider != "openrouter":
@@ -107,7 +117,11 @@ def main() -> int:
                 f"{', '.join(openrouter_options)} applies to --provider openrouter only"
             )
 
-    reasoning_enabled = None if args.reasoning is None else args.reasoning == "enabled"
+    reasoning_enabled = (
+        args.reasoning == "enabled"
+        if args.reasoning is not None
+        else (True if args.provider == "openrouter" else None)
+    )
     try:
         provider = provider_for(
             args.provider,
@@ -122,6 +136,7 @@ def main() -> int:
             sources_path=args.sources.resolve(),
             prompt_path=args.prompt.resolve(),
             output_path=args.output.resolve(),
+            corpus_path=args.corpus.resolve() if args.corpus is not None else None,
             hours=args.hours,
             source_cap=args.source_cap,
             category_cap=args.category_cap,

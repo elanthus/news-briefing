@@ -1,0 +1,188 @@
+{
+  "artifacts": {
+    "attempt-01-findings.json": "3fe94ff8dc08cc03fe5c89e40acd843b85158284d6e58cf807a5426739129858",
+    "attempt-01-provider-events.jsonl": "7eba93d0c0ca4e85021acb993143894856f7ca1e2d63651a1b8a68aca4d4f545",
+    "attempt-01-raw.txt": "e11833a2098e46039641820e115438907ff695ae7f599275a677bc6146cf58a9",
+    "attempt-01-structured.json": "d24c31aa11cb0705ec9dbb9aee9f445924b0875343232a3163c9d973e16baace",
+    "attempt-02-briefing.md": "5a5f35aa703c8c6946a88f3682e48588e4855bbb4587b98fa969892d150bfb6f",
+    "attempt-02-findings.json": "7d8465dfef16d66177cf5f3a40117572c35cc20b8fb372af610717a13e89fb6b",
+    "attempt-02-provider-events.jsonl": "adbb9790b4f7048e8f501cec269fab9dd58612718dbe4c85f97f42112615e0e9",
+    "attempt-02-raw.txt": "522055288ab05a170c273e467154a235b4829ffce583c31a8be01817a404dc72",
+    "attempt-02-structured.json": "59a662ba26dfcc8bf78728c1407f722adf0c1ab8b5ef5283c06fc9e1cb95f5d7",
+    "briefing-config.json": "cf4f09719fa58dfeebdbb0b29a6b80442417480f49cab9d14303de5e81f04789",
+    "citation-map.json": "e0ae36efab5623789b8cc779c9e6f2ba019710c7ad69616b5b2983f2136c0593",
+    "corpus.json": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "model-corpus.json": "09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301",
+    "output-schema.json": "a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016",
+    "preview.md": "71d99d7553a3ad68d91f906b79ef6af26aa1a3d88f0bd5d7cf56fe37b1e34d6b",
+    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0",
+    "trace.jsonl": "9c9b7f80125e35ad3ddcc95a1cef818f31155c86e398e8b3ec6de9c3cdf4cf5a"
+  },
+  "attempts": [
+    {
+      "briefing_artifact": null,
+      "contract_success": false,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 43085,
+        "latency_ms": 53536.67358402163,
+        "output_tokens": 2767,
+        "provider_request_id": "01a01763-fe86-7e91-ad9a-fa466d6781e8",
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 43085,
+          "output_tokens": 2767,
+          "reasoning_output_tokens": 284
+        }
+      },
+      "index": 1,
+      "kind": "initial",
+      "provider_events_artifact": "attempt-01-provider-events.jsonl",
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-08-19T00:21:17.193871+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
+    },
+    {
+      "briefing_artifact": "attempt-02-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-02-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 45506,
+        "latency_ms": 53113.441583001986,
+        "output_tokens": 2715,
+        "provider_request_id": "01a01764-cddc-7cd2-a5df-d30fef9279ab",
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 45506,
+          "output_tokens": 2715,
+          "reasoning_output_tokens": 228
+        }
+      },
+      "index": 2,
+      "kind": "correction",
+      "provider_events_artifact": "attempt-02-provider-events.jsonl",
+      "raw_artifact": "attempt-02-raw.txt",
+      "received_at": "2026-08-19T00:22:10.315254+00:00",
+      "structured_artifact": "attempt-02-structured.json",
+      "validated": true
+    }
+  ],
+  "checkpointed_at": "2026-08-19T00:22:10.345874+00:00",
+  "code": {
+    "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+    "dirty": true,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+      "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+      "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+      "agent_runner/output.py": "44bfc198d9fa4d51a7632d201b305527fb89669ed2b8f0e76808ca55028a865e",
+      "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+      "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+      "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+      "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+      "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+    }
+  },
+  "completed_at": "2026-08-19T00:22:10.345614+00:00",
+  "final": {
+    "artifact_type": "preview",
+    "attempt": 2,
+    "findings": [
+      {
+        "check": "unsupported_figure",
+        "domain": "evidence",
+        "level": "WARN",
+        "message": "US News: 'CDC reports rising kindergarten vaccine exemptions' states '26', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+      }
+    ],
+    "outcome": {
+      "contract": "accepted",
+      "coverage": "degraded",
+      "disposition": "review_required",
+      "evidence": "review_required",
+      "protocol": "completed"
+    },
+    "output_path": null,
+    "output_sha256": null,
+    "requested_output_path": "docs/runs/2026-08-18/replay-gpt-5.6-terra/briefing.md",
+    "run_artifact": "preview.md",
+    "source_issues": 4,
+    "status": "review_required"
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+      "python": "3.14.6",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+        "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+        "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+        "agent_runner/output.py": "44bfc198d9fa4d51a7632d201b305527fb89669ed2b8f0e76808ca55028a865e",
+        "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+        "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+        "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+        "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+        "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+      }
+    },
+    "config_path": "briefing-config.json",
+    "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "corpus_path": "docs/runs/2026-08-18/structured-output-enabled/corpus-2026-08-18.json",
+    "corpus_sha256": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "docs/runs/2026-08-18/replay-gpt-5.6-terra/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "50373c30bf4471dc056b3eb97c3d5eeb3f7ae1e9464c6c0c782493360e1d022b",
+    "provider": {
+      "authentication": "Codex cached login (ChatGPT subscription or API key)",
+      "command": "codex",
+      "model": "gpt-5.6-terra",
+      "provider": "codex-cli",
+      "tool_policy": "Codex shell, multi-agent, remote-plugin, web-search, and image tools are explicitly disabled. It also runs in an empty read-only sandbox, and any non-message/reasoning item in its JSON trace fails the run.",
+      "version": "codex-cli 0.147.0"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
+    "strict": false,
+    "timeout_seconds": 600
+  },
+  "outcome": {
+    "contract": "accepted",
+    "coverage": "degraded",
+    "disposition": "review_required",
+    "evidence": "review_required",
+    "protocol": "completed"
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "Codex cached login (ChatGPT subscription or API key)",
+    "command": "codex",
+    "model": "gpt-5.6-terra",
+    "provider": "codex-cli",
+    "tool_policy": "Codex shell, multi-agent, remote-plugin, web-search, and image tools are explicitly disabled. It also runs in an empty read-only sandbox, and any non-message/reasoning item in its JSON trace fails the run.",
+    "version": "codex-cli 0.147.0"
+  },
+  "run_id": "replay-gpt-5.6-terra",
+  "schema_version": 1,
+  "started_at": "2026-08-19T00:20:23.638595+00:00",
+  "status": "complete",
+  "trace_id": "da1dd91aa05b2c8297151d959bebb5eb"
+}

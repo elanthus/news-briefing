@@ -1,0 +1,232 @@
+{
+  "artifacts": {
+    "attempt-01-findings.json": "03e71ea3cbbac63dcd0fe35ec770b2329e8e275340d3628f82f146a851d5bde1",
+    "attempt-01-raw.txt": "ccaf9758297f457a3dbc497578d1b206e8afc359e7753b5cd1f878f38b90edbe",
+    "attempt-01-structured.json": "b1d38541ebaf3cc2502368ea51b7074c7cb4160e7f5ca6bf9d480e6d7b9f342f",
+    "attempt-02-briefing.md": "1fa019c8ba58fd7b886f99e4976a2c6f69fd919fecd2aba4b3b4a62765683205",
+    "attempt-02-findings.json": "7628e9e3de95ab0df88605629651f442da8c4d16543dd6cc5969f24bfbf37e08",
+    "attempt-02-raw.txt": "b05b33b476e6e3cf819f25a945dbe8bd726443f5475793ee54b18c00476076fb",
+    "attempt-02-structured.json": "ef2b8c8215e03498f865f7042fe4ab025a8dbf83cbcc1feaba381ab5b1764726",
+    "briefing-config.json": "cf4f09719fa58dfeebdbb0b29a6b80442417480f49cab9d14303de5e81f04789",
+    "citation-map.json": "e0ae36efab5623789b8cc779c9e6f2ba019710c7ad69616b5b2983f2136c0593",
+    "corpus.json": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "model-corpus.json": "09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301",
+    "output-schema.json": "a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016",
+    "preview.md": "342a3275aa65a48a271539b599ef06063d31561ac1c31eb3e5e2c15369e3ec10",
+    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0",
+    "trace.jsonl": "3225b361a939a3d799e3c982b2e43ece5c98cdbd88e94dba18ca6fb6a1265fe4"
+  },
+  "attempts": [
+    {
+      "briefing_artifact": null,
+      "contract_success": false,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": 0.0041505674,
+        "input_tokens": 28993,
+        "latency_ms": 189209.01229209267,
+        "output_tokens": 10628,
+        "provider_request_id": "gen-1787099154-brd1NIIOPxqp0h83Bfys",
+        "usage": {
+          "completion_tokens": 10628,
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 7409
+          },
+          "cost": 0.0041505674,
+          "cost_details": {
+            "upstream_inference_completions_cost": 0.0017557456,
+            "upstream_inference_cost": 0.0041505674,
+            "upstream_inference_prompt_cost": 0.0023948218
+          },
+          "is_byok": false,
+          "prompt_tokens": 28993,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "video_tokens": 0
+          },
+          "total_tokens": 39621
+        }
+      },
+      "index": 1,
+      "kind": "initial",
+      "provider_events_artifact": null,
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-08-19T00:29:03.809439+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
+    },
+    {
+      "briefing_artifact": "attempt-02-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-02-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": 0.005822568,
+        "input_tokens": 32054,
+        "latency_ms": 44466.83479193598,
+        "output_tokens": 5699,
+        "provider_request_id": "gen-1787099344-gX8tG8DwHSSQlDwg6w54",
+        "usage": {
+          "completion_tokens": 5699,
+          "completion_tokens_details": {
+            "audio_tokens": 0,
+            "image_tokens": 0,
+            "reasoning_tokens": 2499
+          },
+          "cost": 0.005822568,
+          "cost_details": {
+            "upstream_inference_completions_cost": 0.001527332,
+            "upstream_inference_cost": 0.005822568,
+            "upstream_inference_prompt_cost": 0.004295236
+          },
+          "is_byok": false,
+          "prompt_tokens": 32054,
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "video_tokens": 0
+          },
+          "total_tokens": 37753
+        }
+      },
+      "index": 2,
+      "kind": "correction",
+      "provider_events_artifact": null,
+      "raw_artifact": "attempt-02-raw.txt",
+      "received_at": "2026-08-19T00:29:48.283690+00:00",
+      "structured_artifact": "attempt-02-structured.json",
+      "validated": true
+    }
+  ],
+  "checkpointed_at": "2026-08-19T00:29:48.311657+00:00",
+  "code": {
+    "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+    "dirty": true,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+      "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+      "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+      "agent_runner/output.py": "44bfc198d9fa4d51a7632d201b305527fb89669ed2b8f0e76808ca55028a865e",
+      "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+      "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+      "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+      "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+      "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+    }
+  },
+  "completed_at": "2026-08-19T00:29:48.311495+00:00",
+  "final": {
+    "artifact_type": "preview",
+    "attempt": 2,
+    "findings": [
+      {
+        "check": "unsupported_figure",
+        "domain": "evidence",
+        "level": "WARN",
+        "message": "US Politics: 'Congressional Democrats plan war powers resolution after Trump threatens to bomb Oman' states '60', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+      },
+      {
+        "check": "claim_exceeds_evidence",
+        "domain": "evidence",
+        "level": "WARN",
+        "message": "AI Dev Tools: 'Cursor Origin: A new Git platform from the makers of Cursor' has 85 characters of summary from 13 characters of evidence — the surplus is not grounded in the corpus"
+      }
+    ],
+    "outcome": {
+      "contract": "accepted",
+      "coverage": "degraded",
+      "disposition": "review_required",
+      "evidence": "review_required",
+      "protocol": "completed"
+    },
+    "output_path": null,
+    "output_sha256": null,
+    "requested_output_path": "docs/runs/2026-08-18/replay-deepseek-v4-flash/briefing.md",
+    "run_artifact": "preview.md",
+    "source_issues": 4,
+    "status": "review_required"
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "022f2d0768ab31acd23a56ab5f69e572647b23ee",
+      "python": "3.14.6",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "9f05f2cf07875a0c69dfc8d58c04a6bce73b1604fd0e657386ed7eb0e439832c",
+        "agent_runner/models.py": "cf82aaa9e500d5c3389b4f343e0713b30b34798f0cdf46b2d4ef574f340d594c",
+        "agent_runner/outcomes.py": "64408a0d9f285aecd746540b23aa9da05bd1c850dad1c6a396ea99204149f54e",
+        "agent_runner/output.py": "44bfc198d9fa4d51a7632d201b305527fb89669ed2b8f0e76808ca55028a865e",
+        "agent_runner/providers.py": "dbc3c05d8b56868a85ce32d3fe971a5a9783b5fe6b4751bc2e6f636b7b68eb41",
+        "agent_runner/runner.py": "040818a9aae12849a32c59f14038b8d1e408f9ca19a510bb05112905a6dc06cb",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "1187d0c34008ecffd28bb70238c13e179c43cb6f42e44efa93dbb8ab1bbc3d95",
+        "eval_briefing.py": "ee69d8c6062e49c3a453c1716264501444ee8d99f2d1cb484787565dc36a2878",
+        "fetch_news.py": "6da525428f7f88f499121792a4f4c1e8fe3e2b48574158b02692b7d2039fb81a",
+        "run_briefing.py": "32cc7448dc6e57e75047149e55bc544e346c2d0f98fa2aa1f383d77eef2f30d2"
+      }
+    },
+    "config_path": "briefing-config.json",
+    "config_sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9",
+    "corpus_path": "docs/runs/2026-08-18/structured-output-enabled/corpus-2026-08-18.json",
+    "corpus_sha256": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "docs/runs/2026-08-18/replay-deepseek-v4-flash/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "50373c30bf4471dc056b3eb97c3d5eeb3f7ae1e9464c6c0c782493360e1d022b",
+    "provider": {
+      "authentication": "OPENROUTER_API_KEY",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "max_tokens": 100000,
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter",
+      "reasoning_effort": null,
+      "reasoning_enabled": true,
+      "temperature": 0,
+      "tool_policy": "No tools are included; any returned tool_calls are rejected.",
+      "transport": "OpenRouter chat completions API"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9bb2e7f77fc575e2f6dd1b55a1a55ae3d582350670742a33529fc759580252a3",
+    "strict": false,
+    "timeout_seconds": 600
+  },
+  "outcome": {
+    "contract": "accepted",
+    "coverage": "degraded",
+    "disposition": "review_required",
+    "evidence": "review_required",
+    "protocol": "completed"
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "OPENROUTER_API_KEY",
+    "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "max_tokens": 100000,
+    "model": "deepseek/deepseek-v4-flash",
+    "provider": "openrouter",
+    "reasoning_effort": null,
+    "reasoning_enabled": true,
+    "temperature": 0,
+    "tool_policy": "No tools are included; any returned tool_calls are rejected.",
+    "transport": "OpenRouter chat completions API"
+  },
+  "run_id": "replay-deepseek-v4-flash",
+  "schema_version": 1,
+  "started_at": "2026-08-19T00:25:54.581079+00:00",
+  "status": "complete",
+  "trace_id": "024ba41b5b6c04742f686559cc3705c1"
+}

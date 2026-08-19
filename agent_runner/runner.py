@@ -14,7 +14,13 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
-from agent_runner.checkpoint import RunStore, sha256_file, utc_now, write_text_atomic
+from agent_runner.checkpoint import (
+    RunStore,
+    sha256_bytes,
+    sha256_file,
+    utc_now,
+    write_text_atomic,
+)
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
 from agent_runner.outcomes import classify_outcome, finding_domain
 from agent_runner.output import (
@@ -56,6 +62,7 @@ class RunnerSettings:
     sources_path: Path
     prompt_path: Path
     output_path: Path
+    corpus_path: Path | None = None
     hours: int = 24
     source_cap: int = 25
     category_cap: int = 60
@@ -67,18 +74,15 @@ class RunnerSettings:
         self,
         provider_info: dict[str, Any],
         code_info: dict[str, Any],
+        *,
+        corpus_snapshot: bytes | None = None,
     ) -> dict[str, Any]:
-        return {
+        identity = {
             "config_path": _portable_path(self.config_path),
             "config_sha256": sha256_file(self.config_path),
-            "sources_path": _portable_path(self.sources_path),
-            "sources_sha256": sha256_file(self.sources_path),
             "prompt_path": _portable_path(self.prompt_path),
             "prompt_sha256": sha256_file(self.prompt_path),
             "output_path": _portable_path(self.output_path),
-            "hours": self.hours,
-            "source_cap": self.source_cap,
-            "category_cap": self.category_cap,
             "timeout_seconds": self.timeout_seconds,
             "max_corrections": self.max_corrections,
             "strict": self.strict,
@@ -88,6 +92,20 @@ class RunnerSettings:
                 for key in ("commit", "python", "source_sha256")
             },
         }
+        if self.corpus_path is not None:
+            if corpus_snapshot is None:
+                raise ValueError("replay identity requires the immutable corpus snapshot")
+            identity["corpus_path"] = _portable_path(self.corpus_path)
+            identity["corpus_sha256"] = sha256_bytes(corpus_snapshot)
+        else:
+            identity.update({
+                "sources_path": _portable_path(self.sources_path),
+                "sources_sha256": sha256_file(self.sources_path),
+                "hours": self.hours,
+                "source_cap": self.source_cap,
+                "category_cap": self.category_cap,
+            })
+        return identity
 
 
 @dataclass(frozen=True)
@@ -204,6 +222,38 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
         raise RuntimeError("fetched corpus violates its schema: " + "; ".join(problems))
     store.trace(
         "fetch_completed",
+        retained_items=sum(len(items) for items in corpus["categories"].values()),
+        source_issues=len(corpus["errors"]),
+    )
+    store.checkpoint("corpus_ready")
+    return corpus
+
+
+def _replay_corpus(
+    store: RunStore,
+    corpus_path: Path,
+    corpus_snapshot: bytes,
+) -> dict[str, Any]:
+    """Validate and archive an existing corpus without performing a live fetch."""
+    portable = _portable_path(corpus_path)
+    source_sha256 = sha256_bytes(corpus_snapshot)
+    store.trace(
+        "corpus_replay_started",
+        source_path=portable,
+        source_sha256=source_sha256,
+    )
+    try:
+        corpus = json.loads(corpus_snapshot)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"replay corpus is invalid JSON: {exc}") from exc
+    problems = corpus_schema.validate_corpus(corpus)
+    if problems:
+        raise RuntimeError("replay corpus violates its schema: " + "; ".join(problems))
+    store.write_bytes("corpus.json", corpus_snapshot)
+    store.trace(
+        "corpus_replay_completed",
+        source_path=portable,
+        source_sha256=source_sha256,
         retained_items=sum(len(items) for items in corpus["categories"].values()),
         source_issues=len(corpus["errors"]),
     )
@@ -493,9 +543,18 @@ def run_workflow(
     resume: bool = False,
 ) -> RunResult:
     """Run or resume one complete briefing workflow."""
+    corpus_snapshot = (
+        settings.corpus_path.read_bytes()
+        if settings.corpus_path is not None
+        else None
+    )
     provider_info = provider.info()
     code_info = _git_provenance()
-    identity = settings.identity(provider_info, code_info)
+    identity = settings.identity(
+        provider_info,
+        code_info,
+        corpus_snapshot=corpus_snapshot,
+    )
     store = (
         RunStore.resume(run_dir, identity=identity)
         if resume
@@ -511,7 +570,11 @@ def run_workflow(
         corpus = (
             _load_corpus(store)
             if (store.root / "corpus.json").is_file()
-            else _fetch_corpus(store, settings)
+            else (
+                _replay_corpus(store, settings.corpus_path, corpus_snapshot)
+                if settings.corpus_path is not None and corpus_snapshot is not None
+                else _fetch_corpus(store, settings)
+            )
         )
         config_data = json.loads(settings.config_path.read_text(encoding="utf-8"))
         config = briefing_config.parse_config(config_data)

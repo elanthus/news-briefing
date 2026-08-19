@@ -1,0 +1,413 @@
+{
+  "excluded_topics": {
+    "AI Dev Practices": [
+      {
+        "citation_refs": [
+          "citation_0169"
+        ],
+        "headline": "Comparative Evaluation of Subagent Delegation Architectures Using Opus Models",
+        "reason": "Specific benchmark comparison of individual model subagent configurations excluded in favor of broader cross-session workflow methodologies."
+      },
+      {
+        "citation_refs": [
+          "citation_0173"
+        ],
+        "headline": "Replacing Persistent Agent Memory Architectures With External Task Interfaces",
+        "reason": "Individual experimentation with ticketing interfaces over native vector memory excluded in favor of core prompting and session orchestration techniques."
+      },
+      {
+        "citation_refs": [
+          "citation_0187",
+          "citation_0191"
+        ],
+        "headline": "Strategies for Developer Codebase Familiarity and Ownership in Agentic Workflows",
+        "reason": "Philosophical discussion on developer detachment during automated coding excluded behind concrete technical prompt rules and orchestration patterns."
+      },
+      {
+        "citation_refs": [
+          "citation_0198"
+        ],
+        "headline": "Automating Federal Contract Ingestion Pipelines Using Claude and Atomic Mail",
+        "reason": "Single-firm niche case study on public contract lead generation excluded in favor of generalizable software engineering practices."
+      },
+      {
+        "citation_refs": [
+          "citation_0181"
+        ],
+        "headline": "Exam Preparation Guide for Claude Certified Architect Professional Certification",
+        "reason": "Personal certification test reflection provides educational advice rather than technical development methodology."
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "citation_refs": [
+          "citation_0150"
+        ],
+        "headline": "Warp Introduces Warp Factories Infrastructure for Autonomous Software Workflows",
+        "reason": "Commercial infrastructure launch excluded in favor of open platform tooling releases, multi-provider gateways, and browser MCP servers."
+      },
+      {
+        "citation_refs": [
+          "citation_0176",
+          "citation_0177"
+        ],
+        "headline": "Open-Source Local AI Code Reviewer Release",
+        "reason": "Personal developer utility for local code review carries narrower community adoption and scope than comprehensive multi-provider proxies or MCP servers."
+      },
+      {
+        "citation_refs": [
+          "citation_0170",
+          "citation_0171"
+        ],
+        "headline": "Code-Native Generation Framework for Programmable Three-Dimensional Assets",
+        "reason": "Niche 3D asset generation research paper with sparse evidence excluded in favor of foundational agent developer tools."
+      }
+    ],
+    "US News": [
+      {
+        "citation_refs": [
+          "citation_0020"
+        ],
+        "headline": "Federal Bureau of Investigation 2025 National Violent Crime Statistics",
+        "reason": "Annual crime index release excluded in favor of active federal litigation, severe natural disaster impacts, and active multi-state election balloting."
+      },
+      {
+        "citation_refs": [
+          "citation_0036",
+          "citation_0077",
+          "citation_0137",
+          "citation_0141"
+        ],
+        "headline": "Trial Proceedings in 1996 Duane Davis Tupac Shakur Homicide Prosecution",
+        "reason": "Historical criminal trial opening arguments carry high public interest but lower broad public impact than nationwide tech litigation and natural disasters."
+      },
+      {
+        "citation_refs": [
+          "citation_0043"
+        ],
+        "headline": "Appeals Court Decision on Immigration Enforcement Injunction at Houses of Worship",
+        "reason": "Circuit court affirmation of existing enforcement restrictions has a narrower immediate impact footprint than the nationwide FCC and Meta lawsuits."
+      },
+      {
+        "citation_refs": [
+          "citation_0044"
+        ],
+        "headline": "Department of Justice Midterm Polling Place Monitor Deployment",
+        "reason": "Routine federal election oversight monitoring announcement superseded by actual primary election results and major civil litigation."
+      },
+      {
+        "citation_refs": [
+          "citation_0028"
+        ],
+        "headline": "Centers for Disease Control Kindergarten Vaccination Rate and Exemption Report",
+        "reason": "Annual public health statistical survey excluded in favor of breaking emergency weather and major judicial actions."
+      }
+    ],
+    "US Politics": [
+      {
+        "citation_refs": [
+          "citation_0013"
+        ],
+        "headline": "Supreme Court Emergency Petition Over White House Ballroom Construction Halt",
+        "reason": "Preservation litigation regarding temporary injunction on White House grounds construction carries lower national policy significance than federal land rule rescissions and judicial rulings on federal agency facilities."
+      },
+      {
+        "citation_refs": [
+          "citation_0032",
+          "citation_0076"
+        ],
+        "headline": "Temporary Suspension of Border Infrastructure Work at Big Bend National Park",
+        "reason": "Short-term operational pause during an agency commissioner visit represents localized site management rather than a binding administrative policy shift."
+      },
+      {
+        "citation_refs": [
+          "citation_0004"
+        ],
+        "headline": "Administration Advocacy for SAVE America Act Voter Registration Mandates",
+        "reason": "Executive commentary citing international election practices constitutes legislative messaging without immediate congressional movement."
+      },
+      {
+        "citation_refs": [
+          "citation_0031",
+          "citation_0033"
+        ],
+        "headline": "House Ethics Committee Inquiry Involving Representative Jimmy Gomez",
+        "reason": "Preliminary congressional ethics probe concerning individual conduct has narrower institutional reach than federal war powers legislation or nationwide regulatory litigation."
+      },
+      {
+        "citation_refs": [
+          "citation_0015"
+        ],
+        "headline": "Planned Parenthood Digital Advertising Campaign in Maine Senate Election",
+        "reason": "Standard political action committee campaign expenditure in a single state race carries less impact than federal policy actions."
+      }
+    ],
+    "World Events": [
+      {
+        "citation_refs": [
+          "citation_0101"
+        ],
+        "headline": "Pakistan Supreme Court Mandates Hospitalization of Incarcerated Former Premier",
+        "reason": "Judicial medical transfer for an individual political prisoner is of narrower international impact than national elections, mass casualty disasters, or war crimes trials."
+      },
+      {
+        "citation_refs": [
+          "citation_0113"
+        ],
+        "headline": "Escalating Clashes Between Yemeni Government Forces and Houthi Movement",
+        "reason": "Ongoing localized frontline engagements lack the immediate standalone geopolitical consequence of regional ceasefire deadlines or major bilateral security tensions."
+      },
+      {
+        "citation_refs": [
+          "citation_0102"
+        ],
+        "headline": "Spain Constructs Temporary Reception Camps in Ceuta Amid Migrant Influx",
+        "reason": "Regional municipal reception facility construction represents localized migrant management rather than an international diplomatic or security shift."
+      },
+      {
+        "citation_refs": [
+          "citation_0114"
+        ],
+        "headline": "Brazil Discovers Offshore Oil Deposit Near Amazon River Mouth",
+        "reason": "Preliminary exploratory drilling announcement carries long-term environmental debate rather than immediate international news impact."
+      },
+      {
+        "citation_refs": [
+          "citation_0104",
+          "citation_0116",
+          "citation_0136",
+          "citation_0146"
+        ],
+        "headline": "West Bank Standoff Involving Besieged Palestinian-American Property",
+        "reason": "Localized property dispute and standoff in the West Bank excluded behind broader interstate conflicts, national elections, and major disasters."
+      }
+    ]
+  },
+  "schema_version": 1,
+  "sections": {
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0201"
+          ],
+          "headline": "Cross-Session Context Orchestration Emerges as Architecture for Large-Scale Agentic Builds",
+          "summary": "Developers are adopting multi-session communication patterns where a primary orchestrator coordinates distinct local coding sessions, giving each subsystem an isolated context window to mitigate attention degradation on large codebases."
+        },
+        {
+          "citation_refs": [
+            "citation_0178",
+            "citation_0180",
+            "citation_0188",
+            "citation_0195"
+          ],
+          "headline": "Engineers Standardize System Prompts to Eliminate Model Mannerisms and Structural Drift",
+          "summary": "Practitioners are deploying strict response-override rules in agent system prompts, enforcing direct assertion formats to prevent conversational filler, excessive qualifiers, and structural degradation in autonomous development loops."
+        },
+        {
+          "citation_refs": [
+            "citation_0184"
+          ],
+          "headline": "Practitioners Challenge Junior Developer Analogy for Coding Agent Mental Models",
+          "summary": "Community consensus is shifting away from treating coding agents like junior engineers, emphasizing that stateless LLM execution requires explicit context scaffolding rather than assuming incremental mental model building across sessions."
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0193",
+            "citation_0194",
+            "citation_0199",
+            "citation_0200"
+          ],
+          "headline": "Cursor Origin Git Platform Rolls Out Amid Upstream Infrastructure Disruptions",
+          "summary": "Anysphere released Cursor Origin, a dedicated Git platform integrated with the Cursor coding environment, which faced initial operational degradation linked to broader upstream GitHub outages."
+        },
+        {
+          "citation_refs": [
+            "citation_0183"
+          ],
+          "headline": "Local Multi-Provider Gateway Extends Claude Code Support Across 48 Model Backends",
+          "summary": "A popular open-source local proxy tool for Claude Code reached 45,000 GitHub stars, allowing developers to route CLI agent requests to 48 alternative model providers while maintaining native tool calling and CLI workflows."
+        },
+        {
+          "citation_refs": [
+            "citation_0174",
+            "citation_0175"
+          ],
+          "headline": "NeoBrowser Model Context Protocol Server Connects Agents to Active Browser Sessions",
+          "summary": "Developers released NeoBrowser, a Model Context Protocol (MCP) server enabling agentic coding assistants to control live Chrome instances and authenticate using existing user browser state and active sessions."
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0162"
+          ],
+          "headline": "Anthropic Annualized Revenue Surges to Sixty-Five Billion Dollars",
+          "summary": "Anthropic reported rapid commercial expansion, generating an eighteen billion dollar increase in annualized revenue over a two-month span to reach an annualized run rate of sixty-five billion dollars."
+        },
+        {
+          "citation_refs": [
+            "citation_0148"
+          ],
+          "headline": "Etched Reaches Twenty-One Billion Valuation Following AI Hardware Cluster Deployment",
+          "summary": "Specialized AI chip startup Etched doubled its valuation to twenty-one billion dollars within a month following the delivery and installation of its initial computing cluster system at quantitative trading firm Jane Street."
+        },
+        {
+          "citation_refs": [
+            "citation_0151",
+            "citation_0156",
+            "citation_0157"
+          ],
+          "headline": "OpenAI Introduces Dedicated Teen ChatGPT Version and In-School AI Curriculum Initiative",
+          "summary": "OpenAI launched ChatGPT for Teens with enhanced parental controls and safeguards against academic misuse, alongside an educational collaboration with CodeAI designed to integrate AI literacy programs into classrooms."
+        },
+        {
+          "citation_refs": [
+            "citation_0153"
+          ],
+          "headline": "Disclosed Parameter Flaw in Microsoft Copilot Enabled Link-Based Credential Theft",
+          "summary": "Security researchers uncovered a vulnerability in Microsoft Copilot involving an undisclosed input parameter that allowed unauthorized actors to extract credentials when targets interacted with malicious links."
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0039",
+            "citation_0040",
+            "citation_0054",
+            "citation_0097",
+            "citation_0099"
+          ],
+          "headline": "Disney and ABC Sue Federal Communications Commission Over Early Station License Reviews",
+          "summary": "Walt Disney Co. and ABC filed a federal lawsuit against the Federal Communications Commission, alleging that the agency's demand for broadcast stations to submit renewal filings years ahead of schedule represents unconstitutional political retaliation over news coverage."
+        },
+        {
+          "citation_refs": [
+            "citation_0035",
+            "citation_0041",
+            "citation_0068"
+          ],
+          "headline": "Federal Trial Against Meta Commences Over Youth Mental Health and Addictive Platform Design",
+          "summary": "Opening arguments began in California federal court in a major lawsuit brought by dozens of states seeking billions in damages, alleging that Meta intentionally engineered features on Instagram and Facebook to foster compulsive use and harm youth mental health."
+        },
+        {
+          "citation_refs": [
+            "citation_0008",
+            "citation_0019",
+            "citation_0023",
+            "citation_0027",
+            "citation_0037",
+            "citation_0048",
+            "citation_0052",
+            "citation_0082",
+            "citation_0086",
+            "citation_0087",
+            "citation_0088",
+            "citation_0089",
+            "citation_0110",
+            "citation_0128"
+          ],
+          "headline": "Midterm Primary Balloting Gets Underway Across Florida, Alaska, Wyoming, and California",
+          "summary": "Voters cast ballots in high-stakes primary elections shaping congressional and gubernatorial lineups. Contests include crowded Republican primaries in Florida, a competitive Senate nomination battle in Alaska, multiple open seats in Wyoming, and a California special congressional election."
+        },
+        {
+          "citation_refs": [
+            "citation_0064",
+            "citation_0071",
+            "citation_0090",
+            "citation_0094"
+          ],
+          "headline": "Hurricane Lala Triggers Catastrophic Floods and Mudslides Across Hawaiian Islands",
+          "summary": "Severe rainfall and storm surges from Hurricane Lala caused extensive destruction on the Big Island of Hawaii and adjacent areas, washing out critical roadway connections and leaving residential communities isolated amid destructive mudslides."
+        }
+      ]
+    },
+    "US Politics": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0012"
+          ],
+          "headline": "Trump Administration Proposes Rescinding Roadless Rule Across 44 Million Forest Acres",
+          "summary": "The U.S. Forest Service has formally proposed revoking the 2001 Roadless Rule, a move that would lift federal protections against road building and commercial logging on approximately 44 million acres of national forest land."
+        },
+        {
+          "citation_refs": [
+            "citation_0081"
+          ],
+          "headline": "Federal Judge Blocks Administration Attempt to Relocate FBI Headquarters to Washington",
+          "summary": "A federal district judge ruled that the Trump administration acted arbitrarily and unlawfully in cancelling previously approved plans to move the FBI headquarters to Maryland in favor of relocating to the Ronald Reagan Building in Washington, D.C."
+        },
+        {
+          "citation_refs": [
+            "citation_0026"
+          ],
+          "headline": "Congressional Democrats Plan War Powers Measure Following Oval Office Threats Against Oman",
+          "summary": "Democratic lawmakers announced plans to introduce a war powers resolution aimed at restricting executive military action after President Trump publicly threatened military strikes against Oman, which has served as a mediator in stalled Middle East negotiations."
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0066",
+            "citation_0091",
+            "citation_0092",
+            "citation_0098",
+            "citation_0105",
+            "citation_0106",
+            "citation_0115",
+            "citation_0120",
+            "citation_0124",
+            "citation_0126",
+            "citation_0131",
+            "citation_0138",
+            "citation_0143"
+          ],
+          "headline": "Expiration of US-Iran Ceasefire Deadline Spikes Oil Prices and Escalates Regional Military Tensions",
+          "summary": "Global crude prices climbed above ninety dollars a barrel as the sixty-day negotiation window expired without a peace settlement. The impasse triggered renewed threats of sanctions and military friction, including U.S. carrier redeployments and friction with regional allies over military exercises and mediation."
+        },
+        {
+          "citation_refs": [
+            "citation_0095",
+            "citation_0111"
+          ],
+          "headline": "Hakainde Hichilema Secures Second Presidential Term in Zambia",
+          "summary": "Zambian electoral authorities declared incumbent President Hakainde Hichilema re-elected to a second term following national balloting, as opposition figures raised objections over the electoral process."
+        },
+        {
+          "citation_refs": [
+            "citation_0123"
+          ],
+          "headline": "Lake Kariba Passenger Ferry Disaster Death Toll Rises to 93 in Zimbabwe",
+          "summary": "Emergency recovery operations in Zimbabwe confirmed at least 93 deaths following the sinking of a passenger vessel on Lake Kariba, marking the deadliest transport accident in the country's history."
+        },
+        {
+          "citation_refs": [
+            "citation_0117",
+            "citation_0119"
+          ],
+          "headline": "Syrian Court Sentences Bashar al-Assad's Cousin Wassim to Death for War Crimes",
+          "summary": "A Syrian tribunal sentenced Wassim al-Assad to death following convictions for murder, torture, and war crimes committed during the Syrian conflict, following similar judicial rulings against other prominent former regime figures."
+        },
+        {
+          "citation_refs": [
+            "citation_0108",
+            "citation_0121"
+          ],
+          "headline": "Russia Warns United Kingdom Over Long-Range Drone Supplies to Ukraine",
+          "summary": "Russian authorities issued diplomatic warnings of consequences to the United Kingdom over allegations that British-manufactured long-range drones are being used in strikes against strategic infrastructure, while UK leadership affirmed continued backing for Ukraine."
+        }
+      ]
+    }
+  }
+}

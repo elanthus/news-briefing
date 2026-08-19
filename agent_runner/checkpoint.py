@@ -19,11 +19,15 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
-def write_text_atomic(path: Path, text: str) -> None:
+def write_bytes_atomic(path: Path, value: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
-    temporary.write_text(text, encoding="utf-8")
+    temporary.write_bytes(value)
     os.replace(temporary, path)
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    write_bytes_atomic(path, text.encode("utf-8"))
 
 
 def write_json_atomic(path: Path, value: Any) -> None:
@@ -72,6 +76,10 @@ class RunStore:
             "outcome": None,
             "final": None,
         }
+        empty_trace_hash = sha256_bytes(b"")
+        manifest["artifacts"] = {"trace.jsonl": empty_trace_hash}
+        manifest["trace_commit"] = {"bytes": 0, "sha256": empty_trace_hash}
+        write_bytes_atomic(root / "trace.jsonl", b"")
         store = cls(root, manifest)
         store.checkpoint("initialized")
         store.trace("run_initialized")
@@ -101,9 +109,43 @@ class RunStore:
                 "cannot safely resume an interrupted in-flight model call; completion and billing are ambiguous"
             )
         store = cls(root, manifest)
+        store._recover_trace()
         store._validate_artifacts()
         store.trace("run_resumed", phase=phase)
         return store
+
+    def _recover_trace(self) -> None:
+        """Discard a suffix appended after the last committed trace hash."""
+        commit = self.manifest.get("trace_commit")
+        if commit is None:
+            # Older manifests record only the full-file artifact hash and remain
+            # subject to strict validation in _validate_artifacts().
+            return
+        if not isinstance(commit, dict):
+            raise ValueError("cannot resume corrupt checkpoint: invalid trace commit")
+        committed_bytes = commit.get("bytes")
+        committed_hash = commit.get("sha256")
+        if (
+            isinstance(committed_bytes, bool)
+            or not isinstance(committed_bytes, int)
+            or committed_bytes < 0
+            or not isinstance(committed_hash, str)
+        ):
+            raise ValueError("cannot resume corrupt checkpoint: invalid trace commit")
+        artifacts = self.manifest.get("artifacts")
+        if not isinstance(artifacts, dict) or artifacts.get("trace.jsonl") != committed_hash:
+            raise ValueError("cannot resume corrupt checkpoint: trace commit hash differs")
+        path = self.root / "trace.jsonl"
+        if not path.is_file():
+            raise ValueError("cannot resume corrupt checkpoint: missing artifact trace.jsonl")
+        payload = path.read_bytes()
+        if len(payload) < committed_bytes or sha256_bytes(payload[:committed_bytes]) != committed_hash:
+            raise ValueError("cannot resume corrupt checkpoint: artifact hash differs for trace.jsonl")
+        if len(payload) > committed_bytes:
+            with path.open("r+b") as stream:
+                stream.truncate(committed_bytes)
+                stream.flush()
+                os.fsync(stream.fileno())
 
     def _validate_artifacts(self) -> None:
         artifacts = self.manifest.get("artifacts", {})
@@ -143,12 +185,21 @@ class RunStore:
             stream.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
+        trace_path = self.record_artifact("trace.jsonl")
+        self.manifest["trace_commit"] = {
+            "bytes": trace_path.stat().st_size,
+            "sha256": self.manifest["artifacts"]["trace.jsonl"],
+        }
+        write_json_atomic(self.root / "manifest.json", self.manifest)
+
+    def write_bytes(self, name: str, value: bytes) -> Path:
+        path = self.root / name
+        write_bytes_atomic(path, value)
+        self.manifest.setdefault("artifacts", {})[name] = sha256_bytes(value)
+        return path
 
     def write_text(self, name: str, text: str) -> Path:
-        path = self.root / name
-        write_text_atomic(path, text)
-        self.manifest.setdefault("artifacts", {})[name] = sha256_file(path)
-        return path
+        return self.write_bytes(name, text.encode("utf-8"))
 
     def write_json(self, name: str, value: Any) -> Path:
         path = self.root / name

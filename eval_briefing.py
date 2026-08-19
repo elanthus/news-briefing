@@ -70,7 +70,12 @@ _TOPIC_LINE = re.compile(
     r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?[—-]\s*(?P<prose>\S.*)$")
 # High-risk assertions, checkable without a second model: a figure or a
 # quotation that does not appear in the evidence for the item being cited.
-_FIGURE = re.compile(r"\d[\d,.]*\s*(?:%|percent)?")
+_FIGURE = re.compile(
+    r"\d[\d,.]*(?:\s*[-\u2013\u2014]\s*\d[\d,.]*)?(?:\s*(?:%|percent))?"
+)
+_ABBREVIATED_YEAR_RANGE = re.compile(
+    r"^(?P<start>\d{4})\s*[-\u2013\u2014]\s*(?P<end>\d{2})$"
+)
 _QUOTATION = re.compile(r"[\"\u201c\u201d]([^\"\u201c\u201d]{4,80})[\"\u201c\u201d]")
 # A summary meaningfully longer than the text supporting it has added
 # something. The corpus already holds a truncated blurb, not the article,
@@ -721,6 +726,18 @@ def _normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9%]+", "", text.lower())
 
 
+def _normalize_figure(text: str) -> str:
+    """Normalize figures while expanding abbreviated year-range endings."""
+    value = text.strip()
+    if match := _ABBREVIATED_YEAR_RANGE.fullmatch(value):
+        start = int(match.group("start"))
+        end = (start // 100) * 100 + int(match.group("end"))
+        if end < start:
+            end += 100
+        return f"{start}{end}"
+    return _normalize(value)
+
+
 def corpus_evidence(corpus: dict[str, Any]) -> dict[str, str]:
     """Cited URL -> the text the briefing is entitled to draw claims from.
 
@@ -770,7 +787,11 @@ def _title_terms(title: str) -> set[str]:
 
 def _figure_tokens(text: str) -> set[str]:
     """Extract normalized whole figures rather than matching numeric prefixes."""
-    return {token for figure in _FIGURE.findall(text) if (token := _normalize(figure))}
+    return {
+        token
+        for figure in _FIGURE.findall(text)
+        if (token := _normalize_figure(figure))
+    }
 
 
 def _topically_matching_support(
@@ -787,7 +808,7 @@ def _topically_matching_support(
     title_terms = _title_terms(title)
     if len(title_terms) < 3:
         return None
-    figure_token = _normalize(figure)
+    figure_token = _normalize_figure(figure)
     for item in all_evidence:
         item_terms = _title_terms(item.title)
         shared = title_terms & item_terms
@@ -830,7 +851,7 @@ def check_claims_supported(
             support_figures = _figure_tokens(support)
 
             for figure in _FIGURE.findall(prose):
-                token = _normalize(figure)
+                token = _normalize_figure(figure)
                 if token and token not in support_figures:
                     elsewhere = _topically_matching_support(
                         title, figure, all_evidence or [])
