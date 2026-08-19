@@ -1,0 +1,20 @@
+[
+  {
+    "check": "exclusion_log_short",
+    "domain": "quality",
+    "level": "WARN",
+    "message": "exclusion log for 'AI Dev Tools': 3 entries, expected 5"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: 'Cursor Origin Git Platform Rolls Out Amid Upstream Infrastructure Disruptions' has 192 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: 'NeoBrowser Model Context Protocol Server Connects Agents to Active Browser Sessions' has 209 characters of summary from 78 characters of evidence — the surplus is not grounded in the corpus"
+  }
+]

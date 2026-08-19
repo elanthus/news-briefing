@@ -1,0 +1,393 @@
+{
+  "excluded_topics": {
+    "AI Dev Practices": [
+      {
+        "citation_refs": [
+          "citation_0173"
+        ],
+        "headline": "Is less memory actually better for agents?",
+        "reason": "Discussion on reducing memory/documentation in agentic workflows, not selected."
+      },
+      {
+        "citation_refs": [
+          "citation_0187"
+        ],
+        "headline": "Developers struggle with loss of ownership using Claude",
+        "reason": "Reflection on identity as developer when reviewing generated code."
+      },
+      {
+        "citation_refs": [
+          "citation_0181"
+        ],
+        "headline": "Claude Certified Architect exam breakdown shared",
+        "reason": "Community-validated credential experience, but not core practice."
+      },
+      {
+        "citation_refs": [
+          "citation_0191"
+        ],
+        "headline": "How to deal with being stranger to own codebase",
+        "reason": "Agentic coding produces constant newness to codebases, workflow concern."
+      },
+      {
+        "citation_refs": [
+          "citation_0180"
+        ],
+        "headline": "Gaslighting Claude with its own verbal tics",
+        "reason": "Community commentary on model style, not a validated practice."
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "citation_refs": [
+          "citation_0167"
+        ],
+        "headline": "Claude Code additional 50% weekly usage ends reminder",
+        "reason": "Usage limit notice for Claude Code users, minor compared to tool releases."
+      },
+      {
+        "citation_refs": [
+          "citation_0168"
+        ],
+        "headline": "Claude Code degraded performance incident on Aug 18",
+        "reason": "Service incident affecting multiple Claude models, notable but not a tool release."
+      },
+      {
+        "citation_refs": [
+          "citation_0176"
+        ],
+        "headline": "Show HN: Free local AI code reviewer built as alternative",
+        "reason": "Community code review tool using Codex, less significant than selected."
+      },
+      {
+        "citation_refs": [
+          "citation_0170"
+        ],
+        "headline": "Code-native generation of programmable 3D assets",
+        "reason": "Hacker News show of codex-generated 3D assets, niche."
+      },
+      {
+        "citation_refs": [
+          "citation_0183"
+        ],
+        "headline": "Local gateway lets Claude Code use 48 AI providers",
+        "reason": "Community project with 45k GitHub stars, but not official tool release."
+      }
+    ],
+    "US News": [
+      {
+        "citation_refs": [
+          "citation_0038"
+        ],
+        "headline": "Florida to carry out 13th execution this year",
+        "reason": "State capital punishment expansion is notable but lower impact than selected disaster, health, crime topics."
+      },
+      {
+        "citation_refs": [
+          "citation_0053"
+        ],
+        "headline": "Missing Vegas woman family receives bitcoin ransom texts",
+        "reason": "Kidnapping/extortion crime story with limited broader impact."
+      },
+      {
+        "citation_refs": [
+          "citation_0055"
+        ],
+        "headline": "Lindsay Clancy trial testimony continues",
+        "reason": "Murder trial proceeding against mother accused of killing children."
+      },
+      {
+        "citation_refs": [
+          "citation_0050"
+        ],
+        "headline": "Outshine Fruit Bars recalled over possible glass",
+        "reason": "Nationwide food safety recall affecting consumer products."
+      },
+      {
+        "citation_refs": [
+          "citation_0045"
+        ],
+        "headline": "Human remains found in Lake Mead as water levels drop",
+        "reason": "Drought-exposed remains highlight ongoing drought impacts."
+      }
+    ],
+    "US Politics": [
+      {
+        "citation_refs": [
+          "citation_0004"
+        ],
+        "headline": "Trump cites India voter ID rules to back SAVE America Act",
+        "reason": "Federal voter registration reform proposal is significant but overshadowed by primary elections and war powers topics."
+      },
+      {
+        "citation_refs": [
+          "citation_0040"
+        ],
+        "headline": "Disney and ABC sue FCC over early license renewal",
+        "reason": "Lawsuit alleges retaliatory media regulation; notable press freedom issue but not among top three US politics stories."
+      },
+      {
+        "citation_refs": [
+          "citation_0044"
+        ],
+        "headline": "DOJ to deploy record 1,000 monitors to midterm polling places",
+        "reason": "Large-scale election administration action distinct from primaries themselves but related."
+      },
+      {
+        "citation_refs": [
+          "citation_0033"
+        ],
+        "headline": "House Ethics investigating Rep. Jimmy Gomez over misconduct",
+        "reason": "Congressional ethics matter involving sexual misconduct allegations."
+      },
+      {
+        "citation_refs": [
+          "citation_0032"
+        ],
+        "headline": "Trump administration pauses Big Bend border wall construction",
+        "reason": "Immigration federal policy shift via temporary pause at national park."
+      }
+    ],
+    "World Events": [
+      {
+        "citation_refs": [
+          "citation_0096"
+        ],
+        "headline": "Nigeria influencer arrested in $28m cocaine seizure destined for UK",
+        "reason": "International drug trafficking bust significant but below selected top five."
+      },
+      {
+        "citation_refs": [
+          "citation_0102"
+        ],
+        "headline": "Spain builds tent cities for thousands stuck in Ceuta",
+        "reason": "Migrant reception crisis at EU border."
+      },
+      {
+        "citation_refs": [
+          "citation_0105"
+        ],
+        "headline": "South Korea stresses US alliance amid confusion over drill cut",
+        "reason": "Diplomatic ripple from Trump's military exercise order."
+      },
+      {
+        "citation_refs": [
+          "citation_0119"
+        ],
+        "headline": "Bashar al-Assad cousin Wassim sentenced to death in Syria",
+        "reason": "War crimes sentencing in post-Assad proceedings."
+      },
+      {
+        "citation_refs": [
+          "citation_0122"
+        ],
+        "headline": "Myanmar stripped Rohingya citizenship leading to statelessness",
+        "reason": "Long-running humanitarian and legal crisis."
+      }
+    ]
+  },
+  "schema_version": 1,
+  "sections": {
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0178"
+          ],
+          "headline": "Community shares system prompt to fix Claude's response style",
+          "summary": "A Reddit post provides a system prompt that overrides default style, demanding answer-first responses and banning certain openers, illustrating rules-file practices to control model output."
+        },
+        {
+          "citation_refs": [
+            "citation_0184"
+          ],
+          "headline": "Developers argue Claude Code should not be treated like a junior dev",
+          "summary": "A community discussion contends that treating agentic coding tools as onboarding junior devs fails because they start from zero each session, advocating different workflow patterns for agentic coding."
+        },
+        {
+          "citation_refs": [
+            "citation_0201"
+          ],
+          "headline": "Cross-session communication changes agentic context management",
+          "summary": "A user describes using local sessions that talk to each other, allowing Fable to orchestrate coding sessions with separate context windows, a novel agentic workflow pattern."
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0174"
+          ],
+          "headline": "NeoBrowser MCP server drives real Chrome with logged-in sessions",
+          "summary": "A new MCP server called NeoBrowser enables AI agents to control a real Chrome browser using the user's existing logged-in sessions, expanding integration possibilities for agentic workflows."
+        },
+        {
+          "citation_refs": [
+            "citation_0193",
+            "citation_0199"
+          ],
+          "headline": "Cursor Origin launches as new Git platform, faces GitHub degradation",
+          "summary": "Cursor introduced Origin, a new Git platform for version control, but its functionality was affected by GitHub degradation, highlighting challenges for competing developer tools."
+        },
+        {
+          "citation_refs": [
+            "citation_0150"
+          ],
+          "headline": "Warp introduces Factories for out-of-the-box AI software development",
+          "summary": "Warp launched Warp Factories, an infrastructure system designed to make building AI software factories as easy as possible, targeting agentic coding teams."
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0148"
+          ],
+          "headline": "Etched's valuation doubles to $21B in a month after Jane Street order",
+          "summary": "AI chip startup Etched says Jane Street led a massive new round after being impressed by its first shipped AI cluster system, doubling its valuation to $21 billion in a month, signaling intense demand for specialized hardware."
+        },
+        {
+          "citation_refs": [
+            "citation_0162"
+          ],
+          "headline": "Anthropic annualized revenue surges to $65B",
+          "summary": "The AI model maker added $18 billion in annualized revenue in two months, reaching $65B, reflecting rapid enterprise adoption of its Claude models."
+        },
+        {
+          "citation_refs": [
+            "citation_0151",
+            "citation_0157"
+          ],
+          "headline": "OpenAI launches safer ChatGPT for Teens with parental controls",
+          "summary": "OpenAI introduced ChatGPT for Teens featuring age-appropriate safety measures, parental controls, and learning tools to steer teens away from harmful content and homework cheating, responding to years of under-13 use."
+        },
+        {
+          "citation_refs": [
+            "citation_0153"
+          ],
+          "headline": "Microsoft Copilot hacked via secret input parameter",
+          "summary": "Security researchers revealed a secret parameter in Microsoft Copilot that allowed hackers to steal passwords when a target clicked a link, highlighting AI assistant security risks."
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0064",
+            "citation_0071",
+            "citation_0090",
+            "citation_0094"
+          ],
+          "headline": "Hurricane Lala leaves catastrophic flooding and destruction in Hawaii",
+          "summary": "Flash flooding and mudslides from Hurricane Lala destroyed homes and trapped communities on Hawaii's Big Island. Recovery continues as residents survey damage and warn of worsening conditions."
+        },
+        {
+          "citation_refs": [
+            "citation_0035",
+            "citation_0041",
+            "citation_0068"
+          ],
+          "headline": "Meta federal trial begins over children social media addiction claims",
+          "summary": "Opening statements began in a landmark trial where states accuse Meta of deliberately designing features that addict children, contributing to youth mental health crisis. Advocates rallied outside the court seeking stronger protections."
+        },
+        {
+          "citation_refs": [
+            "citation_0036",
+            "citation_0077",
+            "citation_0137"
+          ],
+          "headline": "Tupac Shakur murder trial hears witnesses describe night of 1996 killing",
+          "summary": "Duane Davis, the only man charged in the 1996 drive-by shooting of Tupac Shakur, faces trial with witnesses testifying about the chaos that night and disputes over facts. The case revisits a decades-old unsolved celebrity murder."
+        },
+        {
+          "citation_refs": [
+            "citation_0028"
+          ],
+          "headline": "Kindergarten vaccine exemptions rose in 2025-2026, CDC reports",
+          "summary": "Vaccination rates among US kindergartners decreased for all tracked vaccines, while exemptions increased in 41 states and DC to 4.2%. Public health officials warn of declining herd immunity."
+        }
+      ]
+    },
+    "US Politics": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0037",
+            "citation_0052",
+            "citation_0088",
+            "citation_0087",
+            "citation_0086",
+            "citation_0089",
+            "citation_0048"
+          ],
+          "headline": "Midterm primaries kick off across Florida, Alaska, Wyoming and California",
+          "summary": "Voters cast ballots in pivotal primaries that will shape control of Congress and test Trump's grip on the GOP. Florida, Alaska, Wyoming and California contests drew significant attention, with several races featuring Trump endorsements, carpetbagging accusations, and large spending by groups like Planned Parenthood in Senate races."
+        },
+        {
+          "citation_refs": [
+            "citation_0026"
+          ],
+          "headline": "Congressional Democrats plan war powers push after Trump threatens to bomb Oman",
+          "summary": "Democrats in Congress are preparing resolutions to constrain President Trump's war powers after he threatened to bomb Oman, which has mediated US-Iran talks. The move highlights constitutional tensions over military action as the 60-day Iran peace window expired."
+        },
+        {
+          "citation_refs": [
+            "citation_0012"
+          ],
+          "headline": "Trump administration moves to strip protections from 44 million acres of national forest",
+          "summary": "The U.S. Forest Service proposed rescinding the 2001 Roadless Rule, which prohibits road construction and logging in pristine national forest areas. The action would open 44 million acres to potential development, marking a major federal land policy shift."
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "citation_refs": [
+            "citation_0098",
+            "citation_0124",
+            "citation_0126",
+            "citation_0091",
+            "citation_0131"
+          ],
+          "headline": "US and Iran miss peace talks deadline as Trump threatens Oman",
+          "summary": "The 60-day window to negotiate peace in the US-Israel war on Iran expired with no deal. President Trump threatened to bomb Oman, a mediator, and redirected resources from Asia. Oil prices jumped above $90 amid escalation."
+        },
+        {
+          "citation_refs": [
+            "citation_0123"
+          ],
+          "headline": "Kariba ferry death toll rises to 93 in Zimbabwe's deadliest transport disaster",
+          "summary": "Recovery efforts continue after a ferry sinking became Zimbabwe's deadliest transport disaster, with 93 confirmed dead. The tragedy underscores infrastructure and safety failures."
+        },
+        {
+          "citation_refs": [
+            "citation_0104",
+            "citation_0116",
+            "citation_0136",
+            "citation_0146"
+          ],
+          "headline": "Israeli settlers besiege Palestinian homes in West Bank with army complicity",
+          "summary": "Palestinian-American Loui Ridi and family remain trapped as Israeli settlers roam Qusra unchallenged, with the army declaring the area a closed military zone. Multiple reports document fear and displacement."
+        },
+        {
+          "citation_refs": [
+            "citation_0101"
+          ],
+          "headline": "Pakistan top court orders ex-PM Imran Khan moved from jail to hospital",
+          "summary": "Pakistan's Supreme Court ordered imprisoned former Prime Minister Imran Khan, held since 2023 on corruption charges he calls political, to be transferred to hospital amid health concerns."
+        },
+        {
+          "citation_refs": [
+            "citation_0095",
+            "citation_0111"
+          ],
+          "headline": "Zambia's Hichilema re-elected president amid opposition concerns",
+          "summary": "Hakainde Hichilema won a second term as Zambia's president, promising economic recovery. Opposition raised concerns over the vote, testing democratic stability in the country."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,276 @@
+{
+  "excluded_topics": {
+    "AI Dev Practices": [
+      {
+        "citation_refs": ["citation_0188"],
+        "headline": "Claude's verbal dementia and instructional drift",
+        "reason": "Community discussion about perceived degradation in Claude's response quality over time, but less actionable than selected topics."
+      },
+      {
+        "citation_refs": ["citation_0180"],
+        "headline": "Gaslighting Claude with its own verbal tics",
+        "reason": "Humorous but low-impact exploration of Claude's repetitive phrasing; not a widely adopted practice."
+      },
+      {
+        "citation_refs": ["citation_0187"],
+        "headline": "Losing sense of ownership as a developer",
+        "reason": "Personal reflection on identity loss when using AI, but lacks concrete techniques or community validation."
+      },
+      {
+        "citation_refs": ["citation_0191"],
+        "headline": "Being a stranger to own codebase",
+        "reason": "Common sentiment about agentic coding, but no novel solution or pattern presented."
+      },
+      {
+        "citation_refs": ["citation_0195"],
+        "headline": "Methods to tone down Claude-isms",
+        "reason": "Request for prompt tweaks; less structured than the selected system-prompt approach."
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "citation_refs": ["citation_0183"],
+        "headline": "Local gateway for Claude Code with 45k GitHub stars",
+        "reason": "Notable open-source project, but less directly tied to a specific tool release or integration than selected topics."
+      },
+      {
+        "citation_refs": ["citation_0170"],
+        "headline": "Code-native generation of programmable 3D assets",
+        "reason": "Interesting research, but not a mainstream dev-tool release or update."
+      },
+      {
+        "citation_refs": ["citation_0176"],
+        "headline": "Free local AI code reviewer",
+        "reason": "Community project, but lacks the scale or adoption of the selected MCP server or Cursor Origin."
+      },
+      {
+        "citation_refs": ["citation_0199"],
+        "headline": "GitHub degradation affecting Cursor Origin",
+        "reason": "Related to Cursor Origin but is an incident report rather than a tool release."
+      },
+      {
+        "citation_refs": ["citation_0167"],
+        "headline": "Claude Code usage limit reminder",
+        "reason": "Minor announcement about a temporary usage increase; low significance."
+      }
+    ],
+    "US News": [
+      {
+        "citation_refs": ["citation_0083"],
+        "headline": "Hayden Panettiere dies at 36",
+        "reason": "Celebrity death with significant public interest, but lower policy or societal impact than selected crime and disaster stories."
+      },
+      {
+        "citation_refs": ["citation_0084"],
+        "headline": "Lindsay Clancy trial continues with defense case",
+        "reason": "Ongoing trial, but less immediate national impact than the Meta or Tupac trials."
+      },
+      {
+        "citation_refs": ["citation_0056"],
+        "headline": "U.S. Navy destroyer lost power for four days in South China Sea",
+        "reason": "Military incident, but no casualties and cause still under investigation."
+      },
+      {
+        "citation_refs": ["citation_0053"],
+        "headline": "Missing woman in Las Vegas receives bitcoin demands",
+        "reason": "Local crime story with limited national significance."
+      },
+      {
+        "citation_refs": ["citation_0050"],
+        "headline": "Outshine Fruit Bars recalled over possible glass",
+        "reason": "Consumer product recall, but limited scope and no reported injuries."
+      }
+    ],
+    "US Politics": [
+      {
+        "citation_refs": ["citation_0009"],
+        "headline": "Trump attacks 'fake Republican' Drummond in Oklahoma gubernatorial runoff",
+        "reason": "State-level primary race, less significant than the multi-state primary coverage and war-powers push."
+      },
+      {
+        "citation_refs": ["citation_0015"],
+        "headline": "Planned Parenthood makes big ad buy in Maine Senate race",
+        "reason": "Single-state ad campaign; lower national impact than voter ID legislation."
+      },
+      {
+        "citation_refs": ["citation_0031"],
+        "headline": "House Ethics investigating Rep. Jimmy Gomez over sexual misconduct",
+        "reason": "Individual ethics case, less consequential than the war-powers or voter-ID topics."
+      },
+      {
+        "citation_refs": ["citation_0054"],
+        "headline": "ABC sues FCC over early license renewal, alleging retaliation",
+        "reason": "Important media-law story, but more relevant to US News section; excluded here to avoid duplication."
+      },
+      {
+        "citation_refs": ["citation_0020"],
+        "headline": "FBI data shows biggest drop in violent crime in 90 years",
+        "reason": "Significant statistic, but less actionable than the selected policy-driven topics."
+      }
+    ],
+    "World Events": [
+      {
+        "citation_refs": ["citation_0123"],
+        "headline": "Kariba ferry death toll rises to 93 in Zimbabwe's deadliest transport disaster",
+        "reason": "Tragic but isolated incident; lower global significance than the selected geopolitical topics."
+      },
+      {
+        "citation_refs": ["citation_0121"],
+        "headline": "UK supports Ukraine 100% after Russia's drone warning",
+        "reason": "Important diplomatic tension, but less immediate than the Iran deadline and Gaza working groups."
+      },
+      {
+        "citation_refs": ["citation_0136"],
+        "headline": "Palestinian-American family's home besieged by Israeli settlers in West Bank",
+        "reason": "Human-interest story, but the Gaza working groups and Yemen escalation have broader policy implications."
+      },
+      {
+        "citation_refs": ["citation_0134"],
+        "headline": "China censors public mourning as it holds former premier's funeral",
+        "reason": "Authoritarian control measure, but less direct global impact than the selected conflicts."
+      },
+      {
+        "citation_refs": ["citation_0142"],
+        "headline": "Student killed in Philippines Catholic school shooting",
+        "reason": "Tragic but localized incident; not a major international story."
+      }
+    ]
+  },
+  "schema_version": 1,
+  "sections": {
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0178"],
+          "headline": "Community shares system prompt to fix Claude's verbose style",
+          "summary": "A user posted a system prompt that overrides Claude's default response style, instructing it to answer first and avoid contrastive negation and scope-splitting."
+        },
+        {
+          "citation_refs": ["citation_0173"],
+          "headline": "Developer argues less memory and documentation improves Claude Code performance",
+          "summary": "A user built a ticketing interface for their agent and found that reducing memory and documentation led to better results, contrary to common advice."
+        },
+        {
+          "citation_refs": ["citation_0201"],
+          "headline": "Cross-session communication changes context management for Claude Code",
+          "summary": "Users report that allowing local sessions to communicate with each other enables Fable to orchestrate multiple coding sessions with separate context windows, improving workflow."
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0168"],
+          "headline": "Claude experiences degraded performance across multiple models",
+          "summary": "Anthropic reported elevated errors on requests to Claude Opus 5, Mythos 5, Fable 5, and other models on August 18, 2026."
+        },
+        {
+          "citation_refs": ["citation_0174"],
+          "headline": "NeoBrowser: An MCP server that drives real Chrome with logged-in sessions",
+          "summary": "A new MCP server allows AI agents to control a real Chrome browser using the user's logged-in sessions, enabling automation of web tasks."
+        },
+        {
+          "citation_refs": ["citation_0193"],
+          "headline": "Cursor Origin: A new Git platform from the makers of Cursor",
+          "summary": "Cursor Origin is a new Git platform, but it faced degradation due to a GitHub outage."
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0148"],
+          "headline": "Etched's valuation doubles to $21B in a month after Jane Street investment",
+          "summary": "AI chip startup Etched saw its valuation double to $21 billion after Jane Street installed its first shipped AI cluster and led another funding round."
+        },
+        {
+          "citation_refs": ["citation_0162"],
+          "headline": "Anthropic's annualized revenue surges to $65B",
+          "summary": "The AI model maker added $18 billion in annualized revenue in two months, reflecting rapid growth."
+        },
+        {
+          "citation_refs": ["citation_0151", "citation_0157"],
+          "headline": "OpenAI launches ChatGPT for Teens with safety measures and parental controls",
+          "summary": "OpenAI introduced a version of ChatGPT designed for teenagers, featuring age-appropriate safeguards, learning tools, and parental controls to prevent harmful use and cheating."
+        },
+        {
+          "citation_refs": ["citation_0153"],
+          "headline": "Microsoft Copilot reveals secret input that allowed it to be hacked",
+          "summary": "A secret parameter in Microsoft Copilot could be exploited by hackers to steal passwords when a target clicked on a link, Ars Technica reported."
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0035", "citation_0041", "citation_0068"],
+          "headline": "Landmark Meta trial begins over child social media addiction claims",
+          "summary": "Opening statements commenced in a federal trial where states seek billions in damages from Meta, accusing Instagram and Facebook of deliberately designing features to addict children."
+        },
+        {
+          "citation_refs": ["citation_0036", "citation_0077", "citation_0137"],
+          "headline": "Tupac Shakur murder trial begins with gang leader accused of orchestrating 1996 killing",
+          "summary": "Duane 'Keffe D' Davis is the only person charged in the drive-by shooting of Tupac Shakur; witnesses testified about the night of the killing and Shakur's refusal to cooperate with police."
+        },
+        {
+          "citation_refs": ["citation_0064", "citation_0071", "citation_0090"],
+          "headline": "Hurricane Lala leaves catastrophic damage in Hawaii, communities trapped",
+          "summary": "Flash flooding and mudslides from Hurricane Lala devastated parts of the Big Island, with one community cut off after roads washed away; residents return to survey damage."
+        },
+        {
+          "citation_refs": ["citation_0046", "citation_0062"],
+          "headline": "Over a dozen Penn State students charged in cocaine trafficking ring operating out of fraternity houses",
+          "summary": "Authorities allege students cut and packaged cocaine at off-campus fraternity houses; the Pennsylvania attorney general announced charges against current and former students."
+        }
+      ]
+    },
+    "US Politics": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0037", "citation_0052", "citation_0048", "citation_0086", "citation_0089"],
+          "headline": "Midterm primaries in Florida, Alaska, Wyoming, and California special election set to shape control of Congress",
+          "summary": "Voters in multiple states head to the polls Tuesday for primaries that will determine nominees for governor, Senate, and House seats, testing President Trump's influence and setting the stage for the fall midterms."
+        },
+        {
+          "citation_refs": ["citation_0004"],
+          "headline": "Trump pushes SAVE America Act, citing India's voter ID laws",
+          "summary": "President Trump highlighted India's election laws to bolster support for the Safeguarding America's Voter Eligibility Act, which would require proof of citizenship to vote."
+        },
+        {
+          "citation_refs": ["citation_0026"],
+          "headline": "Congressional Democrats plan war powers resolution after Trump threatens to bomb Oman",
+          "summary": "Democrats are preparing a new push to constrain President Trump's war powers following his threat to bomb Oman, as the 60-day window for US-Iran peace talks expires."
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "citation_refs": ["citation_0066", "citation_0091", "citation_0098", "citation_0124"],
+          "headline": "US-Iran peace talks deadline expires as oil prices surge and Trump threatens Oman",
+          "summary": "The 60-day window to negotiate a peace deal in the US-Israel war on Iran expired with no agreement; oil prices rose above $90 a barrel, and President Trump threatened to bomb Oman over the Strait of Hormuz."
+        },
+        {
+          "citation_refs": ["citation_0095", "citation_0111"],
+          "headline": "Zambia's President Hichilema re-elected as opposition raises concerns",
+          "summary": "Hakainde Hichilema won a second term, saying he is 'truly humbled'; his main rival went into hiding amid alleged threats, and opposition questioned the vote's integrity."
+        },
+        {
+          "citation_refs": ["citation_0101"],
+          "headline": "Pakistan's top court orders ex-PM Imran Khan moved to hospital from jail",
+          "summary": "Imran Khan, imprisoned since 2023 on corruption charges he says are politically motivated, must be transferred to a hospital, the Supreme Court ruled."
+        },
+        {
+          "citation_refs": ["citation_0113"],
+          "headline": "Yemeni government escalates attacks against Houthis: What's next?",
+          "summary": "Fighting intensifies across Yemen as Houthis clash with internationally recognised government forces across many fronts."
+        },
+        {
+          "citation_refs": ["citation_0112"],
+          "headline": "New Gaza working groups condition reconstruction on disarmament",
+          "summary": "International working groups have been established to coordinate humanitarian aid and reconstruction in Gaza, with disarmament of Hamas as a central condition."
+        }
+      ]
+    }
+  }
+}

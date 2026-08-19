@@ -1,0 +1,14 @@
+[
+  {
+    "check": "unsupported_figure",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "US Politics: 'Congressional Democrats plan war powers resolution after Trump threatens to bomb Oman' states '60', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+  },
+  {
+    "check": "claim_exceeds_evidence",
+    "domain": "evidence",
+    "level": "WARN",
+    "message": "AI Dev Tools: 'Cursor Origin: A new Git platform from the makers of Cursor' has 85 characters of summary from 13 characters of evidence — the surplus is not grounded in the corpus"
+  }
+]

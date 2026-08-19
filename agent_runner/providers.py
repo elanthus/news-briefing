@@ -66,6 +66,27 @@ def _optional_float(value: Any) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
+def _safe_openrouter_error_detail(detail: str) -> str:
+    """Remove account-scoped identifiers before provider errors become artifacts."""
+    try:
+        payload = json.loads(detail)
+    except json.JSONDecodeError:
+        return detail
+
+    def redact(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: "[redacted]" if key.casefold() == "user_id" else redact(nested)
+                for key, nested in value.items()
+            }
+        if isinstance(value, list):
+            return [redact(item) for item in value]
+        return value
+
+    payload = redact(payload)
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+
+
 def _retry_after_seconds(value: str | None, now: datetime | None = None) -> float | None:
     if not value:
         return None
@@ -148,7 +169,7 @@ class OpenRouterProvider(ModelProvider):
         model: str,
         *,
         temperature: float = 0,
-        reasoning_enabled: bool | None = None,
+        reasoning_enabled: bool | None = True,
         reasoning_effort: str | None = None,
         max_tokens: int = 100_000,
         endpoint: str | None = None,
@@ -240,6 +261,7 @@ class OpenRouterProvider(ModelProvider):
                     detail = exc.read().decode("utf-8", errors="replace")
                 finally:
                     exc.close()
+                detail = _safe_openrouter_error_detail(detail)
                 transient = exc.code in RETRYABLE_HTTP_STATUSES or 500 <= exc.code <= 599
                 failure = ProviderError(
                     f"openrouter HTTP {exc.code}: {detail[:500]}",
@@ -537,7 +559,7 @@ def provider_for(
     model: str,
     *,
     temperature: float = 0,
-    reasoning_enabled: bool | None = None,
+    reasoning_enabled: bool | None = True,
     reasoning_effort: str | None = None,
     max_tokens: int = 100_000,
 ) -> ModelProvider:

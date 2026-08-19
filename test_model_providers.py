@@ -60,9 +60,14 @@ class ProviderTests(unittest.TestCase):
         sent = json.loads(opened.call_args.args[0].data)
         self.assertEqual(sent["response_format"]["json_schema"]["schema"], SCHEMA)
         self.assertEqual(sent["provider"], {"require_parameters": True})
+        self.assertEqual(sent["reasoning"], {"enabled": True})
         self.assertNotIn("tools", sent)
         self.assertEqual(result.structured_output, {"schema_version": 1})
         self.assertEqual(result.cost_usd, 0.01)
+
+    def test_openrouter_reasoning_can_be_explicitly_disabled(self):
+        provider = OpenRouterProvider("vendor/model", reasoning_enabled=False)
+        self.assertEqual(provider._payload(REQUEST)["reasoning"], {"enabled": False})
 
     def test_openrouter_rejects_tool_calls(self):
         payload = {
@@ -108,6 +113,22 @@ class ProviderTests(unittest.TestCase):
             result = provider.generate(REQUEST)
         self.assertEqual(opened.call_count, 2)
         self.assertEqual(result.attempts, 2)
+
+    def test_openrouter_redacts_user_id_from_provider_errors(self):
+        error = urllib.error.HTTPError(
+            "https://example.invalid",
+            400,
+            "bad request",
+            {},
+            io.BytesIO(b'{"error":{"message":"bad schema"},"user_id":"user_secret"}'),
+        )
+        provider = OpenRouterProvider("vendor/model")
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "urllib.request.urlopen", side_effect=error
+        ), self.assertRaises(ProviderError) as raised:
+            provider.generate(REQUEST)
+        self.assertNotIn("user_secret", str(raised.exception))
+        self.assertIn("[redacted]", str(raised.exception))
 
     def test_openrouter_does_not_retry_ambiguous_response_timeout(self):
         provider = OpenRouterProvider("vendor/model")

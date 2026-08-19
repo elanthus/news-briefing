@@ -56,6 +56,7 @@ class RunnerSettings:
     sources_path: Path
     prompt_path: Path
     output_path: Path
+    corpus_path: Path | None = None
     hours: int = 24
     source_cap: int = 25
     category_cap: int = 60
@@ -68,17 +69,12 @@ class RunnerSettings:
         provider_info: dict[str, Any],
         code_info: dict[str, Any],
     ) -> dict[str, Any]:
-        return {
+        identity = {
             "config_path": _portable_path(self.config_path),
             "config_sha256": sha256_file(self.config_path),
-            "sources_path": _portable_path(self.sources_path),
-            "sources_sha256": sha256_file(self.sources_path),
             "prompt_path": _portable_path(self.prompt_path),
             "prompt_sha256": sha256_file(self.prompt_path),
             "output_path": _portable_path(self.output_path),
-            "hours": self.hours,
-            "source_cap": self.source_cap,
-            "category_cap": self.category_cap,
             "timeout_seconds": self.timeout_seconds,
             "max_corrections": self.max_corrections,
             "strict": self.strict,
@@ -88,6 +84,18 @@ class RunnerSettings:
                 for key in ("commit", "python", "source_sha256")
             },
         }
+        if self.corpus_path is not None:
+            identity["corpus_path"] = _portable_path(self.corpus_path)
+            identity["corpus_sha256"] = sha256_file(self.corpus_path)
+        else:
+            identity.update({
+                "sources_path": _portable_path(self.sources_path),
+                "sources_sha256": sha256_file(self.sources_path),
+                "hours": self.hours,
+                "source_cap": self.source_cap,
+                "category_cap": self.category_cap,
+            })
+        return identity
 
 
 @dataclass(frozen=True)
@@ -204,6 +212,35 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
         raise RuntimeError("fetched corpus violates its schema: " + "; ".join(problems))
     store.trace(
         "fetch_completed",
+        retained_items=sum(len(items) for items in corpus["categories"].values()),
+        source_issues=len(corpus["errors"]),
+    )
+    store.checkpoint("corpus_ready")
+    return corpus
+
+
+def _replay_corpus(store: RunStore, corpus_path: Path) -> dict[str, Any]:
+    """Validate and archive an existing corpus without performing a live fetch."""
+    portable = _portable_path(corpus_path)
+    source_sha256 = sha256_file(corpus_path)
+    store.trace(
+        "corpus_replay_started",
+        source_path=portable,
+        source_sha256=source_sha256,
+    )
+    try:
+        payload = corpus_path.read_text(encoding="utf-8")
+        corpus = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"replay corpus is invalid JSON: {exc}") from exc
+    problems = corpus_schema.validate_corpus(corpus)
+    if problems:
+        raise RuntimeError("replay corpus violates its schema: " + "; ".join(problems))
+    store.write_text("corpus.json", payload)
+    store.trace(
+        "corpus_replay_completed",
+        source_path=portable,
+        source_sha256=source_sha256,
         retained_items=sum(len(items) for items in corpus["categories"].values()),
         source_issues=len(corpus["errors"]),
     )
@@ -511,7 +548,11 @@ def run_workflow(
         corpus = (
             _load_corpus(store)
             if (store.root / "corpus.json").is_file()
-            else _fetch_corpus(store, settings)
+            else (
+                _replay_corpus(store, settings.corpus_path)
+                if settings.corpus_path is not None
+                else _fetch_corpus(store, settings)
+            )
         )
         config_data = json.loads(settings.config_path.read_text(encoding="utf-8"))
         config = briefing_config.parse_config(config_data)

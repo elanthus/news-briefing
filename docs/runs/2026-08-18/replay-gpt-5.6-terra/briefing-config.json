@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "sections": [
+    {
+      "corpus_categories": [
+        "us_politics",
+        "us_news"
+      ],
+      "excluded_stories": 5,
+      "group": null,
+      "guidance": "Elections, Congress, the administration, federal policy, and court rulings on federal policy or the administration.",
+      "name": "US Politics",
+      "target_stories": 3
+    },
+    {
+      "corpus_categories": [
+        "us_news",
+        "us_politics",
+        "world"
+      ],
+      "excluded_stories": 5,
+      "group": null,
+      "guidance": "Every other US-domestic story: disasters, crime, public health, business, education, and local government.",
+      "name": "US News",
+      "target_stories": 4
+    },
+    {
+      "corpus_categories": [
+        "world",
+        "us_news"
+      ],
+      "excluded_stories": 5,
+      "group": null,
+      "guidance": "International developments, including international stories that reached the corpus through a US-news source.",
+      "name": "World Events",
+      "target_stories": 5
+    },
+    {
+      "corpus_categories": [
+        "ai_tech",
+        "us_news"
+      ],
+      "excluded_stories": 0,
+      "group": "AI/Tech",
+      "guidance": "Economic impact, industry moves, regulation, funding, and model announcements.",
+      "name": "AI News",
+      "target_stories": 4
+    },
+    {
+      "corpus_categories": [
+        "dev_community",
+        "ai_tech"
+      ],
+      "excluded_stories": 5,
+      "group": "AI/Tech",
+      "guidance": "Releases and updates to Claude Code, Cursor, Codex, comparable agentic coding tools, and notable MCP servers or integrations.",
+      "name": "AI Dev Tools",
+      "target_stories": 3
+    },
+    {
+      "corpus_categories": [
+        "dev_community"
+      ],
+      "excluded_stories": 5,
+      "group": "AI/Tech",
+      "guidance": "Prompting techniques, rules-file practices, agentic workflow patterns, and community-validated approaches.",
+      "name": "AI Dev Practices",
+      "target_stories": 3
+    }
+  ]
+}
