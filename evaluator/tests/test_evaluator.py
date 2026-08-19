@@ -36,6 +36,12 @@ from evaluator.adapters import (
 from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import (
+    _checkpoint_cost as _grounding_checkpoint_cost,
+)
+from evaluator.grounding_machine_review import (
+    _load_review_map as _load_grounding_review_map,
+)
+from evaluator.grounding_machine_review import (
     _parse_reviews as _parse_grounding_machine_reviews,
 )
 from evaluator.grounding_machine_review import _review_batch, run_grounding_machine_review
@@ -815,6 +821,44 @@ class GroundingMachineReviewTest(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "IDs differ"):
             _parse_grounding_machine_reviews('{"reviews":[]}', ["ground-00001"])
+        with self.assertRaisesRegex(ValueError, "rationale must be non-empty"):
+            _parse_grounding_machine_reviews(
+                '{"reviews":[{"review_id":"ground-00001","grounding_error":false,'
+                '"rationale":"   "}]}',
+                ["ground-00001"],
+            )
+        with self.assertRaisesRegex(ValueError, "IDs must be unique strings"):
+            _parse_grounding_machine_reviews(
+                '{"reviews":[{"review_id":"ground-00001","grounding_error":false,'
+                '"rationale":"Supported."},{"review_id":"ground-00001",'
+                '"grounding_error":true,"rationale":"Unsupported."}]}',
+                ["ground-00001"],
+            )
+        with self.assertRaisesRegex(ValueError, "must contain exactly review_id"):
+            _parse_grounding_machine_reviews(
+                '{"reviews":[{"review_id":"ground-00001","grounding_error":false,'
+                '"rationale":"Supported.","extra":1}]}',
+                ["ground-00001"],
+            )
+
+    def test_review_map_is_validated_before_judging(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            review_map_path = Path(directory) / "review-map.json"
+            review_map_path.write_text(
+                json.dumps({
+                    "primary": [{
+                        "review_id": "ground-00001",
+                        "artifact_dir": "artifact-a",
+                    }],
+                    "double": [],
+                }),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "primary entries are invalid"):
+                _load_grounding_review_map(
+                    review_map_path,
+                    {"primary": ["ground-00001"], "double": []},
+                )
 
     def test_machine_review_is_separate_resumable_and_costed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -977,6 +1021,47 @@ class GroundingMachineReviewTest(unittest.TestCase):
                     cost_headroom_usd=0.1,
                 )
             self.assertEqual(adapter.calls, 0)
+
+    def test_unpriced_provider_error_can_resume_but_success_is_not_checkpointed(self) -> None:
+        prompt = 'TOPICS:\n[{"review_id":"ground-00001"}]\n\nReturn JSON only'
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "primary-batch-0001-attempt-01.json").write_text(
+                json.dumps({"kind": "provider_error", "cost_usd": None}),
+                encoding="utf-8",
+            )
+            adapter = FakeGroundingJudgeAdapter(
+                "judge", {"ground-00001": False}
+            )
+            labels, resumed = _review_batch(
+                adapter,
+                prompt,
+                ["ground-00001"],
+                output,
+                "primary-batch-0001",
+                cost_ceiling_usd=1.0,
+                cost_headroom_usd=0.1,
+            )
+            self.assertFalse(resumed)
+            self.assertFalse(labels[0]["grounding_error"])
+            self.assertAlmostEqual(_grounding_checkpoint_cost(output), 0.01)
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            adapter = FakeGroundingJudgeAdapter(
+                "judge", {"ground-00001": False}, cost_usd=None
+            )
+            with self.assertRaisesRegex(ValueError, "has no reported cost"):
+                _review_batch(
+                    adapter,
+                    prompt,
+                    ["ground-00001"],
+                    output,
+                    "primary-batch-0001",
+                    cost_ceiling_usd=1.0,
+                    cost_headroom_usd=0.1,
+                )
+            self.assertEqual(list(output.iterdir()), [])
 
 
 class FakeAdapter(Adapter):
@@ -1170,10 +1255,12 @@ class FakeGroundingJudgeAdapter(Adapter):
         model: str,
         labels: dict[str, bool],
         controls: dict[str, Any] | None = None,
+        cost_usd: float | None = 0.01,
     ):
         super().__init__(model)
         self.labels = labels
         self.controls = controls
+        self.cost_usd = cost_usd
         self.calls = 0
 
     def generation_controls(self) -> dict[str, Any]:
@@ -1197,7 +1284,7 @@ class FakeGroundingJudgeAdapter(Adapter):
             latency_ms=1.0,
             input_tokens=100,
             output_tokens=25,
-            cost_usd=0.01,
+            cost_usd=self.cost_usd,
         )
 
 

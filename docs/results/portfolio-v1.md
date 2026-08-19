@@ -23,8 +23,9 @@ authored-case-cluster bootstrap.
 | HY3 / production | 6/105; 5.7% [2.6, 11.9] | 94/105; 89.5% [82.2, 94.0] | 37/45; 82.2% [68.7, 90.7] | 36/470; 7.7% [5.6, 10.4] | 9/470; 1.9% [1.0, 3.6] | 4.67s / 35.63s | $1.1869 |
 | HY3 / reliability-v1 | 3/105; 2.9% [1.0, 8.1] | 92/105; 87.6% [80.0, 92.6] | 44/45; 97.8% [88.4, 99.6] | 72/510; 14.1% [11.4, 17.4] | 45/510; 8.8% [6.7, 11.6] | 4.69s / 44.78s | $1.1865 |
 
-¹ Meaning conveyed is a blinded Nemotron machine judgment over all 180 URL-scoped `must_convey`
-propositions, not a human label. Nemotron marked 159 conveyed and 21 not conveyed; none remained unclear.
+¹ Meaning conveyed is a blinded Nemotron machine judgment over each group's 45 URL-scoped `must_convey`
+propositions, not a human label. Across all groups, Nemotron marked 159/180 conveyed, 21/180 not conveyed,
+and none remained unclear.
 
 ² Grounding is a blinded automated judgment by DeepSeek V4 Pro 0813 over all 2,170 final utility topics,
 not a human label. MiniMax M3 independently reviewed a stratified 434-topic sample and agreed on 388/434

@@ -91,6 +91,33 @@ def _load_packet(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _load_review_map(
+    path: Path, expected_ids: dict[str, list[str]]
+) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"invalid grounding review map: {path}")
+    for role in ("primary", "double"):
+        items = payload.get(role)
+        if not isinstance(items, list) or not all(
+            isinstance(item, dict)
+            and isinstance(item.get("review_id"), str)
+            and bool(item["review_id"].strip())
+            and isinstance(item.get("artifact_dir"), str)
+            and bool(item["artifact_dir"].strip())
+            and type(item.get("topic_index")) is int
+            and item["topic_index"] > 0
+            for item in items
+        ):
+            raise ValueError(f"grounding review map {role} entries are invalid: {path}")
+        mapped_ids = [item["review_id"] for item in items]
+        if len(mapped_ids) != len(set(mapped_ids)):
+            raise ValueError(f"grounding review map {role} IDs must be unique: {path}")
+        if set(mapped_ids) != set(expected_ids[role]):
+            raise ValueError(f"grounding review map {role} IDs do not match its packet: {path}")
+    return payload
+
+
 def _load_generation(path: Path) -> Generation:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -104,6 +131,8 @@ def _checkpoint_cost(output_dir: Path) -> float:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if payload.get("kind") == "provider_error":
             cost = payload.get("cost_usd")
+            if cost is None:
+                continue
         else:
             cost = _load_generation(path).cost_usd
         if cost is None:
@@ -161,11 +190,11 @@ def _review_batch(
             if exc.cost_usd is None or attempt == max_attempts:
                 raise
             continue
-        write_json_atomic(checkpoint, asdict(generation) | {"structured_output": None})
         if generation.cost_usd is None:
             raise ValueError(
                 f"cannot enforce the cost ceiling because {checkpoint.name} has no reported cost"
             )
+        write_json_atomic(checkpoint, asdict(generation) | {"structured_output": None})
         try:
             return _parse_reviews(generation.text, expected_ids), False
         except ValueError:
@@ -267,7 +296,13 @@ def run_grounding_machine_review(
 
     primary_packet = _load_packet(packet_dir / "reviewer-primary.json")
     audit_packet = _load_packet(packet_dir / "reviewer-double.json")
-    review_map = json.loads((packet_dir / "review-map.json").read_text(encoding="utf-8"))
+    review_map = _load_review_map(
+        packet_dir / "review-map.json",
+        {
+            "primary": [review["review_id"] for review in primary_packet["reviews"]],
+            "double": [review["review_id"] for review in audit_packet["reviews"]],
+        },
+    )
     if primary_packet.get("manifest_sha256") != audit_packet.get("manifest_sha256"):
         raise ValueError("primary and audit packets belong to different manifests")
     if primary_packet.get("manifest_sha256") != sha256_bytes(manifest_path.read_bytes()):
