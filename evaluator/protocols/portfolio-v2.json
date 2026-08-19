@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "protocol_id": "portfolio-v2",
+  "status": "frozen_for_clean_rerun",
+  "frozen_at": "2026-08-19T19:30:00Z",
+  "objective": "Replace the unpublished dirty-source portfolio-v1 run with a clean, tagged, publicly auditable final run.",
+  "authorization": {
+    "authorized_at": "2026-08-19",
+    "total_openrouter_cost_ceiling_usd": 5.0,
+    "generation_cost_ceiling_usd": 4.0,
+    "remaining_budget_applies_to_semantic_and_grounding_review": true
+  },
+  "source": {
+    "required_tag": "portfolio-v2-source-20260819",
+    "clean_worktree_required": true,
+    "reachable_commit_required": true,
+    "runtime_source_sha256_required": true,
+    "public_evidence_required": true
+  },
+  "suite": {
+    "path": "evaluator/fixtures/generation-cases.json",
+    "sha256": "aa341680517d5f44b3b4dcb9fe4189a4102bcde75843eee8ffceb46f6dc14b5f",
+    "authored_cases": 55,
+    "derived_clean_cases": 5,
+    "rows_per_model_prompt_trial": 60
+  },
+  "inputs": [
+    {"path": "evaluator/fixtures/generation-corpus.json", "sha256": "eea2c92dfe9784da118972936a826054fad64a18b66a3f2a351f963a6091898f"},
+    {"path": "evaluator/fixtures/generation-corpus-production.json", "sha256": "7ee3ce8d035d8f22a5a3cbb1073ffeadc72d56fd614631e30319ad499a8c40dd"},
+    {"path": "evaluator/fixtures/generation-config-1.json", "sha256": "a9fc12dfa355fe3c950f4158ff3935643c585ea8b16eb4a13618324a795c6447"},
+    {"path": "evaluator/fixtures/generation-config-2.json", "sha256": "855c7a47577673c8de699c43485ec911c1f375b49bb014d100271e8933d47388"},
+    {"path": "evaluator/fixtures/generation-config-3.json", "sha256": "afec844144b923a3460f9b7c924d3536e8e9e92c4c412509bf99e1bfcef6a46d"},
+    {"path": "evaluator/fixtures/generation-config-production.json", "sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9"}
+  ],
+  "prompts": [
+    {"id": "production-2026-08", "path": "evaluator/prompts/production-2026-08.md", "sha256": "1c14f6cd04adbc8f86e5b269c361bef7aaaa068be6bd0380a7df9febbabc4639"},
+    {"id": "reliability-v1", "path": "evaluator/prompts/reliability-v1.md", "sha256": "bdb738b04288ae543ad49f4538ffa3d2e24bdc5066057ada8055dcf3b12fb04c"}
+  ],
+  "models": [
+    {"provider": "openrouter", "model": "deepseek/deepseek-v4-flash"},
+    {"provider": "openrouter", "model": "tencent/hy3"}
+  ],
+  "controls": {
+    "temperature": 0.0,
+    "seed": 20260819,
+    "reasoning": "disabled",
+    "timeout_seconds": 300,
+    "trials_per_case": 5,
+    "execution_seed": 20260819,
+    "run_kind": "final",
+    "generation_path": "markdown",
+    "planned_rows": 1200
+  },
+  "review": {
+    "must_convey_judge": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "grounding_primary_judge": "openrouter/deepseek/deepseek-v4-pro-0813",
+    "grounding_audit_judge": "openrouter/minimax/minimax-m3",
+    "grounding_audit_fraction": 0.2,
+    "machine_labels_are_not_human_approval": true
+  },
+  "publication": {
+    "committed_score_ledger": "docs/results/data/portfolio-v2-ledger.json",
+    "release_bundle_name": "portfolio-v2-final-20260819-public.tar.gz",
+    "provider_request_ids_must_be_redacted": true,
+    "raw_generated_outputs_required_in_release_bundle": true,
+    "aggregate_regeneration_must_be_verified": true
+  }
+}

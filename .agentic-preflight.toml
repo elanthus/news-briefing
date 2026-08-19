@@ -13,6 +13,7 @@ exclude = [
   "**/*.pb.go",
   "**/*_pb2.py",
   "docs/runs/**",
+  "docs/results/data/**",
 ]
 
 [commands]

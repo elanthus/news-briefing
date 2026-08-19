@@ -677,13 +677,54 @@ def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
 
 
 def _git_provenance() -> dict[str, Any]:
-    commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=False
-    ).stdout.strip()
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=ROOT, text=True, capture_output=True, check=False
+        ).stdout.strip()
+
+    commit = git("rev-parse", "HEAD")
+    tree = git("rev-parse", "HEAD^{tree}")
     dirty = bool(subprocess.run(
         ["git", "status", "--porcelain"], cwd=ROOT, text=True, capture_output=True, check=False
     ).stdout.strip())
-    return {"commit": commit or None, "dirty": dirty}
+    tags = sorted(filter(None, git("tag", "--points-at", "HEAD").splitlines()))
+    runtime_paths = [
+        Path(path)
+        for path in git("ls-files").splitlines()
+        if (
+            path in {"briefing_config.py", "corpus_schema.py", "eval_briefing.py"}
+            or (path.startswith("evaluator/") and path.endswith(".py"))
+            or (path.startswith("agent_runner/") and path.endswith(".py"))
+        )
+    ]
+    runtime_source_sha256 = {
+        path.as_posix(): _sha256((ROOT / path).read_bytes())
+        for path in runtime_paths
+        if (ROOT / path).is_file()
+    }
+    return {
+        "commit": commit or None,
+        "tree": tree or None,
+        "dirty": dirty,
+        "tags": tags,
+        "runtime_source_sha256": runtime_source_sha256,
+    }
+
+
+def final_source_provenance(source_tag: str) -> dict[str, Any]:
+    """Require a clean, tagged source revision before any final provider call."""
+    provenance = _git_provenance()
+    if provenance["dirty"]:
+        raise ValueError("final runs require a clean Git worktree")
+    if not provenance["commit"] or not provenance["tree"]:
+        raise ValueError("final runs require a readable Git commit and tree")
+    if source_tag not in provenance["tags"]:
+        available = ", ".join(provenance["tags"]) or "none"
+        raise ValueError(
+            f"final source tag {source_tag!r} does not point at HEAD; tags at HEAD: {available}"
+        )
+    provenance["source_tag"] = source_tag
+    return provenance
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
@@ -1015,6 +1056,7 @@ def run_evaluation(
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
     generation_path: str = "markdown",
+    source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if trials <= 0:
         raise ValueError("trials must be positive")
@@ -1139,6 +1181,7 @@ def run_evaluation(
     if len(planned_artifact_dirs) != len(set(planned_artifact_dirs)):
         raise ValueError("planned result artifact directory names collide after sanitization")
 
+    code = source_provenance or _git_provenance()
     identity = {
         "schema_version": 9,
         "generation_path": generation_path,
@@ -1163,6 +1206,7 @@ def run_evaluation(
         ),
         "generation_controls": generation_controls,
         "adapter_timeouts_seconds": adapter_timeouts_seconds,
+        "code": code,
     }
 
     if resume_manifest is not None:
@@ -1289,7 +1333,6 @@ def run_evaluation(
             "observed_ceiling_cost_usd": observed_ceiling_cost_usd,
             "suite": str(suite_path),
             "protocol": str(protocol_path),
-            "code": _git_provenance(),
             "grounding_measure": (
                 "Deterministic proxy: topic has no citation, an ungrounded citation, "
                 "or a figure/quotation/length heuristic. "

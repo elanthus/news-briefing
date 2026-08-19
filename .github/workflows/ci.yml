@@ -51,6 +51,11 @@ jobs:
               raise SystemExit("offline_ci_gate must remain credential-free")
           if gate["command"] not in {"python -m evaluator checker", "python3 -m evaluator checker"}:
               raise SystemExit("offline_ci_gate command does not match the enforced checker command")
+          snapshot_path = Path(gate["approved_snapshot"])
+          if not snapshot_path.is_file():
+              raise SystemExit(f"offline checker snapshot is missing: {snapshot_path}")
+          if gate.get("snapshot_updates_require_review_approval") is not True:
+              raise SystemExit("offline checker snapshot updates must require review approval")
 
           suite = json.loads(Path("evaluator/fixtures/checker-cases.json").read_text())
           counts = Counter(case["component"] for case in suite["cases"])

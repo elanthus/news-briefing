@@ -55,6 +55,7 @@ from evaluator.label_review import (
     run_label_review,
 )
 from evaluator.metrics import percentile, rate, wilson_interval
+from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import (
     QUALITY_AXES,
     _parse_judgment,
@@ -79,6 +80,7 @@ from evaluator.runner import (
     _validate_generation_case,
     apply_adjudications,
     correction_request,
+    final_source_provenance,
     markdown_report,
     model_request,
     run_evaluation,
@@ -133,6 +135,38 @@ class FixedSuiteTest(unittest.TestCase):
             & set(HEURISTIC_CLAIM_CHECKS)
         )
 
+    def test_equivalent_ranges_and_duration_units_remain_supported(self) -> None:
+        cases = {case["id"]: case for case in run_deterministic_suite()["cases"]}
+        for case_id in ("claim-range-valid", "claim-unit-valid"):
+            self.assertEqual(cases[case_id]["human_labels"], [])
+            self.assertNotIn("unsupported_figure", cases[case_id]["predicted_labels"])
+
+    def test_checker_snapshot_update_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = Path(directory) / "snapshot.json"
+            with patch.object(
+                sys,
+                "argv",
+                ["evaluator", "checker", "--snapshot", str(snapshot)],
+            ):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    evaluator_cli.main()
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "evaluator",
+                    "checker",
+                    "--snapshot",
+                    str(snapshot),
+                    "--update-snapshot",
+                ],
+            ):
+                self.assertEqual(evaluator_cli.main(), 0)
+            self.assertEqual(
+                json.loads(snapshot.read_text(encoding="utf-8"))["case_count"],
+                81,
+            )
     def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
         result = run_deterministic_suite()
         cases = {case["id"]: case for case in result["cases"]}
@@ -435,6 +469,98 @@ class FixedSuiteTest(unittest.TestCase):
                     model_request(prompt_text, config_data, mutated)
                 )
                 self.assertEqual(echo.text.count(injected), carrier_count)
+
+
+class FinalSourceProvenanceTest(unittest.TestCase):
+    @patch("evaluator.runner._git_provenance")
+    def test_final_source_requires_a_clean_tagged_head(self, provenance: Any) -> None:
+        provenance.return_value = {
+            "commit": "abc",
+            "tree": "def",
+            "dirty": False,
+            "tags": ["portfolio-v2-source"],
+            "runtime_source_sha256": {"evaluator/runner.py": "123"},
+        }
+        result = final_source_provenance("portfolio-v2-source")
+        self.assertEqual(result["source_tag"], "portfolio-v2-source")
+
+        provenance.return_value["dirty"] = True
+        with self.assertRaisesRegex(ValueError, "clean Git worktree"):
+            final_source_provenance("portfolio-v2-source")
+
+
+class PublicRunTest(unittest.TestCase):
+    def test_export_removes_provider_ids_and_rebuilds_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            manifest = {
+                "schema_version": 9,
+                "generation_path": "markdown",
+                "run_kind": "final",
+                "run_status": "complete",
+                "planned_case_trials": 1,
+                "trials_per_case": 1,
+                "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
+                "protocol": str(ROOT / "evaluator/protocols/portfolio-v1.json"),
+                "code": {
+                    "commit": "abc",
+                    "tree": "def",
+                    "dirty": False,
+                    "source_tag": "portfolio-test-source",
+                    "runtime_source_sha256": {"evaluator/runner.py": "123"},
+                },
+                "generation_controls": [],
+                "grounding_measure": "test",
+                "deterministic_summary": None,
+                "results": [{
+                    "provider": "openrouter",
+                    "model": "model",
+                    "prompt_version": "prompt",
+                    "prompt_sha256": "prompt-sha",
+                    "case_id": "case",
+                    "case_family": "utility",
+                    "case_kind": "utility",
+                    "trial": 1,
+                    "status": "completed",
+                    "artifact_dir": "row",
+                    "correction_attempted": False,
+                    "correction": None,
+                    "correction_error": None,
+                    "error": None,
+                    "first": {
+                        "text": "generated output",
+                        "provider_request_id": "secret-id",
+                        "contract_success": True,
+                        "latency_ms": 1,
+                        "cost_usd": 0.01,
+                        "findings": [],
+                        "grounding_error_topics": 0,
+                        "generated_topics": 1,
+                        "oracle": {},
+                    },
+                    "final": {
+                        "contract_success": True,
+                        "findings": [],
+                        "grounding_error_topics": 0,
+                        "generated_topics": 1,
+                        "oracle": {},
+                    },
+                }],
+            }
+            manifest_path = source / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            output = root / "public"
+            ledger = root / "ledger.json"
+            export_public_run(manifest_path, output, ledger_output=ledger)
+
+            published = (output / "manifest.json").read_text(encoding="utf-8")
+            self.assertIn("generated output", published)
+            self.assertNotIn("secret-id", published)
+            public_ledger = json.loads(ledger.read_text(encoding="utf-8"))
+            self.assertNotIn("text", public_ledger["results"][0]["first"])
+            self.assertEqual(verify_public_run(output)["rows"], 1)
 
 
 class MetricTest(unittest.TestCase):

@@ -36,6 +36,12 @@ The harness itself uses the standard library, so the offline suite can also run 
 python3 -m evaluator checker --output evaluator/results/checker-report.json
 ```
 
+The default suite is also checked byte-for-byte against
+`evaluator/snapshots/offline-checker.json`. Any per-case prediction or aggregate drift exits nonzero.
+After inspecting the case-level diff, record an intentional change with
+`python3 -m evaluator checker --update-snapshot`; the snapshot diff is the approval surface. The dated
+`results/offline-baseline.md` remains a historical readable snapshot.
+
 Copy `evaluator/.env.example` to the ignored `evaluator/.env`, which is the CLI default:
 
 ```bash
@@ -238,6 +244,25 @@ The CLI displays a progress bar labeled with the exact provider and model. API c
 Three consecutive provider failures open a circuit for that exact provider/model. Its remaining case-trials are recorded as circuit-open skips, while other models continue. Any successful case-trial resets the consecutive-failure count.
 
 Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
+
+A final run additionally requires `--source-tag TAG`. Before loading credentials or making a provider call,
+the CLI refuses a dirty worktree or a tag that does not point at `HEAD`. The manifest records the commit,
+Git tree, source tag, and SHA-256 of every tracked evaluator/runtime Python source file.
+
+After review and adjudication, export reviewer-facing evidence with:
+
+```bash
+python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \
+  --output-dir /tmp/<run>-public \
+  --ledger-output docs/results/data/<run>-ledger.json
+python3 -m evaluator verify-public-run /tmp/<run>-public
+```
+
+The committed ledger contains all row identities and scoring primitives without generated prose. The release
+bundle contains the redacted manifest with raw generations, per-row adjudications, and regenerated reports;
+provider request identifiers are removed. Together with the recorded source tag and committed fixtures, this
+supports independent aggregate recalculation and output-level scoring audit without publishing redundant
+per-row copies of the same request and corpus.
 
 If the process itself is interrupted while the manifest still has `run_status: running`, repeat the original
 `run` command with the same providers, prompts, trials, run kind, controls, timeout, protocol, and cost-ceiling
