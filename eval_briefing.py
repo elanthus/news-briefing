@@ -730,8 +730,11 @@ def _normalize_figure(text: str) -> str:
     """Normalize figures while expanding abbreviated year-range endings."""
     value = text.strip()
     if match := _ABBREVIATED_YEAR_RANGE.fullmatch(value):
-        start = match.group("start")
-        return start + start[:2] + match.group("end")
+        start = int(match.group("start"))
+        end = (start // 100) * 100 + int(match.group("end"))
+        if end < start:
+            end += 100
+        return f"{start}{end}"
     return _normalize(value)
 
 

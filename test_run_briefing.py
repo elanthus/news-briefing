@@ -357,6 +357,29 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "in-flight"):
                 RunStore.resume(root, identity=identity)
 
+    def test_resume_discards_trace_suffix_left_before_manifest_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "run"
+            identity = {"provider": "fake"}
+            store = RunStore.create(root, identity=identity, provider={}, code={})
+            store.checkpoint("artifact_ready")
+
+            with patch(
+                "agent_runner.checkpoint.write_json_atomic",
+                side_effect=KeyboardInterrupt,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    store.trace("uncommitted_trace_event")
+
+            resumed = RunStore.resume(root, identity=identity)
+            trace = (root / "trace.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn("uncommitted_trace_event", trace)
+            self.assertIn('"event": "run_resumed"', trace)
+            self.assertEqual(
+                resumed.manifest["trace_commit"]["bytes"],
+                len((root / "trace.jsonl").read_bytes()),
+            )
+
     def test_resume_after_validation_does_not_call_model_again(self):
         corpus, _config, _projected, output = fixture_contract()
         with tempfile.TemporaryDirectory() as directory:

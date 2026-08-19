@@ -709,6 +709,18 @@ class ClaimGroundingTest(unittest.TestCase):
         findings = evaluate(corpus, text)
         self.assertNotIn("unsupported_figure", checks(findings, WARN))
 
+    def test_abbreviated_year_range_crossing_century_matches_full_range(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "Reported during the 1999-2000 school year."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — reported during the 1999–00 school year.",
+        )
+        findings = evaluate(corpus, text)
+        self.assertNotIn("unsupported_figure", checks(findings, WARN))
+
     def test_quotation_not_in_the_cited_item_is_flagged(self):
         """Attributing a real quote to the wrong source still misleads."""
         text = briefing().replace(
