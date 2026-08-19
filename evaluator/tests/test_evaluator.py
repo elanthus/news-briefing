@@ -1217,7 +1217,9 @@ class RunnerTest(unittest.TestCase):
             self.assertNotIn('"points"', request)
             self.assertNotIn('"comments"', request)
             self.assertNotIn("https://news.ycombinator.com/item?id=90000001", request)
-            self.assertEqual(adapter.schemas[0]["properties"]["schema_version"]["enum"], [1])
+            schema_version = adapter.schemas[0]["properties"]["schema_version"]
+            self.assertEqual(schema_version["minimum"], 1)
+            self.assertEqual(schema_version["maximum"], 1)
 
             artifact = output / manifest["results"][0]["artifact_dir"]
             rendered = (artifact / "first.md").read_text(encoding="utf-8")
