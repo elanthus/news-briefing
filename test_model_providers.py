@@ -120,14 +120,20 @@ class ProviderTests(unittest.TestCase):
             400,
             "bad request",
             {},
-            io.BytesIO(b'{"error":{"message":"bad schema"},"user_id":"user_secret"}'),
+            io.BytesIO(
+                b'{"error":{"message":"bad schema","User_ID":"nested_secret"},'
+                b'"details":[{"user_id":"list_secret"}],'
+                b'"user_id":"top_secret"}'
+            ),
         )
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "urllib.request.urlopen", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
-        self.assertNotIn("user_secret", str(raised.exception))
+        self.assertNotIn("top_secret", str(raised.exception))
+        self.assertNotIn("nested_secret", str(raised.exception))
+        self.assertNotIn("list_secret", str(raised.exception))
         self.assertIn("[redacted]", str(raised.exception))
 
     def test_openrouter_does_not_retry_ambiguous_response_timeout(self):

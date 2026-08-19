@@ -19,11 +19,15 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
-def write_text_atomic(path: Path, text: str) -> None:
+def write_bytes_atomic(path: Path, value: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
-    temporary.write_text(text, encoding="utf-8")
+    temporary.write_bytes(value)
     os.replace(temporary, path)
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    write_bytes_atomic(path, text.encode("utf-8"))
 
 
 def write_json_atomic(path: Path, value: Any) -> None:
@@ -143,12 +147,17 @@ class RunStore:
             stream.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
+        self.record_artifact("trace.jsonl")
+        write_json_atomic(self.root / "manifest.json", self.manifest)
+
+    def write_bytes(self, name: str, value: bytes) -> Path:
+        path = self.root / name
+        write_bytes_atomic(path, value)
+        self.manifest.setdefault("artifacts", {})[name] = sha256_bytes(value)
+        return path
 
     def write_text(self, name: str, text: str) -> Path:
-        path = self.root / name
-        write_text_atomic(path, text)
-        self.manifest.setdefault("artifacts", {})[name] = sha256_file(path)
-        return path
+        return self.write_bytes(name, text.encode("utf-8"))
 
     def write_json(self, name: str, value: Any) -> Path:
         path = self.root / name

@@ -5,7 +5,8 @@
     "corpus.json": "6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5",
     "model-corpus.json": "09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301",
     "output-schema.json": "a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016",
-    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0"
+    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0",
+    "trace.jsonl": "cca6c349da001fb27083528964ab7f42d35ae42dd4c5921af1f4c48e08c9993e"
   },
   "attempts": [],
   "checkpointed_at": "2026-08-19T00:30:16.687615+00:00",

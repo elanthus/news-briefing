@@ -15,7 +15,8 @@
     "model-corpus.json": "09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301",
     "output-schema.json": "a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016",
     "preview.md": "71d99d7553a3ad68d91f906b79ef6af26aa1a3d88f0bd5d7cf56fe37b1e34d6b",
-    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0"
+    "request.txt": "720da8f4686c8c2377984c95d0d3030d31c6fc5ee62c54d1066edbddfeafbeb0",
+    "trace.jsonl": "9c9b7f80125e35ad3ddcc95a1cef818f31155c86e398e8b3ec6de9c3cdf4cf5a"
   },
   "attempts": [
     {
