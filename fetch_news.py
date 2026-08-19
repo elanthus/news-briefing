@@ -219,8 +219,8 @@ def load_sources(path: str | Path) -> Sources:
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
 # window, so it can't express arbitrary hour ranges directly. Over-fetch the
 # smallest bucket that fully covers the requested window and let the exact
-# cutoff filter in fetch_reddit() do the real work — same rule as every
-# other source.
+# fixed publication-window filter in fetch_reddit() do the real work — the
+# same lower and upper bounds used for every other source.
 REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
                       (720, "month"), (8760, "year"))
 REDDIT_BASE_LIMIT = 25
@@ -662,8 +662,17 @@ def _feed_summary(element: ET.Element, *paths: str) -> str:
     return ""
 
 
-def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
-    """Return items at or after cutoff, plus a count of undated entries.
+def publication_in_window(
+    published: datetime, cutoff: datetime, window_end: datetime
+) -> bool:
+    """Whether a publication belongs to the fixed inclusive corpus window."""
+    return cutoff <= published <= window_end
+
+
+def fetch_rss(
+    source_name: str, url: str, cutoff: datetime, window_end: datetime
+) -> FetchResult:
+    """Return items inside the fixed corpus window, plus undated count.
 
     Handles RSS 2.0 and Atom. An entry whose timestamp won't parse is counted
     rather than silently skipped: that is how a feed changing its date format
@@ -689,7 +698,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             undated += 1
             continue
         dated_entries += 1
-        if published < cutoff:
+        if not publication_in_window(published, cutoff, window_end):
             continue
         items.append({
             "title": strip_html(item.findtext("title")),
@@ -707,7 +716,7 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
             undated += 1
             continue
         dated_entries += 1
-        if published < cutoff:
+        if not publication_in_window(published, cutoff, window_end):
             continue
         links = entry.findall("atom:link", ns)
         # Atom defines an omitted rel as "alternate". Feeds commonly put a
@@ -732,11 +741,11 @@ def fetch_rss(source_name: str, url: str, cutoff: datetime) -> FetchResult:
     return FetchResult(items, undated, parsed_entries, dated_entries)
 
 
-def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
-    """HN Algolia API with an exact unix-timestamp cutoff — no fuzzy recency.
+def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
+    """HN Algolia API with an exact fixed publication window.
 
-    The request filters `created_at_i`; this function applies the points
-    threshold to the returned hits.
+    The request applies the lower `created_at_i` bound; this function applies
+    both bounds and the points threshold to returned hits.
     """
     ts = int(cutoff.timestamp())
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
@@ -760,13 +769,16 @@ def fetch_hn(query: str, cutoff: datetime) -> FetchResult:
             undated += 1
             continue
         dated_entries += 1
+        published = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc)
+        if not publication_in_window(published, cutoff, window_end):
+            continue
         if hit.get("points", 0) < HN_MIN_POINTS:
             continue
         items.append({
             "title": hit.get("title", ""),
             "url": hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "discussion": f"https://news.ycombinator.com/item?id={hit['objectID']}",
-            "published": datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat(),
+            "published": published.isoformat(),
             "summary": strip_html(hit.get("story_text") or ""),
             "points": hit.get("points", 0),
             "comments": hit.get("num_comments", 0),
@@ -823,7 +835,9 @@ def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
     return fallback
 
 
-def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
+def fetch_reddit(
+    subreddit: str, cutoff: datetime, window_end: datetime, hours: int
+) -> FetchResult:
     """Fetch top posts via anonymous RSS.
 
     The RSS response does not expose vote counts, so these items carry no
@@ -857,7 +871,7 @@ def fetch_reddit(subreddit: str, cutoff: datetime, hours: int) -> FetchResult:
             undated += 1
             continue
         dated_entries += 1
-        if published < cutoff:
+        if not publication_in_window(published, cutoff, window_end):
             continue
         link = entry.find("atom:link", ns)
         raw_content = entry.findtext("atom:content", namespaces=ns) or ""
@@ -1193,13 +1207,13 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         parser.error(f"cannot load sources from {args.sources}: {exc}")
 
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(hours=args.hours)
+    window_end = datetime.now(timezone.utc)
+    cutoff = window_end - timedelta(hours=args.hours)
 
     fetch_started = time.perf_counter()
     corpus: dict[str, Any] = {
         "schema_version": corpus_schema.SCHEMA_VERSION,
-        "generated_at": now.isoformat(),
+        "generated_at": window_end.isoformat(),
         "cutoff": cutoff.isoformat(),
         "window_hours": args.hours,
         "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
@@ -1215,11 +1229,19 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         for category, feeds in sources.rss_feeds.items():
             for name, url in feeds:
-                jobs.append((pool.submit(timed_fetch, fetch_rss, name, url, cutoff),
-                             category, "rss", name))
+                jobs.append((
+                    pool.submit(timed_fetch, fetch_rss, name, url, cutoff, window_end),
+                    category,
+                    "rss",
+                    name,
+                ))
         for query in sources.hn_queries:
-            jobs.append((pool.submit(timed_fetch, fetch_hn, query, cutoff),
-                         sources.hn_category, "hacker_news", query))
+            jobs.append((
+                pool.submit(timed_fetch, fetch_hn, query, cutoff, window_end),
+                sources.hn_category,
+                "hacker_news",
+                query,
+            ))
 
         for future, category, source_type, source_id in jobs:
             outcome = future.result()
@@ -1234,7 +1256,7 @@ def main() -> int:
 
     # Reddit rate-limits concurrent requests; fetch serially with a pause.
     for index, sub in enumerate(sources.subreddits):
-        outcome = timed_fetch(fetch_reddit, sub, cutoff, args.hours)
+        outcome = timed_fetch(fetch_reddit, sub, cutoff, window_end, args.hours)
         status = source_status("reddit", sub, sources.reddit_category, outcome)
         if outcome.result is not None:
             result = outcome.result
@@ -1309,7 +1331,7 @@ def main() -> int:
 
     if args.markdown:
         lines = [f"# News corpus — last {args.hours}h "
-                 f"(generated {now:%Y-%m-%d %H:%M} UTC)\n"]
+                 f"(generated {window_end:%Y-%m-%d %H:%M} UTC)\n"]
         for category, items in corpus["categories"].items():
             lines.append(f"\n## {category} ({len(items)} items)\n")
             for item in items:

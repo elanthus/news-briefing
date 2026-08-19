@@ -40,6 +40,7 @@ from fetch_news import (
     parse_feed_xml,
     positive_int,
     prepare_category,
+    publication_in_window,
     reddit_limit,
     reddit_top_bucket,
     retry_after_seconds,
@@ -96,6 +97,21 @@ class ParseFeedDateTest(unittest.TestCase):
         self.assertLess(parsed, datetime.now(timezone.utc))
 
 
+class PublicationWindowTest(unittest.TestCase):
+    def test_window_is_inclusive_and_rejects_items_after_snapshot(self):
+        cutoff = utc(2026, 8, 8, 12)
+        window_end = utc(2026, 8, 9, 12)
+
+        self.assertTrue(publication_in_window(cutoff, cutoff, window_end))
+        self.assertTrue(publication_in_window(window_end, cutoff, window_end))
+        self.assertFalse(
+            publication_in_window(utc(2026, 8, 8, 11, 59, 59), cutoff, window_end)
+        )
+        self.assertFalse(
+            publication_in_window(utc(2026, 8, 9, 12, 0, 1), cutoff, window_end)
+        )
+
+
 class StripHtmlTest(unittest.TestCase):
     def test_removes_tags_and_unescapes_entities(self):
         self.assertEqual(strip_html("<p>A &amp; B</p>"), "A & B")
@@ -109,6 +125,21 @@ class StripHtmlTest(unittest.TestCase):
 
 
 class FeedSummaryFallbackTest(unittest.TestCase):
+    def test_item_published_during_fetch_is_outside_fixed_snapshot(self):
+        feed = (b'<rss><channel>'
+                b'<item><title>At boundary</title><link>https://ex.com/at</link>'
+                b'<pubDate>Sat, 08 Aug 2026 12:00:00 GMT</pubDate></item>'
+                b'<item><title>After boundary</title><link>https://ex.com/after</link>'
+                b'<pubDate>Sat, 08 Aug 2026 12:00:01 GMT</pubDate></item>'
+                b'</channel></rss>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed",
+                utc(2026, 8, 7, 12), utc(2026, 8, 8, 12),
+            )
+
+        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
+
     def test_rss_uses_content_encoded_when_description_is_empty(self):
         feed = (b'<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">'
                 b'<channel><item><title>Story</title><link>https://ex.com/story</link>'
@@ -117,7 +148,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<content:encoded><![CDATA[<p>Full <b>technical</b> summary</p>]]>'
                 b'</content:encoded></item></channel></rss>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["summary"], "Full technical summary")
 
     def test_atom_uses_content_when_summary_is_empty(self):
@@ -127,7 +160,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<content type="html">&lt;p&gt;Detailed Atom content&lt;/p&gt;</content>'
                 b'</entry></feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["summary"], "Detailed Atom content")
 
     def test_atom_prefers_alternate_link_over_self_link(self):
@@ -138,7 +173,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
 
     def test_atom_treats_omitted_rel_as_alternate(self):
@@ -149,7 +186,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
 
     def test_atom_falls_back_when_no_alternate_link_exists(self):
@@ -159,7 +198,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["url"], "https://ex.com/feed-entry")
 
     def test_atom_rejects_blank_links_and_strips_the_selected_href(self):
@@ -170,7 +211,9 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
 
 
@@ -444,6 +487,24 @@ class PrepareCategoryTest(unittest.TestCase):
 
 
 class HackerNewsTest(unittest.TestCase):
+    def test_excludes_hits_after_the_fixed_snapshot(self):
+        payload = {"hits": [
+            {
+                "objectID": "20", "title": "At boundary", "url": None,
+                "story_text": "", "created_at_i": int(utc(2026, 8, 9).timestamp()),
+                "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+            },
+            {
+                "objectID": "21", "title": "After boundary", "url": None,
+                "story_text": "", "created_at_i": int(utc(2026, 8, 9, 0, 0, 1).timestamp()),
+                "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+            },
+        ]}
+        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+            result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+
+        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
+
     def test_minimum_point_threshold_is_inclusive(self):
         payload = {"hits": [{
             "objectID": "20", "title": "At the threshold", "url": None,
@@ -451,7 +512,7 @@ class HackerNewsTest(unittest.TestCase):
             "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
         }]}
         with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
-            result = fetch_hn("agent", utc(2026, 8, 8))
+            result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(len(result.items), 1)
 
     def test_carries_story_text_as_grounding_context(self):
@@ -461,7 +522,7 @@ class HackerNewsTest(unittest.TestCase):
             "points": 21, "num_comments": 4,
         }]}
         with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
-            result = fetch_hn("agent", utc(2026, 8, 8))
+            result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(result.items[0]["summary"], "Measured details")
 
     def test_counts_hits_with_no_usable_timestamp(self):
@@ -472,7 +533,7 @@ class HackerNewsTest(unittest.TestCase):
              "created_at_i": 1786204800, "points": 99, "num_comments": 1},
         ]}
         with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
-            result = fetch_hn("agent", utc(2026, 8, 8))
+            result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(len(result.items), 1)
         self.assertEqual(result.undated, 1)
 
@@ -610,14 +671,18 @@ class UndatedAccountingTest(unittest.TestCase):
 
     def test_fetch_rss_counts_unparseable_dates_separately(self):
         with patch.object(fetch_news, "http_get", return_value=self.FEED):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 8, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
+            )
         self.assertEqual(len(result.items), 1)
         self.assertEqual(result.undated, 2)
 
     def test_stale_items_are_not_counted_as_undated(self):
         """Too old and unparseable are different failures."""
         with patch.object(fetch_news, "http_get", return_value=self.FEED):
-            result = fetch_news.fetch_rss("Test", "https://ex.com/feed", utc(2026, 9, 1))
+            result = fetch_news.fetch_rss(
+                "Test", "https://ex.com/feed", utc(2026, 9, 1), utc(2026, 9, 2)
+            )
         self.assertEqual(result.items, [])
         self.assertEqual(result.undated, 2)
 
@@ -665,11 +730,27 @@ class RedditTopBucketTest(unittest.TestCase):
     def test_default_fetch_url_uses_day_bucket(self):
         empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
         with patch.object(fetch_news, "http_get", return_value=empty_feed) as get:
-            self.assertEqual(fetch_reddit("ClaudeAI", utc(2026, 8, 8), DEFAULT_WINDOW_HOURS).items,
+            self.assertEqual(fetch_reddit(
+                "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
+            ).items,
                              [])
         url = get.call_args.args[0]
         self.assertIn("t=day", url)
         self.assertIn("limit=25", url)
+
+    def test_excludes_entries_after_the_fixed_snapshot(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry><title>At boundary</title><link href="https://ex.com/at"/>'
+                b'<updated>2026-08-09T00:00:00Z</updated></entry>'
+                b'<entry><title>After boundary</title><link href="https://ex.com/after"/>'
+                b'<updated>2026-08-09T00:00:01Z</updated></entry>'
+                b'</feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_reddit(
+                "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
+            )
+
+        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
 
     def test_selects_smallest_covering_bucket(self):
         cases = [
