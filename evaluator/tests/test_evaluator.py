@@ -937,6 +937,25 @@ class GroundingMachineReviewTest(unittest.TestCase):
             self.assertEqual(primary.calls, 2)
             self.assertEqual(audit.calls, 1)
 
+            changed_primary = FakeGroundingJudgeAdapter(
+                "primary-judge",
+                {"ground-00001": False, "ground-00002": True},
+                controls={"temperature": 0.5},
+            )
+            with self.assertRaisesRegex(
+                ValueError, "different machine grounding review"
+            ):
+                run_grounding_machine_review(
+                    manifest_path,
+                    packet_dir,
+                    changed_primary,
+                    audit,
+                    output,
+                    batch_size=1,
+                    cost_ceiling_usd=1.0,
+                    cost_headroom_usd=0.1,
+                )
+
     def test_machine_review_stops_before_reserved_cost_headroom(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -1146,10 +1165,19 @@ class FakeSemanticJudgeAdapter(Adapter):
 class FakeGroundingJudgeAdapter(Adapter):
     provider = "offline-grounding-judge"
 
-    def __init__(self, model: str, labels: dict[str, bool]):
+    def __init__(
+        self,
+        model: str,
+        labels: dict[str, bool],
+        controls: dict[str, Any] | None = None,
+    ):
         super().__init__(model)
         self.labels = labels
+        self.controls = controls
         self.calls = 0
+
+    def generation_controls(self) -> dict[str, Any]:
+        return self.controls or super().generation_controls()
 
     def generate(self, prompt: str) -> Generation:
         self.calls += 1

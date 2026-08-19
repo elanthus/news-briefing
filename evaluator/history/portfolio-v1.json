@@ -28,7 +28,7 @@
         "audit_topics": 434,
         "audit_reviewer": "openrouter/minimax/minimax-m3",
         "audit_agreement": {"successes": 388, "trials": 434, "rate": 0.8940092165898618, "ci95_wilson": [0.8615125147174644, 0.9195921365441163]},
-        "result_sha256": "714a665499466d9c4ef34634c12ffc76d1920c5a7804f09ea77039dc612b92da",
+        "result_sha256": "51972220a4814934906ad637b1cc6cf4771994a16abaf080d36830ffa77027b9",
         "successful_call_cost_usd": 1.3944946720000007,
         "uncheckpointed_billed_attempts": 1,
         "cost_ceiling_usd": 7.0,

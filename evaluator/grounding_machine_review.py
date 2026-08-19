@@ -198,8 +198,16 @@ def _identity(
         "manifest": portable_path(manifest_path),
         "manifest_sha256": sha256_bytes(manifest_path.read_bytes()),
         "packet_files_sha256": files,
-        "primary_judge": {"provider": primary_judge.provider, "model": primary_judge.model},
-        "audit_judge": {"provider": audit_judge.provider, "model": audit_judge.model},
+        "primary_judge": {
+            "provider": primary_judge.provider,
+            "model": primary_judge.model,
+            "generation_controls": primary_judge.generation_controls(),
+        },
+        "audit_judge": {
+            "provider": audit_judge.provider,
+            "model": audit_judge.model,
+            "generation_controls": audit_judge.generation_controls(),
+        },
         "batch_size": batch_size,
         "cost_ceiling_usd": cost_ceiling_usd,
         "cost_headroom_usd": cost_headroom_usd,
