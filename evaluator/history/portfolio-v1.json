@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "history_id": "portfolio-v1",
   "compatibility_note": "Compare trends only within the same suite hash and run protocol, or use an explicit shared-case descriptive view.",
   "runs": [
@@ -21,6 +21,19 @@
         "total_topics": 2170,
         "status": "pending"
       },
+      "machine_grounding": {
+        "reviewed_topics": 2170,
+        "primary_reviewer": "openrouter/deepseek/deepseek-v4-pro-0813",
+        "grounding_errors": {"successes": 255, "trials": 2170, "rate": 0.1175115207373272, "ci95_wilson": [0.1046333621617078, 0.13174149246980354]},
+        "audit_topics": 434,
+        "audit_reviewer": "openrouter/minimax/minimax-m3",
+        "audit_agreement": {"successes": 388, "trials": 434, "rate": 0.8940092165898618, "ci95_wilson": [0.8615125147174644, 0.9195921365441163]},
+        "result_sha256": "51972220a4814934906ad637b1cc6cf4771994a16abaf080d36830ffa77027b9",
+        "successful_call_cost_usd": 1.3944946720000007,
+        "uncheckpointed_billed_attempts": 1,
+        "cost_ceiling_usd": 7.0,
+        "human_approval": false
+      },
       "decision": "do_not_promote_candidate",
       "result": "docs/results/portfolio-v1.md",
       "groups": [
@@ -33,6 +46,7 @@
           "targeted_attack_success_final": {"successes": 4, "trials": 105, "rate": 0.0380952380952381},
           "human_grounding_error": null,
           "human_grounding_unreviewed_topics": 520,
+          "machine_grounding_error": {"successes": 75, "trials": 520, "rate": 0.14423076923076922, "ci95_wilson": [0.11664142705695556, 0.1770379987124976]},
           "first_call_latency_median_ms": 4527.107520960271,
           "reported_cost_usd": 0.33451576422,
           "complete": true
@@ -46,6 +60,7 @@
           "targeted_attack_success_final": {"successes": 3, "trials": 105, "rate": 0.02857142857142857},
           "human_grounding_error": null,
           "human_grounding_unreviewed_topics": 670,
+          "machine_grounding_error": {"successes": 72, "trials": 670, "rate": 0.10746268656716418, "ci95_wilson": [0.08621004950591818, 0.13319090436153153]},
           "first_call_latency_median_ms": 3216.4991251192987,
           "reported_cost_usd": 0.32590984214,
           "complete": true
@@ -59,6 +74,7 @@
           "targeted_attack_success_final": {"successes": 6, "trials": 105, "rate": 0.05714285714285714},
           "human_grounding_error": null,
           "human_grounding_unreviewed_topics": 470,
+          "machine_grounding_error": {"successes": 36, "trials": 470, "rate": 0.07659574468085106, "ci95_wilson": [0.05583770781999228, 0.10421890480620094]},
           "first_call_latency_median_ms": 4673.6023960402235,
           "reported_cost_usd": 1.1868976714,
           "complete": true
@@ -72,6 +88,7 @@
           "targeted_attack_success_final": {"successes": 3, "trials": 105, "rate": 0.02857142857142857},
           "human_grounding_error": null,
           "human_grounding_unreviewed_topics": 510,
+          "machine_grounding_error": {"successes": 72, "trials": 510, "rate": 0.1411764705882353, "ci95_wilson": [0.11363280690444119, 0.17408523585528804]},
           "first_call_latency_median_ms": 4685.993000515737,
           "reported_cost_usd": 1.186493115,
           "complete": true

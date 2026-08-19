@@ -20,7 +20,7 @@ The deterministic checker proves closed-world contract properties: allowed citat
 
 Claim checks are narrower heuristics. They detect figures or quotations absent from cited title/summary evidence, distinguish figures found in a topically matching corpus item outside the cited excerpts, and flag prose whose character length is more than twice its evidence. Their performance is reported on the declared claim subset, including an overall deliberately-valid-case false-positive rate and per-check false-positive rates for `unsupported_figure`, `figure_supported_elsewhere`, `unsupported_quotation`, and `claim_exceeds_evidence`.
 
-Conflicting evidence, over-consolidation, unsupported paraphrase, and ambiguous categorization require semantic judgment. Human labels for those conditions remain in the all-label checker denominator, so deterministic misses reduce recall rather than being relabeled away. Live-run meaning preservation and grounding are a separate human-adjudicated layer; model judging may prioritize review but does not silently replace human decisions.
+Conflicting evidence, over-consolidation, unsupported paraphrase, and ambiguous categorization require semantic judgment. Human labels for those conditions remain in the all-label checker denominator, so deterministic misses reduce recall rather than being relabeled away. Live-run meaning preservation and grounding are a separate semantic layer. Any model judging is labeled as automated evidence and does not silently replace human decisions.
 
 ## Denominators and uncertainty
 
@@ -39,9 +39,11 @@ The suite is fixed, small, and intentionally enriched for known boundaries. Prov
 The final five-trial matrix completed 1,200/1,200 planned rows with no provider failures or skips. Compatible
 prompt comparisons pair case ID and trial and use 10,000 authored-case-cluster bootstrap resamples. All 180
 URL-scoped meaning propositions received blinded Nemotron judgments, but these are machine evidence rather
-than human approval. Human grounding remains incomplete at 0/2,170 generated utility topics; the primary
-packet covers all topics and a stratified packet independently double-reviews 434. Every published human
-grounding rate therefore remains unavailable with its missing count shown.
+than human approval. DeepSeek V4 Pro 0813 then machine-labeled all 2,170 generated utility topics from the
+blinded grounding packet. MiniMax M3 independently reviewed the stratified 434-topic audit packet, agreeing
+on 388/434 labels (89.4%). The primary machine rates are reported descriptively; disagreements were not
+adjudicated. These automated judgments do not satisfy a human-review gate. Full production usage would use
+fully human-curated labeling.
 
 The candidate is not approved for either evaluated model. At least one available preregistered requirement
 already fails in each comparison, so completing grounding review cannot convert the present result into a

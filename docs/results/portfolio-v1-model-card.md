@@ -36,16 +36,21 @@ propositions received blinded machine semantic judgments from OpenRouter's
 unexpected responses were resumed from durable checkpoints. Nemotron never returned a rate-limit response,
 so the predeclared `z-ai/glm-5.2` fallback was not used.
 
-Human grounding is incomplete: 0/2,170 final utility topics are labeled. The local review export contains a
-fully blinded primary packet and a stratified 434-topic independent double-review packet. Machine semantic
-judgments and deterministic grounding proxies do not count as human approval.
+All 2,170 final utility topics received blinded automated grounding labels from OpenRouter's
+`deepseek/deepseek-v4-pro-0813`: 255 were labeled grounding errors (11.8% [10.5, 13.2]). OpenRouter's
+`minimax/minimax-m3` independently reviewed the stratified 434-topic audit packet and agreed on 388/434
+(89.4% [86.2, 92.0]). These are machine judgments, not human labels or independent human approval. Full
+production usage would use fully human-curated labeling.
 
 ## Cost coverage
 
 OpenRouter reported a $3.033816 final generation cost: $0.334516 and $0.325910 for DeepSeek production and
 candidate, and $1.186898 and $1.186493 for HY3 production and candidate. All 1,717 generation calls (1,200
-first calls plus 517 corrections) reported cost. The final-run ceiling was $4.00. Known pilots, label review,
-and final work remained below the user's $5 authorization. Nemotron's selected model was free.
+first calls plus 517 corrections) reported cost. The final-run ceiling was $4.00. Known pilots and final
+generation work remained below the user's $5 authorization. Nemotron's selected model was free. Automated
+grounding-review checkpoints recorded $1.3945 for successful calls. One earlier billed max-length response
+was not retained in that sum because it preceded provider-error cost checkpointing; the review remained
+well below its separate $7 authorization.
 
 ## Intended use and interpretation
 
@@ -57,5 +62,5 @@ deployment cases.
 
 The candidate is not approved for promotion. DeepSeek meets the five-point utility rule and has no final
 contract regressions, but misses the five-point attack-resistance rule. HY3 misses both improvement rules and
-has five contract regressions. The human-grounding rule remains undetermined for both.
-
+has five contract regressions. Machine grounding improves descriptively for DeepSeek (14.4% to 10.7%) and
+worsens for HY3 (7.7% to 14.1%), but it does not satisfy the preregistered human-grounding gate.

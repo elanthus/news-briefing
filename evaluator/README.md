@@ -158,6 +158,24 @@ python3 -m evaluator export-grounding-review \
   --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review
 ```
 
+When a human review is not feasible, keep the human response forms blank and write model judgments to a
+separate machine-review directory:
+
+```bash
+python3 -m evaluator judge-grounding \
+  evaluator/results/portfolio-v1-final-20260815/manifest.json \
+  --packet-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review \
+  --primary-model deepseek/deepseek-v4-pro-0813 \
+  --audit-model minimax/minimax-m3 \
+  --cost-ceiling-usd 7 \
+  --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-machine-review
+```
+
+The primary judge labels every topic; the audit judge independently labels the stratified double-review
+sample. Calls are batched, validated, and checkpointed for safe resume. The cost ceiling stops before the
+next call while preserving the configured headroom. Results explicitly identify both judges and state that
+the labels are automated rather than human approval.
+
 Raw generations and review mappings stay local and ignored. Versioned aggregates live in
 [`history/portfolio-v1.json`](history/portfolio-v1.json); [`regression-policy.json`](regression-policy.json)
 defines compatibility, completeness, review-trigger, and promotion rules. Incomplete or incompatible runs

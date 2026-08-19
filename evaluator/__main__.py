@@ -15,6 +15,7 @@ from evaluator.adapters import adapter_for, load_dotenv, production_adapter_for
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
+from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.quality import run_quality_judging
@@ -212,6 +213,23 @@ def main() -> int:
     grounding_review.add_argument("--seed", type=int, default=8142026)
     grounding_review.add_argument("--double-fraction", type=float, default=0.20)
 
+    machine_grounding = subparsers.add_parser(
+        "judge-grounding",
+        help="machine-label every blinded grounding topic and audit the stratified sample",
+    )
+    machine_grounding.add_argument("manifest", type=Path)
+    machine_grounding.add_argument("--packet-dir", type=Path, required=True)
+    machine_grounding.add_argument("--primary-provider", default="openrouter")
+    machine_grounding.add_argument("--primary-model", required=True)
+    machine_grounding.add_argument("--audit-provider", default="openrouter")
+    machine_grounding.add_argument("--audit-model", required=True)
+    machine_grounding.add_argument("--batch-size", type=int, default=25)
+    machine_grounding.add_argument("--timeout", type=int, default=300)
+    machine_grounding.add_argument("--cost-ceiling-usd", type=float, default=7.0)
+    machine_grounding.add_argument("--cost-headroom-usd", type=float, default=0.10)
+    machine_grounding.add_argument("--output-dir", type=Path, required=True)
+    machine_grounding.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
     run.add_argument(
@@ -361,6 +379,57 @@ def main() -> int:
                 double_fraction=args.double_fraction,
             )
             print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        if args.command == "judge-grounding":
+            load_dotenv(args.env_file)
+            selected = [
+                (args.primary_provider, args.primary_model),
+                (args.audit_provider, args.audit_model),
+            ]
+            _preflight(selected)
+            primary_judge = adapter_for(
+                args.primary_provider,
+                args.primary_model,
+                args.timeout,
+                temperature=0,
+                reasoning_enabled=False,
+            )
+            audit_judge = adapter_for(
+                args.audit_provider,
+                args.audit_model,
+                args.timeout,
+                temperature=0,
+                reasoning_enabled=False,
+            )
+            progress = ProgressBar()
+            try:
+                result = run_grounding_machine_review(
+                    args.manifest,
+                    args.packet_dir,
+                    primary_judge,
+                    audit_judge,
+                    args.output_dir,
+                    batch_size=args.batch_size,
+                    cost_ceiling_usd=args.cost_ceiling_usd,
+                    cost_headroom_usd=args.cost_headroom_usd,
+                    progress=progress,
+                )
+            finally:
+                progress.finish()
+            print(json.dumps({
+                "status": result["status"],
+                "primary": {
+                    "reviewed_topics": result["primary"]["reviewed_topics"],
+                    "grounding_errors": result["primary"]["grounding_errors"],
+                },
+                "audit": {
+                    "reviewed_topics": result["audit"]["reviewed_topics"],
+                    "grounding_errors": result["audit"]["grounding_errors"],
+                    "agreement_with_primary": result["audit"]["agreement_with_primary"],
+                },
+                "observed_cost_usd": result["observed_cost_usd"],
+                "report": str(args.output_dir / "machine-grounding-review.json"),
+            }, indent=2, sort_keys=True))
             return 0
         if args.command == "run":
             if args.resume and args.output_dir is None:

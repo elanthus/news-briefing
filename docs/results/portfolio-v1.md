@@ -16,22 +16,27 @@ authored-case-cluster bootstrap.
 | HY3 / production | 89/110; 80.9% [72.6, 87.2] | 89/110; 80.9% [72.6, 87.2] | 90/110; 81.8% [73.6, 87.9] | 1/21; 4.8% [0.8, 22.7] |
 | HY3 / reliability-v1 | 75/110; 68.2% [59.0, 76.1] | 74/110; 67.3% [58.1, 75.3] | 86/110; 78.2% [69.6, 84.9] | 14/35; 40.0% [25.6, 56.4] |
 
-| Model / prompt | Final attack success | Utility under attack | Meaning conveyed¹ | Human grounding | Proxy grounding | First-call latency median / p95 | Cost |
+| Model / prompt | Final attack success | Utility under attack | Meaning conveyed¹ | Machine grounding error² | Proxy grounding | First-call latency median / p95 | Cost |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| DeepSeek / production | 4/105; 3.8% [1.5, 9.4] | 95/105; 90.5% [83.4, 94.7] | 34/45; 75.6% [61.3, 85.8] | n/a (520 unreviewed) | 37/520; 7.1% [5.2, 9.7] | 4.53s / 38.52s | $0.3345 |
-| DeepSeek / reliability-v1 | 3/105; 2.9% [1.0, 8.1] | 99/105; 94.3% [88.1, 97.4] | 44/45; 97.8% [88.4, 99.6] | n/a (670 unreviewed) | 34/670; 5.1% [3.7, 7.0] | 3.22s / 40.54s | $0.3259 |
-| HY3 / production | 6/105; 5.7% [2.6, 11.9] | 94/105; 89.5% [82.2, 94.0] | 37/45; 82.2% [68.7, 90.7] | n/a (470 unreviewed) | 9/470; 1.9% [1.0, 3.6] | 4.67s / 35.63s | $1.1869 |
-| HY3 / reliability-v1 | 3/105; 2.9% [1.0, 8.1] | 92/105; 87.6% [80.0, 92.6] | 44/45; 97.8% [88.4, 99.6] | n/a (510 unreviewed) | 45/510; 8.8% [6.7, 11.6] | 4.69s / 44.78s | $1.1865 |
+| DeepSeek / production | 4/105; 3.8% [1.5, 9.4] | 95/105; 90.5% [83.4, 94.7] | 34/45; 75.6% [61.3, 85.8] | 75/520; 14.4% [11.7, 17.7] | 37/520; 7.1% [5.2, 9.7] | 4.53s / 38.52s | $0.3345 |
+| DeepSeek / reliability-v1 | 3/105; 2.9% [1.0, 8.1] | 99/105; 94.3% [88.1, 97.4] | 44/45; 97.8% [88.4, 99.6] | 72/670; 10.7% [8.6, 13.3] | 34/670; 5.1% [3.7, 7.0] | 3.22s / 40.54s | $0.3259 |
+| HY3 / production | 6/105; 5.7% [2.6, 11.9] | 94/105; 89.5% [82.2, 94.0] | 37/45; 82.2% [68.7, 90.7] | 36/470; 7.7% [5.6, 10.4] | 9/470; 1.9% [1.0, 3.6] | 4.67s / 35.63s | $1.1869 |
+| HY3 / reliability-v1 | 3/105; 2.9% [1.0, 8.1] | 92/105; 87.6% [80.0, 92.6] | 44/45; 97.8% [88.4, 99.6] | 72/510; 14.1% [11.4, 17.4] | 45/510; 8.8% [6.7, 11.6] | 4.69s / 44.78s | $1.1865 |
 
-¹ Meaning conveyed is a blinded Nemotron machine judgment over all 180 URL-scoped `must_convey`
-propositions, not a human label. Nemotron marked 159 conveyed and 21 not conveyed; none remained unclear.
+¹ Meaning conveyed is a blinded Nemotron machine judgment over each group's 45 URL-scoped `must_convey`
+propositions, not a human label. Across all groups, Nemotron marked 159/180 conveyed, 21/180 not conveyed,
+and none remained unclear.
+
+² Grounding is a blinded automated judgment by DeepSeek V4 Pro 0813 over all 2,170 final utility topics,
+not a human label. MiniMax M3 independently reviewed a stratified 434-topic sample and agreed on 388/434
+(89.4% [86.2, 92.0]).
 
 ## Paired prompt decision
 
 | Model | Final utility delta | Final attack-success delta | Contract regressions | Promotion rule |
 |---|---:|---:|---:|---|
-| DeepSeek V4 Flash | **+9.1 pp** (+3.6, +15.5) | −1.0 pp (−2.9, +0.0) | 0 | Fail: attack-resistance gain is below 5 pp; human grounding pending |
-| Tencent HY3 | −3.6 pp (−13.6, +2.7) | −2.9 pp (−14.3, +5.7) | 5 | Fail: utility, attack, and zero-regression rules fail; human grounding pending |
+| DeepSeek V4 Flash | **+9.1 pp** (+3.6, +15.5) | −1.0 pp (−2.9, +0.0) | 0 | Fail: attack-resistance gain is below 5 pp; machine grounding is descriptive only |
+| Tencent HY3 | −3.6 pp (−13.6, +2.7) | −2.9 pp (−14.3, +5.7) | 5 | Fail: utility, attack, and zero-regression rules fail; machine grounding is descriptive only |
 
 The candidate substantially improves DeepSeek's final utility after correction, but its first-pass utility
 falls by 19.1 points. Its final attack improvement is only one point, below the predeclared five-point
@@ -88,14 +93,14 @@ for human review, not factuality guarantees.
 
 - Offline checker/feed labels: 81/81 independently human-validated.
 - Meaning propositions: 180/180 machine-adjudicated; 159 conveyed, 21 not conveyed, 0 unclear.
-- Final utility grounding topics: 0/2,170 human-labeled. A blinded 2,170-topic primary packet and stratified
-  434-topic double-review packet are generated locally. The reports show the missing denominator beside
-  every human-grounding rate.
+- Final utility grounding topics: 2,170/2,170 machine-labeled by DeepSeek V4 Pro 0813. MiniMax M3 reviewed
+  a stratified 434-topic sample, with 388/434 agreement. These are automated judgments, not human labels;
+  full production usage would use fully human-curated labeling.
 - Pairwise prose-quality judging: not run; no prose-preference claim is made.
 
-Because human grounding is incomplete, the grounding non-increase rule is undetermined. The candidate is
-already ineligible for promotion on the available rules, so this missing review cannot turn either result
-into a pass; it only prevents a complete grounding-error estimate.
+The automated grounding result is descriptive and does not satisfy the preregistered human-grounding gate.
+The candidate is already ineligible for promotion on the other rules, so this limitation cannot turn either
+result into a pass.
 
 ## Operational record
 
@@ -103,7 +108,10 @@ The final generation run cost $3.0338 as reported by OpenRouter, below its $4.00
 portfolio work including pilots and label review remained below the user's $5 total authorization. All
 1,200 rows completed, including 517 successful contract-guided correction calls. Nemotron produced three
 transient malformed responses during semantic review; checkpointed retries succeeded. No rate limit
-occurred, so the GLM 5.2 fallback was not used.
+occurred, so the GLM 5.2 fallback was not used. Grounding review checkpoints recorded $1.3945 across
+successful DeepSeek V4 Pro 0813 and MiniMax M3 calls. One earlier billed max-length response preceded
+provider-error cost checkpointing, so the exact review total is slightly higher but remained well below
+the separate $7 authorization.
 
 The full local report contains Wilson intervals, behavior and technique breakdowns, matched clean/attack
 pairs, ablations, operations, latency, and cost. The curated JSON beside this document preserves the
@@ -115,5 +123,6 @@ The suite is authored and finite; bootstrap intervals describe sensitivity acros
 all future news or attacks. Temperature zero with no provider seed is not bit-reproducible. HY3 is an
 owner-authorized operational replacement for Sonnet 5 after Sonnet timed out on the production corpus.
 DeepSeek reasoning was disabled after high and low reasoning exhausted the completion budget without usable
-text. Feed blurbs can be truncated and are treated as the evidence boundary. Human grounding review remains
-outstanding, and machine semantic judgments must not be represented as human approval.
+text. Feed blurbs can be truncated and are treated as the evidence boundary. Grounding labels are automated,
+and the 89.4% cross-model audit agreement shows material judge sensitivity. They must not be represented as
+human approval; full production usage would use fully human-curated labeling.
