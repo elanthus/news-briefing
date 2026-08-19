@@ -319,7 +319,7 @@ class OpenAiCompatibleAdapter(Adapter):
                     retry_after=retry_after,
                 )
                 cause = exc
-            except (TimeoutError, urllib.error.URLError) as exc:
+            except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
                 failure = ProviderRequestError(
                     f"{self.provider} request failed: {exc}",
                     transient=True,
