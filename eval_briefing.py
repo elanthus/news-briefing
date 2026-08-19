@@ -47,6 +47,11 @@ class Finding(NamedTuple):
     message: str
 
 
+class CorpusEvidenceItem(NamedTuple):
+    title: str
+    support: str
+
+
 # One parsed briefing section: its topic headlines and the links they cite.
 Section = dict[str, Any]
 
@@ -737,8 +742,67 @@ def corpus_evidence(corpus: dict[str, Any]) -> dict[str, str]:
     return evidence
 
 
-def check_claims_supported(sections: dict[str, Section],
-                           evidence: dict[str, str]) -> list[Finding]:
+def corpus_evidence_items(corpus: dict[str, Any]) -> list[CorpusEvidenceItem]:
+    """Return item-level evidence for conservative same-story cross-checks."""
+    evidence = []
+    for items in corpus.get("categories", {}).values():
+        for item in items:
+            title = item.get("title", "")
+            support = f"{title} {item.get('summary', '')}".strip()
+            if isinstance(title, str) and support:
+                evidence.append(CorpusEvidenceItem(title, support))
+    return evidence
+
+
+_TITLE_STOP_WORDS = frozenset({
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "into",
+    "of", "on", "the", "to", "with",
+})
+
+
+def _title_terms(title: str) -> set[str]:
+    return {
+        term
+        for term in re.findall(r"[a-z0-9]+", title.casefold())
+        if term not in _TITLE_STOP_WORDS and not term.isdigit()
+    }
+
+
+def _figure_tokens(text: str) -> set[str]:
+    """Extract normalized whole figures rather than matching numeric prefixes."""
+    return {token for figure in _FIGURE.findall(text) if (token := _normalize(figure))}
+
+
+def _topically_matching_support(
+    title: str,
+    figure: str,
+    all_evidence: list[CorpusEvidenceItem],
+) -> CorpusEvidenceItem | None:
+    """Find strong title overlap plus exact figure support in another item.
+
+    A number appearing somewhere else in a large corpus proves nothing by
+    itself. Requiring at least three shared title terms and 60% overlap with
+    the shorter title keeps this a conservative same-story signal.
+    """
+    title_terms = _title_terms(title)
+    if len(title_terms) < 3:
+        return None
+    figure_token = _normalize(figure)
+    for item in all_evidence:
+        item_terms = _title_terms(item.title)
+        shared = title_terms & item_terms
+        if (len(shared) >= 3
+                and len(shared) / min(len(title_terms), len(item_terms)) >= 0.6
+                and figure_token in _figure_tokens(item.support)):
+            return item
+    return None
+
+
+def check_claims_supported(
+    sections: dict[str, Section],
+    evidence: dict[str, str],
+    all_evidence: list[CorpusEvidenceItem] | None = None,
+) -> list[Finding]:
     """Flag prose that asserts more than its cited items can support.
 
     Entailment can't be settled without a second model, so this does not try.
@@ -763,18 +827,28 @@ def check_claims_supported(sections: dict[str, Section],
                 evidence[url] for url in links if evidence.get(url))).strip()
             if not support:
                 continue
-            normalized = _normalize(support)
+            support_figures = _figure_tokens(support)
 
             for figure in _FIGURE.findall(prose):
                 token = _normalize(figure)
-                if token and token not in normalized:
-                    findings.append(Finding(
-                        WARN, "unsupported_figure",
-                        f"{name}: {title!r} states {figure.strip()!r}, which is not "
-                        f"in the cited item(s)"))
+                if token and token not in support_figures:
+                    elsewhere = _topically_matching_support(
+                        title, figure, all_evidence or [])
+                    if elsewhere:
+                        findings.append(Finding(
+                            WARN, "figure_supported_elsewhere",
+                            f"{name}: {title!r} states {figure.strip()!r}; it is absent "
+                            f"from the cited corpus excerpts but appears in the "
+                            f"topically matching uncited item {elsewhere.title!r}"))
+                    else:
+                        findings.append(Finding(
+                            WARN, "unsupported_figure",
+                            f"{name}: {title!r} states {figure.strip()!r}, which is not "
+                            f"supported by the cited corpus excerpts or a topically "
+                            f"matching corpus item"))
 
             for quotation in _QUOTATION.findall(prose):
-                if _normalize(quotation) not in normalized:
+                if _normalize(quotation) not in _normalize(support):
                     findings.append(Finding(
                         WARN, "unsupported_quotation",
                         f"{name}: {title!r} quotes \"{quotation}\", which does not "
@@ -807,7 +881,8 @@ def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Secti
     findings += check_no_repeated_topics(sections)
     findings += check_exclusion_log(sections, corpus, config)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
-    findings += check_claims_supported(sections, corpus_evidence(corpus))
+    findings += check_claims_supported(
+        sections, corpus_evidence(corpus), corpus_evidence_items(corpus))
     findings += check_corpus_health_reported(sections, corpus)
     return sorted(findings, key=lambda f: f.level != ERROR)
 

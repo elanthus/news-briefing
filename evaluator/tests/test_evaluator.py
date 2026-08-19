@@ -20,7 +20,7 @@ import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
 from briefing_config import BriefingConfig, BriefingSection, load_config
-from evaluator.__main__ import ProgressBar, _provider_values
+from evaluator.__main__ import ProgressBar, _prompt_values, _provider_values
 from evaluator.adapters import (
     API_MAX_ATTEMPTS,
     Adapter,
@@ -31,11 +31,13 @@ from evaluator.adapters import (
     ProviderRequestError,
     _retry_after_seconds,
     adapter_for,
+    production_adapter_for,
 )
-from evaluator.cases import run_deterministic_suite
+from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_review import _double_sample, export_grounding_review_packets
 from evaluator.label_review import (
+    LABEL_RUBRIC,
     _parse_reviews,
     _portable_path,
     blinded_cases,
@@ -54,6 +56,7 @@ from evaluator.runner import (
     _OPERATIONS_HEADER,
     DEFAULT_CORPUS,
     DEFAULT_SUITE,
+    ROOT,
     _attack_breakdown,
     _attack_dimensions,
     _checkpoint,
@@ -92,6 +95,7 @@ class FixedSuiteTest(unittest.TestCase):
 
     def test_known_checker_limits_are_reported_not_hidden(self) -> None:
         result = run_deterministic_suite()
+        self.assertTrue(set(HEURISTIC_CLAIM_CHECKS).issubset(LABEL_RUBRIC))
         misses = {
             label
             for case in result["cases"] if case["component"] == "checker"
@@ -103,7 +107,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertGreaterEqual(result["heuristic_claim_false_positive_rate"]["trials"], 12)
         self.assertEqual(
             set(result["heuristic_claim_false_positive_rates"]),
-            {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"},
+            set(HEURISTIC_CLAIM_CHECKS),
         )
         for row in result["heuristic_claim_false_positive_rates"].values():
             self.assertGreater(row["trials"], 0)
@@ -116,7 +120,7 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertEqual(replacement["human_labels"], [])
         self.assertFalse(
             set(replacement["predicted_labels"])
-            & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+            & set(HEURISTIC_CLAIM_CHECKS)
         )
 
     def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
@@ -178,7 +182,7 @@ class FixedSuiteTest(unittest.TestCase):
                 self.assertEqual(cases[valid_id]["human_labels"], [])
             self.assertTrue(
                 set(cases[invalid_id]["human_labels"])
-                & {"unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"}
+                & set(HEURISTIC_CLAIM_CHECKS)
             )
 
     def test_focused_generation_cases_require_the_mutated_item(self) -> None:
@@ -814,6 +818,68 @@ class RecordingFakeAdapter(FakeAdapter):
         return super().generate(prompt)
 
 
+class StructuredFakeAdapter(Adapter):
+    provider = "structured-fixture"
+
+    def __init__(self, model: str):
+        super().__init__(model)
+        self.requests: list[str] = []
+        self.schemas: list[dict[str, Any]] = []
+
+    def generate(self, prompt: str) -> Generation:
+        raise AssertionError("production-parity evaluation must use generate_structured")
+
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        self.requests.append(prompt)
+        self.schemas.append(output_schema)
+        output = {
+            "schema_version": 1,
+            "sections": {
+                "AI Dev Tools": {
+                    "topics": [{
+                        "headline": "Tiny MCP server for local notes",
+                        "summary": (
+                            "A small MCP server stores local notes and exposes search and "
+                            "retrieval tools."
+                        ),
+                        "citation_refs": ["citation_0001"],
+                    }]
+                }
+            },
+            "excluded_topics": {},
+        }
+        return Generation(
+            text=json.dumps(output),
+            structured_output=output,
+            latency_ms=5.0,
+            input_tokens=50,
+            output_tokens=20,
+        )
+
+
+class RepairingStructuredFakeAdapter(StructuredFakeAdapter):
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        generation = super().generate_structured(prompt, output_schema, trace_id)
+        if len(self.requests) != 1:
+            return generation
+        output = copy.deepcopy(generation.structured_output)
+        assert output is not None
+        output["sections"]["AI Dev Tools"]["topics"][0]["citation_refs"] = [
+            "citation_9999"
+        ]
+        return Generation(
+            text=json.dumps(output),
+            structured_output=output,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+        )
+
+
 class CostedFakeAdapter(FakeAdapter):
     provider = "costed-fixture"
 
@@ -1126,6 +1192,108 @@ class RunnerTest(unittest.TestCase):
         prompt.write_text("Produce the briefing.", encoding="utf-8")
         return suite, prompt, temporary / "results"
 
+    def test_production_parity_path_uses_projection_schema_and_real_renderer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            adapter = StructuredFakeAdapter("fixture")
+
+            report = run_evaluation(
+                [adapter],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schema_version"], 9)
+            self.assertEqual(manifest["generation_path"], "production-parity")
+            self.assertEqual(report["operations"]["run_status"], "complete")
+            self.assertEqual(len(adapter.requests), 1)
+            request = adapter.requests[0]
+            self.assertIn("--- UNTRUSTED PROJECTED CORPUS (JSON) ---", request)
+            self.assertNotIn('"points"', request)
+            self.assertNotIn('"comments"', request)
+            self.assertNotIn("https://news.ycombinator.com/item?id=90000001", request)
+            self.assertEqual(adapter.schemas[0]["properties"]["schema_version"]["enum"], [1])
+
+            artifact = output / manifest["results"][0]["artifact_dir"]
+            rendered = (artifact / "first.md").read_text(encoding="utf-8")
+            self.assertEqual(
+                rendered.count("https://news.ycombinator.com/item?id=90000001"), 1
+            )
+            self.assertNotIn("42", rendered)
+            self.assertNotIn("7 comments", rendered)
+            self.assertTrue((artifact / "output-schema.json").exists())
+            self.assertTrue((artifact / "first-structured.json").exists())
+
+    def test_production_parity_correction_repairs_structured_output_before_rendering(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            adapter = RepairingStructuredFakeAdapter("fixture")
+
+            run_evaluation(
+                [adapter],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row = manifest["results"][0]
+            artifact = output / row["artifact_dir"]
+            self.assertTrue(row["correction_attempted"])
+            self.assertEqual(len(adapter.requests), 2)
+            self.assertEqual((artifact / "first.md").read_text(encoding="utf-8"), "")
+            self.assertIn("citation_9999", adapter.requests[1])
+            self.assertIn(
+                "https://news.ycombinator.com/item?id=90000001",
+                (artifact / "final.md").read_text(encoding="utf-8"),
+            )
+
+    def test_production_parity_resume_requires_structured_artifacts(self) -> None:
+        class InterruptSecondStructuredCall(StructuredFakeAdapter):
+            def generate_structured(
+                self, prompt: str, output_schema: dict[str, Any], trace_id: str
+            ) -> Generation:
+                if len(self.requests) == 1:
+                    raise KeyboardInterrupt("simulated structured interruption")
+                return super().generate_structured(prompt, output_schema, trace_id)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=2)
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [InterruptSecondStructuredCall("fixture")],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    generation_path="production-parity",
+                )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            first_artifact = output / manifest["results"][0]["artifact_dir"]
+            (first_artifact / "first-structured.json").unlink()
+            resumed = StructuredFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "missing artifact files"):
+                run_evaluation(
+                    [resumed],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    generation_path="production-parity",
+                    resume=True,
+                )
+            self.assertEqual(resumed.requests, [])
+
     def test_operations_markdown_renders_median_and_p95_latency(self) -> None:
         rendered = _operations_row({
             "provider": "provider",
@@ -1307,6 +1475,11 @@ class RunnerTest(unittest.TestCase):
                 "error.json",
                 "correction-error.json",
                 "semantic-adjudication.json",
+                "model-corpus.json",
+                "citation-map.json",
+                "output-schema.json",
+                "first-structured.json",
+                "final-structured.json",
             )
             for name in stale_names:
                 (interrupted_dir / name).write_text("stale interrupted artifact", encoding="utf-8")
@@ -1954,7 +2127,7 @@ class RunnerTest(unittest.TestCase):
                 self.assertNotIn(injected, request)
                 self.assertNotIn("ATTACK_HEALTH_SUCCEEDED", request)
             self.assertNotEqual(attack_requests[0], clean_requests[0])
-            self.assertEqual(manifest["schema_version"], 8)
+            self.assertEqual(manifest["schema_version"], 9)
             self.assertEqual(manifest["planned_case_trials"], 4)
             self.assertEqual(manifest["matched_pair_case_ids"], ["attack-citation-fabrication"])
             self.assertEqual(manifest["planned_matched_pair_trials"], 2)
@@ -2568,6 +2741,31 @@ class RunnerTest(unittest.TestCase):
             ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
             ("nvidia", "openai/gpt-oss-120b"),
         ])
+        self.assertEqual(_provider_values([], True, "production-parity"), [
+            ("codex-cli", "gpt-5.6-terra"),
+            ("codex-cli", "gpt-5.6-sol"),
+            ("claude-code-cli", "claude-sonnet-5"),
+            ("claude-code-cli", "claude-opus-5"),
+            ("openrouter", "openai/gpt-5.6-terra"),
+            ("openrouter", "anthropic/claude-sonnet-5"),
+        ])
+
+    def test_production_parity_defaults_to_the_structured_runner_prompt(self) -> None:
+        prompts = _prompt_values([], "production-parity")
+        self.assertEqual(prompts, {"production": ROOT / "briefing-runner-prompt.md"})
+
+    def test_production_parity_records_effective_reasoning_controls(self) -> None:
+        codex = production_adapter_for("codex-cli", "gpt-5.6-terra")
+        self.assertEqual(codex.generation_controls()["reasoning_enabled"], True)
+        self.assertEqual(codex.generation_controls()["reasoning_effort"], "medium")
+
+        openrouter = production_adapter_for(
+            "openrouter",
+            "deepseek/deepseek-v4-flash",
+            reasoning_effort="high",
+        )
+        self.assertEqual(openrouter.generation_controls()["reasoning_enabled"], True)
+        self.assertEqual(openrouter.generation_controls()["reasoning_effort"], "high")
 
     @patch.dict(os.environ, {"OPENROUTER_MODEL": "openai/gpt-5.6-terra,,anthropic/claude-sonnet-5"})
     def test_all_providers_rejects_empty_model_list_entries(self) -> None:
@@ -2623,8 +2821,8 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((output / "report.json").is_file())
             self.assertTrue((output / "report.md").is_file())
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schema_version"], 8)
-            self.assertEqual(report["schema_version"], 8)
+            self.assertEqual(manifest["schema_version"], 9)
+            self.assertEqual(report["schema_version"], 9)
             families = report["score_families"]
             self.assertEqual(families["checker_capability"]["case_count"], 81)
             utility = families["application_utility"]["groups"][0]
@@ -3414,6 +3612,16 @@ class LabelReviewTest(unittest.TestCase):
         )
         self.assertEqual(parsed["case-001"]["labels"], [])
 
+    def test_review_parser_accepts_figure_supported_elsewhere(self) -> None:
+        parsed = _parse_reviews(
+            '{"reviews":[{"case":"case-001","labels":["figure_supported_elsewhere"],'
+            '"rationale":"the exact figure appears in a matching corpus item"}]}',
+            {"case-001"},
+        )
+        self.assertEqual(
+            parsed["case-001"]["labels"], ["figure_supported_elsewhere"]
+        )
+
     def test_blinded_payload_omits_fixture_metadata_and_human_labels(self) -> None:
         suite = {
             "cases": [{
@@ -4115,7 +4323,7 @@ class BaselineReportTest(unittest.TestCase):
 
             report = run_evaluation(adapters, {"production": prompt}, output)
 
-            self.assertEqual(report["schema_version"], 8)
+            self.assertEqual(report["schema_version"], 9)
             operations = report["operations"]
             self.assertEqual(operations["run_status"], "complete")
             self.assertEqual(operations["planned_case_trials"], 180)

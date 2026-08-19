@@ -66,6 +66,28 @@ def fixture_contract():
     return corpus, config, projected, output
 
 
+def unused_hn_item(projected, output):
+    used_items = {
+        projected.citations[ref].item_ref
+        for bucket in output["sections"].values()
+        for topic in bucket["topics"]
+        for ref in topic["citation_refs"]
+    } | {
+        projected.citations[ref].item_ref
+        for rows in output["excluded_topics"].values()
+        for topic in rows
+        for ref in topic["citation_refs"]
+    }
+    return next(
+        item
+        for items in projected.document["categories"].values()
+        for item in items
+        if item["item_ref"] not in used_items
+        and {citation["kind"] for citation in item["citations"]}
+        == {"article", "discussion"}
+    )
+
+
 class BriefingOutputTests(unittest.TestCase):
     def test_projection_removes_all_urls_and_keeps_reference_map(self):
         corpus, _config, projected, _output = fixture_contract()
@@ -165,6 +187,52 @@ class BriefingOutputTests(unittest.TestCase):
         first_ref = next(iter(projected.citations))
         self.assertIn(projected.citations[first_ref].url, briefing)
         self.assertNotIn(first_ref, briefing)
+
+    def test_renderer_adds_hn_discussion_link_from_article_ref(self):
+        corpus, config, projected, output = fixture_contract()
+        item = unused_hn_item(projected, output)
+        refs = {citation["kind"]: citation["ref"] for citation in item["citations"]}
+        topic = output["sections"]["AI Dev Tools"]["topics"][0]
+        topic.update({
+            "headline": item["title"],
+            "summary": item.get("summary") or item["title"],
+            "citation_refs": [refs["article"]],
+        })
+
+        briefing = render_briefing(output, corpus, config, projected.citations)
+        article_url = projected.citations[refs["article"]].url
+        discussion_url = projected.citations[refs["discussion"]].url
+        self.assertEqual(briefing.count(article_url), 1)
+        self.assertEqual(briefing.count(discussion_url), 1)
+        self.assertNotIn(
+            "missing_discussion_link",
+            {finding.check for finding in eval_briefing.evaluate(corpus, briefing, config)},
+        )
+
+    def test_renderer_deduplicates_explicit_hn_pair_and_self_post(self):
+        corpus, config, projected, output = fixture_contract()
+        item = unused_hn_item(projected, output)
+        refs = {citation["kind"]: citation["ref"] for citation in item["citations"]}
+        topic = output["sections"]["AI Dev Tools"]["topics"][0]
+        topic["citation_refs"] = [refs["article"], refs["discussion"]]
+        briefing = render_briefing(output, corpus, config, projected.citations)
+        self.assertEqual(
+            briefing.count(projected.citations[refs["discussion"]].url), 1
+        )
+
+        self_post_citations = dict(projected.citations)
+        discussion = projected.citations[refs["discussion"]]
+        article = projected.citations[refs["article"]]
+        self_post_citations[refs["article"]] = type(article)(
+            article.ref,
+            article.item_ref,
+            article.category,
+            article.kind,
+            discussion.url,
+        )
+        topic["citation_refs"] = [refs["article"]]
+        self_post = render_briefing(output, corpus, config, self_post_citations)
+        self.assertEqual(self_post.count(discussion.url), 1)
 
     def test_unknown_reference_and_url_in_summary_fail(self):
         _corpus, config, projected, output = fixture_contract()

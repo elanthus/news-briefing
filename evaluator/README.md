@@ -61,8 +61,38 @@ Whitespace around commas is ignored. Empty entries are rejected. The models stil
 
 ## Live model runs
 
-The frozen portfolio protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
-Its one-trial pilot began with the immutable `production-2026-08` and `reliability-v1`
+The historical evaluator path asks each model to author Markdown directly. To
+exercise the production architecture instead, add `--generation-path
+production-parity`. This path uses the scheduled runner's projected corpus,
+provider-native structured-output transport, output schema and validator, then
+evaluates the Markdown produced by the real renderer:
+
+```bash
+python3 -m evaluator run \
+  --provider codex-cli=gpt-5.6-terra \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --generation-path production-parity \
+  --prompt production=briefing-runner-prompt.md \
+  --reasoning enabled \
+  --trials 1 \
+  --run-kind development \
+  --output-dir evaluator/results/production-parity-smoke
+```
+
+If `--prompt` is omitted in this mode, `briefing-runner-prompt.md` is selected
+automatically. Production parity supports the same three transports as the
+scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
+the evaluator-only NVIDIA and baseline adapters, as well as `--seed`, rather
+than silently evaluating a different transport. Each trial preserves the raw
+corpus, projected corpus, citation map, output schema, structured response and
+rendered Markdown. The default `markdown` path remains available for historical
+prompt and direct-format reliability comparisons. Both direct-Markdown prompts
+omit mutable Hacker News points and comment counts. Production-parity manifests
+record Codex's fixed medium reasoning and OpenRouter's effective reasoning
+enablement/effort; Claude Code remains provider-controlled.
+
+The portfolio protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
+Its one-trial pilot began with the versioned `production-2026-08` and `reliability-v1`
 prompts on Claude Sonnet 5 through Claude Code and DeepSeek V4 Flash through
 OpenRouter. Pilot rows are operational checks and are excluded from final estimates:
 
@@ -181,7 +211,7 @@ If `--reasoning` is omitted, the API provider's default is preserved; `enabled` 
 is sent as an explicit reasoning control and recorded in the run manifest and report.
 `--reasoning-effort` selects an explicit API effort level and implies enabled reasoning.
 
-Supported provider names are `codex-cli`, `claude-code-cli`, `openrouter`, `nvidia`, and `baseline`. The CLI adapters disable tools or use an empty read-only workspace. The API adapters send the corpus directly to OpenRouter's and NVIDIA's OpenAI-compatible chat-completions endpoints. `baseline` (model name selects strategy: `empty`, `echo`, or `compliant`) makes no network call and needs no credentials — run it with `python3 -m evaluator run --provider baseline=empty --provider baseline=echo --provider baseline=compliant`.
+Supported provider names on the historical Markdown path are `codex-cli`, `claude-code-cli`, `openrouter`, `nvidia`, and `baseline`. The CLI adapters disable tools or use an empty read-only workspace. The API adapters send the corpus directly to OpenRouter's and NVIDIA's OpenAI-compatible chat-completions endpoints. `baseline` (model name selects strategy: `empty`, `echo`, or `compliant`) makes no network call and needs no credentials — run it with `python3 -m evaluator run --provider baseline=empty --provider baseline=echo --provider baseline=compliant`.
 
 Sampling controls are not equivalent across providers. The OpenRouter and NVIDIA adapters send the configured temperature and optional seed. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest and rendered report records those settings and explicitly warns that exact reproducibility is not guaranteed and CLI/API results are not directly comparable on sampling controls alone. API models and routed providers may also differ in which sampling parameters they honor.
 
@@ -206,7 +236,7 @@ python3 -m evaluator run \
 ```
 
 Before another provider call, resume verifies the suite, root and case-specific corpora, configurations,
-protocol, prompts and prompt order, adapter/model order, generation controls, per-adapter timeout, trials,
+protocol, prompts and prompt order, generation path, adapter/model order, generation controls, per-adapter timeout, trials,
 run kind, execution order/seed, circuit threshold, and cost-ceiling settings against the checkpoint. It also
 requires saved results to be a unique exact prefix of the original execution plan and verifies their artifact
 files. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
@@ -285,4 +315,4 @@ The selected reviewer receives opaque case identifiers, the rubric, and case inp
 
 ## Prompt provenance
 
-The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it an immutable version name, and pass both versions explicitly. Portfolio v1 freezes the exact files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Reports store the name and SHA-256 hash, so reusing a name for changed prompt bytes remains visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
+The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it a version name, and pass both versions explicitly. Portfolio v1 records the selected files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Every saved report also stores the name and SHA-256 hash, so historical runs retain their exact prompt identity and changed prompt bytes remain visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.

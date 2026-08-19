@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 import corpus_schema
+from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
+from agent_runner.providers import provider_for as runner_provider_for
 
 API_MAX_ATTEMPTS = 3
 RETRYABLE_HTTP_STATUSES = {408, 425, 429}
@@ -34,9 +36,12 @@ class Generation:
     provider_request_id: str | None = None
     usage: dict[str, Any] | None = None
     attempts: int = 1
+    structured_output: dict[str, Any] | None = None
 
     def record(self) -> dict[str, Any]:
-        return asdict(self)
+        record = asdict(self)
+        record.pop("structured_output")
+        return record
 
 
 class Adapter:
@@ -48,6 +53,13 @@ class Adapter:
 
     def generate(self, prompt: str) -> Generation:
         raise NotImplementedError
+
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        raise NotImplementedError(
+            f"{self.provider} does not implement the production structured-output transport"
+        )
 
     def generation_controls(self) -> dict[str, Any]:
         return {
@@ -745,6 +757,119 @@ class BaselineAdapter(Adapter):
                 "temperature and seed do not apply and repeated trials are byte-identical."
             ),
         }
+
+
+class ProductionParityAdapter(Adapter):
+    """Expose the real structured runner transport through the evaluator API."""
+
+    def __init__(
+        self,
+        provider: ModelProvider,
+        timeout: int,
+        controls: dict[str, Any],
+    ):
+        super().__init__(provider.model, timeout)
+        self.provider = provider.name
+        self._runner_provider = provider
+        self._controls = controls
+
+    def generate(self, prompt: str) -> Generation:
+        raise NotImplementedError(
+            "production-parity adapters require evaluator generation_path='production-parity'"
+        )
+
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        try:
+            response = self._runner_provider.generate(GenerationRequest(
+                prompt=prompt,
+                output_schema=output_schema,
+                timeout_seconds=self.timeout,
+                trace_id=trace_id,
+            ))
+        except ProviderError as exc:
+            raise ProviderRequestError(
+                str(exc),
+                transient=exc.transient,
+                attempts=exc.attempts,
+                status_code=exc.status_code,
+                retry_after=exc.retry_after,
+                provider_request_id=exc.provider_request_id,
+            ) from exc
+        return Generation(
+            text=response.raw_output,
+            latency_ms=response.latency_ms,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cost_usd=response.cost_usd,
+            cost_note=(
+                "Codex CLI does not report a billed per-run USD amount."
+                if self.provider == "codex-cli" and response.cost_usd is None
+                else None
+            ),
+            provider_request_id=response.provider_request_id,
+            usage=response.usage,
+            attempts=response.attempts,
+            structured_output=response.structured_output,
+        )
+
+    def generation_controls(self) -> dict[str, Any]:
+        return self._controls
+
+
+def production_adapter_for(
+    provider: str,
+    model: str,
+    timeout: int = 300,
+    temperature: float | None = None,
+    seed: int | None = None,
+    reasoning_enabled: bool | None = None,
+    reasoning_effort: str | None = None,
+) -> ProductionParityAdapter:
+    """Build an evaluator adapter around the production runner's provider."""
+    if seed is not None:
+        raise ValueError(
+            "--seed is unavailable for production-parity runs because the production transports "
+            "do not send one"
+        )
+    if provider not in {"codex-cli", "claude-code-cli", "openrouter"}:
+        raise ValueError(
+            "production-parity runs support codex-cli, claude-code-cli, and openrouter"
+        )
+    resolved_temperature = 0 if temperature is None else temperature
+    max_tokens = int(os.environ.get("EVALUATOR_MAX_TOKENS", "100000"))
+    runner_provider = runner_provider_for(
+        provider,
+        model,
+        temperature=resolved_temperature,
+        reasoning_enabled=reasoning_enabled,
+        reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
+    )
+    info = runner_provider.info()
+    effective_reasoning_enabled = (
+        True
+        if provider == "codex-cli" or (provider == "openrouter" and reasoning_effort is not None)
+        else reasoning_enabled if provider == "openrouter" else None
+    )
+    effective_reasoning_effort = (
+        "medium"
+        if provider == "codex-cli"
+        else reasoning_effort if provider == "openrouter" else None
+    )
+    controls = {
+        "temperature": resolved_temperature if provider == "openrouter" else None,
+        "seed": None,
+        "reasoning_enabled": effective_reasoning_enabled,
+        "reasoning_effort": effective_reasoning_effort,
+        "tool_policy": info.get("tool_policy"),
+        "disclosure": (
+            "Uses the production structured-output transport, empty application-tool policy, "
+            "projected corpus, schema validator, and Markdown renderer."
+        ),
+    }
+    return ProductionParityAdapter(runner_provider, timeout, controls)
 
 
 def adapter_for(

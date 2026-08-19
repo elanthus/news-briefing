@@ -18,9 +18,23 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
+from agent_runner.output import (
+    Citation,
+    ModelCorpus,
+    build_output_schema,
+    project_corpus,
+    render_briefing,
+    validate_output,
+)
+from agent_runner.runner import (
+    build_request as structured_model_request,
+)
+from agent_runner.runner import (
+    correction_request as structured_correction_request,
+)
 
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
-from evaluator.cases import run_deterministic_suite
+from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.metrics import latency_summary, rate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -330,6 +344,33 @@ def correction_request(request: str, output: str, findings: list[dict[str, str]]
     )
 
 
+def _evaluate_structured_generation(
+    generation: Any,
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> tuple[str, dict[str, eval_briefing.Section], list[eval_briefing.Finding]]:
+    """Validate and render one production-shaped structured response."""
+    output = generation.structured_output
+    if not isinstance(output, dict):
+        findings = [
+            eval_briefing.Finding(
+                "ERROR", "structured_type", "provider returned no structured object"
+            )
+        ]
+        return "", eval_briefing.parse_briefing("", config), findings
+    findings = [
+        eval_briefing.Finding(finding.level, finding.check, finding.message)
+        for finding in validate_output(output, config, citations)
+    ]
+    if any(finding.level == eval_briefing.ERROR for finding in findings):
+        return "", eval_briefing.parse_briefing("", config), findings
+    rendered = render_briefing(output, corpus, config, citations)
+    sections = eval_briefing.parse_briefing(rendered, config)
+    findings.extend(eval_briefing.evaluate_parsed(corpus, rendered, sections, config))
+    return rendered, sections, findings
+
+
 def _topic_routes(
     sections: dict[str, eval_briefing.Section],
 ) -> tuple[list[str], dict[str, set[str]], list[set[str]]]:
@@ -508,6 +549,7 @@ def _grounding_topics(
     """
     allowed = set(eval_briefing.corpus_links(corpus))
     evidence = eval_briefing.corpus_evidence(corpus)
+    all_evidence = eval_briefing.corpus_evidence_items(corpus)
     topics = 0
     errors = 0
     for name, bucket in sections.items():
@@ -531,7 +573,7 @@ def _grounding_topics(
             if (
                 not links
                 or any(link not in allowed for link in links)
-                or eval_briefing.check_claims_supported(mini, evidence)
+                or eval_briefing.check_claims_supported(mini, evidence, all_evidence)
             ):
                 errors += 1
     return topics, errors
@@ -808,10 +850,15 @@ def _base_result(
 _RUNNER_ARTIFACT_FILES = (
     "corpus.json",
     "request.txt",
+    "model-corpus.json",
+    "citation-map.json",
+    "output-schema.json",
     "error.json",
     "correction-error.json",
     "first.md",
     "final.md",
+    "first-structured.json",
+    "final-structured.json",
     "grounding-adjudication.json",
     "semantic-adjudication.json",
 )
@@ -848,12 +895,21 @@ def _load_resume_manifest(output_dir: Path) -> dict[str, Any]:
 
 
 def _validate_checkpoint_artifacts(
-    row: dict[str, Any], output_dir: Path, expected_artifact_dir: str
+    row: dict[str, Any],
+    output_dir: Path,
+    expected_artifact_dir: str,
+    generation_path: str,
 ) -> None:
     if row.get("artifact_dir") != expected_artifact_dir:
         raise ValueError("cannot resume corrupt checkpoint: result artifact_dir is inconsistent")
     case_dir = output_dir / expected_artifact_dir
     required = [case_dir / "corpus.json", case_dir / "request.txt"]
+    if generation_path == "production-parity":
+        required.extend([
+            case_dir / "model-corpus.json",
+            case_dir / "citation-map.json",
+            case_dir / "output-schema.json",
+        ])
     status = row.get("status")
     if status in {"provider_error", "skipped_circuit_open"}:
         required.append(case_dir / "error.json")
@@ -869,6 +925,11 @@ def _validate_checkpoint_artifacts(
             case_dir / "final.md",
             case_dir / "grounding-adjudication.json",
         ])
+        if generation_path == "production-parity":
+            required.extend([
+                case_dir / "first-structured.json",
+                case_dir / "final-structured.json",
+            ])
         if status == "completed_with_correction_error":
             required.append(case_dir / "correction-error.json")
         semantic_path = row.get("semantic_adjudication")
@@ -953,11 +1014,14 @@ def run_evaluation(
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
+    generation_path: str = "markdown",
 ) -> dict[str, Any]:
     if trials <= 0:
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
+    if generation_path not in {"markdown", "production-parity"}:
+        raise ValueError("generation_path must be markdown or production-parity")
     resume_manifest = _load_resume_manifest(output_dir) if resume else None
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
@@ -1076,7 +1140,8 @@ def run_evaluation(
         raise ValueError("planned result artifact directory names collide after sanitization")
 
     identity = {
-        "schema_version": 8,
+        "schema_version": 9,
+        "generation_path": generation_path,
         "run_kind": run_kind,
         "execution_order": execution_order,
         "execution_seed": execution_seed,
@@ -1175,7 +1240,12 @@ def run_evaluation(
                     raise ValueError(
                         "cannot resume corrupt checkpoint: semantic adjudication presence is inconsistent"
                     )
-            _validate_checkpoint_artifacts(row, output_dir, planned_artifact_dirs[index])
+            _validate_checkpoint_artifacts(
+                row,
+                output_dir,
+                planned_artifact_dirs[index],
+                generation_path,
+            )
         observed_ceiling_cost_usd = (
             _reconstruct_observed_cost(results, cost_ceiling_provider)
             if cost_ceiling_usd is not None else 0.0
@@ -1301,12 +1371,26 @@ def run_evaluation(
             config_path = suite_path.parent / case["config"]
             config_data = _json(config_path)
             config = briefing_config.load_config(config_path)
-            request = model_request(prompt, config_data, corpus)
+            projected: ModelCorpus | None = None
+            output_schema: dict[str, Any] | None = None
+            if generation_path == "production-parity":
+                projected = project_corpus(corpus)
+                output_schema = build_output_schema(config)
+                request = structured_model_request(prompt, config_data, projected)
+            else:
+                request = model_request(prompt, config_data, corpus)
             safe_key = _safe_artifact_key(result_key)
             case_dir = output_dir / safe_key
             _prepare_artifact_dir(case_dir, resume=resume_manifest is not None)
             _write_json_atomic(case_dir / "corpus.json", corpus)
             _write_text_atomic(case_dir / "request.txt", request)
+            if projected is not None and output_schema is not None:
+                _write_json_atomic(case_dir / "model-corpus.json", projected.document)
+                _write_json_atomic(
+                    case_dir / "citation-map.json",
+                    {ref: citation.__dict__ for ref, citation in projected.citations.items()},
+                )
+                _write_json_atomic(case_dir / "output-schema.json", output_schema)
             base_result = _base_result(
                 adapter,
                 prompt_version,
@@ -1352,7 +1436,12 @@ def run_evaluation(
                     )
                 continue
             try:
-                first = adapter.generate(request)
+                if generation_path == "production-parity":
+                    if output_schema is None:
+                        raise AssertionError("production-parity output schema was not built")
+                    first = adapter.generate_structured(request, output_schema, safe_key)
+                else:
+                    first = adapter.generate(request)
             except Exception as exc:
                 if (
                     ceiling_applies
@@ -1389,9 +1478,21 @@ def run_evaluation(
             if ceiling_applies and first.cost_usd is not None:
                 observed_ceiling_cost_usd += first.cost_usd
                 manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
-            first_sections = eval_briefing.parse_briefing(first.text, config)
-            before = eval_briefing.evaluate_parsed(corpus, first.text, first_sections, config)
-            oracle_before = _oracle(case, first.text, before, first_sections, corpus=corpus, config=config)
+            if generation_path == "production-parity":
+                if projected is None:
+                    raise AssertionError("production-parity corpus projection was not built")
+                first_text, first_sections, before = _evaluate_structured_generation(
+                    first, corpus, config, projected.citations
+                )
+            else:
+                first_text = first.text
+                first_sections = eval_briefing.parse_briefing(first_text, config)
+                before = eval_briefing.evaluate_parsed(
+                    corpus, first_text, first_sections, config
+                )
+            oracle_before = _oracle(
+                case, first_text, before, first_sections, corpus=corpus, config=config
+            )
             first_topics, first_grounding_errors = _grounding_topics(corpus, first_sections)
             first_contract = _contract_success(before)
             # The production workflow can act on checker findings, not
@@ -1417,11 +1518,28 @@ def run_evaluation(
                     _write_json_atomic(case_dir / "correction-error.json", correction_error)
                 else:
                     try:
-                        corrected = adapter.generate(correction_request(
-                            request,
-                            first.text,
-                            [finding._asdict() for finding in before],
-                        ))
+                        finding_records = [finding._asdict() for finding in before]
+                        if generation_path == "production-parity":
+                            if output_schema is None:
+                                raise AssertionError(
+                                    "production-parity output schema was not built"
+                                )
+                            correction_prompt = structured_correction_request(
+                                request,
+                                first.structured_output or {},
+                                finding_records,
+                            )
+                            corrected = adapter.generate_structured(
+                                correction_prompt,
+                                output_schema,
+                                f"{safe_key}-correction",
+                            )
+                        else:
+                            corrected = adapter.generate(correction_request(
+                                request,
+                                first.text,
+                                finding_records,
+                            ))
                         if (
                             ceiling_applies
                             and corrected.cost_usd is not None
@@ -1446,26 +1564,45 @@ def run_evaluation(
                         )
             final_generation = corrected or first
             if corrected is None:
+                final_text = first_text
                 final_sections = first_sections
                 after = before
                 oracle_after = oracle_before
                 final_topics = first_topics
                 final_grounding_errors = first_grounding_errors
             else:
-                final_sections = eval_briefing.parse_briefing(corrected.text, config)
-                after = eval_briefing.evaluate_parsed(
-                    corpus, corrected.text, final_sections, config
-                )
+                if generation_path == "production-parity":
+                    if projected is None:
+                        raise AssertionError(
+                            "production-parity corpus projection was not built"
+                        )
+                    final_text, final_sections, after = _evaluate_structured_generation(
+                        corrected, corpus, config, projected.citations
+                    )
+                else:
+                    final_text = corrected.text
+                    final_sections = eval_briefing.parse_briefing(final_text, config)
+                    after = eval_briefing.evaluate_parsed(
+                        corpus, final_text, final_sections, config
+                    )
                 oracle_after = _oracle(
-                    case, corrected.text, after, final_sections, corpus=corpus, config=config
+                    case, final_text, after, final_sections, corpus=corpus, config=config
                 )
                 final_topics, final_grounding_errors = _grounding_topics(
                     corpus, final_sections
                 )
             final_contract = _contract_success(after)
 
-            _write_text_atomic(case_dir / "first.md", first.text)
-            _write_text_atomic(case_dir / "final.md", final_generation.text)
+            _write_text_atomic(case_dir / "first.md", first_text)
+            _write_text_atomic(case_dir / "final.md", final_text)
+            if generation_path == "production-parity":
+                _write_json_atomic(
+                    case_dir / "first-structured.json", first.structured_output
+                )
+                _write_json_atomic(
+                    case_dir / "final-structured.json",
+                    final_generation.structured_output,
+                )
             adjudication_name = "grounding-adjudication.json"
             _write_json_atomic(
                 case_dir / adjudication_name,
@@ -1968,8 +2105,9 @@ def summarize(manifest: dict[str, Any], artifact_root: Path | None = None) -> di
         "position_consistency": (None if quality is None else quality.get("position_consistency")),
     }
     return {
-        "schema_version": 8,
+        "schema_version": 9,
         "generated_at": datetime.now(UTC).isoformat(),
+        "generation_path": manifest.get("generation_path", "markdown"),
         "generation_controls": manifest.get("generation_controls", []),
         "score_families": {
             "checker_capability": checker_capability,
@@ -2278,6 +2416,8 @@ def markdown_report(report: dict[str, Any]) -> str:
         f"Run status: {operations['run_status']}; recorded "
         f"{operations['recorded_case_trials']}/{operations['planned_case_trials']} planned case-trials.",
         "",
+        f"Generation path: `{report.get('generation_path', 'markdown')}`.",
+        "",
     ]
     controls = report.get("generation_controls", [])
     if controls:
@@ -2320,7 +2460,7 @@ def markdown_report(report: dict[str, Any]) -> str:
                 "| Heuristic check | False positives / eligible negatives | Rate (95% Wilson CI) |",
                 "|---|---:|---:|",
             ]
-            for check in ("unsupported_figure", "unsupported_quotation", "claim_exceeds_evidence"):
+            for check in HEURISTIC_CLAIM_CHECKS:
                 row = per_check_rates.get(check)
                 if row is not None:
                     lines.append(

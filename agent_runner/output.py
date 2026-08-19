@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, NamedTuple
 
 import briefing_config
+import corpus_schema
 import eval_briefing
 from agent_runner.outcomes import Outcome, classify_outcome, finding_domain
 
@@ -147,7 +148,11 @@ def _text_property(max_length: int) -> dict[str, Any]:
 def _citation_refs() -> dict[str, Any]:
     return {
         "type": "array",
-        "description": "One or more distinct, eligible citation references from the supplied corpus.",
+        "description": (
+            "One distinct, eligible citation reference per selected corpus item. "
+            "The renderer adds code-owned companion destinations, including Hacker "
+            "News discussion links."
+        ),
         "items": {"type": "string"},
         "minItems": 1,
     }
@@ -402,13 +407,41 @@ def _date_label(value: str) -> str:
     return f"{parsed:%B} {parsed.day}, {parsed:%Y}"
 
 
+def _complete_item_citations(
+    refs: list[str],
+    citations: dict[str, Citation],
+) -> list[Citation]:
+    """Expand selected items to every distinct code-owned destination.
+
+    A model chooses evidence items, not presentation details. In particular, an
+    HN article and its discussion page are a deterministic pair that the
+    renderer owns. Canonical destination deduplication keeps self-posts and
+    explicitly supplied companion refs from rendering twice.
+    """
+    item_order = list(dict.fromkeys(citations[ref].item_ref for ref in refs))
+    completed: list[Citation] = []
+    seen_destinations: set[str] = set()
+    kind_order = {"article": 0, "discussion": 1}
+    for item_ref in item_order:
+        item_citations = sorted(
+            (citation for citation in citations.values() if citation.item_ref == item_ref),
+            key=lambda citation: kind_order.get(citation.kind, len(kind_order)),
+        )
+        for citation in item_citations:
+            destination = corpus_schema.canonicalize_url(citation.url)
+            if destination in seen_destinations:
+                continue
+            seen_destinations.add(destination)
+            completed.append(citation)
+    return completed
+
+
 def _topic_lines(entry: dict[str, Any], citations: dict[str, Citation]) -> list[str]:
     refs = entry["citation_refs"]
     item_refs = {citations[ref].item_ref for ref in refs}
     consolidated = " *(consolidated)*" if len(item_refs) > 1 else ""
     lines = [f"**{entry['headline']}**{consolidated} — {entry['summary']}"]
-    for ref in refs:
-        citation = citations[ref]
+    for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
     return lines + [""]
@@ -455,8 +488,9 @@ def render_briefing(
             lines.append(f"**{section.name}**")
             for entry in excluded[section.name]:
                 rendered_refs = []
-                for ref in entry["citation_refs"]:
-                    citation = citations[ref]
+                for citation in _complete_item_citations(
+                    entry["citation_refs"], citations
+                ):
                     prefix = "HN: " if citation.kind == "discussion" else ""
                     rendered_refs.append(f"🔗 {prefix}{citation.url}")
                 lines.append(

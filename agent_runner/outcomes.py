@@ -35,6 +35,12 @@ COVERAGE_CHECKS = {
     "failed_source_unnamed",
     "unexpected_failed_source",
 }
+QUALITY_CHECKS = {
+    "exclusion_log_missing",
+    "exclusion_log_short",
+    "figure_supported_elsewhere",
+    "slots_underfilled",
+}
 
 
 @dataclass(frozen=True)
@@ -62,7 +68,7 @@ def finding_domain(check: str) -> str:
         return "coverage"
     if check.startswith("structured_"):
         return "schema"
-    if check in {"slots_underfilled", "exclusion_log_missing", "exclusion_log_short"}:
+    if check in QUALITY_CHECKS:
         return "quality"
     return "editorial"
 

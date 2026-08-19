@@ -659,6 +659,44 @@ class ClaimGroundingTest(unittest.TestCase):
                                   "**Politics topic 1** — summary text here, up 47 percent.")
         self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text)))
 
+    def test_figure_in_topically_matching_uncited_item_is_nonblocking_note(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][8].update(
+            title="Federal budget politics topic follow-up",
+            summary="The related budget rose 47 percent.",
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Federal budget politics topic** — summary text here, up 47 percent.",
+        )
+        findings = evaluate(corpus, text)
+        self.assertIn("figure_supported_elsewhere", checks(findings, WARN))
+        self.assertNotIn("unsupported_figure", checks(findings, WARN))
+
+    def test_same_figure_in_unrelated_item_remains_unsupported(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["world"][8].update(
+            title="Unrelated rainfall measurement",
+            summary="Rainfall rose 47 percent.",
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — summary text here, up 47 percent.",
+        )
+        findings = evaluate(corpus, text)
+        self.assertIn("unsupported_figure", checks(findings, WARN))
+        self.assertNotIn("figure_supported_elsewhere", checks(findings, WARN))
+
+    def test_figure_prefix_is_not_treated_as_exact_support(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "Reported summary text here, up 470 percent.")
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — summary text here, up 47 percent.",
+        )
+        self.assertIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
     def test_quotation_not_in_the_cited_item_is_flagged(self):
         """Attributing a real quote to the wrong source still misleads."""
         text = briefing().replace(
