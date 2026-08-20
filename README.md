@@ -71,6 +71,8 @@ python3 eval_briefing.py \
   --config fixtures/briefing-config-2026-08-09.json
 ```
 
+Reddit retrieval is resilient per configured subreddit: anonymous Reddit RSS runs first, the free Arctic Shift archive supplies an exact-window fallback, and ScrapeCreators is called only when both free paths return no usable posts. Set `SCRAPECREATORS_API_KEY` to enable that final authenticated fallback; its subreddit endpoint charges one credit per request. Normal runs spend no credits when the free paths succeed, while the current four-subreddit configuration can spend at most four credits in the worst case.
+
 Generate a fresh briefing with one authenticated provider:
 
 ```bash

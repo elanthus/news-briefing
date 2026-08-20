@@ -14,10 +14,11 @@ import re
 import tempfile
 import unittest
 import urllib.error
+import urllib.parse
 import xml.etree.ElementTree as ET
 from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -730,7 +731,7 @@ class RedditTopBucketTest(unittest.TestCase):
     def test_default_fetch_url_uses_day_bucket(self):
         empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
         with patch.object(fetch_news, "http_get", return_value=empty_feed) as get:
-            self.assertEqual(fetch_reddit(
+            self.assertEqual(fetch_news.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             ).items,
                              [])
@@ -746,7 +747,7 @@ class RedditTopBucketTest(unittest.TestCase):
                 b'<updated>2026-08-09T00:00:01Z</updated></entry>'
                 b'</feed>')
         with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_reddit(
+            result = fetch_news.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             )
 
@@ -801,6 +802,138 @@ class RedditLimitTest(unittest.TestCase):
             with self.subTest(hours=hours):
                 self.assertLessEqual(reddit_limit(hours), REDDIT_MAX_LIMIT)
                 self.assertGreater(reddit_limit(hours), 0)
+
+
+class RedditFallbackTest(unittest.TestCase):
+    CUTOFF = utc(2026, 8, 8)
+    WINDOW_END = utc(2026, 8, 9)
+
+    def result(self, title="Post"):
+        return fetch_news.FetchResult([{
+            "title": title,
+            "url": "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
+            "published": "2026-08-08T12:00:00+00:00",
+            "source": "r/ClaudeCode",
+        }], 0, 1, 1)
+
+    def test_rss_result_skips_both_fallbacks(self):
+        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=self.result("RSS")),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift") as arctic,
+              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual(result.items[0]["title"], "RSS")
+        arctic.assert_not_called()
+        authenticated.assert_not_called()
+
+    def test_arctic_shift_recovers_an_rss_error_without_spending_a_credit(self):
+        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=urllib.error.HTTPError(
+                  "https://reddit.test", 429, "Too Many Requests", {}, None)),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift",
+                           return_value=self.result("Arctic")) as arctic,
+              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual(result.items[0]["title"], "Arctic")
+        arctic.assert_called_once()
+        authenticated.assert_not_called()
+
+    def test_authenticated_fallback_runs_only_after_both_free_paths_are_empty(self):
+        empty = fetch_news.FetchResult([], 0, 0, 0)
+        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=empty),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=empty),
+              patch.object(fetch_news, "fetch_reddit_scrapecreators",
+                           return_value=self.result("Authenticated")) as authenticated):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual(result.items[0]["title"], "Authenticated")
+        authenticated.assert_called_once_with(
+            "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+        )
+
+    def test_missing_key_returns_the_last_free_empty_result(self):
+        rss_empty = fetch_news.FetchResult([], 2, 3, 1)
+        arctic_empty = fetch_news.FetchResult([], 0, 0, 0)
+        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=rss_empty),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=arctic_empty),
+              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24
+            )
+        self.assertEqual(result, arctic_empty)
+        authenticated.assert_not_called()
+
+    def test_authenticated_failure_preserves_a_valid_free_empty_result(self):
+        rss_empty = fetch_news.FetchResult([], 2, 3, 1)
+        arctic_empty = fetch_news.FetchResult([], 0, 0, 0)
+        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=rss_empty),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=arctic_empty),
+              patch.object(fetch_news, "fetch_reddit_scrapecreators",
+                           side_effect=TimeoutError("authenticated provider down"))):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual(result, arctic_empty)
+
+    def test_all_free_transport_failures_remain_an_error_without_a_key(self):
+        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=OSError("rss down")),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift",
+                           side_effect=TimeoutError("archive down"))):
+            with self.assertRaisesRegex(RuntimeError, "RSS.*Arctic Shift"):
+                fetch_reddit("ClaudeCode", self.CUTOFF, self.WINDOW_END, 24)
+
+    def test_arctic_shift_uses_exact_window_and_canonical_reddit_destinations(self):
+        payload = json.dumps({"data": [{
+            "id": "ABC123",
+            "title": "Fresh &amp; useful",
+            "selftext": "body",
+            "created_utc": self.CUTOFF.timestamp() + 3600,
+            "url": "https://attacker.example/not-used",
+        }, {
+            "id": "old123",
+            "title": "Outside fixed window",
+            "created_utc": self.CUTOFF.timestamp() - 1,
+        }]}).encode()
+        fractional_end = self.WINDOW_END + timedelta(microseconds=1)
+        with patch.object(fetch_news, "http_get", return_value=payload) as get:
+            result = fetch_news.fetch_reddit_arctic_shift(
+                "ClaudeCode", self.CUTOFF, fractional_end
+            )
+        self.assertEqual([item["title"] for item in result.items], ["Fresh & useful"])
+        self.assertEqual(
+            result.items[0]["url"],
+            "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
+        )
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
+        self.assertEqual(query["after"], [str(int(self.CUTOFF.timestamp()))])
+        self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()) + 1)])
+        self.assertEqual(query["limit"], [str(fetch_news.REDDIT_FALLBACK_LIMIT)])
+
+    def test_scrapecreators_result_is_filtered_to_the_fixed_window(self):
+        payload = json.dumps({"success": True, "posts": [{
+            "post_id": "t3_fresh1",
+            "title": "Fresh",
+            "selftext": "[removed]",
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
+            "post_id": "t3_future1",
+            "title": "Future",
+            "created_at_iso": "2026-08-09T00:00:01Z",
+        }]}).encode()
+        with patch.object(fetch_news, "scrapecreators_get", return_value=payload) as get:
+            result = fetch_news.fetch_reddit_scrapecreators(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual([item["title"] for item in result.items], ["Fresh"])
+        self.assertNotIn("summary", result.items[0])
+        self.assertEqual(get.call_args.args[1], "secret")
+        self.assertNotIn("secret", get.call_args.args[0])
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
+        self.assertEqual(query["sort"], ["new"])
+        self.assertEqual(query["timeframe"], ["day"])
 
 
 class SortItemsTest(unittest.TestCase):
@@ -1119,6 +1252,35 @@ class HttpGetTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "non-public"):
                 fetch_news.http_get("https://example.com/feed")
         self.assertEqual(request.call_count, 1)
+
+    def test_scrapecreators_key_is_origin_locked_and_redirects_are_refused(self):
+        redirect = fetch_news.HttpResult(
+            302, "Found", {"Location": "https://attacker.example/collect"}, b"")
+        captured = []
+
+        def fake_request(*args):
+            captured.append(args)
+            return redirect
+
+        with (patch.object(fetch_news, "_resolve_public_addresses",
+                           return_value=self.PUBLIC),
+              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
+            with self.assertRaises(urllib.error.HTTPError):
+                fetch_news.scrapecreators_get(
+                    "https://api.scrapecreators.com/v1/reddit/subreddit?subreddit=test",
+                    "secret",
+                )
+        self.assertEqual(captured[0][-1]["x-api-key"], "secret")
+        self.assertEqual(len(captured), 1)
+        with self.assertRaisesRegex(ValueError, "only be sent"):
+            fetch_news.scrapecreators_get("https://attacker.example/collect", "secret")
+
+    def test_scrapecreators_key_must_be_single_line(self):
+        for key in ("", " ", "secret\nforwarded"):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                fetch_news.scrapecreators_get(
+                    "https://api.scrapecreators.com/v1/reddit/subreddit", key
+                )
 
 
 class FeedConfigurationTest(unittest.TestCase):
