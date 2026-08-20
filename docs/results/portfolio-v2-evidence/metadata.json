@@ -1,0 +1,50 @@
+{
+  "component_manifests": [
+    {
+      "manifest_sha256": "207d6119cc8f183246ad315ae45deeea5949b869b6b921d0f97d2bb462ffc5a6",
+      "name": "portfolio-v2-final-20260819",
+      "observed_cost_usd": 1.0448192616199992,
+      "original_run_status": "running",
+      "planned_case_trials": 1200,
+      "rows": 600
+    },
+    {
+      "manifest_sha256": "63de5d5b64105ab92d24034fb73bbd0ff9df2fdb65c7853fc5fbf29784172f1e",
+      "name": "portfolio-v2-final-20260819-hy3",
+      "observed_cost_usd": 2.7556615940000007,
+      "original_run_status": "complete",
+      "planned_case_trials": 600,
+      "rows": 600
+    }
+  ],
+  "files": {
+    "adjudications.json": {
+      "bytes": 182390,
+      "sha256": "889a6297a443d05a5bf8f484c0d61dd3096d073265d34402c2cc447ece1fa6b0"
+    },
+    "ledger.json": {
+      "bytes": 6120484,
+      "sha256": "fd5fa47530c97bbff68f57ef96d5e1c6b114e8cc9a93a6b60010d68c31489eee"
+    },
+    "manifest.json": {
+      "bytes": 18940109,
+      "sha256": "2a0560d454382161879c4005380d276ebfba087d75607a91700b2120ecbf193d"
+    },
+    "report.json": {
+      "bytes": 238376,
+      "sha256": "e207a074959584b07c23f9690b4929bd8e59c3a6217073edac8b98ab1fa875fd"
+    },
+    "report.md": {
+      "bytes": 24603,
+      "sha256": "87f9f934e50fa9887e2729e9612efa524900028915c371ace3c8ff30dfd75d69"
+    }
+  },
+  "redactions": [
+    "provider_request_id"
+  ],
+  "regeneration_command": "python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence",
+  "schema_version": 1,
+  "source_commit": "29d7e3dac9b6c7f6042b9341fb4375dc5fae160c",
+  "source_tag": "portfolio-v2-source-20260819",
+  "source_tree": "556364bd0c16edfaeacb10ee241458c90947dc77"
+}

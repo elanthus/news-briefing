@@ -2,7 +2,9 @@
 
 Dates in this document, and the `*_on` fields in `evaluator/fixtures/checker-cases.json`'s `label_provenance`, are UTC calendar dates — commit timestamps in `git log` show local reviewer time (UTC−7), which can land on the previous UTC-minus-a-day date.
 
-This report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, independent review and owner adjudication of the six subsequent coverage additions, the UTF-32 parser fix, and independent review and owner adjudication of the final 24 paired heuristic-claim cases and two UTF-32 regressions, by running:
+This dated report is preserved as the 2026-08-14 human-readable historical snapshot. The current, full per-case approved snapshot is `evaluator/snapshots/offline-checker.json`; CI compares the current checker result byte-for-byte with that file. An intentional update uses `python3 -m evaluator checker --update-snapshot` and requires approval of the resulting diff.
+
+This historical report was regenerated after the 2026-08-13 redundancy trim (54 → 49 checker/feed cases), independent human review and owner adjudication of those 49 cases, independent review and owner adjudication of the six subsequent coverage additions, the UTF-32 parser fix, and independent review and owner adjudication of the final 24 paired heuristic-claim cases and two UTF-32 regressions, by running:
 
 ```bash
 python3 -m evaluator checker

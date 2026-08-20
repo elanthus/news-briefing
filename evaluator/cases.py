@@ -14,6 +14,7 @@ import corpus_schema
 import eval_briefing
 import fetch_news
 
+from evaluator.judge_io import portable_path
 from evaluator.metrics import classification_metrics, rate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -783,7 +784,7 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
         )
     return {
         "schema_version": 1,
-        "suite": str(path),
+        "suite": portable_path(path),
         "label_provenance": suite["label_provenance"],
         "case_count": len(records),
         "components": components,

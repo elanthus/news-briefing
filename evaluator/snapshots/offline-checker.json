@@ -1,0 +1,1890 @@
+{
+  "case_count": 81,
+  "cases": [
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "url-valid-baseline",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-baseline"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "url-valid-trailing-slash",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-trailing-slash"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "url-valid-tracking",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-tracking-parameter"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "url-valid-query-order",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-query-order"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "ungrounded_link",
+          "level": "ERROR",
+          "message": "complete output: HTTP(S) URL is not in the corpus — https://not-a-citation.example.test/context"
+        }
+      ],
+      "human_labels": [
+        "ungrounded_link"
+      ],
+      "id": "url-bare-prose-ungrounded",
+      "matched": [
+        "ungrounded_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "ungrounded_link"
+      ],
+      "unexpected": [],
+      "variant": "ungrounded-bare-url-in-prose"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "ungrounded_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: HTTP(S) URL is not in the corpus — https://publisher.test/invented"
+        }
+      ],
+      "human_labels": [
+        "ungrounded_link"
+      ],
+      "id": "url-fabricated-included",
+      "matched": [
+        "ungrounded_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "ungrounded_link"
+      ],
+      "unexpected": [],
+      "variant": "fabricated-included"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "ungrounded_link",
+          "level": "ERROR",
+          "message": "Excluded Topics: HTTP(S) URL is not in the corpus — https://example.test/invented"
+        }
+      ],
+      "human_labels": [
+        "ungrounded_link"
+      ],
+      "id": "url-fabricated-excluded",
+      "matched": [
+        "ungrounded_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "ungrounded_link"
+      ],
+      "unexpected": [],
+      "variant": "fabricated-excluded"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "altered_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: HTTP(S) URL was altered from the corpus URL — output has https://publisher.test/story?id=2, corpus has https://publisher.test/story?id=2&output=1"
+        }
+      ],
+      "human_labels": [
+        "altered_link"
+      ],
+      "id": "url-altered-publisher",
+      "matched": [
+        "altered_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "altered_link"
+      ],
+      "unexpected": [],
+      "variant": "altered-publisher-url"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "topic_without_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: topic 2 has no cited link"
+        }
+      ],
+      "human_labels": [
+        "topic_without_link"
+      ],
+      "id": "url-bare-included",
+      "matched": [
+        "topic_without_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "topic_without_link"
+      ],
+      "unexpected": [],
+      "variant": "bare-included-url"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "topic_without_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: topic 2 has no cited link"
+        }
+      ],
+      "human_labels": [
+        "topic_without_link"
+      ],
+      "id": "url-markdown-included",
+      "matched": [
+        "topic_without_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "topic_without_link"
+      ],
+      "unexpected": [],
+      "variant": "markdown-included-url"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "excluded_topic_without_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: excluded entry 1 has no cited link"
+        }
+      ],
+      "human_labels": [
+        "excluded_topic_without_link"
+      ],
+      "id": "url-markdown-excluded",
+      "matched": [
+        "excluded_topic_without_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "excluded_topic_without_link"
+      ],
+      "unexpected": [],
+      "variant": "markdown-excluded-url"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "duplicate_citation",
+          "level": "ERROR",
+          "message": "citation is printed 2 times in one topic — https://publisher.test/story?id=2&output=1"
+        }
+      ],
+      "human_labels": [
+        "duplicate_citation"
+      ],
+      "id": "url-duplicate-exact",
+      "matched": [
+        "duplicate_citation"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "duplicate_citation"
+      ],
+      "unexpected": [],
+      "variant": "duplicate-url-same-topic"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "repeated_topic",
+          "level": "ERROR",
+          "message": "topic is cited 2 times across distinct spellings or topics — https://publisher.test/story?id=2&output=1"
+        }
+      ],
+      "human_labels": [
+        "repeated_topic"
+      ],
+      "id": "url-duplicate-canonical",
+      "matched": [
+        "repeated_topic"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "repeated_topic"
+      ],
+      "unexpected": [],
+      "variant": "duplicate-url-canonical"
+    },
+    {
+      "component": "checker",
+      "family": "url",
+      "findings": [
+        {
+          "check": "included_and_excluded",
+          "level": "ERROR",
+          "message": "link appears in both the briefing and the exclusion log — https://publisher.test/story?id=2&output=1"
+        }
+      ],
+      "human_labels": [
+        "included_and_excluded"
+      ],
+      "id": "url-included-excluded",
+      "matched": [
+        "included_and_excluded"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "included_and_excluded"
+      ],
+      "unexpected": [],
+      "variant": "included-and-excluded"
+    },
+    {
+      "component": "checker",
+      "family": "format",
+      "findings": [
+        {
+          "check": "topic_without_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: topic 2 has no cited link"
+        }
+      ],
+      "human_labels": [
+        "topic_without_link"
+      ],
+      "id": "structure-topic-no-link",
+      "matched": [
+        "topic_without_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "topic_without_link"
+      ],
+      "unexpected": [],
+      "variant": "topic-without-link"
+    },
+    {
+      "component": "checker",
+      "family": "format",
+      "findings": [
+        {
+          "check": "excluded_topic_without_link",
+          "level": "ERROR",
+          "message": "AI Dev Tools: excluded entry 1 has no cited link"
+        }
+      ],
+      "human_labels": [
+        "excluded_topic_without_link"
+      ],
+      "id": "structure-exclusion-no-link",
+      "matched": [
+        "excluded_topic_without_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "excluded_topic_without_link"
+      ],
+      "unexpected": [],
+      "variant": "excluded-without-link"
+    },
+    {
+      "component": "checker",
+      "family": "format",
+      "findings": [
+        {
+          "check": "missing_section",
+          "level": "ERROR",
+          "message": "required section 'AI Dev Tools' is absent"
+        }
+      ],
+      "human_labels": [
+        "missing_section"
+      ],
+      "id": "structure-missing-section",
+      "matched": [
+        "missing_section"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "missing_section"
+      ],
+      "unexpected": [],
+      "variant": "missing-section"
+    },
+    {
+      "component": "checker",
+      "family": "format",
+      "findings": [
+        {
+          "check": "missing_section",
+          "level": "ERROR",
+          "message": "required section 'Excluded Topics' is absent"
+        }
+      ],
+      "human_labels": [
+        "missing_section"
+      ],
+      "id": "structure-missing-exclusions",
+      "matched": [
+        "missing_section"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "missing_section"
+      ],
+      "unexpected": [],
+      "variant": "missing-exclusion-section"
+    },
+    {
+      "component": "checker",
+      "family": "selection",
+      "findings": [
+        {
+          "check": "slots_overfilled",
+          "level": "ERROR",
+          "message": "AI Dev Tools: 3 topics, expected 2 — a section exceeding its reserved slots crowds out the others"
+        }
+      ],
+      "human_labels": [
+        "slots_overfilled",
+        "unsupported_claim"
+      ],
+      "id": "structure-overfilled",
+      "matched": [
+        "slots_overfilled"
+      ],
+      "missed": [
+        "unsupported_claim"
+      ],
+      "predicted_labels": [
+        "slots_overfilled"
+      ],
+      "unexpected": [],
+      "variant": "overfilled"
+    },
+    {
+      "component": "checker",
+      "family": "thin_evidence",
+      "findings": [
+        {
+          "check": "slots_underfilled",
+          "level": "WARN",
+          "message": "AI Dev Tools: 1 topics, expected 2 (thin corpus is a legitimate cause)"
+        }
+      ],
+      "human_labels": [
+        "slots_underfilled"
+      ],
+      "id": "structure-underfilled",
+      "matched": [
+        "slots_underfilled"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "slots_underfilled"
+      ],
+      "unexpected": [],
+      "variant": "underfilled"
+    },
+    {
+      "component": "checker",
+      "family": "grouped_rendering",
+      "findings": [],
+      "human_labels": [],
+      "id": "grouped-multisection-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-grouped-multisection"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "exclusions-exhausted-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-exclusions-exhausted"
+    },
+    {
+      "component": "checker",
+      "family": "category",
+      "findings": [
+        {
+          "check": "category_ineligible",
+          "level": "ERROR",
+          "message": "AI Dev Tools: cited item belongs to other_news, not an eligible category — https://example.test/market"
+        }
+      ],
+      "human_labels": [
+        "category_ineligible",
+        "unsupported_claim"
+      ],
+      "id": "category-wrong",
+      "matched": [
+        "category_ineligible"
+      ],
+      "missed": [
+        "unsupported_claim"
+      ],
+      "predicted_labels": [
+        "category_ineligible"
+      ],
+      "unexpected": [],
+      "variant": "wrong-category"
+    },
+    {
+      "component": "checker",
+      "family": "category",
+      "findings": [],
+      "human_labels": [],
+      "id": "category-overlap-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-category-overlap"
+    },
+    {
+      "component": "checker",
+      "family": "category",
+      "findings": [],
+      "human_labels": [
+        "category_ambiguity"
+      ],
+      "id": "category-ambiguity-clean",
+      "matched": [],
+      "missed": [
+        "category_ambiguity"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "category-ambiguity-clean"
+    },
+    {
+      "component": "checker",
+      "family": "format",
+      "findings": [
+        {
+          "check": "missing_discussion_link",
+          "level": "WARN",
+          "message": "AI Dev Tools: Hacker News item cited without its discussion link — https://example.test/tool-one"
+        }
+      ],
+      "human_labels": [
+        "missing_discussion_link"
+      ],
+      "id": "hn-discussion-missing",
+      "matched": [
+        "missing_discussion_link"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "missing_discussion_link"
+      ],
+      "unexpected": [],
+      "variant": "hn-discussion-missing"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "hn-without-discussion-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-hn-without-discussion"
+    },
+    {
+      "component": "checker",
+      "family": "grounding",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Tool one reaches version 2' states '87', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-unsupported-figure",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "unsupported-figure"
+    },
+    {
+      "component": "checker",
+      "family": "grounding",
+      "findings": [
+        {
+          "check": "unsupported_quotation",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Tool two adds review mode' quotes \"perfectly safe\", which does not appear in the item(s) it cites"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_quotation",
+        "claim_exceeds_evidence"
+      ],
+      "id": "claim-unsupported-quote",
+      "matched": [
+        "unsupported_quotation"
+      ],
+      "missed": [
+        "claim_exceeds_evidence"
+      ],
+      "predicted_labels": [
+        "unsupported_quotation"
+      ],
+      "unexpected": [],
+      "variant": "unsupported-quotation"
+    },
+    {
+      "component": "checker",
+      "family": "grounding",
+      "findings": [
+        {
+          "check": "claim_exceeds_evidence",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Tool two adds review mode' has 191 characters of summary from 76 characters of evidence — the surplus is not grounded in the corpus"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "id": "claim-exceeds-evidence",
+      "matched": [
+        "claim_exceeds_evidence"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "unexpected": [],
+      "variant": "claim-too-long"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Half of users enable feature' states '50 percent', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-semantic-figure-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "valid-semantic-figure"
+    },
+    {
+      "component": "checker",
+      "family": "thin_evidence",
+      "findings": [
+        {
+          "check": "claim_exceeds_evidence",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Tool two adds review mode' has 97 characters of summary from 46 characters of evidence — the surplus is not grounded in the corpus"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "id": "claim-thin-paraphrase-valid",
+      "matched": [
+        "claim_exceeds_evidence"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "unexpected": [],
+      "variant": "valid-thin-evidence-paraphrase"
+    },
+    {
+      "component": "checker",
+      "family": "thin_evidence",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "claim_exceeds_evidence",
+        "unsupported_claim"
+      ],
+      "id": "claim-thin-unsupported",
+      "matched": [],
+      "missed": [
+        "claim_exceeds_evidence",
+        "unsupported_claim"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "thin-evidence-unsupported"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Half of users enable feature' states '50 percent', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-fraction-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "claim-fraction-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Most users enable feature' states '60 percent', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-fraction-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-fraction-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Feature adoption reaches about half' states '50 percent', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-rounded-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "claim-rounded-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Feature adoption reaches a large majority' states '70 percent', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-rounded-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-rounded-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-range-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-range-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Task completion range widens' states '10–15', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-range-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-range-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-currency-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-currency-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Project receives larger funding round' states '1.8', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-currency-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-currency-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Release scheduled for mid-August' states '2026-08', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-date-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "claim-date-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Release scheduled one day later' states '2026-08', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        },
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Release scheduled one day later' states '15.', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-date-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-date-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Pilot expands to twelve teams' states '12', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-count-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "claim-count-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Pilot expands to thirteen teams' states '13', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-count-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-count-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_quotation"
+      ],
+      "id": "claim-quote-punctuation-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [
+        "unsupported_quotation"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-quote-punctuation-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_quotation",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Maintainer makes stronger safety claim' quotes \"perfectly safe execution\", which does not appear in the item(s) it cites"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_quotation"
+      ],
+      "id": "claim-quote-punctuation-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_quotation"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_quotation"
+      ],
+      "unexpected": [],
+      "variant": "claim-quote-punctuation-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Change may reduce latency' states '20%', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-uncertainty-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [
+        "unsupported_figure"
+      ],
+      "variant": "claim-uncertainty-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Change claims a larger latency reduction' states '35%', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure",
+        "unsupported_claim"
+      ],
+      "id": "claim-uncertainty-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [
+        "unsupported_claim"
+      ],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-uncertainty-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-multiple-figures-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-multiple-figures-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Most tests take longer' states '30', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-multiple-figures-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-multiple-figures-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-unit-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-unit-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_figure",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Startup time reported as two seconds' states '2', which is not supported by the cited corpus excerpts or a topically matching corpus item"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_figure"
+      ],
+      "id": "claim-unit-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_figure"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_figure"
+      ],
+      "unexpected": [],
+      "variant": "claim-unit-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_quotation"
+      ],
+      "id": "claim-quote-whitespace-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [
+        "unsupported_quotation"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "claim-quote-whitespace-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "unsupported_quotation",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Documentation names a different mode' quotes \"remote mode\", which does not appear in the item(s) it cites"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "unsupported_quotation"
+      ],
+      "id": "claim-quote-whitespace-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "unsupported_quotation"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unsupported_quotation"
+      ],
+      "unexpected": [],
+      "variant": "claim-quote-whitespace-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_valid",
+      "findings": [
+        {
+          "check": "claim_exceeds_evidence",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Proposal approved' has 31 characters of summary from 8 characters of evidence — the surplus is not grounded in the corpus"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [],
+      "id": "claim-paraphrase-length-valid",
+      "label_status": "independently_validated",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "unexpected": [
+        "claim_exceeds_evidence"
+      ],
+      "variant": "claim-paraphrase-length-valid"
+    },
+    {
+      "component": "checker",
+      "family": "heuristic_neighbor",
+      "findings": [
+        {
+          "check": "claim_exceeds_evidence",
+          "level": "WARN",
+          "message": "AI Dev Tools: 'Proposal receives unsupported guarantees' has 62 characters of summary from 8 characters of evidence — the surplus is not grounded in the corpus"
+        }
+      ],
+      "heuristic_claim_case": true,
+      "human_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "id": "claim-paraphrase-length-invalid",
+      "label_status": "independently_validated",
+      "matched": [
+        "claim_exceeds_evidence"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "claim_exceeds_evidence"
+      ],
+      "unexpected": [],
+      "variant": "claim-paraphrase-length-invalid"
+    },
+    {
+      "component": "checker",
+      "family": "conflicting_evidence",
+      "findings": [],
+      "human_labels": [
+        "conflicting_evidence",
+        "over_consolidation"
+      ],
+      "id": "claim-conflicting-evidence",
+      "matched": [],
+      "missed": [
+        "conflicting_evidence",
+        "over_consolidation"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "conflicting-evidence"
+    },
+    {
+      "component": "checker",
+      "family": "over_consolidation",
+      "findings": [],
+      "human_labels": [
+        "over_consolidation"
+      ],
+      "id": "selection-over-consolidated",
+      "matched": [],
+      "missed": [
+        "over_consolidation"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "over-consolidated"
+    },
+    {
+      "component": "checker",
+      "family": "category",
+      "findings": [],
+      "human_labels": [
+        "claim_exceeds_evidence",
+        "unsupported_claim"
+      ],
+      "id": "selection-category-ambiguity",
+      "matched": [],
+      "missed": [
+        "claim_exceeds_evidence",
+        "unsupported_claim"
+      ],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "selection-ambiguity"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "format-semantic-ambiguity",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "formatting-ambiguity"
+    },
+    {
+      "component": "checker",
+      "family": "valid_edge",
+      "findings": [],
+      "human_labels": [],
+      "id": "text-doctype-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "valid-doctype-as-text"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "corpus_health_missing",
+          "level": "ERROR",
+          "message": "corpus recorded 1 fetch error(s) but the briefing has no 'Corpus health' section"
+        },
+        {
+          "check": "failed_source_unnamed",
+          "level": "ERROR",
+          "message": "failed source rss:Feed A (error) is absent because the health manifest is missing"
+        }
+      ],
+      "human_labels": [
+        "corpus_health_missing",
+        "failed_source_unnamed"
+      ],
+      "id": "health-missing",
+      "matched": [
+        "corpus_health_missing",
+        "failed_source_unnamed"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "corpus_health_missing",
+        "failed_source_unnamed"
+      ],
+      "unexpected": [],
+      "variant": "health-missing"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "corpus_health_not_machine_readable",
+          "level": "ERROR",
+          "message": "Corpus health JSON is invalid at line 1, column 2"
+        }
+      ],
+      "human_labels": [
+        "corpus_health_not_machine_readable"
+      ],
+      "id": "health-malformed-json",
+      "matched": [
+        "corpus_health_not_machine_readable"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "corpus_health_not_machine_readable"
+      ],
+      "unexpected": [],
+      "variant": "health-malformed-json"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "corpus_health_not_machine_readable",
+          "level": "ERROR",
+          "message": "Corpus health JSON must be an object containing only failed_sources"
+        }
+      ],
+      "human_labels": [
+        "corpus_health_not_machine_readable"
+      ],
+      "id": "health-wrong-schema",
+      "matched": [
+        "corpus_health_not_machine_readable"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "corpus_health_not_machine_readable"
+      ],
+      "unexpected": [],
+      "variant": "health-wrong-schema"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "failed_source_status_mismatch",
+          "level": "ERROR",
+          "message": "failed source rss:Feed A has status 'error' in the corpus but 'empty' in the health manifest"
+        }
+      ],
+      "human_labels": [
+        "failed_source_status_mismatch"
+      ],
+      "id": "health-status-mismatch",
+      "matched": [
+        "failed_source_status_mismatch"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "failed_source_status_mismatch"
+      ],
+      "unexpected": [],
+      "variant": "health-wrong-status"
+    },
+    {
+      "component": "checker",
+      "family": "partially_degraded",
+      "findings": [
+        {
+          "check": "failed_source_unnamed",
+          "level": "ERROR",
+          "message": "failed source rss:Feed B (empty) is absent from the health manifest"
+        }
+      ],
+      "human_labels": [
+        "failed_source_unnamed"
+      ],
+      "id": "health-partially-reported",
+      "matched": [
+        "failed_source_unnamed"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "failed_source_unnamed"
+      ],
+      "unexpected": [],
+      "variant": "health-partial"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "unexpected_failed_source",
+          "level": "ERROR",
+          "message": "health manifest reports unrecorded failure rss:Imaginary (error)"
+        }
+      ],
+      "human_labels": [
+        "unexpected_failed_source"
+      ],
+      "id": "health-invented-failure",
+      "matched": [
+        "unexpected_failed_source"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "unexpected_failed_source"
+      ],
+      "unexpected": [],
+      "variant": "health-unexpected"
+    },
+    {
+      "component": "checker",
+      "family": "degraded",
+      "findings": [
+        {
+          "check": "duplicate_failed_source",
+          "level": "ERROR",
+          "message": "health manifest contains a duplicate failed-source record"
+        }
+      ],
+      "human_labels": [
+        "duplicate_failed_source"
+      ],
+      "id": "health-duplicate-record",
+      "matched": [
+        "duplicate_failed_source"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "duplicate_failed_source"
+      ],
+      "unexpected": [],
+      "variant": "health-duplicate"
+    },
+    {
+      "component": "feed_parser",
+      "family": "encoding",
+      "findings": [],
+      "human_labels": [],
+      "id": "xml-utf8-rss",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "utf8-rss"
+    },
+    {
+      "component": "feed_parser",
+      "family": "encoding",
+      "findings": [],
+      "human_labels": [],
+      "id": "xml-utf16-rss",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "utf16-rss"
+    },
+    {
+      "component": "feed_parser",
+      "family": "encoding",
+      "findings": [],
+      "human_labels": [],
+      "id": "xml-utf32-rss",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "utf32-rss"
+    },
+    {
+      "component": "feed_parser",
+      "family": "feed_shape",
+      "findings": [],
+      "human_labels": [],
+      "id": "xml-atom-valid",
+      "matched": [],
+      "missed": [],
+      "predicted_labels": [],
+      "unexpected": [],
+      "variant": "atom-valid"
+    },
+    {
+      "component": "feed_parser",
+      "family": "feed_shape",
+      "findings": [],
+      "human_labels": [
+        "feed_empty"
+      ],
+      "id": "xml-empty-feed",
+      "matched": [
+        "feed_empty"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_empty"
+      ],
+      "unexpected": [],
+      "variant": "feed-empty"
+    },
+    {
+      "component": "feed_parser",
+      "family": "feed_shape",
+      "findings": [],
+      "human_labels": [
+        "feed_shape_unrecognized"
+      ],
+      "id": "xml-wrong-shape",
+      "matched": [
+        "feed_shape_unrecognized"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_shape_unrecognized"
+      ],
+      "unexpected": [],
+      "variant": "feed-wrong-shape"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-malformed-unclosed",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "malformed-unclosed"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-malformed-entity",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "malformed-entity"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-doctype-utf8",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "doctype-utf8"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-doctype-utf16",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "doctype-utf16"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-doctype-utf32",
+      "label_status": "independently_validated",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "doctype-utf32"
+    },
+    {
+      "component": "feed_parser",
+      "family": "malformed",
+      "findings": [],
+      "human_labels": [
+        "feed_rejected"
+      ],
+      "id": "xml-malformed-utf32",
+      "label_status": "independently_validated",
+      "matched": [
+        "feed_rejected"
+      ],
+      "missed": [],
+      "predicted_labels": [
+        "feed_rejected"
+      ],
+      "unexpected": [],
+      "variant": "malformed-utf32"
+    }
+  ],
+  "components": {
+    "checker": {
+      "cases": 69,
+      "exact_case_match": {
+        "ci95_wilson": [
+          0.6248942554937958,
+          0.8281444471114402
+        ],
+        "rate": 0.7391304347826086,
+        "successes": 51,
+        "trials": 69
+      },
+      "false_positive_rate": {
+        "ci95_wilson": [
+          0.002033110004348618,
+          0.00863225145391644
+        ],
+        "rate": 0.004194128220491312,
+        "successes": 7,
+        "trials": 1669
+      },
+      "fn": 14,
+      "fp": 7,
+      "precision": {
+        "ci95_wilson": [
+          0.7333229377608557,
+          0.9290357627959323
+        ],
+        "rate": 0.8571428571428571,
+        "successes": 42,
+        "trials": 49
+      },
+      "recall": {
+        "ci95_wilson": [
+          0.6230735785233251,
+          0.8448294531172932
+        ],
+        "rate": 0.75,
+        "successes": 42,
+        "trials": 56
+      },
+      "tn": 1662,
+      "tp": 42
+    },
+    "feed_parser": {
+      "cases": 12,
+      "exact_case_match": {
+        "ci95_wilson": [
+          0.7575059933447592,
+          1.0
+        ],
+        "rate": 1.0,
+        "successes": 12,
+        "trials": 12
+      },
+      "false_positive_rate": {
+        "ci95_wilson": [
+          1.3877787807814457e-17,
+          0.12064330476584563
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 28
+      },
+      "fn": 0,
+      "fp": 0,
+      "precision": {
+        "ci95_wilson": [
+          0.6755924351161198,
+          1.0
+        ],
+        "rate": 1.0,
+        "successes": 8,
+        "trials": 8
+      },
+      "recall": {
+        "ci95_wilson": [
+          0.6755924351161198,
+          1.0
+        ],
+        "rate": 1.0,
+        "successes": 8,
+        "trials": 8
+      },
+      "tn": 28,
+      "tp": 8
+    }
+  },
+  "heuristic_claim_false_positive_rate": {
+    "ci95_wilson": [
+      0.31951131254954973,
+      0.8067396863412435
+    ],
+    "rate": 0.5833333333333334,
+    "successes": 7,
+    "trials": 12
+  },
+  "heuristic_claim_false_positive_rates": {
+    "claim_exceeds_evidence": {
+      "ci95_wilson": [
+        0.006821984993543487,
+        0.18892778903034757
+      ],
+      "rate": 0.038461538461538464,
+      "successes": 1,
+      "trials": 26
+    },
+    "figure_supported_elsewhere": {
+      "ci95_wilson": [
+        0.0,
+        0.11025539546043596
+      ],
+      "rate": 0.0,
+      "successes": 0,
+      "trials": 31
+    },
+    "unsupported_figure": {
+      "ci95_wilson": [
+        0.1381386295212213,
+        0.49956380716085597
+      ],
+      "rate": 0.2857142857142857,
+      "successes": 6,
+      "trials": 21
+    },
+    "unsupported_quotation": {
+      "ci95_wilson": [
+        0.0,
+        0.1287289218592153
+      ],
+      "rate": 0.0,
+      "successes": 0,
+      "trials": 26
+    }
+  },
+  "label_provenance": {
+    "adjudicated_on": "2026-08-12",
+    "date_timezone": "All *_on dates in this block are UTC calendar dates, not the reviewer's local time zone.",
+    "expanded_on": "2026-08-14",
+    "expansion_adjudicated_on": "2026-08-14",
+    "expansion_independent_review_adjudicated_count": 3,
+    "expansion_independent_review_agreement_count": 3,
+    "expansion_independent_review_label_change_count": 0,
+    "expansion_independent_review_packet_id": "ihv-expansion-b0831c519279",
+    "expansion_independent_reviewed_on": "2026-08-14",
+    "expansion_independent_reviewer": "Dr. Bartholomew Quinceworth",
+    "heuristic_adjudicated_on": "2026-08-14",
+    "heuristic_denominator_repaired_on": "2026-08-17",
+    "heuristic_denominator_replacement_basis": "This existing independently validated true-negative contains the supported numeric claim 'version 2' in evaluated topic prose, so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
+    "heuristic_denominator_replacement_case_id": "url-valid-baseline",
+    "heuristic_expanded_on": "2026-08-14",
+    "heuristic_independent_review_adjudicated_count": 3,
+    "heuristic_independent_review_agreement_count": 23,
+    "heuristic_independent_review_label_change_count": 2,
+    "heuristic_independent_review_packet_id": "portfolio-v1-offline-review-20260814",
+    "heuristic_independent_review_response_sha256": "77c1fe83d94624b9f6dde29c692941e45287cc38b7df3e992429b8f6f6b483bc",
+    "heuristic_independent_reviewed_on": "2026-08-14",
+    "heuristic_independent_reviewer": "Dr. Bartholomew Quinceworth",
+    "human_adjudicated_count": 17,
+    "independent_review_adjudicated_count": 17,
+    "independent_review_agreement_count": 64,
+    "independent_review_label_change_count": 3,
+    "independent_review_packet_id": "ihv-3e7641c047f5",
+    "independent_reviewed_on": "2026-08-14",
+    "independent_reviewer": "Ree Vu Urtu",
+    "independent_reviewers": [
+      "Ree Vu Urtu",
+      "Dr. Bartholomew Quinceworth"
+    ],
+    "independently_validated_count": 81,
+    "initial_independent_review_adjudicated_count": 11,
+    "initial_independent_review_agreement_count": 38,
+    "initial_independent_review_label_change_count": 1,
+    "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available. One of those 10 adjudicated cases (health-wrong-status) was later removed as a redundant coverage cut, not for failing; see removed_cases. The remaining 40 cases were owner-reviewed on 2026-08-14. A second blinded model pass by DeepSeek V4 Flash found 12 disagreements; GLM 5.2 arbitrated them, and the repository owner approved all four GLM recommendations that differed from the then-current fixture. Independent reviewer Ree Vu Urtu then completed a randomized, opaque-ID review of all 49 cases and attested that they had not participated in preparation, labeling, or model adjudication and had not inspected prior decisions. That pass produced 38 exact label-set agreements and 11 disagreements. The repository owner human-adjudicated all 11 against the supplied evidence and rubric, with model assistance used to surface rubric conflicts in four decisions. One final label set changed: claim-thin-unsupported added claim_exceeds_evidence alongside unsupported_claim. Six additional checker cases were added afterward from that reviewer's coverage recommendations. A different independent reviewer, Dr. Bartholomew Quinceworth, completed a randomized opaque-ID review of those six cases and attested that they had not proposed, prepared, labeled, or model-adjudicated them and had not inspected prior decisions. That pass produced 3 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated all 3 disagreements against the evidence and rubric, with model assistance used to surface rubric conflicts; all 3 provisional label sets were retained. Twenty-four paired heuristic-claim boundary cases and two UTF-32 security regressions were then reviewed by Dr. Quinceworth in a new randomized opaque-ID packet under the same attestation. That pass produced 23 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated those disagreements against the evidence and rubric, accepting unsupported_quotation for claim-quote-punctuation-valid and claim-quote-whitespace-valid and retaining unsupported_figure plus unsupported_claim for claim-uncertainty-invalid because its unqualified causal assertion is separate from its wrong percentage. All 81 current label sets have completed independent human validation.",
+    "owner_reviewed_count": 81,
+    "prepared_on": "2026-08-11",
+    "provisional_case_ids": [],
+    "provisional_count": 0,
+    "review_status": "Validated: all 81 checker and feed-parser cases completed blinded independent human review and owner adjudication on 2026-08-14.",
+    "reviewed_by": "elanthus (repository owner)",
+    "reviewed_on": "2026-08-14",
+    "second_pass_adjudicated_on": "2026-08-14",
+    "second_pass_human_approved_changes": 4,
+    "trimmed_on": "2026-08-13"
+  },
+  "schema_version": 1,
+  "suite": "./evaluator/fixtures/checker-cases.json"
+}

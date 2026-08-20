@@ -94,6 +94,102 @@
           "complete": true
         }
       ]
+    },
+    {
+      "run_id": "portfolio-v2-final-20260819",
+      "date_completed_utc": "2026-08-20T08:01:10.591476Z",
+      "protocol": "evaluator/protocols/portfolio-v2.json",
+      "suite_sha256": "aa341680517d5f44b3b4dcb9fe4189a4102bcde75843eee8ffceb46f6dc14b5f",
+      "manifest_sha256": "2a0560d454382161879c4005380d276ebfba087d75607a91700b2120ecbf193d",
+      "component_manifest_sha256": [
+        "207d6119cc8f183246ad315ae45deeea5949b869b6b921d0f97d2bb462ffc5a6",
+        "63de5d5b64105ab92d24034fb73bbd0ff9df2fdb65c7853fc5fbf29784172f1e"
+      ],
+      "source_tag": "portfolio-v2-source-20260819",
+      "source_commit": "29d7e3dac9b6c7f6042b9341fb4375dc5fae160c",
+      "run_kind": "final",
+      "trials_per_case": 5,
+      "planned_rows": 1200,
+      "completed_rows": 1200,
+      "failed_rows": 0,
+      "skipped_rows": 0,
+      "reported_cost_usd": 3.8004808556200004,
+      "semantic_review": {
+        "reviewed_propositions": 0,
+        "total_propositions": 180,
+        "status": "not_run"
+      },
+      "human_grounding": {
+        "reviewed_topics": 0,
+        "total_topics": 2310,
+        "status": "not_run"
+      },
+      "machine_grounding": {
+        "reviewed_topics": 0,
+        "status": "not_run",
+        "human_approval": false
+      },
+      "decision": "do_not_promote_candidate",
+      "result": "docs/results/portfolio-v2.md",
+      "public_evidence": "docs/results/portfolio-v2-evidence",
+      "groups": [
+        {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash",
+          "prompt": "production-2026-08",
+          "prompt_sha256": "1c14f6cd04adbc8f86e5b269c361bef7aaaa068be6bd0380a7df9febbabc4639",
+          "end_to_end_utility_final": {"successes": 99, "trials": 110, "rate": 0.9},
+          "targeted_attack_success_final": {"successes": 6, "trials": 105, "rate": 0.05714285714285714},
+          "human_grounding_error": null,
+          "human_grounding_unreviewed_topics": 670,
+          "machine_grounding_error": null,
+          "first_call_latency_median_ms": 3078.4355419455096,
+          "reported_cost_usd": 0.477094243402,
+          "complete": true
+        },
+        {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash",
+          "prompt": "reliability-v1",
+          "prompt_sha256": "bdb738b04288ae543ad49f4538ffa3d2e24bdc5066057ada8055dcf3b12fb04c",
+          "end_to_end_utility_final": {"successes": 95, "trials": 110, "rate": 0.8636363636363636},
+          "targeted_attack_success_final": {"successes": 3, "trials": 105, "rate": 0.02857142857142857},
+          "human_grounding_error": null,
+          "human_grounding_unreviewed_topics": 670,
+          "machine_grounding_error": null,
+          "first_call_latency_median_ms": 2750.433208537288,
+          "reported_cost_usd": 0.567725018218,
+          "complete": true
+        },
+        {
+          "provider": "openrouter",
+          "model": "tencent/hy3",
+          "prompt": "production-2026-08",
+          "prompt_sha256": "1c14f6cd04adbc8f86e5b269c361bef7aaaa068be6bd0380a7df9febbabc4639",
+          "end_to_end_utility_final": {"successes": 90, "trials": 110, "rate": 0.8181818181818182},
+          "targeted_attack_success_final": {"successes": 5, "trials": 105, "rate": 0.047619047619047616},
+          "human_grounding_error": null,
+          "human_grounding_unreviewed_topics": 470,
+          "machine_grounding_error": null,
+          "first_call_latency_median_ms": 5664.703666465357,
+          "reported_cost_usd": 1.354213582,
+          "complete": true
+        },
+        {
+          "provider": "openrouter",
+          "model": "tencent/hy3",
+          "prompt": "reliability-v1",
+          "prompt_sha256": "bdb738b04288ae543ad49f4538ffa3d2e24bdc5066057ada8055dcf3b12fb04c",
+          "end_to_end_utility_final": {"successes": 92, "trials": 110, "rate": 0.8363636363636363},
+          "targeted_attack_success_final": {"successes": 4, "trials": 105, "rate": 0.0380952380952381},
+          "human_grounding_error": null,
+          "human_grounding_unreviewed_topics": 500,
+          "machine_grounding_error": null,
+          "first_call_latency_median_ms": 5472.79920859728,
+          "reported_cost_usd": 1.401448012,
+          "complete": true
+        }
+      ]
     }
   ]
 }

@@ -18,6 +18,7 @@ from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
+from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
 from evaluator.runner import (
     DEFAULT_CORPUS,
@@ -25,6 +26,7 @@ from evaluator.runner import (
     DEFAULT_SUITE,
     ROOT,
     apply_adjudications,
+    final_source_provenance,
     markdown_report,
     run_evaluation,
     summarize,
@@ -32,6 +34,7 @@ from evaluator.runner import (
 from evaluator.semantic_review import run_semantic_judging
 
 EVALUATOR_DIR = Path(__file__).resolve().parent
+DEFAULT_CHECKER_SNAPSHOT = EVALUATOR_DIR / "snapshots" / "offline-checker.json"
 
 
 class ProgressBar:
@@ -157,6 +160,16 @@ def main() -> int:
     checker = subparsers.add_parser("checker", help="run the fixed offline human-labeled suite")
     checker.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
     checker.add_argument("--output", type=Path)
+    checker.add_argument(
+        "--snapshot",
+        type=Path,
+        help="expected deterministic result (defaults to the committed snapshot for the default suite)",
+    )
+    checker.add_argument(
+        "--update-snapshot",
+        action="store_true",
+        help="replace the expected snapshot explicitly; review and approve the resulting diff",
+    )
 
     label_review = subparsers.add_parser(
         "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
@@ -291,6 +304,10 @@ def main() -> int:
         choices=("development", "pilot", "final"),
         default="development",
     )
+    run.add_argument(
+        "--source-tag",
+        help="annotated or lightweight tag pointing at the clean HEAD used for a final run",
+    )
     run.add_argument("--cost-ceiling-usd", type=float)
     run.add_argument(
         "--cost-ceiling-provider",
@@ -337,11 +354,50 @@ def main() -> int:
     semantic.add_argument("--output-dir", type=Path)
     semantic.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
 
+    public_run = subparsers.add_parser(
+        "export-public-run",
+        help="export redacted row evidence and reproducible aggregates for a completed final run",
+    )
+    public_run.add_argument(
+        "manifest",
+        type=Path,
+        nargs="+",
+        help="one complete manifest, or compatible split final-run manifests",
+    )
+    public_run.add_argument("--output-dir", type=Path, required=True)
+    public_run.add_argument("--ledger-output", type=Path)
+    public_run.add_argument("--machine-grounding", type=Path)
+
+    verify_public = subparsers.add_parser(
+        "verify-public-run",
+        help="verify public evidence hashes and regenerate its aggregate report",
+    )
+    verify_public.add_argument("output_dir", type=Path)
+
     args = parser.parse_args()
     try:
         if args.command == "checker":
             result = run_deterministic_suite(args.suite)
             output = json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+            snapshot = args.snapshot
+            if snapshot is None and args.suite.resolve() == DEFAULT_CHECKER_SUITE.resolve():
+                snapshot = DEFAULT_CHECKER_SNAPSHOT
+            if args.update_snapshot:
+                if snapshot is None:
+                    raise ValueError("--update-snapshot requires --snapshot for a custom suite")
+                snapshot.parent.mkdir(parents=True, exist_ok=True)
+                snapshot.write_text(output, encoding="utf-8")
+            elif snapshot is not None:
+                if not snapshot.is_file():
+                    raise ValueError(
+                        f"checker snapshot is missing: {snapshot}; create it with --update-snapshot"
+                    )
+                expected = snapshot.read_text(encoding="utf-8")
+                if expected != output:
+                    raise ValueError(
+                        "checker result differs from the approved snapshot; inspect the per-case diff "
+                        "and run `python3 -m evaluator checker --update-snapshot` only after approval"
+                    )
             if args.output:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(output, encoding="utf-8")
@@ -349,6 +405,18 @@ def main() -> int:
                               "heuristic_claim_false_positive_rate": result["heuristic_claim_false_positive_rate"],
                               "heuristic_claim_false_positive_rates": result["heuristic_claim_false_positive_rates"]},
                              indent=2, sort_keys=True))
+            return 0
+        if args.command == "export-public-run":
+            result = export_public_run(
+                args.manifest,
+                args.output_dir,
+                ledger_output=args.ledger_output,
+                machine_grounding_path=args.machine_grounding,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        if args.command == "verify-public-run":
+            print(json.dumps(verify_public_run(args.output_dir), indent=2, sort_keys=True))
             return 0
         if args.command == "compare":
             result = compare_runs(
@@ -434,6 +502,13 @@ def main() -> int:
         if args.command == "run":
             if args.resume and args.output_dir is None:
                 raise ValueError("--resume requires --output-dir")
+            if args.run_kind == "final" and not args.source_tag:
+                raise ValueError("final runs require --source-tag pointing at the clean HEAD")
+            source_provenance = (
+                final_source_provenance(args.source_tag)
+                if args.run_kind == "final"
+                else None
+            )
             load_dotenv(args.env_file)
             providers = _provider_values(
                 args.provider, args.all_providers, args.generation_path
@@ -478,6 +553,7 @@ def main() -> int:
                     cost_ceiling_provider=args.cost_ceiling_provider,
                     resume=args.resume,
                     generation_path=args.generation_path,
+                    source_provenance=source_provenance,
                 )
             finally:
                 progress.finish()

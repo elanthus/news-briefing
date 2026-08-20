@@ -35,6 +35,7 @@ import json
 import re
 import sys
 from collections.abc import Iterator
+from decimal import Decimal, InvalidOperation
 from typing import Any, NamedTuple
 
 import briefing_config
@@ -76,6 +77,27 @@ _FIGURE = re.compile(
 _ABBREVIATED_YEAR_RANGE = re.compile(
     r"^(?P<start>\d{4})\s*[-\u2013\u2014]\s*(?P<end>\d{2})$"
 )
+_SCALAR_FIGURE = r"\d[\d,.]*"
+_WORD_RANGE = re.compile(
+    rf"\b(?:between\s+(?P<between_start>{_SCALAR_FIGURE})\s+and\s+"
+    rf"(?P<between_end>{_SCALAR_FIGURE})|from\s+(?P<from_start>{_SCALAR_FIGURE})"
+    rf"\s+to\s+(?P<from_end>{_SCALAR_FIGURE}))\b",
+    re.IGNORECASE,
+)
+_DURATION = re.compile(
+    rf"(?P<figure>{_SCALAR_FIGURE})\s*(?P<unit>milliseconds?|seconds?|minutes?|hours?)\b",
+    re.IGNORECASE,
+)
+_DURATION_MILLISECONDS = {
+    "millisecond": Decimal(1),
+    "milliseconds": Decimal(1),
+    "second": Decimal(1000),
+    "seconds": Decimal(1000),
+    "minute": Decimal(60_000),
+    "minutes": Decimal(60_000),
+    "hour": Decimal(3_600_000),
+    "hours": Decimal(3_600_000),
+}
 _QUOTATION = re.compile(r"[\"\u201c\u201d]([^\"\u201c\u201d]{4,80})[\"\u201c\u201d]")
 # A summary meaningfully longer than the text supporting it has added
 # something. The corpus already holds a truncated blurb, not the article,
@@ -738,6 +760,33 @@ def _normalize_figure(text: str) -> str:
     return _normalize(value)
 
 
+def _decimal_token(value: Decimal) -> str:
+    normalized = value.normalize()
+    return format(normalized, "f")
+
+
+def _duration_token(figure: str, unit: str) -> str | None:
+    try:
+        value = Decimal(figure.replace(",", ""))
+    except InvalidOperation:
+        return None
+    milliseconds = value * _DURATION_MILLISECONDS[unit.casefold()]
+    return f"duration-ms:{_decimal_token(milliseconds)}"
+
+
+def _figure_tokens_for_match(text: str, match: re.Match[str]) -> set[str]:
+    """Return exact and deterministic equivalent tokens for one figure."""
+    tokens = {_normalize_figure(match.group())}
+    for duration in _DURATION.finditer(text):
+        if (
+            duration.start("figure") == match.start()
+            and duration.end("figure") == match.end()
+            and (token := _duration_token(duration.group("figure"), duration.group("unit")))
+        ):
+            tokens.add(token)
+    return {token for token in tokens if token}
+
+
 def corpus_evidence(corpus: dict[str, Any]) -> dict[str, str]:
     """Cited URL -> the text the briefing is entitled to draw claims from.
 
@@ -786,17 +835,22 @@ def _title_terms(title: str) -> set[str]:
 
 
 def _figure_tokens(text: str) -> set[str]:
-    """Extract normalized whole figures rather than matching numeric prefixes."""
-    return {
+    """Extract whole figures plus deterministic range and duration equivalents."""
+    tokens = {
         token
-        for figure in _FIGURE.findall(text)
-        if (token := _normalize_figure(figure))
+        for match in _FIGURE.finditer(text)
+        for token in _figure_tokens_for_match(text, match)
     }
+    for match in _WORD_RANGE.finditer(text):
+        start = match.group("between_start") or match.group("from_start")
+        end = match.group("between_end") or match.group("from_end")
+        tokens.add(_normalize_figure(f"{start}-{end}"))
+    return tokens
 
 
 def _topically_matching_support(
     title: str,
-    figure: str,
+    figure_tokens: set[str],
     all_evidence: list[CorpusEvidenceItem],
 ) -> CorpusEvidenceItem | None:
     """Find strong title overlap plus exact figure support in another item.
@@ -808,13 +862,12 @@ def _topically_matching_support(
     title_terms = _title_terms(title)
     if len(title_terms) < 3:
         return None
-    figure_token = _normalize_figure(figure)
     for item in all_evidence:
         item_terms = _title_terms(item.title)
         shared = title_terms & item_terms
         if (len(shared) >= 3
                 and len(shared) / min(len(title_terms), len(item_terms)) >= 0.6
-                and figure_token in _figure_tokens(item.support)):
+                and figure_tokens & _figure_tokens(item.support)):
             return item
     return None
 
@@ -850,11 +903,12 @@ def check_claims_supported(
                 continue
             support_figures = _figure_tokens(support)
 
-            for figure in _FIGURE.findall(prose):
-                token = _normalize_figure(figure)
-                if token and token not in support_figures:
+            for match in _FIGURE.finditer(prose):
+                figure = match.group()
+                tokens = _figure_tokens_for_match(prose, match)
+                if tokens and not tokens & support_figures:
                     elsewhere = _topically_matching_support(
-                        title, figure, all_evidence or [])
+                        title, tokens, all_evidence or [])
                     if elsewhere:
                         findings.append(Finding(
                             WARN, "figure_supported_elsewhere",

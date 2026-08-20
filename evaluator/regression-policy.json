@@ -45,6 +45,9 @@
   },
   "offline_ci_gate": {
     "command": "python3 -m evaluator checker",
+    "approved_snapshot": "evaluator/snapshots/offline-checker.json",
+    "snapshot_update_command": "python3 -m evaluator checker --update-snapshot",
+    "snapshot_updates_require_review_approval": true,
     "credentials_required": false,
     "expected_case_count": 81,
     "expected_checker_cases": 69,

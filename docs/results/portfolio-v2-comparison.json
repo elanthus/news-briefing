@@ -1,0 +1,314 @@
+{
+  "baseline_manifest": "docs/results/portfolio-v2-evidence/manifest.json",
+  "bootstrap": {
+    "samples": 10000,
+    "seed": 1729,
+    "unit": "authored case cluster"
+  },
+  "candidate_manifest": "docs/results/portfolio-v2-evidence/manifest.json",
+  "comparison_kind": "gated",
+  "comparisons": [
+    {
+      "baseline_prompt": "production-2026-08",
+      "candidate_prompt": "reliability-v1",
+      "decision": {
+        "comparison_kind": "gated",
+        "gated_outcome": "do_not_promote_candidate",
+        "human_grounding_nonincrease": "undetermined",
+        "minimum_attack_resistance_improvement_met": false,
+        "minimum_utility_improvement_met": false,
+        "passes_all_available_rules": false,
+        "zero_contract_regressions_met": false
+      },
+      "deterministic_contract_regressions": 8,
+      "human_grounding_error": {
+        "status": "undetermined_until_blinded_human_review_is_imported"
+      },
+      "metrics": {
+        "contract_success_final": {
+          "baseline_rate": 0.9272727272727272,
+          "candidate_rate": 0.8727272727272727,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            -0.10909090909090913,
+            -0.00909090909090915
+          ],
+          "delta": -0.054545454545454564,
+          "pairs": 110
+        },
+        "contract_success_first": {
+          "baseline_rate": 0.7272727272727273,
+          "candidate_rate": 0.7909090909090909,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            -0.00909090909090915,
+            0.1636363636363637
+          ],
+          "delta": 0.0636363636363636,
+          "pairs": 110
+        },
+        "correction_success": {
+          "baseline_rate": 0.6,
+          "candidate_rate": 0.3,
+          "case_clusters": 4,
+          "ci95_case_cluster_bootstrap": [
+            -0.4,
+            -0.2
+          ],
+          "delta": -0.3,
+          "pairs": 20
+        },
+        "end_to_end_success_final": {
+          "baseline_rate": 0.9,
+          "candidate_rate": 0.8636363636363636,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            -0.08181818181818179,
+            0.0
+          ],
+          "delta": -0.036363636363636376,
+          "pairs": 110
+        },
+        "end_to_end_success_first": {
+          "baseline_rate": 0.7272727272727273,
+          "candidate_rate": 0.7909090909090909,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            -0.018181818181818188,
+            0.16363636363636358
+          ],
+          "delta": 0.0636363636363636,
+          "pairs": 110
+        },
+        "grounding_error_proxy_final": {
+          "baseline_rate": 0.03731343283582089,
+          "candidate_rate": 0.008955223880597015,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            -0.036170212765957444,
+            -0.011111111111111112
+          ],
+          "delta": -0.028358208955223875,
+          "pairs": 110
+        },
+        "targeted_attack_success_final": {
+          "baseline_rate": 0.05714285714285714,
+          "candidate_rate": 0.02857142857142857,
+          "case_clusters": 21,
+          "ci95_case_cluster_bootstrap": [
+            -0.0761904761904762,
+            0.0
+          ],
+          "delta": -0.02857142857142857,
+          "pairs": 105
+        }
+      },
+      "model": "deepseek/deepseek-v4-flash",
+      "operations": {
+        "latency_per_completed_case_trial": {
+          "baseline_median_ms": 4067.974666482769,
+          "baseline_p95_ms": 84771.88961711945,
+          "candidate_median_ms": 4280.710270861164,
+          "candidate_p95_ms": 67616.03412115948,
+          "case_clusters": 55,
+          "ci95_median_delta_case_cluster_bootstrap_ms": [
+            -1407.7389177400619,
+            1025.3355036518767
+          ],
+          "median_delta_ms": 212.73560437839478,
+          "pairs": 300
+        },
+        "reported_cost": {
+          "baseline": {
+            "completed_calls": 444,
+            "known_cost_calls": 444,
+            "per_completed_call_usd": 0.0010745365842387388,
+            "total_usd": 0.477094243402
+          },
+          "candidate": {
+            "completed_calls": 450,
+            "known_cost_calls": 450,
+            "per_completed_call_usd": 0.0012616111515955557,
+            "total_usd": 0.567725018218
+          },
+          "paired_case_trials": 300
+        }
+      },
+      "provider": "openrouter",
+      "unmatched": {
+        "correction_attempts": {
+          "baseline_only": 10,
+          "candidate_only": 3,
+          "complete_pairs": 20
+        },
+        "operations": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 300
+        },
+        "primary_attack": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 105
+        },
+        "utility": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 110
+        }
+      }
+    },
+    {
+      "baseline_prompt": "production-2026-08",
+      "candidate_prompt": "reliability-v1",
+      "decision": {
+        "comparison_kind": "gated",
+        "gated_outcome": "do_not_promote_candidate",
+        "human_grounding_nonincrease": "undetermined",
+        "minimum_attack_resistance_improvement_met": false,
+        "minimum_utility_improvement_met": false,
+        "passes_all_available_rules": false,
+        "zero_contract_regressions_met": true
+      },
+      "deterministic_contract_regressions": 0,
+      "human_grounding_error": {
+        "status": "undetermined_until_blinded_human_review_is_imported"
+      },
+      "metrics": {
+        "contract_success_final": {
+          "baseline_rate": 0.8181818181818182,
+          "candidate_rate": 0.8454545454545455,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            0.0,
+            0.054545454545454564
+          ],
+          "delta": 0.027272727272727226,
+          "pairs": 110
+        },
+        "contract_success_first": {
+          "baseline_rate": 0.8181818181818182,
+          "candidate_rate": 0.8181818181818182,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "pairs": 110
+        },
+        "correction_success": {
+          "baseline_rate": 0.0,
+          "candidate_rate": 0.15,
+          "case_clusters": 4,
+          "ci95_case_cluster_bootstrap": [
+            0.05,
+            0.2
+          ],
+          "delta": 0.15,
+          "pairs": 20
+        },
+        "end_to_end_success_final": {
+          "baseline_rate": 0.8181818181818182,
+          "candidate_rate": 0.8363636363636363,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            0.0,
+            0.045454545454545525
+          ],
+          "delta": 0.018181818181818077,
+          "pairs": 110
+        },
+        "end_to_end_success_first": {
+          "baseline_rate": 0.8181818181818182,
+          "candidate_rate": 0.8181818181818182,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "pairs": 110
+        },
+        "grounding_error_proxy_final": {
+          "baseline_rate": 0.010638297872340425,
+          "candidate_rate": 0.044,
+          "case_clusters": 22,
+          "ci95_case_cluster_bootstrap": [
+            0.00933539919632004,
+            0.07688647532591632
+          ],
+          "delta": 0.03336170212765957,
+          "pairs": 110
+        },
+        "targeted_attack_success_final": {
+          "baseline_rate": 0.047619047619047616,
+          "candidate_rate": 0.0380952380952381,
+          "case_clusters": 21,
+          "ci95_case_cluster_bootstrap": [
+            -0.028571428571428567,
+            0.0
+          ],
+          "delta": -0.009523809523809518,
+          "pairs": 105
+        }
+      },
+      "model": "tencent/hy3",
+      "operations": {
+        "latency_per_completed_case_trial": {
+          "baseline_median_ms": 5804.85693749506,
+          "baseline_p95_ms": 109696.35750458113,
+          "candidate_median_ms": 5472.79920859728,
+          "candidate_p95_ms": 117520.5513504916,
+          "case_clusters": 55,
+          "ci95_median_delta_case_cluster_bootstrap_ms": [
+            -1039.708189983503,
+            238.72099464351743
+          ],
+          "median_delta_ms": -332.0577288977802,
+          "pairs": 300
+        },
+        "reported_cost": {
+          "baseline": {
+            "completed_calls": 395,
+            "known_cost_calls": 395,
+            "per_completed_call_usd": 0.0034283888151898736,
+            "total_usd": 1.354213582
+          },
+          "candidate": {
+            "completed_calls": 387,
+            "known_cost_calls": 387,
+            "per_completed_call_usd": 0.0036213126925064595,
+            "total_usd": 1.401448012
+          },
+          "paired_case_trials": 300
+        }
+      },
+      "provider": "openrouter",
+      "unmatched": {
+        "correction_attempts": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 20
+        },
+        "operations": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 300
+        },
+        "primary_attack": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 105
+        },
+        "utility": {
+          "baseline_only": 0,
+          "candidate_only": 0,
+          "complete_pairs": 110
+        }
+      }
+    }
+  ],
+  "compatibility_problems": [],
+  "schema_version": 1
+}
