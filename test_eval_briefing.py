@@ -659,6 +659,18 @@ class ClaimGroundingTest(unittest.TestCase):
                                   "**Politics topic 1** — summary text here, up 47 percent.")
         self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text)))
 
+    def test_calendar_day_present_in_corpus_excerpt_is_accepted(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "Fuel sales begin early, starting on Sept. 1."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Fuel sales begin early, starting on Sept. 1.",
+        )
+
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
     def test_figure_in_topically_matching_uncited_item_is_nonblocking_note(self):
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["us_politics"][8].update(

@@ -12,8 +12,23 @@ import copy
 import unittest
 
 from corpus_schema import (
+    GLOBAL_CONTEXT_MAX_BYTES,
+    GLOBAL_CONTEXT_MAX_TOKENS,
+    ITEM_QUERY_MAX_BYTES,
+    ITEM_QUERY_MAX_TOKENS,
+    ITEM_SOURCE_MAX_BYTES,
+    ITEM_SOURCE_MAX_TOKENS,
+    ITEM_SUMMARY_MAX_BYTES,
+    ITEM_SUMMARY_MAX_CHARS,
+    ITEM_SUMMARY_MAX_TOKENS,
+    ITEM_TITLE_MAX_BYTES,
+    ITEM_TITLE_MAX_TOKENS,
+    ITEM_URL_MAX_BYTES,
+    ITEM_URL_MAX_TOKENS,
     LEGACY_SCHEMA_VERSION,
     SCHEMA_VERSION,
+    SOURCE_CONTEXT_MAX_BYTES,
+    SOURCE_CONTEXT_MAX_TOKENS,
     corpus_version,
     is_readable,
     validate_corpus,
@@ -57,16 +72,18 @@ def stats(fetched=1, kept=1, **overrides):
 def corpus(**overrides):
     context_budget = {
         "field_limits": {
-            "title_bytes": 512, "title_tokens": 128,
-            "url_bytes": 2048, "url_tokens": 512,
-            "summary_chars": 300, "summary_bytes": 1200, "summary_tokens": 300,
-            "source_bytes": 256, "source_tokens": 64,
-            "query_bytes": 256, "query_tokens": 64,
+            "title_bytes": ITEM_TITLE_MAX_BYTES, "title_tokens": ITEM_TITLE_MAX_TOKENS,
+            "url_bytes": ITEM_URL_MAX_BYTES, "url_tokens": ITEM_URL_MAX_TOKENS,
+            "summary_chars": ITEM_SUMMARY_MAX_CHARS,
+            "summary_bytes": ITEM_SUMMARY_MAX_BYTES,
+            "summary_tokens": ITEM_SUMMARY_MAX_TOKENS,
+            "source_bytes": ITEM_SOURCE_MAX_BYTES, "source_tokens": ITEM_SOURCE_MAX_TOKENS,
+            "query_bytes": ITEM_QUERY_MAX_BYTES, "query_tokens": ITEM_QUERY_MAX_TOKENS,
         },
-        "source_max_bytes": 96 * 1024,
-        "source_max_tokens": 24_000,
-        "global_max_bytes": 512 * 1024,
-        "global_max_tokens": 128_000,
+        "source_max_bytes": SOURCE_CONTEXT_MAX_BYTES,
+        "source_max_tokens": SOURCE_CONTEXT_MAX_TOKENS,
+        "global_max_bytes": GLOBAL_CONTEXT_MAX_BYTES,
+        "global_max_tokens": GLOBAL_CONTEXT_MAX_TOKENS,
         "used_bytes": 0,
         "estimated_tokens": 0,
         "title_truncated": 0,
@@ -241,9 +258,9 @@ class CategoryTest(unittest.TestCase):
 
     def test_current_schema_enforces_model_visible_field_budgets(self):
         for field, value in (
-            ("title", "x" * 513),
-            ("url", "https://ex.com/" + "x" * 2048),
-            ("summary", "x" * 301),
+            ("title", "x" * (ITEM_TITLE_MAX_BYTES + 1)),
+            ("url", "https://ex.com/" + "x" * ITEM_URL_MAX_BYTES),
+            ("summary", "x" * (ITEM_SUMMARY_MAX_CHARS + 1)),
         ):
             with self.subTest(field=field):
                 c = corpus()

@@ -18,20 +18,40 @@ class BuildSiteTests(unittest.TestCase):
             (briefings / "2026-08-19.md").write_text("prior ready briefing", encoding="utf-8")
             self._write_sidecar(briefings, date="2026-08-19", disposition="ready")
             (briefings / "2026-08-20.md").write_text(
-                '# LATEST PREVIEW\n\n**Important detail** with [source](https://example.com/story).'
+                '# UNPUBLISHED BRIEFING CANDIDATE\n\n'
+                'This candidate requires review and was not written to the configured output path.\n'
+                'Unknown citations are omitted and model-authored web destinations are redacted.\n\n'
+                '## US Politics\n\n'
+                '**Important detail** — Story summary [destination omitted; use citation refs] '
+                'with [source](https://example.com/story).'
+                '\n🔗 https://example.com/citation'
                 '\n\n- First item\n\nBare link: https://example.com/bare'
                 '\n\n[unsafe](javascript:alert(1))'
-                '\n\n<script>alert("preview")</script>',
+                '\n\n<script>alert("preview")</script>'
+                '\n\n### Run outcome\n**Warnings**\n- duplicate public warning',
                 encoding="utf-8",
             )
             findings = [
                 self._finding(
                     "unsupported_figure",
-                    "The item states <60>, which the cited excerpt does not support.",
+                    "US Politics: 'Important detail' states '<60>', which the cited excerpt does not support.",
+                    context={
+                        "section": "US Politics",
+                        "headline": "Important detail",
+                        "model_authored": (
+                            '{"headline":"Important detail",'
+                            '"summary":"<script>alert(1)</script> https://model.example/claim"}'
+                        ),
+                    },
                 ),
                 self._finding(
                     "claim_exceeds_evidence",
-                    "The summary is longer than its evidence.",
+                    "US Politics: 'Important detail' has too much unsupported detail.",
+                    context={
+                        "section": "US Politics",
+                        "headline": "Important detail",
+                        "model_authored": "same story",
+                    },
                 ),
             ]
             self._write_sidecar(
@@ -47,18 +67,35 @@ class BuildSiteTests(unittest.TestCase):
             index = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn('<strong aria-current="date">2026-08-20</strong>', index)
             self.assertIn('href="2026-08-19.html"', index)
-            self.assertIn("<h1>LATEST PREVIEW</h1>", index)
+            self.assertIn("<h2>US Politics</h2>", index)
             self.assertIn("<strong>Important detail</strong>", index)
             self.assertIn('<a href="https://example.com/story">source</a>', index)
+            self.assertIn('<a href="https://example.com/citation">https://example.com/citation</a>', index)
             self.assertIn('<a href="https://example.com/bare">https://example.com/bare</a>', index)
             self.assertIn("<li>First item</li>", index)
             self.assertIn(".briefing-content ul { list-style: disc; padding-left: 1.25rem; }", index)
             self.assertFalse((output / "2026-08-20.html").exists())
             self.assertIn("Review required · 2 findings", index)
             self.assertIn("WARN · evidence · unsupported figure:", index)
-            self.assertIn("The item states &lt;60&gt;", index)
+            self.assertIn("states &#x27;&lt;60&gt;&#x27;", index)
             self.assertIn("Verify the figure against the cited source", index)
-            self.assertLess(index.index("review-panel"), index.index("LATEST PREVIEW"))
+            story_box = index.index('<section class="review-story">')
+            story_heading = index.index("Review required · 2 findings", story_box)
+            inline_box = index.index('<aside class="review-panel inline-review"', story_box)
+            self.assertLess(story_box, story_heading)
+            self.assertLess(story_heading, index.index("Important detail"))
+            self.assertLess(index.index("Important detail"), inline_box)
+            self.assertLess(inline_box, index.index("</section>", story_box))
+            self.assertIn("border-top: 2px solid", index)
+            self.assertNotIn("UNPUBLISHED BRIEFING CANDIDATE", index)
+            self.assertNotIn("duplicate public warning", index)
+            self.assertIn("<details>", index)
+            self.assertNotIn("<details open", index)
+            self.assertIn("Click to see redacted information", index)
+            self.assertNotIn("INLINE_REVIEW_", index)
+            self.assertIn("https://model.example/claim", index)
+            self.assertNotIn('href="https://model.example/claim"', index)
+            self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", index)
             self.assertNotIn("<script>", index)
             self.assertNotIn('href="javascript:', index)
             self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", index)
@@ -67,6 +104,83 @@ class BuildSiteTests(unittest.TestCase):
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
             self.assertIn('href="index.html">2026-08-20</a>', prior)
             self.assertIn("prior ready briefing", prior)
+
+    def test_ordinary_warning_does_not_duplicate_unredacted_story(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## US Politics\n\n**Fuel story** — Sales start September 1.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "US Politics: 'Fuel story' states '1', which is unsupported.",
+                        context={
+                            "section": "US Politics",
+                            "headline": "Fuel story",
+                            "model_authored": (
+                                '{"headline":"Fuel story",'
+                                '"summary":"Sales start September 1."}'
+                            ),
+                        },
+                    )
+                ],
+            )
+
+            output = root / "site"
+            build_site(briefings, output)
+
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<section class="review-story">', index)
+            self.assertNotIn("Click to see redacted information", index)
+            self.assertNotIn('class="model-authored"', index)
+
+    def test_adjacent_flagged_stories_have_balanced_review_boxes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## US Politics\n\n"
+                "**First story** — First summary.\n"
+                "🔗 https://example.com/first\n"
+                "**Second story** — Second summary.\n"
+                "🔗 https://example.com/second\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "US Politics: 'First story' states '1', which is unsupported.",
+                    ),
+                    self._finding(
+                        "unsupported_figure",
+                        "US Politics: 'Second story' states '2', which is unsupported.",
+                    ),
+                ],
+            )
+
+            output = root / "site"
+            build_site(briefings, output)
+
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertEqual(index.count('<section class="review-story">'), 2)
+            self.assertEqual(index.count("</section>"), 2)
+            self.assertIn("First story&#x27; states &#x27;1&#x27;", index)
+            self.assertIn("Second story&#x27; states &#x27;2&#x27;", index)
+            first_close = index.index("</section>", index.index("First story"))
+            self.assertLess(first_close, index.index("Second story"))
 
     def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -173,7 +287,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text())
             self.assertIn("dogfood preview", (output / "2026-08-18.html").read_text())
             history = json.loads((output / "history.json").read_text())
-            self.assertEqual(history["schema_version"], 2)
+            self.assertEqual(history["schema_version"], 3)
             self.assertEqual(len(history["entries"]), 3)
 
     def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
@@ -203,8 +317,21 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("review preview", index)
 
     @staticmethod
-    def _finding(check: str, message: str) -> dict[str, str]:
-        return {"level": "WARN", "check": check, "domain": "evidence", "message": message}
+    def _finding(
+        check: str,
+        message: str,
+        *,
+        context: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        finding: dict[str, object] = {
+            "level": "WARN",
+            "check": check,
+            "domain": "evidence",
+            "message": message,
+        }
+        if context is not None:
+            finding["context"] = context
+        return finding
 
     @staticmethod
     def _write_sidecar(
@@ -212,7 +339,7 @@ class BuildSiteTests(unittest.TestCase):
         *,
         date: str,
         disposition: str,
-        findings: list[dict[str, str]] | None = None,
+        findings: list[dict[str, object]] | None = None,
         findings_count: int | None = None,
         degraded_sources: list[str] | None = None,
     ) -> None:

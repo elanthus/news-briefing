@@ -582,11 +582,6 @@ def render_candidate_preview(
 ) -> str:
     """Render a quarantined best-effort preview without creating a publishable artifact."""
     lines = [
-        "# UNPUBLISHED BRIEFING CANDIDATE",
-        "",
-        "This candidate requires review and was not written to the configured output path.",
-        "Unknown citations are omitted and model-authored web destinations are redacted.",
-        "",
         f"Candidate date: {_date_label(corpus['generated_at'])}",
         f"Corpus window: {corpus['cutoff']} → {corpus['generated_at']}",
         "",
