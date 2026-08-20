@@ -7,173 +7,193 @@ from pathlib import Path
 
 from build_site import build_site
 
-ROOT = Path(__file__).resolve().parent
-REFERENCE_BRIEFING = ROOT / "fixtures" / "briefing-2026-08-09.md"
-
 
 class BuildSiteTests(unittest.TestCase):
-    def test_builds_newest_first_index_and_escapes_ready_briefing(self) -> None:
+    def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
             output = root / "site"
             briefings.mkdir()
-            reference = REFERENCE_BRIEFING.read_text(encoding="utf-8")
-            (briefings / "2026-08-09.md").write_text(
-                reference + '\n<script>alert("feed")</script>\n',
-                encoding="utf-8",
+            (briefings / "2026-08-19.md").write_text("prior ready briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-19", disposition="ready")
+            (briefings / "2026-08-20.md").write_text(
+                'LATEST PREVIEW\n<script>alert("preview")</script>', encoding="utf-8"
             )
+            findings = [
+                self._finding(
+                    "unsupported_figure",
+                    "The item states <60>, which the cited excerpt does not support.",
+                ),
+                self._finding(
+                    "claim_exceeds_evidence",
+                    "The summary is longer than its evidence.",
+                ),
+            ]
             self._write_sidecar(
                 briefings,
-                date="2026-08-09",
-                disposition="ready",
-                findings_count=0,
-                degraded_sources=["rss:Example & Wire"],
-            )
-            self._write_sidecar(
-                briefings,
-                date="2026-08-10",
+                date="2026-08-20",
                 disposition="review_required",
-                findings_count=2,
-                degraded_sources=["rss:Unavailable"],
+                findings=findings,
+                degraded_sources=["reddit:cursor"],
             )
 
             build_site(briefings, output)
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertLess(index.index("2026-08-10"), index.index("2026-08-09"))
-            self.assertIn('href="2026-08-09.html"', index)
-            self.assertNotIn('href="2026-08-10.html"', index)
-            self.assertIn("REVIEW REQUIRED · 2 findings", index)
-            self.assertIn("Degraded sources: rss:Example &amp; Wire", index)
+            self.assertIn('<strong aria-current="date">2026-08-20</strong>', index)
+            self.assertIn('href="2026-08-19.html"', index)
+            self.assertIn("LATEST PREVIEW", index)
+            self.assertFalse((output / "2026-08-20.html").exists())
+            self.assertIn("Review required before relying on this briefing", index)
+            self.assertIn("WARN · evidence · unsupported figure", index)
+            self.assertIn("The item states &lt;60&gt;", index)
+            self.assertIn("Verify the figure against the cited source", index)
+            self.assertLess(index.index("review-panel"), index.index("LATEST PREVIEW"))
+            self.assertNotIn("<script>", index)
+            self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", index)
 
-            page = (output / "2026-08-09.html").read_text(encoding="utf-8")
-            self.assertIn("<title>Daily briefing — 2026-08-09</title>", page)
-            self.assertIn("<h1>Briefing for 2026-08-09</h1>", page)
-            self.assertNotIn("<script>", page)
-            self.assertIn("&lt;script&gt;alert(&quot;feed&quot;)&lt;/script&gt;", page)
-            self.assertFalse((output / "2026-08-10.html").exists())
+            prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
+            self.assertIn('href="index.html">2026-08-20</a>', prior)
+            self.assertIn("prior ready briefing", prior)
 
-    def test_never_publishes_non_ready_markdown(self) -> None:
+    def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
+            output = root / "site"
             briefings.mkdir()
-            (briefings / "2026-08-11.md").write_text(
-                "QUARANTINED CONTENT",
-                encoding="utf-8",
-            )
+            (briefings / "2026-08-20.md").write_text("REJECTED CONTENT", encoding="utf-8")
             self._write_sidecar(
                 briefings,
-                date="2026-08-11",
+                date="2026-08-20",
                 disposition="rejected",
                 findings_count=1,
-                degraded_sources=[],
             )
-
-            output = root / "site"
             output.mkdir()
-            (output / "2026-08-11.html").write_text(
-                "STALE QUARANTINED CONTENT",
-                encoding="utf-8",
-            )
+            (output / "2026-08-20.html").write_text("STALE CONTENT", encoding="utf-8")
+
             build_site(briefings, output)
 
-            self.assertFalse((output / "2026-08-11.html").exists())
-            self.assertNotIn(
-                "QUARANTINED CONTENT",
-                (output / "index.html").read_text(encoding="utf-8"),
-            )
-            self.assertNotIn(
-                "QUARANTINED CONTENT",
-                (output / "history.json").read_text(encoding="utf-8"),
-            )
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn("REJECTED · 1 finding", index)
+            self.assertIn("No briefing prose is available", index)
+            self.assertNotIn("REJECTED CONTENT", index)
+            self.assertFalse((output / "2026-08-20.html").exists())
+            self.assertNotIn("REJECTED CONTENT", (output / "history.json").read_text())
 
-    def test_ready_entry_requires_matching_markdown(self) -> None:
+    def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
             briefings.mkdir()
             self._write_sidecar(
                 briefings,
-                date="2026-08-12",
-                disposition="ready",
-                findings_count=0,
-                degraded_sources=[],
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[self._finding("unsupported_figure", "Verify 60.")],
             )
 
-            with self.assertRaisesRegex(ValueError, "matching Markdown"):
+            with self.assertRaisesRegex(ValueError, "requires matching Markdown"):
                 build_site(briefings, root / "site")
 
-    def test_round_trips_prior_live_history(self) -> None:
+    def test_discards_entries_outside_latest_seven_utc_dates(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            first = root / "first"
-            first.mkdir()
-            (first / "2026-08-09.md").write_text("safe prior briefing", encoding="utf-8")
-            self._write_sidecar(
-                first,
-                date="2026-08-09",
-                disposition="ready",
-                findings_count=0,
-                degraded_sources=[],
-            )
-            first_site = root / "first-site"
-            build_site(first, first_site)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            for day in ("2026-08-13", "2026-08-14", "2026-08-20"):
+                (briefings / f"{day}.md").write_text(f"briefing {day}", encoding="utf-8")
+                self._write_sidecar(briefings, date=day, disposition="ready")
 
+            output = root / "site"
+            build_site(briefings, output)
+
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn("2026-08-14", index)
+            self.assertNotIn("2026-08-13", index)
+            self.assertTrue((output / "2026-08-14.html").is_file())
+            self.assertFalse((output / "2026-08-13.html").exists())
+            history = json.loads((output / "history.json").read_text())
+            self.assertEqual(
+                [entry["date"] for entry in history["entries"]],
+                ["2026-08-20", "2026-08-14"],
+            )
+
+    def test_merges_bootstrap_and_upgrades_legacy_live_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bootstrap = root / "bootstrap"
             current = root / "current"
+            bootstrap.mkdir()
             current.mkdir()
+            (bootstrap / "2026-08-18.md").write_text("dogfood preview", encoding="utf-8")
             self._write_sidecar(
-                current,
-                date="2026-08-10",
-                disposition="blocked",
-                findings_count=0,
-                degraded_sources=["fetch:all"],
+                bootstrap,
+                date="2026-08-18",
+                disposition="review_required",
+                findings=[self._finding("unsupported_figure", "Verify the dogfood figure.")],
             )
-            next_site = root / "next-site"
-            build_site(current, next_site, first_site / "history.json")
+            legacy = root / "history.json"
+            legacy.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "entries": [
+                            {
+                                "date": "2026-08-19",
+                                "disposition": "ready",
+                                "findings_count": 0,
+                                "degraded_sources": [],
+                                "markdown": "legacy live briefing",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (current / "2026-08-20.md").write_text("current briefing", encoding="utf-8")
+            self._write_sidecar(current, date="2026-08-20", disposition="ready")
 
-            index = (next_site / "index.html").read_text(encoding="utf-8")
-            self.assertLess(index.index("2026-08-10"), index.index("2026-08-09"))
-            self.assertIn("safe prior briefing", (next_site / "2026-08-09.html").read_text())
-            history = json.loads((next_site / "history.json").read_text())
-            self.assertEqual([entry["date"] for entry in history["entries"]], ["2026-08-10", "2026-08-09"])
+            output = root / "site"
+            build_site(current, output, prior_history=legacy, bootstrap_dir=bootstrap)
 
-    def test_failed_same_day_retry_preserves_prior_ready_entry(self) -> None:
+            self.assertIn("current briefing", (output / "index.html").read_text())
+            self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text())
+            self.assertIn("dogfood preview", (output / "2026-08-18.html").read_text())
+            history = json.loads((output / "history.json").read_text())
+            self.assertEqual(history["schema_version"], 2)
+            self.assertEqual(len(history["entries"]), 3)
+
+    def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            first = root / "first"
-            first.mkdir()
-            (first / "2026-08-09.md").write_text("validated briefing", encoding="utf-8")
-            self._write_sidecar(
-                first,
-                date="2026-08-09",
-                disposition="ready",
-                findings_count=0,
-                degraded_sources=[],
-            )
-            first_site = root / "first-site"
-            build_site(first, first_site)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "2026-08-20.md").write_text("validated briefing", encoding="utf-8")
+            self._write_sidecar(initial, date="2026-08-20", disposition="ready")
+            initial_site = root / "initial-site"
+            build_site(initial, initial_site)
 
             retry = root / "retry"
             retry.mkdir()
-            (retry / "2026-08-09.md").write_text("QUARANTINED RETRY", encoding="utf-8")
+            (retry / "2026-08-20.md").write_text("review preview", encoding="utf-8")
             self._write_sidecar(
                 retry,
-                date="2026-08-09",
-                disposition="rejected",
-                findings_count=1,
-                degraded_sources=["rss:Unavailable"],
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[self._finding("unsupported_figure", "Verify retry figure.")],
             )
             retry_site = root / "retry-site"
-            build_site(retry, retry_site, first_site / "history.json")
+            build_site(retry, retry_site, prior_history=initial_site / "history.json")
 
-            page = (retry_site / "2026-08-09.html").read_text(encoding="utf-8")
-            self.assertIn("validated briefing", page)
-            self.assertNotIn("QUARANTINED RETRY", page)
-            history = json.loads((retry_site / "history.json").read_text())
-            self.assertEqual(history["entries"][0]["disposition"], "ready")
-            self.assertEqual(history["entries"][0]["markdown"], "validated briefing")
+            index = (retry_site / "index.html").read_text(encoding="utf-8")
+            self.assertIn("validated briefing", index)
+            self.assertNotIn("review preview", index)
+
+    @staticmethod
+    def _finding(check: str, message: str) -> dict[str, str]:
+        return {"level": "WARN", "check": check, "domain": "evidence", "message": message}
 
     @staticmethod
     def _write_sidecar(
@@ -181,16 +201,20 @@ class BuildSiteTests(unittest.TestCase):
         *,
         date: str,
         disposition: str,
-        findings_count: int,
-        degraded_sources: list[str],
+        findings: list[dict[str, str]] | None = None,
+        findings_count: int | None = None,
+        degraded_sources: list[str] | None = None,
     ) -> None:
+        details = findings or []
+        count = len(details) if findings_count is None else findings_count
         (directory / f"{date}.json").write_text(
             json.dumps(
                 {
                     "date": date,
                     "disposition": disposition,
-                    "findings_count": findings_count,
-                    "degraded_sources": degraded_sources,
+                    "findings_count": count,
+                    "findings": details,
+                    "degraded_sources": degraded_sources or [],
                 }
             ),
             encoding="utf-8",
