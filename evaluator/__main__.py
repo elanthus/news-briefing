@@ -20,6 +20,13 @@ from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
+from evaluator.retrieval import (
+    DEFAULT_EMBEDDING_CACHE,
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_PAIR_FIXTURE,
+    build_embedding_cache,
+    load_pairs,
+)
 from evaluator.runner import (
     DEFAULT_CORPUS,
     DEFAULT_PROTOCOL,
@@ -170,6 +177,20 @@ def main() -> int:
         action="store_true",
         help="replace the expected snapshot explicitly; review and approve the resulting diff",
     )
+
+    dedup_study = subparsers.add_parser(
+        "dedup-study",
+        help="benchmark embedding-based near-duplicate detection against the production heuristic",
+    )
+    dedup_study.add_argument(
+        "--fetch-embeddings",
+        action="store_true",
+        help="refresh the committed credential-free embedding cache through OpenRouter",
+    )
+    dedup_study.add_argument("--pairs", type=Path, default=DEFAULT_PAIR_FIXTURE)
+    dedup_study.add_argument("--embeddings", type=Path, default=DEFAULT_EMBEDDING_CACHE)
+    dedup_study.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
+    dedup_study.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
 
     label_review = subparsers.add_parser(
         "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
@@ -376,6 +397,28 @@ def main() -> int:
 
     args = parser.parse_args()
     try:
+        if args.command == "dedup-study":
+            if not args.fetch_embeddings:
+                raise ValueError("dedup-study currently requires --fetch-embeddings")
+            load_dotenv(args.env_file)
+            api_key = os.environ.get("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("dedup-study --fetch-embeddings requires OPENROUTER_API_KEY")
+            pairs = load_pairs(args.pairs)
+            generated_on = datetime.now(UTC).date().isoformat()
+            cache = build_embedding_cache(pairs, args.model, api_key, generated_on)
+            args.embeddings.parent.mkdir(parents=True, exist_ok=True)
+            args.embeddings.write_text(
+                json.dumps(cache, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            print(json.dumps({
+                "embedding_count": len(cache["embeddings"]),
+                "generated_on": generated_on,
+                "model": args.model,
+                "output": str(args.embeddings),
+            }, indent=2, sort_keys=True))
+            return 0
         if args.command == "checker":
             result = run_deterministic_suite(args.suite)
             output = json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
