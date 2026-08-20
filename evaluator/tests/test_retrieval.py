@@ -114,6 +114,22 @@ class PairClassificationTests(unittest.TestCase):
             },
         )
 
+    def test_pair_loader_rejects_label_stratum_mismatch(self) -> None:
+        payload = {
+            "pairs": [
+                {
+                    **_pair("mismatch", "left", "right"),
+                    "label": "distinct",
+                    "stratum": "duplicate",
+                }
+            ]
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pairs.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "inconsistent"):
+                load_pairs(path)
+
 
 class _Response:
     def __init__(self, payload: dict[str, object]):
@@ -132,12 +148,14 @@ class _Response:
 
 class EmbeddingFetchTests(unittest.TestCase):
     def test_posts_one_batch_and_restores_response_index_order(self) -> None:
-        response = _Response({
-            "data": [
-                {"index": 1, "embedding": [0, 1]},
-                {"index": 0, "embedding": [1, 0]},
-            ]
-        })
+        response = _Response(
+            {
+                "data": [
+                    {"index": 1, "embedding": [0, 1]},
+                    {"index": 0, "embedding": [1, 0]},
+                ]
+            }
+        )
         with patch("evaluator.retrieval.urllib.request.urlopen", return_value=response) as opened:
             vectors = embed_texts(["first", "second"], "embedding/model", "test-key")
 
@@ -158,9 +176,7 @@ class EmbeddingFetchTests(unittest.TestCase):
     def test_retries_rate_limit_and_honors_retry_after(self) -> None:
         headers = Message()
         headers["Retry-After"] = "1"
-        rate_limit = urllib.error.HTTPError(
-            EMBEDDINGS_ENDPOINT, 429, "rate limited", headers, None
-        )
+        rate_limit = urllib.error.HTTPError(EMBEDDINGS_ENDPOINT, 429, "rate limited", headers, None)
         response = _Response({"data": [{"index": 0, "embedding": [1, 0]}]})
         with (
             patch(
@@ -217,20 +233,57 @@ class EmbeddingFetchTests(unittest.TestCase):
             self.assertEqual(build.call_args.args[1:3], ("embedding/model", "test-key"))
 
     def test_committed_cache_covers_every_fixture_text(self) -> None:
-        pairs_payload = json.loads(
-            (FIXTURES / "dedup-pairs.json").read_text(encoding="utf-8")
-        )
-        cache = json.loads(
-            (FIXTURES / "dedup-embeddings.json").read_text(encoding="utf-8")
-        )
+        pairs_payload = json.loads((FIXTURES / "dedup-pairs.json").read_text(encoding="utf-8"))
+        cache = json.loads((FIXTURES / "dedup-embeddings.json").read_text(encoding="utf-8"))
         cached = cache["embeddings"]
+        self.assertEqual(cache["schema_version"], 1)
+        self.assertEqual(cache["model"], "openai/text-embedding-3-small")
+        self.assertEqual(cache["dimensions"], 512)
+        self.assertEqual(len(cached), 82)
+        self.assertTrue(all(len(key) == 64 and int(key, 16) >= 0 for key in cached))
         for pair in pairs_payload["pairs"]:
             for side in ("left", "right"):
                 key = embedding_key(embedding_text(pair[side]))
                 self.assertIn(key, cached, f"missing {pair['id']} {side}")
+        serialized = json.dumps(cache).lower()
+        self.assertNotIn("openrouter_api_key", serialized)
+        self.assertNotIn("bearer ", serialized)
+
+    def test_cache_loader_rejects_unknown_schema_and_non_sha_key(self) -> None:
+        payload = {
+            "schema_version": 2,
+            "model": "embedding/model",
+            "generated_on": "2026-08-20",
+            "dimensions": 2,
+            "embeddings": {"g" * 64: [1.0, 0.0]},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cache.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "schema_version"):
+                load_embedding_cache(path)
+
+            payload["schema_version"] = 1
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid vector"):
+                load_embedding_cache(path)
 
 
 class CommittedStudyTests(unittest.TestCase):
+    def test_committed_fixture_has_required_distribution_and_provenance(self) -> None:
+        payload = json.loads((FIXTURES / "dedup-pairs.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            payload["label_provenance"],
+            "machine-proposed-2026-08-20, owner review pending",
+        )
+        counts: dict[str, int] = {}
+        for pair in payload["pairs"]:
+            counts[pair["stratum"]] = counts.get(pair["stratum"], 0) + 1
+        self.assertEqual(
+            counts,
+            {"duplicate": 20, "clear_negative": 20, "hard_negative": 20},
+        )
+
     def test_offline_study_and_report_are_reproducible(self) -> None:
         pairs_path = FIXTURES / "dedup-pairs.json"
         pairs = load_pairs(pairs_path)
@@ -249,9 +302,7 @@ class CommittedStudyTests(unittest.TestCase):
             cache,
             payload["label_provenance"],
         )
-        committed = (FIXTURES.parent / "results" / "dedup-study.md").read_text(
-            encoding="utf-8"
-        )
+        committed = (FIXTURES.parent / "results" / "dedup-study.md").read_text(encoding="utf-8")
         self.assertEqual(rendered, committed)
 
 

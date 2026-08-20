@@ -175,11 +175,13 @@ def embed_texts(texts: list[str], model: str, api_key: str) -> list[list[float]]
         raise ValueError("OpenRouter API key must be non-empty")
     request = urllib.request.Request(
         EMBEDDINGS_ENDPOINT,
-        data=json.dumps({
-            "dimensions": EMBEDDING_DIMENSIONS,
-            "input": texts,
-            "model": model,
-        }).encode("utf-8"),
+        data=json.dumps(
+            {
+                "dimensions": EMBEDDING_DIMENSIONS,
+                "input": texts,
+                "model": model,
+            }
+        ).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -188,9 +190,7 @@ def embed_texts(texts: list[str], model: str, api_key: str) -> list[list[float]]
     )
     for attempt in range(1, API_MAX_ATTEMPTS + 1):
         try:
-            with urllib.request.urlopen(
-                request, timeout=EMBEDDINGS_TIMEOUT_SECONDS
-            ) as response:
+            with urllib.request.urlopen(request, timeout=EMBEDDINGS_TIMEOUT_SECONDS) as response:
                 payload = json.loads(response.read())
             return _embedding_vectors(payload, len(texts))
         except urllib.error.HTTPError as exc:
@@ -200,15 +200,12 @@ def embed_texts(texts: list[str], model: str, api_key: str) -> list[list[float]]
             exc.close()
             if not transient or attempt == API_MAX_ATTEMPTS:
                 raise RuntimeError(
-                    f"OpenRouter embeddings request failed with HTTP {status} "
-                    f"after {attempt} attempt(s)"
+                    f"OpenRouter embeddings request failed with HTTP {status} after {attempt} attempt(s)"
                 ) from exc
             delay = retry_after if retry_after is not None else float(2 ** (attempt - 1))
         except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
             if attempt == API_MAX_ATTEMPTS:
-                raise RuntimeError(
-                    f"OpenRouter embeddings request failed after {attempt} attempt(s): {exc}"
-                ) from exc
+                raise RuntimeError(f"OpenRouter embeddings request failed after {attempt} attempt(s): {exc}") from exc
             delay = float(2 ** (attempt - 1))
         if delay:
             time.sleep(delay)
@@ -247,17 +244,21 @@ def load_pairs(path: Path = DEFAULT_PAIR_FIXTURE) -> list[PairLabel]:
             raise ValueError(f"pair {pair_id!r} has an invalid label")
         if stratum not in {"duplicate", "clear_negative", "hard_negative"}:
             raise ValueError(f"pair {pair_id!r} has an invalid stratum")
+        if (stratum == "duplicate") != (label == "duplicate"):
+            raise ValueError(f"pair {pair_id!r} label is inconsistent with its stratum")
         if not isinstance(rationale, str) or not rationale.strip():
             raise ValueError(f"pair {pair_id!r} must have a rationale")
         seen_ids.add(pair_id)
-        pairs.append({
-            "id": pair_id,
-            "left": _pair_item(raw_pair.get("left"), pair_id, "left"),
-            "right": _pair_item(raw_pair.get("right"), pair_id, "right"),
-            "label": label,
-            "stratum": stratum,
-            "rationale": rationale,
-        })
+        pairs.append(
+            {
+                "id": pair_id,
+                "left": _pair_item(raw_pair.get("left"), pair_id, "left"),
+                "right": _pair_item(raw_pair.get("right"), pair_id, "right"),
+                "label": label,
+                "stratum": stratum,
+                "rationale": rationale,
+            }
+        )
     return pairs
 
 
@@ -301,6 +302,8 @@ def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("embedding cache must be an object")
+    if payload.get("schema_version") != 1:
+        raise ValueError("embedding cache schema_version must be 1")
     model = payload.get("model")
     generated_on = payload.get("generated_on")
     dimensions = payload.get("dimensions")
@@ -315,9 +318,16 @@ def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache
         raise ValueError("embedding cache must contain embeddings")
     embeddings: dict[str, list[float]] = {}
     for key, raw_vector in raw_embeddings.items():
+        valid_key = False
+        if isinstance(key, str) and len(key) == 64:
+            try:
+                int(key, 16)
+            except ValueError:
+                pass
+            else:
+                valid_key = True
         if (
-            not isinstance(key, str)
-            or len(key) != 64
+            not valid_key
             or not isinstance(raw_vector, list)
             or len(raw_vector) != dimensions
             or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in raw_vector)
@@ -334,9 +344,7 @@ def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache
     }
 
 
-def _binary_metrics(
-    pairs: Sequence[PairLabel], predictions: Mapping[str, bool]
-) -> BinaryMetrics:
+def _binary_metrics(pairs: Sequence[PairLabel], predictions: Mapping[str, bool]) -> BinaryMetrics:
     tp = fp = tn = fn = 0
     for pair in pairs:
         expected = pair["label"] == "duplicate"
@@ -408,15 +416,14 @@ def run_study(
     embedding_results: list[ThresholdResult] = []
     embedding_predictions: dict[float, dict[str, bool]] = {}
     for threshold in thresholds:
-        predictions = {
-            pair_id: similarity >= threshold
-            for pair_id, similarity in similarities.items()
-        }
+        predictions = {pair_id: similarity >= threshold for pair_id, similarity in similarities.items()}
         embedding_predictions[threshold] = predictions
-        embedding_results.append({
-            "threshold": threshold,
-            "metrics": _binary_metrics(pairs, predictions),
-        })
+        embedding_results.append(
+            {
+                "threshold": threshold,
+                "metrics": _binary_metrics(pairs, predictions),
+            }
+        )
     chosen = max(
         embedding_results,
         key=lambda result: (
@@ -482,22 +489,24 @@ def markdown_study(
     for result in study["embedding_results"]:
         name = "**Embedding (chosen)**" if result["threshold"] == study["chosen_threshold"] else "Embedding"
         lines.append(_metric_row(name, f"{result['threshold']:.2f}", result["metrics"]))
-    lines.extend([
-        "",
-        "## Operating point",
-        "",
-        (
-            f"The deterministic selection rule maximizes F1, then precision, then threshold. It chooses "
-            f"**{study['chosen_threshold']:.2f}** on this fixture. This is an in-sample descriptive operating "
-            "point, not a production-ready threshold; the labels still require owner sign-off and the fixture "
-            "is too small for a deployment claim."
-        ),
-        "",
-        "## Hard-negative error analysis",
-        "",
-        "| Pair | Cosine | Embedding | Title key | Result | Rationale |",
-        "|---|---:|---|---|---|---|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Operating point",
+            "",
+            (
+                f"The deterministic selection rule maximizes F1, then precision, then threshold. It chooses "
+                f"**{study['chosen_threshold']:.2f}** on this fixture. This is an in-sample descriptive operating "
+                "point, not a production-ready threshold; the labels still require owner sign-off and the fixture "
+                "is too small for a deployment claim."
+            ),
+            "",
+            "## Hard-negative error analysis",
+            "",
+            "| Pair | Cosine | Embedding | Title key | Result | Rationale |",
+            "|---|---:|---|---|---|---|",
+        ]
+    )
     for pair in pairs:
         if pair["stratum"] != "hard_negative":
             continue
@@ -521,21 +530,24 @@ def markdown_study(
         pair
         for pair in pairs
         if pair["stratum"] != "hard_negative"
-        and study["embedding_predictions"][pair["id"]]
-        != (pair["label"] == "duplicate")
+        and study["embedding_predictions"][pair["id"]] != (pair["label"] == "duplicate")
     ]
-    lines.extend([
-        "",
-        "## Other chosen-threshold errors",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Other chosen-threshold errors",
+            "",
+        ]
+    )
     if not other_errors:
         lines.append("No additional embedding errors occur outside the hard-negative stratum.")
     else:
-        lines.extend([
-            "| Pair | Label | Cosine | Prediction | Rationale |",
-            "|---|---|---:|---|---|",
-        ])
+        lines.extend(
+            [
+                "| Pair | Label | Cosine | Prediction | Rationale |",
+                "|---|---|---:|---|---|",
+            ]
+        )
         for pair in other_errors:
             pair_id = pair["id"]
             prediction = study["embedding_predictions"][pair_id]
@@ -548,25 +560,23 @@ def markdown_study(
     embedding_f1 = study["chosen_embedding_metrics"]["f1"]
     heuristic_f1 = study["heuristic_metrics"]["f1"]
     if embedding_f1 > heuristic_f1:
-        comparison = (
-            f"the chosen embedding threshold leads by {embedding_f1 - heuristic_f1:.3f} F1"
-        )
+        comparison = f"the chosen embedding threshold leads by {embedding_f1 - heuristic_f1:.3f} F1"
     elif embedding_f1 < heuristic_f1:
-        comparison = (
-            f"the production heuristic leads by {heuristic_f1 - embedding_f1:.3f} F1"
-        )
+        comparison = f"the production heuristic leads by {heuristic_f1 - embedding_f1:.3f} F1"
     else:
         comparison = "the approaches tie on F1"
-    lines.extend([
-        "",
-        "## Conclusion",
-        "",
-        (
-            f"On this machine-proposed fixture, {comparison}. The useful result is the measured trade-off, "
-            "not a predetermined embedding win. Before any production experiment, the owner must review the "
-            "labels and the study should be repeated on a larger time-split sample with an explicit latency and "
-            "cost budget. Until then, the production heuristic remains unchanged."
-        ),
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Conclusion",
+            "",
+            (
+                f"On this machine-proposed fixture, {comparison}. The useful result is the measured trade-off, "
+                "not a predetermined embedding win. Before any production experiment, the owner must review the "
+                "labels and the study should be repeated on a larger time-split sample with an explicit latency and "
+                "cost budget. Until then, the production heuristic remains unchanged."
+            ),
+            "",
+        ]
+    )
     return "\n".join(lines)
