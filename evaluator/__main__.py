@@ -20,6 +20,18 @@ from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
+from evaluator.retrieval import (
+    DEFAULT_EMBEDDING_CACHE,
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_PAIR_FIXTURE,
+    DEFAULT_STUDY_REPORT,
+    DEFAULT_THRESHOLDS,
+    build_embedding_cache,
+    load_embedding_cache,
+    load_pair_fixture,
+    markdown_study,
+    run_study,
+)
 from evaluator.runner import (
     DEFAULT_CORPUS,
     DEFAULT_PROTOCOL,
@@ -169,6 +181,28 @@ def main() -> int:
         "--update-snapshot",
         action="store_true",
         help="replace the expected snapshot explicitly; review and approve the resulting diff",
+    )
+
+    dedup_study = subparsers.add_parser(
+        "dedup-study",
+        help="benchmark embedding-based near-duplicate detection against the production heuristic",
+    )
+    dedup_study.add_argument(
+        "--fetch-embeddings",
+        action="store_true",
+        help="refresh the committed credential-free embedding cache through OpenRouter",
+    )
+    dedup_study.add_argument("--pairs", type=Path, default=DEFAULT_PAIR_FIXTURE)
+    dedup_study.add_argument("--embeddings", type=Path, default=DEFAULT_EMBEDDING_CACHE)
+    dedup_study.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
+    dedup_study.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+    dedup_study.add_argument("--output", type=Path, default=DEFAULT_STUDY_REPORT)
+    dedup_study.add_argument(
+        "--threshold",
+        type=float,
+        action="append",
+        default=[],
+        help="cosine threshold; repeatable (default: 0.70 through 0.95 in 0.05 steps)",
     )
 
     label_review = subparsers.add_parser(
@@ -376,6 +410,49 @@ def main() -> int:
 
     args = parser.parse_args()
     try:
+        if args.command == "dedup-study":
+            pairs, label_provenance = load_pair_fixture(args.pairs)
+            if args.fetch_embeddings:
+                load_dotenv(args.env_file)
+                api_key = os.environ.get("OPENROUTER_API_KEY")
+                if not api_key:
+                    raise ValueError("dedup-study --fetch-embeddings requires OPENROUTER_API_KEY")
+                generated_on = datetime.now(UTC).date().isoformat()
+                cache = build_embedding_cache(pairs, args.model, api_key, generated_on)
+                args.embeddings.parent.mkdir(parents=True, exist_ok=True)
+                args.embeddings.write_text(
+                    json.dumps(cache, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps({
+                    "embedding_count": len(cache["embeddings"]),
+                    "generated_on": generated_on,
+                    "model": args.model,
+                    "output": str(args.embeddings),
+                }, indent=2, sort_keys=True))
+                return 0
+            cache = load_embedding_cache(args.embeddings)
+            thresholds = args.threshold or list(DEFAULT_THRESHOLDS)
+            try:
+                study = run_study(pairs, cache["embeddings"], thresholds)
+            except KeyError as exc:
+                raise ValueError(
+                    f"embedding cache {args.embeddings} is out of date ({exc}); "
+                    "refresh it with `python3 -m evaluator dedup-study --fetch-embeddings`"
+                ) from exc
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                markdown_study(study, pairs, cache, label_provenance),
+                encoding="utf-8",
+            )
+            print(json.dumps({
+                "chosen_threshold": study["chosen_threshold"],
+                "embedding_f1": study["chosen_embedding_metrics"]["f1"],
+                "heuristic_f1": study["heuristic_metrics"]["f1"],
+                "output": str(args.output),
+                "pair_count": study["pair_count"],
+            }, indent=2, sort_keys=True))
+            return 0
         if args.command == "checker":
             result = run_deterministic_suite(args.suite)
             output = json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False) + "\n"

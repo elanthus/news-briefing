@@ -22,6 +22,26 @@ A `baseline` provider (`evaluator/adapters.py:BaselineAdapter`, `--provider base
 
 The injection design follows the evaluation posture of the peer-reviewed [AgentDojo paper (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf)—measure clean utility alongside attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. The matched structural-utility measure and the category-position/item-count axes are inspired proxies: they do not reproduce AgentDojo's deterministic user-task utility, relative injection-token position, or controlled-token fraction.
 
+## Retrieval and near-duplicate study
+
+The evaluator includes a separate embedding-based near-duplicate study; it is not imported by or wired into the production fetcher. [`fixtures/dedup-pairs.json`](fixtures/dedup-pairs.json) contains 60 pairs drawn from the August 9 and August 11 frozen corpora: 20 same-story duplicates, 20 clear negatives, and 20 hard negatives that share a topic but describe different events. The labels are machine-proposed and explicitly pending owner review, so the generated numbers are descriptive rather than a deployment claim.
+
+Each side is indexed as its UTF-8 title, a newline, and its summary. URLs remain in the labeled fixture for provenance but are not embedded. The cache key is the SHA-256 of that exact text. [`fixtures/dedup-embeddings.json`](fixtures/dedup-embeddings.json) holds 512-dimensional `openai/text-embedding-3-small` vectors for the 82 unique texts, generated as one batch through [OpenRouter's embeddings API](https://openrouter.ai/docs/api/reference/embeddings). Committing those vectors keeps CI credential-free and makes every threshold comparison byte-reproducible.
+
+Regenerate the report entirely offline:
+
+```bash
+python3 -m evaluator dedup-study
+```
+
+The committed [`results/dedup-study.md`](results/dedup-study.md) compares a 0.70–0.95 cosine sweep with the exact production 60-character normalized-title key, selects an in-sample operating point deterministically, and lists every hard negative plus the remaining chosen-threshold errors. To refresh vectors after changing the pair fixture, put `OPENROUTER_API_KEY` in the ignored `evaluator/.env` and run:
+
+```bash
+python3 -m evaluator dedup-study --fetch-embeddings
+```
+
+The fetch path batches all unique texts, honors `Retry-After`, retries only transient failures, validates response indices and dimensions, and never writes the key. Review and commit the resulting cache and report together; production deduplication remains unchanged unless a separate, larger time-split study justifies an experiment.
+
 ## Setup
 
 No evaluator package is required for normal briefing use. For evaluator development only:
