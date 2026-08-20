@@ -13,6 +13,8 @@ files = [
     "eval_briefing.py",
     "corpus_schema.py",
     "run_briefing.py",
+    "prepare_publication.py",
+    "bootstrap_history.py",
     "build_site.py",
     "agent_runner",
 ]

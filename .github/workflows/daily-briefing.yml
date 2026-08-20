@@ -52,98 +52,11 @@ jobs:
 
       - name: Apply publication gate
         if: always()
-        run: |
-          python - <<'PY'
-          import hashlib
-          import json
-          import shutil
-          from datetime import UTC, datetime
-          from pathlib import Path
+        run: python prepare_publication.py
 
-          history = Path("briefing-history")
-          history.mkdir()
-          day = datetime.now(UTC).date().isoformat()
-          disposition = "blocked"
-          findings_count = 0
-          final_markdown = Path("run/final.md")
-
-          manifest_path = Path("run/manifest.json")
-          if manifest_path.is_file():
-              try:
-                  manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-              except (json.JSONDecodeError, OSError):
-                  manifest = None
-              if isinstance(manifest, dict) and manifest.get("status") == "complete":
-                  final = manifest.get("final")
-                  if isinstance(final, dict):
-                      status = final.get("status")
-                      findings = final.get("findings")
-                      if (
-                          status in {"ready", "review_required", "rejected", "no_result"}
-                          and isinstance(findings, list)
-                      ):
-                          findings_count = len(findings)
-                          if status != "ready":
-                              disposition = status
-                          else:
-                              artifacts = manifest.get("artifacts")
-                              expected_digest = (
-                                  artifacts.get("final.md")
-                                  if isinstance(artifacts, dict)
-                                  else None
-                              )
-                              actual_digest = (
-                                  hashlib.sha256(final_markdown.read_bytes()).hexdigest()
-                                  if final_markdown.is_file()
-                                  else None
-                              )
-                              if (
-                                  final.get("artifact_type") == "final"
-                                  and final.get("run_artifact") == "final.md"
-                                  and isinstance(expected_digest, str)
-                                  and actual_digest == expected_digest
-                              ):
-                                  disposition = "ready"
-
-          if disposition == "ready":
-              if final_markdown.is_file():
-                  shutil.copyfile(final_markdown, history / f"{day}.md")
-              else:
-                  disposition = "blocked"
-
-          degraded_sources = []
-          corpus_path = Path("corpus.json")
-          if corpus_path.is_file():
-              try:
-                  corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
-              except (json.JSONDecodeError, OSError):
-                  corpus = None
-              errors = corpus.get("errors", []) if isinstance(corpus, dict) else []
-              if isinstance(errors, list):
-                  for error in errors:
-                      if isinstance(error, dict):
-                          source_type = error.get("source_type", "source")
-                          source_id = error.get("source_id", "unknown")
-                          label = f"{source_type}:{source_id}"
-                      elif isinstance(error, str):
-                          label = error
-                      else:
-                          label = "source:unknown"
-                      if label not in degraded_sources:
-                          degraded_sources.append(label)
-
-          sidecar = {
-              "date": day,
-              "disposition": disposition,
-              "findings_count": findings_count,
-              "degraded_sources": degraded_sources,
-          }
-          (history / f"{day}.json").write_text(
-              json.dumps(sidecar, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          print(json.dumps(sidecar, indent=2, sort_keys=True))
-          PY
+      - name: Bootstrap history from dogfood runs
+        if: always()
+        run: python bootstrap_history.py briefing-bootstrap
 
       - name: Download prior live history
         if: always()
@@ -164,9 +77,11 @@ jobs:
         if: always()
         run: |
           if [[ -f prior-history.json ]]; then
-            python build_site.py briefing-history site --prior-history prior-history.json
+            python build_site.py briefing-history site \
+              --bootstrap-dir briefing-bootstrap \
+              --prior-history prior-history.json
           else
-            python build_site.py briefing-history site
+            python build_site.py briefing-history site --bootstrap-dir briefing-bootstrap
           fi
 
       - name: Upload Pages artifact
