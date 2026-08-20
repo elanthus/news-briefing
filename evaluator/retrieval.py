@@ -123,11 +123,18 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
         not _is_finite_number(value) for value in b
     ):
         raise ValueError("cosine similarity requires finite vectors")
-    dot = sum(left * right for left, right in zip(a, b, strict=True))
-    norm_a = math.sqrt(sum(value * value for value in a))
-    norm_b = math.sqrt(sum(value * value for value in b))
-    if norm_a == 0.0 or norm_b == 0.0:
+    scale_a = max((abs(value) for value in a), default=0.0)
+    scale_b = max((abs(value) for value in b), default=0.0)
+    if scale_a == 0.0 or scale_b == 0.0:
         raise ValueError("cosine similarity is undefined for a zero vector")
+    normalized_a = [value / scale_a for value in a]
+    normalized_b = [value / scale_b for value in b]
+    dot = math.fsum(
+        left * right
+        for left, right in zip(normalized_a, normalized_b, strict=True)
+    )
+    norm_a = math.sqrt(math.fsum(value * value for value in normalized_a))
+    norm_b = math.sqrt(math.fsum(value * value for value in normalized_b))
     return dot / (norm_a * norm_b)
 
 

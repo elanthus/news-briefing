@@ -64,6 +64,10 @@ class CosineTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "finite vectors"):
                     cosine([value], [1.0])
 
+    def test_large_finite_vectors_do_not_overflow(self) -> None:
+        self.assertAlmostEqual(cosine([1e308, 1e308], [1e308, 1e308]), 1.0)
+        self.assertAlmostEqual(cosine([1e308, 1e308], [-1e308, -1e308]), -1.0)
+
 
 class PairClassificationTests(unittest.TestCase):
     def test_classifies_each_pair_from_precomputed_vectors(self) -> None:
