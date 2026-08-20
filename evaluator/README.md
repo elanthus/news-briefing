@@ -212,9 +212,25 @@ python3 -m evaluator run \
 ```
 
 After the primary checkpoint was interrupted and resumed, HY3 ran concurrently in a second output directory
-with the same command identity, a single `--provider openrouter=tencent/hy3`, and a $3 component ceiling. The
-primary was stopped only after all 600 DeepSeek rows were checkpointed. Export the compatible whole-adapter
-components and verify the result with:
+with the same command identity and a $3 component ceiling. The primary was stopped only after all 600 DeepSeek
+rows were checkpointed. The literal HY3 component command was:
+
+```bash
+python3 -m evaluator run \
+  --provider openrouter=tencent/hy3 \
+  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
+  --prompt reliability-v1=evaluator/prompts/reliability-v1.md \
+  --trials 5 --timeout 300 --temperature 0 --seed 20260819 \
+  --execution-seed 20260819 --reasoning disabled \
+  --suite evaluator/fixtures/generation-cases.json \
+  --corpus evaluator/fixtures/generation-corpus.json \
+  --protocol evaluator/protocols/portfolio-v2.json \
+  --output-dir evaluator/results/portfolio-v2-final-20260819-hy3 \
+  --run-kind final --source-tag portfolio-v2-source-20260819 \
+  --cost-ceiling-usd 3 --cost-ceiling-provider openrouter
+```
+
+Export the compatible whole-adapter components and verify the result with:
 
 ```bash
 python3 -m evaluator export-public-run \

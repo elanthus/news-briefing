@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-20T10:07:06.502868+00:00",
+  "generated_at": "2026-08-20T10:35:04.553972+00:00",
   "generation_controls": [
     {
       "disclosure": "The evaluator sends temperature=0.0 and seed=20260819; reasoning is False; exact reproducibility is not guaranteed, and these runs are not directly comparable to CLI runs without temperature control.",

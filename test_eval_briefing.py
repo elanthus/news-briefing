@@ -721,6 +721,18 @@ class ClaimGroundingTest(unittest.TestCase):
         findings = evaluate(corpus, text)
         self.assertNotIn("unsupported_figure", checks(findings, WARN))
 
+    def test_word_range_in_prose_matches_compact_range_evidence(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "Measured runs completed in 10–12 minutes."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — runs completed between 10 and 12 minutes.",
+        )
+        findings = evaluate(corpus, text)
+        self.assertNotIn("unsupported_figure", checks(findings, WARN))
+
     def test_quotation_not_in_the_cited_item_is_flagged(self):
         """Attributing a real quote to the wrong source still misleads."""
         text = briefing().replace(

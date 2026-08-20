@@ -902,10 +902,22 @@ def check_claims_supported(
             if not support:
                 continue
             support_figures = _figure_tokens(support)
+            prose_ranges = list(_WORD_RANGE.finditer(prose))
 
             for match in _FIGURE.finditer(prose):
                 figure = match.group()
                 tokens = _figure_tokens_for_match(prose, match)
+                for range_match in prose_ranges:
+                    if range_match.start() <= match.start() and match.end() <= range_match.end():
+                        start = (
+                            range_match.group("between_start")
+                            or range_match.group("from_start")
+                        )
+                        end = (
+                            range_match.group("between_end")
+                            or range_match.group("from_end")
+                        )
+                        tokens.add(_normalize_figure(f"{start}-{end}"))
                 if tokens and not tokens & support_figures:
                     elsewhere = _topically_matching_support(
                         title, tokens, all_evidence or [])

@@ -678,22 +678,31 @@ def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
 
 def _git_provenance() -> dict[str, Any]:
     def git(*args: str) -> str:
-        return subprocess.run(
+        result = subprocess.run(
             ["git", *args], cwd=ROOT, text=True, capture_output=True, check=False
-        ).stdout.strip()
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or "no diagnostic output"
+            raise ValueError(
+                f"cannot determine Git provenance: git {' '.join(args)} "
+                f"exited {result.returncode}: {detail}"
+            )
+        return result.stdout.strip()
 
     commit = git("rev-parse", "HEAD")
     tree = git("rev-parse", "HEAD^{tree}")
-    dirty = bool(subprocess.run(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True, capture_output=True, check=False
-    ).stdout.strip())
+    dirty = bool(git("status", "--porcelain"))
     tags = sorted(filter(None, git("tag", "--points-at", "HEAD").splitlines()))
     runtime_paths = [
         Path(path)
         for path in git("ls-files").splitlines()
         if (
             path in {"briefing_config.py", "corpus_schema.py", "eval_briefing.py"}
-            or (path.startswith("evaluator/") and path.endswith(".py"))
+            or (
+                path.startswith("evaluator/")
+                and path.endswith(".py")
+                and not path.startswith("evaluator/tests/")
+            )
             or (path.startswith("agent_runner/") and path.endswith(".py"))
         )
     ]
@@ -1181,7 +1190,22 @@ def run_evaluation(
     if len(planned_artifact_dirs) != len(set(planned_artifact_dirs)):
         raise ValueError("planned result artifact directory names collide after sanitization")
 
-    code = source_provenance or _git_provenance()
+    if run_kind == "final":
+        if source_provenance is None:
+            raise ValueError("final runs require verified source provenance")
+        source_tag = source_provenance.get("source_tag")
+        source_tags = source_provenance.get("tags")
+        if (
+            source_provenance.get("dirty") is not False
+            or not source_provenance.get("commit")
+            or not source_provenance.get("tree")
+            or not isinstance(source_tag, str)
+            or not isinstance(source_tags, list)
+            or source_tag not in source_tags
+            or not source_provenance.get("runtime_source_sha256")
+        ):
+            raise ValueError("final runs require complete clean tagged source provenance")
+    code = _git_provenance() if source_provenance is None else source_provenance
     identity = {
         "schema_version": 9,
         "generation_path": generation_path,
@@ -1212,8 +1236,26 @@ def run_evaluation(
     if resume_manifest is not None:
         incompatible = [
             field for field, expected in identity.items()
-            if resume_manifest.get(field) != expected
+            if field != "code" and resume_manifest.get(field) != expected
         ]
+        code_identity_fields = {"runtime_source_sha256"}
+        if run_kind == "final":
+            code_identity_fields.update({"commit", "tree", "dirty", "source_tag"})
+        expected_code = {
+            key: code[key] for key in code_identity_fields if key in code
+        }
+        recorded_code = resume_manifest.get("code")
+        actual_code = (
+            {
+                key: recorded_code[key]
+                for key in code_identity_fields
+                if key in recorded_code
+            }
+            if isinstance(recorded_code, dict)
+            else recorded_code
+        )
+        if actual_code != expected_code:
+            incompatible.append("code")
         if incompatible:
             raise ValueError(
                 "cannot resume incompatible run; immutable fields differ: "
