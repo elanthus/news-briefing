@@ -22,7 +22,7 @@ flowchart LR
     evaluator -. measures .-> checker
 ```
 
-The runner owns fetch → project → generate → validate → correct → classify → render, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
+The runner owns fetch → project → generate → validate → correct → finalize, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
 
 > **Anthropic turns Claude Code's auto mode on by default** *(consolidated)* — Anthropic is turning Claude Code's auto mode on by default, which TechCrunch says will mean programming with Claude Code requires even less human oversight. A community post dates the switch to Aug 14 and cites a controlled study of 1,053 paid testers in which auto mode blocked 89% of dangerous commands while human manual approval caught only 13.6%.
 > 🔗 https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/
@@ -56,6 +56,7 @@ Historical placeholder total generation cost: **$3.033816***. Historical suite S
 ## Quickstart
 
 Python 3.11+ is the only runtime requirement; there is no install step.
+Fresh generation also needs an authenticated provider: set `OPENROUTER_API_KEY` for OpenRouter, or install and authenticate the `claude` or `codex` CLI.
 
 ```bash
 git clone https://github.com/elanthus/news-briefing.git
