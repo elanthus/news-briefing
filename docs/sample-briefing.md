@@ -1,6 +1,6 @@
 # Frozen reference run · [Back to README](../README.md)
 
-Complete frozen result from a real run (`--hours 24`, 2026-08-09 — 158 items across 5 categories), stored unquoted in [`fixtures/briefing-2026-08-09.md`](fixtures/briefing-2026-08-09.md) and [`fixtures/briefing-config-2026-08-09.json`](fixtures/briefing-config-2026-08-09.json) for regression testing.
+Complete frozen result from a real run (`--hours 24`, 2026-08-09 — 158 items across 5 categories), stored unquoted in [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md) and [`fixtures/briefing-config-2026-08-09.json`](../fixtures/briefing-config-2026-08-09.json) for regression testing.
 
 Note that this run is degraded: three of four subreddits returned HTTP 429. Reddit rate-limits anonymous clients aggressively and this is normal, not a one-off. The briefing says so in its corpus-health section, which is the behavior being demonstrated. Fewer subreddits, or a narrower `--hours` window, reduces it.
 

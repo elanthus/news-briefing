@@ -110,4 +110,6 @@ That last prose row is the real limit on what a Markdown parser can judge. The c
 - [Evaluator guide](evaluator/README.md)
 - [MIT license](LICENSE)
 
+Third-party news titles, feed excerpts, and linked content remain subject to their respective owners' rights and are not licensed under MIT.
+
 The zero-dependency core is deliberate: it forced ownership of HTTP, XML, and validation layers usually delegated to libraries, with the resulting trade-offs documented in [design.md](docs/design.md).
