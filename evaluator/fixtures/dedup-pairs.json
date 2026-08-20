@@ -1,0 +1,971 @@
+{
+  "schema_version": 1,
+  "label_provenance": "machine-proposed-2026-08-20, owner review pending",
+  "source_corpora": [
+    "fixtures/corpus-2026-08-09.json",
+    "fixtures/corpus-2026-08-11.json"
+  ],
+  "embedding_representation": "UTF-8 title, newline, then summary; URL retained for provenance but not embedded",
+  "pairs": [
+    {
+      "id": "duplicate-01",
+      "left": {
+        "title": "Don Nelson, former NBA coach and 5-time champion as a player, dies at 86",
+        "summary": "Don Nelson was one of two coaches in NBA history to have at least 250 wins with three different franchises — Milwaukee, Dallas and Golden State.",
+        "url": "https://www.cbsnews.com/news/don-nelson-nba-coach-champion-die/"
+      },
+      "right": {
+        "title": "Don Nelson, legendary coach and five-time NBA champion as player, dies at 86",
+        "summary": "Nelson had second-most coaching wins in NBA historyWon five titles with Boston Celtics in 1960s and 70sHelped develop stars Steph Curry and Dirk NowitzkiDon Nelson, the second-winningest coach in NBA history who won five championships as a player with the Boston Celtics, died on Sunday. He was 86.“O",
+        "url": "https://www.theguardian.com/sport/2026/aug/09/don-nelson-legendary-coach-and-five-time-nba-champion-as-player-dies-at-86"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Two outlets report the same death of coach and former player Don Nelson at age 86."
+    },
+    {
+      "id": "duplicate-02",
+      "left": {
+        "title": "Trump names Will Scharf as new White House counsel",
+        "summary": "President Trump named Will Scharf as his new White House counsel on Sunday, a shake-up in the key legal role.  Scharf will assume the role on Sept. 1 and replace David Warrington, who has served since Trump’s inauguration and is headed to the private sector, the president wrote on Truth Social.  “Wi",
+        "url": "https://thehill.com/homenews/administration/6019523-trump-names-will-scharf-counsel/"
+      },
+      "right": {
+        "title": "Trump appoints staff secretary Will Scharf as new White House counsel",
+        "summary": "Scharf, who helped president win approval for $400m ballroom, to replace David Warrington on 1 SeptemberDonald Trump announced on Sunday that ⁠Will ​Scharf, the staff secretary who helped secure approval for the $400m White House ballroom project, will become ⁠White House counsel and assistant to th",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/trump-will-scharf-white-house-counsel"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Trump's appointment of Will Scharf as White House counsel."
+    },
+    {
+      "id": "duplicate-03",
+      "left": {
+        "title": "Ousted Syrian dictator Bashar al-Assad sentenced to death in absentia",
+        "summary": "The ex-president is convicted of committing war crimes and crimes against humanity during the country's civil war.",
+        "url": "https://www.bbc.co.uk/news/articles/ce34dkpnyg7o?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Former Syrian President Assad sentenced to death in absentia",
+        "summary": "A Syrian court sentenced Assad along with his brother to death in absentia for crimes against humanity and war crimes during Syria's 14-year conflict that left about half a million people dead.",
+        "url": "https://www.npr.org/2026/08/11/g-s1-138166/syria-assad-sentenced-to-death"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report the same Syrian court sentence against Bashar al-Assad."
+    },
+    {
+      "id": "duplicate-04",
+      "left": {
+        "title": "Taylor Farms recalls several jalapeño products over salmonella concerns",
+        "summary": "Guacamole, pico de gallo and taco dip are some of the prepared foods included in the recall. The announcement comes a few weeks after Taylor Farms voluntarily recalled its iceberg lettuce products sourced from central Mexico because of a potential link to a multistate cyclospora outbreak.",
+        "url": "https://www.pbs.org/newshour/health/taylor-farms-recalls-several-jalapeno-products-over-salmonella-concerns"
+      },
+      "right": {
+        "title": "Taylor Farms recalls jalapeño items at Walmart, Target over salmonella risk",
+        "summary": "The recalled products with jalapeño were distributed at national retailers, including Walmart, Target and Trader Joe's, in 26 states.",
+        "url": "https://www.cbsnews.com/news/taylor-farms-jalapeno-recall-salmonella-outbreak/"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items cover the same Taylor Farms jalapeño recall tied to salmonella risk."
+    },
+    {
+      "id": "duplicate-05",
+      "left": {
+        "title": "Claude will apply invisible watermarks to AI text and images",
+        "summary": "Anthropic has pledged to start marking Claude-generated text and images with machine-readable data, in an effort to comply with European rules for AI transparency. \"Generated text will carry embedded watermarks, and generated files will include digitally signed provenance metadata where supported,\" ",
+        "url": "https://www.theverge.com/ai-artificial-intelligence/977823/anthropic-claude-ai-watermarks-c2pa-text-images"
+      },
+      "right": {
+        "title": "Anthropic says it will watermark text generated by its AI models",
+        "summary": "Anthropic will extend support for watermarking AI generations for older models as well.",
+        "url": "https://techcrunch.com/2026/08/11/anthropic-says-it-will-watermark-text-generated-by-its-ai-models/"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Anthropic's announcement that Claude output will carry watermarks."
+    },
+    {
+      "id": "duplicate-06",
+      "left": {
+        "title": "Lebanon parliament votes to abolish death penalty",
+        "summary": "The new law - which next goes to the cabinet for approval - would make Lebanon the first country in the Middle East to end capital punishment.",
+        "url": "https://www.bbc.co.uk/news/articles/c8enj8p1xwgo?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Lebanon parliament votes to end death penalty, 1st in Middle East to do so",
+        "summary": "Death sentences will be replaced with life imprisonment with aggravated hard labour.",
+        "url": "https://www.aljazeera.com/news/2026/8/11/lebanons-parliament-votes-to-end-death-penalty-first-in-middle-east-to-so?traffic_source=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Lebanon's parliamentary vote to abolish the death penalty."
+    },
+    {
+      "id": "duplicate-07",
+      "left": {
+        "title": "‘Only job I know’: Philippine sailors return to sea despite wartime risks",
+        "summary": "Despite risks in the Strait of Hormuz and Black Sea, seafarers from the Philippines are still competing for jobs.",
+        "url": "https://www.aljazeera.com/features/2026/8/11/only-job-i-know-philippine-sailors-return-to-sea-despite-wartime-risks?traffic_source=rss"
+      },
+      "right": {
+        "title": "Philippines sailors say they will work despite wartime risks",
+        "summary": "Philippines sailors say they will work despite wartime risks",
+        "url": "https://www.aljazeera.com/video/newsfeed/2026/8/11/philippines-sailors-say-they-will-work-despite-wartime-risks-2?traffic_source=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "The article and video package cover the same Philippine sailors returning despite wartime risks."
+    },
+    {
+      "id": "duplicate-08",
+      "left": {
+        "title": "Captain of boat that capsized in New York facing federal charges after mom, infant die",
+        "summary": "Manuel Hernandez, the boat's 46-year-old captain, was arrested on reckless endangerment charges and also charged in federal court with two counts of misconduct and neglect.",
+        "url": "https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/"
+      },
+      "right": {
+        "title": "Captain charged after woman and her five-month-old die in New York boat capsizing",
+        "summary": "Manuel Hernandez charged with 13 counts of reckless endangerment after boat overturned in New York harborThe captain of a boat that capsized in the New York harbor on Saturday evening has been charged following the deaths of a 27-year-old woman and her five-month-old daughter.Manuel Hernandez, 46, w",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/man-charged-new-york-harbor-boat-capsized-deaths"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report the same fatal New York Harbor capsizing and captain's arrest."
+    },
+    {
+      "id": "duplicate-09",
+      "left": {
+        "title": "Trump signs executive order to split up MMR vaccine",
+        "summary": "President Trump issued an executive order Monday calling for fewer childhood vaccinations, splitting the childhood MMR vaccine into three shots and delivering vaccines at separate medical visits.Why it matters: Controversial vaccine policy changes appear to be roaring back ahead of the midterms.The ",
+        "url": "https://www.axios.com/2026/08/10/trump-order-split-up-mmr-vaccine"
+      },
+      "right": {
+        "title": "Trump signs order to limit childhood vaccines and split MMR shots",
+        "summary": "The American Academy of Pediatrics calls the recommendation on measles, mumps and rubella shots \"dangerous\".",
+        "url": "https://www.bbc.co.uk/news/articles/ce3q5vl581wo?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Trump's order to split the MMR vaccine into separate shots."
+    },
+    {
+      "id": "duplicate-10",
+      "left": {
+        "title": "Jackie, a beloved bald eagle from Big Bear, dies after attack by 2 other eagles",
+        "summary": "Jackie, of the beloved bald eagle duo Jackie and Shadow, watched by millions on the Big Bear live feed, has died.",
+        "url": "https://www.cbsnews.com/video/jackie-beloved-bald-eagle-big-bear-dies-attack-2-other-eagles/"
+      },
+      "right": {
+        "title": "Jackie, the famous California bald eagle, dies after weeks of intensive care",
+        "summary": "Jackie and her partner, Shadow, had been watched by millions of people over the years through the Big Bear Eagle Nest Cam.",
+        "url": "https://www.bbc.co.uk/news/articles/c62vj8eywdlo?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report the death of Jackie, the Big Bear bald eagle, after an attack."
+    },
+    {
+      "id": "duplicate-11",
+      "left": {
+        "title": "Luigi Mangione appears in court over healthcare CEO’s killing with trial a month away",
+        "summary": "Prosecutors allege that Mangione gunned down Brian Thompson outside New York City hotel in December 2024Luigi Mangione, who is accused of killing UnitedHealthcare CEO Brian Thompson, appeared Tuesday morning in Manhattan state court for a final pre-trial conference, where the judge addressed content",
+        "url": "https://www.theguardian.com/us-news/2026/aug/11/luigi-mangione-court-appearance-new-york"
+      },
+      "right": {
+        "title": "Luigi Mangione appears in court as questions remain in case ahead of murder trial",
+        "summary": "Mangione's lawyers have yet to signal their defence strategy, while prosecutors are in a battle over evidence.",
+        "url": "https://www.bbc.co.uk/news/articles/cgje05wd1v4o?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items cover Luigi Mangione's pretrial court appearance."
+    },
+    {
+      "id": "duplicate-12",
+      "left": {
+        "title": "7.4-magnitude earthquake rocks Colombia, crumbling homes and buildings",
+        "summary": "A powerful and deadly earthquake hit Colombia on Monday, killing at least 111 people, toppling buildings and leaving a trail of destruction. Geoff Bennett reports.",
+        "url": "https://www.pbs.org/newshour/show/7-4-magnitude-earthquake-rocks-colombia-crumbling-homes-and-buildings"
+      },
+      "right": {
+        "title": "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people",
+        "summary": "Search teams and civilians picked through the remains of destroyed buildings in the country's third-largest city, Cali, passing large pieces of concrete and rubble down a long line of volunteers.",
+        "url": "https://www.npr.org/2026/08/10/nx-s1-5927515/earthquake-western-colombia"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report the same magnitude-7.4 earthquake in western Colombia."
+    },
+    {
+      "id": "duplicate-13",
+      "left": {
+        "title": "Suspected crime boss Daniel Kinahan appears in court after extradition",
+        "summary": "The Irish Prison Service bought a bulletproof and bombproof van to transport the 49-year-old to court after his extradition from Dubai.",
+        "url": "https://www.bbc.co.uk/news/articles/c62qd5plzp6o?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Alleged cartel boss Daniel Kinahan charged in Ireland amid heavy security",
+        "summary": "Daniel Kinahan is the latest alleged member of the multinational organised crime group to be charged in Dublin.",
+        "url": "https://www.aljazeera.com/news/2026/8/9/uae-extradites-alleged-international-crime-boss-daniel-kinahan-to-ireland?traffic_source=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items cover Daniel Kinahan's extradition, charge, and court appearance in Ireland."
+    },
+    {
+      "id": "duplicate-14",
+      "left": {
+        "title": "OpenAI introduces a new cyber model amid fears of AI cyberattacks",
+        "summary": "OpenAI is introducing a more cyber-permissive version of GPT-5.6 Sol to vetted defenders as it prepares companies for autonomous cyberattacks. Why it matters: The move comes just days after OpenAI said it was delaying the release of its forthcoming model, Astra, after it reached critical hacking abi",
+        "url": "https://www.axios.com/2026/08/10/openai-gpt-astra-restrictions-safety-hacking-defenders"
+      },
+      "right": {
+        "title": "As AI-led attacks multiply, OpenAI launches a new cyber model",
+        "summary": "OpenAI is expanding its AI cybersecurity defense program Daybreak, and rolling out a new cyber-trained AI model with it.",
+        "url": "https://techcrunch.com/2026/08/10/as-ai-led-attacks-multiply-openai-launches-a-new-cyber-model/"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report OpenAI's launch of the same cyber-focused model."
+    },
+    {
+      "id": "duplicate-15",
+      "left": {
+        "title": "Mark Zuckerberg doesn’t understand how to live",
+        "summary": "Recently, a man I was rock climbing with told me about how he'd used AI to make a motivational poster for himself, which he'd hung on his bedroom wall: a bear, walking a slackline over a canyon, holding a sign that said, \"Do cool shit.\" I made what I hoped was a polite noise. What […]",
+        "url": "https://www.theverge.com/ai-artificial-intelligence/977623/mark-zuckerberg-ai-manifesto-dim-vision"
+      },
+      "right": {
+        "title": "Mark Zuckerberg’s AI manifesto is exactly why people don’t like AI",
+        "summary": "On Monday, Mark Zuckerberg published a 6,500-word manifesto about personal AI, largely about the possibilities for the \"personal superintelligence\" systems Meta AI is building.",
+        "url": "https://techcrunch.com/2026/08/10/mark-zuckerbergs-ai-manifesto-is-exactly-why-people-dont-like-ai/"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both commentaries respond to the same newly published Zuckerberg AI manifesto."
+    },
+    {
+      "id": "duplicate-16",
+      "left": {
+        "title": "U.S. Marine veteran freed from Russian prison after nearly 4 years",
+        "summary": "A U.S. Marine veteran from Massachusetts who has been held in Russia for more than four years on disputed charges has been released.",
+        "url": "https://www.cbsnews.com/news/robert-gilman-russia-released/"
+      },
+      "right": {
+        "title": "Former U.S. Marine held in Russia for more than 4 years has been released, advocates say",
+        "summary": "Before he was flown out of Russia, Robert Gilman had been in \"a dissociative stupor\" for 47 days due to the abuse he has suffered in prison.",
+        "url": "https://www.pbs.org/newshour/politics/former-u-s-marine-held-in-russia-for-more-than-4-years-has-been-released-advocates-say"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Robert Gilman's release after years in Russian detention."
+    },
+    {
+      "id": "duplicate-17",
+      "left": {
+        "title": "Alexandria Ocasio-Cortez announces decision to freeze her eggs",
+        "summary": "US congresswoman to share journey online as she criticizes Trump administration’s attacks on reproductive careAlexandria Ocasio-Cortez has announced she is going to freeze her eggs and will be sharing the process online.The progressive New York congresswoman, 36, revealed her decision to undergo fer",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/alexandria-ocasio-cortez-eggs-fertility"
+      },
+      "right": {
+        "title": "AOC joins thousands of women putting fertility on ice",
+        "summary": "While analysts speculate whether Rep. Alexandria Ocasio-Cortez (D-N.Y.) will launch a Senate or presidential bid, she's planning another part of her future: having kids.The big picture: Few prospective parents are weighing a White House bid, but Ocasio-Cortez is among a growing number of people free",
+        "url": "https://www.axios.com/2026/08/10/aoc-egg-freezing-women-fertility"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items cover Alexandria Ocasio-Cortez's disclosure that she froze her eggs."
+    },
+    {
+      "id": "duplicate-18",
+      "left": {
+        "title": "Sanders: 'Ban super PACs from Democratic primaries now'",
+        "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday called for Democratic leaders to ban the involvement of super PACs in Democratic primary elections. Sanders's ask was part of a letter written to Senate Minority Leader Chuck Schumer (D-N.Y.), House Minority Leader Hakeem Jeffries (D-N.Y.) and Democratic Nationa",
+        "url": "https://thehill.com/homenews/campaign/6019504-sanders-calls-ban-super-pac/"
+      },
+      "right": {
+        "title": "Sanders calls on Democrat leaders to ban \"corrupt\" super PAC donations",
+        "summary": "Sen. Bernie Sanders highlighted the hundreds of millions of dollars spent by outside organizations during the 2026 midterm cycle.",
+        "url": "https://www.cbsnews.com/news/bernie-sanders-super-pac-funding-letter-schumer-jeffries-martin/"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Sanders's letter calling for a ban on super PAC money in Democratic primaries."
+    },
+    {
+      "id": "duplicate-19",
+      "left": {
+        "title": "Israel rejects Trump's 15-point plan for Gaza, Netanyahu says",
+        "summary": "Israel's PM says its military will not pull out from Gaza until Hamas is \"genuinely\" disarmed.",
+        "url": "https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Netanyahu rejects Trump's Gaza Peace Plan, demands Hamas disarm first",
+        "summary": "Netanyahu's comments come just over a week after President Trump said his Board of Peace had reached a \"historic\" agreement with Hamas to give up its weapons.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5926459/netanyahu-rejects-trump-gaza-peace-plan-israel-hamas"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Netanyahu's rejection of Trump's Gaza plan unless Hamas disarms."
+    },
+    {
+      "id": "duplicate-20",
+      "left": {
+        "title": "'Not a drop': Anger grows as Puerto Rico begins rationing water",
+        "summary": "Puerto Rico's government began cutting water service to people's homes this week, amid a severe drought that's exposing major weaknesses in the island's water delivery infrastructure.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water"
+      },
+      "right": {
+        "title": "Puerto Rico rations water supplies due to intense drought",
+        "summary": "Hot weather and ageing infrastructure have led to the rationing, affecting hundreds of thousands of people.",
+        "url": "https://www.bbc.co.uk/news/articles/cqlxgk7r2vwo?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "duplicate",
+      "stratum": "duplicate",
+      "rationale": "Both items report Puerto Rico's drought-driven water rationing."
+    },
+    {
+      "id": "clear-negative-01",
+      "left": {
+        "title": "Don Nelson, former NBA coach and 5-time champion as a player, dies at 86",
+        "summary": "Don Nelson was one of two coaches in NBA history to have at least 250 wins with three different franchises — Milwaukee, Dallas and Golden State.",
+        "url": "https://www.cbsnews.com/news/don-nelson-nba-coach-champion-die/"
+      },
+      "right": {
+        "title": "Ousted Syrian dictator Bashar al-Assad sentenced to death in absentia",
+        "summary": "The ex-president is convicted of committing war crimes and crimes against humanity during the country's civil war.",
+        "url": "https://www.bbc.co.uk/news/articles/ce34dkpnyg7o?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A basketball coach's death is unrelated to a Syrian court sentence."
+    },
+    {
+      "id": "clear-negative-02",
+      "left": {
+        "title": "Trump names Will Scharf as new White House counsel",
+        "summary": "President Trump named Will Scharf as his new White House counsel on Sunday, a shake-up in the key legal role.  Scharf will assume the role on Sept. 1 and replace David Warrington, who has served since Trump’s inauguration and is headed to the private sector, the president wrote on Truth Social.  “Wi",
+        "url": "https://thehill.com/homenews/administration/6019523-trump-names-will-scharf-counsel/"
+      },
+      "right": {
+        "title": "Taylor Farms recalls several jalapeño products over salmonella concerns",
+        "summary": "Guacamole, pico de gallo and taco dip are some of the prepared foods included in the recall. The announcement comes a few weeks after Taylor Farms voluntarily recalled its iceberg lettuce products sourced from central Mexico because of a potential link to a multistate cyclospora outbreak.",
+        "url": "https://www.pbs.org/newshour/health/taylor-farms-recalls-several-jalapeno-products-over-salmonella-concerns"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A White House appointment is unrelated to a food recall."
+    },
+    {
+      "id": "clear-negative-03",
+      "left": {
+        "title": "'Not a drop': Anger grows as Puerto Rico begins rationing water",
+        "summary": "Puerto Rico's government began cutting water service to people's homes this week, amid a severe drought that's exposing major weaknesses in the island's water delivery infrastructure.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water"
+      },
+      "right": {
+        "title": "Claude will apply invisible watermarks to AI text and images",
+        "summary": "Anthropic has pledged to start marking Claude-generated text and images with machine-readable data, in an effort to comply with European rules for AI transparency. \"Generated text will carry embedded watermarks, and generated files will include digitally signed provenance metadata where supported,\" ",
+        "url": "https://www.theverge.com/ai-artificial-intelligence/977823/anthropic-claude-ai-watermarks-c2pa-text-images"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "Water rationing is unrelated to AI-output watermarking."
+    },
+    {
+      "id": "clear-negative-04",
+      "left": {
+        "title": "OpenAI introduces a new cyber model amid fears of AI cyberattacks",
+        "summary": "OpenAI is introducing a more cyber-permissive version of GPT-5.6 Sol to vetted defenders as it prepares companies for autonomous cyberattacks. Why it matters: The move comes just days after OpenAI said it was delaying the release of its forthcoming model, Astra, after it reached critical hacking abi",
+        "url": "https://www.axios.com/2026/08/10/openai-gpt-astra-restrictions-safety-hacking-defenders"
+      },
+      "right": {
+        "title": "Lebanon parliament votes to abolish death penalty",
+        "summary": "The new law - which next goes to the cabinet for approval - would make Lebanon the first country in the Middle East to end capital punishment.",
+        "url": "https://www.bbc.co.uk/news/articles/c8enj8p1xwgo?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A cyber model launch is unrelated to Lebanon's death-penalty vote."
+    },
+    {
+      "id": "clear-negative-05",
+      "left": {
+        "title": "Alexandria Ocasio-Cortez announces decision to freeze her eggs",
+        "summary": "US congresswoman to share journey online as she criticizes Trump administration’s attacks on reproductive careAlexandria Ocasio-Cortez has announced she is going to freeze her eggs and will be sharing the process online.The progressive New York congresswoman, 36, revealed her decision to undergo fer",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/alexandria-ocasio-cortez-eggs-fertility"
+      },
+      "right": {
+        "title": "7.4-magnitude earthquake rocks Colombia, crumbling homes and buildings",
+        "summary": "A powerful and deadly earthquake hit Colombia on Monday, killing at least 111 people, toppling buildings and leaving a trail of destruction. Geoff Bennett reports.",
+        "url": "https://www.pbs.org/newshour/show/7-4-magnitude-earthquake-rocks-colombia-crumbling-homes-and-buildings"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "Egg freezing is unrelated to an earthquake in Colombia."
+    },
+    {
+      "id": "clear-negative-06",
+      "left": {
+        "title": "U.S. Marine veteran freed from Russian prison after nearly 4 years",
+        "summary": "A U.S. Marine veteran from Massachusetts who has been held in Russia for more than four years on disputed charges has been released.",
+        "url": "https://www.cbsnews.com/news/robert-gilman-russia-released/"
+      },
+      "right": {
+        "title": "Mark Zuckerberg doesn’t understand how to live",
+        "summary": "Recently, a man I was rock climbing with told me about how he'd used AI to make a motivational poster for himself, which he'd hung on his bedroom wall: a bear, walking a slackline over a canyon, holding a sign that said, \"Do cool shit.\" I made what I hoped was a polite noise. What […]",
+        "url": "https://www.theverge.com/ai-artificial-intelligence/977623/mark-zuckerberg-ai-manifesto-dim-vision"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A prison release is unrelated to an AI manifesto."
+    },
+    {
+      "id": "clear-negative-07",
+      "left": {
+        "title": "Captain of boat that capsized in New York facing federal charges after mom, infant die",
+        "summary": "Manuel Hernandez, the boat's 46-year-old captain, was arrested on reckless endangerment charges and also charged in federal court with two counts of misconduct and neglect.",
+        "url": "https://www.cbsnews.com/news/new-york-harbor-liberty-island-boat-overturn/"
+      },
+      "right": {
+        "title": "Anthropic is turning Claude Code’s auto mode on by default",
+        "summary": "Programming with Claude Code will soon require even less human oversight.",
+        "url": "https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A fatal boat accident is unrelated to a coding-agent product default."
+    },
+    {
+      "id": "clear-negative-08",
+      "left": {
+        "title": "Suspected crime boss Daniel Kinahan appears in court after extradition",
+        "summary": "The Irish Prison Service bought a bulletproof and bombproof van to transport the 49-year-old to court after his extradition from Dubai.",
+        "url": "https://www.bbc.co.uk/news/articles/c62qd5plzp6o?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "How clean air clubs are protecting Americans from wildfire smoke",
+        "summary": "Mutual aid groups that started giving out PPEs during Covid are now loaning air purifiers and distributing masks to fume-addled communitiesMiquette Thompson’s home in rural Mendocino county has been covered in smoke all week. There are the nearby Feliz and Woodside fires in northern California, whic",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/us-wildfire-smoke-clean-air-clubs"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "An organized-crime court case is unrelated to wildfire smoke protection."
+    },
+    {
+      "id": "clear-negative-09",
+      "left": {
+        "title": "Israel rejects Trump's 15-point plan for Gaza, Netanyahu says",
+        "summary": "Israel's PM says its military will not pull out from Gaza until Hamas is \"genuinely\" disarmed.",
+        "url": "https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Winning Powerball numbers drawn for $863 million jackpot",
+        "summary": "The total is also the eighth-largest Powerball jackpot in the game's history.",
+        "url": "https://www.cbsnews.com/news/powerball-856-million-largest-drawing-of-the-year/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A Gaza diplomatic decision is unrelated to Powerball results."
+    },
+    {
+      "id": "clear-negative-10",
+      "left": {
+        "title": "Jackie, a beloved bald eagle from Big Bear, dies after attack by 2 other eagles",
+        "summary": "Jackie, of the beloved bald eagle duo Jackie and Shadow, watched by millions on the Big Bear live feed, has died.",
+        "url": "https://www.cbsnews.com/video/jackie-beloved-bald-eagle-big-bear-dies-attack-2-other-eagles/"
+      },
+      "right": {
+        "title": "Senate leaves town without voting on crypto bill, dimming its chances of passing",
+        "summary": "The Senate left town for August recess over the weekend without voting on a cryptocurrency regulation bill, markedly dimming the measure’s chances of passing before the midterm elections.   The crypto industry is remaining hopeful that the Clarity Act, which would create a regulatory framework for t",
+        "url": "https://thehill.com/policy/technology/6017968-senate-clarity-act-crypto-bill/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A bald eagle's death is unrelated to a Senate crypto bill."
+    },
+    {
+      "id": "clear-negative-11",
+      "left": {
+        "title": "Trump signs executive order to split up MMR vaccine",
+        "summary": "President Trump issued an executive order Monday calling for fewer childhood vaccinations, splitting the childhood MMR vaccine into three shots and delivering vaccines at separate medical visits.Why it matters: Controversial vaccine policy changes appear to be roaring back ahead of the midterms.The ",
+        "url": "https://www.axios.com/2026/08/10/trump-order-split-up-mmr-vaccine"
+      },
+      "right": {
+        "title": "Rescuing a candlepin bowling alley helps bolster a Maine community",
+        "summary": "Autumn Mowery was 18 when she took over a candlepin bowling alley threatened with the wrecking ball, challenging herself to maintain a pillar of the community.",
+        "url": "https://www.cbsnews.com/news/rescuing-a-candlepin-bowling-alley-helps-bolster-a-maine-community/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A vaccine order is unrelated to preserving a bowling alley."
+    },
+    {
+      "id": "clear-negative-12",
+      "left": {
+        "title": "AI push is putting banks at mercy of tech firms, warns Moody’s",
+        "summary": "Finance sector will gain from the tech but it will need substantial investment and create risks, says rating agencyThe rating agency Moody’s has said the race to adopt AI is putting big banks at the mercy of a small group of Silicon Valley firms, leaving them vulnerable to widespread outages and pri",
+        "url": "https://www.theguardian.com/business/2026/aug/09/ai-push-banks-tech-firms-moodys-risks-financial-sector"
+      },
+      "right": {
+        "title": "Demi Vollering wins Tour de France for the 2nd time",
+        "summary": "Vollering, who first won the competition in 2023, finished the stage more than a minute ahead of Spaniard Paula Blasi Cairol and 2024 champion Polish rider Katarzyna Niewiadoma-Phinney.",
+        "url": "https://www.npr.org/2026/08/09/g-s1-137991/demi-vollering-tour-de-france-winner"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "Bank technology risk is unrelated to the Tour de France result."
+    },
+    {
+      "id": "clear-negative-13",
+      "left": {
+        "title": "Live Results: Alabama midterm U.S. House primaries after redistricting",
+        "summary": "Voters in four of Alabama's seven congressional districts will select U.S. House nominees Tuesday under a new map that eliminates one of the state's two majority-Black districts currently represented by Democrats.",
+        "url": "https://www.pbs.org/newshour/politics/live-results-alabama-midterm-u-s-house-primaries-after-redistricting"
+      },
+      "right": {
+        "title": "Ancient Roman shipwreck discovered off Sicily coast",
+        "summary": "Italy's culture minister says it is one of the most important underwater archaeological finds in years.",
+        "url": "https://www.bbc.co.uk/news/articles/cvgx1kpz17go?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "An Alabama election is unrelated to an ancient shipwreck."
+    },
+    {
+      "id": "clear-negative-14",
+      "left": {
+        "title": "Testing ads in ChatGPT",
+        "summary": "OpenAI begins testing ads in ChatGPT to support free access, with clear labeling, answer independence, strong privacy protections, and user control.",
+        "url": "https://openai.com/index/testing-ads-in-chatgpt"
+      },
+      "right": {
+        "title": "The bond between dog and duck",
+        "summary": "Barley, the golden retriever, lost her spunk once she started taking medication. But when Justin and Tori Cannarelli, of New York, brought Louie, a duckling, home for a short visit, the bird and the dog immediately bonded – and Barley was once again good as gold. Steve Hartman reports on a healing f",
+        "url": "https://www.cbsnews.com/video/the-bond-between-dog-and-duck/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "ChatGPT advertising is unrelated to a dog-and-duck feature."
+    },
+    {
+      "id": "clear-negative-15",
+      "left": {
+        "title": "Spotify says it won’t recommend music from ‘AI Personas’",
+        "summary": "Spotify will soon label AI artists and remove their music from your recommendations. The change, which will start rolling out in mid-September, means you'll see an \"AI Persona\" badge on an artist's profile across the app if they do \"not represent a real person.\" The music streaming platform will all",
+        "url": "https://www.theverge.com/entertainment/977815/spotify-ai-persona-label-recommendations"
+      },
+      "right": {
+        "title": "7.4-magnitude earthquake rocks Colombia, crumbling homes and buildings",
+        "summary": "A powerful and deadly earthquake hit Colombia on Monday, killing at least 111 people, toppling buildings and leaving a trail of destruction. Geoff Bennett reports.",
+        "url": "https://www.pbs.org/newshour/show/7-4-magnitude-earthquake-rocks-colombia-crumbling-homes-and-buildings"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "Spotify recommendation policy is unrelated to an earthquake."
+    },
+    {
+      "id": "clear-negative-16",
+      "left": {
+        "title": "GOP senator calls Max Miller allegations ‘deeply troubling’",
+        "summary": "Sen. Jim Banks (R-Ind.) on Sunday said allegations against GOP Rep. Max Miller (Ohio) are “deeply troubling” and said the lawmaker should ultimately resign if the accusations of abuse raised against him are true. “I live in Indiana. This is a race in northern Ohio and the other part of the state. I ",
+        "url": "https://thehill.com/homenews/senate/6019150-jim-banks-max-miller-allegations/"
+      },
+      "right": {
+        "title": "Some meat products with jalapeños may be linked to salmonella outbreak, USDA says",
+        "summary": "Federal officials issued a public health alert for meat products containing jalapeños that may be linked to a salmonella outbreak that has sickened hundreds of people across at least 27 states.",
+        "url": "https://www.cbsnews.com/news/salmonella-outbreak-jalapenos-usda-health-alert-meat-products/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A congressional controversy is unrelated to a salmonella alert."
+    },
+    {
+      "id": "clear-negative-17",
+      "left": {
+        "title": "Help with claude usage",
+        "summary": "I’ve been a daily Codex user for the past seven months and recently switched to Claude after running into usage limits on the $200 Codex plan. I’m happy with Claude’s usage limits, but it doesn’t follow plans properly at all. Opus is the model I use most often, and it seems too lazy to follow everyt",
+        "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjhxkc/help_with_claude_usage/"
+      },
+      "right": {
+        "title": "'Not a drop': Anger grows as Puerto Rico begins rationing water",
+        "summary": "Puerto Rico's government began cutting water service to people's homes this week, amid a severe drought that's exposing major weaknesses in the island's water delivery infrastructure.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A Claude usage question is unrelated to Puerto Rico's water supply."
+    },
+    {
+      "id": "clear-negative-18",
+      "left": {
+        "title": "Houthis renew missile and drone attacks on Yemen’s port of al-Makha",
+        "summary": "The latest Houthi attacks come less than 24 hours after an earlier barrage struck al-Makha (Mocha) and its commercial port.",
+        "url": "https://www.aljazeera.com/news/2026/8/10/houthis-renew-missile-and-drone-attacks-on-yemens-port-of-al-makha?traffic_source=rss"
+      },
+      "right": {
+        "title": "Don Nelson, former NBA coach and 5-time champion as a player, dies at 86",
+        "summary": "Don Nelson was one of two coaches in NBA history to have at least 250 wins with three different franchises — Milwaukee, Dallas and Golden State.",
+        "url": "https://www.cbsnews.com/news/don-nelson-nba-coach-champion-die/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A Houthi port attack is unrelated to a basketball coach's death."
+    },
+    {
+      "id": "clear-negative-19",
+      "left": {
+        "title": "Sanders: 'Ban super PACs from Democratic primaries now'",
+        "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday called for Democratic leaders to ban the involvement of super PACs in Democratic primary elections. Sanders's ask was part of a letter written to Senate Minority Leader Chuck Schumer (D-N.Y.), House Minority Leader Hakeem Jeffries (D-N.Y.) and Democratic Nationa",
+        "url": "https://thehill.com/homenews/campaign/6019504-sanders-calls-ban-super-pac/"
+      },
+      "right": {
+        "title": "Gaza engineer builds animal shelters out of empty cans",
+        "summary": "Gaza engineer builds animal shelters out of empty cans",
+        "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/gaza-engineer-builds-animal-shelters-out-of-empty-cans?traffic_source=rss"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "Campaign-finance advocacy is unrelated to animal shelters in Gaza."
+    },
+    {
+      "id": "clear-negative-20",
+      "left": {
+        "title": "Germany warns of ‘daily hybrid warfare’ after explosive-laden drone found",
+        "summary": "Espionage, sabotage, cyberattacks, and covert operations are a 'constant reality', says Germany's interior minister.",
+        "url": "https://www.aljazeera.com/news/2026/8/9/germany-warns-of-daily-hybrid-warfare-following-suspected-drone-attack?traffic_source=rss"
+      },
+      "right": {
+        "title": "Rescuing a candlepin bowling alley helps bolster a Maine community",
+        "summary": "Autumn Mowery was 18 when she took over a candlepin bowling alley threatened with the wrecking ball, challenging herself to maintain a pillar of the community.",
+        "url": "https://www.cbsnews.com/news/rescuing-a-candlepin-bowling-alley-helps-bolster-a-maine-community/"
+      },
+      "label": "distinct",
+      "stratum": "clear_negative",
+      "rationale": "A suspected drone attack is unrelated to a Maine bowling alley."
+    },
+    {
+      "id": "hard-negative-01",
+      "left": {
+        "title": "Crews battle wildfires in western U.S. and Canada",
+        "summary": "There have been 183 new wildfires, including eight large ones, across the U.S. since Saturday, the National Interagency Fire Center reported on Sunday.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5926463/western-us-wildfires-canada-utah"
+      },
+      "right": {
+        "title": "Wildfires in Albania and Spain cause hundreds to evacuate",
+        "summary": "Wildfires have spread near Albania’s capital and in parts of southern Spain, prompting hundreds to evacuate.",
+        "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/wildfires-in-albania-and-spain-cause-hundreds-to-evacuate?traffic_source=rss"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern major wildfires, but they cover separate fires on different continents."
+    },
+    {
+      "id": "hard-negative-02",
+      "left": {
+        "title": "'Not a drop': Anger grows as Puerto Rico begins rationing water",
+        "summary": "Puerto Rico's government began cutting water service to people's homes this week, amid a severe drought that's exposing major weaknesses in the island's water delivery infrastructure.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5923882/not-a-drop-anger-grows-as-puerto-rico-begins-rationing-water"
+      },
+      "right": {
+        "title": "Lake Mead plummets to historic low water level as Colorado River struggles",
+        "summary": "Levels at reservoir along Arizona-Nevada border dipped below previous record set in 2022, amid water crisis in westLake Mead, the largest reservoir in the United States, has plummeted to its lowest water level since it was filled some 90 years ago, the latest sign of a deepening water crisis in the ",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/lake-mead-record-low-water-level-colorado-river"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern drought and water shortages, but one is Puerto Rico rationing and the other is Lake Mead."
+    },
+    {
+      "id": "hard-negative-03",
+      "left": {
+        "title": "Germany warns of ‘daily hybrid warfare’ after explosive-laden drone found",
+        "summary": "Espionage, sabotage, cyberattacks, and covert operations are a 'constant reality', says Germany's interior minister.",
+        "url": "https://www.aljazeera.com/news/2026/8/9/germany-warns-of-daily-hybrid-warfare-following-suspected-drone-attack?traffic_source=rss"
+      },
+      "right": {
+        "title": "Drones spotted over German base days after Leipzig bomb incident",
+        "summary": "Police are investigating a drone sighting over a miltary base reportedly used for housing Patriot missile system parts.",
+        "url": "https://www.bbc.co.uk/news/articles/cwyeg1ljp2eo?at_medium=RSS&at_campaign=rss"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern drones in Germany, but one is an explosive drone discovery and the other a later base sighting."
+    },
+    {
+      "id": "hard-negative-04",
+      "left": {
+        "title": "Houthis renew missile and drone attacks on Yemen’s port of al-Makha",
+        "summary": "The latest Houthi attacks come less than 24 hours after an earlier barrage struck al-Makha (Mocha) and its commercial port.",
+        "url": "https://www.aljazeera.com/news/2026/8/10/houthis-renew-missile-and-drone-attacks-on-yemens-port-of-al-makha?traffic_source=rss"
+      },
+      "right": {
+        "title": "Yemen's Houthis claim attack on Aramco oil facility in Saudi Arabia, and other Middle East news",
+        "summary": "Meanwhile, Iran has made new demands about the restart of negotiations and the reopening of the Strait of Hormuz, and the Pentagon is pressing the U.S. defense industry to accelerate production of weapons.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5926387/yemens-houthis-claim-attack-on-aramco-oil-facility-in-saudi-arabia-and-other-middle-east-news"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern Houthi attacks, but they target different facilities in different countries."
+    },
+    {
+      "id": "hard-negative-05",
+      "left": {
+        "title": "Israel rejects Trump's 15-point plan for Gaza, Netanyahu says",
+        "summary": "Israel's PM says its military will not pull out from Gaza until Hamas is \"genuinely\" disarmed.",
+        "url": "https://www.bbc.co.uk/news/articles/c5yw4lpe0yeo?at_medium=RSS&at_campaign=rss"
+      },
+      "right": {
+        "title": "Gaza’s children still struggling with hunger as another famine threatens",
+        "summary": "Youngsters are still feeling the effects of the 2025 famine, with another food emergency emerging.",
+        "url": "https://www.aljazeera.com/features/2026/8/9/gazas-children-still-struggling-with-hunger-as-another-famine-threatens?traffic_source=rss"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern Gaza, but one is a diplomatic-plan rejection and the other is a famine feature."
+    },
+    {
+      "id": "hard-negative-06",
+      "left": {
+        "title": "How Iran's 'Axis of Resistance' has shaped the war",
+        "summary": "NPR's Rob Schmitz speaks with Peter Salisbury, professor at Columbia University's School of International and Public Affairs, about how Iran and its allies have reshaped the war in the Middle East.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5923613/how-irans-axis-of-resistance-has-shaped-the-war"
+      },
+      "right": {
+        "title": "Iran war live: US ‘semi-negotiating’ with Tehran; Israel rejects Gaza plan",
+        "summary": "Trump says US will wait for economic pressure to mount on Iran, as Israel formally rejects 15-point Gaza peace plan.",
+        "url": "https://www.aljazeera.com/news/liveblog/2026/8/10/iran-war-live-us-semi-negotiating-with-tehran-israel-rejects-gaza-plan?traffic_source=rss"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern the Iran war, but one explains regional alliances and the other tracks live negotiations."
+    },
+    {
+      "id": "hard-negative-07",
+      "left": {
+        "title": "Live Results: Minnesota midterm primaries",
+        "summary": "Minnesota Democrats will decide a competitive U.S. Senate primary Tuesday in another face-off between moderate and progressive candidates that could define the party's identity heading into the midterm elections.",
+        "url": "https://www.pbs.org/newshour/politics/live-results-minnesota-midterm-primaries"
+      },
+      "right": {
+        "title": "Live Results: Wisconsin midterm primaries",
+        "summary": "Wisconsin voters will decide another high-profile clash between the party's establishment and progressive wings in a gubernatorial primary on Tuesday.",
+        "url": "https://www.pbs.org/newshour/politics/live-results-wisconsin-midterm-primaries"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "The templated titles are nearly identical, but the pages report elections in different states."
+    },
+    {
+      "id": "hard-negative-08",
+      "left": {
+        "title": "Live Results: Alabama midterm U.S. House primaries after redistricting",
+        "summary": "Voters in four of Alabama's seven congressional districts will select U.S. House nominees Tuesday under a new map that eliminates one of the state's two majority-Black districts currently represented by Democrats.",
+        "url": "https://www.pbs.org/newshour/politics/live-results-alabama-midterm-u-s-house-primaries-after-redistricting"
+      },
+      "right": {
+        "title": "Live Results: Minnesota midterm primaries",
+        "summary": "Minnesota Democrats will decide a competitive U.S. Senate primary Tuesday in another face-off between moderate and progressive candidates that could define the party's identity heading into the midterm elections.",
+        "url": "https://www.pbs.org/newshour/politics/live-results-minnesota-midterm-primaries"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both are live primary result pages, but they cover different states and contests."
+    },
+    {
+      "id": "hard-negative-09",
+      "left": {
+        "title": "Anthropic says it will watermark text generated by its AI models",
+        "summary": "Anthropic will extend support for watermarking AI generations for older models as well.",
+        "url": "https://techcrunch.com/2026/08/11/anthropic-says-it-will-watermark-text-generated-by-its-ai-models/"
+      },
+      "right": {
+        "title": "AI detectors are creating a new era of distrust",
+        "summary": "This is The Stepback, a weekly newsletter breaking down one essential story from the tech world. For more news about how AI is changing our daily lives, follow Emma Roth. The Stepback arrives in our subscribers' inboxes at 8AM ET. Opt in for The Stepback here. How it started Long before ChatGPT beca",
+        "url": "https://www.theverge.com/column/976690/ai-writing-detectors-suspicion"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern identifying AI-generated text, but watermarking and third-party detectors are distinct stories."
+    },
+    {
+      "id": "hard-negative-10",
+      "left": {
+        "title": "The AI safety test is becoming a safety risk",
+        "summary": "AI agents are escaping cybersecurity testing environments and reaching real-world systems, raising questions about whether safety infrastructure, industry standards and regulation can keep pace with increasingly powerful models.",
+        "url": "https://techcrunch.com/2026/08/09/the-ai-safety-test-is-becoming-a-safety-risk/"
+      },
+      "right": {
+        "title": "Tech industry is buzzing after a Claude agent hacked into a gym",
+        "summary": "An OpenClaw agent hacked into a gym's reservation system to bump its human boss higher on a class' waitlist. And the tech industry took notice.",
+        "url": "https://techcrunch.com/2026/08/10/tech-industry-is-buzzing-after-a-claude-agent-hacked-into-a-gym/"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern agent-security failures, but they report different incidents and systems."
+    },
+    {
+      "id": "hard-negative-11",
+      "left": {
+        "title": "Anthropic is turning Claude Code’s auto mode on by default",
+        "summary": "Programming with Claude Code will soon require even less human oversight.",
+        "url": "https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/"
+      },
+      "right": {
+        "title": "Muse Code Sends claude.md to Meta On Start by Default",
+        "summary": "",
+        "url": "https://www.reddit.com/r/ClaudeAI/comments/1vji3f8/muse_code_sends_claudemd_to_meta_on_start_by/"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern coding-agent defaults, but one is Claude auto mode and the other is Muse Code telemetry."
+    },
+    {
+      "id": "hard-negative-12",
+      "left": {
+        "title": "Cursor cloud agent setup is confusing",
+        "summary": "Cursor cloud agent setup is just confusing and annoying. I do not want to commit my .env to the repo so I need to add my secrets to cursor cloud directly. This just automatically means I need to do everything manually and can't take advantage of the script to add install and start scripts.  Would ha",
+        "url": "https://www.reddit.com/r/cursor/comments/1vlblh6/cursor_cloud_agent_setup_is_confusing/"
+      },
+      "right": {
+        "title": "Using cloud, where does sub agent billing live?",
+        "summary": "Using grok 4.5 high for most coding tasks, works well. At the end of a long, multi step task, I’ll have opus 5 high come through as a sub-agent to review the architect and design done. I’m not the best but have been figuring out how to prevent opus from reading the entire repo and only the given tas",
+        "url": "https://www.reddit.com/r/cursor/comments/1vl3w85/using_cloud_where_does_sub_agent_billing_live/"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both ask about Cursor cloud agents, but one concerns setup and the other billing attribution."
+    },
+    {
+      "id": "hard-negative-13",
+      "left": {
+        "title": "Reviewing AI code has quietly made me the slowest part of my own team.",
+        "summary": "Every PR reads like a masterpiece at first glance now. With good proper names, tidy structure, comments that sound right.  i keep catching myself about to approve something I have not really understood, then I go back and it takes an hour to trace intent that was never there, because a model wrote i",
+        "url": "https://www.reddit.com/r/cursor/comments/1vllfe1/reviewing_ai_code_has_quietly_made_me_the_slowest/"
+      },
+      "right": {
+        "title": "Cursor can review the code it wrote. But isn’t that the same person marking their own exam?",
+        "summary": "I kept seeing people ask Cursor to build an app, then ask the same Cursor agent if the app was secure. Maybe it catches things. But it can also share the exact same assumptions as the code it just wrote. We built an outside-in scanner for exposed keys, open databases, source maps, config files and o",
+        "url": "https://www.reddit.com/r/cursor/comments/1vleuz7/cursor_can_review_the_code_it_wrote_but_isnt_that/"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both discuss AI-assisted code review, but one is a workflow bottleneck and the other reviewer independence."
+    },
+    {
+      "id": "hard-negative-14",
+      "left": {
+        "title": "5 things to know about Alexandria Ocasio-Cortez's Sunday interview",
+        "summary": "Rep. Alexandria Ocasio-Cortez (D-N.Y.) appeared on her first Sunday show interview in a little more than two and a half years to discuss the country’s political climate ahead of midterm elections.  The 36-year-old lawmaker reflected on a wide range of topics including a potential White House run, th",
+        "url": "https://thehill.com/homenews/house/6019248-aoc-abc-this-week-interview/"
+      },
+      "right": {
+        "title": "Alexandria Ocasio-Cortez announces decision to freeze her eggs",
+        "summary": "US congresswoman to share journey online as she criticizes Trump administration’s attacks on reproductive careAlexandria Ocasio-Cortez has announced she is going to freeze her eggs and will be sharing the process online.The progressive New York congresswoman, 36, revealed her decision to undergo fer",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/alexandria-ocasio-cortez-eggs-fertility"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern AOC and the same interview period, but one covers political ambitions and the other fertility."
+    },
+    {
+      "id": "hard-negative-15",
+      "left": {
+        "title": "GOP senator calls Max Miller allegations ‘deeply troubling’",
+        "summary": "Sen. Jim Banks (R-Ind.) on Sunday said allegations against GOP Rep. Max Miller (Ohio) are “deeply troubling” and said the lawmaker should ultimately resign if the accusations of abuse raised against him are true. “I live in Indiana. This is a race in northern Ohio and the other part of the state. I ",
+        "url": "https://thehill.com/homenews/senate/6019150-jim-banks-max-miller-allegations/"
+      },
+      "right": {
+        "title": "Max Miller is refusing to drop his bid for reelection. Here's what voters think",
+        "summary": "Voters in Ohio's 7th Congressional district react to calls for Rep. Max Miller to drop his bid for reelection. He ran uncontested in the May 5 GOP primary. The Democratic nominee is Brian Poindexter.",
+        "url": "https://www.npr.org/2026/08/09/nx-s1-5925302/max-miller-is-refusing-to-drop-his-bid-for-reelection-heres-what-voters-think"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern Max Miller, but one reports reactions to allegations and the other ballot and voter dynamics."
+    },
+    {
+      "id": "hard-negative-16",
+      "left": {
+        "title": "Sanders: 'Ban super PACs from Democratic primaries now'",
+        "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday called for Democratic leaders to ban the involvement of super PACs in Democratic primary elections. Sanders's ask was part of a letter written to Senate Minority Leader Chuck Schumer (D-N.Y.), House Minority Leader Hakeem Jeffries (D-N.Y.) and Democratic Nationa",
+        "url": "https://thehill.com/homenews/campaign/6019504-sanders-calls-ban-super-pac/"
+      },
+      "right": {
+        "title": "Sanders says Minnesota Senate race between progressive and moderate will be 'tight'",
+        "summary": "Sen. Bernie Sanders (I-Vt.) on Sunday said he believes the Democratic Senate primary in Minnesota between Lt. Gov. Peggy Flanagan (D), a progressive, and Rep. Angie Craig (D), a moderate, will be “tight.” “I think it's going to be a tight race. I hope very much that Peggy wins. I think what we're se",
+        "url": "https://thehill.com/homenews/campaign/6019297-sanders-predicts-tight-minnesota-primary/"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both quote Sanders on Democratic primaries, but they concern campaign finance and a Senate race."
+    },
+    {
+      "id": "hard-negative-17",
+      "left": {
+        "title": "Bhattacharya says \"I trust the science\" on childhood vaccines",
+        "summary": "Dr. Jay Bhattacharya, director of the National Institutes of Health, said \"I trust the science\" on vaccines as measles cases have risen to their highest levels in 35 years.",
+        "url": "https://www.cbsnews.com/news/jay-bhattacharya-vaccines-rfk-jr/"
+      },
+      "right": {
+        "title": "Trump signs executive order to split up MMR vaccine",
+        "summary": "President Trump issued an executive order Monday calling for fewer childhood vaccinations, splitting the childhood MMR vaccine into three shots and delivering vaccines at separate medical visits.Why it matters: Controversial vaccine policy changes appear to be roaring back ahead of the midterms.The ",
+        "url": "https://www.axios.com/2026/08/10/trump-order-split-up-mmr-vaccine"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both concern childhood vaccines, but one is an NIH defense of vaccines and the other a policy order."
+    },
+    {
+      "id": "hard-negative-18",
+      "left": {
+        "title": "Pilots of helicopter that crashed while fighting wildfire in Utah are dead, officials say",
+        "summary": "The pilots were killed when their Sikorsky Skycrane helicopter went down Friday morning, according to the Sevier County Sheriff.",
+        "url": "https://www.pbs.org/newshour/nation/pilots-of-helicopter-that-crashed-while-fighting-wildfire-in-utah-are-dead-officials-say"
+      },
+      "right": {
+        "title": "How clean air clubs are protecting Americans from wildfire smoke",
+        "summary": "Mutual aid groups that started giving out PPEs during Covid are now loaning air purifiers and distributing masks to fume-addled communitiesMiquette Thompson’s home in rural Mendocino county has been covered in smoke all week. There are the nearby Feliz and Woodside fires in northern California, whic",
+        "url": "https://www.theguardian.com/us-news/2026/aug/09/us-wildfire-smoke-clean-air-clubs"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both arise from wildfire coverage, but one is a fatal crash and the other community smoke protection."
+    },
+    {
+      "id": "hard-negative-19",
+      "left": {
+        "title": "Gaza engineer builds animal shelters out of empty cans",
+        "summary": "Gaza engineer builds animal shelters out of empty cans",
+        "url": "https://www.aljazeera.com/video/newsfeed/2026/8/9/gaza-engineer-builds-animal-shelters-out-of-empty-cans?traffic_source=rss"
+      },
+      "right": {
+        "title": "Gaza’s children still struggling with hunger as another famine threatens",
+        "summary": "Youngsters are still feeling the effects of the 2025 famine, with another food emergency emerging.",
+        "url": "https://www.aljazeera.com/features/2026/8/9/gazas-children-still-struggling-with-hunger-as-another-famine-threatens?traffic_source=rss"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both are Gaza human-interest reports, but they cover animal shelters and child hunger respectively."
+    },
+    {
+      "id": "hard-negative-20",
+      "left": {
+        "title": "AI could help unlock more oil — and emissions",
+        "summary": "Move over, data centers. AI's climate impact may extend well beyond the electricity it consumes.Why it matters: A new peer-reviewed study finds AI could help produce more oil and natural gas — and produce a climate impact the authors argue could far outweigh the technology's benefits for renewable e",
+        "url": "https://www.axios.com/2026/08/11/ai-oil-gas-emissions-increase"
+      },
+      "right": {
+        "title": "AI push is putting banks at mercy of tech firms, warns Moody’s",
+        "summary": "Finance sector will gain from the tech but it will need substantial investment and create risks, says rating agencyThe rating agency Moody’s has said the race to adopt AI is putting big banks at the mercy of a small group of Silicon Valley firms, leaving them vulnerable to widespread outages and pri",
+        "url": "https://www.theguardian.com/business/2026/aug/09/ai-push-banks-tech-firms-moodys-risks-financial-sector"
+      },
+      "label": "distinct",
+      "stratum": "hard_negative",
+      "rationale": "Both discuss sector-specific AI risks, but one concerns oil emissions and the other bank dependence."
+    }
+  ]
+}
