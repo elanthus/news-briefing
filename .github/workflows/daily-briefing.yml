@@ -55,6 +55,7 @@ jobs:
         run: python prepare_publication.py
 
       - name: Bootstrap history from dogfood runs
+        id: bootstrap
         if: always()
         continue-on-error: true
         run: python bootstrap_history.py briefing-bootstrap
@@ -76,14 +77,17 @@ jobs:
 
       - name: Build static archive
         if: always()
+        env:
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
         run: |
-          if [[ -f prior-history.json ]]; then
-            python build_site.py briefing-history site \
-              --bootstrap-dir briefing-bootstrap \
-              --prior-history prior-history.json
-          else
-            python build_site.py briefing-history site --bootstrap-dir briefing-bootstrap
+          args=(briefing-history site)
+          if [[ "$BOOTSTRAP_OUTCOME" == "success" ]]; then
+            args+=(--bootstrap-dir briefing-bootstrap)
           fi
+          if [[ -f prior-history.json ]]; then
+            args+=(--prior-history prior-history.json)
+          fi
+          python build_site.py "${args[@]}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
