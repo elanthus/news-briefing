@@ -770,7 +770,7 @@ class ClaimGroundingTest(unittest.TestCase):
 
 
 class CommittedFixtureTest(unittest.TestCase):
-    """The shipped reference corpus, briefing, prompt, and README stay consistent."""
+    """The shipped reference corpus, briefing, prompt, and sample stay consistent."""
 
     def test_reference_briefing_satisfies_its_corpus(self):
         corpus = load_corpus("fixtures/corpus-2026-08-09.json")
@@ -778,11 +778,11 @@ class CommittedFixtureTest(unittest.TestCase):
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
 
-    def test_readme_full_result_matches_reference_fixture(self):
+    def test_sample_briefing_matches_reference_fixture(self):
         """The portfolio showcase must contain the complete frozen result."""
-        readme = Path("README.md").read_text(encoding="utf-8")
+        showcase = Path("docs/sample-briefing.md").read_text(encoding="utf-8")
         marker = "<summary><b>Click to expand full briefing</b></summary>"
-        quoted = readme.split(marker, 1)[1].split("</details>", 1)[0]
+        quoted = showcase.split(marker, 1)[1].split("</details>", 1)[0]
         sample = "\n".join(
             line[1:].lstrip() for line in quoted.splitlines()
             if line.startswith(">")
@@ -796,14 +796,14 @@ class CommittedFixtureTest(unittest.TestCase):
             + "\n\n"
             + reference[comment_end:].lstrip()
         ).strip()
-        self.assertEqual(sample, expected, "README does not contain the full reference result")
+        self.assertEqual(sample, expected, "sample briefing does not contain the full reference result")
 
         corpus = load_corpus("fixtures/corpus-2026-08-09.json")
         errors = [
             finding for finding in evaluate(corpus, sample)
             if finding.level == ERROR
         ]
-        self.assertEqual(errors, [], f"README sample regressed: {errors}")
+        self.assertEqual(errors, [], f"sample briefing regressed: {errors}")
 
 
 class PromptSafetyContractTest(unittest.TestCase):
