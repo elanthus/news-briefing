@@ -428,6 +428,20 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(stats["title_truncated"], 1)
         self.assertEqual(stats["summary_truncated"], 1)
 
+    def test_summary_budget_preserves_complete_feed_date_near_old_boundary(self):
+        summary = (
+            "The Trump administration is ending summertime smog restrictions on gasoline "
+            "early this year in a bid to offer relief for high prices at the pump.  The "
+            "Environmental Protection Agency (EPA) issued a waiver on Thursday allowing "
+            "for sales of gasoline with a higher evaporation potential starting on Sept. 1, "
+            "rather than the middle of the month."
+        )
+        kept, stats = prepare_category([{**self.item(1), "summary": summary}])
+
+        self.assertEqual(kept[0]["summary"], summary)
+        self.assertIn("starting on Sept. 1", kept[0]["summary"])
+        self.assertEqual(stats["summary_truncated"], 0)
+
     def test_per_field_token_ceilings_are_derived_telemetry(self):
         limits = (
             (corpus_schema.ITEM_TITLE_MAX_BYTES, corpus_schema.ITEM_TITLE_MAX_TOKENS),

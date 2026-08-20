@@ -23,10 +23,34 @@ class PreparePublicationTests(unittest.TestCase):
                     "level": "WARN",
                     "check": "unsupported_figure",
                     "domain": "evidence",
-                    "message": "Verify the figure.",
+                    "message": (
+                        "US Politics: 'Fuel restrictions end early' states '1', which is "
+                        "not supported by the cited corpus excerpts"
+                    ),
                 }
             ]
-            self._write_manifest(run, "review_required", "preview", "preview.md", preview, findings)
+            structured = {
+                "sections": {
+                    "US Politics": {
+                        "topics": [
+                            {
+                                "headline": "Fuel restrictions end early",
+                                "summary": "Starts Sept. 1; see https://model.example/claim",
+                                "citation_refs": ["citation_0001"],
+                            }
+                        ]
+                    }
+                }
+            }
+            self._write_manifest(
+                run,
+                "review_required",
+                "preview",
+                "preview.md",
+                preview,
+                findings,
+                structured=structured,
+            )
             corpus = root / "corpus.json"
             corpus.write_text(
                 json.dumps(
@@ -45,11 +69,19 @@ class PreparePublicationTests(unittest.TestCase):
 
             self.assertEqual(record.disposition, "review_required")
             self.assertEqual(record.findings_count, 1)
-            self.assertEqual(record.findings[0].message, "Verify the figure.")
+            self.assertIn("states '1'", record.findings[0].message)
+            self.assertIsNotNone(record.findings[0].context)
+            assert record.findings[0].context is not None
+            self.assertEqual(record.findings[0].context.section, "US Politics")
+            self.assertIn("https://model.example/claim", record.findings[0].context.model_authored)
             self.assertEqual(record.degraded_sources, ("reddit:cursor",))
             self.assertEqual((history / "2026-08-20.md").read_bytes(), preview)
             sidecar = json.loads((history / "2026-08-20.json").read_text())
-            self.assertEqual(sidecar["findings"], findings)
+            self.assertEqual(sidecar["findings"][0]["message"], findings[0]["message"])
+            self.assertEqual(
+                sidecar["findings"][0]["context"]["headline"],
+                "Fuel restrictions end early",
+            )
 
     def test_copies_hash_bound_ready_final_without_exposing_finding_details(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -115,6 +147,56 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.findings_count, 0)
             self.assertFalse((history / "2026-08-20.md").exists())
 
+    def test_tampered_structured_artifact_is_not_exposed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = "## US Politics\n\n**Fuel story** — Starts Sept. 1.\n".encode()
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {
+                    "level": "WARN",
+                    "check": "unsupported_figure",
+                    "domain": "evidence",
+                    "message": "US Politics: 'Fuel story' states '1', which is unsupported",
+                }
+            ]
+            self._write_manifest(
+                run,
+                "review_required",
+                "preview",
+                "preview.md",
+                preview,
+                findings,
+                structured={
+                    "sections": {
+                        "US Politics": {
+                            "topics": [{"headline": "Fuel story", "summary": "Starts Sept. 1."}]
+                        }
+                    }
+                },
+            )
+            (run / "attempt-01-structured.json").write_text(
+                '{"sections":{"US Politics":{"topics":[{"headline":"Fuel story",'
+                '"summary":"https://attacker.invalid"}]}}}',
+                encoding="utf-8",
+            )
+
+            record = prepare_publication(
+                run,
+                root / "corpus.json",
+                root / "history",
+                date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "review_required")
+            self.assertIsNone(record.findings[0].context)
+            self.assertNotIn(
+                "attacker.invalid",
+                (root / "history/2026-08-20.json").read_text(encoding="utf-8"),
+            )
+
     def test_malformed_review_finding_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -143,17 +225,31 @@ class PreparePublicationTests(unittest.TestCase):
         artifact_name: str,
         digest_content: bytes,
         findings: list[dict[str, str]],
+        *,
+        structured: dict[str, object] | None = None,
     ) -> None:
+        artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
+        attempts: list[dict[str, object]] = []
+        final_attempt: dict[str, object] = {}
+        if structured is not None:
+            structured_name = "attempt-01-structured.json"
+            structured_content = json.dumps(structured, ensure_ascii=False).encode("utf-8")
+            (run / structured_name).write_bytes(structured_content)
+            artifacts[structured_name] = hashlib.sha256(structured_content).hexdigest()
+            attempts.append({"index": 1, "structured_artifact": structured_name})
+            final_attempt["attempt"] = 1
         (run / "manifest.json").write_text(
             json.dumps(
                 {
                     "status": "complete",
-                    "artifacts": {artifact_name: hashlib.sha256(digest_content).hexdigest()},
+                    "artifacts": artifacts,
+                    "attempts": attempts,
                     "final": {
                         "status": status,
                         "artifact_type": artifact_type,
                         "run_artifact": artifact_name,
                         "findings": findings,
+                        **final_attempt,
                     },
                 }
             ),

@@ -20,18 +20,20 @@ from datetime import datetime
 from typing import Any
 
 # Version 5 requires enforced context budgets and their truncation/drop
-# telemetry. Readers that do not recognize version 5 must refuse it because
-# they cannot present those controls as part of corpus health.
-SCHEMA_VERSION = 5
+# telemetry. Version 6 expands model-visible summaries so ordinary feed
+# sentences, including dates near the former boundary, are not cut in half.
+# Readers with the v5 field ceilings must refuse v6 rather than reject a
+# conforming producer value as overlong.
+SCHEMA_VERSION = 6
 LEGACY_SCHEMA_VERSION = 0  # assigned to versionless corpora
 
 ITEM_TITLE_MAX_BYTES = 512
 ITEM_TITLE_MAX_TOKENS = 128
 ITEM_URL_MAX_BYTES = 2048
 ITEM_URL_MAX_TOKENS = 512
-ITEM_SUMMARY_MAX_CHARS = 300
-ITEM_SUMMARY_MAX_BYTES = 1200
-ITEM_SUMMARY_MAX_TOKENS = 300
+ITEM_SUMMARY_MAX_CHARS = 400
+ITEM_SUMMARY_MAX_BYTES = 1600
+ITEM_SUMMARY_MAX_TOKENS = 400
 ITEM_SOURCE_MAX_BYTES = 256
 ITEM_SOURCE_MAX_TOKENS = 64
 ITEM_QUERY_MAX_BYTES = 256

@@ -20,11 +20,19 @@ FINDING_FIELDS = {"level", "check", "domain", "message"}
 
 
 @dataclass(frozen=True)
+class ReviewContext:
+    section: str
+    headline: str
+    model_authored: str
+
+
+@dataclass(frozen=True)
 class ReviewFinding:
     level: str
     check: str
     domain: str
     message: str
+    context: ReviewContext | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +80,102 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
             )
         )
     return tuple(findings)
+
+
+def _bound_json_artifact(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    artifact_name: str,
+) -> object | None:
+    artifacts = manifest.get("artifacts")
+    expected_digest = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
+    try:
+        content = (run_dir / artifact_name).read_bytes()
+    except OSError:
+        return None
+    if not isinstance(expected_digest, str) or hashlib.sha256(content).hexdigest() != expected_digest:
+        return None
+    try:
+        return json.loads(content.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeError):
+        return None
+
+
+def _final_structured_output(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    final: dict[str, Any],
+) -> dict[str, Any] | None:
+    final_attempt = final.get("attempt")
+    attempts = manifest.get("attempts")
+    if (
+        not isinstance(final_attempt, int)
+        or isinstance(final_attempt, bool)
+        or not isinstance(attempts, list)
+    ):
+        return None
+    for attempt in attempts:
+        if not isinstance(attempt, dict) or attempt.get("index") != final_attempt:
+            continue
+        artifact_name = attempt.get("structured_artifact")
+        if not isinstance(artifact_name, str) or Path(artifact_name).name != artifact_name:
+            return None
+        payload = _bound_json_artifact(run_dir, manifest, artifact_name)
+        return payload if isinstance(payload, dict) else None
+    return None
+
+
+def _review_context(
+    finding: ReviewFinding,
+    output: dict[str, Any],
+) -> ReviewContext | None:
+    sections = output.get("sections")
+    if not isinstance(sections, dict):
+        return None
+    for section_name, section in sections.items():
+        if not isinstance(section_name, str) or not isinstance(section, dict):
+            continue
+        topics = section.get("topics")
+        if not isinstance(topics, list):
+            continue
+        for entry in topics:
+            if not isinstance(entry, dict):
+                continue
+            headline = entry.get("headline")
+            if (
+                isinstance(headline, str)
+                and headline.strip()
+                and finding.message.startswith(f"{section_name}: {headline!r}")
+            ):
+                return ReviewContext(
+                    section=section_name,
+                    headline=headline,
+                    model_authored=json.dumps(
+                        entry,
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                )
+    return None
+
+
+def _attach_review_context(
+    findings: tuple[ReviewFinding, ...],
+    output: dict[str, Any] | None,
+) -> tuple[ReviewFinding, ...]:
+    if output is None:
+        return findings
+    return tuple(
+        ReviewFinding(
+            level=finding.level,
+            check=finding.check,
+            domain=finding.domain,
+            message=finding.message,
+            context=_review_context(finding, output),
+        )
+        for finding in findings
+    )
 
 
 def _bound_artifact(run_dir: Path, manifest: dict[str, Any], final: dict[str, Any], status: str) -> bytes | None:
@@ -142,7 +246,10 @@ def prepare_publication(
                         disposition = "blocked"
                         findings_count = 0
                     else:
-                        findings = normalized
+                        findings = _attach_review_context(
+                            normalized,
+                            _final_structured_output(run_dir, manifest, final),
+                        )
                 if disposition in PUBLIC_ARTIFACTS:
                     public_content = _bound_artifact(run_dir, manifest, final, disposition)
                     if public_content is None:
