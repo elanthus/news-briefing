@@ -50,6 +50,38 @@ Schema v4 replaces ambiguous error strings with structured identities and adds c
 
 **Checkpoints are verified state, not just cached files.** The manifest binds the run to content hashes for trusted config, source config, generation policy, runner source files, every provider generation control, provider/CLI version, Python version, runner settings, and every recorded artifact. Writes are atomic; trace entries are appended and synced. Resume requires a still-running compatible manifest and matching hashes, and reads the corpus only from the exact bytes whose recorded hash was verified. It reuses a received or validated response, but refuses an in-flight call and any changed input, runtime, control, or artifact.
 
+## Orchestration view
+
+The system is a coordinated multi-role loop: a generator agent works from a closed corpus under a fail-closed provider tool policy; a deterministic checker acts as the oracle; and a bounded corrector gets one checker-guided repair pass before the code-owned disposition gate decides whether the result can be published. In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the production publication gate remains deterministic and records `ready`, `review_required`, `rejected`, or `no_result`.
+
+```mermaid
+flowchart LR
+    corpus[Closed corpus] --> generate[Generate]
+    generate --> validate[Deterministic validation]
+    validate --> findings{Blocking findings?}
+    findings -- No --> gate{Disposition gate}
+    findings -- Yes, repair available --> correct[Correct once]
+    correct --> validate2[Deterministic validation]
+    validate2 --> gate
+    findings -- Yes, no repair available --> gate
+
+    gate -- ready --> publish[Publish final briefing]
+    gate -- review_required --> quarantine[Quarantine preview]
+    gate -- rejected --> quarantine
+    gate -- no_result --> quarantine
+
+    manifest[(Verified checkpoint manifest)] -. records and resumes .-> corpus
+    manifest -. records and resumes .-> generate
+    manifest -. records and resumes .-> validate
+    manifest -. records and resumes .-> correct
+    manifest -. records and resumes .-> gate
+
+    validate2 -. blinded artifacts .-> judges[Semantic judge + grounding judges]
+    judges -. evaluator adjudication .-> evaluation[Regression decision]
+```
+
+This is orchestration of specialized roles around one generator, not concurrent multi-agent planning. Where a property is checkable—schema shape, citation membership, section limits, duplicate placement, or corpus-health reporting—a deterministic oracle is cheaper, reproducible, and more reliable than asking a second LLM. Model judges are reserved for semantic properties that code cannot honestly settle, and their machine-review status remains explicit.
+
 ## Ranking and checking
 
 **Configured slot allocation.** The default reserves space for each section so high-volume AI industry news cannot crowd out dev tools and practices. A different mix can reserve that space differently without changing code.
