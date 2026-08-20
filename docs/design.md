@@ -70,6 +70,7 @@ flowchart LR
     gate -- rejected --> quarantine
     generate -. provider or runtime failure .-> failed[Run failed: no_result, no candidate]
     validate -. protocol or runtime failure .-> failed
+    correct -. unexpected runtime failure .-> failed
 
     manifest[(Verified checkpoint manifest)] -. records and resumes .-> corpus
     manifest -. records and resumes .-> generate
