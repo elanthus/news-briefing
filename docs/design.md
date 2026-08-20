@@ -52,23 +52,24 @@ Schema v4 replaces ambiguous error strings with structured identities and adds c
 
 ## Orchestration view
 
-The system is a coordinated multi-role loop: a generator agent works from a closed corpus under a fail-closed provider tool policy; a deterministic checker acts as the oracle; and a bounded corrector gets one checker-guided repair pass before the code-owned disposition gate decides whether the result can be published. In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the production publication gate remains deterministic and records `ready`, `review_required`, `rejected`, or `no_result`.
+The system is a coordinated multi-role loop: a generator agent works from a closed corpus under a fail-closed provider tool policy; a deterministic checker acts as the oracle; and a bounded corrector gets up to the configured repair limit (one checker-guided pass by default) before the code-owned disposition gate decides whether the result can be published. In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the production publication gate remains deterministic and records `ready`, `review_required`, `rejected`, or `no_result`.
 
 ```mermaid
 flowchart LR
     corpus[Closed corpus] --> generate[Generate]
     generate --> validate[Deterministic validation]
     validate --> findings{Blocking findings?}
-    findings -- No --> gate{Disposition gate}
-    findings -- Yes, repair available --> correct[Correct once]
-    correct --> validate2[Deterministic validation]
-    validate2 --> gate
-    findings -- Yes, no repair available --> gate
+    findings -- No --> candidate[Final candidate]
+    findings -- Yes, repair budget remains --> correct[Correct within configured limit]
+    correct --> validate
+    findings -- Yes, limit reached --> candidate
+    candidate --> gate{Disposition gate}
 
     gate -- ready --> publish[Publish final briefing]
     gate -- review_required --> quarantine[Quarantine preview]
     gate -- rejected --> quarantine
-    gate -- no_result --> quarantine
+    generate -. protocol failure .-> failed[Run failed: no_result]
+    validate -. no usable candidate .-> failed
 
     manifest[(Verified checkpoint manifest)] -. records and resumes .-> corpus
     manifest -. records and resumes .-> generate
@@ -76,7 +77,7 @@ flowchart LR
     manifest -. records and resumes .-> correct
     manifest -. records and resumes .-> gate
 
-    validate2 -. blinded artifacts .-> judges[Semantic judge + grounding judges]
+    candidate -. blinded artifacts .-> judges[Semantic judge + grounding judges]
     judges -. evaluator adjudication .-> evaluation[Regression decision]
 ```
 
