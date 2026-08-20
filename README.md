@@ -101,6 +101,12 @@ The LLM is handed a closed corpus and does the thing it is good at — ranking a
 
 That last prose row is the real limit on what a Markdown parser can judge. The corpus stores a truncated feed blurb, not the article — 61 of 158 items in the reference corpus (38.6%) hit the 300-character cap, and one carries only a headline — so a faithful summary is still a summary of an excerpt someone else selected.
 
+### Publication archive contract
+
+The scheduled GitHub Pages workflow publishes briefing prose only when the runner manifest is complete, its final disposition is `ready`, it identifies `final.md` as the final artifact, and the file's SHA-256 matches the manifest. A failed, `review_required`, `rejected`, or `no_result` run creates a status-only archive entry; its candidate or preview prose is not copied into the site. A failed retry on a UTC date that already has a ready briefing preserves the previously published ready entry.
+
+The generated `history.json` uses `schema_version: 1`. Each entry contains `date`, `disposition`, `findings_count`, `degraded_sources`, and `markdown`; `markdown` is a string only for ready entries and is `null` otherwise. `findings_count` is the number of final manifest findings when a valid final result exists, so zero on a blocked infrastructure failure does not mean the checker accepted a candidate. `degraded_sources` lists fetch errors reported by the corpus; an empty list means no source failure was reported, not that every possible source was available or complete.
+
 ## Further reading
 
 - [Design and orchestration](docs/design.md)
