@@ -29,6 +29,7 @@ DEFAULT_EMBEDDING_CACHE = EVALUATOR_DIR / "fixtures" / "dedup-embeddings.json"
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 DEFAULT_STUDY_REPORT = EVALUATOR_DIR / "results" / "dedup-study.md"
 DEFAULT_THRESHOLDS = (0.70, 0.75, 0.80, 0.85, 0.90, 0.95)
+LOWERCASE_HEX_DIGITS = frozenset("0123456789abcdef")
 
 
 class PairItem(TypedDict):
@@ -162,6 +163,8 @@ def _embedding_vectors(payload: Any, expected_count: int) -> list[list[float]]:
     dimensions = {len(vector) for vector in vectors}
     if len(dimensions) > 1:
         raise RuntimeError("OpenRouter returned embeddings with inconsistent dimensions")
+    if dimensions != {EMBEDDING_DIMENSIONS}:
+        raise RuntimeError("OpenRouter returned embeddings with an unexpected dimension")
     return vectors
 
 
@@ -318,14 +321,11 @@ def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache
         raise ValueError("embedding cache must contain embeddings")
     embeddings: dict[str, list[float]] = {}
     for key, raw_vector in raw_embeddings.items():
-        valid_key = False
-        if isinstance(key, str) and len(key) == 64:
-            try:
-                int(key, 16)
-            except ValueError:
-                pass
-            else:
-                valid_key = True
+        valid_key = (
+            isinstance(key, str)
+            and len(key) == 64
+            and set(key) <= LOWERCASE_HEX_DIGITS
+        )
         if (
             not valid_key
             or not isinstance(raw_vector, list)

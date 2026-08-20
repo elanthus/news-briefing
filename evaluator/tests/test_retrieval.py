@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import evaluator.__main__ as evaluator_cli
+from evaluator.adapters import API_MAX_ATTEMPTS
 from evaluator.retrieval import (
     EMBEDDINGS_ENDPOINT,
     PairLabel,
@@ -148,18 +149,20 @@ class _Response:
 
 class EmbeddingFetchTests(unittest.TestCase):
     def test_posts_one_batch_and_restores_response_index_order(self) -> None:
+        first = [1.0] + [0.0] * 511
+        second = [0.0, 1.0] + [0.0] * 510
         response = _Response(
             {
                 "data": [
-                    {"index": 1, "embedding": [0, 1]},
-                    {"index": 0, "embedding": [1, 0]},
+                    {"index": 1, "embedding": second},
+                    {"index": 0, "embedding": first},
                 ]
             }
         )
         with patch("evaluator.retrieval.urllib.request.urlopen", return_value=response) as opened:
             vectors = embed_texts(["first", "second"], "embedding/model", "test-key")
 
-        self.assertEqual(vectors, [[1.0, 0.0], [0.0, 1.0]])
+        self.assertEqual(vectors, [first, second])
         request = opened.call_args.args[0]
         self.assertIsInstance(request, urllib.request.Request)
         self.assertEqual(request.full_url, EMBEDDINGS_ENDPOINT)
@@ -177,7 +180,8 @@ class EmbeddingFetchTests(unittest.TestCase):
         headers = Message()
         headers["Retry-After"] = "1"
         rate_limit = urllib.error.HTTPError(EMBEDDINGS_ENDPOINT, 429, "rate limited", headers, None)
-        response = _Response({"data": [{"index": 0, "embedding": [1, 0]}]})
+        vector = [1.0] + [0.0] * 511
+        response = _Response({"data": [{"index": 0, "embedding": vector}]})
         with (
             patch(
                 "evaluator.retrieval.urllib.request.urlopen",
@@ -187,9 +191,60 @@ class EmbeddingFetchTests(unittest.TestCase):
         ):
             self.assertEqual(
                 embed_texts(["first"], "embedding/model", "test-key"),
-                [[1.0, 0.0]],
+                [vector],
             )
         sleep.assert_called_once_with(1.0)
+
+    def test_rejects_unexpected_embedding_dimension(self) -> None:
+        response = _Response({"data": [{"index": 0, "embedding": [1, 0]}]})
+        with patch("evaluator.retrieval.urllib.request.urlopen", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "unexpected dimension"):
+                embed_texts(["first"], "embedding/model", "test-key")
+
+    def test_non_retryable_status_fails_without_retry(self) -> None:
+        error = urllib.error.HTTPError(
+            EMBEDDINGS_ENDPOINT, 400, "bad request", Message(), None
+        )
+        with (
+            patch(
+                "evaluator.retrieval.urllib.request.urlopen", side_effect=error
+            ) as opened,
+            patch("evaluator.retrieval.time.sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 400"):
+                embed_texts(["first"], "embedding/model", "test-key")
+        self.assertEqual(opened.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_transient_failures_stop_after_max_attempts(self) -> None:
+        with (
+            patch(
+                "evaluator.retrieval.urllib.request.urlopen",
+                side_effect=urllib.error.URLError("boom"),
+            ) as opened,
+            patch("evaluator.retrieval.time.sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "attempt"):
+                embed_texts(["first"], "embedding/model", "test-key")
+        self.assertEqual(opened.call_count, API_MAX_ATTEMPTS)
+
+    def test_cli_explains_how_to_refresh_a_stale_cache(self) -> None:
+        argv = ["python3 -m evaluator", "dedup-study"]
+        stderr = io.StringIO()
+        with (
+            patch.object(sys, "argv", argv),
+            patch("evaluator.__main__.load_pairs", return_value=[_pair("pair", "a", "b")]),
+            patch(
+                "evaluator.__main__.load_embedding_cache",
+                return_value={"embeddings": {}},
+            ),
+            contextlib.redirect_stderr(stderr),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            evaluator_cli.main()
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("dedup-study --fetch-embeddings", stderr.getvalue())
 
     def test_cli_writes_a_credential_free_cache(self) -> None:
         fake_cache = {
@@ -240,7 +295,10 @@ class EmbeddingFetchTests(unittest.TestCase):
         self.assertEqual(cache["model"], "openai/text-embedding-3-small")
         self.assertEqual(cache["dimensions"], 512)
         self.assertEqual(len(cached), 82)
-        self.assertTrue(all(len(key) == 64 and int(key, 16) >= 0 for key in cached))
+        lowercase_hex = frozenset("0123456789abcdef")
+        self.assertTrue(
+            all(len(key) == 64 and set(key) <= lowercase_hex for key in cached)
+        )
         for pair in pairs_payload["pairs"]:
             for side in ("left", "right"):
                 key = embedding_key(embedding_text(pair[side]))
@@ -255,7 +313,7 @@ class EmbeddingFetchTests(unittest.TestCase):
             "model": "embedding/model",
             "generated_on": "2026-08-20",
             "dimensions": 2,
-            "embeddings": {"g" * 64: [1.0, 0.0]},
+            "embeddings": {"0x" + "0" * 62: [1.0, 0.0]},
         }
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "cache.json"
@@ -276,6 +334,7 @@ class CommittedStudyTests(unittest.TestCase):
             payload["label_provenance"],
             "machine-proposed-2026-08-20, owner review pending",
         )
+        self.assertEqual(payload["source_corpora_path_base"], "repository root")
         counts: dict[str, int] = {}
         for pair in payload["pairs"]:
             counts[pair["stratum"]] = counts.get(pair["stratum"], 0) + 1

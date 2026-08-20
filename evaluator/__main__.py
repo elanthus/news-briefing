@@ -433,7 +433,13 @@ def main() -> int:
                 return 0
             cache = load_embedding_cache(args.embeddings)
             thresholds = args.threshold or list(DEFAULT_THRESHOLDS)
-            study = run_study(pairs, cache["embeddings"], thresholds)
+            try:
+                study = run_study(pairs, cache["embeddings"], thresholds)
+            except KeyError as exc:
+                raise ValueError(
+                    f"embedding cache {args.embeddings} is out of date ({exc}); "
+                    "refresh it with `python3 -m evaluator dedup-study --fetch-embeddings`"
+                ) from exc
             pair_payload = json.loads(args.pairs.read_text(encoding="utf-8"))
             label_provenance = pair_payload.get("label_provenance", "unknown")
             if not isinstance(label_provenance, str):

@@ -5,6 +5,7 @@
     "fixtures/corpus-2026-08-09.json",
     "fixtures/corpus-2026-08-11.json"
   ],
+  "source_corpora_path_base": "repository root",
   "embedding_representation": "UTF-8 title, newline, then summary; URL retained for provenance but not embedded",
   "pairs": [
     {
