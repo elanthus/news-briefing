@@ -17,7 +17,6 @@ EVIDENCE_VIOLATION_CHECKS = {
 }
 EVIDENCE_REVIEW_CHECKS = {
     "claim_exceeds_evidence",
-    "unsupported_figure",
     "unsupported_quotation",
 }
 ASSESSMENT_BLOCKED_CHECKS = {
@@ -40,6 +39,7 @@ QUALITY_CHECKS = {
     "exclusion_log_short",
     "figure_supported_elsewhere",
     "slots_underfilled",
+    "unsupported_figure",
 }
 
 
