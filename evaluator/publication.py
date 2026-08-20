@@ -132,6 +132,49 @@ def _component_descriptor(path: Path, source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _expected_adapter_rows(source: dict[str, Any]) -> set[tuple[str, str, int]]:
+    suite_path = Path(source.get("suite", ""))
+    if not suite_path.is_absolute():
+        suite_path = ROOT / suite_path
+    if not suite_path.is_file() or _sha256(suite_path) != source.get("suite_sha256"):
+        raise ValueError("split final-run suite is missing or differs from its recorded hash")
+    suite = json.loads(suite_path.read_text(encoding="utf-8"))
+    cases = suite.get("cases")
+    if not isinstance(cases, list) or any(not isinstance(case, dict) for case in cases):
+        raise ValueError("split final-run suite cases must be a list of objects")
+    case_ids = [
+        result_case_id
+        for case in cases
+        for result_case_id in (
+            [case.get("id"), f"{case.get('id')}__clean"]
+            if case.get("matched_pair") else [case.get("id")]
+        )
+    ]
+    if any(not isinstance(case_id, str) or not case_id for case_id in case_ids):
+        raise ValueError("split final-run suite contains an invalid case id")
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("split final-run suite produces duplicate result case ids")
+    prompts = source.get("prompt_order")
+    prompt_hashes = source.get("prompt_sha256")
+    if (
+        not isinstance(prompts, list)
+        or any(not isinstance(prompt, str) or not prompt for prompt in prompts)
+        or len(prompts) != len(set(prompts))
+        or not isinstance(prompt_hashes, dict)
+        or set(prompts) != set(prompt_hashes)
+    ):
+        raise ValueError("split final-run manifest has invalid prompt identity")
+    trials = source.get("trials_per_case")
+    if not isinstance(trials, int) or isinstance(trials, bool) or trials <= 0:
+        raise ValueError("split final-run manifest has an invalid trial count")
+    return {
+        (prompt, case_id, trial)
+        for prompt in prompts
+        for case_id in case_ids
+        for trial in range(1, trials + 1)
+    }
+
+
 def _merge_public_sources(
     manifest_paths: Sequence[Path],
 ) -> tuple[dict[str, Any], list[tuple[dict[str, Any], Path]], list[dict[str, Any]]]:
@@ -176,10 +219,14 @@ def _merge_public_sources(
     seen_rows: set[tuple[Any, ...]] = set()
     component_rows: list[tuple[dict[str, Any], Path]] = []
     observed_cost = 0.0
+    expected_adapter_rows = _expected_adapter_rows(first)
     for source, path in loaded:
         source_controls = source.get("generation_controls")
         if not isinstance(source_controls, list) or not source_controls:
             raise ValueError("split final-run manifests require generation controls")
+        source_control_keys = [_adapter_key(control) for control in source_controls]
+        if len(source_control_keys) != len(set(source_control_keys)):
+            raise ValueError("split final-run manifest has duplicate generation controls")
         planned = source.get("planned_case_trials")
         if (
             not isinstance(planned, int)
@@ -212,13 +259,23 @@ def _merge_public_sources(
             previous = controls.setdefault(key, control)
             if previous != control:
                 raise ValueError(f"split final-run generation controls differ for {key}")
-        for timeout in source.get("adapter_timeouts_seconds", []):
+        source_timeouts = source.get("adapter_timeouts_seconds")
+        if not isinstance(source_timeouts, list):
+            raise ValueError("split final-run manifest requires adapter timeouts")
+        source_timeout_keys = [_adapter_key(timeout) for timeout in source_timeouts]
+        if (
+            len(source_timeout_keys) != len(set(source_timeout_keys))
+            or set(source_timeout_keys) != set(source_control_keys)
+        ):
+            raise ValueError("split final-run adapter timeouts do not match its controls")
+        for timeout in source_timeouts:
             key = _adapter_key(timeout)
             previous = timeouts.setdefault(key, timeout)
             if previous != timeout:
                 raise ValueError(f"split final-run adapter timeouts differ for {key}")
 
         source_counts: dict[tuple[Any, Any], int] = {}
+        source_row_keys: dict[tuple[Any, Any], set[tuple[Any, Any, Any]]] = {}
         for row in source["results"]:
             if row.get("status") != "completed":
                 raise ValueError("public split evidence requires every recorded row to be completed")
@@ -226,6 +283,11 @@ def _merge_public_sources(
             if adapter not in {_adapter_key(control) for control in source_controls}:
                 raise ValueError("split final-run row references an unconfigured adapter")
             source_counts[adapter] = source_counts.get(adapter, 0) + 1
+            source_row_keys.setdefault(adapter, set()).add((
+                row.get("prompt_version"),
+                row.get("case_id"),
+                row.get("trial"),
+            ))
             row_key = (
                 *adapter,
                 row.get("prompt_version"),
@@ -236,12 +298,14 @@ def _merge_public_sources(
                 raise ValueError(f"split final-run manifests contain duplicate row {row_key}")
             seen_rows.add(row_key)
 
-        if any(count != source_per_adapter for count in source_counts.values()):
+        if source_per_adapter != len(expected_adapter_rows):
+            raise ValueError("split final-run planned rows differ from the frozen suite matrix")
+        if any(keys != expected_adapter_rows for keys in source_row_keys.values()):
             raise ValueError(
-                "split final-run checkpoints may contain only whole completed adapters"
+                "split final-run checkpoints may contain only exact whole adapter matrices"
             )
         if source.get("run_status") == "complete":
-            if len(source["results"]) != planned:
+            if len(source["results"]) != planned or set(source_counts) != set(source_control_keys):
                 raise ValueError("complete split final-run manifest is missing rows")
         elif source.get("run_status") != "running":
             raise ValueError(

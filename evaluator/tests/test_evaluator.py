@@ -567,14 +567,19 @@ class PublicRunTest(unittest.TestCase):
     def test_export_combines_whole_adapter_split_checkpoints(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            suite_path = root / "suite.json"
+            suite_path.write_text(
+                json.dumps({"cases": [{"id": "case", "matched_pair": False}]}),
+                encoding="utf-8",
+            )
             common = {
                 "schema_version": 9,
                 "generation_path": "markdown",
                 "run_kind": "final",
                 "execution_order": "prompt_interleaved_randomized",
                 "execution_seed": 123,
-                "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
-                "suite_sha256": "suite-sha",
+                "suite": str(suite_path),
+                "suite_sha256": hashlib.sha256(suite_path.read_bytes()).hexdigest(),
                 "corpus_sha256": "corpus-sha",
                 "case_corpus_sha256": {"case": "corpus-sha"},
                 "config_sha256": {"config.json": "config-sha"},
@@ -703,6 +708,12 @@ class PublicRunTest(unittest.TestCase):
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "suite_sha256"):
                 export_public_run([primary_path, supplement_path], root / "incompatible")
+
+            supplement_manifest["suite_sha256"] = common["suite_sha256"]
+            supplement_manifest["results"][0]["case_id"] = "substituted-case"
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "exact whole adapter matrices"):
+                export_public_run([primary_path, supplement_path], root / "wrong-matrix")
 
 
 class MetricTest(unittest.TestCase):
