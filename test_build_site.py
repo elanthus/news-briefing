@@ -71,12 +71,21 @@ class BuildSiteTests(unittest.TestCase):
             )
 
             output = root / "site"
+            output.mkdir()
+            (output / "2026-08-11.html").write_text(
+                "STALE QUARANTINED CONTENT",
+                encoding="utf-8",
+            )
             build_site(briefings, output)
 
             self.assertFalse((output / "2026-08-11.html").exists())
             self.assertNotIn(
                 "QUARANTINED CONTENT",
                 (output / "index.html").read_text(encoding="utf-8"),
+            )
+            self.assertNotIn(
+                "QUARANTINED CONTENT",
+                (output / "history.json").read_text(encoding="utf-8"),
             )
 
     def test_ready_entry_requires_matching_markdown(self) -> None:
@@ -94,6 +103,40 @@ class BuildSiteTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "matching Markdown"):
                 build_site(briefings, root / "site")
+
+    def test_round_trips_prior_live_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "first"
+            first.mkdir()
+            (first / "2026-08-09.md").write_text("safe prior briefing", encoding="utf-8")
+            self._write_sidecar(
+                first,
+                date="2026-08-09",
+                disposition="ready",
+                findings_count=0,
+                degraded_sources=[],
+            )
+            first_site = root / "first-site"
+            build_site(first, first_site)
+
+            current = root / "current"
+            current.mkdir()
+            self._write_sidecar(
+                current,
+                date="2026-08-10",
+                disposition="blocked",
+                findings_count=0,
+                degraded_sources=["fetch:all"],
+            )
+            next_site = root / "next-site"
+            build_site(current, next_site, first_site / "history.json")
+
+            index = (next_site / "index.html").read_text(encoding="utf-8")
+            self.assertLess(index.index("2026-08-10"), index.index("2026-08-09"))
+            self.assertIn("safe prior briefing", (next_site / "2026-08-09.html").read_text())
+            history = json.loads((next_site / "history.json").read_text())
+            self.assertEqual([entry["date"] for entry in history["entries"]], ["2026-08-10", "2026-08-09"])
 
     @staticmethod
     def _write_sidecar(

@@ -1,0 +1,179 @@
+name: Daily briefing
+
+on:
+  schedule:
+    - cron: "30 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-briefing-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and deploy gated briefing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Fetch current corpus
+        id: fetch
+        continue-on-error: true
+        run: python fetch_news.py --hours 24 -o corpus.json
+
+      - name: Generate publication candidate
+        id: briefing
+        if: steps.fetch.outcome == 'success'
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python run_briefing.py \
+            --provider openrouter \
+            --model deepseek/deepseek-v4-flash-20260423 \
+            --corpus corpus.json \
+            --run-dir run \
+            --output current.md \
+            --max-corrections 1 \
+            --max-tokens 20000 \
+            --reasoning disabled
+
+      - name: Apply publication gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import shutil
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          history = Path("briefing-history")
+          history.mkdir()
+          day = datetime.now(UTC).date().isoformat()
+          disposition = "blocked"
+          findings_count = 0
+          final_markdown = Path("run/final.md")
+
+          manifest_path = Path("run/manifest.json")
+          if manifest_path.is_file():
+              try:
+                  manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+              except (json.JSONDecodeError, OSError):
+                  manifest = None
+              if isinstance(manifest, dict) and manifest.get("status") == "complete":
+                  final = manifest.get("final")
+                  if isinstance(final, dict):
+                      status = final.get("status")
+                      findings = final.get("findings")
+                      if (
+                          status in {"ready", "review_required", "rejected", "no_result"}
+                          and isinstance(findings, list)
+                      ):
+                          findings_count = len(findings)
+                          if status != "ready":
+                              disposition = status
+                          else:
+                              artifacts = manifest.get("artifacts")
+                              expected_digest = (
+                                  artifacts.get("final.md")
+                                  if isinstance(artifacts, dict)
+                                  else None
+                              )
+                              actual_digest = (
+                                  hashlib.sha256(final_markdown.read_bytes()).hexdigest()
+                                  if final_markdown.is_file()
+                                  else None
+                              )
+                              if (
+                                  final.get("artifact_type") == "final"
+                                  and final.get("run_artifact") == "final.md"
+                                  and isinstance(expected_digest, str)
+                                  and actual_digest == expected_digest
+                              ):
+                                  disposition = "ready"
+
+          if disposition == "ready":
+              if final_markdown.is_file():
+                  shutil.copyfile(final_markdown, history / f"{day}.md")
+              else:
+                  disposition = "blocked"
+
+          degraded_sources = []
+          corpus_path = Path("corpus.json")
+          if corpus_path.is_file():
+              try:
+                  corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+              except (json.JSONDecodeError, OSError):
+                  corpus = None
+              errors = corpus.get("errors", []) if isinstance(corpus, dict) else []
+              if isinstance(errors, list):
+                  for error in errors:
+                      if isinstance(error, dict):
+                          source_type = error.get("source_type", "source")
+                          source_id = error.get("source_id", "unknown")
+                          label = f"{source_type}:{source_id}"
+                      elif isinstance(error, str):
+                          label = error
+                      else:
+                          label = "source:unknown"
+                      if label not in degraded_sources:
+                          degraded_sources.append(label)
+
+          sidecar = {
+              "date": day,
+              "disposition": disposition,
+              "findings_count": findings_count,
+              "degraded_sources": degraded_sources,
+          }
+          (history / f"{day}.json").write_text(
+              json.dumps(sidecar, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(sidecar, indent=2, sort_keys=True))
+          PY
+
+      - name: Download prior live history
+        if: always()
+        continue-on-error: true
+        run: |
+          curl \
+            --fail \
+            --location \
+            --max-time 30 \
+            --max-filesize 50000000 \
+            --remove-on-error \
+            --silent \
+            --show-error \
+            https://elanthus.github.io/news-briefing/history.json \
+            --output prior-history.json
+
+      - name: Build static archive
+        if: always()
+        run: |
+          if [[ -f prior-history.json ]]; then
+            python build_site.py briefing-history site --prior-history prior-history.json
+          else
+            python build_site.py briefing-history site
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
