@@ -47,6 +47,7 @@ article { border-top: 1px solid #8886; padding: 1rem 0; }
 .review-action::before { content: " — "; }
 .briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
+.briefing-content ul { list-style: disc; padding-left: 1.25rem; }
 .briefing-content li { margin: .35rem 0; }
 .briefing-content pre { background: #8881; border: 1px solid #8884; overflow-x: auto; padding: 1rem; }
 .briefing-content code { background: #8881; border-radius: .2rem; padding: .1rem .25rem; }

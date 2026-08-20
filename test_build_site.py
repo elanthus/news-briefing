@@ -52,6 +52,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('<a href="https://example.com/story">source</a>', index)
             self.assertIn('<a href="https://example.com/bare">https://example.com/bare</a>', index)
             self.assertIn("<li>First item</li>", index)
+            self.assertIn(".briefing-content ul { list-style: disc; padding-left: 1.25rem; }", index)
             self.assertFalse((output / "2026-08-20.html").exists())
             self.assertIn("Review required · 2 findings", index)
             self.assertIn("WARN · evidence · unsupported figure:", index)

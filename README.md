@@ -55,12 +55,13 @@ Historical placeholder total generation cost: **$3.033816***. Historical suite S
 
 ## Quickstart
 
-Python 3.11+ is the only runtime requirement; there is no install step.
+Python 3.11+ is the runtime requirement. Install the pinned static-site renderer dependencies before running the tests or building the site.
 Fresh generation also needs an authenticated provider: set `OPENROUTER_API_KEY` for OpenRouter, or install and authenticate the `claude` or `codex` CLI.
 
 ```bash
 git clone https://github.com/elanthus/news-briefing.git
 cd news-briefing
+python3 -m pip install --requirement requirements-site.txt
 python3 -m unittest
 python3 -m unittest discover -s evaluator/tests
 python3 fetch_news.py -o corpus.json
