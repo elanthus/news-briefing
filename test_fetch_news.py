@@ -866,6 +866,18 @@ class RedditFallbackTest(unittest.TestCase):
         self.assertEqual(result, arctic_empty)
         authenticated.assert_not_called()
 
+    def test_authenticated_failure_preserves_a_valid_free_empty_result(self):
+        rss_empty = fetch_news.FetchResult([], 2, 3, 1)
+        arctic_empty = fetch_news.FetchResult([], 0, 0, 0)
+        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=rss_empty),
+              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=arctic_empty),
+              patch.object(fetch_news, "fetch_reddit_scrapecreators",
+                           side_effect=TimeoutError("authenticated provider down"))):
+            result = fetch_reddit(
+                "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
+            )
+        self.assertEqual(result, arctic_empty)
+
     def test_all_free_transport_failures_remain_an_error_without_a_key(self):
         with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=OSError("rss down")),
               patch.object(fetch_news, "fetch_reddit_arctic_shift",

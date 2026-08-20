@@ -1100,6 +1100,8 @@ def fetch_reddit(
             )
         except Exception as exc:
             errors.append(f"ScrapeCreators: {type(exc).__name__}: {exc}")
+            if empty_result is not None:
+                return empty_result
             raise RuntimeError(
                 f"all Reddit backends failed or returned no usable posts for r/{subreddit}: "
                 + "; ".join(errors)
