@@ -19,6 +19,8 @@ SPLIT_RUN_IDENTITY_FIELDS = (
     "run_kind",
     "execution_order",
     "execution_seed",
+    "cost_ceiling_provider",
+    "circuit_breaker_threshold",
     "suite",
     "suite_sha256",
     "corpus_sha256",
@@ -129,6 +131,9 @@ def _component_descriptor(path: Path, source: dict[str, Any]) -> dict[str, Any]:
         "planned_case_trials": source.get("planned_case_trials"),
         "original_run_status": source.get("run_status"),
         "observed_cost_usd": source.get("observed_ceiling_cost_usd"),
+        "cost_ceiling_usd": source.get("cost_ceiling_usd"),
+        "cost_ceiling_provider": source.get("cost_ceiling_provider"),
+        "circuit_breaker_threshold": source.get("circuit_breaker_threshold"),
     }
 
 
@@ -471,6 +476,13 @@ def verify_public_run(output_dir: Path) -> dict[str, Any]:
     regenerated["generated_at"] = published.get("generated_at")
     if regenerated != published:
         failures.append("report.json (aggregate mismatch)")
+    expected_markdown = markdown_report(regenerated)
+    try:
+        published_markdown = (output_dir / "report.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        published_markdown = ""
+    if published_markdown != expected_markdown:
+        failures.append("report.md (aggregate mismatch)")
     ledger = json.loads((output_dir / "ledger.json").read_text(encoding="utf-8"))
     if ledger != _score_ledger(manifest):
         failures.append("ledger.json (row primitive mismatch)")

@@ -1,6 +1,6 @@
 # News briefing model evaluation
 
-Generated: 2026-08-20T10:07:06.502868+00:00
+Generated: 2026-08-20T10:35:04.553972+00:00
 
 Run status: complete; recorded 1200/1200 planned case-trials.
 

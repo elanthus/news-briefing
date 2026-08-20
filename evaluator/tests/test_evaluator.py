@@ -71,6 +71,7 @@ from evaluator.runner import (
     _attack_breakdown,
     _attack_dimensions,
     _checkpoint,
+    _git_provenance,
     _mutate,
     _operations_row,
     _oracle,
@@ -489,6 +490,33 @@ class FinalSourceProvenanceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "clean Git worktree"):
             final_source_provenance("portfolio-v2-source")
 
+        provenance.return_value["dirty"] = False
+        with self.assertRaisesRegex(ValueError, "does not point at HEAD"):
+            final_source_provenance("portfolio-v2-source-unreleased")
+
+        provenance.return_value["commit"] = None
+        with self.assertRaisesRegex(ValueError, "readable Git commit and tree"):
+            final_source_provenance("portfolio-v2-source")
+
+    @patch("evaluator.runner.subprocess.run")
+    def test_git_provenance_fails_closed_when_status_probe_fails(self, run: Any) -> None:
+        def result(command: list[str], **_kwargs: Any) -> Any:
+            if command[1:] == ["status", "--porcelain"]:
+                return type("Result", (), {
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": "fatal: status unavailable",
+                })()
+            return type("Result", (), {
+                "returncode": 0,
+                "stdout": "abc\n",
+                "stderr": "",
+            })()
+
+        run.side_effect = result
+        with self.assertRaisesRegex(ValueError, "git status --porcelain exited 1"):
+            _git_provenance()
+
 
 class PublicRunTest(unittest.TestCase):
     def test_export_removes_provider_ids_and_rebuilds_report(self) -> None:
@@ -565,6 +593,28 @@ class PublicRunTest(unittest.TestCase):
             metadata = json.loads((output / "metadata.json").read_text(encoding="utf-8"))
             self.assertIn("<external-path-redacted>", metadata["regeneration_command"])
 
+            report_markdown = output / "report.md"
+            report_markdown.write_text(
+                report_markdown.read_text(encoding="utf-8") + "\nStale summary.\n",
+                encoding="utf-8",
+            )
+            metadata["files"]["report.md"] = {
+                "bytes": report_markdown.stat().st_size,
+                "sha256": hashlib.sha256(report_markdown.read_bytes()).hexdigest(),
+            }
+            (output / "metadata.json").write_text(
+                json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            sums = "".join(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+                for path in sorted(output.iterdir())
+                if path.is_file() and path.name != "SHA256SUMS"
+            )
+            (output / "SHA256SUMS").write_text(sums, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "report.md"):
+                verify_public_run(output)
+
     def test_export_combines_whole_adapter_split_checkpoints(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -579,6 +629,8 @@ class PublicRunTest(unittest.TestCase):
                 "run_kind": "final",
                 "execution_order": "prompt_interleaved_randomized",
                 "execution_seed": 123,
+                "cost_ceiling_provider": "openrouter",
+                "circuit_breaker_threshold": 3,
                 "suite": str(suite_path),
                 "suite_sha256": hashlib.sha256(suite_path.read_bytes()).hexdigest(),
                 "corpus_sha256": "corpus-sha",
@@ -670,6 +722,7 @@ class PublicRunTest(unittest.TestCase):
                     {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
                 ],
                 "observed_ceiling_cost_usd": 0.01,
+                "cost_ceiling_usd": 0.05,
                 "completed_at": None,
                 "checkpointed_at": "2026-01-01T00:00:00+00:00",
                 "results": [row("model-a", 0.01)],
@@ -688,6 +741,7 @@ class PublicRunTest(unittest.TestCase):
                     {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
                 ],
                 "observed_ceiling_cost_usd": 0.02,
+                "cost_ceiling_usd": 0.04,
                 "completed_at": "2026-01-01T01:00:00+00:00",
                 "checkpointed_at": "2026-01-01T01:00:00+00:00",
                 "results": [row("model-b", 0.02)],
@@ -703,7 +757,17 @@ class PublicRunTest(unittest.TestCase):
             self.assertEqual(len(published["results"]), 2)
             self.assertAlmostEqual(published["observed_ceiling_cost_usd"], 0.03)
             self.assertEqual(len(published["split_run_components"]), 2)
+            self.assertEqual(
+                {component["cost_ceiling_usd"] for component in published["split_run_components"]},
+                {0.04, 0.05},
+            )
             self.assertEqual(verify_public_run(output)["rows"], 2)
+
+            supplement_manifest["circuit_breaker_threshold"] = 4
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "circuit_breaker_threshold"):
+                export_public_run([primary_path, supplement_path], root / "different-limits")
+            supplement_manifest["circuit_breaker_threshold"] = 3
 
             supplement_manifest["suite_sha256"] = "different"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
@@ -1782,6 +1846,17 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    @staticmethod
+    def _final_provenance(tags: list[str] | None = None) -> dict[str, Any]:
+        return {
+            "commit": "abc",
+            "tree": "def",
+            "dirty": False,
+            "tags": tags or ["portfolio-v2-source"],
+            "source_tag": "portfolio-v2-source",
+            "runtime_source_sha256": {"evaluator/runner.py": "123"},
+        }
+
     def _resume_fixture(
         self, temporary: Path, case_count: int = 3
     ) -> tuple[Path, Path, Path]:
@@ -1976,6 +2051,7 @@ class RunnerTest(unittest.TestCase):
                     corpus_path=DEFAULT_CORPUS,
                     run_kind="final",
                     execution_seed=8675309,
+                    source_provenance=self._final_provenance(),
                 )
                 manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest["execution_order"], "prompt_interleaved_randomized")
@@ -2011,6 +2087,92 @@ class RunnerTest(unittest.TestCase):
                     execution_seed=1,
                 )
 
+    def test_final_run_rejects_missing_verified_source_before_provider_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, production, output = self._resume_fixture(temporary, case_count=1)
+            candidate = temporary / "candidate.md"
+            candidate.write_text("Produce the candidate briefing.", encoding="utf-8")
+            adapter = RecordingFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "verified source provenance"):
+                run_evaluation(
+                    [adapter],
+                    {"production": production, "candidate": candidate},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    run_kind="final",
+                    execution_seed=1,
+                )
+            self.assertEqual(adapter.requests, [])
+
+    @patch("evaluator.runner._git_provenance", side_effect=AssertionError("unexpected probe"))
+    def test_explicit_empty_source_provenance_is_preserved(self, _provenance: Any) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "results"
+            run_evaluation([], {}, output, source_provenance={})
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["code"], {})
+
+    def test_development_resume_ignores_nonruntime_git_metadata_changes(self) -> None:
+        class InterruptImmediately(FakeAdapter):
+            def generate(self, prompt: str) -> Generation:
+                raise KeyboardInterrupt("simulated interruption")
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            initial_code = {
+                "commit": "initial",
+                "tree": "initial-tree",
+                "dirty": False,
+                "tags": [],
+                "runtime_source_sha256": {"evaluator/runner.py": "same-runtime"},
+            }
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation(
+                    [InterruptImmediately("fixture")],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    source_provenance=initial_code,
+                )
+
+            changed_runtime = {
+                **initial_code,
+                "runtime_source_sha256": {"evaluator/runner.py": "changed-runtime"},
+            }
+            blocked = RecordingFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "immutable fields differ: code"):
+                run_evaluation(
+                    [blocked],
+                    {"production": prompt},
+                    output,
+                    suite_path=suite,
+                    corpus_path=DEFAULT_CORPUS,
+                    resume=True,
+                    source_provenance=changed_runtime,
+                )
+            self.assertEqual(blocked.requests, [])
+
+            changed_metadata = {
+                **initial_code,
+                "commit": "docs-only-change",
+                "tree": "docs-only-tree",
+                "dirty": True,
+                "tags": ["unrelated-tag"],
+            }
+            run_evaluation(
+                [FakeAdapter("fixture")],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                resume=True,
+                source_provenance=changed_metadata,
+            )
+
     def test_execution_seed_is_rejected_outside_final_runs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "only valid for final runs"):
@@ -2042,6 +2204,7 @@ class RunnerTest(unittest.TestCase):
                     suite_path=suite,
                     corpus_path=DEFAULT_CORPUS,
                     run_kind="final",
+                    source_provenance=self._final_provenance(),
                 )
             generated_seed = json.loads(
                 (output / "manifest.json").read_text(encoding="utf-8")
@@ -2055,6 +2218,9 @@ class RunnerTest(unittest.TestCase):
                 corpus_path=DEFAULT_CORPUS,
                 run_kind="final",
                 resume=True,
+                source_provenance=self._final_provenance(
+                    ["portfolio-v2-source", "release-alias"]
+                ),
             )
             resumed = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(resumed["execution_seed"], generated_seed)

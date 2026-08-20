@@ -358,6 +358,9 @@
     "schema_version": 9,
     "split_run_components": [
       {
+        "circuit_breaker_threshold": 3,
+        "cost_ceiling_provider": "openrouter",
+        "cost_ceiling_usd": 4.0,
         "manifest_sha256": "207d6119cc8f183246ad315ae45deeea5949b869b6b921d0f97d2bb462ffc5a6",
         "name": "portfolio-v2-final-20260819",
         "observed_cost_usd": 1.0448192616199992,
@@ -366,6 +369,9 @@
         "rows": 600
       },
       {
+        "circuit_breaker_threshold": 3,
+        "cost_ceiling_provider": "openrouter",
+        "cost_ceiling_usd": 3.0,
         "manifest_sha256": "63de5d5b64105ab92d24034fb73bbd0ff9df2fdb65c7853fc5fbf29784172f1e",
         "name": "portfolio-v2-final-20260819-hy3",
         "observed_cost_usd": 2.7556615940000007,
