@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import importlib
 import json
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -37,12 +38,21 @@ article { border-top: 1px solid #8886; padding: 1rem 0; }
 .history-nav ul { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 0; }
 .verdict { font-weight: 700; }
 .muted { color: #777; }
-.review-panel { background: #f5a62322; border: 2px solid #d98200; border-radius: .5rem;
-  margin: 1.5rem 0; padding: 1rem 1.25rem; }
-.review-panel h2 { margin-top: 0; }
-.review-panel li { margin: 1rem 0; }
+.review-panel { background: #f5a62318; border: 1px solid #d98200; border-radius: .4rem;
+  font-size: .9rem; margin: .75rem 0 1.25rem; padding: .6rem .8rem; }
+.review-panel h2 { font-size: 1rem; margin: 0 0 .15rem; }
+.review-panel ol { margin: .2rem 0 0; padding-left: 1.25rem; }
+.review-panel li { margin: .25rem 0; padding-left: .15rem; }
 .finding-label { font-weight: 700; }
-pre { background: #8881; border: 1px solid #8884; overflow-wrap: anywhere; padding: 1rem; white-space: pre-wrap; }
+.review-action::before { content: " — "; }
+.briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
+.briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
+.briefing-content ul { list-style: disc; padding-left: 1.25rem; }
+.briefing-content li { margin: .35rem 0; }
+.briefing-content pre { background: #8881; border: 1px solid #8884; overflow-x: auto; padding: 1rem; }
+.briefing-content code { background: #8881; border-radius: .2rem; padding: .1rem .25rem; }
+.briefing-content pre code { background: none; padding: 0; }
+.briefing-content blockquote { border-left: .25rem solid #8886; margin-left: 0; padding-left: 1rem; }
 """.strip()
 
 
@@ -256,6 +266,14 @@ def _corpus_health(entry: BriefingEntry) -> str:
     return f"Degraded sources: {sources}"
 
 
+def _render_markdown(markdown: str) -> str:
+    """Render untrusted briefing Markdown without allowing embedded HTML."""
+    markdown_it = importlib.import_module("markdown_it")
+    parser = markdown_it.MarkdownIt("commonmark", {"html": False, "linkify": True})
+    parser.enable("linkify")
+    return str(parser.render(markdown))
+
+
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
     links = []
     newest = entries[0]
@@ -279,7 +297,7 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
 def _entry_body(entry: BriefingEntry) -> str:
     review_panel = _render_review_panel(entry) if entry.disposition == "review_required" else ""
     briefing = (
-        f"{review_panel}<pre>{html.escape(entry.markdown)}</pre>"
+        f'{review_panel}<article class="briefing-content">{_render_markdown(entry.markdown)}</article>'
         if entry.markdown is not None
         else '<p class="muted">No briefing prose is available for this run.</p>'
     )
@@ -338,16 +356,16 @@ def _render_review_panel(entry: BriefingEntry) -> str:
         )
         items.append(
             "<li>"
-            f'<p class="finding-label">{html.escape(label)}</p>'
-            f"<p>{html.escape(finding.message)}</p>"
-            f"<p><strong>Review action:</strong> {html.escape(_review_action(finding))}</p>"
+            f'<span class="finding-label">{html.escape(label)}:</span> '
+            f"{html.escape(finding.message)} "
+            f'<span class="review-action"><strong>Action:</strong> '
+            f"{html.escape(_review_action(finding))}</span>"
             "</li>"
         )
     return (
         '<section class="review-panel" aria-labelledby="review-findings">'
-        '<h2 id="review-findings">Review required before relying on this briefing</h2>'
-        "<p>This is a checker-generated preview, not an approved briefing. A person must address "
-        "each finding below and rerun the checker before treating it as publication-ready.</p>"
+        f'<h2 id="review-findings">Review required · {entry.findings_count} '
+        f'{"finding" if entry.findings_count == 1 else "findings"}</h2>'
         f"<ol>{''.join(items)}</ol>"
         "</section>"
     )

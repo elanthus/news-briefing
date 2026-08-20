@@ -18,7 +18,11 @@ class BuildSiteTests(unittest.TestCase):
             (briefings / "2026-08-19.md").write_text("prior ready briefing", encoding="utf-8")
             self._write_sidecar(briefings, date="2026-08-19", disposition="ready")
             (briefings / "2026-08-20.md").write_text(
-                'LATEST PREVIEW\n<script>alert("preview")</script>', encoding="utf-8"
+                '# LATEST PREVIEW\n\n**Important detail** with [source](https://example.com/story).'
+                '\n\n- First item\n\nBare link: https://example.com/bare'
+                '\n\n[unsafe](javascript:alert(1))'
+                '\n\n<script>alert("preview")</script>',
+                encoding="utf-8",
             )
             findings = [
                 self._finding(
@@ -43,15 +47,22 @@ class BuildSiteTests(unittest.TestCase):
             index = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn('<strong aria-current="date">2026-08-20</strong>', index)
             self.assertIn('href="2026-08-19.html"', index)
-            self.assertIn("LATEST PREVIEW", index)
+            self.assertIn("<h1>LATEST PREVIEW</h1>", index)
+            self.assertIn("<strong>Important detail</strong>", index)
+            self.assertIn('<a href="https://example.com/story">source</a>', index)
+            self.assertIn('<a href="https://example.com/bare">https://example.com/bare</a>', index)
+            self.assertIn("<li>First item</li>", index)
+            self.assertIn(".briefing-content ul { list-style: disc; padding-left: 1.25rem; }", index)
             self.assertFalse((output / "2026-08-20.html").exists())
-            self.assertIn("Review required before relying on this briefing", index)
-            self.assertIn("WARN · evidence · unsupported figure", index)
+            self.assertIn("Review required · 2 findings", index)
+            self.assertIn("WARN · evidence · unsupported figure:", index)
             self.assertIn("The item states &lt;60&gt;", index)
             self.assertIn("Verify the figure against the cited source", index)
             self.assertLess(index.index("review-panel"), index.index("LATEST PREVIEW"))
             self.assertNotIn("<script>", index)
+            self.assertNotIn('href="javascript:', index)
             self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", index)
+            self.assertNotIn("<pre># LATEST PREVIEW", index)
 
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
             self.assertIn('href="index.html">2026-08-20</a>', prior)

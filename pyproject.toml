@@ -1,5 +1,5 @@
-# Tool configuration only. The project runs on Python 3.11+ and has no
-# package, build system, or third-party runtime dependencies.
+# Tool configuration only. The project runs on Python 3.11+ without a package
+# build; the static site renderer dependency is pinned in requirements-site.txt.
 
 [tool.mypy]
 python_version = "3.11"

@@ -55,12 +55,13 @@ Historical placeholder total generation cost: **$3.033816***. Historical suite S
 
 ## Quickstart
 
-Python 3.11+ is the only runtime requirement; there is no install step.
+Python 3.11+ is the runtime requirement. Install the pinned static-site renderer dependencies before running the tests or building the site.
 Fresh generation also needs an authenticated provider: set `OPENROUTER_API_KEY` for OpenRouter, or install and authenticate the `claude` or `codex` CLI.
 
 ```bash
 git clone https://github.com/elanthus/news-briefing.git
 cd news-briefing
+python3 -m pip install --requirement requirements-site.txt
 python3 -m unittest
 python3 -m unittest discover -s evaluator/tests
 python3 fetch_news.py -o corpus.json
@@ -103,7 +104,7 @@ That last prose row is the real limit on what a Markdown parser can judge. The c
 
 ### Publication archive contract
 
-The scheduled GitHub Pages workflow publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. A `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule. Its page displays every validated checker finding, with a concrete review action, before the preview prose. `rejected`, `blocked`, and `no_result` runs remain status-only. A lower-ranked retry on a UTC date that already has a more publication-ready entry does not replace that entry.
+The scheduled GitHub Pages workflow gives the model up to three checker-guided correction passes before publication. It publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule. The static builder renders that Markdown as HTML with embedded HTML disabled, and shows every validated checker finding with a concrete review action in a compact panel before the preview. `rejected`, `blocked`, and `no_result` runs remain status-only. A lower-ranked retry on a UTC date that already has a more publication-ready entry does not replace that entry.
 
 The newest retained run is rendered directly on the site home page. A date bar at the top links to separate pages for the other retained runs. The site and its machine-readable history keep an inclusive seven-day UTC window—the newest run date and the preceding six dates—and discard older entries and pages. The workflow seeds that window from the hash-verified August 17 dogfood final and the August 18 DeepSeek dogfood preview; live records take precedence at equal or higher publication rank.
 
