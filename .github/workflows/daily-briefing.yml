@@ -34,6 +34,8 @@ jobs:
       - name: Fetch current corpus
         id: fetch
         continue-on-error: true
+        env:
+          SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
         run: python fetch_news.py --hours 24 -o corpus.json
 
       - name: Generate publication candidate

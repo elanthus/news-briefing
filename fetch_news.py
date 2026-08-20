@@ -20,6 +20,7 @@ import http.client
 import ipaddress
 import json
 import math
+import os
 import re
 import socket
 import ssl
@@ -34,7 +35,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
-from typing import Any, NamedTuple, NotRequired, TypedDict
+from typing import Any, NamedTuple, Never, NotRequired, TypedDict
 from xml.parsers import expat
 
 import corpus_schema
@@ -47,6 +48,9 @@ USER_AGENT = "news-briefing/1.0 (personal daily digest; +https://github.com/elan
 TIMEOUT = 20
 REDDIT_TIMEOUT = 10
 REDDIT_MAX_ATTEMPTS = 2
+REDDIT_FALLBACK_LIMIT = 100
+ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
+SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_REDIRECTS = 5
 MAX_URL_BYTES = corpus_schema.ITEM_URL_MAX_BYTES
@@ -219,7 +223,7 @@ def load_sources(path: str | Path) -> Sources:
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
 # window, so it can't express arbitrary hour ranges directly. Over-fetch the
 # smallest bucket that fully covers the requested window and let the exact
-# fixed publication-window filter in fetch_reddit() do the real work — the
+# fixed publication-window filter in fetch_reddit_rss() does the real work — the
 # same lower and upper bounds used for every other source.
 REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
                       (720, "month"), (8760, "year"))
@@ -374,7 +378,7 @@ class SourceDataError(ValueError):
         super().__init__(str(cause) or self.error_type)
 
 
-def _raise_data_error(exc: Exception) -> None:
+def _raise_data_error(exc: Exception) -> Never:
     raise SourceDataError(exc) from exc
 
 
@@ -490,7 +494,7 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
                   port: int, address: ResolvedAddress, user_agent: str,
-                  timeout: int) -> HttpResult:
+                  timeout: int, extra_headers: dict[str, str] | None = None) -> HttpResult:
     """Make one request to an already validated and DNS-pinned address."""
     if parts.scheme.lower() == "https":
         connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
@@ -499,8 +503,11 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
         connection = _PinnedHTTPConnection(hostname, port, address, timeout)
     target = urllib.parse.urlunsplit(("", "", parts.path or "/", parts.query, ""))
     target = urllib.parse.quote(target, safe="/%?&=;:+,$@!~*'()[]")
+    headers = {"User-Agent": user_agent}
+    if extra_headers:
+        headers.update(extra_headers)
     try:
-        connection.request("GET", target, headers={"User-Agent": user_agent})
+        connection.request("GET", target, headers=headers)
         response = connection.getresponse()
         data = (b"" if response.status in {301, 302, 303, 307, 308}
                 else response.read(MAX_RESPONSE_BYTES + 1))
@@ -547,6 +554,54 @@ def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> 
                 current, result.status, result.reason, result.headers, None)
         return result.data
     raise AssertionError("unreachable redirect loop")
+
+
+def scrapecreators_get(url: str, api_key: str, timeout: int = REDDIT_TIMEOUT) -> bytes:
+    """Fetch one ScrapeCreators URL without ever forwarding its API key.
+
+    This authenticated transport is intentionally locked to one HTTPS origin and
+    refuses redirects. A generic redirect-following helper could disclose the
+    ``x-api-key`` header to a destination selected by the response.
+    """
+    key = api_key.strip()
+    if not key or "\r" in key or "\n" in key:
+        raise ValueError("SCRAPECREATORS_API_KEY must be a non-empty single-line value")
+    parts, hostname, port = _http_destination(url)
+    if parts.scheme.lower() != "https" or hostname != "api.scrapecreators.com" or port != 443:
+        raise ValueError("ScrapeCreators credentials may only be sent to its HTTPS API origin")
+    addresses = _resolve_public_addresses(hostname, port)
+    result: HttpResult | None = None
+    last_error: OSError | None = None
+    for address in addresses:
+        try:
+            result = _request_once(
+                url,
+                parts,
+                hostname,
+                port,
+                address,
+                USER_AGENT,
+                timeout,
+                {"Accept": "application/json", "x-api-key": key},
+            )
+            break
+        except OSError as exc:
+            last_error = exc
+    if result is None:
+        if last_error is not None:
+            raise last_error
+        raise OSError(f"could not connect to {hostname}")
+    if result.status in {301, 302, 303, 307, 308}:
+        raise urllib.error.HTTPError(
+            url, result.status, "authenticated endpoint redirected", result.headers, None
+        )
+    if len(result.data) > MAX_RESPONSE_BYTES:
+        raise ValueError(f"response exceeded {MAX_RESPONSE_BYTES} bytes")
+    if result.status >= 400:
+        raise urllib.error.HTTPError(
+            url, result.status, result.reason, result.headers, None
+        )
+    return result.data
 
 
 def _decode_bom_marked_utf32_xml(data: bytes) -> str | bytes:
@@ -835,7 +890,7 @@ def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
     return fallback
 
 
-def fetch_reddit(
+def fetch_reddit_rss(
     subreddit: str, cutoff: datetime, window_end: datetime, hours: int
 ) -> FetchResult:
     """Fetch top posts via anonymous RSS.
@@ -884,6 +939,177 @@ def fetch_reddit(
             "source": f"r/{subreddit}",
         })
     return FetchResult(items, undated, len(entries), dated_entries)
+
+
+def _reddit_json_datetime(post: dict[str, Any]) -> datetime | None:
+    """Read either Reddit's epoch timestamp or a provider ISO timestamp."""
+    epoch = post.get("created_utc")
+    if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
+        try:
+            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(epoch, str):
+        try:
+            return datetime.fromtimestamp(float(epoch), tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            pass
+    for field in ("created_at_iso", "created_at"):
+        value = post.get(field)
+        if isinstance(value, str) and (published := parse_feed_date(value)) is not None:
+            return published
+    return None
+
+
+def _reddit_post_id(post: dict[str, Any]) -> str:
+    raw_id = str(post.get("id") or post.get("post_id") or "").removeprefix("t3_")
+    if not raw_id:
+        permalink = str(post.get("permalink") or "")
+        match = re.search(r"/comments/([0-9a-z]+)/", permalink, re.IGNORECASE)
+        raw_id = match.group(1) if match else ""
+    return raw_id.lower() if re.fullmatch(r"[0-9a-z]+", raw_id, re.IGNORECASE) else ""
+
+
+def _reddit_json_result(
+    posts: list[Any], subreddit: str, cutoff: datetime, window_end: datetime
+) -> FetchResult:
+    """Normalize one JSON provider without trusting its outbound destinations."""
+    items: list[Item] = []
+    parsed_entries = 0
+    dated_entries = 0
+    undated = 0
+    encoded_subreddit = urllib.parse.quote(subreddit, safe="")
+    for raw_post in posts:
+        if not isinstance(raw_post, dict):
+            continue
+        title = strip_html(str(raw_post.get("title") or ""))
+        post_id = _reddit_post_id(raw_post)
+        if not title or not post_id:
+            continue
+        parsed_entries += 1
+        published = _reddit_json_datetime(raw_post)
+        if published is None:
+            undated += 1
+            continue
+        dated_entries += 1
+        if not publication_in_window(published, cutoff, window_end):
+            continue
+        item: Item = {
+            "title": title,
+            "url": f"https://www.reddit.com/r/{encoded_subreddit}/comments/{post_id}/",
+            "published": published.isoformat(),
+            "source": f"r/{subreddit}",
+        }
+        selftext = str(raw_post.get("selftext") or "").strip()
+        if selftext and selftext not in {"[deleted]", "[removed]"}:
+            item["summary"] = selftext
+        items.append(item)
+    return FetchResult(items, undated, parsed_entries, dated_entries)
+
+
+def _json_object(payload: bytes, provider: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _raise_data_error(exc)
+    if not isinstance(parsed, dict):
+        _raise_data_error(ValueError(f"{provider} response was not a JSON object"))
+    return parsed
+
+
+def fetch_reddit_arctic_shift(
+    subreddit: str, cutoff: datetime, window_end: datetime
+) -> FetchResult:
+    """Fetch an exact subreddit window from the free Arctic Shift archive."""
+    params = urllib.parse.urlencode({
+        "subreddit": subreddit,
+        # Arctic Shift documents ISO 8601 with ``Z`` but rejects Python's
+        # equivalent ``+00:00`` spelling, so use its unambiguous epoch form.
+        "after": int(cutoff.timestamp()),
+        "before": int(window_end.timestamp()),
+        "limit": REDDIT_FALLBACK_LIMIT,
+        "sort": "desc",
+        "fields": "id,title,selftext,created_utc,subreddit,score,num_comments",
+    })
+    payload = http_get(f"{ARCTIC_SHIFT_POSTS_URL}?{params}", timeout=REDDIT_TIMEOUT)
+    response = _json_object(payload, "Arctic Shift")
+    posts = response.get("data")
+    if not isinstance(posts, list):
+        _raise_data_error(ValueError("Arctic Shift response did not contain a data list"))
+    return _reddit_json_result(posts, subreddit, cutoff, window_end)
+
+
+def fetch_reddit_scrapecreators(
+    subreddit: str,
+    cutoff: datetime,
+    window_end: datetime,
+    hours: int,
+    api_key: str,
+) -> FetchResult:
+    """Fetch recent subreddit posts through the authenticated final fallback."""
+    params = urllib.parse.urlencode({
+        "subreddit": subreddit,
+        "timeframe": reddit_top_bucket(hours),
+        "sort": "new",
+        "trim": "true",
+    })
+    payload = scrapecreators_get(
+        f"{SCRAPECREATORS_SUBREDDIT_URL}?{params}", api_key, timeout=REDDIT_TIMEOUT
+    )
+    response = _json_object(payload, "ScrapeCreators")
+    if response.get("success") is False:
+        _raise_data_error(ValueError("ScrapeCreators reported an unsuccessful request"))
+    posts = response.get("posts")
+    if not isinstance(posts, list):
+        _raise_data_error(ValueError("ScrapeCreators response did not contain a posts list"))
+    return _reddit_json_result(posts, subreddit, cutoff, window_end)
+
+
+def fetch_reddit(
+    subreddit: str,
+    cutoff: datetime,
+    window_end: datetime,
+    hours: int,
+    scrapecreators_api_key: str | None = None,
+) -> FetchResult:
+    """Fetch one subreddit through RSS, Arctic Shift, then ScrapeCreators."""
+    errors: list[str] = []
+    empty_result: FetchResult | None = None
+    free_backends: tuple[tuple[str, Callable[..., FetchResult], tuple[Any, ...]], ...] = (
+        ("RSS", fetch_reddit_rss, (subreddit, cutoff, window_end, hours)),
+        ("Arctic Shift", fetch_reddit_arctic_shift, (subreddit, cutoff, window_end)),
+    )
+    for backend, fetcher, arguments in free_backends:
+        try:
+            result = fetcher(*arguments)
+        except Exception as exc:
+            errors.append(f"{backend}: {type(exc).__name__}: {exc}")
+            continue
+        if result.items:
+            return result
+        empty_result = result
+
+    if scrapecreators_api_key:
+        try:
+            return fetch_reddit_scrapecreators(
+                subreddit,
+                cutoff,
+                window_end,
+                hours,
+                scrapecreators_api_key,
+            )
+        except Exception as exc:
+            errors.append(f"ScrapeCreators: {type(exc).__name__}: {exc}")
+            raise RuntimeError(
+                f"all Reddit backends failed or returned no usable posts for r/{subreddit}: "
+                + "; ".join(errors)
+            ) from exc
+
+    if empty_result is not None:
+        return empty_result
+    raise RuntimeError(
+        f"all free Reddit backends failed for r/{subreddit}: " + "; ".join(errors)
+    )
 
 
 def dedupe(items: list[Item]) -> list[Item]:
@@ -1254,9 +1480,18 @@ def main() -> int:
             undated[category] += result.undated
             corpus["sources"].append(status)
 
-    # Reddit rate-limits concurrent requests; fetch serially with a pause.
+    # Reddit rate-limits concurrent requests; fetch serially with a pause. The
+    # authenticated provider is only reached if both free paths yield no items.
+    scrapecreators_api_key = os.environ.get("SCRAPECREATORS_API_KEY") or None
     for index, sub in enumerate(sources.subreddits):
-        outcome = timed_fetch(fetch_reddit, sub, cutoff, window_end, args.hours)
+        outcome = timed_fetch(
+            fetch_reddit,
+            sub,
+            cutoff,
+            window_end,
+            args.hours,
+            scrapecreators_api_key,
+        )
         status = source_status("reddit", sub, sources.reddit_category, outcome)
         if outcome.result is not None:
             result = outcome.result
