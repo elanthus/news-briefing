@@ -96,6 +96,15 @@ class StudyResult(TypedDict):
     similarities: dict[str, float]
 
 
+def _is_finite_number(value: object) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def embedding_text(item: PairItem) -> str:
     """Return the title-plus-summary representation used by the study."""
     return f"{item['title'].strip()}\n{item['summary'].strip()}"
@@ -110,6 +119,10 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
     """Return cosine similarity for equal-size, nonzero vectors."""
     if len(a) != len(b):
         raise ValueError("vectors must have the same dimension")
+    if any(not _is_finite_number(value) for value in a) or any(
+        not _is_finite_number(value) for value in b
+    ):
+        raise ValueError("cosine similarity requires finite vectors")
     dot = sum(left * right for left, right in zip(a, b, strict=True))
     norm_a = math.sqrt(sum(value * value for value in a))
     norm_b = math.sqrt(sum(value * value for value in b))
@@ -152,7 +165,7 @@ def _embedding_vectors(payload: Any, expected_count: int) -> list[list[float]]:
             or not 0 <= index < expected_count
             or not isinstance(raw_vector, list)
             or not raw_vector
-            or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in raw_vector)
+            or any(not _is_finite_number(value) for value in raw_vector)
             or ordered[index] is not None
         ):
             raise RuntimeError("OpenRouter returned an invalid embedding entry")
@@ -227,11 +240,16 @@ def _pair_item(value: object, pair_id: str, side: str) -> PairItem:
     return {"title": fields["title"], "summary": fields["summary"], "url": fields["url"]}
 
 
-def load_pairs(path: Path = DEFAULT_PAIR_FIXTURE) -> list[PairLabel]:
-    """Load and validate the fields consumed by the retrieval study."""
+def load_pair_fixture(
+    path: Path = DEFAULT_PAIR_FIXTURE,
+) -> tuple[list[PairLabel], str]:
+    """Load the pair records and required label provenance for the study."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("pairs"), list):
         raise ValueError("dedup pair fixture must contain a pairs array")
+    label_provenance = payload.get("label_provenance")
+    if not isinstance(label_provenance, str) or not label_provenance.strip():
+        raise ValueError("dedup pair label_provenance must be a non-empty string")
     pairs: list[PairLabel] = []
     seen_ids: set[str] = set()
     for raw_pair in payload["pairs"]:
@@ -262,6 +280,12 @@ def load_pairs(path: Path = DEFAULT_PAIR_FIXTURE) -> list[PairLabel]:
                 "rationale": rationale,
             }
         )
+    return pairs, label_provenance
+
+
+def load_pairs(path: Path = DEFAULT_PAIR_FIXTURE) -> list[PairLabel]:
+    """Load pair records while preserving the historical list-only API."""
+    pairs, _label_provenance = load_pair_fixture(path)
     return pairs
 
 
@@ -330,7 +354,7 @@ def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache
             not valid_key
             or not isinstance(raw_vector, list)
             or len(raw_vector) != dimensions
-            or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in raw_vector)
+            or any(not _is_finite_number(value) for value in raw_vector)
         ):
             raise ValueError("embedding cache contains an invalid vector")
         embeddings[key] = [float(value) for value in raw_vector]

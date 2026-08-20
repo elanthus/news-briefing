@@ -28,7 +28,7 @@ from evaluator.retrieval import (
     DEFAULT_THRESHOLDS,
     build_embedding_cache,
     load_embedding_cache,
-    load_pairs,
+    load_pair_fixture,
     markdown_study,
     run_study,
 )
@@ -411,7 +411,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "dedup-study":
-            pairs = load_pairs(args.pairs)
+            pairs, label_provenance = load_pair_fixture(args.pairs)
             if args.fetch_embeddings:
                 load_dotenv(args.env_file)
                 api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -440,10 +440,6 @@ def main() -> int:
                     f"embedding cache {args.embeddings} is out of date ({exc}); "
                     "refresh it with `python3 -m evaluator dedup-study --fetch-embeddings`"
                 ) from exc
-            pair_payload = json.loads(args.pairs.read_text(encoding="utf-8"))
-            label_provenance = pair_payload.get("label_provenance", "unknown")
-            if not isinstance(label_provenance, str):
-                raise ValueError("dedup pair label_provenance must be a string")
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(
                 markdown_study(study, pairs, cache, label_provenance),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import math
 import os
 import sys
 import tempfile
@@ -24,6 +25,7 @@ from evaluator.retrieval import (
     embedding_key,
     embedding_text,
     load_embedding_cache,
+    load_pair_fixture,
     load_pairs,
     markdown_study,
     run_study,
@@ -55,6 +57,12 @@ class CosineTests(unittest.TestCase):
     def test_mismatched_dimensions_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "same dimension"):
             cosine([1.0], [1.0, 0.0])
+
+    def test_non_finite_vectors_are_rejected(self) -> None:
+        for value in (math.nan, math.inf, -math.inf):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "finite vectors"):
+                    cosine([value], [1.0])
 
 
 class PairClassificationTests(unittest.TestCase):
@@ -117,6 +125,7 @@ class PairClassificationTests(unittest.TestCase):
 
     def test_pair_loader_rejects_label_stratum_mismatch(self) -> None:
         payload = {
+            "label_provenance": "test",
             "pairs": [
                 {
                     **_pair("mismatch", "left", "right"),
@@ -130,6 +139,18 @@ class PairClassificationTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "inconsistent"):
                 load_pairs(path)
+
+    def test_pair_fixture_requires_usable_label_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pairs.json"
+            for provenance in (None, "   "):
+                payload: dict[str, object] = {"pairs": []}
+                if provenance is not None:
+                    payload["label_provenance"] = provenance
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.subTest(provenance=provenance):
+                    with self.assertRaisesRegex(ValueError, "non-empty"):
+                        load_pair_fixture(path)
 
 
 class _Response:
@@ -201,6 +222,18 @@ class EmbeddingFetchTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unexpected dimension"):
                 embed_texts(["first"], "embedding/model", "test-key")
 
+    def test_rejects_non_finite_api_embeddings(self) -> None:
+        for value in (math.nan, math.inf, -math.inf):
+            vector = [0.0] * 512
+            vector[0] = value
+            response = _Response({"data": [{"index": 0, "embedding": vector}]})
+            with self.subTest(value=value):
+                with patch(
+                    "evaluator.retrieval.urllib.request.urlopen", return_value=response
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "invalid embedding"):
+                        embed_texts(["first"], "embedding/model", "test-key")
+
     def test_non_retryable_status_fails_without_retry(self) -> None:
         error = urllib.error.HTTPError(
             EMBEDDINGS_ENDPOINT, 400, "bad request", Message(), None
@@ -233,7 +266,10 @@ class EmbeddingFetchTests(unittest.TestCase):
         stderr = io.StringIO()
         with (
             patch.object(sys, "argv", argv),
-            patch("evaluator.__main__.load_pairs", return_value=[_pair("pair", "a", "b")]),
+            patch(
+                "evaluator.__main__.load_pair_fixture",
+                return_value=([_pair("pair", "a", "b")], "test provenance"),
+            ),
             patch(
                 "evaluator.__main__.load_embedding_cache",
                 return_value={"embeddings": {}},
@@ -325,6 +361,22 @@ class EmbeddingFetchTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid vector"):
                 load_embedding_cache(path)
+
+    def test_cache_loader_rejects_non_finite_vectors(self) -> None:
+        for value in (math.nan, math.inf, -math.inf):
+            payload = {
+                "schema_version": 1,
+                "model": "embedding/model",
+                "generated_on": "2026-08-20",
+                "dimensions": 2,
+                "embeddings": {"a" * 64: [value, 0.0]},
+            }
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "cache.json"
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "invalid vector"):
+                        load_embedding_cache(path)
 
 
 class CommittedStudyTests(unittest.TestCase):
