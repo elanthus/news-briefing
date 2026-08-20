@@ -1,0 +1,4 @@
+linkify-it-py==2.1.0
+markdown-it-py[linkify]==4.2.0
+mdurl==0.1.2
+uc-micro-py==1.0.3
