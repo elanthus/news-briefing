@@ -95,6 +95,7 @@ class FixedSuiteTest(unittest.TestCase):
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
         self.assertEqual(result["case_count"], 81)
+        self.assertEqual(result["suite"], "./evaluator/fixtures/checker-cases.json")
         self.assertEqual(result["components"]["checker"]["cases"], 69)
         self.assertEqual(result["components"]["feed_parser"]["cases"], 12)
         families = {case["family"] for case in result["cases"]}
@@ -678,7 +679,7 @@ class PublicRunTest(unittest.TestCase):
 
             supplement = root / "supplement"
             supplement.mkdir()
-            supplement_manifest = {
+            supplement_manifest: dict[str, Any] = {
                 **common,
                 "run_status": "complete",
                 "planned_case_trials": 1,

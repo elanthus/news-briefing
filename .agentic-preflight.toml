@@ -19,4 +19,4 @@ exclude = [
 
 [commands]
 test = "uv run --python 3.11 --no-project python -m unittest --verbose"
-lint = "uvx ruff@0.14.2 check . && uvx mypy@1.14.1"
+lint = "uvx ruff@0.14.2 check . && uvx mypy@1.14.1 && uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator"

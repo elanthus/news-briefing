@@ -1886,5 +1886,5 @@
     "trimmed_on": "2026-08-13"
   },
   "schema_version": 1,
-  "suite": "/Users/mswailes/dev2/news-briefing/evaluator/fixtures/checker-cases.json"
+  "suite": "./evaluator/fixtures/checker-cases.json"
 }
