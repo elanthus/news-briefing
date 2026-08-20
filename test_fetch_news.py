@@ -18,7 +18,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -885,9 +885,10 @@ class RedditFallbackTest(unittest.TestCase):
             "title": "Outside fixed window",
             "created_utc": self.CUTOFF.timestamp() - 1,
         }]}).encode()
+        fractional_end = self.WINDOW_END + timedelta(microseconds=1)
         with patch.object(fetch_news, "http_get", return_value=payload) as get:
             result = fetch_news.fetch_reddit_arctic_shift(
-                "ClaudeCode", self.CUTOFF, self.WINDOW_END
+                "ClaudeCode", self.CUTOFF, fractional_end
             )
         self.assertEqual([item["title"] for item in result.items], ["Fresh & useful"])
         self.assertEqual(
@@ -896,7 +897,7 @@ class RedditFallbackTest(unittest.TestCase):
         )
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
         self.assertEqual(query["after"], [str(int(self.CUTOFF.timestamp()))])
-        self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()))])
+        self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()) + 1)])
         self.assertEqual(query["limit"], [str(fetch_news.REDDIT_FALLBACK_LIMIT)])
 
     def test_scrapecreators_result_is_filtered_to_the_fixed_window(self):

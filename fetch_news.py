@@ -1026,7 +1026,7 @@ def fetch_reddit_arctic_shift(
         # Arctic Shift documents ISO 8601 with ``Z`` but rejects Python's
         # equivalent ``+00:00`` spelling, so use its unambiguous epoch form.
         "after": int(cutoff.timestamp()),
-        "before": int(window_end.timestamp()),
+        "before": math.ceil(window_end.timestamp()),
         "limit": REDDIT_FALLBACK_LIMIT,
         "sort": "desc",
         "fields": "id,title,selftext,created_utc,subreddit,score,num_comments",
