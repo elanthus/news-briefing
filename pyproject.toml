@@ -13,6 +13,7 @@ files = [
     "eval_briefing.py",
     "corpus_schema.py",
     "run_briefing.py",
+    "build_site.py",
     "agent_runner",
 ]
 disallow_untyped_defs = true
