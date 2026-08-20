@@ -97,7 +97,7 @@ omit mutable Hacker News points and comment counts. Production-parity manifests
 record Codex's fixed medium reasoning and OpenRouter's effective reasoning
 enablement/effort; Claude Code remains provider-controlled.
 
-The portfolio protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
+The historical portfolio-v1 protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
 Its one-trial pilot began with the versioned `production-2026-08` and `reliability-v1`
 prompts on Claude Sonnet 5 through Claude Code and DeepSeek V4 Flash through
 OpenRouter. Pilot rows are operational checks and are excluded from final estimates:
@@ -187,6 +187,43 @@ Raw generations and review mappings stay local and ignored. Versioned aggregates
 defines compatibility, completeness, review-trigger, and promotion rules. Incomplete or incompatible runs
 cannot pass.
 
+Portfolio v2 supersedes the dirty-source portfolio-v1 model metrics. Its clean-tagged rerun completed all
+1,200 rows with no execution errors and $3.8005 in reported generation cost. See the [curated result](../docs/results/portfolio-v2.md),
+[public evidence](../docs/results/portfolio-v2-evidence/), and [comparison](../docs/results/portfolio-v2-comparison.json).
+The exact generation source is tag `portfolio-v2-source-20260819`; the dated portfolio-v1 documents remain
+historical snapshots.
+
+The original portfolio-v2 command was:
+
+```bash
+python3 -m evaluator run \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --provider openrouter=tencent/hy3 \
+  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
+  --prompt reliability-v1=evaluator/prompts/reliability-v1.md \
+  --trials 5 --timeout 300 --temperature 0 --seed 20260819 \
+  --execution-seed 20260819 --reasoning disabled \
+  --suite evaluator/fixtures/generation-cases.json \
+  --corpus evaluator/fixtures/generation-corpus.json \
+  --protocol evaluator/protocols/portfolio-v2.json \
+  --output-dir evaluator/results/portfolio-v2-final-20260819 \
+  --run-kind final --source-tag portfolio-v2-source-20260819 \
+  --cost-ceiling-usd 4 --cost-ceiling-provider openrouter
+```
+
+After the primary checkpoint was interrupted and resumed, HY3 ran concurrently in a second output directory
+with the same command identity, a single `--provider openrouter=tencent/hy3`, and a $3 component ceiling. The
+primary was stopped only after all 600 DeepSeek rows were checkpointed. Export the compatible whole-adapter
+components and verify the result with:
+
+```bash
+python3 -m evaluator export-public-run \
+  evaluator/results/portfolio-v2-final-20260819/manifest.json \
+  evaluator/results/portfolio-v2-final-20260819-hy3/manifest.json \
+  --output-dir docs/results/portfolio-v2-evidence
+python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
+```
+
 Run one model and one prompt version:
 
 ```bash
@@ -249,7 +286,8 @@ A final run additionally requires `--source-tag TAG`. Before loading credentials
 the CLI refuses a dirty worktree or a tag that does not point at `HEAD`. The manifest records the commit,
 Git tree, source tag, and SHA-256 of every tracked evaluator/runtime Python source file.
 
-After review and adjudication, export reviewer-facing evidence with:
+After review and adjudication, export reviewer-facing evidence with one complete manifest, or with compatible
+split manifests that each contain whole completed adapter blocks:
 
 ```bash
 python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \

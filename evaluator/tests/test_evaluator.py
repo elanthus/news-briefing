@@ -561,6 +561,148 @@ class PublicRunTest(unittest.TestCase):
             public_ledger = json.loads(ledger.read_text(encoding="utf-8"))
             self.assertNotIn("text", public_ledger["results"][0]["first"])
             self.assertEqual(verify_public_run(output)["rows"], 1)
+            metadata = json.loads((output / "metadata.json").read_text(encoding="utf-8"))
+            self.assertIn("<external-path-redacted>", metadata["regeneration_command"])
+
+    def test_export_combines_whole_adapter_split_checkpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            common = {
+                "schema_version": 9,
+                "generation_path": "markdown",
+                "run_kind": "final",
+                "execution_order": "prompt_interleaved_randomized",
+                "execution_seed": 123,
+                "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
+                "suite_sha256": "suite-sha",
+                "corpus_sha256": "corpus-sha",
+                "case_corpus_sha256": {"case": "corpus-sha"},
+                "config_sha256": {"config.json": "config-sha"},
+                "protocol": str(ROOT / "evaluator/protocols/portfolio-v1.json"),
+                "protocol_sha256": "protocol-sha",
+                "prompt_sha256": {"prompt": "prompt-sha"},
+                "prompt_order": ["prompt"],
+                "trials_per_case": 1,
+                "matched_pair_case_ids": [],
+                "planned_matched_pair_trials": 0,
+                "grounding_measure": "test",
+                "deterministic_summary": None,
+                "code": {
+                    "commit": "abc",
+                    "tree": "def",
+                    "dirty": False,
+                    "source_tag": "portfolio-test-source",
+                    "runtime_source_sha256": {"evaluator/runner.py": "123"},
+                },
+            }
+
+            def row(model: str, cost: float) -> dict[str, Any]:
+                return {
+                    "provider": "openrouter",
+                    "model": model,
+                    "prompt_version": "prompt",
+                    "prompt_sha256": "prompt-sha",
+                    "case_id": "case",
+                    "case_family": "utility",
+                    "case_kind": "utility",
+                    "trial": 1,
+                    "status": "completed",
+                    "artifact_dir": model,
+                    "correction_attempted": False,
+                    "correction": None,
+                    "correction_error": None,
+                    "error": None,
+                    "first": {
+                        "text": f"output from {model}",
+                        "provider_request_id": f"secret-{model}",
+                        "contract_success": True,
+                        "latency_ms": 1,
+                        "cost_usd": cost,
+                        "findings": [],
+                        "grounding_error_topics": 0,
+                        "generated_topics": 1,
+                        "oracle": {},
+                    },
+                    "final": {
+                        "contract_success": True,
+                        "findings": [],
+                        "grounding_error_topics": 0,
+                        "generated_topics": 1,
+                        "oracle": {},
+                    },
+                }
+
+            controls = [
+                {
+                    "provider": "openrouter",
+                    "model": "model-a",
+                    "temperature": 0,
+                    "seed": 123,
+                    "reasoning_enabled": False,
+                    "reasoning_effort": None,
+                    "disclosure": "test",
+                },
+                {
+                    "provider": "openrouter",
+                    "model": "model-b",
+                    "temperature": 0,
+                    "seed": 123,
+                    "reasoning_enabled": False,
+                    "reasoning_effort": None,
+                    "disclosure": "test",
+                },
+            ]
+            primary = root / "primary"
+            primary.mkdir()
+            primary_manifest = {
+                **common,
+                "run_status": "running",
+                "planned_case_trials": 2,
+                "generation_controls": controls,
+                "adapter_timeouts_seconds": [
+                    {"provider": "openrouter", "model": "model-a", "timeout_seconds": 300},
+                    {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
+                ],
+                "observed_ceiling_cost_usd": 0.01,
+                "completed_at": None,
+                "checkpointed_at": "2026-01-01T00:00:00+00:00",
+                "results": [row("model-a", 0.01)],
+            }
+            primary_path = primary / "manifest.json"
+            primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
+
+            supplement = root / "supplement"
+            supplement.mkdir()
+            supplement_manifest = {
+                **common,
+                "run_status": "complete",
+                "planned_case_trials": 1,
+                "generation_controls": [controls[1]],
+                "adapter_timeouts_seconds": [
+                    {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
+                ],
+                "observed_ceiling_cost_usd": 0.02,
+                "completed_at": "2026-01-01T01:00:00+00:00",
+                "checkpointed_at": "2026-01-01T01:00:00+00:00",
+                "results": [row("model-b", 0.02)],
+            }
+            supplement_path = supplement / "manifest.json"
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+
+            output = root / "public"
+            export_public_run([primary_path, supplement_path], output)
+            published = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(published["run_status"], "complete")
+            self.assertEqual(published["planned_case_trials"], 2)
+            self.assertEqual(len(published["results"]), 2)
+            self.assertAlmostEqual(published["observed_ceiling_cost_usd"], 0.03)
+            self.assertEqual(len(published["split_run_components"]), 2)
+            self.assertEqual(verify_public_run(output)["rows"], 2)
+
+            supplement_manifest["suite_sha256"] = "different"
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "suite_sha256"):
+                export_public_run([primary_path, supplement_path], root / "incompatible")
 
 
 class MetricTest(unittest.TestCase):

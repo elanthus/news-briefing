@@ -358,7 +358,12 @@ def main() -> int:
         "export-public-run",
         help="export redacted row evidence and reproducible aggregates for a completed final run",
     )
-    public_run.add_argument("manifest", type=Path)
+    public_run.add_argument(
+        "manifest",
+        type=Path,
+        nargs="+",
+        help="one complete manifest, or compatible split final-run manifests",
+    )
     public_run.add_argument("--output-dir", type=Path, required=True)
     public_run.add_argument("--ledger-output", type=Path)
     public_run.add_argument("--machine-grounding", type=Path)

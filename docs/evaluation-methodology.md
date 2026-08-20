@@ -36,6 +36,10 @@ The suite is fixed, small, and intentionally enriched for known boundaries. Prov
 
 ## Portfolio-v1 completion status
 
+Portfolio v1 is retained as a dated historical snapshot. Its generation manifest came from a dirty source
+tree whose diff was not preserved, so its published model metrics are superseded by portfolio v2 and must
+not be presented as the current reproducible result.
+
 The final five-trial matrix completed 1,200/1,200 planned rows with no provider failures or skips. Compatible
 prompt comparisons pair case ID and trial and use 10,000 authored-case-cluster bootstrap resamples. All 180
 URL-scoped meaning propositions received blinded Nemotron judgments, but these are machine evidence rather
@@ -52,3 +56,24 @@ latency, cost, and decision. The regression policy prevents incomplete or incomp
 a gate and treats its practical thresholds as review triggers rather than automatic significance claims.
 
 This methodology operationalizes the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/): documented and repeatable test, evaluation, verification, and validation; representative conditions; independent assessment; explicit uncertainty; and tracking risk over time. The complete publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
+
+## Portfolio-v2 completion status
+
+Portfolio v2 completed 1,200/1,200 generation rows from clean tag
+`portfolio-v2-source-20260819`, with no provider errors, skips, or correction errors and $3.8005 in reported
+generation cost. The DeepSeek and HY3 adapter blocks ran in parallel-compatible component checkpoints after
+an external process interruption. Public export validates common immutable identity, requires whole completed
+adapter blocks, rejects duplicate rows, records both component hashes, and combines the rows only for
+reporting. The raw checkpoints are not rewritten.
+
+The committed public evidence contains every generated output and score primitive needed to recalculate the
+aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain
+local because their corpora and configuration are committed and their generated prose is already in the
+public manifest. `python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence` verifies the
+bundle and regenerates its aggregate report without credentials.
+
+The candidate fails available promotion rules for both models, so missing human grounding cannot turn either
+decision into a pass. Portfolio v2 intentionally publishes no meaning-preservation or grounding rate: its 180
+semantic forms and topic-level grounding forms are unjudged. Temperature zero, provider seed, and disabled
+reasoning were requested and recorded, but do not guarantee byte-identical output or prove that every routed
+backend enforced every sampling parameter.
