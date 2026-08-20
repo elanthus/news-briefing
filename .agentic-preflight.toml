@@ -14,6 +14,7 @@ exclude = [
   "**/*_pb2.py",
   "docs/runs/**",
   "docs/results/data/**",
+  "docs/results/portfolio-v2-evidence/**",
 ]
 
 [commands]
