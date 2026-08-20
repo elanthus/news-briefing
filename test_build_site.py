@@ -142,6 +142,46 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("Click to see redacted information", index)
             self.assertNotIn('class="model-authored"', index)
 
+    def test_adjacent_flagged_stories_have_balanced_review_boxes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## US Politics\n\n"
+                "**First story** — First summary.\n"
+                "🔗 https://example.com/first\n"
+                "**Second story** — Second summary.\n"
+                "🔗 https://example.com/second\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "US Politics: 'First story' states '1', which is unsupported.",
+                    ),
+                    self._finding(
+                        "unsupported_figure",
+                        "US Politics: 'Second story' states '2', which is unsupported.",
+                    ),
+                ],
+            )
+
+            output = root / "site"
+            build_site(briefings, output)
+
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertEqual(index.count('<section class="review-story">'), 2)
+            self.assertEqual(index.count("</section>"), 2)
+            self.assertIn("First story&#x27; states &#x27;1&#x27;", index)
+            self.assertIn("Second story&#x27; states &#x27;2&#x27;", index)
+            first_close = index.index("</section>", index.index("First story"))
+            self.assertLess(first_close, index.index("Second story"))
+
     def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

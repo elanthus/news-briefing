@@ -197,6 +197,48 @@ class PreparePublicationTests(unittest.TestCase):
                 (root / "history/2026-08-20.json").read_text(encoding="utf-8"),
             )
 
+    def test_malformed_structured_attempt_metadata_is_not_exposed(self) -> None:
+        malformed = (
+            {"structured_name": "nested/attempt-01-structured.json"},
+            {"attempt_index": 2},
+        )
+        for overrides in malformed:
+            with self.subTest(**overrides), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run = root / "run"
+                run.mkdir()
+                preview = "## US Politics\n\n**Fuel story** — Starts Sept. 1.\n".encode()
+                (run / "preview.md").write_bytes(preview)
+                findings = [{
+                    "level": "WARN",
+                    "check": "unsupported_figure",
+                    "domain": "evidence",
+                    "message": "US Politics: 'Fuel story' states '1', which is unsupported",
+                }]
+                self._write_manifest(
+                    run,
+                    "review_required",
+                    "preview",
+                    "preview.md",
+                    preview,
+                    findings,
+                    structured={"sections": {"US Politics": {"topics": [{
+                        "headline": "Fuel story",
+                        "summary": "Starts Sept. 1.",
+                    }]}}},
+                    **overrides,
+                )
+
+                record = prepare_publication(
+                    run,
+                    root / "corpus.json",
+                    root / "history",
+                    date(2026, 8, 20),
+                )
+
+                self.assertEqual(record.disposition, "review_required")
+                self.assertIsNone(record.findings[0].context)
+
     def test_malformed_review_finding_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -227,16 +269,17 @@ class PreparePublicationTests(unittest.TestCase):
         findings: list[dict[str, str]],
         *,
         structured: dict[str, object] | None = None,
+        structured_name: str = "attempt-01-structured.json",
+        attempt_index: int = 1,
     ) -> None:
         artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
         attempts: list[dict[str, object]] = []
         final_attempt: dict[str, object] = {}
         if structured is not None:
-            structured_name = "attempt-01-structured.json"
             structured_content = json.dumps(structured, ensure_ascii=False).encode("utf-8")
-            (run / structured_name).write_bytes(structured_content)
+            (run / Path(structured_name).name).write_bytes(structured_content)
             artifacts[structured_name] = hashlib.sha256(structured_content).hexdigest()
-            attempts.append({"index": 1, "structured_artifact": structured_name})
+            attempts.append({"index": attempt_index, "structured_artifact": structured_name})
             final_attempt["attempt"] = 1
         (run / "manifest.json").write_text(
             json.dumps(

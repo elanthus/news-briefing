@@ -374,13 +374,14 @@ def _render_markdown(
     pending_end_marker: str | None = None
     digest = hashlib.sha256(public_markdown.encode("utf-8")).hexdigest()[:16]
     for line in public_markdown.splitlines():
-        if pending_end_marker is not None and not line.strip():
-            lines.extend([line, pending_end_marker, ""])
+        headline = _topic_headline(line)
+        if pending_end_marker is not None and (
+            line.startswith("## ") or headline is not None
+        ):
+            lines.extend(["", pending_end_marker, ""])
             pending_end_marker = None
-            continue
         if line.startswith("## "):
             section = line.removeprefix("## ").strip()
-        headline = _topic_headline(line)
         if headline is None:
             lines.append(line)
             continue
