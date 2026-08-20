@@ -48,7 +48,8 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("Degraded sources: rss:Example &amp; Wire", index)
 
             page = (output / "2026-08-09.html").read_text(encoding="utf-8")
-            self.assertIn("Daily Briefing — August 9, 2026", page)
+            self.assertIn("<title>Daily briefing — 2026-08-09</title>", page)
+            self.assertIn("<h1>Briefing for 2026-08-09</h1>", page)
             self.assertNotIn("<script>", page)
             self.assertIn("&lt;script&gt;alert(&quot;feed&quot;)&lt;/script&gt;", page)
             self.assertFalse((output / "2026-08-10.html").exists())
@@ -137,6 +138,42 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("safe prior briefing", (next_site / "2026-08-09.html").read_text())
             history = json.loads((next_site / "history.json").read_text())
             self.assertEqual([entry["date"] for entry in history["entries"]], ["2026-08-10", "2026-08-09"])
+
+    def test_failed_same_day_retry_preserves_prior_ready_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "first"
+            first.mkdir()
+            (first / "2026-08-09.md").write_text("validated briefing", encoding="utf-8")
+            self._write_sidecar(
+                first,
+                date="2026-08-09",
+                disposition="ready",
+                findings_count=0,
+                degraded_sources=[],
+            )
+            first_site = root / "first-site"
+            build_site(first, first_site)
+
+            retry = root / "retry"
+            retry.mkdir()
+            (retry / "2026-08-09.md").write_text("QUARANTINED RETRY", encoding="utf-8")
+            self._write_sidecar(
+                retry,
+                date="2026-08-09",
+                disposition="rejected",
+                findings_count=1,
+                degraded_sources=["rss:Unavailable"],
+            )
+            retry_site = root / "retry-site"
+            build_site(retry, retry_site, first_site / "history.json")
+
+            page = (retry_site / "2026-08-09.html").read_text(encoding="utf-8")
+            self.assertIn("validated briefing", page)
+            self.assertNotIn("QUARANTINED RETRY", page)
+            history = json.loads((retry_site / "history.json").read_text())
+            self.assertEqual(history["entries"][0]["disposition"], "ready")
+            self.assertEqual(history["entries"][0]["markdown"], "validated briefing")
 
     @staticmethod
     def _write_sidecar(

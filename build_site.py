@@ -237,7 +237,9 @@ def build_site(
     }
     for sidecar in briefings_dir.glob("*.json"):
         entry = _entry_from_sidecar(sidecar)
-        by_date[entry.slug] = entry
+        prior = by_date.get(entry.slug)
+        if prior is None or prior.disposition != "ready" or entry.disposition == "ready":
+            by_date[entry.slug] = entry
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
 
     output_dir.mkdir(parents=True, exist_ok=True)
