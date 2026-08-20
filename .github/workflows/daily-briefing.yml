@@ -56,6 +56,7 @@ jobs:
 
       - name: Bootstrap history from dogfood runs
         if: always()
+        continue-on-error: true
         run: python bootstrap_history.py briefing-bootstrap
 
       - name: Download prior live history

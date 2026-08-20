@@ -38,6 +38,12 @@ DOGFOOD_RUNS = (
         corpus="corpus.json",
     ),
 )
+SUPPORTED_DISPOSITIONS = {"ready", "review_required", "rejected", "no_result"}
+PAGE_DISPOSITIONS = {"ready", "review_required"}
+PUBLIC_ARTIFACTS = {
+    "ready": ("final", "final.md"),
+    "review_required": ("preview", "preview.md"),
+}
 
 
 def _load_object(path: Path) -> dict[str, Any]:
@@ -74,6 +80,15 @@ def _findings(raw_findings: object, *, allow_legacy: bool) -> list[dict[str, str
     return normalized
 
 
+def _disposition(final: dict[str, Any], *, allow_legacy: bool) -> str:
+    status = final.get("status")
+    if allow_legacy and status == "WARN":
+        return "review_required"
+    if isinstance(status, str) and status in SUPPORTED_DISPOSITIONS:
+        return status
+    raise ValueError(f"dogfood run has unsupported final status {status!r}")
+
+
 def _degraded_sources(corpus: dict[str, Any]) -> list[str]:
     errors = corpus.get("errors", [])
     if not isinstance(errors, list):
@@ -103,22 +118,40 @@ def bootstrap_history(repository_root: Path, history_dir: Path) -> None:
             raise ValueError(f"dogfood run {run.directory} is not complete")
         if final.get("run_artifact") != run.artifact:
             raise ValueError(f"dogfood run {run.directory} names a different final artifact")
+        disposition = _disposition(final, allow_legacy=run.allow_legacy_findings)
+        if disposition in PUBLIC_ARTIFACTS and not run.allow_legacy_findings:
+            expected_type, expected_name = PUBLIC_ARTIFACTS[disposition]
+            if final.get("artifact_type") != expected_type or run.artifact != expected_name:
+                raise ValueError(
+                    f"dogfood run {run.directory} artifact does not match {disposition}"
+                )
         artifact_path = run_dir / run.artifact
         content = artifact_path.read_bytes()
         content.decode("utf-8")
         digest = hashlib.sha256(content).hexdigest()
         if artifacts.get(run.artifact) != digest:
             raise ValueError(f"dogfood run {run.directory} artifact hash differs from its manifest")
-        findings = _findings(final.get("findings"), allow_legacy=run.allow_legacy_findings)
+        raw_findings = final.get("findings")
+        if not isinstance(raw_findings, list):
+            raise ValueError(f"dogfood run {run.directory} findings must be an array")
+        findings = (
+            _findings(raw_findings, allow_legacy=run.allow_legacy_findings)
+            if disposition == "review_required"
+            else []
+        )
         corpus = _load_object(run_dir / run.corpus)
         payload = {
             "date": run.day.isoformat(),
-            "disposition": "review_required",
-            "findings_count": len(findings),
+            "disposition": disposition,
+            "findings_count": len(raw_findings),
             "findings": findings,
             "degraded_sources": _degraded_sources(corpus),
         }
-        (history_dir / f"{run.day.isoformat()}.md").write_bytes(content)
+        markdown_path = history_dir / f"{run.day.isoformat()}.md"
+        if disposition in PAGE_DISPOSITIONS:
+            markdown_path.write_bytes(content)
+        else:
+            markdown_path.unlink(missing_ok=True)
         (history_dir / f"{run.day.isoformat()}.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",
