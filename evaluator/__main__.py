@@ -24,8 +24,13 @@ from evaluator.retrieval import (
     DEFAULT_EMBEDDING_CACHE,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_PAIR_FIXTURE,
+    DEFAULT_STUDY_REPORT,
+    DEFAULT_THRESHOLDS,
     build_embedding_cache,
+    load_embedding_cache,
     load_pairs,
+    markdown_study,
+    run_study,
 )
 from evaluator.runner import (
     DEFAULT_CORPUS,
@@ -191,6 +196,14 @@ def main() -> int:
     dedup_study.add_argument("--embeddings", type=Path, default=DEFAULT_EMBEDDING_CACHE)
     dedup_study.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
     dedup_study.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+    dedup_study.add_argument("--output", type=Path, default=DEFAULT_STUDY_REPORT)
+    dedup_study.add_argument(
+        "--threshold",
+        type=float,
+        action="append",
+        default=[],
+        help="cosine threshold; repeatable (default: 0.70 through 0.95 in 0.05 steps)",
+    )
 
     label_review = subparsers.add_parser(
         "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
@@ -398,25 +411,44 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "dedup-study":
-            if not args.fetch_embeddings:
-                raise ValueError("dedup-study currently requires --fetch-embeddings")
-            load_dotenv(args.env_file)
-            api_key = os.environ.get("OPENROUTER_API_KEY")
-            if not api_key:
-                raise ValueError("dedup-study --fetch-embeddings requires OPENROUTER_API_KEY")
             pairs = load_pairs(args.pairs)
-            generated_on = datetime.now(UTC).date().isoformat()
-            cache = build_embedding_cache(pairs, args.model, api_key, generated_on)
-            args.embeddings.parent.mkdir(parents=True, exist_ok=True)
-            args.embeddings.write_text(
-                json.dumps(cache, indent=2, sort_keys=True) + "\n",
+            if args.fetch_embeddings:
+                load_dotenv(args.env_file)
+                api_key = os.environ.get("OPENROUTER_API_KEY")
+                if not api_key:
+                    raise ValueError("dedup-study --fetch-embeddings requires OPENROUTER_API_KEY")
+                generated_on = datetime.now(UTC).date().isoformat()
+                cache = build_embedding_cache(pairs, args.model, api_key, generated_on)
+                args.embeddings.parent.mkdir(parents=True, exist_ok=True)
+                args.embeddings.write_text(
+                    json.dumps(cache, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps({
+                    "embedding_count": len(cache["embeddings"]),
+                    "generated_on": generated_on,
+                    "model": args.model,
+                    "output": str(args.embeddings),
+                }, indent=2, sort_keys=True))
+                return 0
+            cache = load_embedding_cache(args.embeddings)
+            thresholds = args.threshold or list(DEFAULT_THRESHOLDS)
+            study = run_study(pairs, cache["embeddings"], thresholds)
+            pair_payload = json.loads(args.pairs.read_text(encoding="utf-8"))
+            label_provenance = pair_payload.get("label_provenance", "unknown")
+            if not isinstance(label_provenance, str):
+                raise ValueError("dedup pair label_provenance must be a string")
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                markdown_study(study, pairs, cache, label_provenance),
                 encoding="utf-8",
             )
             print(json.dumps({
-                "embedding_count": len(cache["embeddings"]),
-                "generated_on": generated_on,
-                "model": args.model,
-                "output": str(args.embeddings),
+                "chosen_threshold": study["chosen_threshold"],
+                "embedding_f1": study["chosen_embedding_metrics"]["f1"],
+                "heuristic_f1": study["heuristic_metrics"]["f1"],
+                "output": str(args.output),
+                "pair_count": study["pair_count"],
             }, indent=2, sort_keys=True))
             return 0
         if args.command == "checker":

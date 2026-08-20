@@ -22,6 +22,10 @@ from evaluator.retrieval import (
     embed_texts,
     embedding_key,
     embedding_text,
+    load_embedding_cache,
+    load_pairs,
+    markdown_study,
+    run_study,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -66,6 +70,48 @@ class PairClassificationTests(unittest.TestCase):
         self.assertEqual(
             classify_pairs([similar, distinct], vectors, threshold=0.90),
             {"similar": True, "distinct": False},
+        )
+
+    def test_study_compares_thresholds_with_the_production_heuristic(self) -> None:
+        prefix = "a" * 60
+        exact = _pair("exact", "same title", "same title")
+        paraphrase = _pair("paraphrase", "Mayor approves transit plan", "City leader backs rail proposal")
+        collision = _pair("collision", prefix + "alpha", prefix + "beta")
+        collision["label"] = "distinct"
+        collision["stratum"] = "hard_negative"
+        separate = _pair("separate", "Volcano update", "Quarterly software earnings")
+        separate["label"] = "distinct"
+        separate["stratum"] = "clear_negative"
+        pairs = [exact, paraphrase, collision, separate]
+        vectors: dict[str, list[float]] = {}
+        pair_vectors = {
+            "exact": ([1.0, 0.0], [1.0, 0.0]),
+            "paraphrase": ([1.0, 0.0], [0.8, 0.6]),
+            "collision": ([1.0, 0.0], [0.0, 1.0]),
+            "separate": ([1.0, 0.0], [0.7, 0.7]),
+        }
+        for pair in pairs:
+            left, right = pair_vectors[pair["id"]]
+            vectors[embedding_key(embedding_text(pair["left"]))] = left
+            vectors[embedding_key(embedding_text(pair["right"]))] = right
+
+        study = run_study(pairs, vectors, thresholds=[0.80, 0.95])
+
+        self.assertEqual(study["pair_count"], 4)
+        self.assertEqual(study["chosen_threshold"], 0.80)
+        self.assertEqual(study["embedding_results"][0]["metrics"]["f1"], 1.0)
+        self.assertEqual(study["embedding_results"][1]["metrics"]["recall"], 0.5)
+        self.assertEqual(
+            study["heuristic_metrics"],
+            {
+                "tp": 1,
+                "fp": 1,
+                "tn": 1,
+                "fn": 1,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+            },
         )
 
 
@@ -182,6 +228,31 @@ class EmbeddingFetchTests(unittest.TestCase):
             for side in ("left", "right"):
                 key = embedding_key(embedding_text(pair[side]))
                 self.assertIn(key, cached, f"missing {pair['id']} {side}")
+
+
+class CommittedStudyTests(unittest.TestCase):
+    def test_offline_study_and_report_are_reproducible(self) -> None:
+        pairs_path = FIXTURES / "dedup-pairs.json"
+        pairs = load_pairs(pairs_path)
+        cache = load_embedding_cache(FIXTURES / "dedup-embeddings.json")
+        study = run_study(pairs, cache["embeddings"])
+
+        self.assertEqual(study["pair_count"], 60)
+        self.assertEqual(study["chosen_threshold"], 0.70)
+        self.assertAlmostEqual(study["chosen_embedding_metrics"]["f1"], 0.95)
+        self.assertEqual(study["heuristic_metrics"]["f1"], 0.0)
+
+        payload = json.loads(pairs_path.read_text(encoding="utf-8"))
+        rendered = markdown_study(
+            study,
+            pairs,
+            cache,
+            payload["label_provenance"],
+        )
+        committed = (FIXTURES.parent / "results" / "dedup-study.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(rendered, committed)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+from fetch_news import Item, dedupe
+
 from evaluator.adapters import (
     API_MAX_ATTEMPTS,
     RETRYABLE_HTTP_STATUSES,
@@ -25,6 +27,8 @@ EVALUATOR_DIR = Path(__file__).resolve().parent
 DEFAULT_PAIR_FIXTURE = EVALUATOR_DIR / "fixtures" / "dedup-pairs.json"
 DEFAULT_EMBEDDING_CACHE = EVALUATOR_DIR / "fixtures" / "dedup-embeddings.json"
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+DEFAULT_STUDY_REPORT = EVALUATOR_DIR / "results" / "dedup-study.md"
+DEFAULT_THRESHOLDS = (0.70, 0.75, 0.80, 0.85, 0.90, 0.95)
 
 
 class PairItem(TypedDict):
@@ -55,6 +59,40 @@ class EmbeddingCache(TypedDict):
     dimensions: int
     text_representation: str
     embeddings: dict[str, list[float]]
+
+
+class BinaryMetrics(TypedDict):
+    """Confusion counts and positive-class metrics."""
+
+    tp: int
+    fp: int
+    tn: int
+    fn: int
+    precision: float
+    recall: float
+    f1: float
+
+
+class ThresholdResult(TypedDict):
+    """Embedding performance at one cosine threshold."""
+
+    threshold: float
+    metrics: BinaryMetrics
+
+
+class StudyResult(TypedDict):
+    """Complete deterministic comparison used to render the study report."""
+
+    pair_count: int
+    duplicate_count: int
+    distinct_count: int
+    embedding_results: list[ThresholdResult]
+    chosen_threshold: float
+    chosen_embedding_metrics: BinaryMetrics
+    heuristic_metrics: BinaryMetrics
+    embedding_predictions: dict[str, bool]
+    heuristic_predictions: dict[str, bool]
+    similarities: dict[str, float]
 
 
 def embedding_text(item: PairItem) -> str:
@@ -256,3 +294,279 @@ def build_embedding_cache(
         "text_representation": "UTF-8 title, newline, then summary",
         "embeddings": dict(zip(inputs, vectors, strict=True)),
     }
+
+
+def load_embedding_cache(path: Path = DEFAULT_EMBEDDING_CACHE) -> EmbeddingCache:
+    """Load and validate the committed cache needed for an offline study."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("embedding cache must be an object")
+    model = payload.get("model")
+    generated_on = payload.get("generated_on")
+    dimensions = payload.get("dimensions")
+    raw_embeddings = payload.get("embeddings")
+    if not isinstance(model, str) or not model:
+        raise ValueError("embedding cache model must be a non-empty string")
+    if not isinstance(generated_on, str) or not generated_on:
+        raise ValueError("embedding cache generated_on must be a non-empty string")
+    if not isinstance(dimensions, int) or isinstance(dimensions, bool) or dimensions <= 0:
+        raise ValueError("embedding cache dimensions must be a positive integer")
+    if not isinstance(raw_embeddings, dict) or not raw_embeddings:
+        raise ValueError("embedding cache must contain embeddings")
+    embeddings: dict[str, list[float]] = {}
+    for key, raw_vector in raw_embeddings.items():
+        if (
+            not isinstance(key, str)
+            or len(key) != 64
+            or not isinstance(raw_vector, list)
+            or len(raw_vector) != dimensions
+            or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in raw_vector)
+        ):
+            raise ValueError("embedding cache contains an invalid vector")
+        embeddings[key] = [float(value) for value in raw_vector]
+    return {
+        "schema_version": 1,
+        "model": model,
+        "generated_on": generated_on,
+        "dimensions": dimensions,
+        "text_representation": str(payload.get("text_representation", "")),
+        "embeddings": embeddings,
+    }
+
+
+def _binary_metrics(
+    pairs: Sequence[PairLabel], predictions: Mapping[str, bool]
+) -> BinaryMetrics:
+    tp = fp = tn = fn = 0
+    for pair in pairs:
+        expected = pair["label"] == "duplicate"
+        try:
+            predicted = predictions[pair["id"]]
+        except KeyError as exc:
+            raise ValueError(f"missing prediction for pair {pair['id']!r}") from exc
+        if expected and predicted:
+            tp += 1
+        elif expected:
+            fn += 1
+        elif predicted:
+            fp += 1
+        else:
+            tn += 1
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "tp": tp,
+        "fp": fp,
+        "tn": tn,
+        "fn": fn,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def production_heuristic_predictions(pairs: Sequence[PairLabel]) -> dict[str, bool]:
+    """Run each pair through the exact production URL/title-key deduper."""
+    predictions: dict[str, bool] = {}
+    for pair in pairs:
+        items: list[Item] = [
+            {
+                "title": side["title"],
+                "summary": side["summary"],
+                "url": side["url"],
+                "published": "1970-01-01T00:00:00+00:00",
+                "source": "dedup-study",
+            }
+            for side in (pair["left"], pair["right"])
+        ]
+        predictions[pair["id"]] = len(dedupe(items)) == 1
+    return predictions
+
+
+def run_study(
+    pairs: Sequence[PairLabel],
+    embeddings: Mapping[str, Sequence[float]],
+    thresholds: Sequence[float] = DEFAULT_THRESHOLDS,
+) -> StudyResult:
+    """Compare a cosine-threshold sweep with the production pair heuristic."""
+    if not pairs:
+        raise ValueError("dedup study requires at least one labeled pair")
+    if not thresholds:
+        raise ValueError("dedup study requires at least one threshold")
+    if len(set(thresholds)) != len(thresholds) or any(not -1.0 <= value <= 1.0 for value in thresholds):
+        raise ValueError("thresholds must be unique values between -1 and 1")
+    similarities: dict[str, float] = {}
+    for pair in pairs:
+        left_key = embedding_key(embedding_text(pair["left"]))
+        right_key = embedding_key(embedding_text(pair["right"]))
+        try:
+            similarities[pair["id"]] = cosine(embeddings[left_key], embeddings[right_key])
+        except KeyError as exc:
+            raise KeyError(f"missing cached embedding for pair {pair['id']!r}") from exc
+
+    embedding_results: list[ThresholdResult] = []
+    embedding_predictions: dict[float, dict[str, bool]] = {}
+    for threshold in thresholds:
+        predictions = {
+            pair_id: similarity >= threshold
+            for pair_id, similarity in similarities.items()
+        }
+        embedding_predictions[threshold] = predictions
+        embedding_results.append({
+            "threshold": threshold,
+            "metrics": _binary_metrics(pairs, predictions),
+        })
+    chosen = max(
+        embedding_results,
+        key=lambda result: (
+            result["metrics"]["f1"],
+            result["metrics"]["precision"],
+            result["threshold"],
+        ),
+    )
+    chosen_threshold = chosen["threshold"]
+    heuristic = production_heuristic_predictions(pairs)
+    duplicate_count = sum(pair["label"] == "duplicate" for pair in pairs)
+    return {
+        "pair_count": len(pairs),
+        "duplicate_count": duplicate_count,
+        "distinct_count": len(pairs) - duplicate_count,
+        "embedding_results": embedding_results,
+        "chosen_threshold": chosen_threshold,
+        "chosen_embedding_metrics": chosen["metrics"],
+        "heuristic_metrics": _binary_metrics(pairs, heuristic),
+        "embedding_predictions": embedding_predictions[chosen_threshold],
+        "heuristic_predictions": heuristic,
+        "similarities": similarities,
+    }
+
+
+def _metric_row(name: str, threshold: str, metrics: BinaryMetrics) -> str:
+    return (
+        f"| {name} | {threshold} | {metrics['precision']:.3f} | "
+        f"{metrics['recall']:.3f} | {metrics['f1']:.3f} | "
+        f"{metrics['tp']} | {metrics['fp']} | {metrics['tn']} | {metrics['fn']} |"
+    )
+
+
+def markdown_study(
+    study: StudyResult,
+    pairs: Sequence[PairLabel],
+    cache: EmbeddingCache,
+    label_provenance: str,
+) -> str:
+    """Render the deterministic comparison and hard-negative audit surface."""
+    lines = [
+        "# Near-duplicate retrieval study",
+        "",
+        (
+            f"This evaluator-only study embeds **title + summary** for {study['pair_count']} "
+            f"labeled pairs ({study['duplicate_count']} duplicate, {study['distinct_count']} distinct) "
+            "and compares cosine thresholds with the exact production 60-character title-key heuristic. "
+            "URLs are retained for provenance but are not embedded. Nothing here changes production deduplication."
+        ),
+        "",
+        f"- Embedding model: `{cache['model']}`",
+        f"- Dimensions: {cache['dimensions']}",
+        f"- Cache generated: {cache['generated_on']}",
+        f"- Label provenance: **{label_provenance}**",
+        "- CI posture: vectors are committed; report generation is offline and credential-free.",
+        "",
+        "## Comparison",
+        "",
+        "| Classifier | Threshold | Precision | Recall | F1 | TP | FP | TN | FN |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        _metric_row("Production title key", "—", study["heuristic_metrics"]),
+    ]
+    for result in study["embedding_results"]:
+        name = "**Embedding (chosen)**" if result["threshold"] == study["chosen_threshold"] else "Embedding"
+        lines.append(_metric_row(name, f"{result['threshold']:.2f}", result["metrics"]))
+    lines.extend([
+        "",
+        "## Operating point",
+        "",
+        (
+            f"The deterministic selection rule maximizes F1, then precision, then threshold. It chooses "
+            f"**{study['chosen_threshold']:.2f}** on this fixture. This is an in-sample descriptive operating "
+            "point, not a production-ready threshold; the labels still require owner sign-off and the fixture "
+            "is too small for a deployment claim."
+        ),
+        "",
+        "## Hard-negative error analysis",
+        "",
+        "| Pair | Cosine | Embedding | Title key | Result | Rationale |",
+        "|---|---:|---|---|---|---|",
+    ])
+    for pair in pairs:
+        if pair["stratum"] != "hard_negative":
+            continue
+        pair_id = pair["id"]
+        embedding_prediction = study["embedding_predictions"][pair_id]
+        heuristic_prediction = study["heuristic_predictions"][pair_id]
+        errors = []
+        if embedding_prediction:
+            errors.append("embedding FP")
+        if heuristic_prediction:
+            errors.append("title-key FP")
+        outcome = ", ".join(errors) if errors else "both correct"
+        rationale = pair["rationale"].replace("|", "\\|")
+        lines.append(
+            f"| `{pair_id}` | {study['similarities'][pair_id]:.3f} | "
+            f"{'duplicate' if embedding_prediction else 'distinct'} | "
+            f"{'duplicate' if heuristic_prediction else 'distinct'} | {outcome} | {rationale} |"
+        )
+
+    other_errors = [
+        pair
+        for pair in pairs
+        if pair["stratum"] != "hard_negative"
+        and study["embedding_predictions"][pair["id"]]
+        != (pair["label"] == "duplicate")
+    ]
+    lines.extend([
+        "",
+        "## Other chosen-threshold errors",
+        "",
+    ])
+    if not other_errors:
+        lines.append("No additional embedding errors occur outside the hard-negative stratum.")
+    else:
+        lines.extend([
+            "| Pair | Label | Cosine | Prediction | Rationale |",
+            "|---|---|---:|---|---|",
+        ])
+        for pair in other_errors:
+            pair_id = pair["id"]
+            prediction = study["embedding_predictions"][pair_id]
+            rationale = pair["rationale"].replace("|", "\\|")
+            lines.append(
+                f"| `{pair_id}` | {pair['label']} | {study['similarities'][pair_id]:.3f} | "
+                f"{'duplicate' if prediction else 'distinct'} | {rationale} |"
+            )
+
+    embedding_f1 = study["chosen_embedding_metrics"]["f1"]
+    heuristic_f1 = study["heuristic_metrics"]["f1"]
+    if embedding_f1 > heuristic_f1:
+        comparison = (
+            f"the chosen embedding threshold leads by {embedding_f1 - heuristic_f1:.3f} F1"
+        )
+    elif embedding_f1 < heuristic_f1:
+        comparison = (
+            f"the production heuristic leads by {heuristic_f1 - embedding_f1:.3f} F1"
+        )
+    else:
+        comparison = "the approaches tie on F1"
+    lines.extend([
+        "",
+        "## Conclusion",
+        "",
+        (
+            f"On this machine-proposed fixture, {comparison}. The useful result is the measured trade-off, "
+            "not a predetermined embedding win. Before any production experiment, the owner must review the "
+            "labels and the study should be repeated on a larger time-split sample with an explicit latency and "
+            "cost budget. Until then, the production heuristic remains unchanged."
+        ),
+        "",
+    ])
+    return "\n".join(lines)

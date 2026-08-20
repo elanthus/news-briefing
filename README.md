@@ -50,7 +50,7 @@ Historical placeholder total generation cost: **$3.033816***. Historical suite S
 - Production agentic orchestration with a fail-closed provider tool policy and verified checkpoint/resume.
 - Deterministic validation and bounded checker-guided correction loops before publication.
 - Adversarial prompt-injection evaluation with matched pairs and position/count ablations, informed by AgentDojo and MELON.
-- CI/CD-integrated quality gates, credential-free regression fixtures, and review-controlled snapshot approvals.
+- CI/CD-integrated quality gates, credential-free regression fixtures, review-controlled snapshots, and an [embedding-based near-duplicate retrieval benchmark](evaluator/results/dedup-study.md).
 - Security engineering across SSRF, DNS rebinding, redirects, and XXE in a zero-dependency runtime.
 
 ## Quickstart
