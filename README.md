@@ -97,7 +97,7 @@ The LLM is handed a closed corpus and does the thing it is good at — ranking a
 | | Guarantee |
 |---|---|
 | What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
-| What is **eligible** | **Corpus and section-category eligibility are enforced in provider schemas and independently in code.** Semantic fit within an allowed category is not proven. |
+| What is **eligible** | **Corpus and section-category eligibility are constrained in provider schemas and enforced independently in code.** Providers do not uniformly honor `enum` or `uniqueItems` inside array items, so the deterministic checker — not the schema — is the guarantee. Semantic fit within an allowed category is not proven. |
 | What may be **linked** | **Enforced for the complete output.** Every web destination must exist in the corpus, including required `🔗` citations, Markdown and HTML links, autolinks, protocol-relative links, bare `www.` links, and bare HTTP(S) text. |
 | Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
 | What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |

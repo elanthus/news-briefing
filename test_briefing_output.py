@@ -348,6 +348,62 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertTrue(any(action["path"].startswith(f"topics.{second.name}") for action in actions))
         self.assertTrue(any(action["path"].startswith("excluded_topics.") for action in actions))
 
+    def test_structural_repair_clears_repairable_findings_and_is_idempotent(self):
+        repairable_checks = {
+            "category_ineligible_ref",
+            "duplicate_citation_ref",
+            "duplicate_item",
+        }
+        _corpus, config, projected, output = fixture_contract()
+        section_names = [section.name for section in config.sections]
+
+        def corruptions():
+            duplicated = copy.deepcopy(output)
+            donor_topics = duplicated["sections"][section_names[0]]["topics"]
+            duplicated["sections"][section_names[-1]]["topics"].append(
+                copy.deepcopy(donor_topics[0])
+            )
+            yield "duplicate entry across sections", duplicated
+
+            repeated = copy.deepcopy(output)
+            entry = repeated["sections"][section_names[0]]["topics"][0]
+            entry["citation_refs"] = entry["citation_refs"] + [entry["citation_refs"][0]]
+            yield "repeated ref inside one entry", repeated
+
+            for donor_name in section_names:
+                for target_name in section_names:
+                    if donor_name == target_name:
+                        continue
+                    crossed = copy.deepcopy(output)
+                    donor_topics = crossed["sections"][donor_name]["topics"]
+                    target_topics = crossed["sections"][target_name]["topics"]
+                    if not donor_topics or not target_topics:
+                        continue
+                    donor_ref = donor_topics[0]["citation_refs"][0]
+                    target_topics[0]["citation_refs"] = (
+                        target_topics[0]["citation_refs"] + [donor_ref]
+                    )
+                    yield f"ref shared from {donor_name} into {target_name}", crossed
+
+        for label, corrupted in corruptions():
+            with self.subTest(corruption=label):
+                repaired, actions = repair_structural_output(
+                    corrupted, config, projected.citations
+                )
+                residual = {
+                    finding.check
+                    for finding in validate_output(repaired, config, projected.citations)
+                }
+                self.assertFalse(
+                    residual & repairable_checks,
+                    msg=f"actions={actions} residual={residual}",
+                )
+                again, second_actions = repair_structural_output(
+                    repaired, config, projected.citations
+                )
+                self.assertEqual(again, repaired)
+                self.assertEqual(second_actions, [])
+
 
 if __name__ == "__main__":
     unittest.main()
