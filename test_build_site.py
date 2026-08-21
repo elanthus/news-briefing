@@ -885,7 +885,95 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("REJECTED · 1 finding", report)
             self.assertNotIn("All checks passed", report)
             self.assertIn("details are published only for review-required runs", report)
+    @staticmethod
+    def _corpus_health_markdown(payload: str) -> str:
+        return (
+            "## AI News\n\n"
+            "**AI story** — Summary.\n\n"
+            "---\n\n"
+            "### Corpus health\n"
+            "Coverage was degraded by the source failures or empty responses listed below.\n"
+            "\n"
+            "```json\n"
+            f"{payload}\n"
+            "```\n"
+        )
 
+    def test_corpus_health_json_renders_as_grouped_prose(self) -> None:
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {"source_type": "rss", "source_id": "NPR Politics", "status": "empty"},
+                    {"source_type": "rss", "source_id": "The Hill", "status": "empty"},
+                    {"source_type": "hacker_news", "source_id": "llm agent", "status": "empty"},
+                    {"source_type": "reddit", "source_id": "LocalLLaMA", "status": "error"},
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertNotIn("failed_sources", rendered)
+        self.assertNotIn("<pre", rendered)
+        self.assertNotIn("<code", rendered)
+        self.assertIn(
+            "2 RSS feeds and 1 Hacker News search returned no items in this day's window.",
+            rendered,
+        )
+        self.assertIn("1 subreddit fetch failed.", rendered)
+        self.assertIn("fetch failed", rendered)
+        self.assertIn("NPR Politics", rendered)
+        self.assertIn("The Hill", rendered)
+        # Hacker News source ids are search queries; they render quoted.
+        self.assertIn("&quot;llm agent&quot;", rendered)
+        self.assertIn("Subreddits — fetch failed:", rendered)
+
+    def test_malformed_corpus_health_json_is_left_verbatim(self) -> None:
+        rendered, _ = _render_markdown(
+            self._corpus_health_markdown('{"failed_sources":[{"source_type":')
+        )
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+
+    def test_wrong_shape_corpus_health_json_is_left_verbatim(self) -> None:
+        for payload in (
+            '{"failed_sources":{}}',
+            '{"failed_sources":[]}',
+            '{"failed_sources":["rss"]}',
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
+            '["not","an","object"]',
+        ):
+            rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+            self.assertIn("<code", rendered, payload)
+            self.assertNotIn("this day's window", rendered, payload)
+
+    def test_corpus_health_unknown_type_and_status_render_verbatim(self) -> None:
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {"source_type": "mastodon", "source_id": "fosstodon", "status": "empty"},
+                    {"source_type": "rss", "source_id": "NPR Politics", "status": "timeout"},
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertNotIn("failed_sources", rendered)
+        self.assertIn("1 mastodon returned no items in this day's window.", rendered)
+        self.assertIn("1 RSS feed timeout.", rendered)
+        self.assertIn("fosstodon", rendered)
+        self.assertIn("NPR Politics", rendered)
+
+    def test_json_fence_without_corpus_health_heading_is_untouched(self) -> None:
+        markdown = (
+            "## AI News\n\n"
+            "**AI story** — Summary.\n\n"
+            "```json\n"
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
+            "```\n"
+        )
+        rendered, _ = _render_markdown(markdown)
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
