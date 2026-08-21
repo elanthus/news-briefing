@@ -370,6 +370,31 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("correction", kinds)
         self.assertTrue(manifest["attempts"][-1]["repair_actions"])
 
+    def test_repair_underfill_stays_ready_with_nonblocking_warn(self):
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        # Drops one included entry, leaving the section below target_stories.
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        final_findings = manifest["final"]["findings"]
+        underfilled = [row for row in final_findings if row["check"] == "slots_underfilled"]
+        self.assertTrue(underfilled, msg=final_findings)
+        self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
+        self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
+
     def test_unknown_ref_still_spends_a_correction(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
