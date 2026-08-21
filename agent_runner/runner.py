@@ -334,7 +334,10 @@ def _deterministic_repair_attempt(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    repaired, actions = repair_structural_output(output, config, citations)
+    evidence = eval_briefing.corpus_evidence(corpus)
+    repaired, actions = repair_structural_output(
+        output, config, citations, evidence=evidence
+    )
     current = store.manifest["attempts"][-1]
     if not actions or not isinstance(repaired, dict):
         return current, output
@@ -371,6 +374,7 @@ def _deterministic_repair_attempt(
         corpus=corpus,
         config=config,
         citations=citations,
+        repair_actions=actions,
     )
     return attempt, repaired
 
@@ -438,12 +442,15 @@ def _validate_attempt(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair_actions: Sequence[dict[str, str]] = (),
 ) -> list[dict[str, str]]:
     structured_findings = validate_output(output, config, citations)
     rendered: str | None = None
     checker_findings: list[eval_briefing.Finding] = []
     if not any(finding.level == "ERROR" for finding in structured_findings):
-        rendered = render_briefing(output, corpus, config, citations)
+        rendered = render_briefing(
+            output, corpus, config, citations, repair_actions=repair_actions
+        )
         checker_findings = eval_briefing.evaluate(corpus, rendered, config)
     records = _finding_records([*structured_findings, *checker_findings])
     index = attempt["index"]
@@ -720,8 +727,32 @@ def run_workflow(
                     corpus=corpus,
                     config=config,
                     citations=projected.citations,
+                    # A resumed repair attempt validated here must render its
+                    # recorded swap markers exactly as the unresumed run would.
+                    repair_actions=attempt.get("repair_actions") or (),
                 )
             if attempt["contract_success"]:
+                # ``claim_exceeds_evidence`` is a WARN, so the candidate is
+                # contract-clean — but finalizing now would classify it
+                # review_required and withhold the briefing. The same
+                # deterministic repair that handles blocking errors swaps the
+                # oversized summary for its cited excerpt, so run it before
+                # finalizing. The kind guard stops a repair whose swap was
+                # declined (for example a URL-bearing excerpt) from looping;
+                # it falls through and finalizes for review as before.
+                swap_worthy = any(
+                    row["check"] == "claim_exceeds_evidence" for row in findings
+                )
+                if swap_worthy and attempt.get("kind") != "deterministic_repair":
+                    repair_attempt, output = _deterministic_repair_attempt(
+                        store,
+                        output,
+                        corpus=corpus,
+                        config=config,
+                        citations=projected.citations,
+                    )
+                    if repair_attempt is not attempt:
+                        continue
                 return _finalize_candidate(
                     store,
                     attempt,

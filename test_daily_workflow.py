@@ -64,6 +64,18 @@ class DailyWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
 
+    def test_backfill_resolves_stored_corpus_before_live_fetch(self) -> None:
+        self.assertIn(
+            "https://elanthus.github.io/news-briefing/corpora/$report_date.json",
+            WORKFLOW,
+        )
+        self.assertIn("elif (( days_ago <= 2 )); then", WORKFLOW)
+        self.assertIn("no stored corpus and feeds no longer retain", WORKFLOW)
+
+    def test_every_run_carries_forward_stored_corpora(self) -> None:
+        self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
+        self.assertIn("--corpora-dir corpora", WORKFLOW)
+
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
         self.assertIn("Publication preparation failed for $report_date", WORKFLOW)

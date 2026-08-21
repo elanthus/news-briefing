@@ -9,10 +9,13 @@ import html
 import importlib
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+
+import corpus_schema
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
@@ -410,6 +413,132 @@ def _section_subheading(line: str) -> str | None:
     return slots.group(1) if slots is not None else label
 
 
+_CORPUS_HEALTH_HEADING = "### Corpus health"
+_CORPUS_HEALTH_EXPLANATION = (
+    "Coverage was degraded by the source failures or empty responses listed below."
+)
+_TYPE_LABELS = {
+    "rss": ("RSS feed", "RSS feeds"),
+    "hacker_news": ("Hacker News search", "Hacker News searches"),
+    "reddit": ("subreddit", "subreddits"),
+}
+_STATUS_SENTENCES = {
+    "empty": "returned no items in this day's window",
+    "error": "fetch failed",
+}
+_STATUS_BULLET_LABELS = {
+    "empty": "no items in this day's window",
+    "error": "fetch failed",
+}
+
+
+def _corpus_failures(fence_body: str) -> list[tuple[str, str, str]] | None:
+    """Strictly parse the machine block; ``None`` on any shape mismatch."""
+    try:
+        payload = json.loads(fence_body)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or set(payload) != {"failed_sources"}:
+        return None
+    sources = payload["failed_sources"]
+    if not isinstance(sources, list) or not sources:
+        return None
+    keys = ("source_type", "source_id", "status")
+    failures: list[tuple[str, str, str]] = []
+    for item in sources:
+        if not isinstance(item, dict) or set(item) != set(keys):
+            return None
+        for key in keys:
+            value = item[key]
+            if not isinstance(value, str) or not value:
+                return None
+            # JSON \n/\r/\t escapes fit in a single-line fence; splicing them
+            # into the page would promote fenced text to active Markdown
+            # (injected headings, story anchors, fence desyncs). Anything
+            # unrenderable stays fenced.
+            if any(char < " " or char == "\x7f" for char in value):
+                return None
+        failures.append((item["source_type"], item["source_id"], item["status"]))
+    return failures
+
+
+def _join_phrases(phrases: list[str]) -> str:
+    if len(phrases) == 1:
+        return phrases[0]
+    if len(phrases) == 2:
+        return f"{phrases[0]} and {phrases[1]}"
+    return ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
+
+
+def _corpus_health_prose(failures: list[tuple[str, str, str]]) -> list[str]:
+    """Grouped Markdown prose for the failure list, in first-appearance order."""
+    groups: dict[tuple[str, str], list[str]] = {}
+    for source_type, source_id, status in failures:
+        groups.setdefault((source_type, status), []).append(source_id)
+
+    def count_phrase(source_type: str, count: int) -> str:
+        singular, plural = _TYPE_LABELS.get(source_type, (source_type, source_type))
+        return f"{count} {singular if count == 1 else plural}"
+
+    sentences: list[str] = []
+    ordered_statuses = list(dict.fromkeys(status for _, status in groups))
+    if "empty" in ordered_statuses:
+        ordered_statuses.remove("empty")
+        ordered_statuses.insert(0, "empty")
+    for status in ordered_statuses:
+        phrases = [
+            count_phrase(source_type, len(ids))
+            for (source_type, group_status), ids in groups.items()
+            if group_status == status
+        ]
+        verb = _STATUS_SENTENCES.get(status, status)
+        sentences.append(f"{_join_phrases(phrases)} {verb}.")
+
+    lines = [f"⚠ {' '.join(sentences)}", ""]
+    for (source_type, status), ids in groups.items():
+        _, plural = _TYPE_LABELS.get(source_type, (source_type, source_type))
+        label = plural[0].upper() + plural[1:]
+        bullet_status = _STATUS_BULLET_LABELS.get(status, status)
+        rendered_ids = ", ".join(
+            f'"{source_id}"' if source_type == "hacker_news" else source_id
+            for source_id in ids
+        )
+        lines.append(f"- **{label} — {bullet_status}:** {rendered_ids}")
+    return lines
+
+
+def _humanize_corpus_health(markdown: str) -> str:
+    """Replace the machine-readable corpus health block with grouped prose.
+
+    Page rendering only — history.json keeps the raw machine block. The parse
+    is strict and fail-closed: any deviation from the exact renderer-emitted
+    shape (heading, fixed explanation line, blank line, single-line ```json
+    fence) leaves the markdown untouched, so unexpected content is escaped by
+    the Markdown parser rather than interpreted.
+    """
+    lines = markdown.split("\n")
+    # Approximate (CommonMark-lite) fence tracking — any ```-prefixed line
+    # toggles; every divergence fails safe (the block stays verbatim).
+    in_fence = False
+    for index, line in enumerate(lines):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or line != _CORPUS_HEALTH_HEADING:
+            continue
+        block = lines[index + 1 : index + 6]
+        if len(block) < 5 or block[4] != "```":
+            return markdown
+        if block[:3] != [_CORPUS_HEALTH_EXPLANATION, "", "```json"]:
+            return markdown
+        failures = _corpus_failures(block[3])
+        if failures is None:
+            return markdown
+        prose = _corpus_health_prose(failures)
+        return "\n".join(lines[: index + 1] + [""] + prose + lines[index + 6 :])
+    return markdown
+
+
 def _finding_matches(
     finding: ReviewFinding,
     section: str,
@@ -432,6 +561,7 @@ def _render_markdown(
     parser = markdown_it.MarkdownIt("commonmark", {"html": False, "linkify": True})
     parser.enable("linkify")
     public_markdown = _strip_legacy_preview_banner(markdown) or ""
+    public_markdown = _humanize_corpus_health(public_markdown)
     lines: list[str] = []
     replacements: dict[str, str] = {}
     matched: set[int] = set()
@@ -719,12 +849,61 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
     return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
 
 
+def _publish_corpora(
+    corpora_dirs: Sequence[Path],
+    output_dir: Path,
+    newest_entry_date: date,
+) -> None:
+    """Copy validated per-day corpus files into ``output_dir / "corpora"``.
+
+    First directory wins on date conflicts. Downloaded corpus files are
+    untrusted input: each must be a real file whose stem is a canonical ISO
+    date and whose bytes parse as JSON, and the published filename is rebuilt
+    from the parsed date rather than taken from the input. Validated bytes are
+    copied verbatim so hashes stay stable. Dates outside the 14-day window
+    ending at the newest history entry are pruned.
+    """
+    oldest_kept = newest_entry_date - timedelta(days=13)
+    survivors: dict[str, bytes] = {}
+    for corpora_dir in corpora_dirs:
+        for corpus in sorted(corpora_dir.glob("*.json")):
+            if not corpus.is_file():
+                continue
+            try:
+                day = date.fromisoformat(corpus.stem)
+            except ValueError:
+                continue
+            slug = day.isoformat()
+            if (
+                corpus.stem != slug
+                or slug in survivors
+                or day < oldest_kept
+                or day > newest_entry_date
+            ):
+                continue
+            raw = corpus.read_bytes()
+            try:
+                payload = json.loads(raw)
+            except ValueError:
+                continue
+            if corpus_schema.validate_corpus(payload):
+                continue
+            survivors[slug] = raw
+    if not survivors:
+        return
+    corpora_out = output_dir / "corpora"
+    corpora_out.mkdir(parents=True, exist_ok=True)
+    for slug, raw in survivors.items():
+        (corpora_out / f"{slug}.json").write_bytes(raw)
+
+
 def build_site(
     briefings_dir: Path,
     output_dir: Path,
     prior_history: Path | None = None,
     bootstrap_dir: Path | None = None,
     replace_existing: bool = False,
+    corpora_dirs: Sequence[Path] = (),
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
     if not briefings_dir.is_dir():
@@ -775,6 +954,8 @@ def build_site(
             _render_report(entry, entries),
             encoding="utf-8",
         )
+    if corpora_dirs and entries:
+        _publish_corpora(corpora_dirs, output_dir, entries[0].day)
 
 
 def main() -> int:
@@ -796,6 +977,17 @@ def main() -> int:
         action="store_true",
         help="replace prior-history pages for publishable dates present in briefings_dir",
     )
+    parser.add_argument(
+        "--corpora-dir",
+        action="append",
+        type=Path,
+        default=[],
+        dest="corpora_dirs",
+        help=(
+            "directory of per-day corpus JSON files to publish under site/corpora; "
+            "repeatable, earlier directories win on date conflicts"
+        ),
+    )
     args = parser.parse_args()
     try:
         build_site(
@@ -804,6 +996,7 @@ def main() -> int:
             args.prior_history,
             args.bootstrap_dir,
             args.replace_existing,
+            args.corpora_dirs,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

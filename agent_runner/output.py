@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, NamedTuple
@@ -248,6 +249,7 @@ def build_output_schema(
 
 REPAIRABLE_CHECKS = frozenset({
     "category_ineligible_ref",
+    "claim_exceeds_evidence",
     "duplicate_citation_ref",
     "duplicate_item",
     "structured_item_limit",
@@ -260,9 +262,14 @@ def is_repairable_finding(finding: OutputFinding) -> bool:
     These are editorial placement errors: ineligible-category refs, repeated
     refs, reused items, and over-limit sections. ``repair_structural_output``
     drops or deduplicates the offending entries, so a repaired output
-    re-validates without any of these checks. Everything else (unknown refs,
-    freeform URLs, schema-shape violations) is an evidence-boundary or contract
-    violation that repair deliberately preserves for rejection and review.
+    re-validates without any of these checks. ``claim_exceeds_evidence`` is
+    repairable too: the swap replaces the over-long prose with its own cited
+    evidence, so the finding cannot re-fire by construction — except that a
+    URL-bearing excerpt declines the swap, leaving the entry untouched and
+    preserved for review.
+    Everything else (unknown refs, freeform URLs, schema-shape violations) is
+    an evidence-boundary or contract violation that repair deliberately
+    preserves for rejection and review.
     """
     return finding.check in REPAIRABLE_CHECKS
 
@@ -271,6 +278,7 @@ def repair_structural_output(
     output: Any,
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    evidence: dict[str, str] | None = None,
 ) -> tuple[Any, list[dict[str, str]]]:
     """Remove unsafe structural selections after model corrections are exhausted.
 
@@ -281,6 +289,11 @@ def repair_structural_output(
     configured maximum have their trailing entries trimmed, but never an entry
     preserved for rejection. Unknown evidence remains a rejection rather than
     being normalized away.
+
+    When ``evidence`` (canonical URL -> corpus excerpt, from
+    ``eval_briefing.corpus_evidence``) is provided, a final pass swaps any
+    included summary that exceeds the claim/evidence ratio for its own
+    deduplicated cited excerpt, so ``claim_exceeds_evidence`` cannot re-fire.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -414,6 +427,60 @@ def repair_structural_output(
                 section=section,
                 excluded=True,
             )
+
+    # After the drop/trim passes, indices are final and match the renderer's
+    # anchor paths. The check never fires for excluded entries, so the swap
+    # pass covers included topics only.
+    def _swap_oversized_summaries(evidence: dict[str, str]) -> None:
+        for section in config.sections:
+            section_value = sections.get(section.name)
+            if not isinstance(section_value, dict):
+                continue
+            topics = section_value.get("topics")
+            if not isinstance(topics, list):
+                continue
+            for index, entry in enumerate(topics):
+                if not isinstance(entry, dict):
+                    continue
+                refs = entry.get("citation_refs")
+                summary = entry.get("summary")
+                if not isinstance(refs, list) or not isinstance(summary, str):
+                    continue
+                if any(not isinstance(ref, str) or ref not in citations
+                       for ref in refs):
+                    continue  # evidence-boundary violation: preserve for review
+                support = " ".join(dict.fromkeys(
+                    text
+                    for citation in _complete_item_citations(refs, citations)
+                    if (text := evidence.get(
+                        corpus_schema.canonicalize_url(citation.url)))
+                )).strip()
+                if not support:
+                    continue
+                if len(summary) <= eval_briefing.CLAIM_EVIDENCE_RATIO * len(support):
+                    continue
+                # Collapse whitespace so a multi-line blurb cannot break the
+                # one-line topic grammar; collapsing only shrinks the prose, so
+                # the ratio check still passes against the raw corpus text.
+                excerpt = " ".join(support.split())
+                # Feed blurbs routinely carry bare URLs; swapping one into a
+                # summary would trade a repairable WARN for a non-repairable
+                # freeform_url ERROR. Fail closed: leave the entry untouched
+                # and preserved for review. Same detector as ``_text``.
+                if eval_briefing.output_urls(excerpt):
+                    continue
+                entry["summary"] = excerpt
+                actions.append({
+                    "action": "replace_summary_with_excerpt",
+                    "path": f"topics.{section.name}[{index}]",
+                    "reason": (
+                        f"summary of {len(summary)} characters exceeded "
+                        f"{len(support)} characters of cited evidence; "
+                        "replaced with the deduplicated source excerpt"),
+                })
+
+    if evidence:
+        _swap_oversized_summaries(evidence)
     return repaired, actions
 
 
@@ -631,11 +698,23 @@ def _complete_item_citations(
     return completed
 
 
-def _topic_lines(entry: dict[str, Any], citations: dict[str, Citation]) -> list[str]:
+def _topic_lines(
+    entry: dict[str, Any],
+    citations: dict[str, Citation],
+    *,
+    excerpt: bool = False,
+) -> list[str]:
     refs = entry["citation_refs"]
     item_refs = {citations[ref].item_ref for ref in refs}
-    consolidated = " *(consolidated)*" if len(item_refs) > 1 else ""
-    lines = [f"**{entry['headline']}**{consolidated} — {entry['summary']}"]
+    # The checker's topic grammar tolerates exactly one *(...)* group between
+    # the headline and the em dash, so every producer label shares that group.
+    labels = []
+    if len(item_refs) > 1:
+        labels.append("consolidated")
+    if excerpt:
+        labels.append("source excerpt")
+    marker = f" *({' · '.join(labels)})*" if labels else ""
+    lines = [f"**{entry['headline']}**{marker} — {entry['summary']}"]
     for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
@@ -647,8 +726,19 @@ def render_briefing(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair_actions: Sequence[dict[str, str]] = (),
 ) -> str:
-    """Render validated structured output into the existing Markdown contract."""
+    """Render validated structured output into the existing Markdown contract.
+
+    ``repair_actions`` (from ``repair_structural_output``) labels every entry
+    whose summary was swapped for its cited excerpt as a *(source excerpt)*,
+    so readers can tell producer-substituted prose from model prose.
+    """
+    swapped = {
+        action["path"]
+        for action in repair_actions
+        if action["action"] == "replace_summary_with_excerpt"
+    }
     lines = [
         f"# Daily Briefing — {_corpus_date_label(corpus)}",
         "",
@@ -663,7 +753,10 @@ def render_briefing(
             lines.extend([f"## {section.name}", ""])
             for topic_index, entry in enumerate(sections[section.name]["topics"]):
                 lines.append(f"<!-- story: topics.{section.name}[{topic_index}] -->")
-                lines.extend(_topic_lines(entry, citations))
+                lines.extend(_topic_lines(
+                    entry, citations,
+                    excerpt=f"topics.{section.name}[{topic_index}]" in swapped,
+                ))
             index += 1
             continue
         group = section.group
@@ -673,7 +766,10 @@ def render_briefing(
             lines.extend([f"**{grouped.name} ({grouped.target_stories} slots)**", ""])
             for topic_index, entry in enumerate(sections[grouped.name]["topics"]):
                 lines.append(f"<!-- story: topics.{grouped.name}[{topic_index}] -->")
-                lines.extend(_topic_lines(entry, citations))
+                lines.extend(_topic_lines(
+                    entry, citations,
+                    excerpt=f"topics.{grouped.name}[{topic_index}]" in swapped,
+                ))
             index += 1
 
     if any(section.excluded_stories for section in config.sections):

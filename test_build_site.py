@@ -5,7 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_site import ReviewFinding, _render_markdown, build_site
+from agent_runner.output import render_briefing
+from build_site import (
+    ReviewFinding,
+    _humanize_corpus_health,
+    _render_markdown,
+    build_site,
+)
+from test_briefing_output import fixture_contract
 
 
 class BuildSiteTests(unittest.TestCase):
@@ -885,7 +892,155 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("REJECTED · 1 finding", report)
             self.assertNotIn("All checks passed", report)
             self.assertIn("details are published only for review-required runs", report)
+    @staticmethod
+    def _corpus_health_markdown(payload: str) -> str:
+        return (
+            "## AI News\n\n"
+            "**AI story** — Summary.\n\n"
+            "---\n\n"
+            "### Corpus health\n"
+            "Coverage was degraded by the source failures or empty responses listed below.\n"
+            "\n"
+            "```json\n"
+            f"{payload}\n"
+            "```\n"
+        )
 
+    def test_corpus_health_json_renders_as_grouped_prose(self) -> None:
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {"source_type": "rss", "source_id": "NPR Politics", "status": "empty"},
+                    {"source_type": "rss", "source_id": "The Hill", "status": "empty"},
+                    {"source_type": "hacker_news", "source_id": "llm agent", "status": "empty"},
+                    {"source_type": "reddit", "source_id": "LocalLLaMA", "status": "error"},
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertNotIn("failed_sources", rendered)
+        self.assertNotIn("<pre", rendered)
+        self.assertNotIn("<code", rendered)
+        self.assertIn(
+            "2 RSS feeds and 1 Hacker News search returned no items in this day's window.",
+            rendered,
+        )
+        self.assertIn("1 subreddit fetch failed.", rendered)
+        self.assertIn("fetch failed", rendered)
+        self.assertIn("NPR Politics", rendered)
+        self.assertIn("The Hill", rendered)
+        # Hacker News source ids are search queries; they render quoted.
+        self.assertIn("&quot;llm agent&quot;", rendered)
+        self.assertIn("Subreddits — fetch failed:", rendered)
+
+    def test_malformed_corpus_health_json_is_left_verbatim(self) -> None:
+        rendered, _ = _render_markdown(
+            self._corpus_health_markdown('{"failed_sources":[{"source_type":')
+        )
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+
+    def test_wrong_shape_corpus_health_json_is_left_verbatim(self) -> None:
+        for payload in (
+            '{"failed_sources":{}}',
+            '{"failed_sources":[]}',
+            '{"failed_sources":["rss"]}',
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
+            '["not","an","object"]',
+        ):
+            rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+            self.assertIn("<code", rendered, payload)
+            self.assertNotIn("this day's window", rendered, payload)
+
+    def test_empty_source_type_is_left_verbatim(self) -> None:
+        # A degenerate-but-well-typed payload must not crash the site build.
+        payload = '{"failed_sources":[{"source_type":"","source_id":"x","status":"empty"}]}'
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+
+    def test_control_characters_in_values_are_left_verbatim(self) -> None:
+        # JSON \n escapes fit in a single-line fence; promoting them to active
+        # markdown would inject story anchors, headings, or fence desyncs.
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {
+                        "source_type": "rss",
+                        "source_id": (
+                            "X\n<!-- story: topics.AI News[0] -->\n### Injected heading"
+                        ),
+                        "status": "empty",
+                    }
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+        self.assertNotIn("<h3>Injected heading</h3>", rendered)
+        self.assertNotIn("<!-- story:", rendered)
+
+    def test_corpus_health_heading_inside_code_fence_is_not_transformed(self) -> None:
+        markdown = (
+            "## AI News\n\n"
+            "````markdown\n"
+            "### Corpus health\n"
+            "Coverage was degraded by the source failures or empty responses listed below.\n"
+            "\n"
+            "```json\n"
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
+            "```\n"
+            "````\n"
+        )
+        rendered, _ = _render_markdown(markdown)
+        self.assertIn("failed_sources", rendered)
+        self.assertNotIn("⚠", rendered)
+
+    def test_humanizer_round_trips_the_real_emitter(self) -> None:
+        # Pins heading, explanation sentence, blank line, fence, and JSON shape
+        # against agent_runner.output.render_briefing: if the emitter's wording
+        # or layout drifts, this fails instead of the site silently regressing
+        # to raw JSON.
+        corpus, config, projected, output = fixture_contract()
+        self.assertTrue(corpus["errors"])
+        markdown = render_briefing(output, corpus, config, projected.citations)
+        self.assertIn("failed_sources", markdown)
+        humanized = _humanize_corpus_health(markdown)
+        self.assertNotIn("failed_sources", humanized)
+        self.assertNotIn("```json", humanized)
+        self.assertIn("⚠", humanized)
+
+    def test_corpus_health_unknown_type_and_status_render_verbatim(self) -> None:
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {"source_type": "mastodon", "source_id": "fosstodon", "status": "empty"},
+                    {"source_type": "rss", "source_id": "NPR Politics", "status": "timeout"},
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertNotIn("failed_sources", rendered)
+        self.assertIn("1 mastodon returned no items in this day's window.", rendered)
+        self.assertIn("1 RSS feed timeout.", rendered)
+        self.assertIn("fosstodon", rendered)
+        self.assertIn("NPR Politics", rendered)
+
+    def test_json_fence_without_corpus_health_heading_is_untouched(self) -> None:
+        markdown = (
+            "## AI News\n\n"
+            "**AI story** — Summary.\n\n"
+            "```json\n"
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
+            "```\n"
+        )
+        rendered, _ = _render_markdown(markdown)
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -927,6 +1082,107 @@ class BuildSiteTests(unittest.TestCase):
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("states &#x27;42&#x27;", report)
             self.assertIn("drop_entry", report)
+
+    def test_publishes_valid_dated_corpora_with_first_dir_precedence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            fresh = root / "fresh"
+            prior = root / "prior"
+            fresh.mkdir()
+            prior.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            fresh_corpus = json.dumps(
+                {**valid_corpus, "report_date": "2026-08-20"}
+            )
+            (fresh / "2026-08-20.json").write_text(fresh_corpus, encoding="utf-8")
+            (prior / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-19"}),
+                encoding="utf-8",
+            )
+            (prior / "2026-08-14.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-14"}),
+                encoding="utf-8",
+            )
+            (prior / "not-a-date.json").write_text("{}", encoding="utf-8")
+            (prior / "2026-08-19.json").write_text("{invalid json", encoding="utf-8")
+            (prior / "2026-08-18.json").write_text("{}", encoding="utf-8")
+            (prior / "2026-08-21.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-21"}),
+                encoding="utf-8",
+            )
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[fresh, prior])
+
+            published = (output / "corpora/2026-08-20.json").read_text(encoding="utf-8")
+            self.assertEqual(published, fresh_corpus)
+            self.assertTrue((output / "corpora/2026-08-14.json").is_file())
+            self.assertFalse((output / "corpora/2026-08-19.json").exists())
+            self.assertFalse((output / "corpora/2026-08-18.json").exists())
+            self.assertFalse((output / "corpora/2026-08-21.json").exists())
+            self.assertFalse((output / "corpora/not-a-date.json").exists())
+
+    def test_prunes_corpora_older_than_fourteen_days(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            corpora = root / "corpora"
+            corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            # 2026-08-07 is exactly newest - 13 days: the oldest date kept.
+            for day in ("2026-08-07", "2026-08-06", "2026-08-05"):
+                (corpora / f"{day}.json").write_text(
+                    json.dumps({**valid_corpus, "report_date": day}),
+                    encoding="utf-8",
+                )
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[corpora])
+
+            self.assertTrue((output / "corpora/2026-08-07.json").is_file())
+            self.assertFalse((output / "corpora/2026-08-06.json").exists())
+            self.assertFalse((output / "corpora/2026-08-05.json").exists())
+
+    def test_no_corpora_dir_builds_site_without_corpora(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            output = root / "site"
+            build_site(briefings, output)
+
+            self.assertTrue((output / "index.html").is_file())
+            self.assertFalse((output / "corpora").exists())
+
+    def test_corpora_without_history_entries_publishes_nothing(self) -> None:
+        # No entries means no date anchor for pruning: fail safe, publish nothing.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            corpora = root / "corpora"
+            corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            (corpora / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-20"}),
+                encoding="utf-8",
+            )
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[corpora])
+
+            self.assertTrue((output / "index.html").is_file())
+            self.assertFalse((output / "corpora").exists())
 
     @staticmethod
     def _finding(

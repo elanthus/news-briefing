@@ -70,11 +70,31 @@ jobs:
             run_dir="runs/$report_date"
             report="reports/$report_date.md"
 
-            if python fetch_news.py \
-              --window-start "$window_start" \
-              --window-end "$window_end" \
-              --report-date "$report_date" \
+            if curl \
+              --fail \
+              --location \
+              --max-time 30 \
+              --max-filesize 50000000 \
+              --remove-on-error \
+              --silent \
+              --show-error \
+              "https://elanthus.github.io/news-briefing/corpora/$report_date.json" \
               --output "$corpus"; then
+              echo "Reusing stored corpus for $report_date"
+            elif (( days_ago <= 2 )); then
+              if ! python fetch_news.py \
+                --window-start "$window_start" \
+                --window-end "$window_end" \
+                --report-date "$report_date" \
+                --output "$corpus"; then
+                echo "::warning::Corpus fetch failed for $report_date"
+              fi
+            else
+              echo "::warning::Skipping $report_date: no stored corpus and feeds no longer retain this window"
+              continue
+            fi
+
+            if [[ -f "$corpus" ]]; then
               if ! python run_briefing.py \
                 --provider openrouter \
                 --model deepseek/deepseek-v4-flash-20260423 \
@@ -87,8 +107,6 @@ jobs:
                 --reasoning disabled; then
                 echo "::warning::Briefing generation did not produce a ready report for $report_date"
               fi
-            else
-              echo "::warning::Corpus fetch failed for $report_date"
             fi
 
             if ! python prepare_publication.py \
@@ -133,6 +151,27 @@ jobs:
             https://elanthus.github.io/news-briefing/history.json \
             --output prior-history.json
 
+      - name: Carry forward stored corpora
+        if: always()
+        run: |
+          latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)
+          mkdir -p corpora
+          for days_ago in $(seq 1 13); do
+            d=$(TZ=America/New_York date \
+              --date="$latest_completed_date $days_ago days ago" +%F)
+            [[ -f "corpora/$d.json" ]] && continue
+            curl \
+              --fail \
+              --location \
+              --max-time 30 \
+              --max-filesize 50000000 \
+              --remove-on-error \
+              --silent \
+              --show-error \
+              "https://elanthus.github.io/news-briefing/corpora/$d.json" \
+              --output "corpora/$d.json" || true
+          done
+
       - name: Build static archive
         if: always()
         env:
@@ -148,6 +187,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             args+=(--replace-existing)
           fi
+          args+=(--corpora-dir corpora)
           python build_site.py "${args[@]}"
 
       - name: Upload Pages artifact
