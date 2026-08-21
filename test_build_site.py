@@ -548,6 +548,14 @@ class BuildSiteTests(unittest.TestCase):
             by_date = {entry["date"]: entry for entry in rebuilt["entries"]}
             self.assertEqual(by_date["2026-08-19"]["repair_actions"], actions)
             self.assertEqual(by_date["2026-08-20"]["repair_actions"], [])
+            # The restored entry's chip and report keep the repair provenance.
+            restored_page = (second_site / "2026-08-19.html").read_text(encoding="utf-8")
+            self.assertIn("Published after automated repair (1 action)", restored_page)
+            restored_report = (second_site / "reports/2026-08-19.html").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("Automated repair actions (1)", restored_report)
+            self.assertIn("topics.US News[3]", restored_report)
 
     def test_anchor_based_matching_ignores_section_heading_format(self) -> None:
         markdown = (
