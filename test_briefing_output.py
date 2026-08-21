@@ -4,9 +4,11 @@ import unittest
 from pathlib import Path
 
 import briefing_config
+import corpus_schema
 import eval_briefing
 from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
+    REPAIRABLE_CHECKS,
     OutputFinding,
     build_output_schema,
     is_repairable_finding,
@@ -567,6 +569,141 @@ class BriefingOutputTests(unittest.TestCase):
         }
         self.assertIn("unknown_citation_ref", residual)
         self.assertIn("structured_item_limit", residual)
+
+    def _cited_excerpt(self, projected, refs, evidence):
+        """The deduplicated cited evidence text a swapped summary must equal."""
+        texts = dict.fromkeys(
+            text
+            for ref in refs
+            if (text := evidence.get(
+                corpus_schema.canonicalize_url(projected.citations[ref].url)))
+        )
+        return " ".join(" ".join(texts).split())
+
+    def _bloat(self, excerpt):
+        """A summary guaranteed to exceed the claim/evidence ratio."""
+        return "word " * (int(eval_briefing.CLAIM_EVIDENCE_RATIO * len(excerpt)) + 5)
+
+    def test_repair_swaps_summary_exceeding_evidence_for_excerpt(self):
+        corpus, config, projected, output = fixture_contract()
+        evidence = eval_briefing.corpus_evidence(corpus)
+        first = config.sections[0]
+        broken = copy.deepcopy(output)
+        entry = broken["sections"][first.name]["topics"][0]
+        excerpt = self._cited_excerpt(projected, entry["citation_refs"], evidence)
+        self.assertTrue(excerpt)
+        entry["summary"] = self._bloat(excerpt)
+
+        repaired, actions = repair_structural_output(
+            broken, config, projected.citations, evidence=evidence
+        )
+
+        self.assertEqual(
+            repaired["sections"][first.name]["topics"][0]["summary"], excerpt
+        )
+        swap_actions = [
+            action for action in actions
+            if action["action"] == "replace_summary_with_excerpt"
+        ]
+        self.assertEqual(len(swap_actions), 1)
+        self.assertEqual(swap_actions[0]["path"], f"topics.{first.name}[0]")
+        self.assertTrue(swap_actions[0]["reason"])
+
+    def test_repair_swap_skips_short_summaries_unknown_refs_and_no_evidence(self):
+        corpus, config, projected, output = fixture_contract()
+        evidence = eval_briefing.corpus_evidence(corpus)
+        first = config.sections[0]
+
+        # (a) summaries within the ratio are untouched and produce no actions.
+        repaired, actions = repair_structural_output(
+            output, config, projected.citations, evidence=evidence
+        )
+        self.assertEqual(repaired, output)
+        self.assertEqual(actions, [])
+
+        # (b) an unknown ref is an evidence-boundary violation: preserved.
+        unknown = copy.deepcopy(output)
+        unknown_entry = unknown["sections"][first.name]["topics"][0]
+        unknown_entry["citation_refs"] = ["citation_9999"]
+        unknown_entry["summary"] = "word " * 500
+        repaired, actions = repair_structural_output(
+            unknown, config, projected.citations, evidence=evidence
+        )
+        self.assertEqual(
+            repaired["sections"][first.name]["topics"][0], unknown_entry
+        )
+        self.assertEqual(actions, [])
+
+        # (c) citations without corpus evidence cannot ground a swap: untouched.
+        no_evidence = copy.deepcopy(output)
+        bloated_entry = no_evidence["sections"][first.name]["topics"][0]
+        bloated_entry["summary"] = "word " * 500
+        cited_items = {
+            projected.citations[ref].item_ref
+            for ref in bloated_entry["citation_refs"]
+        }
+        cited_urls = {
+            corpus_schema.canonicalize_url(citation.url)
+            for citation in projected.citations.values()
+            if citation.item_ref in cited_items
+        }
+        pruned_evidence = {
+            url: text for url, text in evidence.items() if url not in cited_urls
+        }
+        self.assertTrue(pruned_evidence)
+        repaired, actions = repair_structural_output(
+            no_evidence, config, projected.citations, evidence=pruned_evidence
+        )
+        self.assertEqual(
+            repaired["sections"][first.name]["topics"][0], bloated_entry
+        )
+        self.assertEqual(actions, [])
+
+        # (d) evidence=None (default) behaves exactly as before: no swap pass.
+        repaired, actions = repair_structural_output(
+            no_evidence, config, projected.citations
+        )
+        self.assertEqual(repaired, no_evidence)
+        self.assertEqual(actions, [])
+
+    def test_repair_swap_runs_after_structural_drops_and_uses_final_paths(self):
+        corpus, config, projected, output = fixture_contract()
+        evidence = eval_briefing.corpus_evidence(corpus)
+        first = config.sections[0]
+        second = config.sections[1]
+        broken = copy.deepcopy(output)
+        # entry[0] repeats an item already used by an earlier section: dropped.
+        repeated = copy.deepcopy(broken["sections"][first.name]["topics"][0])
+        broken["sections"][second.name]["topics"].insert(0, repeated)
+        # entry[1] is bloated; after the drop it sits at index 0.
+        bloated = broken["sections"][second.name]["topics"][1]
+        excerpt = self._cited_excerpt(projected, bloated["citation_refs"], evidence)
+        self.assertTrue(excerpt)
+        bloated["summary"] = self._bloat(excerpt)
+
+        repaired, actions = repair_structural_output(
+            broken, config, projected.citations, evidence=evidence
+        )
+
+        self.assertTrue(any(
+            action["action"] == "drop_entry"
+            and action["path"] == f"topics.{second.name}[0]"
+            for action in actions
+        ), msg=actions)
+        swap_actions = [
+            action for action in actions
+            if action["action"] == "replace_summary_with_excerpt"
+        ]
+        self.assertEqual(
+            [action["path"] for action in swap_actions],
+            [f"topics.{second.name}[0]"],
+        )
+        self.assertEqual(
+            repaired["sections"][second.name]["topics"][0]["summary"], excerpt
+        )
+
+    def test_claim_exceeds_evidence_is_repairable(self):
+        self.assertIn("claim_exceeds_evidence", REPAIRABLE_CHECKS)
 
     def test_rendered_briefing_carries_story_anchors(self):
         corpus, config, projected, output = fixture_contract()

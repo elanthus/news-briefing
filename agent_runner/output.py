@@ -248,6 +248,7 @@ def build_output_schema(
 
 REPAIRABLE_CHECKS = frozenset({
     "category_ineligible_ref",
+    "claim_exceeds_evidence",
     "duplicate_citation_ref",
     "duplicate_item",
     "structured_item_limit",
@@ -260,9 +261,12 @@ def is_repairable_finding(finding: OutputFinding) -> bool:
     These are editorial placement errors: ineligible-category refs, repeated
     refs, reused items, and over-limit sections. ``repair_structural_output``
     drops or deduplicates the offending entries, so a repaired output
-    re-validates without any of these checks. Everything else (unknown refs,
-    freeform URLs, schema-shape violations) is an evidence-boundary or contract
-    violation that repair deliberately preserves for rejection and review.
+    re-validates without any of these checks. ``claim_exceeds_evidence`` is
+    repairable too: the swap replaces the over-long prose with its own cited
+    evidence, so the finding cannot re-fire by construction. Everything else
+    (unknown refs, freeform URLs, schema-shape violations) is an
+    evidence-boundary or contract violation that repair deliberately preserves
+    for rejection and review.
     """
     return finding.check in REPAIRABLE_CHECKS
 
@@ -271,6 +275,7 @@ def repair_structural_output(
     output: Any,
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    evidence: dict[str, str] | None = None,
 ) -> tuple[Any, list[dict[str, str]]]:
     """Remove unsafe structural selections after model corrections are exhausted.
 
@@ -281,6 +286,11 @@ def repair_structural_output(
     configured maximum have their trailing entries trimmed, but never an entry
     preserved for rejection. Unknown evidence remains a rejection rather than
     being normalized away.
+
+    When ``evidence`` (canonical URL -> corpus excerpt, from
+    ``eval_briefing.corpus_evidence``) is provided, a final pass swaps any
+    included summary that exceeds the claim/evidence ratio for its own
+    deduplicated cited excerpt, so ``claim_exceeds_evidence`` cannot re-fire.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -414,6 +424,53 @@ def repair_structural_output(
                 section=section,
                 excluded=True,
             )
+
+    # After the drop/trim passes, indices are final and match the renderer's
+    # anchor paths. The check never fires for excluded entries, so the swap
+    # pass covers included topics only.
+    def _swap_oversized_summaries() -> None:
+        for section in config.sections:
+            section_value = sections.get(section.name)
+            if not isinstance(section_value, dict):
+                continue
+            topics = section_value.get("topics")
+            if not isinstance(topics, list):
+                continue
+            for index, entry in enumerate(topics):
+                if not isinstance(entry, dict):
+                    continue
+                refs = entry.get("citation_refs")
+                summary = entry.get("summary")
+                if not isinstance(refs, list) or not isinstance(summary, str):
+                    continue
+                if any(not isinstance(ref, str) or ref not in citations
+                       for ref in refs):
+                    continue  # evidence-boundary violation: preserve for review
+                support = " ".join(dict.fromkeys(
+                    text
+                    for citation in _complete_item_citations(refs, citations)
+                    if (text := evidence.get(
+                        corpus_schema.canonicalize_url(citation.url)))
+                )).strip()
+                if not support:
+                    continue
+                if len(summary) <= eval_briefing.CLAIM_EVIDENCE_RATIO * len(support):
+                    continue
+                # Collapse whitespace so a multi-line blurb cannot break the
+                # one-line topic grammar; collapsing only shrinks the prose, so
+                # the ratio check still passes against the raw corpus text.
+                entry["summary"] = " ".join(support.split())
+                actions.append({
+                    "action": "replace_summary_with_excerpt",
+                    "path": f"topics.{section.name}[{index}]",
+                    "reason": (
+                        f"summary of {len(summary)} characters exceeded "
+                        f"{len(support)} characters of cited evidence; "
+                        "replaced with the verbatim source excerpt"),
+                })
+
+    if evidence:
+        _swap_oversized_summaries()
     return repaired, actions
 
 
