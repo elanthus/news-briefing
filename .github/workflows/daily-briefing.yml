@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "30 13 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Report range to regenerate and replace
+        required: true
+        default: single-day
+        type: choice
+        options:
+          - single-day
+          - backfill-7-days
 
 permissions:
   contents: read
@@ -35,12 +44,13 @@ jobs:
 
       - name: Generate scheduled daily or manual backfill reports
         env:
+          MANUAL_MODE: ${{ inputs.mode }}
           SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           mkdir -p briefing-history corpora reports runs
           latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_MODE" == "backfill-7-days" ]]; then
             day_offsets=(6 5 4 3 2 1 0)
           else
             day_offsets=(0)
