@@ -1094,17 +1094,26 @@ class BuildSiteTests(unittest.TestCase):
             prior = root / "prior"
             fresh.mkdir()
             prior.mkdir()
-            fresh_corpus = json.dumps({"corpus_date": "2026-08-20", "origin": "fresh"})
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            fresh_corpus = json.dumps(
+                {**valid_corpus, "report_date": "2026-08-20"}
+            )
             (fresh / "2026-08-20.json").write_text(fresh_corpus, encoding="utf-8")
             (prior / "2026-08-20.json").write_text(
-                json.dumps({"corpus_date": "2026-08-20", "origin": "prior"}),
+                json.dumps({**valid_corpus, "report_date": "2026-08-19"}),
                 encoding="utf-8",
             )
             (prior / "2026-08-14.json").write_text(
-                json.dumps({"corpus_date": "2026-08-14"}), encoding="utf-8"
+                json.dumps({**valid_corpus, "report_date": "2026-08-14"}),
+                encoding="utf-8",
             )
             (prior / "not-a-date.json").write_text("{}", encoding="utf-8")
             (prior / "2026-08-19.json").write_text("{invalid json", encoding="utf-8")
+            (prior / "2026-08-18.json").write_text("{}", encoding="utf-8")
+            (prior / "2026-08-21.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-21"}),
+                encoding="utf-8",
+            )
 
             output = root / "site"
             build_site(briefings, output, corpora_dirs=[fresh, prior])
@@ -1113,6 +1122,8 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(published, fresh_corpus)
             self.assertTrue((output / "corpora/2026-08-14.json").is_file())
             self.assertFalse((output / "corpora/2026-08-19.json").exists())
+            self.assertFalse((output / "corpora/2026-08-18.json").exists())
+            self.assertFalse((output / "corpora/2026-08-21.json").exists())
             self.assertFalse((output / "corpora/not-a-date.json").exists())
 
     def test_prunes_corpora_older_than_fourteen_days(self) -> None:
@@ -1124,10 +1135,13 @@ class BuildSiteTests(unittest.TestCase):
             self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
             corpora = root / "corpora"
             corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
             # 2026-08-07 is exactly newest - 13 days: the oldest date kept.
-            (corpora / "2026-08-07.json").write_text('{"kept": true}', encoding="utf-8")
-            (corpora / "2026-08-06.json").write_text('{"kept": false}', encoding="utf-8")
-            (corpora / "2026-08-05.json").write_text('{"kept": false}', encoding="utf-8")
+            for day in ("2026-08-07", "2026-08-06", "2026-08-05"):
+                (corpora / f"{day}.json").write_text(
+                    json.dumps({**valid_corpus, "report_date": day}),
+                    encoding="utf-8",
+                )
 
             output = root / "site"
             build_site(briefings, output, corpora_dirs=[corpora])
@@ -1158,7 +1172,11 @@ class BuildSiteTests(unittest.TestCase):
             briefings.mkdir()
             corpora = root / "corpora"
             corpora.mkdir()
-            (corpora / "2026-08-20.json").write_text("{}", encoding="utf-8")
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            (corpora / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-20"}),
+                encoding="utf-8",
+            )
 
             output = root / "site"
             build_site(briefings, output, corpora_dirs=[corpora])

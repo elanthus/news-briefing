@@ -15,6 +15,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+import corpus_schema
+
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
@@ -872,12 +874,19 @@ def _publish_corpora(
             except ValueError:
                 continue
             slug = day.isoformat()
-            if corpus.stem != slug or slug in survivors or day < oldest_kept:
+            if (
+                corpus.stem != slug
+                or slug in survivors
+                or day < oldest_kept
+                or day > newest_entry_date
+            ):
                 continue
             raw = corpus.read_bytes()
             try:
-                json.loads(raw)
+                payload = json.loads(raw)
             except ValueError:
+                continue
+            if corpus_schema.validate_corpus(payload):
                 continue
             survivors[slug] = raw
     if not survivors:
