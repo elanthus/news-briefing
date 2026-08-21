@@ -16,11 +16,14 @@ from typing import Any
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
+SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 FINDING_FIELDS = {"level", "check", "domain", "message"}
 FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
 CONTEXT_FIELDS = {"section", "headline", "model_authored"}
+CONTEXT_V4_FIELDS = CONTEXT_FIELDS | {"path"}
+STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 DISPOSITIONS = {
     "blocked",
     "degraded",
@@ -80,6 +83,7 @@ class ReviewFinding:
     section: str | None = None
     headline: str | None = None
     model_authored: str | None = None
+    path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +94,7 @@ class BriefingEntry:
     findings: tuple[ReviewFinding, ...]
     degraded_sources: tuple[str, ...]
     markdown: str | None
+    repair_actions: tuple[dict[str, str], ...] = ()
 
     @property
     def slug(self) -> str:
@@ -116,7 +121,26 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         findings=entry.findings,
         degraded_sources=entry.degraded_sources,
         markdown=markdown,
+        repair_actions=entry.repair_actions,
     )
+
+
+REPAIR_ACTION_FIELDS = {"action", "path", "reason"}
+
+
+def _parse_repair_actions(raw: object) -> tuple[dict[str, str], ...]:
+    if not isinstance(raw, list):
+        return ()
+    actions: list[dict[str, str]] = []
+    for item in raw:
+        if (
+            not isinstance(item, dict)
+            or set(item) != REPAIR_ACTION_FIELDS
+            or any(not isinstance(item[k], str) for k in REPAIR_ACTION_FIELDS)
+        ):
+            return ()
+        actions.append(item)
+    return tuple(actions)
 
 
 def _entry_from_payload(
@@ -128,7 +152,12 @@ def _entry_from_payload(
     flexible_findings: bool = True,
 ) -> BriefingEntry:
     expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
-    if not isinstance(payload, dict) or set(payload) != expected_fields:
+    allowed_fields = (
+        (expected_fields, SIDECAR_V4_FIELDS)
+        if schema_version >= 2
+        else (expected_fields,)
+    )
+    if not isinstance(payload, dict) or set(payload) not in allowed_fields:
         raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
 
     raw_date = payload["date"]
@@ -183,7 +212,7 @@ def _entry_from_payload(
         raw_context = raw_finding.get("context")
         if raw_context is not None and (
             not isinstance(raw_context, dict)
-            or set(raw_context) != CONTEXT_FIELDS
+            or set(raw_context) not in (CONTEXT_FIELDS, CONTEXT_V4_FIELDS)
             or any(
                 not isinstance(raw_context[field], str) or not raw_context[field].strip()
                 for field in CONTEXT_FIELDS
@@ -193,6 +222,9 @@ def _entry_from_payload(
                 f"{finding_source} context must be null or contain exactly "
                 f"{sorted(CONTEXT_FIELDS)} as non-empty strings"
             )
+        raw_path = raw_context.get("path") if isinstance(raw_context, dict) else None
+        if raw_path is not None and (not isinstance(raw_path, str) or not raw_path.strip()):
+            raw_path = None
         findings.append(
             ReviewFinding(
                 level=raw_finding["level"],
@@ -204,12 +236,14 @@ def _entry_from_payload(
                 model_authored=(
                     raw_context["model_authored"] if isinstance(raw_context, dict) else None
                 ),
+                path=raw_path,
             )
         )
     if schema_version >= 2 and disposition == "review_required" and len(findings) != findings_count:
         raise ValueError(f"{source} must include every review-required finding")
     if disposition != "review_required" and findings:
         raise ValueError(f"{source} findings details are allowed only for review_required entries")
+    repair_actions = _parse_repair_actions(payload.get("repair_actions"))
     return BriefingEntry(
         day=parsed_date,
         disposition=disposition,
@@ -217,6 +251,7 @@ def _entry_from_payload(
         findings=tuple(findings),
         degraded_sources=tuple(degraded_sources),
         markdown=None,
+        repair_actions=repair_actions,
     )
 
 
@@ -225,19 +260,26 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3}
+        or payload.get("schema_version") not in {1, 2, 3, 4}
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1, 2, or 3 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 1 through 4 with an entries array")
     schema_version = payload["schema_version"]
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
         source = f"history {path} entry {index}"
         expected_fields = HISTORY_FIELDS if schema_version >= 2 else LEGACY_HISTORY_FIELDS
+        if schema_version >= 4:
+            expected_fields = expected_fields | {"repair_actions"}
         if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
             raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        metadata_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
+        if schema_version >= 4:
+            metadata_fields = SIDECAR_V4_FIELDS
+        elif schema_version >= 2:
+            metadata_fields = SIDECAR_FIELDS
+        else:
+            metadata_fields = LEGACY_FIELDS
         metadata = {key: raw_entry[key] for key in metadata_fields}
         entry = _entry_from_payload(
             metadata,
@@ -262,6 +304,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 findings=entry.findings,
                 degraded_sources=entry.degraded_sources,
                 markdown=markdown,
+                repair_actions=entry.repair_actions,
             )
         )
     return entries
@@ -269,7 +312,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "entries": [
             {
                 "date": entry.slug,
@@ -286,6 +329,7 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                                 "section": finding.section,
                                 "headline": finding.headline,
                                 "model_authored": finding.model_authored,
+                                **({"path": finding.path} if finding.path is not None else {}),
                             }
                             if finding.section is not None
                             and finding.headline is not None
@@ -296,6 +340,7 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                     for finding in entry.findings
                 ],
                 "degraded_sources": list(entry.degraded_sources),
+                "repair_actions": [dict(action) for action in entry.repair_actions],
                 "markdown": _strip_legacy_preview_banner(entry.markdown),
             }
             for entry in entries
@@ -355,6 +400,7 @@ def _topic_headline(line: str) -> str | None:
 
 
 def _section_subheading(line: str) -> str | None:
+    """Legacy section attribution for findings that predate story anchors."""
     if not line.startswith("**") or not line.endswith("**") or " — " in line:
         return None
     label = line[2:-2].strip()
@@ -362,7 +408,14 @@ def _section_subheading(line: str) -> str | None:
     return slots.group(1) if slots is not None else label
 
 
-def _finding_matches(finding: ReviewFinding, section: str, headline: str) -> bool:
+def _finding_matches(
+    finding: ReviewFinding,
+    section: str,
+    headline: str,
+    current_path: str | None = None,
+) -> bool:
+    if finding.path is not None and current_path is not None:
+        return finding.path == current_path
     if finding.section is not None or finding.headline is not None:
         return finding.section == section and finding.headline == headline
     return finding.message.startswith(f"{section}: {headline!r}")
@@ -382,15 +435,22 @@ def _render_markdown(
     matched: set[int] = set()
     section = ""
     excluded_section = False
+    current_path: str | None = None
     pending_end_marker: str | None = None
     digest = hashlib.sha256(public_markdown.encode("utf-8")).hexdigest()[:16]
     for line in public_markdown.splitlines():
+        anchor_match = STORY_ANCHOR.match(line)
+        if anchor_match is not None:
+            current_path = anchor_match.group(1)
+            continue
         headline = _topic_headline(line)
         if pending_end_marker is not None and (
             line.startswith("## ") or headline is not None
         ):
             lines.extend(["", pending_end_marker, ""])
             pending_end_marker = None
+        # Section/subheading tracking only serves findings without a structured
+        # path (pre-v4 sidecars and histories); anchored findings match by path.
         if line.startswith("### Excluded Topics"):
             excluded_section = True
         elif line.startswith("## "):
@@ -405,12 +465,15 @@ def _render_markdown(
             )
         if headline is None:
             lines.append(line)
+            current_path = None
             continue
         indices = [
             index
             for index, finding in enumerate(findings)
-            if index not in matched and _finding_matches(finding, section, headline)
+            if index not in matched
+            and _finding_matches(finding, section, headline, current_path)
         ]
+        current_path = None
         if not indices:
             lines.append(line)
             continue

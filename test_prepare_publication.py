@@ -346,6 +346,137 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.disposition, "blocked")
             self.assertEqual(record.findings, ())
 
+    def test_deterministic_repair_copies_repair_actions_to_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing after repair\n"
+            (run / "final.md").write_bytes(content)
+            repair_actions = [
+                {"action": "drop_entry", "path": "topics.AI News[1]", "reason": "duplicate item"},
+                {"action": "drop_ref", "path": "topics.US News[0]", "reason": "ineligible category"},
+            ]
+            self._write_manifest(
+                run, "ready", "final", "final.md", content, [],
+                structured={"sections": {"AI News": {"topics": []}}},
+                final_attempt_kind="deterministic_repair",
+                final_repair_actions=repair_actions,
+            )
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(len(record.repair_actions), 2)
+            self.assertEqual(record.repair_actions[0]["action"], "drop_entry")
+            self.assertEqual(record.repair_actions[0]["path"], "topics.AI News[1]")
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["repair_actions"], repair_actions)
+
+    def test_ready_run_without_repair_has_empty_repair_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(run, "ready", "final", "final.md", content, [])
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(record.repair_actions, ())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["repair_actions"], [])
+
+    def test_rejected_run_keeps_repair_actions_out_of_the_sidecar(self) -> None:
+        # Non-public dispositions retain only findings_count; repair provenance
+        # is published only alongside a public artifact.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = b"rejected preview\n"
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {
+                    "level": "ERROR",
+                    "check": "unknown_citation_ref",
+                    "domain": "evidence",
+                    "message": "topics.AI News[0] contains unknown citation ref 'citation_9999'",
+                },
+            ]
+            self._write_manifest(
+                run, "rejected", "preview", "preview.md", preview, findings,
+                structured={"sections": {"AI News": {"topics": []}}},
+                final_attempt_kind="deterministic_repair",
+                final_repair_actions=[
+                    {
+                        "action": "drop_entry",
+                        "path": "topics.AI News[1]",
+                        "reason": "duplicate item",
+                    },
+                ],
+            )
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "rejected")
+            self.assertEqual(record.repair_actions, ())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["repair_actions"], [])
+
+    def test_review_required_findings_carry_structured_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = b"review-required preview\n"
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {
+                    "level": "WARN",
+                    "check": "unsupported_quotation",
+                    "domain": "evidence",
+                    "message": (
+                        "topics.AI News[0].summary includes a quotation "
+                        "not supported by the cited corpus excerpts"
+                    ),
+                },
+            ]
+            structured = {
+                "sections": {
+                    "AI News": {"topics": [{
+                        "headline": "Big AI story",
+                        "summary": "Summary here",
+                        "citation_refs": ["citation_0001"],
+                    }]},
+                },
+            }
+            self._write_manifest(
+                run, "review_required", "preview", "preview.md", preview, findings,
+                structured=structured,
+            )
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "review_required")
+            ctx = record.findings[0].context
+            self.assertIsNotNone(ctx)
+            assert ctx is not None
+            self.assertEqual(ctx.path, "topics.AI News[0]")
+            self.assertEqual(ctx.section, "AI News")
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["findings"][0]["context"]["path"], "topics.AI News[0]")
+
     @staticmethod
     def _write_manifest(
         run: Path,
@@ -358,6 +489,8 @@ class PreparePublicationTests(unittest.TestCase):
         structured: dict[str, object] | None = None,
         structured_name: str = "attempt-01-structured.json",
         attempt_index: int = 1,
+        final_attempt_kind: str | None = None,
+        final_repair_actions: list[dict[str, str]] | None = None,
     ) -> None:
         artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
         attempts: list[dict[str, object]] = []
@@ -366,7 +499,15 @@ class PreparePublicationTests(unittest.TestCase):
             structured_content = json.dumps(structured, ensure_ascii=False).encode("utf-8")
             (run / Path(structured_name).name).write_bytes(structured_content)
             artifacts[structured_name] = hashlib.sha256(structured_content).hexdigest()
-            attempts.append({"index": attempt_index, "structured_artifact": structured_name})
+            attempt_row: dict[str, object] = {
+                "index": attempt_index,
+                "structured_artifact": structured_name,
+            }
+            if final_attempt_kind is not None:
+                attempt_row["kind"] = final_attempt_kind
+            if final_repair_actions is not None:
+                attempt_row["repair_actions"] = final_repair_actions
+            attempts.append(attempt_row)
             final_attempt["attempt"] = 1
         (run / "manifest.json").write_text(
             json.dumps(

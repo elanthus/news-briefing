@@ -661,7 +661,8 @@ def render_briefing(
         section = config.sections[index]
         if section.group is None:
             lines.extend([f"## {section.name}", ""])
-            for entry in sections[section.name]["topics"]:
+            for topic_index, entry in enumerate(sections[section.name]["topics"]):
+                lines.append(f"<!-- story: topics.{section.name}[{topic_index}] -->")
                 lines.extend(_topic_lines(entry, citations))
             index += 1
             continue
@@ -670,7 +671,8 @@ def render_briefing(
         while index < len(config.sections) and config.sections[index].group == group:
             grouped = config.sections[index]
             lines.extend([f"**{grouped.name} ({grouped.target_stories} slots)**", ""])
-            for entry in sections[grouped.name]["topics"]:
+            for topic_index, entry in enumerate(sections[grouped.name]["topics"]):
+                lines.append(f"<!-- story: topics.{grouped.name}[{topic_index}] -->")
                 lines.extend(_topic_lines(entry, citations))
             index += 1
 
@@ -681,13 +683,16 @@ def render_briefing(
             if not section.excluded_stories:
                 continue
             lines.append(f"**{section.name}**")
-            for entry in excluded[section.name]:
+            for exc_index, entry in enumerate(excluded[section.name]):
                 rendered_refs = []
                 for citation in _complete_item_citations(
                     entry["citation_refs"], citations
                 ):
                     prefix = "HN: " if citation.kind == "discussion" else ""
                     rendered_refs.append(f"🔗 {prefix}{citation.url}")
+                lines.append(
+                    f"<!-- story: excluded_topics.{section.name}[{exc_index}] -->"
+                )
                 lines.append(
                     f"- *{entry['headline']}* — {entry['reason']} " + " ".join(rendered_refs)
                 )
@@ -733,11 +738,12 @@ def _preview_entries(
     *,
     citations: dict[str, Citation],
     excluded: bool,
+    path_prefix: str,
 ) -> list[str]:
     if not isinstance(entries, list):
         return ["_Candidate did not provide an entry list._", ""]
     lines: list[str] = []
-    for entry in entries:
+    for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             lines.extend(["_Malformed candidate entry omitted._", ""])
             continue
@@ -751,6 +757,9 @@ def _preview_entries(
             prose_note = ""
         rendered_prose = _preview_text(prose, "[missing candidate text]")
         marker = "- " if excluded else ""
+        # The anchor must directly precede the headline line: the site renderer
+        # binds a finding's structured path to the next headline it sees.
+        lines.append(f"<!-- story: {path_prefix}[{index}] -->")
         lines.append(f"{marker}**{headline}** — {rendered_prose}{prose_note}")
         refs = entry.get("citation_refs")
         if isinstance(refs, list):
@@ -788,7 +797,12 @@ def render_candidate_preview(
         lines.extend([f"## {section.name}", ""])
         section_value = sections.get(section.name)
         topics = section_value.get("topics") if isinstance(section_value, dict) else None
-        lines.extend(_preview_entries(topics, citations=citations, excluded=False))
+        lines.extend(_preview_entries(
+            topics,
+            citations=citations,
+            excluded=False,
+            path_prefix=f"topics.{section.name}",
+        ))
 
     lines.extend(["---", "", "### Excluded Topics (candidate)", ""])
     excluded_value = root.get("excluded_topics")
@@ -801,7 +815,10 @@ def render_candidate_preview(
         lines.extend([f"**{section.name}**", ""])
         lines.extend(
             _preview_entries(
-                excluded_topics.get(section.name), citations=citations, excluded=True
+                excluded_topics.get(section.name),
+                citations=citations,
+                excluded=True,
+                path_prefix=f"excluded_topics.{section.name}",
             )
         )
 
