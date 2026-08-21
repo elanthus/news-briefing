@@ -277,8 +277,9 @@ def repair_structural_output(
     Included stories have priority over every accountability-log entry. An entry
     with any ineligible or already-used item is dropped as a whole so its prose
     cannot remain after its evidence is removed. Exact repeated refs inside one
-    otherwise-valid entry are safely deduplicated. Unknown evidence remains a
-    rejection rather than being normalized away.
+    otherwise-valid entry are safely deduplicated. Sections that exceed their
+    configured maximum have their trailing entries trimmed. Unknown evidence
+    remains a rejection rather than being normalized away.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -300,16 +301,25 @@ def repair_structural_output(
         if not isinstance(entries, list):
             return
         label = "excluded_topics" if excluded else "topics"
+        maximum = section.excluded_stories if excluded else section.target_stories
         eligible_categories = set(section.corpus_categories)
         kept: list[Any] = []
+        # Parallel to ``kept``: the path each surviving entry occupied and the
+        # item refs it registered in ``used_items`` (empty when it registered
+        # none). Over-limit truncation uses this to un-register the items of any
+        # trailing entry it drops, so a trimmed entry never blocks a later
+        # legitimate use of its item.
+        kept_meta: list[tuple[str, set[str]]] = []
         for index, entry in enumerate(entries):
             path = f"{label}.{section.name}[{index}]"
             if not isinstance(entry, dict) or not isinstance(entry.get("citation_refs"), list):
                 kept.append(entry)
+                kept_meta.append((path, set()))
                 continue
             refs = entry["citation_refs"]
             if not refs:
                 kept.append(entry)
+                kept_meta.append((path, set()))
                 continue
 
             unique_refs: list[str] = []
@@ -336,6 +346,7 @@ def repair_structural_output(
             # editorial placement error. Preserve it for rejection and review.
             if has_unknown_ref:
                 kept.append(entry)
+                kept_meta.append((path, set()))
                 continue
 
             repeated_items = sorted(item_ref for item_ref in item_refs if item_ref in used_items)
@@ -360,8 +371,23 @@ def repair_structural_output(
                     "reason": "removed repeated citation references",
                 })
             kept.append(entry)
+            kept_meta.append((path, item_refs))
             for item_ref in item_refs:
                 used_items[item_ref] = path
+
+        # Editorial over-fill: drop trailing entries beyond the section maximum
+        # so a repaired output re-validates without ``structured_item_limit``.
+        if len(kept) > maximum:
+            for dropped_path, dropped_items in kept_meta[maximum:]:
+                for item_ref in dropped_items:
+                    if used_items.get(item_ref) == dropped_path:
+                        del used_items[item_ref]
+                actions.append({
+                    "action": "drop_entry",
+                    "path": dropped_path,
+                    "reason": f"section exceeds maximum of {maximum} entries",
+                })
+            del kept[maximum:]
         entries[:] = kept
 
     # Included stories outrank exclusions regardless of configured section order.

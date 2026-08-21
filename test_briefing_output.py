@@ -355,11 +355,23 @@ class BriefingOutputTests(unittest.TestCase):
             "category_ineligible_ref",
             "duplicate_citation_ref",
             "duplicate_item",
+            "structured_item_limit",
         }
         _corpus, config, projected, output = fixture_contract()
         section_names = [section.name for section in config.sections]
         categories_by_section = {
             section.name: set(section.corpus_categories) for section in config.sections
+        }
+        used_items = {
+            projected.citations[ref].item_ref
+            for section in output["sections"].values()
+            for topic in section["topics"]
+            for ref in topic["citation_refs"]
+        } | {
+            projected.citations[ref].item_ref
+            for rows in output["excluded_topics"].values()
+            for topic in rows
+            for ref in topic["citation_refs"]
         }
 
         def ineligible_ref_for(section):
@@ -367,6 +379,14 @@ class BriefingOutputTests(unittest.TestCase):
                 ref
                 for ref, citation in projected.citations.items()
                 if citation.category not in section.corpus_categories
+            )
+
+        def spare_eligible_ref_for(section):
+            return next(
+                ref
+                for ref, citation in projected.citations.items()
+                if citation.category in section.corpus_categories
+                and citation.item_ref not in used_items
             )
 
         def corruptions():
@@ -410,6 +430,15 @@ class BriefingOutputTests(unittest.TestCase):
                 excluded_ineligible,
                 {"category_ineligible_ref"},
             )
+
+            first = config.sections[0]
+            over_limit = copy.deepcopy(output)
+            over_limit["sections"][first.name]["topics"].append({
+                "headline": "One valid story too many",
+                "summary": "A valid entry that only pushes the section over target.",
+                "citation_refs": [spare_eligible_ref_for(first)],
+            })
+            yield "section exceeds target count", over_limit, {"structured_item_limit"}
 
             for donor_name in section_names:
                 for target_name in section_names:
@@ -458,6 +487,59 @@ class BriefingOutputTests(unittest.TestCase):
                 )
                 self.assertEqual(again, repaired)
                 self.assertEqual(second_actions, [])
+
+    def test_repair_trims_over_limit_sections(self):
+        _corpus, config, projected, output = fixture_contract()
+        first = config.sections[0]
+        used_items = {
+            projected.citations[ref].item_ref
+            for section in output["sections"].values()
+            for topic in section["topics"]
+            for ref in topic["citation_refs"]
+        } | {
+            projected.citations[ref].item_ref
+            for rows in output["excluded_topics"].values()
+            for topic in rows
+            for ref in topic["citation_refs"]
+        }
+        extra_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category in first.corpus_categories
+            and citation.item_ref not in used_items
+        )
+        over = copy.deepcopy(output)
+        over["sections"][first.name]["topics"].append({
+            "headline": "Extra valid story beyond the section limit",
+            "summary": "A wholly valid entry that only offends the target count.",
+            "citation_refs": [extra_ref],
+        })
+
+        before = {
+            finding.check
+            for finding in validate_output(over, config, projected.citations)
+        }
+        self.assertIn("structured_item_limit", before)
+
+        repaired, actions = repair_structural_output(over, config, projected.citations)
+
+        self.assertEqual(
+            len(repaired["sections"][first.name]["topics"]), first.target_stories
+        )
+        residual = {
+            finding.check
+            for finding in validate_output(repaired, config, projected.citations)
+        }
+        self.assertNotIn("structured_item_limit", residual)
+        self.assertTrue(
+            any(
+                action["action"] == "drop_entry"
+                and "maximum" in action["reason"]
+                and action["path"].startswith(f"topics.{first.name}")
+                for action in actions
+            ),
+            msg=actions,
+        )
 
     def test_repairable_finding_partition(self):
         for check in (
