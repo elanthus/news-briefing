@@ -85,6 +85,60 @@ class BootstrapHistoryTests(unittest.TestCase):
             self.assertEqual(sidecar["findings"], [])
             self.assertFalse((history / "2026-08-20.md").exists())
 
+    def test_review_seed_excludes_nonblocking_quality_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "dogfood"
+            run.mkdir()
+            content = b"review-required dogfood preview"
+            (run / "preview.md").write_bytes(content)
+            (run / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "artifacts": {"preview.md": hashlib.sha256(content).hexdigest()},
+                        "final": {
+                            "status": "review_required",
+                            "artifact_type": "preview",
+                            "run_artifact": "preview.md",
+                            "findings": [
+                                {
+                                    "level": "WARN",
+                                    "check": "unsupported_quotation",
+                                    "domain": "evidence",
+                                    "message": "Quotation absent from excerpt.",
+                                },
+                                {
+                                    "level": "WARN",
+                                    "check": "unsupported_figure",
+                                    "domain": "quality",
+                                    "message": "Figure absent from excerpt.",
+                                },
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (run / "corpus.json").write_text('{"errors": []}', encoding="utf-8")
+            configured = (
+                DogfoodRun(
+                    day=date(2026, 8, 20),
+                    directory="dogfood",
+                    artifact="preview.md",
+                    corpus="corpus.json",
+                ),
+            )
+
+            with patch("bootstrap_history.DOGFOOD_RUNS", configured):
+                bootstrap_history(root, root / "history")
+
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["findings_count"], 1)
+            self.assertEqual(len(sidecar["findings"]), 1)
+            self.assertEqual(sidecar["findings"][0]["check"], "unsupported_quotation")
+            self.assertNotIn("unsupported_figure", json.dumps(sidecar))
+
 
 if __name__ == "__main__":
     unittest.main()

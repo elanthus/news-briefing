@@ -21,13 +21,19 @@ class PreparePublicationTests(unittest.TestCase):
             findings = [
                 {
                     "level": "WARN",
-                    "check": "unsupported_figure",
+                    "check": "unsupported_quotation",
                     "domain": "evidence",
                     "message": (
-                        "US Politics: 'Fuel restrictions end early' states '1', which is "
+                        "US Politics: 'Fuel restrictions end early' includes a quotation "
                         "not supported by the cited corpus excerpts"
                     ),
-                }
+                },
+                {
+                    "level": "WARN",
+                    "check": "unsupported_figure",
+                    "domain": "quality",
+                    "message": "US Politics: 'Fuel restrictions end early' states '1'",
+                },
             ]
             structured = {
                 "sections": {
@@ -69,7 +75,7 @@ class PreparePublicationTests(unittest.TestCase):
 
             self.assertEqual(record.disposition, "review_required")
             self.assertEqual(record.findings_count, 1)
-            self.assertIn("states '1'", record.findings[0].message)
+            self.assertIn("includes a quotation", record.findings[0].message)
             self.assertIsNotNone(record.findings[0].context)
             assert record.findings[0].context is not None
             self.assertEqual(record.findings[0].context.section, "US Politics")
@@ -78,6 +84,7 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual((history / "2026-08-20.md").read_bytes(), preview)
             sidecar = json.loads((history / "2026-08-20.json").read_text())
             self.assertEqual(sidecar["findings"][0]["message"], findings[0]["message"])
+            self.assertNotIn("unsupported_figure", json.dumps(sidecar))
             self.assertEqual(
                 sidecar["findings"][0]["context"]["headline"],
                 "Fuel restrictions end early",
@@ -91,7 +98,13 @@ class PreparePublicationTests(unittest.TestCase):
             content = b"ready briefing\n"
             (run / "final.md").write_bytes(content)
             raw_findings = [
-                {"level": "WARN", "check": "editorial", "domain": "editorial", "message": "note"}
+                {"level": "WARN", "check": "editorial", "domain": "editorial", "message": "note"},
+                {
+                    "level": "WARN",
+                    "check": "unsupported_figure",
+                    "domain": "quality",
+                    "message": "figure absent from excerpt",
+                },
             ]
             self._write_manifest(run, "ready", "final", "final.md", content, raw_findings)
 
@@ -133,7 +146,7 @@ class PreparePublicationTests(unittest.TestCase):
             findings = [
                 {
                     "level": "WARN",
-                    "check": "unsupported_figure",
+                    "check": "unsupported_quotation",
                     "domain": "evidence",
                     "message": "Verify it.",
                 }
@@ -157,7 +170,7 @@ class PreparePublicationTests(unittest.TestCase):
             findings = [
                 {
                     "level": "WARN",
-                    "check": "unsupported_figure",
+                    "check": "unsupported_quotation",
                     "domain": "evidence",
                     "message": "US Politics: 'Fuel story' states '1', which is unsupported",
                 }
@@ -211,7 +224,7 @@ class PreparePublicationTests(unittest.TestCase):
                 (run / "preview.md").write_bytes(preview)
                 findings = [{
                     "level": "WARN",
-                    "check": "unsupported_figure",
+                    "check": "unsupported_quotation",
                     "domain": "evidence",
                     "message": "US Politics: 'Fuel story' states '1', which is unsupported",
                 }]
@@ -246,7 +259,7 @@ class PreparePublicationTests(unittest.TestCase):
             run.mkdir()
             content = b"preview"
             (run / "preview.md").write_bytes(content)
-            findings = [{"level": "WARN", "check": "unsupported_figure", "message": "missing domain"}]
+            findings = [{"level": "WARN", "check": "unsupported_quotation", "message": "missing domain"}]
             self._write_manifest(run, "review_required", "preview", "preview.md", content, findings)
 
             record = prepare_publication(

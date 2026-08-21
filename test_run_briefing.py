@@ -177,6 +177,32 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.exit_code, 1)
 
+    def test_unsupported_figure_is_ready_and_exits_zero(self):
+        corpus, _config, _projected, output = fixture_contract()
+        forced = eval_briefing.Finding(
+            eval_briefing.WARN,
+            "unsupported_figure",
+            "figure absent from the bounded feed excerpt",
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            root = Path(directory)
+            requested_output = root / "briefing.md"
+            result = run_workflow(
+                FakeProvider([output]),
+                replace(self.settings(requested_output), max_corrections=0),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            output_exists = requested_output.exists()
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(output_exists)
+        self.assertEqual(manifest["final"]["findings"][0]["domain"], "quality")
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
+
     def test_editorial_error_produces_unpublished_review_preview(self):
         corpus, _config, _projected, output = fixture_contract()
         provider = FakeProvider([output])

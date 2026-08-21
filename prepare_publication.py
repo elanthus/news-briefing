@@ -11,6 +11,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.outcomes import is_actionable_finding
+
 FINAL_STATUSES = {"ready", "review_required", "rejected", "no_result"}
 PUBLIC_ARTIFACTS = {
     "ready": ("final", "final.md"),
@@ -80,6 +82,16 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
             )
         )
     return tuple(findings)
+
+
+def _actionable_findings(
+    findings: tuple[ReviewFinding, ...],
+) -> tuple[ReviewFinding, ...]:
+    return tuple(finding for finding in findings if is_actionable_finding(finding))
+
+
+def _actionable_finding_count(raw_findings: list[object]) -> int:
+    return sum(1 for finding in raw_findings if is_actionable_finding(finding))
 
 
 def _bound_json_artifact(
@@ -239,13 +251,15 @@ def prepare_publication(
             raw_findings = final.get("findings")
             if isinstance(status, str) and status in FINAL_STATUSES and isinstance(raw_findings, list):
                 disposition = status
-                findings_count = len(raw_findings)
+                findings_count = _actionable_finding_count(raw_findings)
                 if status == "review_required":
                     normalized = _review_findings(raw_findings)
                     if normalized is None:
                         disposition = "blocked"
                         findings_count = 0
                     else:
+                        normalized = _actionable_findings(normalized)
+                        findings_count = len(normalized)
                         findings = _attach_review_context(
                             normalized,
                             _final_structured_output(run_dir, manifest, final),

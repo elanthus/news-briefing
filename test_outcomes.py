@@ -1,6 +1,6 @@
 import unittest
 
-from agent_runner.outcomes import classify_outcome, finding_domain
+from agent_runner.outcomes import classify_outcome, finding_domain, is_actionable_finding
 from agent_runner.output import OutputFinding
 
 
@@ -13,7 +13,7 @@ class OutcomeTests(unittest.TestCase):
 
     def test_evidence_warning_requires_review_without_becoming_violation(self):
         outcome = classify_outcome([
-            OutputFinding("WARN", "unsupported_figure", "figure not found")
+            OutputFinding("WARN", "unsupported_quotation", "quotation not found")
         ], [])
         self.assertEqual(outcome.disposition, "review_required")
         self.assertEqual(outcome.contract, "accepted")
@@ -22,7 +22,7 @@ class OutcomeTests(unittest.TestCase):
     def test_editorial_error_does_not_hide_evidence_review(self):
         outcome = classify_outcome([
             OutputFinding("ERROR", "category_ineligible_ref", "wrong section"),
-            OutputFinding("WARN", "unsupported_figure", "figure not found"),
+            OutputFinding("WARN", "unsupported_quotation", "quotation not found"),
         ], [])
         self.assertEqual(outcome.disposition, "review_required")
         self.assertEqual(outcome.contract, "review_required")
@@ -31,6 +31,14 @@ class OutcomeTests(unittest.TestCase):
     def test_figure_supported_elsewhere_is_a_nonblocking_quality_note(self):
         finding = OutputFinding(
             "WARN", "figure_supported_elsewhere", "figure in matching corpus item")
+        outcome = classify_outcome([finding], [])
+        self.assertEqual(finding_domain(finding.check), "quality")
+        self.assertEqual(outcome.disposition, "ready")
+        self.assertEqual(outcome.contract, "accepted")
+        self.assertEqual(outcome.evidence, "corpus_bound")
+
+    def test_figure_absent_from_excerpt_is_a_nonblocking_quality_note(self):
+        finding = OutputFinding("WARN", "unsupported_figure", "figure not found")
         outcome = classify_outcome([finding], [])
         self.assertEqual(finding_domain(finding.check), "quality")
         self.assertEqual(outcome.disposition, "ready")
@@ -66,8 +74,14 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(finding_domain("unknown_citation_ref"), "evidence")
         self.assertEqual(finding_domain("structured_missing_field"), "schema")
         self.assertEqual(finding_domain("slots_underfilled"), "quality")
+        self.assertEqual(finding_domain("unsupported_figure"), "quality")
         self.assertEqual(finding_domain("failed_source_unnamed"), "coverage")
         self.assertEqual(finding_domain("category_ineligible_ref"), "editorial")
+
+    def test_quality_findings_are_not_actionable(self):
+        self.assertFalse(is_actionable_finding({"domain": "quality"}))
+        self.assertTrue(is_actionable_finding({"domain": "evidence"}))
+        self.assertTrue(is_actionable_finding({}))
 
 
 if __name__ == "__main__":
