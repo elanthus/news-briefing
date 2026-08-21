@@ -707,14 +707,14 @@ def _topic_lines(
     refs = entry["citation_refs"]
     item_refs = {citations[ref].item_ref for ref in refs}
     # The checker's topic grammar tolerates exactly one *(...)* group between
-    # the headline and the em dash, so every producer label shares that group.
+    # the headline and the em dash, so consolidation keeps that marker group.
+    # Evidence substitutions use a separate literal tag requested by readers.
     labels = []
     if len(item_refs) > 1:
         labels.append("consolidated")
-    if excerpt:
-        labels.append("source excerpt")
     marker = f" *({' · '.join(labels)})*" if labels else ""
-    lines = [f"**{entry['headline']}**{marker} — {entry['summary']}"]
+    verbatim = " [verbatim]" if excerpt else ""
+    lines = [f"**{entry['headline']}**{marker}{verbatim} — {entry['summary']}"]
     for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
@@ -731,7 +731,7 @@ def render_briefing(
     """Render validated structured output into the existing Markdown contract.
 
     ``repair_actions`` (from ``repair_structural_output``) labels every entry
-    whose summary was swapped for its cited excerpt as a *(source excerpt)*,
+    whose summary was swapped for its cited excerpt with a [verbatim] tag,
     so readers can tell producer-substituted prose from model prose.
     """
     swapped = {
