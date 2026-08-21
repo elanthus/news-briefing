@@ -743,6 +743,99 @@ class BriefingOutputTests(unittest.TestCase):
     def test_claim_exceeds_evidence_is_repairable(self):
         self.assertIn("claim_exceeds_evidence", REPAIRABLE_CHECKS)
 
+    def _consolidate_first_two_topics(self, output, section):
+        """Fold topic [1]'s item into topic [0] so it cites >1 distinct item."""
+        topics = output["sections"][section.name]["topics"]
+        donor = topics.pop(1)
+        entry = topics[0]
+        entry["citation_refs"] = list(
+            dict.fromkeys(entry["citation_refs"] + donor["citation_refs"])
+        )
+        return entry
+
+    def test_render_marks_swapped_entries_as_source_excerpts(self):
+        corpus, config, projected, output = fixture_contract()
+        ungrouped = config.sections[0]
+        grouped = next(s for s in config.sections if s.group is not None)
+        self.assertIsNone(ungrouped.group)
+        consolidated = self._consolidate_first_two_topics(output, grouped)
+        actions = [
+            {
+                "action": "replace_summary_with_excerpt",
+                "path": f"topics.{ungrouped.name}[0]",
+                "reason": "oversized summary",
+            },
+            {
+                "action": "replace_summary_with_excerpt",
+                "path": f"topics.{grouped.name}[0]",
+                "reason": "oversized summary",
+            },
+            # Other action kinds never produce a marker, even on a real path.
+            {
+                "action": "drop_entry",
+                "path": f"topics.{ungrouped.name}[1]",
+                "reason": "unrelated",
+            },
+        ]
+
+        markdown = render_briefing(
+            output, corpus, config, projected.citations, repair_actions=actions
+        )
+
+        lines = markdown.splitlines()
+        plain_entry = output["sections"][ungrouped.name]["topics"][0]
+        plain_line = next(
+            line for line in lines if plain_entry["headline"] in line
+        )
+        self.assertIn(
+            f"**{plain_entry['headline']}** *(source excerpt)* — ", plain_line
+        )
+        combined_line = next(
+            line for line in lines if consolidated["headline"] in line
+        )
+        # Consolidated AND swapped renders one combined marker group: the
+        # checker grammar tolerates exactly one *(...)* group per topic line.
+        self.assertIn(
+            f"**{consolidated['headline']}** *(consolidated · source excerpt)* — ",
+            combined_line,
+        )
+        self.assertEqual(combined_line.count("*("), 1)
+        # Only the two swapped entries are labeled.
+        self.assertEqual(markdown.count("source excerpt"), 2)
+
+    def test_source_excerpt_marker_is_excluded_from_checker_prose(self):
+        corpus, config, projected, output = fixture_contract()
+        evidence = eval_briefing.corpus_evidence(corpus)
+        first = config.sections[0]
+        broken = copy.deepcopy(output)
+        # A consolidated entry (two distinct cited items) exercises the
+        # dedup-by-text join in both the swap and the checker.
+        entry = self._consolidate_first_two_topics(broken, first)
+        excerpt = self._cited_excerpt(projected, entry["citation_refs"], evidence)
+        self.assertTrue(excerpt)
+        entry["summary"] = self._bloat(excerpt)
+
+        repaired, actions = repair_structural_output(
+            broken, config, projected.citations, evidence=evidence
+        )
+        swap_paths = [
+            action["path"] for action in actions
+            if action["action"] == "replace_summary_with_excerpt"
+        ]
+        self.assertEqual(swap_paths, [f"topics.{first.name}[0]"])
+
+        rendered = render_briefing(
+            repaired, corpus, config, projected.citations, repair_actions=actions
+        )
+        self.assertIn("*(consolidated · source excerpt)*", rendered)
+        findings = eval_briefing.evaluate(corpus, rendered, config)
+        self.assertFalse(
+            {finding.check for finding in findings}
+            & {"claim_exceeds_evidence", "unsupported_figure",
+               "unsupported_quotation"},
+            msg=findings,
+        )
+
     def test_rendered_briefing_carries_story_anchors(self):
         corpus, config, projected, output = fixture_contract()
         markdown = render_briefing(output, corpus, config, projected.citations)

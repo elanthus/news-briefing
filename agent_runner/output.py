@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, NamedTuple
@@ -263,7 +264,9 @@ def is_repairable_finding(finding: OutputFinding) -> bool:
     drops or deduplicates the offending entries, so a repaired output
     re-validates without any of these checks. ``claim_exceeds_evidence`` is
     repairable too: the swap replaces the over-long prose with its own cited
-    evidence, so the finding cannot re-fire by construction. Everything else
+    evidence, so the finding cannot re-fire by construction — except that a
+    URL-bearing excerpt declines the swap, leaving the entry untouched and
+    preserved for review. Everything else
     (unknown refs, freeform URLs, schema-shape violations) is an
     evidence-boundary or contract violation that repair deliberately preserves
     for rejection and review.
@@ -695,11 +698,23 @@ def _complete_item_citations(
     return completed
 
 
-def _topic_lines(entry: dict[str, Any], citations: dict[str, Citation]) -> list[str]:
+def _topic_lines(
+    entry: dict[str, Any],
+    citations: dict[str, Citation],
+    *,
+    excerpt: bool = False,
+) -> list[str]:
     refs = entry["citation_refs"]
     item_refs = {citations[ref].item_ref for ref in refs}
-    consolidated = " *(consolidated)*" if len(item_refs) > 1 else ""
-    lines = [f"**{entry['headline']}**{consolidated} — {entry['summary']}"]
+    # The checker's topic grammar tolerates exactly one *(...)* group between
+    # the headline and the em dash, so every producer label shares that group.
+    labels = []
+    if len(item_refs) > 1:
+        labels.append("consolidated")
+    if excerpt:
+        labels.append("source excerpt")
+    marker = f" *({' · '.join(labels)})*" if labels else ""
+    lines = [f"**{entry['headline']}**{marker} — {entry['summary']}"]
     for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
@@ -711,8 +726,19 @@ def render_briefing(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair_actions: Sequence[dict[str, str]] = (),
 ) -> str:
-    """Render validated structured output into the existing Markdown contract."""
+    """Render validated structured output into the existing Markdown contract.
+
+    ``repair_actions`` (from ``repair_structural_output``) labels every entry
+    whose summary was swapped for its cited excerpt as a *(source excerpt)*,
+    so readers can tell producer-substituted prose from model prose.
+    """
+    swapped = {
+        action["path"]
+        for action in repair_actions
+        if action.get("action") == "replace_summary_with_excerpt"
+    }
     lines = [
         f"# Daily Briefing — {_corpus_date_label(corpus)}",
         "",
@@ -727,7 +753,10 @@ def render_briefing(
             lines.extend([f"## {section.name}", ""])
             for topic_index, entry in enumerate(sections[section.name]["topics"]):
                 lines.append(f"<!-- story: topics.{section.name}[{topic_index}] -->")
-                lines.extend(_topic_lines(entry, citations))
+                lines.extend(_topic_lines(
+                    entry, citations,
+                    excerpt=f"topics.{section.name}[{topic_index}]" in swapped,
+                ))
             index += 1
             continue
         group = section.group
@@ -737,7 +766,10 @@ def render_briefing(
             lines.extend([f"**{grouped.name} ({grouped.target_stories} slots)**", ""])
             for topic_index, entry in enumerate(sections[grouped.name]["topics"]):
                 lines.append(f"<!-- story: topics.{grouped.name}[{topic_index}] -->")
-                lines.extend(_topic_lines(entry, citations))
+                lines.extend(_topic_lines(
+                    entry, citations,
+                    excerpt=f"topics.{grouped.name}[{topic_index}]" in swapped,
+                ))
             index += 1
 
     if any(section.excluded_stories for section in config.sections):
