@@ -566,6 +566,46 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn("unknown_citation_ref", residual)
         self.assertIn("structured_item_limit", residual)
 
+    def test_rendered_briefing_carries_story_anchors(self):
+        corpus, config, projected, output = fixture_contract()
+        markdown = render_briefing(output, corpus, config, projected.citations)
+        self.assertIn("<!-- story: topics.", markdown)
+        accountable = [s for s in config.sections if s.excluded_stories]
+        if accountable:
+            self.assertIn("<!-- story: excluded_topics.", markdown)
+        for section in config.sections:
+            for index in range(len(output["sections"][section.name]["topics"])):
+                anchor = f"<!-- story: topics.{section.name}[{index}] -->"
+                self.assertIn(anchor, markdown, msg=f"missing anchor {anchor}")
+            if section.excluded_stories:
+                for index in range(len(output["excluded_topics"][section.name])):
+                    anchor = f"<!-- story: excluded_topics.{section.name}[{index}] -->"
+                    self.assertIn(anchor, markdown, msg=f"missing anchor {anchor}")
+
+    def test_story_anchors_precede_their_headlines(self):
+        corpus, config, projected, output = fixture_contract()
+        markdown = render_briefing(output, corpus, config, projected.citations)
+        lines = markdown.splitlines()
+        for section in config.sections:
+            for index, topic in enumerate(output["sections"][section.name]["topics"]):
+                anchor = f"<!-- story: topics.{section.name}[{index}] -->"
+                anchor_line = next(i for i, l in enumerate(lines) if l == anchor)
+                headline_line = next(
+                    i for i in range(anchor_line, len(lines))
+                    if topic["headline"] in lines[i]
+                )
+                self.assertEqual(
+                    headline_line, anchor_line + 1,
+                    msg=f"anchor {anchor} should be directly above headline",
+                )
+
+    def test_story_anchors_do_not_break_eval_briefing(self):
+        corpus, config, projected, output = fixture_contract()
+        self.assertEqual(validate_output(output, config, projected.citations), [])
+        briefing = render_briefing(output, corpus, config, projected.citations)
+        self.assertIn("<!-- story:", briefing)
+        self.assertEqual(eval_briefing.evaluate(corpus, briefing, config), [])
+
     def test_repairable_finding_partition(self):
         for check in (
             "category_ineligible_ref",

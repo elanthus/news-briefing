@@ -661,7 +661,8 @@ def render_briefing(
         section = config.sections[index]
         if section.group is None:
             lines.extend([f"## {section.name}", ""])
-            for entry in sections[section.name]["topics"]:
+            for topic_index, entry in enumerate(sections[section.name]["topics"]):
+                lines.append(f"<!-- story: topics.{section.name}[{topic_index}] -->")
                 lines.extend(_topic_lines(entry, citations))
             index += 1
             continue
@@ -670,7 +671,8 @@ def render_briefing(
         while index < len(config.sections) and config.sections[index].group == group:
             grouped = config.sections[index]
             lines.extend([f"**{grouped.name} ({grouped.target_stories} slots)**", ""])
-            for entry in sections[grouped.name]["topics"]:
+            for topic_index, entry in enumerate(sections[grouped.name]["topics"]):
+                lines.append(f"<!-- story: topics.{grouped.name}[{topic_index}] -->")
                 lines.extend(_topic_lines(entry, citations))
             index += 1
 
@@ -681,13 +683,16 @@ def render_briefing(
             if not section.excluded_stories:
                 continue
             lines.append(f"**{section.name}**")
-            for entry in excluded[section.name]:
+            for exc_index, entry in enumerate(excluded[section.name]):
                 rendered_refs = []
                 for citation in _complete_item_citations(
                     entry["citation_refs"], citations
                 ):
                     prefix = "HN: " if citation.kind == "discussion" else ""
                     rendered_refs.append(f"🔗 {prefix}{citation.url}")
+                lines.append(
+                    f"<!-- story: excluded_topics.{section.name}[{exc_index}] -->"
+                )
                 lines.append(
                     f"- *{entry['headline']}* — {entry['reason']} " + " ".join(rendered_refs)
                 )
