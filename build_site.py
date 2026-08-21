@@ -445,8 +445,16 @@ def _corpus_failures(fence_body: str) -> list[tuple[str, str, str]] | None:
     for item in sources:
         if not isinstance(item, dict) or set(item) != set(keys):
             return None
-        if not all(isinstance(item[key], str) for key in keys):
-            return None
+        for key in keys:
+            value = item[key]
+            if not isinstance(value, str) or not value:
+                return None
+            # JSON \n/\r/\t escapes fit in a single-line fence; splicing them
+            # into the page would promote fenced text to active Markdown
+            # (injected headings, story anchors, fence desyncs). Anything
+            # unrenderable stays fenced.
+            if any(char < " " or char == "\x7f" for char in value):
+                return None
         failures.append((item["source_type"], item["source_id"], item["status"]))
     return failures
 
@@ -506,6 +514,8 @@ def _humanize_corpus_health(markdown: str) -> str:
     the Markdown parser rather than interpreted.
     """
     lines = markdown.split("\n")
+    # Approximate (CommonMark-lite) fence tracking — any ```-prefixed line
+    # toggles; every divergence fails safe (the block stays verbatim).
     in_fence = False
     for index, line in enumerate(lines):
         if line.startswith("```"):

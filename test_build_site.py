@@ -5,7 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_site import ReviewFinding, _render_markdown, build_site
+from agent_runner.output import render_briefing
+from build_site import (
+    ReviewFinding,
+    _humanize_corpus_health,
+    _render_markdown,
+    build_site,
+)
+from test_briefing_output import fixture_contract
 
 
 class BuildSiteTests(unittest.TestCase):
@@ -945,6 +952,66 @@ class BuildSiteTests(unittest.TestCase):
             rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
             self.assertIn("<code", rendered, payload)
             self.assertNotIn("this day's window", rendered, payload)
+
+    def test_empty_source_type_is_left_verbatim(self) -> None:
+        # A degenerate-but-well-typed payload must not crash the site build.
+        payload = '{"failed_sources":[{"source_type":"","source_id":"x","status":"empty"}]}'
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+
+    def test_control_characters_in_values_are_left_verbatim(self) -> None:
+        # JSON \n escapes fit in a single-line fence; promoting them to active
+        # markdown would inject story anchors, headings, or fence desyncs.
+        payload = json.dumps(
+            {
+                "failed_sources": [
+                    {
+                        "source_type": "rss",
+                        "source_id": (
+                            "X\n<!-- story: topics.AI News[0] -->\n### Injected heading"
+                        ),
+                        "status": "empty",
+                    }
+                ]
+            },
+            separators=(",", ":"),
+        )
+        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        self.assertIn("<code", rendered)
+        self.assertIn("failed_sources", rendered)
+        self.assertNotIn("<h3>Injected heading</h3>", rendered)
+        self.assertNotIn("<!-- story:", rendered)
+
+    def test_corpus_health_heading_inside_code_fence_is_not_transformed(self) -> None:
+        markdown = (
+            "## AI News\n\n"
+            "````markdown\n"
+            "### Corpus health\n"
+            "Coverage was degraded by the source failures or empty responses listed below.\n"
+            "\n"
+            "```json\n"
+            '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
+            "```\n"
+            "````\n"
+        )
+        rendered, _ = _render_markdown(markdown)
+        self.assertIn("failed_sources", rendered)
+        self.assertNotIn("⚠", rendered)
+
+    def test_humanizer_round_trips_the_real_emitter(self) -> None:
+        # Pins heading, explanation sentence, blank line, fence, and JSON shape
+        # against agent_runner.output.render_briefing: if the emitter's wording
+        # or layout drifts, this fails instead of the site silently regressing
+        # to raw JSON.
+        corpus, config, projected, output = fixture_contract()
+        self.assertTrue(corpus["errors"])
+        markdown = render_briefing(output, corpus, config, projected.citations)
+        self.assertIn("failed_sources", markdown)
+        humanized = _humanize_corpus_health(markdown)
+        self.assertNotIn("failed_sources", humanized)
+        self.assertNotIn("```json", humanized)
+        self.assertIn("⚠", humanized)
 
     def test_corpus_health_unknown_type_and_status_render_verbatim(self) -> None:
         payload = json.dumps(
