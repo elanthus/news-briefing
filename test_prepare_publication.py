@@ -116,6 +116,80 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.findings, ())
             self.assertEqual((history / "2026-08-20.md").read_bytes(), content)
 
+    def test_structured_paths_attach_included_and_excluded_story_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = b"review-required preview\n"
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {
+                    "level": "ERROR",
+                    "check": "category_ineligible_ref",
+                    "domain": "editorial",
+                    "message": (
+                        "topics.AI News[0] uses citation_0001 from ineligible "
+                        "category us_politics"
+                    ),
+                },
+                {
+                    "level": "ERROR",
+                    "check": "duplicate_item",
+                    "domain": "editorial",
+                    "message": (
+                        "excluded_topics.US News[0] repeats item_0001, already used "
+                        "by topics.US Politics[0]"
+                    ),
+                },
+            ]
+            structured = {
+                "sections": {
+                    "AI News": {"topics": [{
+                        "headline": "AI story",
+                        "summary": "Summary",
+                        "citation_refs": ["citation_0001"],
+                    }]},
+                },
+                "excluded_topics": {
+                    "US News": [{
+                        "headline": "Excluded story",
+                        "reason": "Lower impact",
+                        "citation_refs": ["citation_0002"],
+                    }],
+                },
+            }
+            self._write_manifest(
+                run,
+                "review_required",
+                "preview",
+                "preview.md",
+                preview,
+                findings,
+                structured=structured,
+            )
+
+            record = prepare_publication(
+                run,
+                root / "corpus.json",
+                root / "history",
+                date(2026, 8, 20),
+            )
+
+            included_context = record.findings[0].context
+            excluded_context = record.findings[1].context
+            self.assertIsNotNone(included_context)
+            self.assertIsNotNone(excluded_context)
+            assert included_context is not None
+            assert excluded_context is not None
+            self.assertEqual(included_context.section, "AI News")
+            self.assertEqual(included_context.headline, "AI story")
+            self.assertEqual(
+                excluded_context.section,
+                "Excluded Topics: US News",
+            )
+            self.assertEqual(excluded_context.headline, "Excluded story")
+
     def test_rejected_run_remains_status_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -8,6 +8,7 @@ import hashlib
 import html
 import importlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -330,6 +331,7 @@ LEGACY_PREVIEW_BANNER = (
     "Unknown citations are omitted and model-authored web destinations are redacted.\n\n"
 )
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
 
 
 def _strip_legacy_preview_banner(markdown: str | None) -> str | None:
@@ -352,6 +354,14 @@ def _topic_headline(line: str) -> str | None:
     return candidate[2:closing] if closing >= 2 else None
 
 
+def _section_subheading(line: str) -> str | None:
+    if not line.startswith("**") or not line.endswith("**") or " — " in line:
+        return None
+    label = line[2:-2].strip()
+    slots = re.fullmatch(r"(.+) \(\d+ slots\)", label)
+    return slots.group(1) if slots is not None else label
+
+
 def _finding_matches(finding: ReviewFinding, section: str, headline: str) -> bool:
     if finding.section is not None or finding.headline is not None:
         return finding.section == section and finding.headline == headline
@@ -371,6 +381,7 @@ def _render_markdown(
     replacements: dict[str, str] = {}
     matched: set[int] = set()
     section = ""
+    excluded_section = False
     pending_end_marker: str | None = None
     digest = hashlib.sha256(public_markdown.encode("utf-8")).hexdigest()[:16]
     for line in public_markdown.splitlines():
@@ -380,8 +391,18 @@ def _render_markdown(
         ):
             lines.extend(["", pending_end_marker, ""])
             pending_end_marker = None
-        if line.startswith("## "):
+        if line.startswith("### Excluded Topics"):
+            excluded_section = True
+        elif line.startswith("## "):
+            excluded_section = False
             section = line.removeprefix("## ").strip()
+        subheading = _section_subheading(line)
+        if subheading is not None:
+            section = (
+                f"{EXCLUDED_CONTEXT_PREFIX}{subheading}"
+                if excluded_section
+                else subheading
+            )
         if headline is None:
             lines.append(line)
             continue

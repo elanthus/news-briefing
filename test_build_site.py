@@ -182,6 +182,58 @@ class BuildSiteTests(unittest.TestCase):
             first_close = index.index("</section>", index.index("First story"))
             self.assertLess(first_close, index.index("Second story"))
 
+    def test_grouped_and_excluded_story_findings_render_inline(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## AI/Tech\n\n"
+                "**AI News (4 slots)**\n\n"
+                "**AI story** — Included summary.\n"
+                "🔗 https://example.com/ai\n\n"
+                "---\n\n"
+                "### Excluded Topics (candidate)\n\n"
+                "**US News**\n\n"
+                "- **Excluded story** — Lower impact.\n"
+                "🔗 https://example.com/excluded\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "category_ineligible_ref",
+                        "topics.AI News[0] uses an ineligible citation",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "included entry",
+                        },
+                    ),
+                    self._finding(
+                        "duplicate_item",
+                        "excluded_topics.US News[0] repeats an item",
+                        context={
+                            "section": "Excluded Topics: US News",
+                            "headline": "Excluded story",
+                            "model_authored": "excluded entry",
+                        },
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertEqual(index.count('<section class="review-story">'), 2)
+            self.assertEqual(index.count('class="review-panel inline-review"'), 2)
+            self.assertNotIn('<section class="review-panel">', index)
+            self.assertLess(index.index("AI story"), index.index("ineligible citation"))
+            self.assertLess(index.index("Excluded story"), index.index("repeats an item"))
+
     def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ PUBLIC_ARTIFACTS = {
     "review_required": ("preview", "preview.md"),
 }
 FINDING_FIELDS = {"level", "check", "domain", "message"}
+STRUCTURED_PATH = re.compile(r"^(topics|excluded_topics)\.(.+?)\[(\d+)\]")
+EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,34 @@ def _review_context(
     finding: ReviewFinding,
     output: dict[str, Any],
 ) -> ReviewContext | None:
+    path_match = STRUCTURED_PATH.match(finding.message)
+    if path_match is not None:
+        placement, section_name, raw_index = path_match.groups()
+        container_name = "sections" if placement == "topics" else "excluded_topics"
+        container = output.get(container_name)
+        section = container.get(section_name) if isinstance(container, dict) else None
+        entries = section.get("topics") if placement == "topics" and isinstance(section, dict) else section
+        index = int(raw_index)
+        if isinstance(entries, list) and index < len(entries):
+            entry = entries[index]
+            headline = entry.get("headline") if isinstance(entry, dict) else None
+            if isinstance(headline, str) and headline.strip():
+                context_section = (
+                    section_name
+                    if placement == "topics"
+                    else f"{EXCLUDED_CONTEXT_PREFIX}{section_name}"
+                )
+                return ReviewContext(
+                    section=context_section,
+                    headline=headline,
+                    model_authored=json.dumps(
+                        entry,
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                )
+
     sections = output.get("sections")
     if not isinstance(sections, dict):
         return None

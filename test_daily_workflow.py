@@ -68,6 +68,13 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
         self.assertIn("Publication preparation failed for $report_date", WORKFLOW)
 
+    def test_uploads_diagnostics_even_when_generation_needs_review(self) -> None:
+        self.assertIn("- name: Upload briefing diagnostics\n        if: always()", WORKFLOW)
+        self.assertIn("name: briefing-diagnostics-${{ github.run_id }}", WORKFLOW)
+        for path in ("corpora", "reports", "runs"):
+            self.assertIn(f"            {path}\n", WORKFLOW)
+        self.assertIn("retention-days: 7", WORKFLOW)
+
 
 if __name__ == "__main__":
     unittest.main()
