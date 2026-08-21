@@ -1083,6 +1083,89 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("states &#x27;42&#x27;", report)
             self.assertIn("drop_entry", report)
 
+    def test_publishes_valid_dated_corpora_with_first_dir_precedence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            fresh = root / "fresh"
+            prior = root / "prior"
+            fresh.mkdir()
+            prior.mkdir()
+            fresh_corpus = json.dumps({"corpus_date": "2026-08-20", "origin": "fresh"})
+            (fresh / "2026-08-20.json").write_text(fresh_corpus, encoding="utf-8")
+            (prior / "2026-08-20.json").write_text(
+                json.dumps({"corpus_date": "2026-08-20", "origin": "prior"}),
+                encoding="utf-8",
+            )
+            (prior / "2026-08-14.json").write_text(
+                json.dumps({"corpus_date": "2026-08-14"}), encoding="utf-8"
+            )
+            (prior / "not-a-date.json").write_text("{}", encoding="utf-8")
+            (prior / "2026-08-19.json").write_text("{invalid json", encoding="utf-8")
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[fresh, prior])
+
+            published = (output / "corpora/2026-08-20.json").read_text(encoding="utf-8")
+            self.assertEqual(published, fresh_corpus)
+            self.assertTrue((output / "corpora/2026-08-14.json").is_file())
+            self.assertFalse((output / "corpora/2026-08-19.json").exists())
+            self.assertFalse((output / "corpora/not-a-date.json").exists())
+
+    def test_prunes_corpora_older_than_fourteen_days(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            corpora = root / "corpora"
+            corpora.mkdir()
+            # 2026-08-07 is exactly newest - 13 days: the oldest date kept.
+            (corpora / "2026-08-07.json").write_text('{"kept": true}', encoding="utf-8")
+            (corpora / "2026-08-06.json").write_text('{"kept": false}', encoding="utf-8")
+            (corpora / "2026-08-05.json").write_text('{"kept": false}', encoding="utf-8")
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[corpora])
+
+            self.assertTrue((output / "corpora/2026-08-07.json").is_file())
+            self.assertFalse((output / "corpora/2026-08-06.json").exists())
+            self.assertFalse((output / "corpora/2026-08-05.json").exists())
+
+    def test_no_corpora_dir_builds_site_without_corpora(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            output = root / "site"
+            build_site(briefings, output)
+
+            self.assertTrue((output / "index.html").is_file())
+            self.assertFalse((output / "corpora").exists())
+
+    def test_corpora_without_history_entries_publishes_nothing(self) -> None:
+        # No entries means no date anchor for pruning: fail safe, publish nothing.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            corpora = root / "corpora"
+            corpora.mkdir()
+            (corpora / "2026-08-20.json").write_text("{}", encoding="utf-8")
+
+            output = root / "site"
+            build_site(briefings, output, corpora_dirs=[corpora])
+
+            self.assertTrue((output / "index.html").is_file())
+            self.assertFalse((output / "corpora").exists())
+
     @staticmethod
     def _finding(
         check: str,

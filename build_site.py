@@ -9,8 +9,9 @@ import html
 import importlib
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -846,12 +847,54 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
     return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
 
 
+def _publish_corpora(
+    corpora_dirs: Sequence[Path],
+    output_dir: Path,
+    newest_entry_date: date,
+) -> None:
+    """Copy validated per-day corpus files into ``output_dir / "corpora"``.
+
+    First directory wins on date conflicts. Downloaded corpus files are
+    untrusted input: each must be a real file whose stem is a canonical ISO
+    date and whose bytes parse as JSON, and the published filename is rebuilt
+    from the parsed date rather than taken from the input. Validated bytes are
+    copied verbatim so hashes stay stable. Dates outside the 14-day window
+    ending at the newest history entry are pruned.
+    """
+    oldest_kept = newest_entry_date - timedelta(days=13)
+    survivors: dict[str, bytes] = {}
+    for corpora_dir in corpora_dirs:
+        for corpus in sorted(corpora_dir.glob("*.json")):
+            if not corpus.is_file():
+                continue
+            try:
+                day = date.fromisoformat(corpus.stem)
+            except ValueError:
+                continue
+            slug = day.isoformat()
+            if corpus.stem != slug or slug in survivors or day < oldest_kept:
+                continue
+            raw = corpus.read_bytes()
+            try:
+                json.loads(raw)
+            except ValueError:
+                continue
+            survivors[slug] = raw
+    if not survivors:
+        return
+    corpora_out = output_dir / "corpora"
+    corpora_out.mkdir(parents=True, exist_ok=True)
+    for slug, raw in survivors.items():
+        (corpora_out / f"{slug}.json").write_bytes(raw)
+
+
 def build_site(
     briefings_dir: Path,
     output_dir: Path,
     prior_history: Path | None = None,
     bootstrap_dir: Path | None = None,
     replace_existing: bool = False,
+    corpora_dirs: Sequence[Path] = (),
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
     if not briefings_dir.is_dir():
@@ -902,6 +945,8 @@ def build_site(
             _render_report(entry, entries),
             encoding="utf-8",
         )
+    if corpora_dirs and entries:
+        _publish_corpora(corpora_dirs, output_dir, entries[0].day)
 
 
 def main() -> int:
@@ -923,6 +968,17 @@ def main() -> int:
         action="store_true",
         help="replace prior-history pages for publishable dates present in briefings_dir",
     )
+    parser.add_argument(
+        "--corpora-dir",
+        action="append",
+        type=Path,
+        default=[],
+        dest="corpora_dirs",
+        help=(
+            "directory of per-day corpus JSON files to publish under site/corpora; "
+            "repeatable, earlier directories win on date conflicts"
+        ),
+    )
     args = parser.parse_args()
     try:
         build_site(
@@ -931,6 +987,7 @@ def main() -> int:
             args.prior_history,
             args.bootstrap_dir,
             args.replace_existing,
+            args.corpora_dirs,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
