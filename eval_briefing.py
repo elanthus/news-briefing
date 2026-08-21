@@ -68,7 +68,8 @@ _SECTION_LINE = re.compile(
 # A topic entry: **Headline** — summary. The em dash is what separates a topic
 # from a bold sub-header like **AI News (4 slots)**.
 _TOPIC_LINE = re.compile(
-    r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?[—-]\s*(?P<prose>\S.*)$")
+    r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?"
+    r"(?:\[verbatim\]\s*)?[—-]\s*(?P<prose>\S.*)$")
 # High-risk assertions, checkable without a second model: a figure or a
 # quotation that does not appear in the evidence for the item being cited.
 _FIGURE = re.compile(

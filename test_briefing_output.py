@@ -609,6 +609,39 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(swap_actions[0]["path"], f"topics.{first.name}[0]")
         self.assertTrue(swap_actions[0]["reason"])
 
+    def test_repair_renders_231_character_claim_from_58_character_evidence_verbatim(self):
+        corpus, config, projected, output = fixture_contract()
+        first = config.sections[0]
+        entry = output["sections"][first.name]["topics"][0]
+        entry["summary"] = "x" * 231
+        cited_items = {
+            projected.citations[ref].item_ref
+            for ref in entry["citation_refs"]
+        }
+        support = "e" * 58
+        evidence = {
+            corpus_schema.canonicalize_url(citation.url): support
+            for citation in projected.citations.values()
+            if citation.item_ref in cited_items
+        }
+
+        repaired, actions = repair_structural_output(
+            output, config, projected.citations, evidence=evidence
+        )
+        rendered = render_briefing(
+            repaired, corpus, config, projected.citations, repair_actions=actions
+        )
+
+        self.assertEqual(
+            repaired["sections"][first.name]["topics"][0]["summary"], support
+        )
+        self.assertIn(
+            f"**{entry['headline']}** [verbatim] — {support}", rendered
+        )
+        self.assertNotIn("claim_exceeds_evidence", {
+            finding.check for finding in eval_briefing.evaluate(corpus, rendered, config)
+        })
+
     def test_repair_swap_skips_short_summaries_unknown_refs_and_no_evidence(self):
         corpus, config, projected, output = fixture_contract()
         evidence = eval_briefing.corpus_evidence(corpus)
@@ -753,7 +786,7 @@ class BriefingOutputTests(unittest.TestCase):
         )
         return entry
 
-    def test_render_marks_swapped_entries_as_source_excerpts(self):
+    def test_render_marks_swapped_entries_as_verbatim(self):
         corpus, config, projected, output = fixture_contract()
         ungrouped = config.sections[0]
         grouped = next(s for s in config.sections if s.group is not None)
@@ -788,25 +821,21 @@ class BriefingOutputTests(unittest.TestCase):
             line for line in lines if plain_entry["headline"] in line
         )
         self.assertIn(
-            f"**{plain_entry['headline']}** *(source excerpt)* — ", plain_line
+            f"**{plain_entry['headline']}** [verbatim] — ", plain_line
         )
         combined_line = next(
             line for line in lines if consolidated["headline"] in line
         )
-        # Consolidated AND swapped renders one combined marker group: the
-        # checker grammar tolerates exactly one *(...)* group per topic line.
+        # Consolidation keeps its existing marker; evidence substitution has
+        # a separate literal provenance tag.
         self.assertIn(
-            f"**{consolidated['headline']}** *(consolidated · source excerpt)* — ",
+            f"**{consolidated['headline']}** *(consolidated)* [verbatim] — ",
             combined_line,
         )
         self.assertEqual(combined_line.count("*("), 1)
-        # Only the two swapped entries are labeled, each with its exact
-        # full marker token.
-        self.assertEqual(markdown.count("*(source excerpt)*"), 1)
-        self.assertEqual(markdown.count("*(consolidated · source excerpt)*"), 1)
-        self.assertEqual(markdown.count("source excerpt"), 2)
+        self.assertEqual(markdown.count("[verbatim]"), 2)
 
-    def test_source_excerpt_marker_is_excluded_from_checker_prose(self):
+    def test_verbatim_marker_is_excluded_from_checker_prose(self):
         corpus, config, projected, output = fixture_contract()
         evidence = eval_briefing.corpus_evidence(corpus)
         first = config.sections[0]
@@ -830,7 +859,7 @@ class BriefingOutputTests(unittest.TestCase):
         rendered = render_briefing(
             repaired, corpus, config, projected.citations, repair_actions=actions
         )
-        self.assertIn("*(consolidated · source excerpt)*", rendered)
+        self.assertIn("*(consolidated)* [verbatim]", rendered)
         findings = eval_briefing.evaluate(corpus, rendered, config)
         self.assertFalse(
             {finding.check for finding in findings}

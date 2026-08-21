@@ -439,7 +439,7 @@ class RunnerTests(unittest.TestCase):
             repair[0]["repair_actions"][0]["action"],
             "replace_summary_with_excerpt",
         )
-        self.assertIn("*(source excerpt)*", final)
+        self.assertIn("[verbatim]", final)
         # No provider correction call was spent on the WARN.
         self.assertEqual(len(provider.requests), 1)
 

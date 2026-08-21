@@ -72,6 +72,12 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("elif (( days_ago <= 2 )); then", WORKFLOW)
         self.assertIn("no stored corpus and feeds no longer retain", WORKFLOW)
 
+    def test_generation_uses_gpt_5_6_luna_with_reasoning(self) -> None:
+        self.assertIn("--model openai/gpt-5.6-luna", WORKFLOW)
+        self.assertIn("--reasoning enabled", WORKFLOW)
+        self.assertNotIn("--model deepseek/deepseek-v4-flash-20260423", WORKFLOW)
+        self.assertNotIn("--reasoning disabled", WORKFLOW)
+
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
         self.assertIn("--corpora-dir corpora", WORKFLOW)
