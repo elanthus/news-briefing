@@ -29,6 +29,7 @@ class ReviewContext:
     section: str
     headline: str
     model_authored: str
+    path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class PublicationRecord:
     findings_count: int
     findings: tuple[ReviewFinding, ...]
     degraded_sources: tuple[str, ...]
+    repair_actions: tuple[dict[str, str], ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -55,6 +57,7 @@ class PublicationRecord:
             "findings_count": self.findings_count,
             "findings": [asdict(finding) for finding in self.findings],
             "degraded_sources": list(self.degraded_sources),
+            "repair_actions": list(self.repair_actions),
         }
 
 
@@ -116,28 +119,60 @@ def _bound_json_artifact(
         return None
 
 
+def _final_attempt(
+    manifest: dict[str, Any],
+    final: dict[str, Any],
+) -> dict[str, Any] | None:
+    final_index = final.get("attempt")
+    attempts = manifest.get("attempts")
+    if (
+        not isinstance(final_index, int)
+        or isinstance(final_index, bool)
+        or not isinstance(attempts, list)
+    ):
+        return None
+    for attempt in attempts:
+        if isinstance(attempt, dict) and attempt.get("index") == final_index:
+            return attempt
+    return None
+
+
 def _final_structured_output(
     run_dir: Path,
     manifest: dict[str, Any],
     final: dict[str, Any],
 ) -> dict[str, Any] | None:
-    final_attempt = final.get("attempt")
-    attempts = manifest.get("attempts")
-    if (
-        not isinstance(final_attempt, int)
-        or isinstance(final_attempt, bool)
-        or not isinstance(attempts, list)
-    ):
+    attempt = _final_attempt(manifest, final)
+    if attempt is None:
         return None
-    for attempt in attempts:
-        if not isinstance(attempt, dict) or attempt.get("index") != final_attempt:
-            continue
-        artifact_name = attempt.get("structured_artifact")
-        if not isinstance(artifact_name, str) or Path(artifact_name).name != artifact_name:
-            return None
-        payload = _bound_json_artifact(run_dir, manifest, artifact_name)
-        return payload if isinstance(payload, dict) else None
-    return None
+    artifact_name = attempt.get("structured_artifact")
+    if not isinstance(artifact_name, str) or Path(artifact_name).name != artifact_name:
+        return None
+    payload = _bound_json_artifact(run_dir, manifest, artifact_name)
+    return payload if isinstance(payload, dict) else None
+
+
+REPAIR_ACTION_FIELDS = {"action", "path", "reason"}
+
+
+def _extract_repair_actions(
+    manifest: dict[str, Any],
+    final: dict[str, Any],
+) -> tuple[dict[str, str], ...]:
+    attempt = _final_attempt(manifest, final)
+    if attempt is None or attempt.get("kind") != "deterministic_repair":
+        return ()
+    raw_actions = attempt.get("repair_actions")
+    if not isinstance(raw_actions, list):
+        return ()
+    actions: list[dict[str, str]] = []
+    for raw in raw_actions:
+        if not isinstance(raw, dict) or set(raw) != REPAIR_ACTION_FIELDS:
+            return ()
+        if any(not isinstance(raw[k], str) for k in REPAIR_ACTION_FIELDS):
+            return ()
+        actions.append(raw)
+    return tuple(actions)
 
 
 def _review_context(
@@ -147,6 +182,7 @@ def _review_context(
     path_match = STRUCTURED_PATH.match(finding.message)
     if path_match is not None:
         placement, section_name, raw_index = path_match.groups()
+        structured_path = path_match.group(0)
         container_name = "sections" if placement == "topics" else "excluded_topics"
         container = output.get(container_name)
         section = container.get(section_name) if isinstance(container, dict) else None
@@ -170,6 +206,7 @@ def _review_context(
                         indent=2,
                         sort_keys=True,
                     ),
+                    path=structured_path,
                 )
 
     sections = output.get("sections")
@@ -272,6 +309,7 @@ def prepare_publication(
     disposition = "blocked"
     findings_count = 0
     findings: tuple[ReviewFinding, ...] = ()
+    repair_actions: tuple[dict[str, str], ...] = ()
     public_content: bytes | None = None
 
     manifest = _load_json(run_dir / "manifest.json")
@@ -283,6 +321,7 @@ def prepare_publication(
             if isinstance(status, str) and status in FINAL_STATUSES and isinstance(raw_findings, list):
                 disposition = status
                 findings_count = _actionable_finding_count(raw_findings)
+                repair_actions = _extract_repair_actions(manifest, final)
                 if status == "review_required":
                     normalized = _review_findings(raw_findings)
                     if normalized is None:
@@ -301,6 +340,7 @@ def prepare_publication(
                         disposition = "blocked"
                         findings_count = 0
                         findings = ()
+                        repair_actions = ()
 
     history_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = history_dir / f"{day.isoformat()}.md"
@@ -315,6 +355,7 @@ def prepare_publication(
         findings_count=findings_count,
         findings=findings,
         degraded_sources=_degraded_sources(corpus_path),
+        repair_actions=repair_actions,
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
