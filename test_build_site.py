@@ -628,6 +628,78 @@ class BuildSiteTests(unittest.TestCase):
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
 
+    def test_report_page_contains_findings_and_repair_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## AI News\n\n"
+                "<!-- story: topics.AI News[0] -->\n"
+                "**AI story** — Summary.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "topics.AI News[0].summary states '42'",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "entry json",
+                            "path": "topics.AI News[0]",
+                        },
+                    ),
+                ],
+                repair_actions=[
+                    {"action": "drop_entry", "path": "topics.AI News[1]", "reason": "duplicate"},
+                ],
+                degraded_sources=["reddit:cursor"],
+            )
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("unsupported figure", report)
+            self.assertIn("Action:", report)
+            self.assertIn("drop_entry", report)
+            self.assertIn("topics.AI News[1]", report)
+            self.assertIn("duplicate", report)
+            self.assertIn("reddit:cursor", report)
+
+    def test_report_page_links_between_briefing_and_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("ready briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("reports/2026-08-20.html", index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("index.html", report)
+
+    def test_clean_entry_report_page_states_all_checks_passed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("clean briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("All checks passed", report)
+            self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
+
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

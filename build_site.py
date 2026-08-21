@@ -548,10 +548,12 @@ def _entry_body(entry: BriefingEntry) -> str:
         briefing = f'{review_panel}<article class="briefing-content">{rendered_markdown}</article>'
     else:
         briefing = '<p class="muted">No briefing prose is available for this run.</p>'
+    report_link = f'<p><a href="reports/{html.escape(entry.slug)}.html">Integrity report →</a></p>'
     return (
         f"<h1>Briefing for {html.escape(entry.slug)}</h1>"
         f'<p class="verdict">Checker verdict: {html.escape(_verdict(entry))}</p>'
         f"<p>Corpus health: {_corpus_health(entry)}</p>"
+        f"{report_link}"
         f"{briefing}"
     )
 
@@ -641,6 +643,44 @@ def _render_review_panel(
     )
 
 
+def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
+    newest = entries[0]
+    briefing_href = "index.html" if entry.slug == newest.slug else f"{entry.slug}.html"
+    parts = [
+        f'<p><a href="../{briefing_href}">← Back to briefing</a></p>',
+        f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
+        f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
+    ]
+    if entry.findings:
+        parts.append(_render_review_panel(entry.findings))
+    elif entry.findings_count == 0:
+        parts.append('<p class="muted">All checks passed.</p>')
+    if entry.repair_actions:
+        items = []
+        for action in entry.repair_actions:
+            escaped_action = html.escape(action.get("action", ""))
+            escaped_path = html.escape(action.get("path", ""))
+            escaped_reason = html.escape(action.get("reason", ""))
+            items.append(f"<li><strong>{escaped_action}</strong> {escaped_path} — {escaped_reason}</li>")
+        parts.append(
+            '<section class="repair-log">'
+            f"<h2>Automated repair actions ({len(entry.repair_actions)})</h2>"
+            f"<ol>{''.join(items)}</ol>"
+            "</section>"
+        )
+    if entry.degraded_sources:
+        sources = "".join(
+            f"<li>{html.escape(source)}</li>" for source in entry.degraded_sources
+        )
+        parts.append(
+            '<section class="degraded-sources">'
+            "<h2>Degraded sources</h2>"
+            f"<ul>{sources}</ul>"
+            "</section>"
+        )
+    return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
+
+
 def build_site(
     briefings_dir: Path,
     output_dir: Path,
@@ -677,6 +717,11 @@ def build_site(
     output_dir.mkdir(parents=True, exist_ok=True)
     for stale_page in output_dir.glob("*.html"):
         stale_page.unlink()
+    reports_dir = output_dir / "reports"
+    if reports_dir.is_dir():
+        for stale_report in reports_dir.glob("*.html"):
+            stale_report.unlink()
+    reports_dir.mkdir(exist_ok=True)
     (output_dir / "index.html").write_text(_render_index(entries), encoding="utf-8")
     (output_dir / "history.json").write_text(
         json.dumps(_history_payload(entries), ensure_ascii=False, indent=2) + "\n",
@@ -685,6 +730,11 @@ def build_site(
     for entry in entries[1:]:
         (output_dir / f"{entry.slug}.html").write_text(
             _render_briefing(entry, entries),
+            encoding="utf-8",
+        )
+    for entry in entries:
+        (reports_dir / f"{entry.slug}.html").write_text(
+            _render_report(entry, entries),
             encoding="utf-8",
         )
 
