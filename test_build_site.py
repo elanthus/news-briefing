@@ -257,7 +257,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, output)
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertIn("REJECTED · 1 finding", index)
+            self.assertIn("Not published", index)
             self.assertIn("No briefing prose is available", index)
             self.assertNotIn("REJECTED CONTENT", index)
             self.assertFalse((output / "2026-08-20.html").exists())
@@ -627,6 +627,86 @@ class BuildSiteTests(unittest.TestCase):
         rendered, matched = _render_markdown(markdown, findings)
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
+
+    def test_status_chip_verified_for_clean_ready_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("clean briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("status-chip", index)
+            self.assertIn("✓", index)
+            self.assertIn("Verified", index)
+            self.assertIn("reports/2026-08-20.html", index)
+            self.assertNotIn("Checker verdict:", index)
+            self.assertNotIn("Corpus health:", index)
+
+    def test_status_chip_repair_count_for_repaired_ready_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("repaired briefing", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                repair_actions=[
+                    {"action": "drop_entry", "path": "topics.AI[1]", "reason": "dup"},
+                    {"action": "drop_ref", "path": "topics.AI[0]", "reason": "ineligible"},
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("⚠", index)
+            self.assertIn("automated repair", index)
+            self.assertIn("2 actions", index)
+
+    def test_status_chip_shows_degraded_sources_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("degraded briefing", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                degraded_sources=["reddit:cursor"],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("sources degraded", index)
+
+    def test_status_chip_review_required(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("preview content", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding("unsupported_figure", "fig check"),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("🔍", index)
+            self.assertIn("Review required", index)
 
     def test_report_page_contains_findings_and_repair_actions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

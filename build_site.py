@@ -71,6 +71,8 @@ article { border-top: 1px solid #8886; padding: 1rem 0; }
 .briefing-content code { background: #8881; border-radius: .2rem; padding: .1rem .25rem; }
 .briefing-content pre code { background: none; padding: 0; }
 .briefing-content blockquote { border-left: .25rem solid #8886; margin-left: 0; padding-left: 1rem; }
+.status-chip { font-size: .88rem; }
+.status-chip a { text-decoration: none; }
 """.strip()
 
 
@@ -536,6 +538,25 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
     )
 
 
+def _status_chip(entry: BriefingEntry) -> str:
+    if entry.disposition == "ready" and entry.repair_actions:
+        n = len(entry.repair_actions)
+        label = f"⚠ Published after automated repair ({n} {'action' if n == 1 else 'actions'})"
+    elif entry.disposition == "ready":
+        label = "✓ Verified"
+    elif entry.disposition == "review_required":
+        label = "🔍 Review required"
+    else:
+        label = "✖ Not published"
+    suffixes = []
+    if entry.degraded_sources:
+        suffixes.append("sources degraded")
+    if suffixes:
+        label += " · " + " · ".join(suffixes)
+    report_href = f"reports/{html.escape(entry.slug)}.html"
+    return f'<p class="status-chip"><a href="{report_href}">{label}</a></p>'
+
+
 def _entry_body(entry: BriefingEntry) -> str:
     review_panel = ""
     if entry.markdown is not None:
@@ -548,12 +569,9 @@ def _entry_body(entry: BriefingEntry) -> str:
         briefing = f'{review_panel}<article class="briefing-content">{rendered_markdown}</article>'
     else:
         briefing = '<p class="muted">No briefing prose is available for this run.</p>'
-    report_link = f'<p><a href="reports/{html.escape(entry.slug)}.html">Integrity report →</a></p>'
     return (
         f"<h1>Briefing for {html.escape(entry.slug)}</h1>"
-        f'<p class="verdict">Checker verdict: {html.escape(_verdict(entry))}</p>'
-        f"<p>Corpus health: {_corpus_health(entry)}</p>"
-        f"{report_link}"
+        f"{_status_chip(entry)}"
         f"{briefing}"
     )
 
