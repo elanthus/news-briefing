@@ -1,6 +1,8 @@
 name: Daily briefing
 
 on:
+  schedule:
+    - cron: "30 13 * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,6 +24,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -29,16 +33,21 @@ jobs:
       - name: Install site renderer dependency
         run: python -m pip install --requirement requirements-site.txt
 
-      - name: Backfill seven Eastern report dates
+      - name: Generate scheduled daily or manual backfill reports
         env:
           SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           mkdir -p briefing-history corpora reports runs
-          anchor_date=$(TZ=America/New_York date +%F)
-          for days_ago in 6 5 4 3 2 1 0; do
+          latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            day_offsets=(6 5 4 3 2 1 0)
+          else
+            day_offsets=(0)
+          fi
+          for days_ago in "${day_offsets[@]}"; do
             report_date=$(TZ=America/New_York date \
-              --date="$anchor_date $days_ago days ago" +%F)
+              --date="$latest_completed_date $days_ago days ago" +%F)
             window_start=$(TZ=America/New_York date \
               --date="$report_date 00:00:00" \
               --iso-8601=seconds)
@@ -114,7 +123,9 @@ jobs:
           if [[ -f prior-history.json ]]; then
             args+=(--prior-history prior-history.json)
           fi
-          args+=(--replace-existing)
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            args+=(--replace-existing)
+          fi
           python build_site.py "${args[@]}"
 
       - name: Upload Pages artifact

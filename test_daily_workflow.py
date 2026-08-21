@@ -7,15 +7,29 @@ WORKFLOW = Path(".github/workflows/daily-briefing.yml").read_text(encoding="utf-
 
 
 class DailyWorkflowTests(unittest.TestCase):
-    def test_can_only_be_dispatched_manually(self) -> None:
+    def test_supports_daily_schedule_and_manual_dispatch_only(self) -> None:
         triggers = WORKFLOW.split("permissions:", 1)[0]
+        self.assertIn('cron: "30 13 * * *"', triggers)
         self.assertIn("workflow_dispatch:", triggers)
-        for automatic_trigger in ("schedule:", "push:", "pull_request:"):
+        for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
-    def test_backfills_seven_adjacent_eastern_calendar_windows(self) -> None:
-        self.assertIn("anchor_date=$(TZ=America/New_York date +%F)", WORKFLOW)
-        self.assertIn("for days_ago in 6 5 4 3 2 1 0; do", WORKFLOW)
+    def test_scheduled_run_handles_one_completed_eastern_day(self) -> None:
+        self.assertIn(
+            'latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)',
+            WORKFLOW,
+        )
+        self.assertIn('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then', WORKFLOW)
+        self.assertEqual(
+            WORKFLOW.count('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then'),
+            2,
+        )
+        self.assertIn("day_offsets=(0)", WORKFLOW)
+
+    def test_manual_run_backfills_seven_completed_eastern_days(self) -> None:
+        self.assertIn("day_offsets=(6 5 4 3 2 1 0)", WORKFLOW)
+        self.assertIn('for days_ago in "${day_offsets[@]}"; do', WORKFLOW)
+        self.assertIn('--date="$latest_completed_date $days_ago days ago" +%F', WORKFLOW)
         self.assertIn("TZ=America/New_York", WORKFLOW)
         self.assertIn('--date="$report_date 00:00:00"', WORKFLOW)
         self.assertIn('--date="$report_date 1 day" +%F', WORKFLOW)
@@ -26,6 +40,7 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertNotIn("--hours 24", WORKFLOW)
 
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
+        self.assertIn("ref: main", WORKFLOW)
         self.assertIn('corpus="corpora/$report_date.json"', WORKFLOW)
         self.assertIn('run_dir="runs/$report_date"', WORKFLOW)
         self.assertIn('report="reports/$report_date.md"', WORKFLOW)

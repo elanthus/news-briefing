@@ -222,7 +222,7 @@ class BuildSiteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "requires matching Markdown"):
                 build_site(briefings, root / "site")
 
-    def test_discards_entries_outside_latest_seven_utc_dates(self) -> None:
+    def test_keeps_date_gaps_when_fewer_than_eight_entries_exist(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -236,14 +236,49 @@ class BuildSiteTests(unittest.TestCase):
 
             index = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn("2026-08-14", index)
-            self.assertNotIn("2026-08-13", index)
+            self.assertIn("2026-08-13", index)
             self.assertTrue((output / "2026-08-14.html").is_file())
-            self.assertFalse((output / "2026-08-13.html").exists())
+            self.assertTrue((output / "2026-08-13.html").is_file())
             history = json.loads((output / "history.json").read_text())
             self.assertEqual(
                 [entry["date"] for entry in history["entries"]],
-                ["2026-08-20", "2026-08-14"],
+                ["2026-08-20", "2026-08-14", "2026-08-13"],
             )
+
+    def test_discards_oldest_entry_only_when_an_eighth_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            for day in range(13, 20):
+                date_string = f"2026-08-{day}"
+                (briefings / f"{date_string}.md").write_text(
+                    f"briefing {date_string}", encoding="utf-8"
+                )
+                self._write_sidecar(
+                    briefings, date=date_string, disposition="ready"
+                )
+
+            output = root / "site"
+            build_site(briefings, output)
+            seven_day_history = json.loads((output / "history.json").read_text())
+            self.assertEqual(len(seven_day_history["entries"]), 7)
+            self.assertEqual(seven_day_history["entries"][-1]["date"], "2026-08-13")
+            self.assertTrue((output / "2026-08-13.html").is_file())
+
+            (briefings / "2026-08-20.md").write_text(
+                "briefing 2026-08-20", encoding="utf-8"
+            )
+            self._write_sidecar(
+                briefings, date="2026-08-20", disposition="ready"
+            )
+            build_site(briefings, output)
+
+            history = json.loads((output / "history.json").read_text())
+            self.assertEqual(len(history["entries"]), 7)
+            self.assertEqual(history["entries"][0]["date"], "2026-08-20")
+            self.assertEqual(history["entries"][-1]["date"], "2026-08-14")
+            self.assertFalse((output / "2026-08-13.html").exists())
 
     def test_merges_bootstrap_and_upgrades_legacy_live_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
