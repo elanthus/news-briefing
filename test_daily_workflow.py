@@ -96,6 +96,10 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
         self.assertIn("--corpora-dir corpora", WORKFLOW)
 
+    def test_removes_known_bad_historical_pages(self) -> None:
+        self.assertIn("--exclude-date 2026-08-15", WORKFLOW)
+        self.assertIn("--exclude-date 2026-08-16", WORKFLOW)
+
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
         self.assertIn("Publication preparation failed for $report_date", WORKFLOW)

@@ -184,6 +184,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             args+=(--replace-existing)
           fi
+          args+=(--exclude-date 2026-08-15)
+          args+=(--exclude-date 2026-08-16)
           args+=(--corpora-dir corpora)
           python build_site.py "${args[@]}"
 

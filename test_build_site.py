@@ -338,6 +338,45 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(history["entries"][-1]["date"], "2026-08-14")
             self.assertFalse((output / "2026-08-13.html").exists())
 
+    def test_excluded_dates_are_removed_from_prior_history_and_generated_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root / "initial"
+            initial.mkdir()
+            for day in ("2026-08-15", "2026-08-16", "2026-08-17"):
+                (initial / f"{day}.md").write_text(
+                    f"briefing {day}", encoding="utf-8"
+                )
+                self._write_sidecar(initial, date=day, disposition="ready")
+
+            initial_site = root / "initial-site"
+            build_site(initial, initial_site)
+            self.assertTrue((initial_site / "2026-08-15.html").is_file())
+            self.assertTrue((initial_site / "2026-08-16.html").is_file())
+
+            current = root / "current"
+            current.mkdir()
+            output = initial_site
+            build_site(
+                current,
+                output,
+                prior_history=output / "history.json",
+                exclude_dates={"2026-08-15", "2026-08-16"},
+            )
+
+            history = json.loads((output / "history.json").read_text())
+            self.assertEqual(
+                [entry["date"] for entry in history["entries"]],
+                ["2026-08-17"],
+            )
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("2026-08-15", index)
+            self.assertNotIn("2026-08-16", index)
+            self.assertFalse((output / "2026-08-15.html").exists())
+            self.assertFalse((output / "2026-08-16.html").exists())
+            self.assertFalse((output / "reports/2026-08-15.html").exists())
+            self.assertFalse((output / "reports/2026-08-16.html").exists())
+
     def test_merges_bootstrap_and_upgrades_legacy_live_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
