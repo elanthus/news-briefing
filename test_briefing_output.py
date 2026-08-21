@@ -6,7 +6,9 @@ from pathlib import Path
 import briefing_config
 import eval_briefing
 from agent_runner.output import (
+    OutputFinding,
     build_output_schema,
+    is_repairable_finding,
     project_corpus,
     redact_destinations,
     redact_preview_value,
@@ -456,6 +458,27 @@ class BriefingOutputTests(unittest.TestCase):
                 )
                 self.assertEqual(again, repaired)
                 self.assertEqual(second_actions, [])
+
+    def test_repairable_finding_partition(self):
+        for check in (
+            "category_ineligible_ref",
+            "duplicate_item",
+            "duplicate_citation_ref",
+            "structured_item_limit",
+        ):
+            self.assertTrue(
+                is_repairable_finding(OutputFinding("ERROR", check, "x")),
+                msg=check,
+            )
+        for check in (
+            "unknown_citation_ref",
+            "freeform_url",
+            "structured_type",
+        ):
+            self.assertFalse(
+                is_repairable_finding(OutputFinding("ERROR", check, "x")),
+                msg=check,
+            )
 
 
 if __name__ == "__main__":

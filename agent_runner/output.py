@@ -246,6 +246,27 @@ def build_output_schema(
     }
 
 
+REPAIRABLE_CHECKS = frozenset({
+    "category_ineligible_ref",
+    "duplicate_citation_ref",
+    "duplicate_item",
+    "structured_item_limit",
+})
+
+
+def is_repairable_finding(finding: OutputFinding) -> bool:
+    """True when deterministic structural repair fixes this finding by construction.
+
+    These are editorial placement errors: ineligible-category refs, repeated
+    refs, reused items, and over-limit sections. ``repair_structural_output``
+    drops or deduplicates the offending entries, so a repaired output
+    re-validates without any of these checks. Everything else (unknown refs,
+    freeform URLs, schema-shape violations) is an evidence-boundary or contract
+    violation that repair deliberately preserves for rejection and review.
+    """
+    return finding.check in REPAIRABLE_CHECKS
+
+
 def repair_structural_output(
     output: Any,
     config: briefing_config.BriefingConfig,
