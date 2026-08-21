@@ -393,6 +393,45 @@ class PreparePublicationTests(unittest.TestCase):
             sidecar = json.loads((root / "history/2026-08-20.json").read_text())
             self.assertEqual(sidecar["repair_actions"], [])
 
+    def test_rejected_run_keeps_repair_actions_out_of_the_sidecar(self) -> None:
+        # Non-public dispositions retain only findings_count; repair provenance
+        # is published only alongside a public artifact.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = b"rejected preview\n"
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {
+                    "level": "ERROR",
+                    "check": "unknown_citation_ref",
+                    "domain": "evidence",
+                    "message": "topics.AI News[0] contains unknown citation ref 'citation_9999'",
+                },
+            ]
+            self._write_manifest(
+                run, "rejected", "preview", "preview.md", preview, findings,
+                structured={"sections": {"AI News": {"topics": []}}},
+                final_attempt_kind="deterministic_repair",
+                final_repair_actions=[
+                    {
+                        "action": "drop_entry",
+                        "path": "topics.AI News[1]",
+                        "reason": "duplicate item",
+                    },
+                ],
+            )
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20),
+            )
+
+            self.assertEqual(record.disposition, "rejected")
+            self.assertEqual(record.repair_actions, ())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            self.assertEqual(sidecar["repair_actions"], [])
+
     def test_review_required_findings_carry_structured_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

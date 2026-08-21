@@ -152,7 +152,12 @@ def _entry_from_payload(
     flexible_findings: bool = True,
 ) -> BriefingEntry:
     expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
-    if not isinstance(payload, dict) or set(payload) not in (expected_fields, expected_fields | {"repair_actions"}):
+    allowed_fields = (
+        (expected_fields, SIDECAR_V4_FIELDS)
+        if schema_version >= 2
+        else (expected_fields,)
+    )
+    if not isinstance(payload, dict) or set(payload) not in allowed_fields:
         raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
 
     raw_date = payload["date"]
@@ -255,19 +260,26 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3}
+        or payload.get("schema_version") not in {1, 2, 3, 4}
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1, 2, or 3 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 1 through 4 with an entries array")
     schema_version = payload["schema_version"]
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
         source = f"history {path} entry {index}"
         expected_fields = HISTORY_FIELDS if schema_version >= 2 else LEGACY_HISTORY_FIELDS
+        if schema_version >= 4:
+            expected_fields = expected_fields | {"repair_actions"}
         if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
             raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        metadata_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
+        if schema_version >= 4:
+            metadata_fields = SIDECAR_V4_FIELDS
+        elif schema_version >= 2:
+            metadata_fields = SIDECAR_FIELDS
+        else:
+            metadata_fields = LEGACY_FIELDS
         metadata = {key: raw_entry[key] for key in metadata_fields}
         entry = _entry_from_payload(
             metadata,
@@ -292,6 +304,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 findings=entry.findings,
                 degraded_sources=entry.degraded_sources,
                 markdown=markdown,
+                repair_actions=entry.repair_actions,
             )
         )
     return entries
@@ -299,7 +312,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "entries": [
             {
                 "date": entry.slug,
@@ -327,6 +340,7 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                     for finding in entry.findings
                 ],
                 "degraded_sources": list(entry.degraded_sources),
+                "repair_actions": [dict(action) for action in entry.repair_actions],
                 "markdown": _strip_legacy_preview_banner(entry.markdown),
             }
             for entry in entries
@@ -362,6 +376,8 @@ LEGACY_PREVIEW_BANNER = (
     "Unknown citations are omitted and model-authored web destinations are redacted.\n\n"
 )
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
+
 
 def _strip_legacy_preview_banner(markdown: str | None) -> str | None:
     if markdown is None:
@@ -382,6 +398,14 @@ def _topic_headline(line: str) -> str | None:
     closing = candidate.find("** — ", 2)
     return candidate[2:closing] if closing >= 2 else None
 
+
+def _section_subheading(line: str) -> str | None:
+    """Legacy section attribution for findings that predate story anchors."""
+    if not line.startswith("**") or not line.endswith("**") or " — " in line:
+        return None
+    label = line[2:-2].strip()
+    slots = re.fullmatch(r"(.+) \(\d+ slots\)", label)
+    return slots.group(1) if slots is not None else label
 
 
 def _finding_matches(
@@ -410,6 +434,7 @@ def _render_markdown(
     replacements: dict[str, str] = {}
     matched: set[int] = set()
     section = ""
+    excluded_section = False
     current_path: str | None = None
     pending_end_marker: str | None = None
     digest = hashlib.sha256(public_markdown.encode("utf-8")).hexdigest()[:16]
@@ -424,8 +449,20 @@ def _render_markdown(
         ):
             lines.extend(["", pending_end_marker, ""])
             pending_end_marker = None
-        if line.startswith("## "):
+        # Section/subheading tracking only serves findings without a structured
+        # path (pre-v4 sidecars and histories); anchored findings match by path.
+        if line.startswith("### Excluded Topics"):
+            excluded_section = True
+        elif line.startswith("## "):
+            excluded_section = False
             section = line.removeprefix("## ").strip()
+        subheading = _section_subheading(line)
+        if subheading is not None:
+            section = (
+                f"{EXCLUDED_CONTEXT_PREFIX}{subheading}"
+                if excluded_section
+                else subheading
+            )
         if headline is None:
             lines.append(line)
             current_path = None

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import briefing_config
 import eval_briefing
+from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
     OutputFinding,
     build_output_schema,
@@ -13,6 +14,7 @@ from agent_runner.output import (
     redact_destinations,
     redact_preview_value,
     render_briefing,
+    render_candidate_preview,
     repair_structural_output,
     validate_output,
 )
@@ -589,7 +591,9 @@ class BriefingOutputTests(unittest.TestCase):
         for section in config.sections:
             for index, topic in enumerate(output["sections"][section.name]["topics"]):
                 anchor = f"<!-- story: topics.{section.name}[{index}] -->"
-                anchor_line = next(i for i, l in enumerate(lines) if l == anchor)
+                anchor_line = next(
+                    i for i, candidate in enumerate(lines) if candidate == anchor
+                )
                 headline_line = next(
                     i for i in range(anchor_line, len(lines))
                     if topic["headline"] in lines[i]
@@ -605,6 +609,33 @@ class BriefingOutputTests(unittest.TestCase):
         briefing = render_briefing(output, corpus, config, projected.citations)
         self.assertIn("<!-- story:", briefing)
         self.assertEqual(eval_briefing.evaluate(corpus, briefing, config), [])
+
+    def test_candidate_preview_carries_story_anchors_before_headlines(self):
+        # Findings render only on review_required pages, whose public artifact
+        # is the candidate preview — so the preview must carry the same anchors
+        # as the final briefing for path-based finding attachment to work.
+        corpus, config, projected, output = fixture_contract()
+        outcome = classify_outcome([], corpus.get("errors", []))
+        preview = render_candidate_preview(
+            output, corpus, config, projected.citations, [], outcome
+        )
+        lines = preview.splitlines()
+        for section in config.sections:
+            for index in range(len(output["sections"][section.name]["topics"])):
+                anchor = f"<!-- story: topics.{section.name}[{index}] -->"
+                anchor_line = lines.index(anchor)
+                self.assertTrue(
+                    lines[anchor_line + 1].startswith("**"),
+                    msg=f"{anchor} must directly precede its headline line",
+                )
+            if section.excluded_stories:
+                for index in range(len(output["excluded_topics"][section.name])):
+                    anchor = f"<!-- story: excluded_topics.{section.name}[{index}] -->"
+                    anchor_line = lines.index(anchor)
+                    self.assertTrue(
+                        lines[anchor_line + 1].startswith("- **"),
+                        msg=f"{anchor} must directly precede its excluded entry",
+                    )
 
     def test_repairable_finding_partition(self):
         for check in (

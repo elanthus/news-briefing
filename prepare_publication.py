@@ -321,7 +321,6 @@ def prepare_publication(
             if isinstance(status, str) and status in FINAL_STATUSES and isinstance(raw_findings, list):
                 disposition = status
                 findings_count = _actionable_finding_count(raw_findings)
-                repair_actions = _extract_repair_actions(manifest, final)
                 if status == "review_required":
                     normalized = _review_findings(raw_findings)
                     if normalized is None:
@@ -335,6 +334,9 @@ def prepare_publication(
                             _final_structured_output(run_dir, manifest, final),
                         )
                 if disposition in PUBLIC_ARTIFACTS:
+                    # Repair provenance is published only with a public artifact;
+                    # non-public dispositions keep the minimal-metadata contract.
+                    repair_actions = _extract_repair_actions(manifest, final)
                     public_content = _bound_artifact(run_dir, manifest, final, disposition)
                     if public_content is None:
                         disposition = "blocked"

@@ -378,7 +378,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text())
             self.assertIn("dogfood preview", (output / "2026-08-18.html").read_text())
             history = json.loads((output / "history.json").read_text())
-            self.assertEqual(history["schema_version"], 3)
+            self.assertEqual(history["schema_version"], 4)
             self.assertEqual(len(history["entries"]), 3)
 
     def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
@@ -464,6 +464,89 @@ class BuildSiteTests(unittest.TestCase):
             history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(history["entries"][0]["disposition"], "ready")
             self.assertEqual(history["entries"][0]["markdown"], "live briefing")
+
+    def test_legacy_findings_without_anchors_render_inline(self) -> None:
+        # Production preview.md predating story anchors, with v3 findings that
+        # carry only section/headline context: the legacy subheading tracking
+        # must still attach grouped and excluded findings inline.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## AI/Tech\n\n"
+                "**AI News (4 slots)**\n\n"
+                "**AI story** — Included summary.\n"
+                "🔗 https://example.com/ai\n\n"
+                "---\n\n"
+                "### Excluded Topics (candidate)\n\n"
+                "**US News**\n\n"
+                "- **Excluded story** — Lower impact.\n"
+                "🔗 https://example.com/excluded\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "category_ineligible_ref",
+                        "topics.AI News[0] uses an ineligible citation",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "included entry",
+                        },
+                    ),
+                    self._finding(
+                        "duplicate_item",
+                        "excluded_topics.US News[0] repeats an item",
+                        context={
+                            "section": "Excluded Topics: US News",
+                            "headline": "Excluded story",
+                            "model_authored": "excluded entry",
+                        },
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertEqual(index.count('<section class="review-story">'), 2)
+            self.assertNotIn('<section class="review-panel">', index)
+            self.assertLess(index.index("AI story"), index.index("ineligible citation"))
+            self.assertLess(index.index("Excluded story"), index.index("repeats an item"))
+
+    def test_repair_actions_survive_history_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "first"
+            first.mkdir()
+            (first / "2026-08-19.md").write_text("repaired briefing", encoding="utf-8")
+            actions = [
+                {"action": "drop_entry", "path": "topics.US News[3]", "reason": "duplicate"},
+            ]
+            self._write_sidecar(
+                first, date="2026-08-19", disposition="ready", repair_actions=actions
+            )
+            first_site = root / "site-1"
+            build_site(first, first_site)
+            history = json.loads((first_site / "history.json").read_text())
+            self.assertEqual(history["schema_version"], 4)
+            self.assertEqual(history["entries"][0]["repair_actions"], actions)
+
+            second = root / "second"
+            second.mkdir()
+            (second / "2026-08-20.md").write_text("next briefing", encoding="utf-8")
+            self._write_sidecar(second, date="2026-08-20", disposition="ready")
+            second_site = root / "site-2"
+            build_site(second, second_site, prior_history=first_site / "history.json")
+            rebuilt = json.loads((second_site / "history.json").read_text())
+            by_date = {entry["date"]: entry for entry in rebuilt["entries"]}
+            self.assertEqual(by_date["2026-08-19"]["repair_actions"], actions)
+            self.assertEqual(by_date["2026-08-20"]["repair_actions"], [])
 
     def test_anchor_based_matching_ignores_section_heading_format(self) -> None:
         markdown = (

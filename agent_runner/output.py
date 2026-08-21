@@ -738,11 +738,12 @@ def _preview_entries(
     *,
     citations: dict[str, Citation],
     excluded: bool,
+    path_prefix: str,
 ) -> list[str]:
     if not isinstance(entries, list):
         return ["_Candidate did not provide an entry list._", ""]
     lines: list[str] = []
-    for entry in entries:
+    for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             lines.extend(["_Malformed candidate entry omitted._", ""])
             continue
@@ -756,6 +757,9 @@ def _preview_entries(
             prose_note = ""
         rendered_prose = _preview_text(prose, "[missing candidate text]")
         marker = "- " if excluded else ""
+        # The anchor must directly precede the headline line: the site renderer
+        # binds a finding's structured path to the next headline it sees.
+        lines.append(f"<!-- story: {path_prefix}[{index}] -->")
         lines.append(f"{marker}**{headline}** — {rendered_prose}{prose_note}")
         refs = entry.get("citation_refs")
         if isinstance(refs, list):
@@ -793,7 +797,12 @@ def render_candidate_preview(
         lines.extend([f"## {section.name}", ""])
         section_value = sections.get(section.name)
         topics = section_value.get("topics") if isinstance(section_value, dict) else None
-        lines.extend(_preview_entries(topics, citations=citations, excluded=False))
+        lines.extend(_preview_entries(
+            topics,
+            citations=citations,
+            excluded=False,
+            path_prefix=f"topics.{section.name}",
+        ))
 
     lines.extend(["---", "", "### Excluded Topics (candidate)", ""])
     excluded_value = root.get("excluded_topics")
@@ -806,7 +815,10 @@ def render_candidate_preview(
         lines.extend([f"**{section.name}**", ""])
         lines.extend(
             _preview_entries(
-                excluded_topics.get(section.name), citations=citations, excluded=True
+                excluded_topics.get(section.name),
+                citations=citations,
+                excluded=True,
+                path_prefix=f"excluded_topics.{section.name}",
             )
         )
 
