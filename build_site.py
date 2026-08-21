@@ -558,15 +558,15 @@ def _status_chip(entry: BriefingEntry) -> str:
 
 
 def _entry_body(entry: BriefingEntry) -> str:
-    review_panel = ""
-    if entry.markdown is not None:
-        rendered_markdown, matched = _render_markdown(entry.markdown, entry.findings)
-        unmatched = tuple(
-            finding for index, finding in enumerate(entry.findings) if index not in matched
+    if entry.disposition == "review_required":
+        report_href = f"reports/{html.escape(entry.slug)}.html"
+        briefing = (
+            "<p>This day’s briefing did not pass automated checks and is withheld.</p>"
+            f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
-        if entry.disposition == "review_required" and unmatched:
-            review_panel = _render_review_panel(unmatched)
-        briefing = f'{review_panel}<article class="briefing-content">{rendered_markdown}</article>'
+    elif entry.markdown is not None:
+        rendered_markdown, _matched = _render_markdown(entry.markdown)
+        briefing = f'<article class="briefing-content">{rendered_markdown}</article>'
     else:
         briefing = '<p class="muted">No briefing prose is available for this run.</p>'
     return (

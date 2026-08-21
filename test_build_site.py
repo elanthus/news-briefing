@@ -67,39 +67,17 @@ class BuildSiteTests(unittest.TestCase):
             index = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn('<strong aria-current="date">2026-08-20</strong>', index)
             self.assertIn('href="2026-08-19.html"', index)
-            self.assertIn("<h2>US Politics</h2>", index)
-            self.assertIn("<strong>Important detail</strong>", index)
-            self.assertIn('<a href="https://example.com/story">source</a>', index)
-            self.assertIn('<a href="https://example.com/citation">https://example.com/citation</a>', index)
-            self.assertIn('<a href="https://example.com/bare">https://example.com/bare</a>', index)
-            self.assertIn("<li>First item</li>", index)
-            self.assertIn(".briefing-content ul { list-style: disc; padding-left: 1.25rem; }", index)
             self.assertFalse((output / "2026-08-20.html").exists())
-            self.assertIn("Review required · 2 findings", index)
-            self.assertIn("WARN · evidence · unsupported figure:", index)
-            self.assertIn("states &#x27;&lt;60&gt;&#x27;", index)
-            self.assertIn("Verify the figure against the cited source", index)
-            story_box = index.index('<section class="review-story">')
-            story_heading = index.index("Review required · 2 findings", story_box)
-            inline_box = index.index('<aside class="review-panel inline-review"', story_box)
-            self.assertLess(story_box, story_heading)
-            self.assertLess(story_heading, index.index("Important detail"))
-            self.assertLess(index.index("Important detail"), inline_box)
-            self.assertLess(inline_box, index.index("</section>", story_box))
-            self.assertIn("border-top: 2px solid", index)
+            self.assertIn("did not pass automated checks", index)
+            self.assertIn("reports/2026-08-20.html", index)
+            self.assertNotIn('<section class="review-story">', index)
+            self.assertNotIn("Important detail", index)
             self.assertNotIn("UNPUBLISHED BRIEFING CANDIDATE", index)
-            self.assertNotIn("duplicate public warning", index)
-            self.assertIn("<details>", index)
-            self.assertNotIn("<details open", index)
-            self.assertIn("Click to see redacted information", index)
-            self.assertNotIn("INLINE_REVIEW_", index)
-            self.assertIn("https://model.example/claim", index)
-            self.assertNotIn('href="https://model.example/claim"', index)
-            self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", index)
-            self.assertNotIn("<script>", index)
-            self.assertNotIn('href="javascript:', index)
-            self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", index)
-            self.assertNotIn("<pre># LATEST PREVIEW", index)
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("Review required · 2 findings", report)
+            self.assertIn("WARN · evidence · unsupported figure:", report)
+            self.assertIn("states &#x27;&lt;60&gt;&#x27;", report)
+            self.assertIn("Verify the figure against the cited source", report)
 
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
             self.assertIn('href="index.html">2026-08-20</a>', prior)
@@ -138,9 +116,10 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, output)
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertIn('<section class="review-story">', index)
-            self.assertNotIn("Click to see redacted information", index)
-            self.assertNotIn('class="model-authored"', index)
+            self.assertIn("did not pass automated checks", index)
+            self.assertNotIn('<section class="review-story">', index)
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("unsupported figure", report)
 
     def test_adjacent_flagged_stories_have_balanced_review_boxes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -175,12 +154,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, output)
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertEqual(index.count('<section class="review-story">'), 2)
-            self.assertEqual(index.count("</section>"), 2)
-            self.assertIn("First story&#x27; states &#x27;1&#x27;", index)
-            self.assertIn("Second story&#x27; states &#x27;2&#x27;", index)
-            first_close = index.index("</section>", index.index("First story"))
-            self.assertLess(first_close, index.index("Second story"))
+            self.assertNotIn('<section class="review-story">', index)
+            self.assertIn("did not pass automated checks", index)
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("First story&#x27; states &#x27;1&#x27;", report)
+            self.assertIn("Second story&#x27; states &#x27;2&#x27;", report)
 
     def test_grouped_and_excluded_story_findings_render_inline(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -232,11 +210,12 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertEqual(index.count('<section class="review-story">'), 2)
-            self.assertEqual(index.count('class="review-panel inline-review"'), 2)
+            self.assertNotIn('<section class="review-story">', index)
             self.assertNotIn('<section class="review-panel">', index)
-            self.assertLess(index.index("AI story"), index.index("ineligible citation"))
-            self.assertLess(index.index("Excluded story"), index.index("repeats an item"))
+            self.assertIn("did not pass automated checks", index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("ineligible citation", report)
+            self.assertIn("repeats an item", report)
 
     def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -376,7 +355,9 @@ class BuildSiteTests(unittest.TestCase):
 
             self.assertIn("current briefing", (output / "index.html").read_text())
             self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text())
-            self.assertIn("dogfood preview", (output / "2026-08-18.html").read_text())
+            page_18 = (output / "2026-08-18.html").read_text()
+            self.assertIn("did not pass automated checks", page_18)
+            self.assertNotIn("dogfood preview", page_18)
             history = json.loads((output / "history.json").read_text())
             self.assertEqual(history["schema_version"], 4)
             self.assertEqual(len(history["entries"]), 3)
@@ -437,8 +418,9 @@ class BuildSiteTests(unittest.TestCase):
             )
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertIn("replacement preview", index)
+            self.assertIn("did not pass automated checks", index)
             self.assertNotIn("old briefing", index)
+            self.assertNotIn("replacement preview", index)
 
     def test_replace_existing_preserves_prior_page_when_backfill_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -708,6 +690,71 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("🔍", index)
             self.assertIn("Review required", index)
 
+    def test_review_required_renders_stub_without_briefing_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## US News\n\n**Secret story** — Sensitive preview content.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding("unsupported_figure", "fig check"),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertNotIn("Secret story", index)
+            self.assertNotIn("Sensitive preview", index)
+            self.assertIn("did not pass automated checks", index)
+            self.assertIn("reports/2026-08-20.html", index)
+
+    def test_briefing_pages_have_no_inline_review_panels(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-19.md").write_text("prior ready briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-19", disposition="ready")
+            (briefings / "2026-08-20.md").write_text(
+                "## AI News\n\n"
+                "<!-- story: topics.AI News[0] -->\n"
+                "**AI story** — Summary.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "topics.AI News[0].summary states '42'",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "entry json",
+                            "path": "topics.AI News[0]",
+                        },
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertNotIn('<section class="review-panel">', index)
+            self.assertNotIn('<section class="review-story">', index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("unsupported figure", report)
+
     def test_report_page_contains_findings_and_repair_actions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -816,8 +863,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("review-story", index)
-            self.assertIn("states &#x27;42&#x27;", index)
+            self.assertNotIn('<section class="review-story">', index)
+            self.assertIn("did not pass automated checks", index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("states &#x27;42&#x27;", report)
+            self.assertIn("drop_entry", report)
 
     @staticmethod
     def _finding(
