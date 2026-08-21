@@ -28,11 +28,14 @@ class DailyWorkflowTests(unittest.TestCase):
         )
         self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", WORKFLOW)
         self.assertIn(
-            'if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && '
-            '"$MANUAL_MODE" == "backfill-7-days" ]]; then',
+            '          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && '
+            '"$MANUAL_MODE" == "backfill-7-days" ]]; then\n'
+            "            day_offsets=(6 5 4 3 2 1 0)\n"
+            "          else\n"
+            "            day_offsets=(0)\n"
+            "          fi",
             WORKFLOW,
         )
-        self.assertIn("day_offsets=(0)", WORKFLOW)
 
     def test_manual_run_can_backfill_seven_completed_eastern_days(self) -> None:
         self.assertIn("day_offsets=(6 5 4 3 2 1 0)", WORKFLOW)
