@@ -800,7 +800,10 @@ class BriefingOutputTests(unittest.TestCase):
             combined_line,
         )
         self.assertEqual(combined_line.count("*("), 1)
-        # Only the two swapped entries are labeled.
+        # Only the two swapped entries are labeled, each with its exact
+        # full marker token.
+        self.assertEqual(markdown.count("*(source excerpt)*"), 1)
+        self.assertEqual(markdown.count("*(consolidated · source excerpt)*"), 1)
         self.assertEqual(markdown.count("source excerpt"), 2)
 
     def test_source_excerpt_marker_is_excluded_from_checker_prose(self):

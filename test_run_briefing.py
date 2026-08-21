@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import corpus_schema
 import eval_briefing
 import run_briefing as briefing_cli
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
@@ -394,6 +395,53 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(underfilled, msg=final_findings)
         self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
         self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
+
+    def test_bloated_summary_is_swapped_and_run_finalizes_ready(self):
+        corpus, config, projected, output = fixture_contract()
+        evidence = eval_briefing.corpus_evidence(corpus)
+        first = config.sections[0]
+        broken = copy.deepcopy(output)
+        entry = broken["sections"][first.name]["topics"][0]
+        texts = dict.fromkeys(
+            text
+            for ref in entry["citation_refs"]
+            if (text := evidence.get(
+                corpus_schema.canonicalize_url(projected.citations[ref].url)))
+        )
+        excerpt = " ".join(" ".join(texts).split())
+        self.assertTrue(excerpt)
+        # Bloat past the claim/evidence ratio while staying inside the
+        # structured 1,500-character summary limit, so the candidate's only
+        # defect is the claim_exceeds_evidence WARN (review_required today).
+        bloated = ("word " * (int(
+            eval_briefing.CLAIM_EVIDENCE_RATIO * len(excerpt)) // 5 + 2)).strip()
+        self.assertGreater(
+            len(bloated), eval_briefing.CLAIM_EVIDENCE_RATIO * len(excerpt)
+        )
+        self.assertLessEqual(len(bloated), 1_500)
+        entry["summary"] = bloated
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            final = (root / "briefing.md").read_text()
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.exit_code, 0)
+        repair = [
+            attempt for attempt in manifest["attempts"]
+            if attempt["kind"] == "deterministic_repair"
+        ]
+        self.assertEqual(len(repair), 1)
+        self.assertEqual(
+            repair[0]["repair_actions"][0]["action"],
+            "replace_summary_with_excerpt",
+        )
+        self.assertIn("*(source excerpt)*", final)
+        # No provider correction call was spent on the WARN.
+        self.assertEqual(len(provider.requests), 1)
 
     def test_unknown_ref_still_spends_a_correction(self):
         corpus, config, _projected, output = fixture_contract()

@@ -266,10 +266,10 @@ def is_repairable_finding(finding: OutputFinding) -> bool:
     repairable too: the swap replaces the over-long prose with its own cited
     evidence, so the finding cannot re-fire by construction — except that a
     URL-bearing excerpt declines the swap, leaving the entry untouched and
-    preserved for review. Everything else
-    (unknown refs, freeform URLs, schema-shape violations) is an
-    evidence-boundary or contract violation that repair deliberately preserves
-    for rejection and review.
+    preserved for review.
+    Everything else (unknown refs, freeform URLs, schema-shape violations) is
+    an evidence-boundary or contract violation that repair deliberately
+    preserves for rejection and review.
     """
     return finding.check in REPAIRABLE_CHECKS
 
@@ -737,7 +737,7 @@ def render_briefing(
     swapped = {
         action["path"]
         for action in repair_actions
-        if action.get("action") == "replace_summary_with_excerpt"
+        if action["action"] == "replace_summary_with_excerpt"
     }
     lines = [
         f"# Daily Briefing — {_corpus_date_label(corpus)}",
