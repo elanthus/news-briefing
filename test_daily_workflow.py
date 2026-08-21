@@ -11,11 +11,13 @@ class DailyWorkflowTests(unittest.TestCase):
         triggers = WORKFLOW.split("permissions:", 1)[0]
         self.assertIn('cron: "30 13 * * *"', triggers)
         self.assertIn("workflow_dispatch:", triggers)
-        self.assertIn("mode:", triggers)
-        self.assertIn("default: single-day", triggers)
-        self.assertIn("type: choice", triggers)
-        self.assertIn("- single-day", triggers)
-        self.assertIn("- backfill-7-days", triggers)
+        manual_dispatch = triggers.split("workflow_dispatch:", 1)[1]
+        mode_input = manual_dispatch.split("      mode:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("        required: true", mode_input)
+        self.assertIn("        default: single-day", mode_input)
+        self.assertIn("        type: choice", mode_input)
+        self.assertIn("          - single-day", mode_input)
+        self.assertIn("          - backfill-7-days", mode_input)
         for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
@@ -51,7 +53,12 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('run_dir="runs/$report_date"', WORKFLOW)
         self.assertIn('report="reports/$report_date.md"', WORKFLOW)
         self.assertIn("--force", WORKFLOW)
-        self.assertIn('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then', WORKFLOW)
+        self.assertIn(
+            '          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then\n'
+            "            args+=(--replace-existing)\n"
+            "          fi",
+            WORKFLOW,
+        )
         self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
 
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
