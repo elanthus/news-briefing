@@ -89,6 +89,9 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("--reasoning-effort high", WORKFLOW)
         self.assertNotIn("--model openai/gpt-5.6-luna", WORKFLOW)
 
+    def test_generation_uses_explicit_production_temperature(self) -> None:
+        self.assertIn("--temperature 0.2", WORKFLOW)
+
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
         self.assertIn("--corpora-dir corpora", WORKFLOW)
