@@ -562,6 +562,7 @@ def build_site(
     output_dir: Path,
     prior_history: Path | None = None,
     bootstrap_dir: Path | None = None,
+    replace_existing: bool = False,
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
     if not briefings_dir.is_dir():
@@ -583,7 +584,8 @@ def build_site(
         prior = by_date.get(entry.slug)
         prior_rank = PUBLICATION_RANK.get(prior.disposition, 0) if prior is not None else -1
         entry_rank = PUBLICATION_RANK.get(entry.disposition, 0)
-        if entry_rank >= prior_rank:
+        replace_page = replace_existing and entry.disposition in PAGE_DISPOSITIONS
+        if replace_page or entry_rank >= prior_rank:
             by_date[entry.slug] = entry
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
     if entries:
@@ -619,9 +621,20 @@ def main() -> int:
         type=Path,
         help="validated sidecars and Markdown used to seed an initially empty deployment",
     )
+    parser.add_argument(
+        "--replace-existing",
+        action="store_true",
+        help="replace prior-history pages for publishable dates present in briefings_dir",
+    )
     args = parser.parse_args()
     try:
-        build_site(args.briefings_dir, args.output_dir, args.prior_history, args.bootstrap_dir)
+        build_site(
+            args.briefings_dir,
+            args.output_dir,
+            args.prior_history,
+            args.bootstrap_dir,
+            args.replace_existing,
+        )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     return 0

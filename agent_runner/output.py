@@ -407,6 +407,10 @@ def _date_label(value: str) -> str:
     return f"{parsed:%B} {parsed.day}, {parsed:%Y}"
 
 
+def _corpus_date_label(corpus: dict[str, Any]) -> str:
+    return _date_label(corpus.get("report_date", corpus["generated_at"]))
+
+
 def _complete_item_citations(
     refs: list[str],
     citations: dict[str, Citation],
@@ -455,7 +459,7 @@ def render_briefing(
 ) -> str:
     """Render validated structured output into the existing Markdown contract."""
     lines = [
-        f"# Daily Briefing — {_date_label(corpus['generated_at'])}",
+        f"# Daily Briefing — {_corpus_date_label(corpus)}",
         "",
         f"Corpus window: {corpus['cutoff']} → {corpus['generated_at']}",
         "",
@@ -582,7 +586,7 @@ def render_candidate_preview(
 ) -> str:
     """Render a quarantined best-effort preview without creating a publishable artifact."""
     lines = [
-        f"Candidate date: {_date_label(corpus['generated_at'])}",
+        f"Candidate date: {_corpus_date_label(corpus)}",
         f"Corpus window: {corpus['cutoff']} → {corpus['generated_at']}",
         "",
     ]

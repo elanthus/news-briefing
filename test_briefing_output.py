@@ -192,6 +192,16 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn(projected.citations[first_ref].url, briefing)
         self.assertNotIn(first_ref, briefing)
 
+    def test_report_date_overrides_exclusive_window_end_in_title(self):
+        corpus, config, projected, output = fixture_contract()
+        corpus["report_date"] = "2026-08-10"
+        corpus["generated_at"] = "2026-08-11T04:00:00+00:00"
+
+        briefing = render_briefing(output, corpus, config, projected.citations)
+
+        self.assertIn("# Daily Briefing — August 10, 2026", briefing)
+        self.assertNotIn("# Daily Briefing — August 11, 2026", briefing)
+
     def test_renderer_adds_hn_discussion_link_from_article_ref(self):
         corpus, config, projected, output = fixture_contract()
         item = unused_hn_item(projected, output)

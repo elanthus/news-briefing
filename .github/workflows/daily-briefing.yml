@@ -1,8 +1,6 @@
 name: Daily briefing
 
 on:
-  schedule:
-    - cron: "30 13 * * *"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +16,7 @@ jobs:
   publish:
     name: Build and deploy gated briefing
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 360
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -31,33 +29,57 @@ jobs:
       - name: Install site renderer dependency
         run: python -m pip install --requirement requirements-site.txt
 
-      - name: Fetch current corpus
-        id: fetch
-        continue-on-error: true
+      - name: Backfill seven Eastern report dates
         env:
           SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
-        run: python fetch_news.py --hours 24 -o corpus.json
-
-      - name: Generate publication candidate
-        id: briefing
-        if: steps.fetch.outcome == 'success'
-        continue-on-error: true
-        env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          python run_briefing.py \
-            --provider openrouter \
-            --model deepseek/deepseek-v4-flash-20260423 \
-            --corpus corpus.json \
-            --run-dir run \
-            --output current.md \
-            --max-corrections 3 \
-            --max-tokens 20000 \
-            --reasoning disabled
+          mkdir -p briefing-history corpora reports runs
+          anchor_date=$(TZ=America/New_York date +%F)
+          for days_ago in 6 5 4 3 2 1 0; do
+            report_date=$(TZ=America/New_York date \
+              --date="$anchor_date $days_ago days ago" +%F)
+            window_start=$(TZ=America/New_York date \
+              --date="$report_date 00:00:00" \
+              --iso-8601=seconds)
+            next_date=$(TZ=America/New_York date \
+              --date="$report_date 1 day" +%F)
+            window_end=$(TZ=America/New_York date \
+              --date="$next_date 00:00:00" \
+              --iso-8601=seconds)
+            corpus="corpora/$report_date.json"
+            run_dir="runs/$report_date"
+            report="reports/$report_date.md"
 
-      - name: Apply publication gate
-        if: always()
-        run: python prepare_publication.py
+            if python fetch_news.py \
+              --window-start "$window_start" \
+              --window-end "$window_end" \
+              --report-date "$report_date" \
+              --output "$corpus"; then
+              if ! python run_briefing.py \
+                --provider openrouter \
+                --model deepseek/deepseek-v4-flash-20260423 \
+                --corpus "$corpus" \
+                --run-dir "$run_dir" \
+                --output "$report" \
+                --force \
+                --max-corrections 3 \
+                --max-tokens 20000 \
+                --reasoning disabled; then
+                echo "::warning::Briefing generation did not produce a ready report for $report_date"
+              fi
+            else
+              echo "::warning::Corpus fetch failed for $report_date"
+            fi
+
+            if ! python prepare_publication.py \
+              --run-dir "$run_dir" \
+              --corpus "$corpus" \
+              --history-dir briefing-history \
+              --date "$report_date"; then
+              echo "::warning::Publication preparation failed for $report_date"
+            fi
+          done
 
       - name: Bootstrap history from dogfood runs
         id: bootstrap
@@ -92,6 +114,7 @@ jobs:
           if [[ -f prior-history.json ]]; then
             args+=(--prior-history prior-history.json)
           fi
+          args+=(--replace-existing)
           python build_site.py "${args[@]}"
 
       - name: Upload Pages artifact

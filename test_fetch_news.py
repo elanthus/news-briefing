@@ -99,12 +99,12 @@ class ParseFeedDateTest(unittest.TestCase):
 
 
 class PublicationWindowTest(unittest.TestCase):
-    def test_window_is_inclusive_and_rejects_items_after_snapshot(self):
+    def test_window_includes_start_and_excludes_end(self):
         cutoff = utc(2026, 8, 8, 12)
         window_end = utc(2026, 8, 9, 12)
 
         self.assertTrue(publication_in_window(cutoff, cutoff, window_end))
-        self.assertTrue(publication_in_window(window_end, cutoff, window_end))
+        self.assertFalse(publication_in_window(window_end, cutoff, window_end))
         self.assertFalse(
             publication_in_window(utc(2026, 8, 8, 11, 59, 59), cutoff, window_end)
         )
@@ -139,7 +139,7 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 utc(2026, 8, 7, 12), utc(2026, 8, 8, 12),
             )
 
-        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
+        self.assertEqual(result.items, [])
 
     def test_rss_uses_content_encoded_when_description_is_empty(self):
         feed = (b'<rss xmlns:content="http://purl.org/rss/1.0/modules/content/">'
@@ -515,10 +515,20 @@ class HackerNewsTest(unittest.TestCase):
                 "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
             },
         ]}
-        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+        with patch.object(
+            fetch_news, "http_get", return_value=json.dumps(payload).encode()
+        ) as get:
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
 
-        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
+        self.assertEqual(result.items, [])
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
+        self.assertEqual(
+            query["numericFilters"],
+            [
+                f"created_at_i>={int(utc(2026, 8, 8).timestamp())},"
+                f"created_at_i<{int(utc(2026, 8, 9).timestamp())}"
+            ],
+        )
 
     def test_minimum_point_threshold_is_inclusive(self):
         payload = {"hits": [{
@@ -734,6 +744,21 @@ class PositiveIntTest(unittest.TestCase):
                 positive_int(value)
 
 
+class UtcTimestampTest(unittest.TestCase):
+    def test_normalizes_an_explicit_offset(self):
+        self.assertEqual(
+            fetch_news.utc_timestamp("2026-08-20T00:00:00-04:00"),
+            utc(2026, 8, 20, 4),
+        )
+
+    def test_rejects_naive_and_malformed_values(self):
+        for value in ("2026-08-20T00:00:00", "not-a-timestamp"):
+            with self.subTest(value=value), self.assertRaises(
+                fetch_news.argparse.ArgumentTypeError
+            ):
+                fetch_news.utc_timestamp(value)
+
+
 class RedditTopBucketTest(unittest.TestCase):
     """`--hours` must reach Reddit too; pick the smallest bucket that covers it."""
 
@@ -765,7 +790,7 @@ class RedditTopBucketTest(unittest.TestCase):
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             )
 
-        self.assertEqual([item["title"] for item in result.items], ["At boundary"])
+        self.assertEqual(result.items, [])
 
     def test_selects_smallest_covering_bucket(self):
         cases = [
@@ -1007,6 +1032,116 @@ class SortItemsTest(unittest.TestCase):
 
 
 class MainFailureModeTest(unittest.TestCase):
+    def test_fixed_window_end_is_normalized_and_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {},
+                "hn_category": "news",
+                "hn_queries": ["agent tools"],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            item = {
+                "title": "Historical agent release",
+                "url": "https://example.com/agent",
+                "published": "2026-08-19T12:00:00+00:00",
+                "source": "Hacker News",
+                "query": "agent tools",
+            }
+            argv = [
+                "fetch_news.py",
+                "--sources", str(sources),
+                "--window-end", "2026-08-20T00:00:00-04:00",
+                "-o", str(output),
+            ]
+            with (
+                patch.object(fetch_news.sys, "argv", argv),
+                patch.object(
+                    fetch_news,
+                    "fetch_hn",
+                    return_value=fetch_news.FetchResult([item], 0),
+                ) as fetch,
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = fetch_news.main()
+
+            self.assertEqual(result, 0)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(corpus["generated_at"], "2026-08-20T04:00:00+00:00")
+            self.assertEqual(corpus["cutoff"], "2026-08-19T04:00:00+00:00")
+            fetch.assert_called_once_with(
+                "agent tools",
+                utc(2026, 8, 19, 4),
+                utc(2026, 8, 20, 4),
+            )
+
+    def test_explicit_calendar_window_records_report_date_and_dst_duration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {},
+                "hn_category": "news",
+                "hn_queries": ["agent tools"],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            item = {
+                "title": "Agent tools DST-day release",
+                "url": "https://example.com/dst",
+                "published": "2026-11-01T12:00:00+00:00",
+                "source": "Hacker News",
+                "query": "agent tools",
+            }
+            argv = [
+                "fetch_news.py",
+                "--sources", str(sources),
+                "--window-start", "2026-11-01T00:00:00-04:00",
+                "--window-end", "2026-11-02T00:00:00-05:00",
+                "--report-date", "2026-11-01",
+                "-o", str(output),
+            ]
+            with (
+                patch.object(fetch_news.sys, "argv", argv),
+                patch.object(
+                    fetch_news,
+                    "fetch_hn",
+                    return_value=fetch_news.FetchResult([item], 0),
+                ) as fetch,
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = fetch_news.main()
+
+            self.assertEqual(result, 0)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(corpus["report_date"], "2026-11-01")
+            self.assertEqual(corpus["window_hours"], 25)
+            self.assertEqual(corpus["cutoff"], "2026-11-01T04:00:00+00:00")
+            self.assertEqual(corpus["generated_at"], "2026-11-02T05:00:00+00:00")
+            fetch.assert_called_once_with(
+                "agent tools",
+                utc(2026, 11, 1, 4),
+                utc(2026, 11, 2, 5),
+            )
+
+    def test_historical_source_without_window_entries_is_degraded(self):
+        outcome = fetch_news.TimedFetchResult(
+            fetch_news.FetchResult([], 0, parsed_entries=25, dated_entries=25),
+            None,
+            None,
+            12,
+            True,
+        )
+        status = fetch_news.source_status("rss", "Example", "news", outcome)
+        self.assertEqual(status["status"], "empty")
+        self.assertEqual(status["error_type"], "NoWindowEntries")
+
     def test_markdown_digest_omits_mutable_hn_points(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Path(directory) / "sources.json"

@@ -119,6 +119,12 @@ class ValidCorpusTest(unittest.TestCase):
     def test_a_conforming_corpus_has_no_problems(self):
         self.assertEqual(validate_corpus(corpus()), [])
 
+    def test_optional_report_date_is_validated(self):
+        self.assertEqual(validate_corpus(corpus(report_date="2026-08-08")), [])
+        self.assertTrue(
+            only(validate_corpus(corpus(report_date="August 8, 2026")), "report_date")
+        )
+
     def test_optional_item_fields_are_allowed(self):
         c = corpus()
         c["categories"]["dev_community"] = [item(2, source="Hacker News",
