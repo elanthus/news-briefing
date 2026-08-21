@@ -9,6 +9,7 @@ this script outputs — it never decides what counts as "recent."
 Usage:
     python3 fetch_news.py                 # JSON to stdout, 24h window
     python3 fetch_news.py --hours 12
+    python3 fetch_news.py --window-end 2026-08-20T04:00:00+00:00
     python3 fetch_news.py --markdown      # human-readable digest instead
     python3 fetch_news.py -o corpus.json
 """
@@ -720,8 +721,8 @@ def _feed_summary(element: ET.Element, *paths: str) -> str:
 def publication_in_window(
     published: datetime, cutoff: datetime, window_end: datetime
 ) -> bool:
-    """Whether a publication belongs to the fixed inclusive corpus window."""
-    return cutoff <= published <= window_end
+    """Whether a publication belongs to the fixed half-open corpus window."""
+    return cutoff <= published < window_end
 
 
 def fetch_rss(
@@ -805,7 +806,7 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
     ts = int(cutoff.timestamp())
     url = ("https://hn.algolia.com/api/v1/search?tags=story"
            f"&query={urllib.parse.quote(query)}"
-           f"&numericFilters=created_at_i%3E{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
+           f"&numericFilters=created_at_i%3E%3D{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
     payload = http_get(url)
     try:
         data = json.loads(payload)
@@ -1355,6 +1356,17 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def utc_timestamp(value: str) -> datetime:
+    """Parse an ISO timestamp with an explicit offset and normalize it to UTC."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an ISO 8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise argparse.ArgumentTypeError("must include a UTC offset")
+    return parsed.astimezone(timezone.utc)
+
+
 def source_status(source_type: str, source_id: str, category: str,
                   outcome: TimedFetchResult) -> SourceStatus:
     """Convert a fetch outcome into the stable, machine-readable health record."""
@@ -1421,6 +1433,12 @@ def main() -> int:
     parser.add_argument("--hours", type=positive_int, default=DEFAULT_WINDOW_HOURS,
                         help="hard cutoff applied to every source: drop anything "
                              f"older (default {DEFAULT_WINDOW_HOURS})")
+    parser.add_argument(
+        "--window-end",
+        type=utc_timestamp,
+        help="fixed ISO 8601 end timestamp for replayable historical windows "
+             "(default: current time)",
+    )
     parser.add_argument("--source-cap", type=positive_int, default=DEFAULT_SOURCE_CAP,
                         help=f"maximum items retained per source (default {DEFAULT_SOURCE_CAP})")
     parser.add_argument("--category-cap", type=positive_int, default=DEFAULT_CATEGORY_CAP,
@@ -1435,7 +1453,7 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         parser.error(f"cannot load sources from {args.sources}: {exc}")
 
-    window_end = datetime.now(timezone.utc)
+    window_end = args.window_end or datetime.now(timezone.utc)
     cutoff = window_end - timedelta(hours=args.hours)
 
     fetch_started = time.perf_counter()

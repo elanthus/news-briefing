@@ -316,6 +316,39 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("validated briefing", index)
             self.assertNotIn("review preview", index)
 
+    def test_replace_existing_uses_lower_rank_backfill_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "2026-08-20.md").write_text("old briefing", encoding="utf-8")
+            self._write_sidecar(initial, date="2026-08-20", disposition="ready")
+            initial_site = root / "initial-site"
+            build_site(initial, initial_site)
+
+            backfill = root / "backfill"
+            backfill.mkdir()
+            (backfill / "2026-08-20.md").write_text(
+                "replacement preview", encoding="utf-8"
+            )
+            self._write_sidecar(
+                backfill,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[self._finding("unsupported_figure", "Verify replacement figure.")],
+            )
+            output = root / "site"
+            build_site(
+                backfill,
+                output,
+                prior_history=initial_site / "history.json",
+                replace_existing=True,
+            )
+
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn("replacement preview", index)
+            self.assertNotIn("old briefing", index)
+
     @staticmethod
     def _finding(
         check: str,
