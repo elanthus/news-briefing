@@ -69,8 +69,9 @@ def fixture_contract():
     return corpus, config, projected, output
 
 
-def unused_hn_item(projected, output):
-    used_items = {
+def used_item_refs(projected, output):
+    """Every corpus item an output already cites, across sections and exclusions."""
+    return {
         projected.citations[ref].item_ref
         for bucket in output["sections"].values()
         for topic in bucket["topics"]
@@ -81,6 +82,10 @@ def unused_hn_item(projected, output):
         for topic in rows
         for ref in topic["citation_refs"]
     }
+
+
+def unused_hn_item(projected, output):
+    used_items = used_item_refs(projected, output)
     return next(
         item
         for items in projected.document["categories"].values()
@@ -362,17 +367,7 @@ class BriefingOutputTests(unittest.TestCase):
         categories_by_section = {
             section.name: set(section.corpus_categories) for section in config.sections
         }
-        used_items = {
-            projected.citations[ref].item_ref
-            for section in output["sections"].values()
-            for topic in section["topics"]
-            for ref in topic["citation_refs"]
-        } | {
-            projected.citations[ref].item_ref
-            for rows in output["excluded_topics"].values()
-            for topic in rows
-            for ref in topic["citation_refs"]
-        }
+        used_items = used_item_refs(projected, output)
 
         def ineligible_ref_for(section):
             return next(
@@ -491,17 +486,7 @@ class BriefingOutputTests(unittest.TestCase):
     def test_repair_trims_over_limit_sections(self):
         _corpus, config, projected, output = fixture_contract()
         first = config.sections[0]
-        used_items = {
-            projected.citations[ref].item_ref
-            for section in output["sections"].values()
-            for topic in section["topics"]
-            for ref in topic["citation_refs"]
-        } | {
-            projected.citations[ref].item_ref
-            for rows in output["excluded_topics"].values()
-            for topic in rows
-            for ref in topic["citation_refs"]
-        }
+        used_items = used_item_refs(projected, output)
         extra_ref = next(
             ref
             for ref, citation in projected.citations.items()
@@ -540,6 +525,46 @@ class BriefingOutputTests(unittest.TestCase):
             ),
             msg=actions,
         )
+
+    def test_trim_never_drops_entries_preserved_for_rejection(self):
+        _corpus, config, projected, output = fixture_contract()
+        first = config.sections[0]
+        used_items = used_item_refs(projected, output)
+        spare_entry = {
+            "headline": "Valid story beyond the section limit",
+            "summary": "A wholly valid entry that only offends the target count.",
+            "citation_refs": [
+                next(
+                    ref
+                    for ref, citation in projected.citations.items()
+                    if citation.category in first.corpus_categories
+                    and citation.item_ref not in used_items
+                )
+            ],
+        }
+        unknown_entry = {
+            "headline": "Fabricated story past the limit",
+            "summary": "Cites evidence that is not in the corpus.",
+            "citation_refs": ["citation_9999"],
+        }
+        over = copy.deepcopy(output)
+        over["sections"][first.name]["topics"].extend([spare_entry, unknown_entry])
+
+        repaired, actions = repair_structural_output(over, config, projected.citations)
+
+        topics = repaired["sections"][first.name]["topics"]
+        self.assertIn(unknown_entry, topics)
+        self.assertNotIn(spare_entry, topics)
+        self.assertEqual(
+            [action["path"] for action in actions],
+            [f"topics.{first.name}[{first.target_stories}]"],
+        )
+        residual = {
+            finding.check
+            for finding in validate_output(repaired, config, projected.citations)
+        }
+        self.assertIn("unknown_citation_ref", residual)
+        self.assertIn("structured_item_limit", residual)
 
     def test_repairable_finding_partition(self):
         for check in (

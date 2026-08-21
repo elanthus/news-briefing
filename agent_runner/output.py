@@ -278,8 +278,9 @@ def repair_structural_output(
     with any ineligible or already-used item is dropped as a whole so its prose
     cannot remain after its evidence is removed. Exact repeated refs inside one
     otherwise-valid entry are safely deduplicated. Sections that exceed their
-    configured maximum have their trailing entries trimmed. Unknown evidence
-    remains a rejection rather than being normalized away.
+    configured maximum have their trailing entries trimmed, but never an entry
+    preserved for rejection. Unknown evidence remains a rejection rather than
+    being normalized away.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -377,8 +378,17 @@ def repair_structural_output(
 
         # Editorial over-fill: drop trailing entries beyond the section maximum
         # so a repaired output re-validates without ``structured_item_limit``.
+        # Entries preserved for rejection (unknown evidence or malformed
+        # shapes, tracked with empty item metadata) are never dropped: repair
+        # must not normalize away an evidence-boundary or contract violation,
+        # so with such an entry in the tail the over-limit finding persists and
+        # the run stays quarantined.
         if len(kept) > maximum:
-            for dropped_path, dropped_items in kept_meta[maximum:]:
+            dropped_indices = [
+                index for index in range(maximum, len(kept)) if kept_meta[index][1]
+            ]
+            for index in dropped_indices:
+                dropped_path, dropped_items = kept_meta[index]
                 for item_ref in dropped_items:
                     if used_items.get(item_ref) == dropped_path:
                         del used_items[item_ref]
@@ -387,7 +397,9 @@ def repair_structural_output(
                     "path": dropped_path,
                     "reason": f"section exceeds maximum of {maximum} entries",
                 })
-            del kept[maximum:]
+            for index in reversed(dropped_indices):
+                del kept[index]
+                del kept_meta[index]
         entries[:] = kept
 
     # Included stories outrank exclusions regardless of configured section order.

@@ -413,6 +413,47 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("correction", kinds)
         self.assertEqual(len(provider.requests), 2)
 
+    def test_eager_repair_preserves_budget_for_render_revealed_findings(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        second = config.sections[1]
+        # Only a repairable structured error, so eager repair fires first.
+        broken["sections"][second.name]["topics"].insert(
+            0, copy.deepcopy(broken["sections"][first.name]["topics"][0])
+        )
+
+        real_evaluate = eval_briefing.evaluate
+        calls = {"count": 0}
+
+        def evaluate_with_injected_error(corpus_arg, briefing, config_arg):
+            # The first evaluate call is the repaired attempt's render; inject a
+            # checker error only repair cannot fix, only there.
+            calls["count"] += 1
+            findings = real_evaluate(corpus_arg, briefing, config_arg)
+            if calls["count"] == 1:
+                findings = [
+                    eval_briefing.Finding(
+                        eval_briefing.ERROR,
+                        "ungrounded_link",
+                        "injected: rendered briefing cites outside the corpus",
+                    ),
+                    *findings,
+                ]
+            return findings
+
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch.object(eval_briefing, "evaluate", side_effect=evaluate_with_injected_error):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertEqual(kinds, ["initial", "deterministic_repair", "correction"])
+        self.assertEqual(len(provider.requests), 2)
+
     def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
