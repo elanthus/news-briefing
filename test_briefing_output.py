@@ -666,6 +666,44 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(repaired, no_evidence)
         self.assertEqual(actions, [])
 
+    def test_repair_swap_skips_url_bearing_excerpts(self):
+        # Feed blurbs routinely carry bare URLs; swapping one into a summary
+        # would create a non-repairable freeform_url ERROR. Fail closed: leave
+        # the entry untouched and preserved for review.
+        corpus, config, projected, output = fixture_contract()
+        first = config.sections[0]
+        broken = copy.deepcopy(output)
+        entry = broken["sections"][first.name]["topics"][0]
+        cited_urls = {
+            corpus_schema.canonicalize_url(projected.citations[ref].url)
+            for ref in entry["citation_refs"]
+        }
+        tainted = False
+        for items in corpus["categories"].values():
+            for item in items:
+                item_urls = {
+                    corpus_schema.canonicalize_url(url)
+                    for key in ("url", "discussion")
+                    if (url := (item.get(key) or "").strip())
+                }
+                if item_urls & cited_urls:
+                    item["summary"] = (
+                        f"{item.get('summary', '')} See https://example.com/story"
+                    ).strip()
+                    tainted = True
+        self.assertTrue(tainted)
+        evidence = eval_briefing.corpus_evidence(corpus)
+        excerpt = self._cited_excerpt(projected, entry["citation_refs"], evidence)
+        self.assertTrue(eval_briefing.output_urls(excerpt))
+        entry["summary"] = self._bloat(excerpt)
+
+        repaired, actions = repair_structural_output(
+            broken, config, projected.citations, evidence=evidence
+        )
+
+        self.assertEqual(repaired["sections"][first.name]["topics"][0], entry)
+        self.assertEqual(actions, [])
+
     def test_repair_swap_runs_after_structural_drops_and_uses_final_paths(self):
         corpus, config, projected, output = fixture_contract()
         evidence = eval_briefing.corpus_evidence(corpus)

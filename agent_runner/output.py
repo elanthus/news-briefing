@@ -428,7 +428,7 @@ def repair_structural_output(
     # After the drop/trim passes, indices are final and match the renderer's
     # anchor paths. The check never fires for excluded entries, so the swap
     # pass covers included topics only.
-    def _swap_oversized_summaries() -> None:
+    def _swap_oversized_summaries(evidence: dict[str, str]) -> None:
         for section in config.sections:
             section_value = sections.get(section.name)
             if not isinstance(section_value, dict):
@@ -459,18 +459,25 @@ def repair_structural_output(
                 # Collapse whitespace so a multi-line blurb cannot break the
                 # one-line topic grammar; collapsing only shrinks the prose, so
                 # the ratio check still passes against the raw corpus text.
-                entry["summary"] = " ".join(support.split())
+                excerpt = " ".join(support.split())
+                # Feed blurbs routinely carry bare URLs; swapping one into a
+                # summary would trade a repairable WARN for a non-repairable
+                # freeform_url ERROR. Fail closed: leave the entry untouched
+                # and preserved for review. Same detector as ``_text``.
+                if eval_briefing.output_urls(excerpt):
+                    continue
+                entry["summary"] = excerpt
                 actions.append({
                     "action": "replace_summary_with_excerpt",
                     "path": f"topics.{section.name}[{index}]",
                     "reason": (
                         f"summary of {len(summary)} characters exceeded "
                         f"{len(support)} characters of cited evidence; "
-                        "replaced with the verbatim source excerpt"),
+                        "replaced with the deduplicated source excerpt"),
                 })
 
     if evidence:
-        _swap_oversized_summaries()
+        _swap_oversized_summaries(evidence)
     return repaired, actions
 
 
