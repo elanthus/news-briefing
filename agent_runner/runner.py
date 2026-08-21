@@ -24,6 +24,7 @@ from agent_runner.checkpoint import (
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
 from agent_runner.outcomes import classify_outcome, finding_domain
 from agent_runner.output import (
+    REPAIRABLE_CHECKS,
     Citation,
     ModelCorpus,
     OutputFinding,
@@ -729,6 +730,30 @@ def run_workflow(
                     citations=projected.citations,
                     settings=settings,
                 )
+            # Editorial placement errors are repaired deterministically by
+            # construction, so spending a model correction on them wastes budget
+            # and adds a provider round-trip. When every blocking finding is
+            # repairable, run repair now and re-enter the loop: the repaired
+            # attempt finalizes when clean, and the untouched correction budget
+            # stays available for findings repair cannot fix (unknown refs,
+            # freeform URLs, schema shape, checker errors on the rendered
+            # briefing). The kind guard keeps an unproductive repair from
+            # re-entering this branch.
+            blocking = [row for row in findings if row["level"] == "ERROR"]
+            if (
+                blocking
+                and attempt.get("kind") != "deterministic_repair"
+                and all(row["check"] in REPAIRABLE_CHECKS for row in blocking)
+            ):
+                repair_attempt, output = _deterministic_repair_attempt(
+                    store,
+                    output,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
+                )
+                if repair_attempt is not attempt:
+                    continue
             corrections_used = sum(row["kind"] == "correction" for row in store.manifest["attempts"])
             if corrections_used >= settings.max_corrections:
                 return _finalize_after_deterministic_repair(

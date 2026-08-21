@@ -344,6 +344,149 @@ class RunnerTests(unittest.TestCase):
             "drop_entry",
         )
 
+    def test_repairable_only_error_skips_the_correction_budget(self):
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            # Default budget (max_corrections=1) is available, but eager repair
+            # must claim the repairable finding before any correction is spent.
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(len(provider.requests), 1)
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertEqual(kinds, ["initial", "deterministic_repair"])
+        self.assertNotIn("correction", kinds)
+        self.assertTrue(manifest["attempts"][-1]["repair_actions"])
+
+    def test_repair_underfill_stays_ready_with_nonblocking_warn(self):
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        # Drops one included entry, leaving the section below target_stories.
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        final_findings = manifest["final"]["findings"]
+        underfilled = [row for row in final_findings if row["check"] == "slots_underfilled"]
+        self.assertTrue(underfilled, msg=final_findings)
+        self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
+        self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
+
+    def test_unknown_ref_still_spends_a_correction(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        broken["sections"][config.sections[0].name]["topics"][0]["citation_refs"] = [
+            "citation_9999"
+        ]
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertIn("correction", kinds)
+        self.assertEqual(len(provider.requests), 2)
+
+    def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        # Beyond target_stories AND citing fabricated evidence: the over-limit
+        # trim must not normalize the evidence-boundary violation away.
+        broken["sections"][first.name]["topics"].append({
+            "headline": "Fabricated story past the limit",
+            "summary": "Cites evidence that is not in the corpus.",
+            "citation_refs": ["citation_9999"],
+        })
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
+            result = run_workflow(provider, settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            preview_structured = json.loads(
+                (root / "run/preview-structured.json").read_text()
+            )
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(manifest["final"]["status"], "rejected")
+        checks = {row["check"] for row in manifest["final"]["findings"]}
+        self.assertIn("unknown_citation_ref", checks)
+        self.assertIn("structured_item_limit", checks)
+        headlines = [
+            topic["headline"]
+            for topic in preview_structured["sections"][first.name]["topics"]
+        ]
+        self.assertIn("Fabricated story past the limit", headlines)
+
+    def test_eager_repair_preserves_budget_for_render_revealed_findings(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        second = config.sections[1]
+        # Only a repairable structured error, so eager repair fires first.
+        broken["sections"][second.name]["topics"].insert(
+            0, copy.deepcopy(broken["sections"][first.name]["topics"][0])
+        )
+
+        real_evaluate = eval_briefing.evaluate
+        calls = {"count": 0}
+
+        def evaluate_with_injected_error(corpus_arg, briefing, config_arg):
+            # The first evaluate call is the repaired attempt's render; inject a
+            # checker error only repair cannot fix, only there.
+            calls["count"] += 1
+            findings = real_evaluate(corpus_arg, briefing, config_arg)
+            if calls["count"] == 1:
+                findings = [
+                    eval_briefing.Finding(
+                        eval_briefing.ERROR,
+                        "ungrounded_link",
+                        "injected: rendered briefing cites outside the corpus",
+                    ),
+                    *findings,
+                ]
+            return findings
+
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch.object(eval_briefing, "evaluate", side_effect=evaluate_with_injected_error):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+        self.assertEqual(result.status, "ready")
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertEqual(kinds, ["initial", "deterministic_repair", "correction"])
+        self.assertEqual(len(provider.requests), 2)
+
     def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
