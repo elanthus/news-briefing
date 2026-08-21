@@ -39,16 +39,22 @@ jobs:
           for days_ago in 6 5 4 3 2 1 0; do
             report_date=$(TZ=America/New_York date \
               --date="$anchor_date $days_ago days ago" +%F)
-            window_end=$(TZ=America/New_York date \
+            window_start=$(TZ=America/New_York date \
               --date="$report_date 00:00:00" \
+              --iso-8601=seconds)
+            next_date=$(TZ=America/New_York date \
+              --date="$report_date 1 day" +%F)
+            window_end=$(TZ=America/New_York date \
+              --date="$next_date 00:00:00" \
               --iso-8601=seconds)
             corpus="corpora/$report_date.json"
             run_dir="runs/$report_date"
             report="reports/$report_date.md"
 
             if python fetch_news.py \
-              --hours 24 \
+              --window-start "$window_start" \
               --window-end "$window_end" \
+              --report-date "$report_date" \
               --output "$corpus"; then
               if ! python run_briefing.py \
                 --provider openrouter \
@@ -66,11 +72,13 @@ jobs:
               echo "::warning::Corpus fetch failed for $report_date"
             fi
 
-            python prepare_publication.py \
+            if ! python prepare_publication.py \
               --run-dir "$run_dir" \
               --corpus "$corpus" \
               --history-dir briefing-history \
-              --date "$report_date"
+              --date "$report_date"; then
+              echo "::warning::Publication preparation failed for $report_date"
+            fi
           done
 
       - name: Bootstrap history from dogfood runs

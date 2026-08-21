@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 # Version 5 requires enforced context budgets and their truncation/drop
@@ -239,6 +239,19 @@ def validate_corpus(corpus: Any) -> list[str]:
         if field in corpus and not _timestamp(corpus[field]):
             problems.append(
                 f"{field!r} is not an ISO 8601 timestamp with a UTC offset")
+
+    report_date = corpus.get("report_date")
+    if report_date is not None:
+        if not isinstance(report_date, str):
+            problems.append("'report_date' should be an ISO 8601 date string")
+        else:
+            try:
+                parsed_report_date = date.fromisoformat(report_date)
+            except ValueError:
+                problems.append("'report_date' should be an ISO 8601 date string")
+            else:
+                if report_date != parsed_report_date.isoformat():
+                    problems.append("'report_date' should be an ISO 8601 date string")
 
     generated_at = _parse_timestamp(corpus.get("generated_at"))
     cutoff = _parse_timestamp(corpus.get("cutoff"))

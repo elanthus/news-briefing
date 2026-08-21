@@ -10,6 +10,8 @@ Usage:
     python3 fetch_news.py                 # JSON to stdout, 24h window
     python3 fetch_news.py --hours 12
     python3 fetch_news.py --window-end 2026-08-20T04:00:00+00:00
+    python3 fetch_news.py --window-start 2026-08-19T04:00:00+00:00 \
+        --window-end 2026-08-20T04:00:00+00:00 --report-date 2026-08-19
     python3 fetch_news.py --markdown      # human-readable digest instead
     python3 fetch_news.py -o corpus.json
 """
@@ -32,7 +34,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
@@ -800,13 +802,19 @@ def fetch_rss(
 def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
     """HN Algolia API with an exact fixed publication window.
 
-    The request applies the lower `created_at_i` bound; this function applies
-    both bounds and the points threshold to returned hits.
+    The request applies both `created_at_i` bounds; this function repeats the
+    exact half-open check and applies the points threshold to returned hits.
     """
-    ts = int(cutoff.timestamp())
-    url = ("https://hn.algolia.com/api/v1/search?tags=story"
-           f"&query={urllib.parse.quote(query)}"
-           f"&numericFilters=created_at_i%3E%3D{ts}&hitsPerPage={HN_HITS_PER_PAGE}")
+    numeric_filters = (
+        f"created_at_i>={int(cutoff.timestamp())},"
+        f"created_at_i<{int(window_end.timestamp())}"
+    )
+    url = "https://hn.algolia.com/api/v1/search?" + urllib.parse.urlencode({
+        "tags": "story",
+        "query": query,
+        "numericFilters": numeric_filters,
+        "hitsPerPage": HN_HITS_PER_PAGE,
+    })
     payload = http_get(url)
     try:
         data = json.loads(payload)
@@ -1367,6 +1375,17 @@ def utc_timestamp(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def iso_date(value: str) -> str:
+    """Parse and canonicalize a calendar date for report presentation."""
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an ISO 8601 date") from exc
+    if value != parsed.isoformat():
+        raise argparse.ArgumentTypeError("must be an ISO 8601 date")
+    return value
+
+
 def source_status(source_type: str, source_id: str, category: str,
                   outcome: TimedFetchResult) -> SourceStatus:
     """Convert a fetch outcome into the stable, machine-readable health record."""
@@ -1401,6 +1420,10 @@ def source_status(source_type: str, source_id: str, category: str,
         status["status"] = "empty"
         status["error_type"] = "NoDatedEntries"
         status["message"] = "response contained zero entries with parseable dates"
+    elif not result.items:
+        status["status"] = "empty"
+        status["error_type"] = "NoWindowEntries"
+        status["message"] = "response contained zero usable entries in the requested window"
     return status
 
 
@@ -1430,14 +1453,28 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sources", type=Path, default=DEFAULT_SOURCES_PATH,
                         help=f"source configuration JSON (default: {DEFAULT_SOURCES_PATH})")
-    parser.add_argument("--hours", type=positive_int, default=DEFAULT_WINDOW_HOURS,
-                        help="hard cutoff applied to every source: drop anything "
-                             f"older (default {DEFAULT_WINDOW_HOURS})")
+    window = parser.add_mutually_exclusive_group()
+    window.add_argument(
+        "--hours",
+        type=positive_int,
+        help="hard cutoff applied to every source: drop anything older "
+             f"(default {DEFAULT_WINDOW_HOURS})",
+    )
+    window.add_argument(
+        "--window-start",
+        type=utc_timestamp,
+        help="fixed ISO 8601 start timestamp for a calendar-aligned historical window",
+    )
     parser.add_argument(
         "--window-end",
         type=utc_timestamp,
         help="fixed ISO 8601 end timestamp for replayable historical windows "
              "(default: current time)",
+    )
+    parser.add_argument(
+        "--report-date",
+        type=iso_date,
+        help="calendar date rendered in the briefing title; requires --window-start",
     )
     parser.add_argument("--source-cap", type=positive_int, default=DEFAULT_SOURCE_CAP,
                         help=f"maximum items retained per source (default {DEFAULT_SOURCE_CAP})")
@@ -1453,21 +1490,36 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         parser.error(f"cannot load sources from {args.sources}: {exc}")
 
+    if args.window_start is not None and args.window_end is None:
+        parser.error("--window-start requires --window-end")
+    if args.report_date is not None and args.window_start is None:
+        parser.error("--report-date requires --window-start")
+
     window_end = args.window_end or datetime.now(timezone.utc)
-    cutoff = window_end - timedelta(hours=args.hours)
+    if args.window_start is not None:
+        cutoff = args.window_start
+        window_seconds = (window_end - cutoff).total_seconds()
+        if window_seconds <= 0 or window_seconds % 3600:
+            parser.error("fixed window boundaries must span a positive whole number of hours")
+        window_hours = int(window_seconds // 3600)
+    else:
+        window_hours = args.hours or DEFAULT_WINDOW_HOURS
+        cutoff = window_end - timedelta(hours=window_hours)
 
     fetch_started = time.perf_counter()
     corpus: dict[str, Any] = {
         "schema_version": corpus_schema.SCHEMA_VERSION,
         "generated_at": window_end.isoformat(),
         "cutoff": cutoff.isoformat(),
-        "window_hours": args.hours,
+        "window_hours": window_hours,
         "limits": {"source_cap": args.source_cap, "category_cap": args.category_cap},
         "categories": {name: [] for name in sources.categories},
         "processing": {},
         "errors": [],
         "sources": [],
     }
+    if args.report_date is not None:
+        corpus["report_date"] = args.report_date
 
     undated = dict.fromkeys(corpus["categories"], 0)
 
@@ -1509,7 +1561,7 @@ def main() -> int:
             sub,
             cutoff,
             window_end,
-            args.hours,
+            window_hours,
             scrapecreators_api_key,
         )
         status = source_status("reddit", sub, sources.reddit_category, outcome)
@@ -1585,7 +1637,7 @@ def main() -> int:
     schema_problems = corpus_schema.validate_corpus(corpus)
 
     if args.markdown:
-        lines = [f"# News corpus — last {args.hours}h "
+        lines = [f"# News corpus — last {window_hours}h "
                  f"(generated {window_end:%Y-%m-%d %H:%M} UTC)\n"]
         for category, items in corpus["categories"].items():
             lines.append(f"\n## {category} ({len(items)} items)\n")

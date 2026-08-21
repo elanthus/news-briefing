@@ -584,7 +584,8 @@ def build_site(
         prior = by_date.get(entry.slug)
         prior_rank = PUBLICATION_RANK.get(prior.disposition, 0) if prior is not None else -1
         entry_rank = PUBLICATION_RANK.get(entry.disposition, 0)
-        if replace_existing or entry_rank >= prior_rank:
+        replace_page = replace_existing and entry.disposition in PAGE_DISPOSITIONS
+        if replace_page or entry_rank >= prior_rank:
             by_date[entry.slug] = entry
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
     if entries:
@@ -623,7 +624,7 @@ def main() -> int:
     parser.add_argument(
         "--replace-existing",
         action="store_true",
-        help="replace prior-history entries for every date present in briefings_dir",
+        help="replace prior-history pages for publishable dates present in briefings_dir",
     )
     args = parser.parse_args()
     try:

@@ -349,6 +349,31 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("replacement preview", index)
             self.assertNotIn("old briefing", index)
 
+    def test_replace_existing_preserves_prior_page_when_backfill_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "2026-08-20.md").write_text("live briefing", encoding="utf-8")
+            self._write_sidecar(initial, date="2026-08-20", disposition="ready")
+            initial_site = root / "initial-site"
+            build_site(initial, initial_site)
+
+            failed = root / "failed"
+            failed.mkdir()
+            self._write_sidecar(failed, date="2026-08-20", disposition="blocked")
+            output = root / "site"
+            build_site(
+                failed,
+                output,
+                prior_history=initial_site / "history.json",
+                replace_existing=True,
+            )
+
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
+            self.assertEqual(history["entries"][0]["disposition"], "ready")
+            self.assertEqual(history["entries"][0]["markdown"], "live briefing")
+
     @staticmethod
     def _finding(
         check: str,
