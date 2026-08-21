@@ -49,7 +49,12 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           mkdir -p briefing-history corpora reports runs
-          latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)
+          snapshot_end_epoch=$(date --utc +%s)
+          window_start_epoch=$((snapshot_end_epoch - 86400))
+          window_start=$(date --utc --date="@$window_start_epoch" --iso-8601=seconds)
+          window_end=$(date --utc --date="@$snapshot_end_epoch" --iso-8601=seconds)
+          today=$(TZ=America/New_York date --date="@$snapshot_end_epoch" +%F)
+          echo "REPORT_TODAY=$today" >> "$GITHUB_ENV"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_MODE" == "backfill-7-days" ]]; then
             day_offsets=(6 5 4 3 2 1 0)
           else
@@ -57,20 +62,20 @@ jobs:
           fi
           for days_ago in "${day_offsets[@]}"; do
             report_date=$(TZ=America/New_York date \
-              --date="$latest_completed_date $days_ago days ago" +%F)
-            window_start=$(TZ=America/New_York date \
-              --date="$report_date 00:00:00" \
-              --iso-8601=seconds)
-            next_date=$(TZ=America/New_York date \
-              --date="$report_date 1 day" +%F)
-            window_end=$(TZ=America/New_York date \
-              --date="$next_date 00:00:00" \
-              --iso-8601=seconds)
+              --date="$today $days_ago days ago" +%F)
             corpus="corpora/$report_date.json"
             run_dir="runs/$report_date"
             report="reports/$report_date.md"
 
-            if curl \
+            if (( days_ago == 0 )); then
+              if ! python fetch_news.py \
+                --window-start "$window_start" \
+                --window-end "$window_end" \
+                --report-date "$report_date" \
+                --output "$corpus"; then
+                echo "::warning::Corpus fetch failed for $report_date"
+              fi
+            elif curl \
               --fail \
               --location \
               --max-time 30 \
@@ -81,30 +86,22 @@ jobs:
               "https://elanthus.github.io/news-briefing/corpora/$report_date.json" \
               --output "$corpus"; then
               echo "Reusing stored corpus for $report_date"
-            elif (( days_ago <= 2 )); then
-              if ! python fetch_news.py \
-                --window-start "$window_start" \
-                --window-end "$window_end" \
-                --report-date "$report_date" \
-                --output "$corpus"; then
-                echo "::warning::Corpus fetch failed for $report_date"
-              fi
             else
-              echo "::warning::Skipping $report_date: no stored corpus and feeds no longer retain this window"
+              echo "::warning::Skipping $report_date: no stored corpus is available"
               continue
             fi
 
             if [[ -f "$corpus" ]]; then
               if ! python run_briefing.py \
                 --provider openrouter \
-                --model openai/gpt-5.6-luna \
+                --model deepseek/deepseek-v4-flash-0731 \
                 --corpus "$corpus" \
                 --run-dir "$run_dir" \
                 --output "$report" \
                 --force \
                 --max-corrections 3 \
                 --max-tokens 20000 \
-                --reasoning enabled; then
+                --reasoning-effort high; then
                 echo "::warning::Briefing generation did not produce a ready report for $report_date"
               fi
             fi
@@ -154,11 +151,10 @@ jobs:
       - name: Carry forward stored corpora
         if: always()
         run: |
-          latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)
           mkdir -p corpora
           for days_ago in $(seq 1 13); do
             d=$(TZ=America/New_York date \
-              --date="$latest_completed_date $days_ago days ago" +%F)
+              --date="$REPORT_TODAY $days_ago days ago" +%F)
             [[ -f "corpora/$d.json" ]] && continue
             curl \
               --fail \
