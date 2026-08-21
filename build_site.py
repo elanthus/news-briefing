@@ -71,6 +71,8 @@ article { border-top: 1px solid #8886; padding: 1rem 0; }
 .briefing-content code { background: #8881; border-radius: .2rem; padding: .1rem .25rem; }
 .briefing-content pre code { background: none; padding: 0; }
 .briefing-content blockquote { border-left: .25rem solid #8886; margin-left: 0; padding-left: 1rem; }
+.status-chip { font-size: .88rem; }
+.status-chip a { text-decoration: none; }
 """.strip()
 
 
@@ -536,22 +538,40 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
     )
 
 
+def _status_chip(entry: BriefingEntry) -> str:
+    if entry.disposition == "ready" and entry.repair_actions:
+        n = len(entry.repair_actions)
+        label = f"⚠ Published after automated repair ({n} {'action' if n == 1 else 'actions'})"
+    elif entry.disposition == "ready":
+        label = "✓ Verified"
+    elif entry.disposition == "review_required":
+        label = "🔍 Review required"
+    else:
+        label = "✖ Not published"
+    suffixes = []
+    if entry.degraded_sources:
+        suffixes.append("sources degraded")
+    if suffixes:
+        label += " · " + " · ".join(suffixes)
+    report_href = f"reports/{html.escape(entry.slug)}.html"
+    return f'<p class="status-chip"><a href="{report_href}">{label}</a></p>'
+
+
 def _entry_body(entry: BriefingEntry) -> str:
-    review_panel = ""
-    if entry.markdown is not None:
-        rendered_markdown, matched = _render_markdown(entry.markdown, entry.findings)
-        unmatched = tuple(
-            finding for index, finding in enumerate(entry.findings) if index not in matched
+    if entry.disposition == "review_required":
+        report_href = f"reports/{html.escape(entry.slug)}.html"
+        briefing = (
+            "<p>This day’s briefing did not pass automated checks and is withheld.</p>"
+            f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
-        if entry.disposition == "review_required" and unmatched:
-            review_panel = _render_review_panel(unmatched)
-        briefing = f'{review_panel}<article class="briefing-content">{rendered_markdown}</article>'
+    elif entry.markdown is not None:
+        rendered_markdown, _matched = _render_markdown(entry.markdown)
+        briefing = f'<article class="briefing-content">{rendered_markdown}</article>'
     else:
         briefing = '<p class="muted">No briefing prose is available for this run.</p>'
     return (
         f"<h1>Briefing for {html.escape(entry.slug)}</h1>"
-        f'<p class="verdict">Checker verdict: {html.escape(_verdict(entry))}</p>'
-        f"<p>Corpus health: {_corpus_health(entry)}</p>"
+        f"{_status_chip(entry)}"
         f"{briefing}"
     )
 
@@ -641,6 +661,64 @@ def _render_review_panel(
     )
 
 
+def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
+    newest = entries[0]
+    briefing_href = "index.html" if entry.slug == newest.slug else f"{entry.slug}.html"
+    parts = [
+        f'<p><a href="../{briefing_href}">← Back to briefing</a></p>',
+        f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
+        f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
+    ]
+    if entry.findings and entry.markdown is not None:
+        # The quarantined preview is the evidence a reviewer judges findings
+        # against: render it with each finding attached to its story, keeping
+        # the redaction disclosures, and surface only unmatched findings in a
+        # run-level panel.
+        rendered_markdown, matched = _render_markdown(entry.markdown, entry.findings)
+        unmatched = tuple(
+            finding for index, finding in enumerate(entry.findings) if index not in matched
+        )
+        if unmatched:
+            parts.append(_render_review_panel(unmatched))
+        parts.append(f'<article class="briefing-content">{rendered_markdown}</article>')
+    elif entry.findings:
+        parts.append(_render_review_panel(entry.findings))
+    elif entry.disposition == "ready" and entry.findings_count == 0:
+        parts.append('<p class="muted">All checks passed.</p>')
+    elif entry.findings_count:
+        count = entry.findings_count
+        parts.append(
+            '<p class="muted">'
+            f"{count} actionable {'finding was' if count == 1 else 'findings were'} "
+            "recorded; details are published only for review-required runs.</p>"
+        )
+    else:
+        parts.append(
+            '<p class="muted">No findings details are available for this disposition. '
+            "A zero count does not mean the checker accepted a candidate.</p>"
+        )
+    if entry.repair_actions:
+        items = []
+        for action in entry.repair_actions:
+            escaped_action = html.escape(action.get("action", ""))
+            escaped_path = html.escape(action.get("path", ""))
+            escaped_reason = html.escape(action.get("reason", ""))
+            items.append(f"<li><strong>{escaped_action}</strong> {escaped_path} — {escaped_reason}</li>")
+        parts.append(
+            '<section class="repair-log">'
+            f"<h2>Automated repair actions ({len(entry.repair_actions)})</h2>"
+            f"<ol>{''.join(items)}</ol>"
+            "</section>"
+        )
+    parts.append(
+        '<section class="corpus-health">'
+        "<h2>Corpus health</h2>"
+        f"<p>{_corpus_health(entry)}</p>"
+        "</section>"
+    )
+    return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
+
+
 def build_site(
     briefings_dir: Path,
     output_dir: Path,
@@ -677,6 +755,11 @@ def build_site(
     output_dir.mkdir(parents=True, exist_ok=True)
     for stale_page in output_dir.glob("*.html"):
         stale_page.unlink()
+    reports_dir = output_dir / "reports"
+    if reports_dir.is_dir():
+        for stale_report in reports_dir.glob("*.html"):
+            stale_report.unlink()
+    reports_dir.mkdir(exist_ok=True)
     (output_dir / "index.html").write_text(_render_index(entries), encoding="utf-8")
     (output_dir / "history.json").write_text(
         json.dumps(_history_payload(entries), ensure_ascii=False, indent=2) + "\n",
@@ -685,6 +768,11 @@ def build_site(
     for entry in entries[1:]:
         (output_dir / f"{entry.slug}.html").write_text(
             _render_briefing(entry, entries),
+            encoding="utf-8",
+        )
+    for entry in entries:
+        (reports_dir / f"{entry.slug}.html").write_text(
+            _render_report(entry, entries),
             encoding="utf-8",
         )
 
