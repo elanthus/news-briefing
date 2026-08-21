@@ -27,6 +27,7 @@ from agent_runner.output import (
     Citation,
     ModelCorpus,
     OutputFinding,
+    REPAIRABLE_CHECKS,
     build_output_schema,
     project_corpus,
     redact_destinations,
@@ -724,6 +725,22 @@ def run_workflow(
                 return _finalize_candidate(
                     store,
                     attempt,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
+                    settings=settings,
+                )
+            # Editorial placement errors are repaired deterministically by
+            # construction, so spending a model correction on them wastes budget
+            # and adds a provider round-trip. When every blocking finding is
+            # repairable, run repair now and reserve corrections for findings
+            # repair cannot fix (unknown refs, freeform URLs, schema shape).
+            blocking = [row for row in findings if row["level"] == "ERROR"]
+            if blocking and all(row["check"] in REPAIRABLE_CHECKS for row in blocking):
+                return _finalize_after_deterministic_repair(
+                    store,
+                    attempt,
+                    output,
                     corpus=corpus,
                     config=config,
                     citations=projected.citations,
