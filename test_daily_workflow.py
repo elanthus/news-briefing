@@ -11,6 +11,11 @@ class DailyWorkflowTests(unittest.TestCase):
         triggers = WORKFLOW.split("permissions:", 1)[0]
         self.assertIn('cron: "30 13 * * *"', triggers)
         self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn("mode:", triggers)
+        self.assertIn("default: single-day", triggers)
+        self.assertIn("type: choice", triggers)
+        self.assertIn("- single-day", triggers)
+        self.assertIn("- backfill-7-days", triggers)
         for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
@@ -19,14 +24,15 @@ class DailyWorkflowTests(unittest.TestCase):
             'latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)',
             WORKFLOW,
         )
-        self.assertIn('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then', WORKFLOW)
-        self.assertEqual(
-            WORKFLOW.count('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then'),
-            2,
+        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", WORKFLOW)
+        self.assertIn(
+            'if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && '
+            '"$MANUAL_MODE" == "backfill-7-days" ]]; then',
+            WORKFLOW,
         )
         self.assertIn("day_offsets=(0)", WORKFLOW)
 
-    def test_manual_run_backfills_seven_completed_eastern_days(self) -> None:
+    def test_manual_run_can_backfill_seven_completed_eastern_days(self) -> None:
         self.assertIn("day_offsets=(6 5 4 3 2 1 0)", WORKFLOW)
         self.assertIn('for days_ago in "${day_offsets[@]}"; do', WORKFLOW)
         self.assertIn('--date="$latest_completed_date $days_ago days ago" +%F', WORKFLOW)
@@ -45,7 +51,8 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('run_dir="runs/$report_date"', WORKFLOW)
         self.assertIn('report="reports/$report_date.md"', WORKFLOW)
         self.assertIn("--force", WORKFLOW)
-        self.assertIn("--replace-existing", WORKFLOW)
+        self.assertIn('if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then', WORKFLOW)
+        self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
 
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
