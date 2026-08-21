@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_site import build_site
+from build_site import ReviewFinding, _render_markdown, build_site
 
 
 class BuildSiteTests(unittest.TestCase):
@@ -190,11 +190,13 @@ class BuildSiteTests(unittest.TestCase):
             (briefings / "2026-08-20.md").write_text(
                 "## AI/Tech\n\n"
                 "**AI News (4 slots)**\n\n"
+                "<!-- story: topics.AI News[0] -->\n"
                 "**AI story** — Included summary.\n"
                 "🔗 https://example.com/ai\n\n"
                 "---\n\n"
                 "### Excluded Topics (candidate)\n\n"
                 "**US News**\n\n"
+                "<!-- story: excluded_topics.US News[0] -->\n"
                 "- **Excluded story** — Lower impact.\n"
                 "🔗 https://example.com/excluded\n",
                 encoding="utf-8",
@@ -211,6 +213,7 @@ class BuildSiteTests(unittest.TestCase):
                             "section": "AI News",
                             "headline": "AI story",
                             "model_authored": "included entry",
+                            "path": "topics.AI News[0]",
                         },
                     ),
                     self._finding(
@@ -220,6 +223,7 @@ class BuildSiteTests(unittest.TestCase):
                             "section": "Excluded Topics: US News",
                             "headline": "Excluded story",
                             "model_authored": "excluded entry",
+                            "path": "excluded_topics.US News[0]",
                         },
                     ),
                 ],
@@ -461,6 +465,125 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(history["entries"][0]["disposition"], "ready")
             self.assertEqual(history["entries"][0]["markdown"], "live briefing")
 
+    def test_anchor_based_matching_ignores_section_heading_format(self) -> None:
+        markdown = (
+            "## Renamed Section Container\n\n"
+            "<!-- story: topics.AI News[0] -->\n"
+            "**AI story** — Summary.\n"
+            "🔗 https://example.com/ai\n\n"
+            "<!-- story: topics.US News[0] -->\n"
+            "**US story** — Summary.\n"
+            "🔗 https://example.com/us\n"
+        )
+        findings = (
+            ReviewFinding(
+                level="WARN", check="unsupported_figure", domain="evidence",
+                message="topics.AI News[0].summary states '42'",
+                section="AI News", headline="AI story",
+                path="topics.AI News[0]",
+            ),
+        )
+        rendered, matched = _render_markdown(markdown, findings)
+        self.assertEqual(matched, frozenset({0}))
+        self.assertIn("review-story", rendered)
+        self.assertIn("AI story", rendered)
+
+    def test_anchor_matching_distinguishes_identical_headlines(self) -> None:
+        markdown = (
+            "## Section A\n\n"
+            "<!-- story: topics.Section A[0] -->\n"
+            "**Same headline** — Summary A.\n\n"
+            "## Section B\n\n"
+            "<!-- story: topics.Section B[0] -->\n"
+            "**Same headline** — Summary B.\n"
+        )
+        findings = (
+            ReviewFinding(
+                level="WARN", check="unsupported_figure", domain="evidence",
+                message="topics.Section B[0].summary states '99'",
+                section="Section B", headline="Same headline",
+                path="topics.Section B[0]",
+            ),
+        )
+        rendered, matched = _render_markdown(markdown, findings)
+        self.assertEqual(matched, frozenset({0}))
+        self.assertIn("review-story", rendered)
+        second_headline_pos = rendered.index("Summary B")
+        review_pos = rendered.index("review-story")
+        self.assertLess(review_pos, second_headline_pos)
+
+    def test_finding_with_path_but_no_matching_anchor_is_unmatched(self) -> None:
+        markdown = (
+            "## US News\n\n"
+            "**Some story** — Summary.\n"
+        )
+        findings = (
+            ReviewFinding(
+                level="WARN", check="unsupported_figure", domain="evidence",
+                message="topics.AI News[0].summary states '42'",
+                path="topics.AI News[0]",
+            ),
+        )
+        rendered, matched = _render_markdown(markdown, findings)
+        self.assertEqual(matched, frozenset())
+        self.assertNotIn("review-story", rendered)
+
+    def test_legacy_section_headline_matching_still_works(self) -> None:
+        markdown = (
+            "## US News\n\n"
+            "<!-- story: topics.US News[0] -->\n"
+            "**Legacy story** — Summary.\n"
+        )
+        findings = (
+            ReviewFinding(
+                level="WARN", check="unsupported_figure", domain="evidence",
+                message="US News: 'Legacy story' states '42'",
+                section="US News", headline="Legacy story",
+            ),
+        )
+        rendered, matched = _render_markdown(markdown, findings)
+        self.assertEqual(matched, frozenset({0}))
+        self.assertIn("review-story", rendered)
+
+    def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## AI News\n\n"
+                "<!-- story: topics.AI News[0] -->\n"
+                "**AI story** — Included summary.\n"
+                "🔗 https://example.com/ai\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="review_required",
+                findings=[
+                    self._finding(
+                        "unsupported_figure",
+                        "topics.AI News[0].summary states '42'",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "entry json",
+                            "path": "topics.AI News[0]",
+                        },
+                    ),
+                ],
+                repair_actions=[
+                    {"action": "drop_entry", "path": "topics.AI News[1]", "reason": "duplicate"},
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("review-story", index)
+            self.assertIn("states &#x27;42&#x27;", index)
+
     @staticmethod
     def _finding(
         check: str,
@@ -487,19 +610,21 @@ class BuildSiteTests(unittest.TestCase):
         findings: list[dict[str, object]] | None = None,
         findings_count: int | None = None,
         degraded_sources: list[str] | None = None,
+        repair_actions: list[dict[str, str]] | None = None,
     ) -> None:
         details = findings or []
         count = len(details) if findings_count is None else findings_count
+        payload: dict[str, object] = {
+            "date": date,
+            "disposition": disposition,
+            "findings_count": count,
+            "findings": details,
+            "degraded_sources": degraded_sources or [],
+        }
+        if repair_actions is not None:
+            payload["repair_actions"] = repair_actions
         (directory / f"{date}.json").write_text(
-            json.dumps(
-                {
-                    "date": date,
-                    "disposition": disposition,
-                    "findings_count": count,
-                    "findings": details,
-                    "degraded_sources": degraded_sources or [],
-                }
-            ),
+            json.dumps(payload),
             encoding="utf-8",
         )
 
