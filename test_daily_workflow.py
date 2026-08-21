@@ -21,9 +21,10 @@ class DailyWorkflowTests(unittest.TestCase):
         for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
-    def test_scheduled_run_handles_one_completed_eastern_day(self) -> None:
+    def test_scheduled_run_handles_today_from_one_fixed_snapshot(self) -> None:
+        self.assertIn("snapshot_end_epoch=$(date --utc +%s)", WORKFLOW)
         self.assertIn(
-            'latest_completed_date=$(TZ=America/New_York date --date="yesterday" +%F)',
+            'today=$(TZ=America/New_York date --date="@$snapshot_end_epoch" +%F)',
             WORKFLOW,
         )
         self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", WORKFLOW)
@@ -37,18 +38,28 @@ class DailyWorkflowTests(unittest.TestCase):
             WORKFLOW,
         )
 
-    def test_manual_run_can_backfill_seven_completed_eastern_days(self) -> None:
+    def test_manual_run_can_backfill_today_and_six_prior_dates(self) -> None:
         self.assertIn("day_offsets=(6 5 4 3 2 1 0)", WORKFLOW)
         self.assertIn('for days_ago in "${day_offsets[@]}"; do', WORKFLOW)
-        self.assertIn('--date="$latest_completed_date $days_ago days ago" +%F', WORKFLOW)
+        self.assertIn('--date="$today $days_ago days ago" +%F', WORKFLOW)
         self.assertIn("TZ=America/New_York", WORKFLOW)
-        self.assertIn('--date="$report_date 00:00:00"', WORKFLOW)
-        self.assertIn('--date="$report_date 1 day" +%F', WORKFLOW)
-        self.assertIn('--date="$next_date 00:00:00"', WORKFLOW)
+
+    def test_today_uses_fresh_exact_24_hour_corpus(self) -> None:
+        self.assertIn('if (( days_ago == 0 )); then', WORKFLOW)
+        self.assertIn(
+            'window_start_epoch=$((snapshot_end_epoch - 86400))', WORKFLOW
+        )
+        self.assertIn(
+            'window_start=$(date --utc --date="@$window_start_epoch" --iso-8601=seconds)',
+            WORKFLOW,
+        )
+        self.assertIn(
+            'window_end=$(date --utc --date="@$snapshot_end_epoch" --iso-8601=seconds)',
+            WORKFLOW,
+        )
         self.assertIn('--window-start "$window_start"', WORKFLOW)
         self.assertIn('--window-end "$window_end"', WORKFLOW)
         self.assertIn('--report-date "$report_date"', WORKFLOW)
-        self.assertNotIn("--hours 24", WORKFLOW)
 
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
         self.assertIn("ref: main", WORKFLOW)
@@ -64,19 +75,19 @@ class DailyWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
 
-    def test_backfill_resolves_stored_corpus_before_live_fetch(self) -> None:
+    def test_backfill_reuses_only_prior_stored_corpora(self) -> None:
         self.assertIn(
             "https://elanthus.github.io/news-briefing/corpora/$report_date.json",
             WORKFLOW,
         )
-        self.assertIn("elif (( days_ago <= 2 )); then", WORKFLOW)
-        self.assertIn("no stored corpus and feeds no longer retain", WORKFLOW)
+        self.assertIn('elif curl \\', WORKFLOW)
+        self.assertIn("no stored corpus is available", WORKFLOW)
+        self.assertNotIn("days_ago <= 2", WORKFLOW)
 
-    def test_generation_uses_gpt_5_6_luna_with_reasoning(self) -> None:
-        self.assertIn("--model openai/gpt-5.6-luna", WORKFLOW)
-        self.assertIn("--reasoning enabled", WORKFLOW)
-        self.assertNotIn("--model deepseek/deepseek-v4-flash-20260423", WORKFLOW)
-        self.assertNotIn("--reasoning disabled", WORKFLOW)
+    def test_generation_uses_deepseek_v4_flash_0731_with_high_reasoning(self) -> None:
+        self.assertIn("--model deepseek/deepseek-v4-flash-0731", WORKFLOW)
+        self.assertIn("--reasoning-effort high", WORKFLOW)
+        self.assertNotIn("--model openai/gpt-5.6-luna", WORKFLOW)
 
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
