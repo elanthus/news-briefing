@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from agent_runner.outcomes import finding_domain
+from agent_runner.outcomes import finding_domain, is_actionable_finding
 
 
 @dataclass(frozen=True)
@@ -74,9 +74,9 @@ def _findings(raw_findings: object, *, allow_legacy: bool) -> list[dict[str, str
             raise ValueError("dogfood finding fields must be non-empty strings")
         if level not in {"ERROR", "WARN"}:
             raise ValueError("dogfood finding level must be ERROR or WARN")
-        normalized.append(
-            {"level": level, "check": check, "domain": domain, "message": message}
-        )
+        finding = {"level": level, "check": check, "domain": domain, "message": message}
+        if is_actionable_finding(finding):
+            normalized.append(finding)
     return normalized
 
 
@@ -143,7 +143,11 @@ def bootstrap_history(repository_root: Path, history_dir: Path) -> None:
         payload = {
             "date": run.day.isoformat(),
             "disposition": disposition,
-            "findings_count": len(raw_findings),
+            "findings_count": (
+                len(findings)
+                if disposition == "review_required"
+                else sum(1 for finding in raw_findings if is_actionable_finding(finding))
+            ),
             "findings": findings,
             "degraded_sources": _degraded_sources(corpus),
         }

@@ -41,6 +41,7 @@ QUALITY_CHECKS = {
     "slots_underfilled",
     "unsupported_figure",
 }
+NONBLOCKING_FINDING_DOMAINS = {"quality"}
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,10 @@ def _value(finding: Any, key: str) -> Any:
     if isinstance(finding, dict):
         return finding.get(key)
     return getattr(finding, key, None)
+
+
+def is_actionable_finding(finding: Any) -> bool:
+    return _value(finding, "domain") not in NONBLOCKING_FINDING_DOMAINS
 
 
 def finding_domain(check: str) -> str:

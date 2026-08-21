@@ -1,6 +1,6 @@
 import unittest
 
-from agent_runner.outcomes import classify_outcome, finding_domain
+from agent_runner.outcomes import classify_outcome, finding_domain, is_actionable_finding
 from agent_runner.output import OutputFinding
 
 
@@ -77,6 +77,11 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(finding_domain("unsupported_figure"), "quality")
         self.assertEqual(finding_domain("failed_source_unnamed"), "coverage")
         self.assertEqual(finding_domain("category_ineligible_ref"), "editorial")
+
+    def test_quality_findings_are_not_actionable(self):
+        self.assertFalse(is_actionable_finding({"domain": "quality"}))
+        self.assertTrue(is_actionable_finding({"domain": "evidence"}))
+        self.assertTrue(is_actionable_finding({}))
 
 
 if __name__ == "__main__":

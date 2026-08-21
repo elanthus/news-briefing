@@ -11,13 +11,14 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.outcomes import is_actionable_finding
+
 FINAL_STATUSES = {"ready", "review_required", "rejected", "no_result"}
 PUBLIC_ARTIFACTS = {
     "ready": ("final", "final.md"),
     "review_required": ("preview", "preview.md"),
 }
 FINDING_FIELDS = {"level", "check", "domain", "message"}
-NON_ACTIONABLE_DOMAINS = {"quality"}
 
 
 @dataclass(frozen=True)
@@ -86,15 +87,11 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
 def _actionable_findings(
     findings: tuple[ReviewFinding, ...],
 ) -> tuple[ReviewFinding, ...]:
-    return tuple(finding for finding in findings if finding.domain not in NON_ACTIONABLE_DOMAINS)
+    return tuple(finding for finding in findings if is_actionable_finding(finding))
 
 
 def _actionable_finding_count(raw_findings: list[object]) -> int:
-    return sum(
-        1
-        for finding in raw_findings
-        if not isinstance(finding, dict) or finding.get("domain") not in NON_ACTIONABLE_DOMAINS
-    )
+    return sum(1 for finding in raw_findings if is_actionable_finding(finding))
 
 
 def _bound_json_artifact(
