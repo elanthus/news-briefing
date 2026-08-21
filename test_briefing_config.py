@@ -42,6 +42,9 @@ class ValidConfigTest(unittest.TestCase):
     def test_general_news_is_eligible_for_every_broad_news_section(self):
         config = briefing_config.load_config()
         broad_sections = {"US Politics", "US News", "World Events", "AI News"}
+        self.assertTrue(
+            broad_sections <= {section.name for section in config.sections}
+        )
         for section in config.sections:
             if section.name in broad_sections:
                 self.assertIn("general_news", section.corpus_categories)

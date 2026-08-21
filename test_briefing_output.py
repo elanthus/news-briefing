@@ -188,7 +188,14 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(excluded["maxItems"], accountable.excluded_stories)
         excluded_refs = excluded["items"]["properties"]["citation_refs"]
         self.assertTrue(excluded_refs["uniqueItems"])
-        self.assertEqual(set(excluded_refs["items"]["enum"]), eligible)
+        accountable_eligible = {
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category in accountable.corpus_categories
+        }
+        self.assertEqual(
+            set(excluded_refs["items"]["enum"]), accountable_eligible
+        )
         self.assertTrue(projected.citations)
 
     def test_valid_output_renders_checker_clean_with_exact_urls(self):
