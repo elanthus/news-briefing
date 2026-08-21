@@ -356,6 +356,16 @@ class BriefingOutputTests(unittest.TestCase):
         }
         _corpus, config, projected, output = fixture_contract()
         section_names = [section.name for section in config.sections]
+        categories_by_section = {
+            section.name: set(section.corpus_categories) for section in config.sections
+        }
+
+        def ineligible_ref_for(section):
+            return next(
+                ref
+                for ref, citation in projected.citations.items()
+                if citation.category not in section.corpus_categories
+            )
 
         def corruptions():
             duplicated = copy.deepcopy(output)
@@ -363,12 +373,41 @@ class BriefingOutputTests(unittest.TestCase):
             duplicated["sections"][section_names[-1]]["topics"].append(
                 copy.deepcopy(donor_topics[0])
             )
-            yield "duplicate entry across sections", duplicated
+            yield "duplicate entry across sections", duplicated, {"duplicate_item"}
 
             repeated = copy.deepcopy(output)
             entry = repeated["sections"][section_names[0]]["topics"][0]
             entry["citation_refs"] = entry["citation_refs"] + [entry["citation_refs"][0]]
-            yield "repeated ref inside one entry", repeated
+            yield "repeated ref inside one entry", repeated, {"duplicate_citation_ref"}
+
+            first = config.sections[0]
+            ineligible = copy.deepcopy(output)
+            ineligible["sections"][first.name]["topics"][0]["citation_refs"] = [
+                ineligible_ref_for(first)
+            ]
+            yield "ineligible ref in included topic", ineligible, {"category_ineligible_ref"}
+
+            accountable = next(
+                section for section in config.sections if section.excluded_stories
+            )
+            excluded_dup = copy.deepcopy(output)
+            source = excluded_dup["sections"][accountable.name]["topics"][0]
+            excluded_dup["excluded_topics"][accountable.name].append({
+                "headline": source["headline"],
+                "reason": "Repeats an included story.",
+                "citation_refs": list(source["citation_refs"]),
+            })
+            yield "included item repeated in excluded topics", excluded_dup, {"duplicate_item"}
+
+            excluded_ineligible = copy.deepcopy(output)
+            excluded_ineligible["excluded_topics"][accountable.name][0]["citation_refs"] = [
+                ineligible_ref_for(accountable)
+            ]
+            yield (
+                "ineligible ref in excluded topic",
+                excluded_ineligible,
+                {"category_ineligible_ref"},
+            )
 
             for donor_name in section_names:
                 for target_name in section_names:
@@ -383,13 +422,27 @@ class BriefingOutputTests(unittest.TestCase):
                     target_topics[0]["citation_refs"] = (
                         target_topics[0]["citation_refs"] + [donor_ref]
                     )
-                    yield f"ref shared from {donor_name} into {target_name}", crossed
+                    expected = {"duplicate_item"}
+                    donor_category = projected.citations[donor_ref].category
+                    if donor_category not in categories_by_section[target_name]:
+                        expected.add("category_ineligible_ref")
+                    yield f"ref shared from {donor_name} into {target_name}", crossed, expected
 
-        for label, corrupted in corruptions():
+        for label, corrupted, expected_checks in corruptions():
             with self.subTest(corruption=label):
+                before = {
+                    finding.check
+                    for finding in validate_output(corrupted, config, projected.citations)
+                }
+                self.assertLessEqual(
+                    expected_checks,
+                    before,
+                    msg=f"corruption did not produce its intended findings: {before}",
+                )
                 repaired, actions = repair_structural_output(
                     corrupted, config, projected.citations
                 )
+                self.assertTrue(actions)
                 residual = {
                     finding.check
                     for finding in validate_output(repaired, config, projected.citations)
