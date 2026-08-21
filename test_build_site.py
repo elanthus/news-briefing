@@ -78,6 +78,22 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("WARN · evidence · unsupported figure:", report)
             self.assertIn("states &#x27;&lt;60&gt;&#x27;", report)
             self.assertIn("Verify the figure against the cited source", report)
+            # The annotated preview renders on the report with findings attached
+            # inline to their stories and the redaction disclosure intact.
+            self.assertIn('<section class="review-story">', report)
+            self.assertIn("Important detail", report)
+            self.assertNotIn("UNPUBLISHED BRIEFING CANDIDATE", report)
+            self.assertNotIn("duplicate public warning", report)
+            self.assertIn("<details>", report)
+            self.assertNotIn("<details open", report)
+            self.assertIn("Click to see redacted information", report)
+            self.assertNotIn("INLINE_REVIEW_", report)
+            self.assertIn("https://model.example/claim", report)
+            self.assertNotIn('href="https://model.example/claim"', report)
+            self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", report)
+            self.assertNotIn("<script>", report)
+            self.assertNotIn('href="javascript:', report)
+            self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", report)
 
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
             self.assertIn('href="index.html">2026-08-20</a>', prior)
@@ -496,10 +512,13 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertEqual(index.count('<section class="review-story">'), 2)
-            self.assertNotIn('<section class="review-panel">', index)
-            self.assertLess(index.index("AI story"), index.index("ineligible citation"))
-            self.assertLess(index.index("Excluded story"), index.index("repeats an item"))
+            self.assertNotIn('<section class="review-story">', index)
+            self.assertIn("did not pass automated checks", index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertEqual(report.count('<section class="review-story">'), 2)
+            self.assertNotIn('<section class="review-panel">', report)
+            self.assertLess(report.index("AI story"), report.index("ineligible citation"))
+            self.assertLess(report.index("Excluded story"), report.index("repeats an item"))
 
     def test_repair_actions_survive_history_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -826,6 +845,38 @@ class BuildSiteTests(unittest.TestCase):
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("All checks passed", report)
             self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
+
+    def test_blocked_report_does_not_claim_checks_passed(self) -> None:
+        # A blocked run means the checker never accepted a candidate; its
+        # zero findings_count must not read as an all-clear.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            self._write_sidecar(briefings, date="2026-08-20", disposition="blocked")
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("BLOCKED · 0 findings", report)
+            self.assertNotIn("All checks passed", report)
+            self.assertIn("does not mean the checker accepted", report)
+
+    def test_rejected_report_notes_unpublished_details(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            self._write_sidecar(
+                briefings, date="2026-08-20", disposition="rejected", findings_count=1
+            )
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("REJECTED · 1 finding", report)
+            self.assertNotIn("All checks passed", report)
+            self.assertIn("details are published only for review-required runs", report)
 
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

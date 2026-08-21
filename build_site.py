@@ -669,10 +669,34 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
         f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
         f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
     ]
-    if entry.findings:
+    if entry.findings and entry.markdown is not None:
+        # The quarantined preview is the evidence a reviewer judges findings
+        # against: render it with each finding attached to its story, keeping
+        # the redaction disclosures, and surface only unmatched findings in a
+        # run-level panel.
+        rendered_markdown, matched = _render_markdown(entry.markdown, entry.findings)
+        unmatched = tuple(
+            finding for index, finding in enumerate(entry.findings) if index not in matched
+        )
+        if unmatched:
+            parts.append(_render_review_panel(unmatched))
+        parts.append(f'<article class="briefing-content">{rendered_markdown}</article>')
+    elif entry.findings:
         parts.append(_render_review_panel(entry.findings))
-    elif entry.findings_count == 0:
+    elif entry.disposition == "ready" and entry.findings_count == 0:
         parts.append('<p class="muted">All checks passed.</p>')
+    elif entry.findings_count:
+        count = entry.findings_count
+        parts.append(
+            '<p class="muted">'
+            f"{count} actionable {'finding was' if count == 1 else 'findings were'} "
+            "recorded; details are published only for review-required runs.</p>"
+        )
+    else:
+        parts.append(
+            '<p class="muted">No findings details are available for this disposition. '
+            "A zero count does not mean the checker accepted a candidate.</p>"
+        )
     if entry.repair_actions:
         items = []
         for action in entry.repair_actions:
@@ -686,16 +710,12 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
             f"<ol>{''.join(items)}</ol>"
             "</section>"
         )
-    if entry.degraded_sources:
-        sources = "".join(
-            f"<li>{html.escape(source)}</li>" for source in entry.degraded_sources
-        )
-        parts.append(
-            '<section class="degraded-sources">'
-            "<h2>Degraded sources</h2>"
-            f"<ul>{sources}</ul>"
-            "</section>"
-        )
+    parts.append(
+        '<section class="corpus-health">'
+        "<h2>Corpus health</h2>"
+        f"<p>{_corpus_health(entry)}</p>"
+        "</section>"
+    )
     return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
 
 
