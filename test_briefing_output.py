@@ -11,6 +11,7 @@ from agent_runner.output import (
     redact_destinations,
     redact_preview_value,
     render_briefing,
+    repair_structural_output,
     validate_output,
 )
 
@@ -154,7 +155,7 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_schema_restricts_sections_and_matches_runtime_constraints(self):
         _corpus, config, projected, _output = fixture_contract()
-        schema = build_output_schema(config)
+        schema = build_output_schema(config, projected.citations)
         self.assertEqual(
             schema["properties"]["schema_version"],
             {"type": "integer", "minimum": 1, "maximum": 1},
@@ -174,13 +175,20 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(headline["maxLength"], 300)
         refs = topics["items"]["properties"]["citation_refs"]
         self.assertEqual(refs["minItems"], 1)
-        self.assertNotIn("uniqueItems", refs)
+        self.assertTrue(refs["uniqueItems"])
+        eligible = {
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category in first.corpus_categories
+        }
+        self.assertEqual(set(refs["items"]["enum"]), eligible)
         accountable = next(section for section in config.sections if section.excluded_stories)
         excluded = schema["properties"]["excluded_topics"]["properties"][accountable.name]
         self.assertEqual(excluded["minItems"], 0)
         self.assertEqual(excluded["maxItems"], accountable.excluded_stories)
         excluded_refs = excluded["items"]["properties"]["citation_refs"]
-        self.assertNotIn("uniqueItems", excluded_refs)
+        self.assertTrue(excluded_refs["uniqueItems"])
+        self.assertEqual(set(excluded_refs["items"]["enum"]), eligible)
         self.assertTrue(projected.citations)
 
     def test_valid_output_renders_checker_clean_with_exact_urls(self):
@@ -300,6 +308,38 @@ class BriefingOutputTests(unittest.TestCase):
         broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("category_ineligible_ref", checks)
+
+    def test_structural_repair_drops_ineligible_and_repeated_entries(self):
+        _corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        second = config.sections[1]
+        first_topic = broken["sections"][first.name]["topics"][0]
+        repeated = copy.deepcopy(first_topic)
+        broken["sections"][second.name]["topics"].insert(0, repeated)
+        broken["excluded_topics"][first.name].insert(0, copy.deepcopy(first_topic))
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in first.corpus_categories
+        )
+        broken["sections"][first.name]["topics"][1]["citation_refs"] = [ineligible_ref]
+
+        repaired, actions = repair_structural_output(
+            broken,
+            config,
+            projected.citations,
+        )
+
+        findings = validate_output(repaired, config, projected.citations)
+        self.assertNotIn(
+            "category_ineligible_ref",
+            {finding.check for finding in findings},
+        )
+        self.assertNotIn("duplicate_item", {finding.check for finding in findings})
+        self.assertEqual(repaired["sections"][first.name]["topics"][0], first_topic)
+        self.assertTrue(any(action["path"].startswith(f"topics.{second.name}") for action in actions))
+        self.assertTrue(any(action["path"].startswith("excluded_topics.") for action in actions))
 
 
 if __name__ == "__main__":

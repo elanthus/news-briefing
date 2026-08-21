@@ -1460,7 +1460,7 @@ def run_evaluation(
             output_schema: dict[str, Any] | None = None
             if generation_path == "production-parity":
                 projected = project_corpus(corpus)
-                output_schema = build_output_schema(config)
+                output_schema = build_output_schema(config, projected.citations)
                 request = structured_model_request(prompt, config_data, projected)
             else:
                 request = model_request(prompt, config_data, corpus)

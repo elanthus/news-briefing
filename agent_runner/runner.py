@@ -34,6 +34,7 @@ from agent_runner.output import (
     render_briefing,
     render_candidate_preview,
     render_validation_status,
+    repair_structural_output,
     validate_output,
 )
 
@@ -324,6 +325,55 @@ def _attempt_paths(index: int) -> tuple[str, str, str, str, str]:
     )
 
 
+def _deterministic_repair_attempt(
+    store: RunStore,
+    output: dict[str, Any],
+    *,
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    repaired, actions = repair_structural_output(output, config, citations)
+    current = store.manifest["attempts"][-1]
+    if not actions or not isinstance(repaired, dict):
+        return current, output
+
+    index = len(store.manifest["attempts"]) + 1
+    _raw_name, structured_name, _events_name, _briefing_name, _findings_name = _attempt_paths(index)
+    store.write_json(structured_name, repaired)
+    attempt = {
+        "index": index,
+        "kind": "deterministic_repair",
+        "received_at": utc_now(),
+        "raw_artifact": None,
+        "structured_artifact": structured_name,
+        "provider_events_artifact": None,
+        "generation": None,
+        "repair_actions": actions,
+        "validated": False,
+        "contract_success": None,
+        "briefing_artifact": None,
+        "findings_artifact": None,
+    }
+    store.manifest["attempts"].append(attempt)
+    store.trace(
+        "deterministic_repair_completed",
+        attempt=index,
+        source_attempt=current["index"],
+        actions=len(actions),
+    )
+    store.checkpoint("deterministic_repair_received")
+    _validate_attempt(
+        store,
+        attempt,
+        repaired,
+        corpus=corpus,
+        config=config,
+        citations=citations,
+    )
+    return attempt, repaired
+
+
 def _call_provider(
     store: RunStore,
     provider: ModelProvider,
@@ -535,6 +585,43 @@ def _finalize_structured_preview(
     return RunResult(1, store.root, preview_path, outcome.disposition)
 
 
+def _finalize_after_deterministic_repair(
+    store: RunStore,
+    attempt: dict[str, Any],
+    output: dict[str, Any],
+    *,
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    settings: RunnerSettings,
+) -> RunResult:
+    if attempt.get("kind") != "deterministic_repair":
+        attempt, output = _deterministic_repair_attempt(
+            store,
+            output,
+            corpus=corpus,
+            config=config,
+            citations=citations,
+        )
+    if attempt.get("briefing_artifact"):
+        return _finalize_candidate(
+            store,
+            attempt,
+            corpus=corpus,
+            config=config,
+            citations=citations,
+            settings=settings,
+        )
+    return _finalize_structured_preview(
+        store,
+        attempt,
+        corpus=corpus,
+        config=config,
+        citations=citations,
+        settings=settings,
+    )
+
+
 def run_workflow(
     provider: ModelProvider,
     settings: RunnerSettings,
@@ -588,7 +675,7 @@ def run_workflow(
         if category_problems:
             raise ValueError("; ".join(category_problems))
         projected = project_corpus(corpus)
-        schema = build_output_schema(config)
+        schema = build_output_schema(config, projected.citations)
         if not (store.root / "model-corpus.json").exists():
             store.write_json("model-corpus.json", projected.document)
             store.write_json(
@@ -644,18 +731,10 @@ def run_workflow(
                 )
             corrections_used = sum(row["kind"] == "correction" for row in store.manifest["attempts"])
             if corrections_used >= settings.max_corrections:
-                if attempt.get("briefing_artifact"):
-                    return _finalize_candidate(
-                        store,
-                        attempt,
-                        corpus=corpus,
-                        config=config,
-                        citations=projected.citations,
-                        settings=settings,
-                    )
-                return _finalize_structured_preview(
+                return _finalize_after_deterministic_repair(
                     store,
                     attempt,
+                    output,
                     corpus=corpus,
                     config=config,
                     citations=projected.citations,
@@ -675,18 +754,10 @@ def run_workflow(
                 store.manifest["correction_error"] = exc.record()
                 store.trace("correction_failed", **exc.record())
                 store.checkpoint("correction_failed")
-                if attempt.get("briefing_artifact"):
-                    return _finalize_candidate(
-                        store,
-                        attempt,
-                        corpus=corpus,
-                        config=config,
-                        citations=projected.citations,
-                        settings=settings,
-                    )
-                return _finalize_structured_preview(
+                return _finalize_after_deterministic_repair(
                     store,
                     attempt,
+                    output,
                     corpus=corpus,
                     config=config,
                     citations=projected.citations,

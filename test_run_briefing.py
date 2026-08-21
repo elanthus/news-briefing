@@ -305,7 +305,7 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
-    def test_category_error_preserves_corpus_bound_candidate_as_review_preview(self):
+    def test_category_error_is_removed_by_deterministic_repair(self):
         corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         section = config.sections[0]
@@ -326,14 +326,23 @@ class RunnerTests(unittest.TestCase):
                 root / "run",
             )
             manifest = json.loads((root / "run/manifest.json").read_text())
-            preview = (root / "run/preview.md").read_text()
-        self.assertEqual(result.status, "review_required")
-        self.assertFalse(requested_output.exists())
+            final = requested_output.read_text()
+            output_exists = requested_output.exists()
+        self.assertEqual(result.status, "ready")
+        self.assertTrue(output_exists)
         self.assertEqual(manifest["status"], "complete")
-        self.assertEqual(manifest["final"]["outcome"]["contract"], "review_required")
+        self.assertEqual(manifest["final"]["outcome"]["contract"], "accepted")
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
-        self.assertIn(broken["sections"][section.name]["topics"][0]["headline"], preview)
-        self.assertIn(projected.citations[ineligible_ref].url, preview)
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["initial", "deterministic_repair"],
+        )
+        self.assertNotIn(broken["sections"][section.name]["topics"][0]["headline"], final)
+        self.assertNotIn(projected.citations[ineligible_ref].url, final)
+        self.assertEqual(
+            manifest["attempts"][-1]["repair_actions"][0]["action"],
+            "drop_entry",
+        )
 
     def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
         corpus, config, _projected, output = fixture_contract()

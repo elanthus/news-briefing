@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import html
 import json
 from dataclasses import dataclass
@@ -145,8 +146,8 @@ def _text_property(max_length: int) -> dict[str, Any]:
     }
 
 
-def _citation_refs() -> dict[str, Any]:
-    return {
+def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, Any]:
+    schema: dict[str, Any] = {
         "type": "array",
         "description": (
             "One distinct, eligible citation reference per selected corpus item. "
@@ -155,21 +156,37 @@ def _citation_refs() -> dict[str, Any]:
         ),
         "items": {"type": "string"},
         "minItems": 1,
+        "uniqueItems": True,
     }
+    if eligible_refs:
+        schema["items"]["enum"] = list(eligible_refs)
+    return schema
 
 
-def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any]:
+def build_output_schema(
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation] | None = None,
+) -> dict[str, Any]:
     """Build a conservative Draft-07-compatible schema for all three providers."""
     section_properties: dict[str, Any] = {}
     excluded_properties: dict[str, Any] = {}
     accountable: list[str] = []
     for section in config.sections:
+        eligible_refs = (
+            tuple(
+                ref
+                for ref, citation in citations.items()
+                if citation.category in section.corpus_categories
+            )
+            if citations is not None
+            else None
+        )
         topic = {
             "type": "object",
             "properties": {
                 "headline": _text_property(300),
                 "summary": _text_property(1_500),
-                "citation_refs": _citation_refs(),
+                "citation_refs": _citation_refs(eligible_refs),
             },
             "required": ["headline", "summary", "citation_refs"],
             "additionalProperties": False,
@@ -195,7 +212,7 @@ def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any
                 "properties": {
                     "headline": _text_property(300),
                     "reason": _text_property(600),
-                    "citation_refs": _citation_refs(),
+                    "citation_refs": _citation_refs(eligible_refs),
                 },
                 "required": ["headline", "reason", "citation_refs"],
                 "additionalProperties": False,
@@ -227,6 +244,118 @@ def build_output_schema(config: briefing_config.BriefingConfig) -> dict[str, Any
         "required": ["schema_version", "sections", "excluded_topics"],
         "additionalProperties": False,
     }
+
+
+def repair_structural_output(
+    output: Any,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> tuple[Any, list[dict[str, str]]]:
+    """Remove unsafe structural selections after model corrections are exhausted.
+
+    Included stories have priority over every accountability-log entry. An entry
+    with any ineligible or already-used item is dropped as a whole so its prose
+    cannot remain after its evidence is removed. Exact repeated refs inside one
+    otherwise-valid entry are safely deduplicated. Unknown evidence remains a
+    rejection rather than being normalized away.
+    """
+    repaired = copy.deepcopy(output)
+    actions: list[dict[str, str]] = []
+    if not isinstance(repaired, dict):
+        return repaired, actions
+
+    sections_value = repaired.get("sections")
+    excluded_value = repaired.get("excluded_topics")
+    sections = sections_value if isinstance(sections_value, dict) else {}
+    excluded_topics = excluded_value if isinstance(excluded_value, dict) else {}
+    used_items: dict[str, str] = {}
+
+    def repair_entries(
+        entries: Any,
+        *,
+        section: briefing_config.BriefingSection,
+        excluded: bool,
+    ) -> None:
+        if not isinstance(entries, list):
+            return
+        label = "excluded_topics" if excluded else "topics"
+        eligible_categories = set(section.corpus_categories)
+        kept: list[Any] = []
+        for index, entry in enumerate(entries):
+            path = f"{label}.{section.name}[{index}]"
+            if not isinstance(entry, dict) or not isinstance(entry.get("citation_refs"), list):
+                kept.append(entry)
+                continue
+            refs = entry["citation_refs"]
+            if not refs:
+                kept.append(entry)
+                continue
+
+            unique_refs: list[str] = []
+            seen_refs: set[str] = set()
+            invalid_reasons: list[str] = []
+            item_refs: set[str] = set()
+            has_unknown_ref = False
+            for ref in refs:
+                if not isinstance(ref, str) or ref not in citations:
+                    has_unknown_ref = True
+                    continue
+                if ref in seen_refs:
+                    continue
+                seen_refs.add(ref)
+                unique_refs.append(ref)
+                citation = citations[ref]
+                if citation.category not in eligible_categories:
+                    invalid_reasons.append(
+                        f"{ref} is from ineligible category {citation.category}"
+                    )
+                item_refs.add(citation.item_ref)
+
+            # Unknown evidence is an evidence-boundary violation, not an
+            # editorial placement error. Preserve it for rejection and review.
+            if has_unknown_ref:
+                kept.append(entry)
+                continue
+
+            repeated_items = sorted(item_ref for item_ref in item_refs if item_ref in used_items)
+            if repeated_items:
+                invalid_reasons.extend(
+                    f"{item_ref} was already used by {used_items[item_ref]}"
+                    for item_ref in repeated_items
+                )
+            if invalid_reasons:
+                actions.append({
+                    "action": "drop_entry",
+                    "path": path,
+                    "reason": "; ".join(invalid_reasons),
+                })
+                continue
+
+            if len(unique_refs) != len(refs):
+                entry["citation_refs"] = unique_refs
+                actions.append({
+                    "action": "deduplicate_refs",
+                    "path": path,
+                    "reason": "removed repeated citation references",
+                })
+            kept.append(entry)
+            for item_ref in item_refs:
+                used_items[item_ref] = path
+        entries[:] = kept
+
+    # Included stories outrank exclusions regardless of configured section order.
+    for section in config.sections:
+        section_value = sections.get(section.name)
+        if isinstance(section_value, dict):
+            repair_entries(section_value.get("topics"), section=section, excluded=False)
+    for section in config.sections:
+        if section.excluded_stories:
+            repair_entries(
+                excluded_topics.get(section.name),
+                section=section,
+                excluded=True,
+            )
+    return repaired, actions
 
 
 def _object_fields(
@@ -377,6 +506,8 @@ def validate_output(
                 else:
                     used_items[item_ref] = entry_where
 
+    # Included stories outrank accountability-log entries globally. This order
+    # also makes correction findings point at the exclusion that should move.
     for section in config.sections:
         section_value = sections.get(section.name)
         parsed_section = _object_fields(
@@ -392,6 +523,7 @@ def validate_output(
                 maximum=section.target_stories,
                 excluded=False,
             )
+    for section in config.sections:
         if section.excluded_stories:
             validate_entries(
                 excluded_topics.get(section.name),

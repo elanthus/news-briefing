@@ -5,7 +5,7 @@
       "name": "US Politics",
       "group": null,
       "target_stories": 3,
-      "corpus_categories": ["us_politics", "us_news"],
+      "corpus_categories": ["us_politics", "us_news", "general_news"],
       "guidance": "Elections, Congress, the administration, federal policy, and court rulings on federal policy or the administration.",
       "excluded_stories": 5
     },
@@ -13,7 +13,7 @@
       "name": "US News",
       "group": null,
       "target_stories": 4,
-      "corpus_categories": ["us_news", "us_politics", "world"],
+      "corpus_categories": ["us_news", "us_politics", "world", "general_news"],
       "guidance": "Every other US-domestic story: disasters, crime, public health, business, education, and local government.",
       "excluded_stories": 5
     },
@@ -21,7 +21,7 @@
       "name": "World Events",
       "group": null,
       "target_stories": 5,
-      "corpus_categories": ["world", "us_news"],
+      "corpus_categories": ["world", "us_news", "general_news"],
       "guidance": "International developments, including international stories that reached the corpus through a US-news source.",
       "excluded_stories": 5
     },
@@ -29,7 +29,7 @@
       "name": "AI News",
       "group": "AI/Tech",
       "target_stories": 4,
-      "corpus_categories": ["ai_tech", "us_news"],
+      "corpus_categories": ["ai_tech", "us_news", "general_news"],
       "guidance": "Economic impact, industry moves, regulation, funding, and model announcements.",
       "excluded_stories": 0
     },

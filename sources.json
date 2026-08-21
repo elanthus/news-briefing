@@ -2,6 +2,7 @@
   "categories": [
     "us_politics",
     "us_news",
+    "general_news",
     "world",
     "ai_tech",
     "dev_community"
@@ -10,14 +11,16 @@
     "us_politics": [
       ["NPR Politics", "https://feeds.npr.org/1014/rss.xml"],
       ["Politico", "https://rss.politico.com/politics-news.xml"],
-      ["The Hill", "https://thehill.com/homenews/feed/"],
-      ["Axios", "https://api.axios.com/feed/"]
+      ["The Hill", "https://thehill.com/homenews/feed/"]
     ],
     "us_news": [
       ["CBS News US", "https://www.cbsnews.com/latest/rss/us"],
       ["The Guardian US", "https://www.theguardian.com/us-news/rss"],
       ["PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"],
       ["NPR National", "https://feeds.npr.org/1003/rss.xml"]
+    ],
+    "general_news": [
+      ["Axios", "https://api.axios.com/feed/"]
     ],
     "world": [
       ["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"],

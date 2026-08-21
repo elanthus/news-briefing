@@ -39,6 +39,22 @@ class ValidConfigTest(unittest.TestCase):
                 config, set(load_sources(DEFAULT_SOURCES_PATH).categories)),
             [])
 
+    def test_general_news_is_eligible_for_every_broad_news_section(self):
+        config = briefing_config.load_config()
+        broad_sections = {"US Politics", "US News", "World Events", "AI News"}
+        for section in config.sections:
+            if section.name in broad_sections:
+                self.assertIn("general_news", section.corpus_categories)
+        sources = load_sources(DEFAULT_SOURCES_PATH)
+        self.assertEqual(
+            sources.rss_feeds["general_news"],
+            [("Axios", "https://api.axios.com/feed/")],
+        )
+        self.assertNotIn(
+            "Axios",
+            {name for name, _url in sources.rss_feeds["us_politics"]},
+        )
+
 
 class InvalidConfigTest(unittest.TestCase):
     def assert_problem(self, mutate, message):
