@@ -413,6 +413,39 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("correction", kinds)
         self.assertEqual(len(provider.requests), 2)
 
+    def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        # Beyond target_stories AND citing fabricated evidence: the over-limit
+        # trim must not normalize the evidence-boundary violation away.
+        broken["sections"][first.name]["topics"].append({
+            "headline": "Fabricated story past the limit",
+            "summary": "Cites evidence that is not in the corpus.",
+            "citation_refs": ["citation_9999"],
+        })
+        provider = FakeProvider([broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
+            result = run_workflow(provider, settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            preview_structured = json.loads(
+                (root / "run/preview-structured.json").read_text()
+            )
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(manifest["final"]["status"], "rejected")
+        checks = {row["check"] for row in manifest["final"]["findings"]}
+        self.assertIn("unknown_citation_ref", checks)
+        self.assertIn("structured_item_limit", checks)
+        headlines = [
+            topic["headline"]
+            for topic in preview_structured["sections"][first.name]["topics"]
+        ]
+        self.assertIn("Fabricated story past the limit", headlines)
+
     def test_eager_repair_preserves_budget_for_render_revealed_findings(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
