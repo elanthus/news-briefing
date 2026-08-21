@@ -89,9 +89,16 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("--reasoning-effort high", WORKFLOW)
         self.assertNotIn("--model openai/gpt-5.6-luna", WORKFLOW)
 
+    def test_generation_uses_explicit_production_temperature(self) -> None:
+        self.assertIn("--temperature 0.2", WORKFLOW)
+
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
         self.assertIn("--corpora-dir corpora", WORKFLOW)
+
+    def test_removes_known_bad_historical_pages(self) -> None:
+        self.assertIn("--exclude-date 2026-08-15", WORKFLOW)
+        self.assertIn("--exclude-date 2026-08-16", WORKFLOW)
 
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)

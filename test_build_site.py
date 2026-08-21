@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from agent_runner.output import render_briefing
 from build_site import (
     ReviewFinding,
     _humanize_corpus_health,
+    _parse_canonical_date,
     _render_markdown,
     build_site,
 )
@@ -16,6 +18,14 @@ from test_briefing_output import fixture_contract
 
 
 class BuildSiteTests(unittest.TestCase):
+    def test_exclude_date_parser_requires_canonical_calendar_date(self) -> None:
+        self.assertEqual(_parse_canonical_date("2026-08-15").isoformat(), "2026-08-15")
+        for value in ("20260815", "2026-W33-6"):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                argparse.ArgumentTypeError, "canonical YYYY-MM-DD"
+            ):
+                _parse_canonical_date(value)
+
     def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -337,6 +347,45 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(history["entries"][0]["date"], "2026-08-20")
             self.assertEqual(history["entries"][-1]["date"], "2026-08-14")
             self.assertFalse((output / "2026-08-13.html").exists())
+
+    def test_excluded_dates_are_removed_from_prior_history_and_generated_pages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root / "initial"
+            initial.mkdir()
+            for day in ("2026-08-15", "2026-08-16", "2026-08-17"):
+                (initial / f"{day}.md").write_text(
+                    f"briefing {day}", encoding="utf-8"
+                )
+                self._write_sidecar(initial, date=day, disposition="ready")
+
+            initial_site = root / "initial-site"
+            build_site(initial, initial_site)
+            self.assertTrue((initial_site / "2026-08-15.html").is_file())
+            self.assertTrue((initial_site / "2026-08-16.html").is_file())
+
+            current = root / "current"
+            current.mkdir()
+            output = initial_site
+            build_site(
+                current,
+                output,
+                prior_history=output / "history.json",
+                exclude_dates={"2026-08-15", "2026-08-16"},
+            )
+
+            history = json.loads((output / "history.json").read_text())
+            self.assertEqual(
+                [entry["date"] for entry in history["entries"]],
+                ["2026-08-17"],
+            )
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("2026-08-15", index)
+            self.assertNotIn("2026-08-16", index)
+            self.assertFalse((output / "2026-08-15.html").exists())
+            self.assertFalse((output / "2026-08-16.html").exists())
+            self.assertFalse((output / "reports/2026-08-15.html").exists())
+            self.assertFalse((output / "reports/2026-08-16.html").exists())
 
     def test_merges_bootstrap_and_upgrades_legacy_live_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

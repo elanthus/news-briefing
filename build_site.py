@@ -38,6 +38,21 @@ DISPOSITIONS = {
 PAGE_DISPOSITIONS = {"ready", "review_required"}
 PUBLICATION_RANK = {"ready": 2, "review_required": 1}
 
+
+def _parse_canonical_date(value: str) -> date:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "date must use canonical YYYY-MM-DD format"
+        ) from exc
+    if value != parsed.isoformat():
+        raise argparse.ArgumentTypeError(
+            "date must use canonical YYYY-MM-DD format"
+        )
+    return parsed
+
+
 STYLE = """
 :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
 body { margin: 0 auto; max-width: 76rem; padding: 2rem 1.25rem 4rem; }
@@ -904,6 +919,7 @@ def build_site(
     bootstrap_dir: Path | None = None,
     replace_existing: bool = False,
     corpora_dirs: Sequence[Path] = (),
+    exclude_dates: Sequence[str] = (),
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
     if not briefings_dir.is_dir():
@@ -928,6 +944,8 @@ def build_site(
         replace_page = replace_existing and entry.disposition in PAGE_DISPOSITIONS
         if replace_page or entry_rank >= prior_rank:
             by_date[entry.slug] = entry
+    for excluded_date in exclude_dates:
+        by_date.pop(excluded_date, None)
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
     entries = entries[:7]
 
@@ -988,6 +1006,14 @@ def main() -> int:
             "repeatable, earlier directories win on date conflicts"
         ),
     )
+    parser.add_argument(
+        "--exclude-date",
+        action="append",
+        type=_parse_canonical_date,
+        default=[],
+        dest="exclude_dates",
+        help="canonical ISO date to omit from the generated archive; repeatable",
+    )
     args = parser.parse_args()
     try:
         build_site(
@@ -997,6 +1023,7 @@ def main() -> int:
             args.bootstrap_dir,
             args.replace_existing,
             args.corpora_dirs,
+            [excluded_date.isoformat() for excluded_date in args.exclude_dates],
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
