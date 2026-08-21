@@ -9,7 +9,7 @@ import html
 import importlib
 import json
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -588,9 +588,7 @@ def build_site(
         if replace_page or entry_rank >= prior_rank:
             by_date[entry.slug] = entry
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
-    if entries:
-        cutoff = entries[0].day - timedelta(days=6)
-        entries = [entry for entry in entries if entry.day >= cutoff]
+    entries = entries[:7]
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for stale_page in output_dir.glob("*.html"):
