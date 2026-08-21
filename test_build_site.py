@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from agent_runner.output import render_briefing
 from build_site import (
     ReviewFinding,
     _humanize_corpus_health,
+    _parse_canonical_date,
     _render_markdown,
     build_site,
 )
@@ -16,6 +18,14 @@ from test_briefing_output import fixture_contract
 
 
 class BuildSiteTests(unittest.TestCase):
+    def test_exclude_date_parser_requires_canonical_calendar_date(self) -> None:
+        self.assertEqual(_parse_canonical_date("2026-08-15").isoformat(), "2026-08-15")
+        for value in ("20260815", "2026-W33-6"):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                argparse.ArgumentTypeError, "canonical YYYY-MM-DD"
+            ):
+                _parse_canonical_date(value)
+
     def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

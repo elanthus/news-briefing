@@ -38,6 +38,21 @@ DISPOSITIONS = {
 PAGE_DISPOSITIONS = {"ready", "review_required"}
 PUBLICATION_RANK = {"ready": 2, "review_required": 1}
 
+
+def _parse_canonical_date(value: str) -> date:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "date must use canonical YYYY-MM-DD format"
+        ) from exc
+    if value != parsed.isoformat():
+        raise argparse.ArgumentTypeError(
+            "date must use canonical YYYY-MM-DD format"
+        )
+    return parsed
+
+
 STYLE = """
 :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
 body { margin: 0 auto; max-width: 76rem; padding: 2rem 1.25rem 4rem; }
@@ -994,7 +1009,7 @@ def main() -> int:
     parser.add_argument(
         "--exclude-date",
         action="append",
-        type=date.fromisoformat,
+        type=_parse_canonical_date,
         default=[],
         dest="exclude_dates",
         help="canonical ISO date to omit from the generated archive; repeatable",
