@@ -15,7 +15,7 @@ import run_briefing as briefing_cli
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.runner import RunnerSettings, RunResult, _fetch_corpus, build_request, run_workflow
-from test_briefing_output import ROOT, fixture_contract
+from tests.test_briefing_output import ROOT, fixture_contract
 
 
 class FakeProvider:

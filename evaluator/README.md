@@ -2,6 +2,46 @@
 
 This directory is a development-only benchmark. Nothing under `evaluator/` is imported by `fetch_news.py`, `briefing_config.py`, `corpus_schema.py`, or `eval_briefing.py`, and the main news-briefing workflow still runs with Python 3.11+ and no install step.
 
+## Bring your own model or prompt
+
+The harness is not hard-wired to the models in the committed results. Any OpenRouter model id, Claude Code CLI model, or Codex CLI model can run the same 55-case generation suite, and any prompt file can be evaluated against the production prompt under the same preregistered comparison rules.
+
+**1. Smoke-test the harness offline, no credentials.** The deterministic baseline adapters exercise the full pipeline — oracles, scoring, and report rendering — with zero provider calls:
+
+```bash
+python3 -m evaluator run --provider baseline=echo --trials 1 --output-dir /tmp/eval-smoke
+```
+
+**2. Point it at your model.** Copy `evaluator/.env.example` to the ignored `evaluator/.env`, set the key and model for your provider, then name the provider and model directly:
+
+```bash
+python3 -m evaluator run \
+  --provider openrouter=YOUR_MODEL_ID \
+  --trials 5 \
+  --cost-ceiling-usd 5 \
+  --output-dir results/runs/my-model
+```
+
+`--provider` is repeatable, `--all-providers` expands every comma-delimited model list in the env file, and `--resume` continues an interrupted checkpoint after validating run identity. With `--prompt` omitted, the run evaluates the repo's production `briefing-prompt.md`.
+
+**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report` rebuilds reports from a saved manifest without re-running anything.
+
+**4. Test a prompt change like a promotion decision.** Run both prompts in one matrix, then let the paired, case-clustered bootstrap decide:
+
+```bash
+python3 -m evaluator run \
+  --provider openrouter=YOUR_MODEL_ID \
+  --prompt production=briefing-prompt.md \
+  --prompt candidate=my-prompt.md \
+  --trials 5 --output-dir results/runs/prompt-test
+
+python3 -m evaluator compare \
+  results/runs/prompt-test/report.json results/runs/prompt-test/report.json \
+  --baseline-prompt production --candidate-prompt candidate --allow-descriptive
+```
+
+The positional arguments are `report.json` paths (a sibling `manifest.json` must exist beside each). `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison applies the preregistered thresholds from the protocol: a candidate is promoted only on sufficient utility and attack-resistance gains with zero contract regressions. [Portfolio v2](../docs/results/portfolio-v2.md) is a worked example of that decision rejecting a candidate prompt.
+
 ## What is fixed
 
 `fixtures/checker-cases.json` contains 81 independently human-validated cases: 69 checker cases and 12 feed-parser cases. They cover fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).

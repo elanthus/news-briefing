@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from bootstrap_history import DogfoodRun, bootstrap_history
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class BootstrapHistoryTests(unittest.TestCase):
