@@ -626,7 +626,7 @@ def _reorder_briefing_sections(markdown: str) -> str:
         boundaries = [index for index in main_headings if first <= index < end] + [end]
         blocks = [
             (lines[start][3:].strip(), lines[start:stop])
-            for start, stop in zip(boundaries, boundaries[1:], strict=True)
+            for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True)
         ]
         if blocks:
             ordered = sorted(blocks, key=lambda block: _section_priority(block[0]))
