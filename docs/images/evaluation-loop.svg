@@ -31,7 +31,7 @@
   <text class="title" x="40" y="45">Dev-only evaluation: measure first, promote only by declared rules</text>
   <text class="subtitle" x="40" y="72">Frozen inputs and saved artifacts keep stochastic model behavior separate from deterministic policy.</text>
 
-  <g transform="translate(760 82)">
+  <g transform="translate(720 82)">
     <rect class="node code" x="0" y="0" width="20" height="20" rx="4"/>
     <text class="legend" x="29" y="15">Deterministic</text>
     <rect class="node model" x="140" y="0" width="20" height="20" rx="4"/>
@@ -43,24 +43,24 @@
   <rect class="node input" x="35" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="138" y="160">Frozen test suite</text>
   <text class="detail" x="138" y="185">matched attack + benign twins</text>
-  <text class="detail" x="138" y="205">position × count ablations</text>
+  <text class="detail" x="138" y="205">position x count ablations</text>
   <text class="detail" x="138" y="225">human-reviewed cases</text>
 
   <rect class="node code" x="285" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="388" y="160">Run matrix</text>
-  <text class="detail" x="388" y="185">models × prompts × trials</text>
+  <text class="detail" x="388" y="185">models x prompts x trials</text>
   <text class="detail" x="388" y="205">bounded cost + resume</text>
   <text class="detail" x="388" y="225">production adapters</text>
 
   <rect class="node code" x="535" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="638" y="160">Code-owned runner</text>
-  <text class="detail" x="638" y="185">project · invoke model · validate</text>
-  <text class="detail" x="638" y="205">repair · correct · finalize</text>
+  <text class="detail" x="638" y="185">project / invoke model / validate</text>
+  <text class="detail" x="638" y="205">repair / correct / finalize</text>
   <text class="detail" x="638" y="225">hash-bound artifacts</text>
 
   <rect class="node code" x="785" y="105" width="190" height="105" rx="12"/>
   <text class="label" x="880" y="143">Deterministic oracles</text>
-  <text class="detail" x="880" y="168">attack · utility · contract</text>
+  <text class="detail" x="880" y="168">attack / utility / contract</text>
   <text class="detail" x="880" y="188">exact denominators</text>
 
   <rect class="node model" x="785" y="245" width="190" height="105" rx="12"/>

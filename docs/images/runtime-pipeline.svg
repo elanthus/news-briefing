@@ -35,7 +35,7 @@
   <text class="title" x="40" y="45">Production runtime: model judgment inside deterministic boundaries</text>
   <text class="subtitle" x="40" y="72">The model ranks and summarizes. Code owns destinations, validation, repair limits and publication.</text>
 
-  <g transform="translate(720 82)">
+  <g transform="translate(640 82)">
     <rect class="node code" x="0" y="0" width="20" height="20" rx="4"/>
     <text class="legend" x="29" y="15">Code-owned / deterministic</text>
     <rect class="node model" x="217" y="0" width="20" height="20" rx="4"/>
@@ -47,11 +47,11 @@
   <!-- Top row: acquire and project the closed context. -->
   <rect class="node input" x="40" y="125" width="160" height="90" rx="12"/>
   <text class="label" x="120" y="163">Public sources</text>
-  <text class="detail" x="120" y="188">RSS · HN · Reddit</text>
+  <text class="detail" x="120" y="188">RSS / HN / Reddit</text>
 
   <rect class="node code" x="245" y="115" width="180" height="110" rx="12"/>
   <text class="label" x="335" y="153">Hardened fetcher</text>
-  <text class="detail" x="335" y="178">SSRF · DNS pinning · XXE</text>
+  <text class="detail" x="335" y="178">SSRF / DNS pinning / XXE</text>
   <text class="detail" x="335" y="198">recency + context budgets</text>
 
   <rect class="node code" x="470" y="125" width="160" height="90" rx="12"/>
@@ -76,8 +76,8 @@
   <!-- Validation and disposition row. -->
   <rect class="node code" x="910" y="300" width="245" height="110" rx="12"/>
   <text class="label" x="1032" y="338">Deterministic validator</text>
-  <text class="detail" x="1032" y="363">schema · citations · placement</text>
-  <text class="detail" x="1032" y="383">duplicates · evidence signals</text>
+  <text class="detail" x="1032" y="363">schema / citations / placement</text>
+  <text class="detail" x="1032" y="383">duplicates / evidence signals</text>
 
   <polygon class="node decision" points="770,292 875,355 770,418 665,355"/>
   <text class="label" x="770" y="350">Findings?</text>
@@ -99,10 +99,10 @@
   <path class="flow" d="M 910 355 H 875"/>
   <path class="flow" d="M 665 355 H 635"/>
   <text class="edge-label" x="650" y="342">none</text>
-  <path class="flow" d="M 425 335 H 360"/>
-  <text class="edge-label" x="393" y="322">ready</text>
-  <path class="flow" d="M 470 398 Q 430 448 360 448"/>
-  <text class="edge-label" x="421" y="438">otherwise</text>
+  <path class="flow" d="M 458 335 H 360"/>
+  <text class="edge-label" x="409" y="322">ready</text>
+  <path class="flow" d="M 497 398 Q 450 448 360 448"/>
+  <text class="edge-label" x="435" y="438">otherwise</text>
 
   <!-- Bounded repair and correction loops. -->
   <rect class="node code" x="500" y="505" width="220" height="90" rx="12"/>
@@ -120,11 +120,11 @@
   <path class="repair-flow" d="M 720 550 H 755 Q 780 550 780 525 V 455 Q 780 430 805 430 H 1032 V 410"/>
   <text class="edge-label" x="1057" y="442">revalidate</text>
   <path class="flow" d="M 1020 550 H 1080 Q 1110 550 1110 520 V 410"/>
-  <text class="edge-label" x="1127" y="493">revalidate</text>
+  <text class="edge-label" x="1070" y="493">revalidate</text>
   <path class="repair-flow" d="M 800 580 Q 760 625 720 580"/>
   <text class="edge-label" x="760" y="622">budget exhausted</text>
-  <path class="repair-flow" d="M 500 570 H 450 Q 410 570 410 530 V 425 Q 410 405 430 395"/>
-  <text class="edge-label" x="424" y="527">budget exhausted</text>
+  <path class="repair-flow" d="M 500 570 H 465 Q 430 570 430 535 V 485 Q 430 460 455 450 L 530 418"/>
+  <text class="edge-label" x="360" y="527">budget exhausted</text>
 
   <rect x="90" y="640" width="1020" height="45" rx="10" fill="#d1fae5" stroke="#6ee7b7"/>
   <text class="guarantee" x="600" y="669">Deterministically enforced: corpus eligibility, exact link destinations, output contract, repair limits and publish-or-quarantine disposition.</text>
