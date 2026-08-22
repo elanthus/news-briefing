@@ -46,7 +46,7 @@
   <text class="detail" x="138" y="205">position × count ablations</text>
   <text class="detail" x="138" y="225">human-reviewed cases</text>
 
-  <rect class="node model" x="285" y="125" width="205" height="125" rx="12"/>
+  <rect class="node code" x="285" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="388" y="160">Run matrix</text>
   <text class="detail" x="388" y="185">models × prompts × trials</text>
   <text class="detail" x="388" y="205">bounded cost + resume</text>

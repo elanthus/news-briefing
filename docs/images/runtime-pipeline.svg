@@ -93,7 +93,7 @@
 
   <rect class="node quarantine" x="170" y="405" width="190" height="85" rx="12"/>
   <text class="label" x="265" y="442">Quarantine</text>
-  <text class="detail" x="265" y="467">review / reject / no result</text>
+  <text class="detail" x="265" y="467">review_required / rejected</text>
 
   <path class="flow" d="M 1032 225 V 300"/>
   <path class="flow" d="M 910 355 H 875"/>
