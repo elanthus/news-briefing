@@ -18,9 +18,9 @@ flowchart TD
     agent --> checker[Deterministic checker]
     checker --> findings{Blocking findings?}
     findings -- no --> gate{Publication gate}
-    findings -- all repairable --> normalize[Deterministic structural repair]
+    findings -- repairable findings --> normalize[Deterministic structural repair]
     normalize -- revalidate --> checker
-    findings -- needs model fix, budget remains --> correct[Bounded correction]
+    findings -- needs model fix after repair, budget remains --> correct[Bounded correction]
     correct --> checker
     findings -- correction budget exhausted --> normalize
     normalize -- budget exhausted --> gate
@@ -126,9 +126,9 @@ The full contract prose lives in [docs/publication-archive-contract.md](docs/pub
 - **Daily schedule.** The GitHub Pages workflow runs daily at 13:30 UTC, producing one report per `America/New_York` date. Manual dispatch offers `single-day` and `backfill-7-days` modes; both replace successful existing reports for their target dates, and all modes generate from the latest merged `main`.
 - **Exact corpus windows.** Today's corpus is always fetched fresh for the exact 24-hour interval ending at the run's captured start timestamp. Earlier dates reuse their published `site/corpora/YYYY-MM-DD.json` unchanged — never reconstructed from retention-limited live feeds — so adjacent windows can slightly overlap or gap.
 - **Repair before correction.** Editorial placement errors (ineligible-category or repeated citations, over-limit sections) are repaired deterministically and logged as `repair_actions`; the bounded model-correction budget is spent only on findings that need the model. A `claim_exceeds_evidence` warning with complete URL-free support is replaced with its cited corpus evidence and labeled `[verbatim]`. Unknown evidence is never normalized away — it remains a rejection.
-- **Hash-bound publication.** A `ready` briefing publishes only when the manifest names `final.md` and its SHA-256 matches. `review_required` runs appear as a quarantine stub linking to a per-run integrity report with findings attached inline to their stories. `rejected`, `blocked`, and `no_result` runs stay status-only, and a status-only failure preserves any previously published page.
+- **Hash-bound publication.** A `ready` briefing publishes only when the manifest names `final.md` and its SHA-256 matches. `review_required` runs appear as a quarantine stub linking to a per-run integrity report with findings attached inline to their stories. `rejected`, `blocked`, and `no_result` runs stay status-only, and a status-only manual failure preserves any previously published page.
 - **Retention and diagnostics.** The site and its history retain up to seven report dates, dated corpora persist with a fourteen-day retention window, and each workflow run uploads a seven-day diagnostics artifact so correction attempts remain inspectable.
-- **Machine-readable history.** `history.json` (`schema_version: 4`, accepting v1–v3 during migration) records per-date disposition, actionable `findings_count`, `repair_actions`, `degraded_sources`, and `markdown` only for public artifacts, so rejected prose never leaks through metadata.
+- **Machine-readable history.** `history.json` (`schema_version: 4`, accepting v1–v3 during migration) records disposition, actionable `findings_count`, and `degraded_sources` for every date; `repair_actions` and `markdown` appear only for entries with a public artifact, and validated findings detail only for `review_required` entries, so rejected prose never leaks through metadata.
 
 ## Further reading
 
