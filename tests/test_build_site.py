@@ -734,6 +734,132 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("automated repair", index)
             self.assertIn("2 actions", index)
 
+    def test_ready_page_places_linked_status_and_dividers_below_daily_title(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "# Daily Briefing — August 20, 2026\n\n"
+                "Corpus window: start → end\n\n"
+                "## AI/Tech\n\n**AI story** — Summary.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                repair_actions=[
+                    {"action": "drop_entry", "path": "topics.AI[1]", "reason": "dup"},
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertNotIn("Briefing for 2026-08-20", index)
+            title = index.index("<h1>Daily Briefing — August 20, 2026</h1>")
+            first_rule = index.index("<hr>", title)
+            status = index.index("Published after automated repair", first_rule)
+            corpus = index.index("Corpus window: start → end", status)
+            second_rule = index.index("<hr>", corpus)
+            news = index.index("<h2>AI/Tech</h2>", second_rule)
+            self.assertLess(title, first_rule)
+            self.assertLess(first_rule, status)
+            self.assertLess(status, corpus)
+            self.assertLess(corpus, second_rule)
+            self.assertLess(second_rule, news)
+            self.assertIn(".status-chip a { text-decoration: underline; }", index)
+
+    def test_public_pages_reorder_current_and_archived_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            for day in ("2026-08-19", "2026-08-20"):
+                (briefings / f"{day}.md").write_text(
+                    f"# Daily Briefing — {day}\n\n"
+                    "Corpus window: start → end\n\n"
+                    "## US Politics\n\nPolitics story.\n\n"
+                    "## US News\n\nUS story.\n\n"
+                    "## AI/Tech\n\nAI story.\n\n"
+                    "## World Events\n\nWorld story.\n\n"
+                    "---\n\n### Excluded Topics (accountability log)\n\n"
+                    "**US Politics**\nPolitics exclusion.\n\n"
+                    "**US News**\nUS exclusion.\n\n"
+                    "**AI Dev Tools**\nTool exclusion.\n\n"
+                    "**AI Dev Practices**\nPractice exclusion.\n",
+                    encoding="utf-8",
+                )
+                self._write_sidecar(briefings, date=day, disposition="ready")
+
+            build_site(briefings, root / "site")
+
+            def assert_order(rendered: str) -> None:
+                self.assertLess(
+                    rendered.index("<h2>AI/Tech</h2>"),
+                    rendered.index("<h2>US News</h2>"),
+                )
+                self.assertLess(
+                    rendered.index("<h2>World Events</h2>"),
+                    rendered.index("<h2>US Politics</h2>"),
+                )
+                excluded = rendered.index("<h3>Excluded Topics (accountability log)</h3>")
+                tools = rendered.index("<strong>AI Dev Tools</strong>", excluded)
+                practices = rendered.index("<strong>AI Dev Practices</strong>", excluded)
+                us_news = rendered.index("<strong>US News</strong>", excluded)
+                politics = rendered.index("<strong>US Politics</strong>", excluded)
+                self.assertLess(tools, practices)
+                self.assertLess(practices, us_news)
+                self.assertLess(us_news, politics)
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            archive = (root / "site/2026-08-19.html").read_text(encoding="utf-8")
+            assert_order(index)
+            assert_order(archive)
+
+    def test_ready_page_without_news_closes_metadata_with_second_divider(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "# Daily Briefing — August 20, 2026\n\n"
+                "Corpus window: start → end\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            title = index.index("<h1>Daily Briefing — August 20, 2026</h1>")
+            first_rule = index.index("<hr>", title)
+            status = index.index("Verified", first_rule)
+            corpus = index.index("Corpus window: start → end", status)
+            second_rule = index.index("<hr>", corpus)
+            self.assertLess(title, first_rule)
+            self.assertLess(first_rule, status)
+            self.assertLess(status, corpus)
+            self.assertLess(corpus, second_rule)
+
+    def test_section_reordering_ignores_headings_inside_fenced_code(self) -> None:
+        markdown = (
+            "```text\n"
+            "## AI/Tech\n"
+            "### Excluded Topics (fake)\n"
+            "**AI Dev Tools**\n"
+            "```\n\n"
+            "## US Politics\n\nPolitics.\n\n"
+            "## AI/Tech\n\nAI.\n"
+        )
+
+        rendered, _matched = _render_markdown(markdown)
+
+        self.assertLess(rendered.index("<h2>AI/Tech</h2>"), rendered.index("<h2>US Politics</h2>"))
+        self.assertIn("## AI/Tech", rendered)
+        self.assertIn("### Excluded Topics (fake)", rendered)
+
     def test_status_chip_shows_degraded_sources_suffix(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -798,6 +924,15 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("Sensitive preview", index)
             self.assertIn("did not pass automated checks", index)
             self.assertIn("reports/2026-08-20.html", index)
+            title = index.index("<h1>Daily briefing — 2026-08-20</h1>")
+            first_rule = index.index("<hr>", title)
+            status = index.index("Review required", first_rule)
+            second_rule = index.index("<hr>", status)
+            stub = index.index("did not pass automated checks", second_rule)
+            self.assertLess(title, first_rule)
+            self.assertLess(first_rule, status)
+            self.assertLess(status, second_rule)
+            self.assertLess(second_rule, stub)
 
     def test_briefing_pages_have_no_inline_review_panels(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
