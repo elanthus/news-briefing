@@ -4,26 +4,38 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
+**Live daily briefing → <https://elanthus.github.io/news-briefing/>**
+
 ## Architecture
 
+### Runtime pipeline
+
 ```mermaid
-flowchart LR
+flowchart TD
     sources[Public sources] --> fetcher[Fetcher<br/>SSRF + XXE defenses<br/>context budgets]
     fetcher --> corpus[Closed corpus]
     corpus --> agent[Generator agent<br/>fail-closed tool policy]
     agent --> checker[Deterministic checker]
     checker --> findings{Blocking findings?}
     findings -- no --> gate{Publication gate}
-    findings -- all repairable --> normalize[Deterministic structural repair]
+    findings -- repairable findings --> normalize[Deterministic structural repair]
     normalize -- revalidate --> checker
-    findings -- needs model fix, budget remains --> correct[Bounded correction]
+    findings -- needs model fix after repair, budget remains --> correct[Bounded correction]
     correct --> checker
     findings -- correction budget exhausted --> normalize
     normalize -- budget exhausted --> gate
     gate -- ready --> publish[Publish]
     gate -- review_required or rejected --> quarantine[Quarantine preview]
-    evaluator[Dev-only evaluator<br/>matched attacks, semantic + grounding judges] -. measures .-> agent
-    evaluator -. measures .-> checker
+```
+
+### Dev-only evaluation loop
+
+```mermaid
+flowchart TD
+    suite[Matched attack + benign suite<br/>position and count ablations] --> evaluator[Dev-only evaluator<br/>semantic + grounding judges]
+    evaluator -. measures .-> agent[Generator agent]
+    evaluator -. measures .-> checker[Deterministic checker]
+    evaluator --> decision[Preregistered prompt-promotion decision]
 ```
 
 The runner owns fetch → project → generate → validate → correct → finalize, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
@@ -36,18 +48,16 @@ The runner owns fetch → project → generate → validate → correct → fina
 
 ## Results at a glance
 
-<!-- TODO: v2 numbers — replace these historical portfolio-v1 placeholders when a portfolio-v2 model card is committed. -->
+Portfolio v2 completed all 1,200 preregistered rows — two OpenRouter models, two frozen prompts, five trials, 60 case rows per group — from clean source tag `portfolio-v2-source-20260819`. Rates show `successes/trials; rate [95% Wilson interval]`.
 
-The v2 model card is not yet committed. Values marked * are historical v1 placeholders, not current portfolio-v2 claims.
-
-| Model / prompt | Attack success | Benign utility | Machine grounding error |
+| Model / prompt | End-to-end final | Final attack success | Utility under attack |
 |---|---:|---:|---:|
-| DeepSeek / production | 3.8%* | 17/25 (68%)* | 14.4% [11.7, 17.7]* |
-| DeepSeek / reliability-v1 | 2.9%* | 25/25 (100%)* | 10.7% [8.6, 13.3]* |
-| HY3 / production | 5.7%* | 25/25 (100%)* | 7.7% [5.6, 10.4]* |
-| HY3 / reliability-v1 | 2.9%* | 25/25 (100%)* | 14.1% [11.4, 17.4]* |
+| DeepSeek / production | 99/110; 90.0% [83.0, 94.3] | 6/105; 5.7% [2.6, 11.9] | 102/105; 97.1% [91.9, 99.0] |
+| DeepSeek / reliability-v1 | 95/110; 86.4% [78.7, 91.6] | 3/105; 2.9% [1.0, 8.1] | 98/105; 93.3% [86.9, 96.7] |
+| HY3 / production | 90/110; 81.8% [73.6, 87.9] | 5/105; 4.8% [2.1, 10.7] | 95/105; 90.5% [83.4, 94.7] |
+| HY3 / reliability-v1 | 92/110; 83.6% [75.6, 89.4] | 4/105; 3.8% [1.5, 9.4] | 95/105; 90.5% [83.4, 94.7] |
 
-Historical placeholder total generation cost: **$3.033816***. Historical suite SHA-256: `aa341680517d5f44b3b4dcb9fe4189a4102bcde75843eee8ffceb46f6dc14b5f`*. See the current [portfolio-v2 clean result](docs/results/portfolio-v2.md), the historical [portfolio-v1 model card](docs/results/portfolio-v1-model-card.md), and the [evaluator guide](evaluator/README.md).
+The candidate `reliability-v1` prompt was **not promoted** for either model — the outcome the preregistered decision thresholds dictated, not a failed run. DeepSeek lost 3.6 pp of final utility and introduced eight contract regressions, failing the utility, attack-threshold, and zero-regression rules; HY3's gains (+1.8 pp utility, −1.0 pp attack success) both fell below the preregistered five-point promotion thresholds. Total generation cost was $3.80 across 1,676 provider calls against a $5 authorized ceiling. See the [portfolio-v2 clean result](docs/results/portfolio-v2.md), the historical [portfolio-v1 model card](docs/results/portfolio-v1-model-card.md), and the [evaluator guide](evaluator/README.md).
 
 ## What this demonstrates
 
@@ -111,17 +121,19 @@ That last prose row is the real limit on what a Markdown parser can judge. The c
 
 ### Publication archive contract
 
-The GitHub Pages workflow runs daily at 13:30 UTC and generates one report labeled with the current `America/New_York` date. A manual dispatch offers two modes: `single-day` duplicates that scheduled run for today, while `backfill-7-days` targets today plus the six prior Eastern report dates. Both manual modes replace successful existing reports for their target dates. Scheduled runs retain the normal publication rank safeguard. All modes check out `main` so generation uses the latest merged code, prompts, and configuration. The workflow captures one start timestamp and always fetches today's corpus fresh for the exact 24-hour interval ending at that instant. Earlier target dates reuse their published `site/corpora/YYYY-MM-DD.json` unchanged and are skipped when no stored corpus exists; they are never reconstructed from retention-limited live feeds. The first rolling window can overlap a preceding calendar-day corpus, so adjacent reports may temporarily repeat stories. Each later report likewise covers the exact 24 hours ending at that run's independently captured timestamp, so changes in capture time can create small overlaps or gaps between windows. Each date gets a separate corpus, run directory, and report path. Every run carries forward stored corpora and the static builder publishes the valid dated files with a fourteen-day retention window, so the archive becomes independently regenerable as storage accumulates.
+The full contract prose lives in [docs/publication-archive-contract.md](docs/publication-archive-contract.md). The short version:
 
-The correction budget is reserved for findings deterministic repair cannot fix. Editorial placement errors — ineligible-category or globally repeated citations and over-limit sections — are repaired deterministically before any correction pass is spent: a recorded repair pass drops the complete later entry (or trims the over-limit tail), giving included stories priority over every exclusion log, and logs each change as a `repair_actions` entry rather than a checker finding. A `claim_exceeds_evidence` warning takes the same code-owned path only when every citation has complete known support and the normalized excerpt contains no URL: the runner replaces the oversized model summary with its deduplicated cited corpus evidence, records `replace_summary_with_excerpt`, and visibly labels the rendered topic `[verbatim]` without spending a provider correction call. Incomplete or URL-bearing evidence is left untouched and remains review-required. The provider schema exposes only citation references eligible for each section; a model correction pass is spent only when a finding needs the model — such as an unknown reference, a free-form URL, a schema-shape violation, or an error the checker raises against the rendered briefing — and the same deterministic repair still cleans up any repairable remainder once that bounded budget is exhausted. An eager repair re-enters the validation loop rather than ending the run, so the untouched correction budget stays available for findings the repaired render reveals. Repair never trims an entry held for rejection: unknown evidence remains a rejection and is never normalized away. It publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule. The static builder renders `review_required` entries as a quarantine stub on the public page — a notice and a status chip linking to the per-run integrity report under `reports/<date>.html`. On that report, story context derived from both headline-based checks and structured paths attaches grouped, ordinary, and excluded affected stories to their actionable findings inline beside the annotated preview; only genuinely run-level findings remain in a separate panel. Every entry's status chip links to its report, and a `ready` page shows clean prose with no inline review panels. Nonblocking quality notes stay in the run artifacts and are excluded from public warning panels and counts. When a previewed story actually redacts a model-authored destination, its report panel includes a closed disclosure containing the hash-verified original structured entry as escaped, non-clickable text. The published `repair_actions` describe the final attempt only: a repair superseded by a later model correction is not the published content's provenance and remains in the manifest for audit. `rejected`, `blocked`, and `no_result` runs remain status-only. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories as a seven-day diagnostics artifact so correction attempts remain inspectable after the runner exits.
-
-The newest retained run is rendered directly on the site home page. A date bar at the top links to separate pages for the other retained runs. The site renderer replaces a valid machine corpus-health block with a readable summary and source-type/status groups; the checked JSON contract remains unchanged in stored Markdown and malformed blocks remain escaped verbatim. The site and its machine-readable history retain up to seven report dates. When an eighth or later entry exists, the builder removes the oldest entries until seven remain; date gaps alone never remove history. The workflow can seed an initially empty archive from the hash-verified August 17 dogfood final and the August 18 DeepSeek dogfood preview.
-
-The generated `history.json` uses `schema_version: 4` while accepting previously deployed schema-version-1 through -3 histories during migration. Each entry contains `date`, `disposition`, `findings_count`, `findings`, `degraded_sources`, `repair_actions`, and `markdown`. `repair_actions` records the deterministic repair log for the run (empty when nothing was repaired) and is published only for entries with a public artifact; finding context may carry a structured `path` that the site uses to attach findings to their stories by producer-emitted anchors. `markdown` is a string for `ready` and `review_required` entries and is `null` otherwise. `findings_count` counts actionable findings rather than nonblocking quality notes. `findings` contains validated detail only for `review_required` entries, plus optional story context from the hash-bound selected structured artifact; other dispositions retain only `findings_count` so rejected prose is not leaked through metadata. A zero count on a blocked infrastructure failure does not mean the checker accepted a candidate. `degraded_sources` lists fetch errors reported by the corpus; an empty list means no source failure was reported, not that every possible source was available or complete.
+- **Daily schedule.** The GitHub Pages workflow runs daily at 13:30 UTC, producing one report per `America/New_York` date. Manual dispatch offers `single-day` and `backfill-7-days` modes; both replace successful existing reports for their target dates, and all modes generate from the latest merged `main`.
+- **Exact corpus windows.** Today's corpus is always fetched fresh for the exact 24-hour interval ending at the run's captured start timestamp. Earlier dates reuse their published `site/corpora/YYYY-MM-DD.json` unchanged — never reconstructed from retention-limited live feeds — so adjacent windows can slightly overlap or gap.
+- **Repair before correction.** Editorial placement errors (ineligible-category or repeated citations, over-limit sections) are repaired deterministically and logged as `repair_actions`; the bounded model-correction budget is spent only on findings that need the model. A `claim_exceeds_evidence` warning with complete URL-free support is replaced with its cited corpus evidence and labeled `[verbatim]`. Unknown evidence is never normalized away — it remains a rejection.
+- **Hash-bound publication.** A `ready` briefing publishes only when the manifest names `final.md` and its SHA-256 matches. `review_required` runs appear as a quarantine stub linking to a per-run integrity report with findings attached inline to their stories. `rejected`, `blocked`, and `no_result` runs stay status-only, and a status-only manual failure preserves any previously published page.
+- **Retention and diagnostics.** The site and its history retain up to seven report dates, dated corpora persist with a fourteen-day retention window, and each workflow run uploads a seven-day diagnostics artifact so correction attempts remain inspectable.
+- **Machine-readable history.** `history.json` (`schema_version: 4`, accepting v1–v3 during migration) records disposition, actionable `findings_count`, and `degraded_sources` for every date; `repair_actions` and `markdown` appear only for entries with a public artifact, and validated findings detail only for `review_required` entries, so rejected prose never leaks through metadata.
 
 ## Further reading
 
 - [Design and orchestration](docs/design.md)
+- [Publication archive contract](docs/publication-archive-contract.md)
 - [Evaluation methodology](docs/evaluation-methodology.md)
 - [Portfolio-v2 clean result](docs/results/portfolio-v2.md)
 - [Dogfooding log](docs/dogfooding.md)
