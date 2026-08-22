@@ -22,7 +22,9 @@ import eval_briefing
 from briefing_config import BriefingConfig, load_config
 from eval_briefing import ERROR, WARN, load_corpus
 
-FIXTURE_CONFIG = load_config("fixtures/briefing-config-2026-08-09.json")
+ROOT = Path(__file__).resolve().parents[1]
+
+FIXTURE_CONFIG = load_config(ROOT / "fixtures/briefing-config-2026-08-09.json")
 
 
 def evaluate(corpus, text):
@@ -785,14 +787,14 @@ class CommittedFixtureTest(unittest.TestCase):
     """The shipped reference corpus, briefing, prompt, and sample stay consistent."""
 
     def test_reference_briefing_satisfies_its_corpus(self):
-        corpus = load_corpus("fixtures/corpus-2026-08-09.json")
-        with open("fixtures/briefing-2026-08-09.md", encoding="utf-8") as f:
+        corpus = load_corpus(str(ROOT / "fixtures/corpus-2026-08-09.json"))
+        with open(ROOT / "fixtures/briefing-2026-08-09.md", encoding="utf-8") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
 
     def test_sample_briefing_matches_reference_fixture(self):
         """The portfolio showcase must contain the complete frozen result."""
-        showcase = Path("docs/sample-briefing.md").read_text(encoding="utf-8")
+        showcase = (ROOT / "docs/sample-briefing.md").read_text(encoding="utf-8")
         marker = "<summary><b>Click to expand full briefing</b></summary>"
         quoted = showcase.split(marker, 1)[1].split("</details>", 1)[0]
         sample = "\n".join(
@@ -800,7 +802,7 @@ class CommittedFixtureTest(unittest.TestCase):
             if line.startswith(">")
         ).strip()
 
-        reference = Path("fixtures/briefing-2026-08-09.md").read_text(encoding="utf-8")
+        reference = (ROOT / "fixtures/briefing-2026-08-09.md").read_text(encoding="utf-8")
         comment_start = reference.index("<!--")
         comment_end = reference.index("-->", comment_start) + len("-->")
         expected = (
@@ -810,7 +812,7 @@ class CommittedFixtureTest(unittest.TestCase):
         ).strip()
         self.assertEqual(sample, expected, "sample briefing does not contain the full reference result")
 
-        corpus = load_corpus("fixtures/corpus-2026-08-09.json")
+        corpus = load_corpus(str(ROOT / "fixtures/corpus-2026-08-09.json"))
         errors = [
             finding for finding in evaluate(corpus, sample)
             if finding.level == ERROR
@@ -822,7 +824,7 @@ class PromptSafetyContractTest(unittest.TestCase):
     """The prompt states the untrusted-data and thin-evidence boundaries."""
 
     def test_prompt_preserves_security_and_grounding_boundary(self):
-        with open("briefing-prompt.md", encoding="utf-8") as prompt_file:
+        with open(ROOT / "briefing-prompt.md", encoding="utf-8") as prompt_file:
             prompt = prompt_file.read().lower()
         for required in ("untrusted data", "never as instructions", "do not browse",
                          "never fill missing context", "summary is empty",
@@ -837,7 +839,7 @@ class PromptSafetyContractTest(unittest.TestCase):
 
     def test_prompts_omit_mutable_hn_engagement_metrics(self):
         prompts = {
-            path: Path(path).read_text(encoding="utf-8").lower()
+            path: (ROOT / path).read_text(encoding="utf-8").lower()
             for path in ("briefing-prompt.md", "briefing-runner-prompt.md")
         }
         self.assertIn("do not print hacker news points", prompts["briefing-prompt.md"])
@@ -861,8 +863,8 @@ class PromptInjectionContainmentTest(unittest.TestCase):
     within corpus URLs.
     """
 
-    CORPUS = load_corpus("fixtures/injection-corpus.json")
-    CONFIG = load_config("fixtures/injection-config.json")
+    CORPUS = load_corpus(str(ROOT / "fixtures/injection-corpus.json"))
+    CONFIG = load_config(ROOT / "fixtures/injection-config.json")
 
     def _evaluate(self, text):
         return eval_briefing.evaluate(self.CORPUS, text, self.CONFIG)
@@ -911,7 +913,7 @@ class TextEncodingContractTest(unittest.TestCase):
 
     def test_pipeline_never_relies_on_the_locale_encoding(self):
         for module in self.PIPELINE_MODULES:
-            tree = ast.parse(Path(module).read_text(encoding="utf-8"), filename=module)
+            tree = ast.parse((ROOT / module).read_text(encoding="utf-8"), filename=module)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
@@ -954,9 +956,9 @@ class CommandLineFailureTest(unittest.TestCase):
                 corpus = Path(directory) / "corpus.json"
                 corpus.write_text(json.dumps(value), encoding="utf-8")
                 code, stderr = self._run(str(corpus))
-            self.assertEqual(code, 2)
-            self.assertIn("corpus is not a JSON object", stderr)
-            self.assertNotIn("Traceback", stderr)
+                self.assertEqual(code, 2)
+                self.assertIn("corpus is not a JSON object", stderr)
+                self.assertNotIn("Traceback", stderr)
 
     def test_unreadable_briefing_path_is_reported(self):
         code, stderr = self._run("fixtures/corpus-2026-08-09.json",

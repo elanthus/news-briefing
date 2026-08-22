@@ -497,6 +497,8 @@ class PreparePublicationTests(unittest.TestCase):
         final_attempt: dict[str, object] = {}
         if structured is not None:
             structured_content = json.dumps(structured, ensure_ascii=False).encode("utf-8")
+            # The manifest keeps the declared name, but the file is always written
+            # flat, so a nested structured_name stays unresolvable on disk.
             (run / Path(structured_name).name).write_bytes(structured_content)
             artifacts[structured_name] = hashlib.sha256(structured_content).hexdigest()
             attempt_row: dict[str, object] = {
@@ -508,6 +510,8 @@ class PreparePublicationTests(unittest.TestCase):
             if final_repair_actions is not None:
                 attempt_row["repair_actions"] = final_repair_actions
             attempts.append(attempt_row)
+            # final.attempt is pinned to 1: an attempt_index other than 1 makes the
+            # final attempt unmatchable, which the malformed-metadata test relies on.
             final_attempt["attempt"] = 1
         (run / "manifest.json").write_text(
             json.dumps(

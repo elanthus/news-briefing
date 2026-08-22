@@ -24,7 +24,7 @@ python3 -m evaluator run \
 
 `--provider` is repeatable, `--all-providers` expands every comma-delimited model list in the env file, and `--resume` continues an interrupted checkpoint after validating run identity. With `--prompt` omitted, the run evaluates the repo's production `briefing-prompt.md`.
 
-**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report` rebuilds reports from a saved manifest without re-running anything.
+**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report results/runs/my-model/manifest.json` rebuilds the reports from that saved manifest without re-running anything; the manifest path is required.
 
 **4. Test a prompt change like a promotion decision.** Run both prompts in one matrix, then let the paired, case-clustered bootstrap decide:
 
