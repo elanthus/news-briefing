@@ -14,7 +14,7 @@ from build_site import (
     _render_markdown,
     build_site,
 )
-from test_briefing_output import fixture_contract
+from tests.test_briefing_output import fixture_contract
 
 
 class BuildSiteTests(unittest.TestCase):

@@ -16,6 +16,8 @@ from agent_runner.providers import (
     _run_cli,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 SCHEMA = {
     "type": "object",
     "properties": {"schema_version": {"type": "integer"}},
@@ -235,7 +237,7 @@ class ProviderTests(unittest.TestCase):
         self.assertIn(["-c", 'model_reasoning_effort="medium"'], pairs)
 
     def test_briefing_prompt_does_not_tell_model_to_fetch_corpus(self):
-        prompt = Path("briefing-prompt.md").read_text(encoding="utf-8")
+        prompt = (ROOT / "briefing-prompt.md").read_text(encoding="utf-8")
         self.assertNotIn("python3 fetch_news.py", prompt)
         self.assertIn("runner has already fetched", prompt)
 

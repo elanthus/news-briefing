@@ -330,8 +330,10 @@ class VersionTest(unittest.TestCase):
         self.assertFalse(is_readable(corpus(schema_version=SCHEMA_VERSION + 1)))
 
     def test_non_integer_version_falls_back_to_legacy(self):
-        self.assertEqual(corpus_version(corpus(schema_version="1")),
-                         LEGACY_SCHEMA_VERSION)
+        for value in ("1", True, False):
+            with self.subTest(value=value):
+                self.assertEqual(corpus_version(corpus(schema_version=value)),
+                                 LEGACY_SCHEMA_VERSION)
 
     def test_writing_a_version_this_code_does_not_own_is_reported(self):
         c = corpus(schema_version=SCHEMA_VERSION + 1)

@@ -6,6 +6,11 @@
 
 **Live daily briefing → <https://elanthus.github.io/news-briefing/>**
 
+| Reader view | Auditor view |
+|---|---|
+| ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Per-run integrity report](docs/images/auditor-report.png) |
+| Every 🔗 is verified against the corpus before publication. | Each date links to its integrity report: disposition, automated repair log, and corpus health. |
+
 ## Architecture
 
 ### Runtime pipeline
@@ -40,6 +45,8 @@ flowchart TD
 
 The runner owns fetch → project → generate → validate → correct → finalize, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
 
+Sample story from a real run — every 🔗 must exist in the closed corpus, and the checker rejects anything else:
+
 > **Anthropic turns Claude Code's auto mode on by default** *(consolidated)* — Anthropic is turning Claude Code's auto mode on by default, which TechCrunch says will mean programming with Claude Code requires even less human oversight. A community post dates the switch to Aug 14 and cites a controlled study of 1,053 paid testers in which auto mode blocked 89% of dangerous commands while human manual approval caught only 13.6%.
 > 🔗 https://techcrunch.com/2026/08/09/anthropic-is-turning-claude-codes-auto-mode-on-by-default/
 > 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjqcvf/anthropic_flips_claude_code_to_auto_mode_by/
@@ -59,13 +66,16 @@ Portfolio v2 completed all 1,200 preregistered rows — two OpenRouter models, t
 
 The candidate `reliability-v1` prompt was **not promoted** for either model — the outcome the preregistered decision thresholds dictated, not a failed run. DeepSeek lost 3.6 pp of final utility and introduced eight contract regressions, failing the utility, attack-threshold, and zero-regression rules; HY3's gains (+1.8 pp utility, −1.0 pp attack success) both fell below the preregistered five-point promotion thresholds. Total generation cost was $3.80 across 1,676 provider calls against a $5 authorized ceiling. See the [portfolio-v2 clean result](docs/results/portfolio-v2.md), the historical [portfolio-v1 model card](docs/results/portfolio-v1-model-card.md), and the [evaluator guide](evaluator/README.md).
 
+The story behind the numbers — why deterministic oracles come before LLM judges, and what a matched clean twin catches that an attack rate alone cannot — is in the writeup: [My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md) The harness also runs against any OpenRouter, Claude Code, or Codex model and any candidate prompt; see [Bring your own model or prompt](evaluator/README.md#bring-your-own-model-or-prompt).
+
 ## What this demonstrates
 
 - Production agentic orchestration with a fail-closed provider tool policy and verified checkpoint/resume.
 - Section-constrained citation schemas, deterministic structural and evidence-swap repair, and bounded checker-guided correction loops before publication.
 - Human-readable corpus-health reporting and dated corpus persistence for repeatable backfills without stale-feed degradation.
 - Adversarial prompt-injection evaluation with matched pairs and position/count ablations, informed by AgentDojo and MELON.
-- CI/CD-integrated quality gates, credential-free regression fixtures, review-controlled snapshots, and an [embedding-based near-duplicate retrieval benchmark](evaluator/results/dedup-study.md).
+- CI/CD-integrated quality gates, credential-free regression fixtures, and review-controlled snapshots.
+- An [embedding-based retrieval benchmark](evaluator/results/dedup-study.md): 512-dimension title+summary embeddings over labeled duplicate pairs, cosine-threshold sweeps against the production heuristic, and a hard-negative error analysis of near-duplicate news stories.
 - Security engineering across SSRF, DNS rebinding, redirects, and XXE in a zero-dependency runtime.
 
 ## Quickstart
@@ -132,6 +142,7 @@ The full contract prose lives in [docs/publication-archive-contract.md](docs/pub
 
 ## Further reading
 
+- [Writeup: My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md)
 - [Design and orchestration](docs/design.md)
 - [Publication archive contract](docs/publication-archive-contract.md)
 - [Evaluation methodology](docs/evaluation-methodology.md)

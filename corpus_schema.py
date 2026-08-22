@@ -106,7 +106,9 @@ V5_TOP_LEVEL_TYPES: dict[str, type] = {
 def corpus_version(corpus: dict[str, Any]) -> int:
     """Schema version of a loaded corpus, treating absence as generation 0."""
     version = corpus.get("schema_version", LEGACY_SCHEMA_VERSION)
-    return version if isinstance(version, int) else LEGACY_SCHEMA_VERSION
+    if isinstance(version, bool) or not isinstance(version, int):
+        return LEGACY_SCHEMA_VERSION
+    return version
 
 
 def is_readable(corpus: dict[str, Any]) -> bool:
