@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
   <title id="title">News briefing production runtime</title>
-  <desc id="desc">Public sources flow through a hardened fetcher, a closed corpus, code-owned citation projection, model generation, deterministic validation and a publication gate. Repairable findings take a deterministic repair loop; findings needing model changes take a bounded correction loop. Accepted output publishes and all other output is quarantined.</desc>
+  <desc id="desc">Public sources flow through a hardened fetcher, a closed corpus, code-owned citation projection, model generation, deterministic validation and a publication gate. Repairable findings take a deterministic repair loop; findings needing model changes take a bounded correction loop. When the correction budget is exhausted, output receives a final structural repair before the publication gate. Accepted output publishes and all other output is quarantined.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -121,6 +121,8 @@
   <text class="edge-label" x="1057" y="442">revalidate</text>
   <path class="flow" d="M 1020 550 H 1080 Q 1110 550 1110 520 V 410"/>
   <text class="edge-label" x="1127" y="493">revalidate</text>
+  <path class="repair-flow" d="M 800 580 Q 760 625 720 580"/>
+  <text class="edge-label" x="760" y="622">budget exhausted</text>
   <path class="repair-flow" d="M 500 570 H 450 Q 410 570 410 530 V 425 Q 410 405 430 395"/>
   <text class="edge-label" x="424" y="527">budget exhausted</text>
 
