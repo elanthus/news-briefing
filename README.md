@@ -15,33 +15,15 @@
 
 ### Runtime pipeline
 
-```mermaid
-flowchart TD
-    sources[Public sources] --> fetcher[Fetcher<br/>SSRF + XXE defenses<br/>context budgets]
-    fetcher --> corpus[Closed corpus]
-    corpus --> agent[Generator agent<br/>fail-closed tool policy]
-    agent --> checker[Deterministic checker]
-    checker --> findings{Blocking findings?}
-    findings -- no --> gate{Publication gate}
-    findings -- repairable findings --> normalize[Deterministic structural repair]
-    normalize -- revalidate --> checker
-    findings -- needs model fix after repair, budget remains --> correct[Bounded correction]
-    correct --> checker
-    findings -- correction budget exhausted --> normalize
-    normalize -- budget exhausted --> gate
-    gate -- ready --> publish[Publish]
-    gate -- review_required or rejected --> quarantine[Quarantine preview]
-```
+[![Production runtime: model judgment inside deterministic boundaries](docs/images/runtime-pipeline.svg)](docs/images/runtime-pipeline.svg)
+
+Green stages and amber decision diamonds are code-owned and mechanically enforced. The model ranks and summarizes, but it never owns citation destinations, validation rules, repair limits, or the publish-or-quarantine decision. Click the diagram for its full-size view.
 
 ### Dev-only evaluation loop
 
-```mermaid
-flowchart TD
-    suite[Matched attack + benign suite<br/>position and count ablations] --> evaluator[Dev-only evaluator<br/>semantic + grounding judges]
-    evaluator -. measures .-> agent[Generator agent]
-    evaluator -. measures .-> checker[Deterministic checker]
-    evaluator --> decision[Preregistered prompt-promotion decision]
-```
+[![Development-only evaluation loop with frozen inputs and preregistered promotion rules](docs/images/evaluation-loop.svg)](docs/images/evaluation-loop.svg)
+
+The evaluator measures frozen runtime artifacts with deterministic oracles and blinded judges. It cannot publish content or replace the production disposition gate. Click the diagram for its full-size view.
 
 The runner owns fetch → project → generate → validate → correct → finalize, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
 
