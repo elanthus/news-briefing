@@ -26,6 +26,11 @@ class ValidConfigTest(unittest.TestCase):
         config = briefing_config.load_config()
         self.assertEqual([section.name for section in config.sections], expected)
 
+    def test_default_config_leads_with_ai_and_ends_with_us_politics(self):
+        config = briefing_config.load_config()
+        self.assertEqual(config.sections[0].group, "AI/Tech")
+        self.assertEqual(config.sections[-1].name, "US Politics")
+
     def test_zero_exclusions_are_allowed(self):
         raw = raw_config()
         raw["sections"][0]["excluded_stories"] = 0

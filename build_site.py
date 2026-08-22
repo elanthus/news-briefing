@@ -58,7 +58,7 @@ STYLE = """
 body { margin: 0 auto; max-width: 76rem; padding: 2rem 1.25rem 4rem; }
 a { color: inherit; }
 ul { list-style: none; padding: 0; }
-article { border-top: 1px solid #8886; padding: 1rem 0; }
+article { padding: 1rem 0; }
 .history-nav { border-bottom: 1px solid #8886; margin-bottom: 1.5rem; padding-bottom: 1rem; }
 .history-nav ul { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 0; }
 .verdict { font-weight: 700; }
@@ -90,7 +90,7 @@ article { border-top: 1px solid #8886; padding: 1rem 0; }
 .briefing-content pre code { background: none; padding: 0; }
 .briefing-content blockquote { border-left: .25rem solid #8886; margin-left: 0; padding-left: 1rem; }
 .status-chip { font-size: .88rem; }
-.status-chip a { text-decoration: none; }
+.status-chip a { text-decoration: underline; }
 """.strip()
 
 
@@ -554,6 +554,128 @@ def _humanize_corpus_health(markdown: str) -> str:
     return markdown
 
 
+def _section_priority(name: str, *, excluded: bool = False) -> int:
+    """Put AI first and US politics last while preserving all other order."""
+    folded = name.casefold()
+    if folded == "ai/tech" or (excluded and folded.startswith("ai ")):
+        return 0
+    if folded == "us politics":
+        return 2
+    return 1
+
+
+def _separator_before(lines: list[str], heading_index: int, floor: int) -> int:
+    index = heading_index - 1
+    while index >= floor and not lines[index].strip():
+        index -= 1
+    return index if index >= floor and lines[index] == "---" else heading_index
+
+
+def _markdown_structure_mask(lines: list[str]) -> list[bool]:
+    """Identify lines that can safely act as Markdown structure."""
+    outside: list[bool] = []
+    fence_char: str | None = None
+    fence_length = 0
+    fence = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+    for line in lines:
+        match = fence.match(line)
+        if fence_char is None:
+            outside.append(True)
+            if match is not None:
+                marker, info = match.groups()
+                if marker[0] != "`" or "`" not in info:
+                    fence_char = marker[0]
+                    fence_length = len(marker)
+            continue
+        outside.append(False)
+        if (
+            match is not None
+            and match.group(1)[0] == fence_char
+            and len(match.group(1)) >= fence_length
+            and not match.group(2).strip()
+        ):
+            fence_char = None
+            fence_length = 0
+    return outside
+
+
+def _reorder_briefing_sections(markdown: str) -> str:
+    """Apply the public presentation order to current and archived Markdown."""
+    lines = markdown.split("\n")
+    structural = _markdown_structure_mask(lines)
+    main_headings = [
+        index
+        for index, line in enumerate(lines)
+        if structural[index] and line.startswith("## ")
+    ]
+    if main_headings:
+        first = main_headings[0]
+        trailing_heading = next(
+            (
+                index
+                for index, line in enumerate(lines[first:], start=first)
+                if structural[index]
+                and (
+                    line.startswith("### Excluded Topics")
+                    or line == _CORPUS_HEALTH_HEADING
+                )
+            ),
+            len(lines),
+        )
+        end = _separator_before(lines, trailing_heading, first)
+        boundaries = [index for index in main_headings if first <= index < end] + [end]
+        blocks = [
+            (lines[start][3:].strip(), lines[start:stop])
+            for start, stop in zip(boundaries, boundaries[1:])
+        ]
+        if blocks:
+            ordered = sorted(blocks, key=lambda block: _section_priority(block[0]))
+            lines = (
+                lines[:first]
+                + [line for _, block in ordered for line in block]
+                + lines[end:]
+            )
+
+    structural = _markdown_structure_mask(lines)
+    excluded_heading = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if structural[index] and line.startswith("### Excluded Topics")
+        ),
+        None,
+    )
+    if excluded_heading is None:
+        return "\n".join(lines)
+
+    health_heading = next(
+        (
+            index
+            for index, line in enumerate(lines[excluded_heading + 1 :], excluded_heading + 1)
+            if structural[index] and line == _CORPUS_HEALTH_HEADING
+        ),
+        len(lines),
+    )
+    end = _separator_before(lines, health_heading, excluded_heading + 1)
+    label_pattern = re.compile(r"^\*\*(.+)\*\*$")
+    labels = [
+        (index, match.group(1).strip())
+        for index, line in enumerate(lines[excluded_heading + 1 : end], excluded_heading + 1)
+        if structural[index] and (match := label_pattern.fullmatch(line)) is not None
+    ]
+    if not labels:
+        return "\n".join(lines)
+    boundaries = [index for index, _ in labels] + [end]
+    blocks = [
+        (name, lines[start:stop])
+        for (start, name), stop in zip(labels, boundaries[1:])
+    ]
+    ordered = sorted(blocks, key=lambda block: _section_priority(block[0], excluded=True))
+    first = labels[0][0]
+    lines = lines[:first] + [line for _, block in ordered for line in block] + lines[end:]
+    return "\n".join(lines)
+
+
 def _finding_matches(
     finding: ReviewFinding,
     section: str,
@@ -576,6 +698,7 @@ def _render_markdown(
     parser = markdown_it.MarkdownIt("commonmark", {"html": False, "linkify": True})
     parser.enable("linkify")
     public_markdown = _strip_legacy_preview_banner(markdown) or ""
+    public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
     lines: list[str] = []
     replacements: dict[str, str] = {}
@@ -702,23 +825,45 @@ def _status_chip(entry: BriefingEntry) -> str:
     return f'<p class="status-chip"><a href="{report_href}">{label}</a></p>'
 
 
+def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
+    """Place publication metadata between the title and the news sections."""
+    title_end = rendered_markdown.find("</h1>")
+    if title_end < 0:
+        return f"{status_chip}{rendered_markdown}"
+    title_end += len("</h1>")
+    first_section = rendered_markdown.find("<h2", title_end)
+    if first_section < 0:
+        return (
+            f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
+            f"{rendered_markdown[title_end:]}"
+        )
+    return (
+        f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
+        f"{rendered_markdown[title_end:first_section]}<hr>\n"
+        f"{rendered_markdown[first_section:]}"
+    )
+
+
 def _entry_body(entry: BriefingEntry) -> str:
+    status_chip = _status_chip(entry)
     if entry.disposition == "review_required":
         report_href = f"reports/{html.escape(entry.slug)}.html"
         briefing = (
+            f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
+            f"<hr>{status_chip}"
             "<p>This day’s briefing did not pass automated checks and is withheld.</p>"
             f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
     elif entry.markdown is not None:
         rendered_markdown, _matched = _render_markdown(entry.markdown)
-        briefing = f'<article class="briefing-content">{rendered_markdown}</article>'
+        briefing = _briefing_layout(rendered_markdown, status_chip)
     else:
-        briefing = '<p class="muted">No briefing prose is available for this run.</p>'
-    return (
-        f"<h1>Briefing for {html.escape(entry.slug)}</h1>"
-        f"{_status_chip(entry)}"
-        f"{briefing}"
-    )
+        briefing = (
+            f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
+            f"<hr>{status_chip}"
+            '<p class="muted">No briefing prose is available for this run.</p>'
+        )
+    return f'<article class="briefing-content">{briefing}</article>'
 
 
 def _render_index(entries: list[BriefingEntry]) -> str:
