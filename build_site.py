@@ -835,7 +835,7 @@ def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
     if first_section < 0:
         return (
             f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
-            f"{rendered_markdown[title_end:]}"
+            f"{rendered_markdown[title_end:]}<hr>\n"
         )
     return (
         f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
@@ -850,7 +850,7 @@ def _entry_body(entry: BriefingEntry) -> str:
         report_href = f"reports/{html.escape(entry.slug)}.html"
         briefing = (
             f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
-            f"<hr>{status_chip}"
+            f"<hr>{status_chip}<hr>"
             "<p>This day’s briefing did not pass automated checks and is withheld.</p>"
             f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
@@ -860,7 +860,7 @@ def _entry_body(entry: BriefingEntry) -> str:
     else:
         briefing = (
             f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
-            f"<hr>{status_chip}"
+            f"<hr>{status_chip}<hr>"
             '<p class="muted">No briefing prose is available for this run.</p>'
         )
     return f'<article class="briefing-content">{briefing}</article>'
