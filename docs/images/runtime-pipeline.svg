@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">News briefing production runtime</title>
+  <desc id="desc">Public sources flow through a hardened fetcher, a closed corpus, code-owned citation projection, model generation, deterministic validation and a publication gate. Repairable findings take a deterministic repair loop; findings needing model changes take a bounded correction loop. When the correction budget is exhausted, output receives a final structural repair before the publication gate. Accepted output publishes and all other output is quarantined.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+    </marker>
+    <style>
+      .canvas { fill: #f8fafc; }
+      .title { fill: #0f172a; font: 700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .subtitle { fill: #475569; font: 400 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: #0f172a; font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .detail { fill: #334155; font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .edge-label { fill: #475569; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .legend { fill: #334155; font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .guarantee { fill: #064e3b; font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .node { stroke-width: 2; }
+      .input { fill: #f1f5f9; stroke: #64748b; }
+      .code { fill: #ecfdf5; stroke: #059669; }
+      .model { fill: #eef2ff; stroke: #4f46e5; }
+      .decision { fill: #fffbeb; stroke: #d97706; }
+      .publish { fill: #dcfce7; stroke: #16a34a; }
+      .quarantine { fill: #fff1f2; stroke: #e11d48; }
+      .flow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .repair-flow { fill: none; stroke: #047857; stroke-width: 2; marker-end: url(#arrow-green); }
+    </style>
+  </defs>
+
+  <rect class="canvas" x="1" y="1" width="1198" height="718" rx="18" stroke="#cbd5e1" stroke-width="2"/>
+
+  <text class="title" x="40" y="45">Production runtime: model judgment inside deterministic boundaries</text>
+  <text class="subtitle" x="40" y="72">The model ranks and summarizes. Code owns destinations, validation, repair limits and publication.</text>
+
+  <g transform="translate(640 82)">
+    <rect class="node code" x="0" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="29" y="15">Code-owned / deterministic</text>
+    <rect class="node model" x="217" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="246" y="15">Model work</text>
+    <rect class="node decision" x="346" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="375" y="15">Code-owned decision</text>
+  </g>
+
+  <!-- Top row: acquire and project the closed context. -->
+  <rect class="node input" x="40" y="125" width="160" height="90" rx="12"/>
+  <text class="label" x="120" y="163">Public sources</text>
+  <text class="detail" x="120" y="188">RSS / HN / Reddit</text>
+
+  <rect class="node code" x="245" y="115" width="180" height="110" rx="12"/>
+  <text class="label" x="335" y="153">Hardened fetcher</text>
+  <text class="detail" x="335" y="178">SSRF / DNS pinning / XXE</text>
+  <text class="detail" x="335" y="198">recency + context budgets</text>
+
+  <rect class="node code" x="470" y="125" width="160" height="90" rx="12"/>
+  <text class="label" x="550" y="163">Closed corpus</text>
+  <text class="detail" x="550" y="188">validated + frozen</text>
+
+  <rect class="node code" x="675" y="115" width="190" height="110" rx="12"/>
+  <text class="label" x="770" y="153">Citation projection</text>
+  <text class="detail" x="770" y="178">opaque IDs only</text>
+  <text class="detail" x="770" y="198">URLs stay code-owned</text>
+
+  <rect class="node model" x="910" y="115" width="245" height="110" rx="12"/>
+  <text class="label" x="1032" y="153">Generator agent</text>
+  <text class="detail" x="1032" y="178">rank + summarize</text>
+  <text class="detail" x="1032" y="198">fail-closed tool policy</text>
+
+  <path class="flow" d="M 200 170 H 245"/>
+  <path class="flow" d="M 425 170 H 470"/>
+  <path class="flow" d="M 630 170 H 675"/>
+  <path class="flow" d="M 865 170 H 910"/>
+
+  <!-- Validation and disposition row. -->
+  <rect class="node code" x="910" y="300" width="245" height="110" rx="12"/>
+  <text class="label" x="1032" y="338">Deterministic validator</text>
+  <text class="detail" x="1032" y="363">schema / citations / placement</text>
+  <text class="detail" x="1032" y="383">duplicates / evidence signals</text>
+
+  <polygon class="node decision" points="770,292 875,355 770,418 665,355"/>
+  <text class="label" x="770" y="350">Findings?</text>
+  <text class="detail" x="770" y="373">classify + budget</text>
+
+  <polygon class="node decision" points="530,292 635,355 530,418 425,355"/>
+  <text class="label" x="530" y="350">Publication gate</text>
+  <text class="detail" x="530" y="373">hash-bound artifact</text>
+
+  <rect class="node publish" x="170" y="285" width="190" height="85" rx="12"/>
+  <text class="label" x="265" y="322">Publish</text>
+  <text class="detail" x="265" y="347">ready final briefing</text>
+
+  <rect class="node quarantine" x="170" y="405" width="190" height="85" rx="12"/>
+  <text class="label" x="265" y="442">Quarantine</text>
+  <text class="detail" x="265" y="467">review_required / rejected</text>
+
+  <path class="flow" d="M 1032 225 V 300"/>
+  <path class="flow" d="M 910 355 H 875"/>
+  <path class="flow" d="M 665 355 H 635"/>
+  <text class="edge-label" x="650" y="342">none</text>
+  <path class="flow" d="M 458 335 H 360"/>
+  <text class="edge-label" x="409" y="322">ready</text>
+  <path class="flow" d="M 497 398 Q 450 448 360 448"/>
+  <text class="edge-label" x="435" y="438">otherwise</text>
+
+  <!-- Bounded repair and correction loops. -->
+  <rect class="node code" x="500" y="505" width="220" height="90" rx="12"/>
+  <text class="label" x="610" y="542">Structural repair</text>
+  <text class="detail" x="610" y="567">drop, trim or evidence-swap</text>
+
+  <rect class="node model" x="800" y="505" width="220" height="90" rx="12"/>
+  <text class="label" x="910" y="542">Bounded correction</text>
+  <text class="detail" x="910" y="567">checker-guided model fix</text>
+
+  <path class="repair-flow" d="M 720 389 Q 665 440 630 505"/>
+  <text class="edge-label" x="655" y="458">repairable</text>
+  <path class="flow" d="M 820 389 Q 870 440 890 505"/>
+  <text class="edge-label" x="886" y="458">model fix + budget</text>
+  <path class="repair-flow" d="M 720 550 H 755 Q 780 550 780 525 V 455 Q 780 430 805 430 H 1032 V 410"/>
+  <text class="edge-label" x="1057" y="442">revalidate</text>
+  <path class="flow" d="M 1020 550 H 1080 Q 1110 550 1110 520 V 410"/>
+  <text class="edge-label" x="1070" y="493">revalidate</text>
+  <path class="repair-flow" d="M 800 580 Q 760 625 720 580"/>
+  <text class="edge-label" x="760" y="622">budget exhausted</text>
+  <path class="repair-flow" d="M 500 570 H 465 Q 430 570 430 535 V 485 Q 430 460 455 450 L 530 418"/>
+  <text class="edge-label" x="360" y="527">budget exhausted</text>
+
+  <rect x="90" y="640" width="1020" height="45" rx="10" fill="#d1fae5" stroke="#6ee7b7"/>
+  <text class="guarantee" x="600" y="669">Deterministically enforced: corpus eligibility, exact link destinations, output contract, repair limits and publish-or-quarantine disposition.</text>
+</svg>

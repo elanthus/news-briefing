@@ -15,33 +15,15 @@
 
 ### Runtime pipeline
 
-```mermaid
-flowchart TD
-    sources[Public sources] --> fetcher[Fetcher<br/>SSRF + XXE defenses<br/>context budgets]
-    fetcher --> corpus[Closed corpus]
-    corpus --> agent[Generator agent<br/>fail-closed tool policy]
-    agent --> checker[Deterministic checker]
-    checker --> findings{Blocking findings?}
-    findings -- no --> gate{Publication gate}
-    findings -- repairable findings --> normalize[Deterministic structural repair]
-    normalize -- revalidate --> checker
-    findings -- needs model fix after repair, budget remains --> correct[Bounded correction]
-    correct --> checker
-    findings -- correction budget exhausted --> normalize
-    normalize -- budget exhausted --> gate
-    gate -- ready --> publish[Publish]
-    gate -- review_required or rejected --> quarantine[Quarantine preview]
-```
+[![Production runtime: model judgment inside deterministic boundaries](docs/images/runtime-pipeline.svg)](docs/images/runtime-pipeline.svg)
+
+Green stages and amber decision diamonds are code-owned and mechanically enforced. The model ranks and summarizes, but it never owns citation destinations, validation rules, repair limits, or the publish-or-quarantine decision. Click the diagram for its full-size view.
 
 ### Dev-only evaluation loop
 
-```mermaid
-flowchart TD
-    suite[Matched attack + benign suite<br/>position and count ablations] --> evaluator[Dev-only evaluator<br/>semantic + grounding judges]
-    evaluator -. measures .-> agent[Generator agent]
-    evaluator -. measures .-> checker[Deterministic checker]
-    evaluator --> decision[Preregistered prompt-promotion decision]
-```
+[![Development-only evaluation loop with frozen inputs and preregistered promotion rules](docs/images/evaluation-loop.svg)](docs/images/evaluation-loop.svg)
+
+The evaluator measures frozen runtime artifacts with deterministic oracles and blinded judges. It cannot publish content or replace the production disposition gate. Click the diagram for its full-size view.
 
 The runner owns fetch → project → generate → validate → correct → finalize, with verified checkpoints shared across the loop. [The orchestration view](docs/design.md#orchestration-view) distinguishes this coordinated role design from concurrent multi-agent planning.
 
@@ -52,6 +34,22 @@ Sample story from a real run — every 🔗 must exist in the closed corpus, and
 > 🔗 https://www.reddit.com/r/ClaudeAI/comments/1vjqcvf/anthropic_flips_claude_code_to_auto_mode_by/
 
 [Full frozen reference run →](docs/sample-briefing.md)
+
+## What is actually guaranteed
+
+The LLM is handed a closed corpus and does the thing it is good at — ranking and summarizing — while showing what it left out. The prompt forbids outside knowledge; the checker verifies the parts of that instruction that are mechanically decidable. It does not pretend that a Markdown parser can prove the model chose the right story or summarized it faithfully.
+
+| | Guarantee |
+|---|---|
+| What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
+| What is **eligible** | **Corpus and section-category eligibility are constrained in provider schemas and enforced independently in code.** Providers do not uniformly honor `items.enum` or array-level `uniqueItems`, so the deterministic checker — not the schema — is the guarantee. Semantic fit within an allowed category is not proven. |
+| What may be **linked** | **Enforced for the complete output.** Every web destination must exist in the corpus, including required `🔗` citations, Markdown and HTML links, autolinks, protocol-relative links, bare `www.` links, and bare HTTP(S) text. |
+| Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
+| What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
+| Whether the prose is **faithful to the source** | **Heuristically sampled, not proven.** Figures absent from the bounded cited excerpt are retained as nonblocking quality notes because excerpt absence does not establish article absence. Unsupported quotations remain review signals; when prose substantially outgrows complete known support, the runner replaces it only with a URL-free normalized excerpt and labels the result `[verbatim]`. Incomplete or URL-bearing evidence remains review-required. |
+| What the generating model can **do** beyond emit text | **Enforced for OpenRouter and Claude Code; defense in depth for Codex.** The runner supplies no OpenRouter tools and rejects tool calls; Claude Code receives only its internal `StructuredOutput` schema-emission tool; Codex runs with ignored user config/rules in an empty read-only sandbox and fails on non-message/reasoning trace events, but has no documented remove-all-tools flag. |
+
+That last prose row is the real limit on what a Markdown parser can judge. The corpus stores a bounded feed blurb, not the article. Schema v6 raises that bound from 300 to 400 characters so ordinary feed sentences and dates near the old boundary survive, but a faithful summary is still a summary of an excerpt someone else selected.
 
 ## Results at a glance
 
@@ -113,23 +111,7 @@ python3 run_briefing.py \
 
 OpenRouter receives no tools. Claude Code receives only its schema-emission tool. Codex runs with user configuration ignored, action-capable tools disabled, an empty read-only sandbox, and trace-event validation. Each run stores its corpus, request, schema, attempts, findings, manifest, hashes, and trace under `.news-briefing/runs/`; use `--resume` only with an exact compatible checkpoint.
 
-## What is actually guaranteed
-
-The LLM is handed a closed corpus and does the thing it is good at — ranking and summarizing — while showing what it left out. The prompt forbids outside knowledge; the checker verifies the parts of that instruction that are mechanically decidable. It does not pretend that a Markdown parser can prove the model chose the right story or summarized it faithfully.
-
-| | Guarantee |
-|---|---|
-| What counts as **recent** | **Enforced in code.** The cutoff is applied before the model sees anything. |
-| What is **eligible** | **Corpus and section-category eligibility are constrained in provider schemas and enforced independently in code.** Providers do not uniformly honor `items.enum` or array-level `uniqueItems`, so the deterministic checker — not the schema — is the guarantee. Semantic fit within an allowed category is not proven. |
-| What may be **linked** | **Enforced for the complete output.** Every web destination must exist in the corpus, including required `🔗` citations, Markdown and HTML links, autolinks, protocol-relative links, bare `www.` links, and bare HTTP(S) text. |
-| Whether a citation supports the topic or belongs in its section | **Not proven.** The checker validates corpus membership, not semantic fit. |
-| What is **important** | **Not claimed** — the model ranks. The exclusion log makes that judgment auditable, not absent. |
-| Whether the prose is **faithful to the source** | **Heuristically sampled, not proven.** Figures absent from the bounded cited excerpt are retained as nonblocking quality notes because excerpt absence does not establish article absence. Unsupported quotations remain review signals; when prose substantially outgrows complete known support, the runner replaces it only with a URL-free normalized excerpt and labels the result `[verbatim]`. Incomplete or URL-bearing evidence remains review-required. |
-| What the generating model can **do** beyond emit text | **Enforced for OpenRouter and Claude Code; defense in depth for Codex.** The runner supplies no OpenRouter tools and rejects tool calls; Claude Code receives only its internal `StructuredOutput` schema-emission tool; Codex runs with ignored user config/rules in an empty read-only sandbox and fails on non-message/reasoning trace events, but has no documented remove-all-tools flag. |
-
-That last prose row is the real limit on what a Markdown parser can judge. The corpus stores a bounded feed blurb, not the article. Schema v6 raises that bound from 300 to 400 characters so ordinary feed sentences and dates near the old boundary survive, but a faithful summary is still a summary of an excerpt someone else selected.
-
-### Publication archive contract
+## Publication archive contract
 
 The full contract prose lives in [docs/publication-archive-contract.md](docs/publication-archive-contract.md). The short version:
 

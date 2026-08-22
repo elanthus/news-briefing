@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">Development-only evaluation loop</title>
+  <desc id="desc">A frozen matched attack and benign suite runs through the production runner across models, prompts and trials. Deterministic oracles and blinded model judges measure saved artifacts. Reports feed a preregistered deterministic promotion gate, but the evaluator never changes the production publication decision.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .canvas { fill: #f8fafc; }
+      .title { fill: #0f172a; font: 700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .subtitle { fill: #475569; font: 400 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: #0f172a; font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .detail { fill: #334155; font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .legend { fill: #334155; font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .edge-label { fill: #475569; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .note { fill: #334155; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .node { stroke-width: 2; }
+      .input { fill: #f1f5f9; stroke: #64748b; }
+      .code { fill: #ecfdf5; stroke: #059669; }
+      .model { fill: #eef2ff; stroke: #4f46e5; }
+      .report { fill: #eff6ff; stroke: #2563eb; }
+      .decision { fill: #fffbeb; stroke: #d97706; }
+      .flow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+  </defs>
+
+  <rect class="canvas" x="1" y="1" width="1198" height="498" rx="18" stroke="#cbd5e1" stroke-width="2"/>
+
+  <text class="title" x="40" y="45">Dev-only evaluation: measure first, promote only by declared rules</text>
+  <text class="subtitle" x="40" y="72">Frozen inputs and saved artifacts keep stochastic model behavior separate from deterministic policy.</text>
+
+  <g transform="translate(720 82)">
+    <rect class="node code" x="0" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="29" y="15">Deterministic</text>
+    <rect class="node model" x="140" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="169" y="15">Model / judge</text>
+    <rect class="node report" x="285" y="0" width="20" height="20" rx="4"/>
+    <text class="legend" x="314" y="15">Measured report</text>
+  </g>
+
+  <rect class="node input" x="35" y="125" width="205" height="125" rx="12"/>
+  <text class="label" x="138" y="160">Frozen test suite</text>
+  <text class="detail" x="138" y="185">matched attack + benign twins</text>
+  <text class="detail" x="138" y="205">position x count ablations</text>
+  <text class="detail" x="138" y="225">human-reviewed cases</text>
+
+  <rect class="node code" x="285" y="125" width="205" height="125" rx="12"/>
+  <text class="label" x="388" y="160">Run matrix</text>
+  <text class="detail" x="388" y="185">models x prompts x trials</text>
+  <text class="detail" x="388" y="205">bounded cost + resume</text>
+  <text class="detail" x="388" y="225">production adapters</text>
+
+  <rect class="node code" x="535" y="125" width="205" height="125" rx="12"/>
+  <text class="label" x="638" y="160">Code-owned runner</text>
+  <text class="detail" x="638" y="185">project / invoke model / validate</text>
+  <text class="detail" x="638" y="205">repair / correct / finalize</text>
+  <text class="detail" x="638" y="225">hash-bound artifacts</text>
+
+  <rect class="node code" x="785" y="105" width="190" height="105" rx="12"/>
+  <text class="label" x="880" y="143">Deterministic oracles</text>
+  <text class="detail" x="880" y="168">attack / utility / contract</text>
+  <text class="detail" x="880" y="188">exact denominators</text>
+
+  <rect class="node model" x="785" y="245" width="190" height="105" rx="12"/>
+  <text class="label" x="880" y="283">Blinded judges</text>
+  <text class="detail" x="880" y="308">semantic + grounding</text>
+  <text class="detail" x="880" y="328">position-balanced review</text>
+
+  <rect class="node report" x="1020" y="145" width="150" height="165" rx="12"/>
+  <text class="label" x="1095" y="180">Report</text>
+  <text class="detail" x="1095" y="205">attack success</text>
+  <text class="detail" x="1095" y="225">utility + regressions</text>
+  <text class="detail" x="1095" y="245">Wilson intervals</text>
+  <text class="detail" x="1095" y="265">cost + latency</text>
+  <text class="detail" x="1095" y="285">saved failures</text>
+
+  <path class="flow" d="M 240 188 H 285"/>
+  <path class="flow" d="M 490 188 H 535"/>
+  <path class="flow" d="M 740 165 H 785"/>
+  <path class="flow dash" d="M 690 250 Q 725 298 785 298"/>
+  <text class="edge-label" x="731" y="289">blinded artifacts</text>
+  <path class="flow" d="M 975 158 Q 1000 158 1020 190"/>
+  <path class="flow" d="M 975 298 Q 1000 298 1020 270"/>
+
+  <rect class="node code" x="405" y="390" width="390" height="65" rx="12"/>
+  <text class="label" x="600" y="418">Preregistered promotion gate</text>
+  <text class="detail" x="600" y="440">declared gains + attack threshold + zero contract regressions</text>
+
+  <path class="flow" d="M 1095 310 V 360 Q 1095 422 1025 422 H 795"/>
+  <text class="edge-label" x="936" y="410">apply fixed thresholds</text>
+
+  <rect x="35" y="390" width="320" height="65" rx="10" fill="#e2e8f0" stroke="#94a3b8"/>
+  <text class="note" x="195" y="417">Evaluation cannot publish content.</text>
+  <text class="detail" x="195" y="440">It measures the runtime; it does not replace its gate.</text>
+</svg>
