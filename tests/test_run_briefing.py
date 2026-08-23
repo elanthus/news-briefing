@@ -178,6 +178,33 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.exit_code, 1)
 
+    def test_strict_mode_fails_undated_only_degraded_coverage(self):
+        corpus, _config, _projected, output = fixture_contract()
+        corpus["errors"] = []
+        for source in corpus["sources"]:
+            if source["status"] != "ok":
+                source["status"] = "ok"
+                source["parsed_entries"] = max(source["parsed_entries"], 1)
+                source["dated_entries"] = max(source["dated_entries"], 1)
+                source.pop("error_type", None)
+                source.pop("message", None)
+        source = next(source for source in corpus["sources"] if source["status"] == "ok")
+        source["parsed_entries"] += 1
+        corpus["processing"][source["category"]]["undated_dropped"] += 1
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            settings = replace(self.settings(root / "briefing.md"), strict=True)
+            result = run_workflow(FakeProvider([output]), settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(manifest["final"]["outcome"]["coverage"], "degraded")
+        self.assertGreater(manifest["final"]["source_issues"], 0)
+
     def test_unsupported_figure_is_ready_and_exits_zero(self):
         corpus, _config, _projected, output = fixture_contract()
         forced = eval_briefing.Finding(

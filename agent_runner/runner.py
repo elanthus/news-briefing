@@ -541,7 +541,10 @@ def _finalize_candidate(
         "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": _finding_records(findings),
-        "source_issues": len(corpus.get("errors", [])),
+        "source_issues": (
+            len(corpus.get("errors", []))
+            + len(corpus_schema.undated_source_records(corpus))
+        ),
         "artifact_type": artifact_type,
         "run_artifact": run_path.name,
         "requested_output_path": _portable_path(settings.output_path),
@@ -550,7 +553,7 @@ def _finalize_candidate(
     }
     store.finalize(final)
     failed = outcome.disposition != "ready" or (
-        settings.strict and bool(findings or corpus.get("errors"))
+        settings.strict and bool(findings or corpus_schema.corpus_health_degraded(corpus))
     )
     return RunResult(1 if failed else 0, store.root, output_path, outcome.disposition)
 
