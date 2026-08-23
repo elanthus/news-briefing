@@ -89,9 +89,8 @@ def checkpointed_generate(
             # Retry corrupt checkpoints and malformed saved model responses.
             pass
     generation = adapter.generate(prompt)
-    parsed = parse(generation.text)
     record = generation.record()
     if bind_prompt:
         record["prompt_sha256"] = prompt_sha256
     write_json_atomic(checkpoint, record)
-    return generation, parsed, False
+    return generation, parse(generation.text), False
