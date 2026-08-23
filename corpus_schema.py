@@ -591,7 +591,13 @@ def undated_source_records(corpus: dict[str, Any]) -> list[UndatedSourceRecord]:
 
 def corpus_health_degraded(corpus: dict[str, Any]) -> bool:
     """Return whether coverage degraded through a failed, empty, or undated source."""
-    return bool(corpus.get("errors") or undated_source_records(corpus))
+    return corpus_health_issue_count(corpus) > 0
+
+
+def corpus_health_issue_count(corpus: dict[str, Any]) -> int:
+    """Count machine-readable source degradation records across both health channels."""
+    errors = corpus.get("errors", [])
+    return (len(errors) if isinstance(errors, list) else 0) + len(undated_source_records(corpus))
 
 
 def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[str]:

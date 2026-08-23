@@ -225,7 +225,7 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
     store.trace(
         "fetch_completed",
         retained_items=sum(len(items) for items in corpus["categories"].values()),
-        source_issues=len(corpus["errors"]),
+        source_issues=corpus_schema.corpus_health_issue_count(corpus),
     )
     store.checkpoint("corpus_ready")
     return corpus
@@ -257,7 +257,7 @@ def _replay_corpus(
         source_path=portable,
         source_sha256=source_sha256,
         retained_items=sum(len(items) for items in corpus["categories"].values()),
-        source_issues=len(corpus["errors"]),
+        source_issues=corpus_schema.corpus_health_issue_count(corpus),
     )
     store.checkpoint("corpus_ready")
     return corpus
@@ -541,10 +541,7 @@ def _finalize_candidate(
         "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": _finding_records(findings),
-        "source_issues": (
-            len(corpus.get("errors", []))
-            + len(corpus_schema.undated_source_records(corpus))
-        ),
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
         "artifact_type": artifact_type,
         "run_artifact": run_path.name,
         "requested_output_path": _portable_path(settings.output_path),
@@ -593,7 +590,7 @@ def _finalize_structured_preview(
         "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": findings,
-        "source_issues": len(corpus.get("errors", [])),
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
         "artifact_type": "preview",
         "run_artifact": preview_path.name,
         "requested_output_path": _portable_path(settings.output_path),

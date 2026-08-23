@@ -51,7 +51,11 @@ class FakeProvider:
 def fake_fetch(corpus):
     def run(store, _settings):
         store.write_json("corpus.json", corpus)
-        store.trace("fetch_completed", retained_items=1, source_issues=len(corpus["errors"]))
+        store.trace(
+            "fetch_completed",
+            retained_items=1,
+            source_issues=corpus_schema.corpus_health_issue_count(corpus),
+        )
         store.checkpoint("corpus_ready")
         return corpus
 
@@ -564,6 +568,13 @@ class RunnerTests(unittest.TestCase):
 
     def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
         corpus, config, _projected, output = fixture_contract()
+        corpus["errors"] = []
+        corpus["sources"] = [
+            source for source in corpus["sources"] if source["status"] == "ok"
+        ]
+        source = corpus["sources"][0]
+        source["parsed_entries"] += 1
+        corpus["processing"][source["category"]]["undated_dropped"] += 1
         broken = copy.deepcopy(output)
         topic = broken["sections"][config.sections[0].name]["topics"][0]
         topic["summary"] += " https://attacker.invalid/instruction"
@@ -582,6 +593,8 @@ class RunnerTests(unittest.TestCase):
             structured_preview = (root / "run/preview-structured.json").read_text()
         self.assertEqual(result.status, "rejected")
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "violated")
+        self.assertEqual(manifest["final"]["outcome"]["coverage"], "degraded")
+        self.assertEqual(manifest["final"]["source_issues"], 1)
         self.assertNotIn("attacker.invalid", preview)
         self.assertNotIn("attacker.invalid", structured_preview)
         self.assertIn("[destination omitted; use citation refs]", preview)
