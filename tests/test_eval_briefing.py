@@ -1066,6 +1066,40 @@ class TextEncodingContractTest(unittest.TestCase):
                         f"{module}:{node.lineno}: {name}() without an explicit encoding")
 
 
+class CorpusLoadingTest(unittest.TestCase):
+    def test_loads_a_structurally_valid_versionless_legacy_corpus(self):
+        legacy = {
+            "generated_at": "2026-08-08T12:00:00+00:00",
+            "cutoff": "2026-08-07T12:00:00+00:00",
+            "window_hours": 24,
+            "limits": {"source_cap": 25, "category_cap": 60},
+            "categories": {"us_politics": [{
+                "title": "Historical report",
+                "url": "https://example.test/historical-report",
+                "published": "2026-08-08T10:00:00+00:00",
+                "source": "Historical Feed",
+            }]},
+            "processing": {"us_politics": {
+                "fetched": 1, "undated_dropped": 0, "relevance_dropped": 0,
+                "duplicates_dropped": 0, "source_cap_dropped": 0,
+                "category_cap_dropped": 0, "kept": 1,
+            }},
+            "errors": [],
+            "sources": [{
+                "source": "Historical Feed", "category": "us_politics", "status": "ok",
+                "item_count": 1, "undated_dropped": 0, "duration_ms": 4,
+            }],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy-corpus.json"
+            path.write_text(json.dumps(legacy), encoding="utf-8")
+
+            loaded = load_corpus(str(path))
+
+        self.assertEqual(eval_briefing.corpus_schema.corpus_version(loaded), 0)
+        self.assertEqual(loaded, legacy)
+
+
 class CommandLineFailureTest(unittest.TestCase):
     """A bad invocation reports what is wrong; it does not dump a traceback.
 

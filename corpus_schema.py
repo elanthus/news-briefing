@@ -83,7 +83,6 @@ V5_PROCESSING_FIELDS = (
 )
 
 TOP_LEVEL_TYPES: dict[str, type | tuple[type, ...]] = {
-    "schema_version": int,
     "generated_at": str,
     "cutoff": str,
     "window_hours": int,
@@ -229,6 +228,12 @@ def validate_corpus(corpus: Any) -> list[str]:
             problems.append(
                 f"{field!r} should be {getattr(expected, '__name__', expected)}, "
                 f"got {type(corpus[field]).__name__}")
+
+    if ("schema_version" in corpus
+            and not _has_declared_type(corpus["schema_version"], int)):
+        problems.append(
+            f"'schema_version' should be int, got "
+            f"{type(corpus['schema_version']).__name__}")
 
     version = corpus_version(corpus)
     if version >= 4:
