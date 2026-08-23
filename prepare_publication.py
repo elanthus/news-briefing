@@ -88,6 +88,15 @@ def _selected_generation_run(run_dir: Path) -> Path | None:
         return None
     if selected_path.is_symlink() or resolved_selected.parent != resolved_root:
         return None
+    manifest = _load_json(resolved_selected / "manifest.json")
+    final = manifest.get("final") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("status") != "complete"
+        or not isinstance(final, dict)
+        or final.get("status") != "ready"
+    ):
+        return None
     return resolved_selected
 
 

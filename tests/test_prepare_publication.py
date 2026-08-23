@@ -94,6 +94,48 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.disposition, "blocked")
             self.assertFalse((history / "2026-08-20.md").exists())
 
+    def test_ready_fallback_log_cannot_select_a_review_required_child(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            selected = chain / "01-tencent-hy3"
+            selected.mkdir(parents=True)
+            preview = b"review-required fallback preview\n"
+            (selected / "preview.md").write_bytes(preview)
+            self._write_manifest(
+                selected,
+                "review_required",
+                "preview",
+                "preview.md",
+                preview,
+                [
+                    {
+                        "level": "WARN",
+                        "check": "unsupported_quotation",
+                        "domain": "evidence",
+                        "message": "Verify the selected fallback report.",
+                    }
+                ],
+            )
+            (chain / "fallback-log.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "selected_run_dir": selected.name,
+                        "selected_model": "tencent/hy3",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "blocked")
+            self.assertFalse((history / "2026-08-20.md").exists())
+
     def test_copies_hash_bound_review_preview_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
