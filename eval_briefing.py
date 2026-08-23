@@ -187,15 +187,20 @@ def load_corpus(path: str) -> dict[str, Any]:
         corpus = json.load(f)
     if not isinstance(corpus, dict):
         raise ValueError("corpus is not a JSON object")
+    version = corpus_schema.corpus_version(corpus)
+    if version is None:
+        problems = corpus_schema.validate_corpus(corpus)
+        detail = "; ".join(problems)
+        raise ValueError(f"corpus has invalid schema_version: {detail}")
     if not corpus_schema.is_readable(corpus):
         raise ValueError(
-            f"corpus schema v{corpus_schema.corpus_version(corpus)} is newer than "
+            f"corpus schema v{version} is newer than "
             f"v{corpus_schema.SCHEMA_VERSION}, which is the newest this checker "
             f"understands — upgrade eval_briefing.py")
     problems = corpus_schema.validate_corpus(corpus)
     if problems:
         detail = "; ".join(problems)
-        raise ValueError(f"corpus violates schema v{corpus_schema.corpus_version(corpus)}: {detail}")
+        raise ValueError(f"corpus violates schema v{version}: {detail}")
     return corpus
 
 
@@ -634,6 +639,24 @@ def _failed_source(error: str) -> str:
     return error.split(": ", 1)[0].strip()
 
 
+def _corpus_version_findings(corpus: dict[str, Any]) -> list[Finding]:
+    """Reject a version no evaluator path can interpret safely."""
+    version = corpus_schema.corpus_version(corpus)
+    if version is None:
+        detail = "; ".join(
+            problem for problem in corpus_schema.validate_corpus(corpus)
+            if "schema_version" in problem
+        )
+        return [Finding(
+            ERROR, "invalid_corpus_schema_version",
+            f"corpus has invalid schema_version: {detail}")]
+    if version > corpus_schema.SCHEMA_VERSION:
+        return [Finding(
+            ERROR, "unsupported_corpus_schema_version",
+            f"corpus schema v{version} is newer than v{corpus_schema.SCHEMA_VERSION}")]
+    return []
+
+
 def _normalize_source_mention(value: str) -> str:
     """Ignore harmless case, wrapping, and HN colon-spacing differences."""
     normalized = re.sub(r"\s+", " ", value.casefold()).strip()
@@ -643,6 +666,8 @@ def _normalize_source_mention(value: str) -> str:
 def check_corpus_health_reported(sections: dict[str, Section],
                                  corpus: dict[str, Any]) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
+    if version_findings := _corpus_version_findings(corpus):
+        return version_findings
     errors = corpus.get("errors", [])
     undated_sources = corpus_schema.undated_source_records(corpus)
     undated_total = sum(
@@ -652,6 +677,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
     )
     if not errors and not undated_total:
         return []
+    version = corpus_schema.corpus_version(corpus)
     if CORPUS_HEALTH not in sections:
         degradation = f"{len(errors)} fetch error(s)"
         if undated_total:
@@ -660,7 +686,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
             ERROR, "corpus_health_missing",
             f"corpus recorded {degradation} but the "
             f"briefing has no {CORPUS_HEALTH!r} section")]
-        if corpus_schema.corpus_version(corpus) >= 4:
+        if version is not None and version >= 4:
             for error in errors:
                 missing_findings.append(Finding(
                     ERROR, "failed_source_unnamed",
@@ -673,7 +699,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
                     f"{undated_source['count']} undated item(s) and is absent because the health "
                     "manifest is missing"))
         return missing_findings
-    if corpus_schema.corpus_version(corpus) >= 4:
+    if version is not None and version >= 4:
         return _check_structured_corpus_health(
             sections[CORPUS_HEALTH], errors, undated_sources)
 
@@ -1029,6 +1055,8 @@ def check_claims_supported(
 def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Section],
                     config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
     """Run every check against an already-parsed briefing and return findings."""
+    if version_findings := _corpus_version_findings(corpus):
+        return version_findings
     config = config or briefing_config.load_config()
     findings: list[Finding] = []
     category_problems = briefing_config.validate_corpus_categories(

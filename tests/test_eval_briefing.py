@@ -1099,16 +1099,42 @@ class CorpusLoadingTest(unittest.TestCase):
         self.assertEqual(eval_briefing.corpus_schema.corpus_version(loaded), 0)
         self.assertEqual(loaded, legacy)
 
-    def test_rejects_an_explicit_non_positive_schema_version(self):
-        for value in (0, -1):
+    def test_rejects_a_malformed_schema_version_without_calling_it_v0(self):
+        for value in ("5", True, None, 1.5, 0, -1):
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "malformed-corpus.json"
                 path.write_text(
                     json.dumps(dict(CORPUS, schema_version=value)), encoding="utf-8"
                 )
 
-                with self.assertRaisesRegex(ValueError, "positive integer"):
+                with self.assertRaisesRegex(
+                        ValueError, r"invalid schema_version: .*schema_version") as raised:
                     load_corpus(str(path))
+
+                self.assertNotIn("schema v0", str(raised.exception))
+
+
+class DirectEvaluationCorpusVersionTest(unittest.TestCase):
+    def test_malformed_version_is_rejected_before_health_contract_selection(self):
+        malformed = dict(CORPUS, schema_version=None, errors=[{
+            "source_type": "rss",
+            "source_id": "example",
+            "status": "error",
+        }])
+
+        findings = evaluate(malformed, briefing(health="All sources healthy."))
+
+        self.assertEqual(checks(findings, ERROR), {"invalid_corpus_schema_version"})
+
+    def test_future_version_is_rejected_before_evaluation(self):
+        future = dict(
+            CORPUS,
+            schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION + 1,
+        )
+
+        findings = evaluate(future, briefing())
+
+        self.assertEqual(checks(findings, ERROR), {"unsupported_corpus_schema_version"})
 
 
 class CommandLineFailureTest(unittest.TestCase):

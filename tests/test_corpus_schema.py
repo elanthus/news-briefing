@@ -481,12 +481,23 @@ class VersionTest(unittest.TestCase):
         self.assertTrue(is_readable(legacy))
         self.assertEqual(validate_corpus(legacy), [])
 
-    def test_present_malformed_version_remains_invalid(self):
+    def test_present_malformed_version_is_neither_legacy_nor_readable(self):
         for value in ("1", True, False, None, 1.5, 0, -1):
             with self.subTest(value=value):
-                self.assertTrue(only(
-                    validate_corpus(corpus(schema_version=value)), "schema_version"
-                ))
+                candidate = corpus(schema_version=value)
+                candidate["errors"] = [{
+                    "source_type": "rss",
+                    "source_id": "example",
+                    "status": "error",
+                    "error_type": "parse",
+                    "message": "invalid feed",
+                    "duration_ms": 1,
+                }]
+                self.assertIsNone(corpus_version(candidate))
+                self.assertFalse(is_readable(candidate))
+                problems = validate_corpus(candidate)
+                self.assertEqual(problems, only(problems, "schema_version"))
+                self.assertEqual(len(problems), 1)
 
     def test_legacy_and_current_corpora_are_readable(self):
         legacy = corpus()
@@ -496,12 +507,6 @@ class VersionTest(unittest.TestCase):
 
     def test_a_newer_corpus_is_refused_rather_than_guessed_at(self):
         self.assertFalse(is_readable(corpus(schema_version=SCHEMA_VERSION + 1)))
-
-    def test_non_integer_version_falls_back_to_legacy(self):
-        for value in ("1", True, False):
-            with self.subTest(value=value):
-                self.assertEqual(corpus_version(corpus(schema_version=value)),
-                                 LEGACY_SCHEMA_VERSION)
 
     def test_writing_a_version_this_code_does_not_own_is_reported(self):
         c = corpus(schema_version=SCHEMA_VERSION + 1)
