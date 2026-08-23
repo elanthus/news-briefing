@@ -1114,6 +1114,29 @@ class CorpusLoadingTest(unittest.TestCase):
                 self.assertNotIn("schema v0", str(raised.exception))
 
 
+class DirectEvaluationCorpusVersionTest(unittest.TestCase):
+    def test_malformed_version_is_rejected_before_health_contract_selection(self):
+        malformed = dict(CORPUS, schema_version=None, errors=[{
+            "source_type": "rss",
+            "source_id": "example",
+            "status": "error",
+        }])
+
+        findings = evaluate(malformed, briefing(health="All sources healthy."))
+
+        self.assertEqual(checks(findings, ERROR), {"invalid_corpus_schema_version"})
+
+    def test_future_version_is_rejected_before_evaluation(self):
+        future = dict(
+            CORPUS,
+            schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION + 1,
+        )
+
+        findings = evaluate(future, briefing())
+
+        self.assertEqual(checks(findings, ERROR), {"unsupported_corpus_schema_version"})
+
+
 class CommandLineFailureTest(unittest.TestCase):
     """A bad invocation reports what is wrong; it does not dump a traceback.
 

@@ -639,6 +639,24 @@ def _failed_source(error: str) -> str:
     return error.split(": ", 1)[0].strip()
 
 
+def _corpus_version_findings(corpus: dict[str, Any]) -> list[Finding]:
+    """Reject a version no evaluator path can interpret safely."""
+    version = corpus_schema.corpus_version(corpus)
+    if version is None:
+        detail = "; ".join(
+            problem for problem in corpus_schema.validate_corpus(corpus)
+            if "schema_version" in problem
+        )
+        return [Finding(
+            ERROR, "invalid_corpus_schema_version",
+            f"corpus has invalid schema_version: {detail}")]
+    if version > corpus_schema.SCHEMA_VERSION:
+        return [Finding(
+            ERROR, "unsupported_corpus_schema_version",
+            f"corpus schema v{version} is newer than v{corpus_schema.SCHEMA_VERSION}")]
+    return []
+
+
 def _normalize_source_mention(value: str) -> str:
     """Ignore harmless case, wrapping, and HN colon-spacing differences."""
     normalized = re.sub(r"\s+", " ", value.casefold()).strip()
@@ -648,6 +666,8 @@ def _normalize_source_mention(value: str) -> str:
 def check_corpus_health_reported(sections: dict[str, Section],
                                  corpus: dict[str, Any]) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
+    if version_findings := _corpus_version_findings(corpus):
+        return version_findings
     errors = corpus.get("errors", [])
     undated_sources = corpus_schema.undated_source_records(corpus)
     undated_total = sum(
@@ -1035,6 +1055,8 @@ def check_claims_supported(
 def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Section],
                     config: briefing_config.BriefingConfig | None = None) -> list[Finding]:
     """Run every check against an already-parsed briefing and return findings."""
+    if version_findings := _corpus_version_findings(corpus):
+        return version_findings
     config = config or briefing_config.load_config()
     findings: list[Finding] = []
     category_problems = briefing_config.validate_corpus_categories(
