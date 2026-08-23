@@ -40,20 +40,34 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual((history / "2026-08-20.md").read_bytes(), content)
 
     def test_fallback_log_without_a_safe_ready_selection_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            chain = root / "run"
-            chain.mkdir()
-            (chain / "fallback-log.json").write_text(
-                json.dumps({"status": "ready", "selected_run_dir": "../outside"}),
-                encoding="utf-8",
-            )
+        invalid_logs: tuple[object, ...] = (
+            {"status": "ready", "selected_run_dir": ""},
+            {"status": "ready", "selected_run_dir": "../outside"},
+            {"status": "failed", "selected_run_dir": "01-tencent-hy3"},
+            ["malformed"],
+        )
+        for fallback_log in invalid_logs:
+            with self.subTest(fallback_log=fallback_log), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                chain = root / "run"
+                chain.mkdir()
+                stale_content = b"stale root briefing\n"
+                (chain / "final.md").write_bytes(stale_content)
+                self._write_manifest(
+                    chain, "ready", "final", "final.md", stale_content, []
+                )
+                (chain / "fallback-log.json").write_text(
+                    json.dumps(fallback_log),
+                    encoding="utf-8",
+                )
 
-            record = prepare_publication(
-                chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
-            )
+                history = root / "history"
+                record = prepare_publication(
+                    chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+                )
 
-            self.assertEqual(record.disposition, "blocked")
+                self.assertEqual(record.disposition, "blocked")
+                self.assertFalse((history / "2026-08-20.md").exists())
 
     def test_copies_hash_bound_review_preview_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

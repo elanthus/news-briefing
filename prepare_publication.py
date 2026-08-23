@@ -69,16 +69,17 @@ def _load_json(path: Path) -> object | None:
         return None
 
 
-def _selected_generation_run(run_dir: Path) -> Path:
+def _selected_generation_run(run_dir: Path) -> Path | None:
     """Resolve a fallback-chain root to its selected successful child run."""
-    fallback = _load_json(run_dir / FALLBACK_LOG_NAME)
-    if fallback is None:
+    fallback_path = run_dir / FALLBACK_LOG_NAME
+    if not fallback_path.exists():
         return run_dir
+    fallback = _load_json(fallback_path)
     if not isinstance(fallback, dict) or fallback.get("status") != "ready":
-        return run_dir
+        return None
     selected = fallback.get("selected_run_dir")
-    if not isinstance(selected, str) or Path(selected).name != selected:
-        return run_dir
+    if not isinstance(selected, str) or not selected or Path(selected).name != selected:
+        return None
     return run_dir / selected
 
 
@@ -327,8 +328,16 @@ def prepare_publication(
     public_content: bytes | None = None
 
     generation_run_dir = _selected_generation_run(run_dir)
-    manifest = _load_json(generation_run_dir / "manifest.json")
-    if isinstance(manifest, dict) and manifest.get("status") == "complete":
+    manifest = (
+        _load_json(generation_run_dir / "manifest.json")
+        if generation_run_dir is not None
+        else None
+    )
+    if (
+        generation_run_dir is not None
+        and isinstance(manifest, dict)
+        and manifest.get("status") == "complete"
+    ):
         final = manifest.get("final")
         if isinstance(final, dict):
             status = final.get("status")
