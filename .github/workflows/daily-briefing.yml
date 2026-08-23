@@ -94,8 +94,8 @@ jobs:
             if [[ -f "$corpus" ]]; then
               if ! python run_briefing.py \
                 --provider openrouter \
-                --model deepseek/deepseek-v4-flash-0731 \
-                --temperature 0 \
+                --model tencent/hy3 \
+                --temperature 0.2 \
                 --corpus "$corpus" \
                 --run-dir "$run_dir" \
                 --output "$report" \
