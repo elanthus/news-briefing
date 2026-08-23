@@ -3,7 +3,8 @@
 This is the authoritative contract for the published GitHub Pages archive: scheduling, corpus windows,
 repair-versus-correction precedence, hash-bound publication, retention, and the machine-readable history
 format. Read it when you need to know exactly what the archive publishes, what it withholds, and why a
-given run reached the page it did. [`build_site.py`](../build_site.py) implements the rendering and
+given run reached the page it did. [`prepare_publication.py`](../prepare_publication.py) enforces the
+hash-bound publication gate, and [`build_site.py`](../build_site.py) implements the rendering and
 retention rules described here.
 
 ## Scheduling and corpus windows
@@ -32,7 +33,7 @@ Repair never trims an entry held for rejection: unknown evidence remains a rejec
 
 ### What reaches the public page
 
-The builder publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule.
+[`prepare_publication.py`](../prepare_publication.py) publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule.
 
 The static builder renders `review_required` entries as a quarantine stub on the public page — a notice and a status chip linking to the per-run integrity report under `reports/<date>.html`. On that report, story context derived from both headline-based checks and structured paths attaches grouped, ordinary, and excluded affected stories to their actionable findings inline beside the annotated preview; only genuinely run-level findings remain in a separate panel. Every entry's status chip links to its report, and a `ready` page shows clean prose with no inline review panels. Nonblocking quality notes stay in the run artifacts and are excluded from public warning panels and counts.
 

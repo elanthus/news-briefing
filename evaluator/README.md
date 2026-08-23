@@ -11,7 +11,8 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Live model runs](#live-model-runs)** — the full command reference: generation paths, sampling controls, resume, and exports.
 - **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
 - **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge and human-review layers.
-- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of completed runs, for provenance only.
+- **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
+- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v1 (superseded) and v2 (current); provenance, not instructions.
 
 Reported numbers follow the [evaluation methodology](../docs/evaluation-methodology.md), which defines the threat model, denominators, and limitations that govern how these results may be cited.
 
@@ -446,7 +447,7 @@ The default version is named `production` and hashes the root `briefing-prompt.m
 
 ## Historical portfolio runs
 
-These are dated records of completed runs, retained for provenance. They are not instructions for a new run; the current commands are documented above.
+These are dated records of the completed portfolio runs, retained for provenance. Portfolio v2 is the current citable result; its record lives here because it is a completed run, not because it is superseded. Neither record is instructions for a new run; the current commands are documented above.
 
 ### Portfolio v1 (superseded)
 
