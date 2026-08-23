@@ -593,6 +593,47 @@ class CorpusHealthTest(unittest.TestCase):
     def test_healthy_run_needs_no_health_section(self):
         self.assertNotIn("corpus_health_missing", checks(evaluate(CORPUS, briefing())))
 
+    def test_undated_drops_require_exact_machine_readable_reporting(self):
+        corpus = json.loads(
+            (ROOT / "fixtures/corpus-2026-08-11.json").read_text(encoding="utf-8")
+        )
+        source = corpus["sources"][0]
+        source["parsed_entries"] += 2
+        corpus["processing"][source["category"]]["undated_dropped"] += 2
+
+        findings = eval_briefing.check_corpus_health_reported({}, corpus)
+        self.assertEqual(
+            checks(findings, ERROR),
+            {"corpus_health_missing", "failed_source_unnamed", "undated_source_unnamed"},
+        )
+
+        manifest = {
+            "failed_sources": [
+                {field: error[field] for field in ("source_type", "source_id", "status")}
+                for error in corpus["errors"]
+            ],
+            "undated_sources": [{
+                "source_type": source["source_type"],
+                "source_id": source["source_id"],
+                "count": 2,
+            }],
+        }
+        sections = parse_briefing(
+            "### Corpus health\n```json\n" + json.dumps(manifest) + "\n```"
+        )
+        self.assertEqual(
+            eval_briefing.check_corpus_health_reported(sections, corpus), []
+        )
+
+        manifest["undated_sources"][0]["count"] = 1
+        sections = parse_briefing(
+            "### Corpus health\n```json\n" + json.dumps(manifest) + "\n```"
+        )
+        self.assertIn(
+            "undated_source_count_mismatch",
+            checks(eval_briefing.check_corpus_health_reported(sections, corpus), ERROR),
+        )
+
     def test_current_schema_requires_exact_machine_readable_source_ids(self):
         error = {
             "source_type": "hacker_news",

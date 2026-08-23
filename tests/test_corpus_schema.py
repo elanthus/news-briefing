@@ -289,6 +289,26 @@ class ProcessingTest(unittest.TestCase):
         """They are counted before `fetched` is measured, by construction."""
         c = corpus()
         c["processing"]["us_politics"] = stats(1, 1, undated_dropped=7)
+        c["sources"] = [{
+            "source_type": "rss", "source_id": "NPR Politics", "category": "us_politics",
+            "status": "ok", "requested": True, "http_success": True,
+            "parsed_entries": 8, "dated_entries": 1, "retained_entries": 1,
+            "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 12,
+        }]
+        self.assertEqual(validate_corpus(c), [])
+
+    def test_undated_processing_reconciles_to_per_source_counts(self):
+        c = corpus()
+        c["sources"] = [{
+            "source_type": "rss", "source_id": "NPR Politics", "category": "us_politics",
+            "status": "ok", "requested": True, "http_success": True,
+            "parsed_entries": 3, "dated_entries": 1, "retained_entries": 1,
+            "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 12,
+        }]
+        c["processing"]["us_politics"]["undated_dropped"] = 1
+        self.assertTrue(only(validate_corpus(c), "sources account for 2"))
+
+        c["processing"]["us_politics"]["undated_dropped"] = 2
         self.assertEqual(validate_corpus(c), [])
 
     def test_missing_counter_is_reported(self):

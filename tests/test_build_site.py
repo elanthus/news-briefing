@@ -1118,6 +1118,25 @@ class BuildSiteTests(unittest.TestCase):
         self.assertIn("&quot;llm agent&quot;", rendered)
         self.assertIn("Subreddits — fetch failed:", rendered)
 
+    def test_undated_source_health_renders_as_grouped_prose(self) -> None:
+        payload = json.dumps(
+            {
+                "failed_sources": [],
+                "undated_sources": [
+                    {"source_type": "rss", "source_id": "NPR Politics", "count": 2},
+                ],
+            },
+            separators=(",", ":"),
+        )
+        markdown = self._corpus_health_markdown(payload).replace(
+            "source failures or empty responses",
+            "source failures, empty responses, or undated drops",
+        )
+        rendered, _ = _render_markdown(markdown)
+        self.assertNotIn("undated_sources", rendered)
+        self.assertIn("1 source dropped 2 items without parseable dates.", rendered)
+        self.assertIn("NPR Politics (2)", rendered)
+
     def test_malformed_corpus_health_json_is_left_verbatim(self) -> None:
         rendered, _ = _render_markdown(
             self._corpus_health_markdown('{"failed_sources":[{"source_type":')
@@ -1129,6 +1148,10 @@ class BuildSiteTests(unittest.TestCase):
         for payload in (
             '{"failed_sources":{}}',
             '{"failed_sources":[]}',
+            '{"failed_sources":[],"undated_sources":null}',
+            ('{"failed_sources":[],"undated_sources":['
+             '{"source_type":"rss","source_id":"NPR","count":1},'
+             '{"source_type":"rss","source_id":"NPR","count":2}]}'),
             '{"failed_sources":["rss"]}',
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
             '["not","an","object"]',

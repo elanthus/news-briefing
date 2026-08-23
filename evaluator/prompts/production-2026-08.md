@@ -78,10 +78,10 @@ Typical reasons: "lower immediate impact," "regional rather than national signif
 ---
 
 ### Corpus health
-If `errors` in corpus.json is non-empty, explain the degraded coverage and then emit exactly one fenced `json` block with this shape:
+If `errors` is non-empty or any `processing.<category>.undated_dropped` is non-zero, explain the degraded coverage and then emit exactly one fenced `json` block. Include `failed_sources` (empty when there are no failures). When undated items were dropped, also include `undated_sources`, using `sources[*].parsed_entries - sources[*].dated_entries` for each positive count:
 
 ```json
-{"failed_sources":[{"source_type":"hacker_news","source_id":"agentic coding","status":"error"}]}
+{"failed_sources":[{"source_type":"hacker_news","source_id":"agentic coding","status":"error"}],"undated_sources":[{"source_type":"rss","source_id":"Example Feed","count":2}]}
 ```
 
-Copy `source_type`, `source_id`, and `status` exactly from every object in `errors`; include each failed or empty source once and no healthy sources. This JSON is a machine-readable audit record, not a prose example. A source with `status: "empty"` returned successfully but supplied zero recognized or dated entries, so describe that coverage gap as well. Do not paraphrase source IDs inside the JSON.
+Copy source identities and statuses exactly. Include each failed or empty source once, and each source with a positive undated count once; include no healthy source without undated drops. The sum of `undated_sources[*].count` for each category must match that category's `processing.*.undated_dropped`. This JSON is a machine-readable audit record, not a prose example. Do not paraphrase source IDs inside the JSON.

@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TypedDict
 
 # Version 5 requires enforced context budgets and their truncation/drop
 # telemetry. Version 6 expands model-visible summaries so ordinary feed
@@ -310,7 +310,8 @@ def validate_corpus(corpus: Any) -> list[str]:
                      else _validate_legacy_sources(sources))
     if (version >= 4 and isinstance(sources, list) and isinstance(errors, list)
             and isinstance(categories, dict)):
-        problems += _validate_health_consistency(sources, errors, set(categories))
+        problems += _validate_health_consistency(
+            sources, errors, set(categories), processing)
     if version >= 5 and isinstance(corpus.get("context_budget"), dict):
         problems += _validate_context_budget(corpus["context_budget"], processing)
 
@@ -502,7 +503,7 @@ def _validate_errors(errors: list[Any]) -> list[str]:
 
 
 def _validate_health_consistency(sources: list[Any], errors: list[Any],
-                                 categories: set[str]) -> list[str]:
+                                 categories: set[str], processing: Any) -> list[str]:
     """Cross-check the full outcomes against their compact error projections."""
     problems: list[str] = []
     valid_sources = [source for source in sources if isinstance(source, dict)]
@@ -537,7 +538,66 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
         problems.append("errors contains a duplicate failure record")
     if actual != expected:
         problems.append("errors must exactly project every empty or failed source")
+    if isinstance(processing, dict):
+        source_undated: dict[str, int] = {category: 0 for category in categories}
+        for source in valid_sources:
+            category = source.get("category")
+            parsed = source.get("parsed_entries")
+            dated = source.get("dated_entries")
+            if (category in source_undated
+                    and isinstance(parsed, int) and not isinstance(parsed, bool)
+                    and isinstance(dated, int) and not isinstance(dated, bool)):
+                source_undated[category] += max(parsed - dated, 0)
+        for category, expected_undated in source_undated.items():
+            stats = processing.get(category)
+            if (isinstance(stats, dict)
+                    and isinstance(stats.get("undated_dropped"), int)
+                    and not isinstance(stats["undated_dropped"], bool)
+                    and stats["undated_dropped"] != expected_undated):
+                problems.append(
+                    f"processing[{category!r}].undated_dropped is "
+                    f"{stats['undated_dropped']} but sources account for {expected_undated}")
     return problems
+
+
+class UndatedSourceRecord(TypedDict):
+    source_type: str
+    source_id: str
+    count: int
+
+
+def undated_source_records(corpus: dict[str, Any]) -> list[UndatedSourceRecord]:
+    """Project per-source undated drops into the public health contract."""
+    records: list[UndatedSourceRecord] = []
+    for source in corpus.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        parsed = source.get("parsed_entries")
+        dated = source.get("dated_entries")
+        source_type = source.get("source_type")
+        source_id = source.get("source_id")
+        if (not isinstance(parsed, int) or isinstance(parsed, bool)
+                or not isinstance(dated, int) or isinstance(dated, bool)
+                or not isinstance(source_type, str) or not isinstance(source_id, str)):
+            continue
+        if (count := parsed - dated) > 0:
+            records.append({
+                "source_type": source_type,
+                "source_id": source_id,
+                "count": count,
+            })
+    return records
+
+
+def corpus_health_degraded(corpus: dict[str, Any]) -> bool:
+    """Return whether coverage degraded through a failed, empty, or undated source."""
+    return corpus_health_issue_count(corpus) > 0
+
+
+def corpus_health_issue_count(corpus: dict[str, Any]) -> int:
+    """Count machine-readable source degradation records across both health channels."""
+    errors = corpus.get("errors", [])
+    return (len(errors) if isinstance(errors, list) else 0) + len(undated_source_records(corpus))
 
 
 def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[str]:

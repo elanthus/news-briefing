@@ -225,7 +225,7 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
     store.trace(
         "fetch_completed",
         retained_items=sum(len(items) for items in corpus["categories"].values()),
-        source_issues=len(corpus["errors"]),
+        source_issues=corpus_schema.corpus_health_issue_count(corpus),
     )
     store.checkpoint("corpus_ready")
     return corpus
@@ -257,7 +257,7 @@ def _replay_corpus(
         source_path=portable,
         source_sha256=source_sha256,
         retained_items=sum(len(items) for items in corpus["categories"].values()),
-        source_issues=len(corpus["errors"]),
+        source_issues=corpus_schema.corpus_health_issue_count(corpus),
     )
     store.checkpoint("corpus_ready")
     return corpus
@@ -490,13 +490,17 @@ def _finalize_candidate(
         raise RuntimeError("the final structured candidate could not be rendered")
     briefing = (store.root / briefing_name).read_text(encoding="utf-8")
     findings = eval_briefing.evaluate(corpus, briefing, config)
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     completed = briefing.rstrip() + "\n" + render_validation_status(
         findings, corpus, outcome=outcome
     )
     after = eval_briefing.evaluate(corpus, completed, config)
     if _checker_fingerprint(after) != _checker_fingerprint(findings):
-        outcome = classify_outcome(after, corpus.get("errors", []))
+        outcome = classify_outcome(
+            after, corpus.get("errors", []),
+            coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
         completed = briefing.rstrip() + "\n" + render_validation_status(
             after, corpus, outcome=outcome
         )
@@ -506,7 +510,9 @@ def _finalize_candidate(
         findings = stabilized
     else:
         findings = after
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     if outcome.disposition == "ready":
         store.write_text("briefing.md", completed)
         run_path = store.write_text("final.md", completed)
@@ -535,7 +541,7 @@ def _finalize_candidate(
         "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": _finding_records(findings),
-        "source_issues": len(corpus.get("errors", [])),
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
         "artifact_type": artifact_type,
         "run_artifact": run_path.name,
         "requested_output_path": _portable_path(settings.output_path),
@@ -544,7 +550,7 @@ def _finalize_candidate(
     }
     store.finalize(final)
     failed = outcome.disposition != "ready" or (
-        settings.strict and bool(findings or corpus.get("errors"))
+        settings.strict and bool(findings or corpus_schema.corpus_health_degraded(corpus))
     )
     return RunResult(1 if failed else 0, store.root, output_path, outcome.disposition)
 
@@ -564,7 +570,9 @@ def _finalize_structured_preview(
     findings = json.loads(
         (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
     )
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     if outcome.disposition == "ready":
         raise RuntimeError("an invalid structured candidate was unexpectedly classified as ready")
     store.write_json("preview-structured.json", redact_preview_value(output))
@@ -582,7 +590,7 @@ def _finalize_structured_preview(
         "outcome": outcome.record(),
         "attempt": attempt["index"],
         "findings": findings,
-        "source_issues": len(corpus.get("errors", [])),
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
         "artifact_type": "preview",
         "run_artifact": preview_path.name,
         "requested_output_path": _portable_path(settings.output_path),
@@ -826,6 +834,9 @@ def run_workflow(
             else {"type": type(exc).__name__, "message": str(exc)}
         )
         source_issues = corpus.get("errors", []) if corpus is not None else []
-        outcome = classify_outcome([], source_issues, protocol_completed=False)
+        outcome = classify_outcome(
+            [], source_issues, protocol_completed=False,
+            coverage_degraded=(corpus_schema.corpus_health_degraded(corpus)
+                               if corpus is not None else False))
         store.fail(error, outcome=outcome.record())
         raise

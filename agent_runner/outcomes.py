@@ -32,6 +32,10 @@ COVERAGE_CHECKS = {
     "duplicate_failed_source",
     "failed_source_status_mismatch",
     "failed_source_unnamed",
+    "duplicate_undated_source",
+    "undated_source_count_mismatch",
+    "undated_source_unnamed",
+    "unexpected_undated_source",
     "unexpected_failed_source",
 }
 QUALITY_CHECKS = {
@@ -83,9 +87,11 @@ def classify_outcome(
     source_issues: Sequence[Any],
     *,
     protocol_completed: bool = True,
+    coverage_degraded: bool | None = None,
 ) -> Outcome:
     """Classify usefulness without weakening the publication boundary."""
-    coverage = "degraded" if source_issues else "full"
+    degraded = bool(source_issues) if coverage_degraded is None else coverage_degraded
+    coverage = "degraded" if degraded else "full"
     if not protocol_completed:
         return Outcome(
             disposition="no_result",
