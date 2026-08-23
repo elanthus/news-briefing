@@ -117,11 +117,18 @@ def _has_declared_type(value: Any, expected: type | tuple[type, ...]) -> bool:
     return isinstance(value, expected)
 
 
-def corpus_version(corpus: dict[str, Any]) -> int:
-    """Schema version of a loaded corpus, treating absence as generation 0."""
-    version = corpus.get("schema_version", LEGACY_SCHEMA_VERSION)
-    if not _is_integer(version):
+def corpus_version(corpus: dict[str, Any]) -> int | None:
+    """Return the declared generation, or ``None`` for a malformed declaration.
+
+    Only an absent field denotes legacy generation 0. A present declaration must
+    be a positive JSON integer; callers must not interpret malformed values using
+    any generation's contract.
+    """
+    if "schema_version" not in corpus:
         return LEGACY_SCHEMA_VERSION
+    version = corpus["schema_version"]
+    if not _is_integer(version) or version < 1:
+        return None
     return version
 
 
@@ -132,7 +139,8 @@ def is_readable(corpus: dict[str, Any]) -> bool:
     `SCHEMA_VERSION` preserve the fields read here. A higher generation may
     have changed them, so it is refused rather than interpreted speculatively.
     """
-    return corpus_version(corpus) <= SCHEMA_VERSION
+    version = corpus_version(corpus)
+    return version is not None and version <= SCHEMA_VERSION
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -241,6 +249,8 @@ def validate_corpus(corpus: Any) -> list[str]:
                 f"{declared_version}")
 
     version = corpus_version(corpus)
+    if version is None:
+        return problems
     if version >= 4:
         for field, expected in V4_TOP_LEVEL_TYPES.items():
             if field not in corpus:

@@ -187,15 +187,20 @@ def load_corpus(path: str) -> dict[str, Any]:
         corpus = json.load(f)
     if not isinstance(corpus, dict):
         raise ValueError("corpus is not a JSON object")
+    version = corpus_schema.corpus_version(corpus)
+    if version is None:
+        problems = corpus_schema.validate_corpus(corpus)
+        detail = "; ".join(problems)
+        raise ValueError(f"corpus has invalid schema_version: {detail}")
     if not corpus_schema.is_readable(corpus):
         raise ValueError(
-            f"corpus schema v{corpus_schema.corpus_version(corpus)} is newer than "
+            f"corpus schema v{version} is newer than "
             f"v{corpus_schema.SCHEMA_VERSION}, which is the newest this checker "
             f"understands — upgrade eval_briefing.py")
     problems = corpus_schema.validate_corpus(corpus)
     if problems:
         detail = "; ".join(problems)
-        raise ValueError(f"corpus violates schema v{corpus_schema.corpus_version(corpus)}: {detail}")
+        raise ValueError(f"corpus violates schema v{version}: {detail}")
     return corpus
 
 
@@ -652,6 +657,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
     )
     if not errors and not undated_total:
         return []
+    version = corpus_schema.corpus_version(corpus)
     if CORPUS_HEALTH not in sections:
         degradation = f"{len(errors)} fetch error(s)"
         if undated_total:
@@ -660,7 +666,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
             ERROR, "corpus_health_missing",
             f"corpus recorded {degradation} but the "
             f"briefing has no {CORPUS_HEALTH!r} section")]
-        if corpus_schema.corpus_version(corpus) >= 4:
+        if version is not None and version >= 4:
             for error in errors:
                 missing_findings.append(Finding(
                     ERROR, "failed_source_unnamed",
@@ -673,7 +679,7 @@ def check_corpus_health_reported(sections: dict[str, Section],
                     f"{undated_source['count']} undated item(s) and is absent because the health "
                     "manifest is missing"))
         return missing_findings
-    if corpus_schema.corpus_version(corpus) >= 4:
+    if version is not None and version >= 4:
         return _check_structured_corpus_health(
             sections[CORPUS_HEALTH], errors, undated_sources)
 

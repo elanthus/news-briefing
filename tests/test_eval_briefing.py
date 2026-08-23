@@ -1099,16 +1099,19 @@ class CorpusLoadingTest(unittest.TestCase):
         self.assertEqual(eval_briefing.corpus_schema.corpus_version(loaded), 0)
         self.assertEqual(loaded, legacy)
 
-    def test_rejects_an_explicit_non_positive_schema_version(self):
-        for value in (0, -1):
+    def test_rejects_a_malformed_schema_version_without_calling_it_v0(self):
+        for value in ("5", True, None, 1.5, 0, -1):
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "malformed-corpus.json"
                 path.write_text(
                     json.dumps(dict(CORPUS, schema_version=value)), encoding="utf-8"
                 )
 
-                with self.assertRaisesRegex(ValueError, "positive integer"):
+                with self.assertRaisesRegex(
+                        ValueError, r"invalid schema_version: .*schema_version") as raised:
                     load_corpus(str(path))
+
+                self.assertNotIn("schema v0", str(raised.exception))
 
 
 class CommandLineFailureTest(unittest.TestCase):

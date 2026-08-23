@@ -22,7 +22,7 @@ Why each stage of the pipeline works the way it does. The [README](../README.md)
 
 ## The corpus contract
 
-[`corpus_schema.py`](../corpus_schema.py) is the single source of truth for the shape of `corpus.json` — field names, valid category shape, per-category processing consistency, counter semantics, and schema generations. Current producers write `schema_version`; its absence is reserved for readable generation-0 historical corpora. The fetcher writes that shape, the prompt names fields a model may read, and the checker validates a briefing against the same data. Keeping those expectations in one validated contract makes incompatible producer changes fail at their source.
+[`corpus_schema.py`](../corpus_schema.py) is the single source of truth for the shape of `corpus.json` — field names, valid category shape, per-category processing consistency, counter semantics, and schema generations. Current producers write a positive integer `schema_version`; its absence is reserved for readable generation-0 historical corpora, while a malformed present declaration is invalid rather than legacy. The fetcher writes that shape, the prompt names fields a model may read, and the checker validates a briefing against the same data. Keeping those expectations in one validated contract makes incompatible producer changes fail at their source.
 
 The fetcher validates against the contract before writing, so drift fails where it is introduced. `eval_briefing.py` validates a readable corpus before trusting its categories, items, timestamps, processing counters, errors, or source health, and refuses a corpus newer than it understands rather than misreading it.
 
