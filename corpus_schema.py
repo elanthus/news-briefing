@@ -229,11 +229,16 @@ def validate_corpus(corpus: Any) -> list[str]:
                 f"{field!r} should be {getattr(expected, '__name__', expected)}, "
                 f"got {type(corpus[field]).__name__}")
 
-    if ("schema_version" in corpus
-            and not _has_declared_type(corpus["schema_version"], int)):
-        problems.append(
-            f"'schema_version' should be int, got "
-            f"{type(corpus['schema_version']).__name__}")
+    if "schema_version" in corpus:
+        declared_version = corpus["schema_version"]
+        if not _has_declared_type(declared_version, int):
+            problems.append(
+                f"'schema_version' should be int, got "
+                f"{type(declared_version).__name__}")
+        elif declared_version < 1:
+            problems.append(
+                f"'schema_version' should be a positive integer, got "
+                f"{declared_version}")
 
     version = corpus_version(corpus)
     if version >= 4:

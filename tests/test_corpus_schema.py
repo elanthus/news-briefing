@@ -482,7 +482,7 @@ class VersionTest(unittest.TestCase):
         self.assertEqual(validate_corpus(legacy), [])
 
     def test_present_malformed_version_remains_invalid(self):
-        for value in ("1", True, False, None):
+        for value in ("1", True, False, None, 1.5, 0, -1):
             with self.subTest(value=value):
                 self.assertTrue(only(
                     validate_corpus(corpus(schema_version=value)), "schema_version"

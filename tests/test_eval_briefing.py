@@ -1099,6 +1099,17 @@ class CorpusLoadingTest(unittest.TestCase):
         self.assertEqual(eval_briefing.corpus_schema.corpus_version(loaded), 0)
         self.assertEqual(loaded, legacy)
 
+    def test_rejects_an_explicit_non_positive_schema_version(self):
+        for value in (0, -1):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "malformed-corpus.json"
+                path.write_text(
+                    json.dumps(dict(CORPUS, schema_version=value)), encoding="utf-8"
+                )
+
+                with self.assertRaisesRegex(ValueError, "positive integer"):
+                    load_corpus(str(path))
+
 
 class CommandLineFailureTest(unittest.TestCase):
     """A bad invocation reports what is wrong; it does not dump a traceback.
