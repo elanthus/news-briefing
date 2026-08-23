@@ -707,9 +707,14 @@ def _check_structured_corpus_health(section: Section,
     if undated_sources:
         expected_keys.add("undated_sources")
     if not isinstance(manifest, dict) or set(manifest) != expected_keys:
+        shape_problem = (
+            "Corpus health JSON must be an object containing only failed_sources"
+            if expected_keys == {"failed_sources"}
+            else "Corpus health JSON must contain exactly " + ", ".join(sorted(expected_keys))
+        )
         return [Finding(
             ERROR, "corpus_health_not_machine_readable",
-            "Corpus health JSON must contain exactly " + ", ".join(sorted(expected_keys)))]
+            shape_problem)]
     reported = manifest["failed_sources"]
     if not isinstance(reported, list):
         return [Finding(ERROR, "corpus_health_not_machine_readable",
