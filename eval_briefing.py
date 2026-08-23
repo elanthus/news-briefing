@@ -73,7 +73,8 @@ _TOPIC_LINE = re.compile(
 # High-risk assertions, checkable without a second model: a figure or a
 # quotation that does not appear in the evidence for the item being cited.
 _FIGURE = re.compile(
-    r"\d[\d,.]*(?:\s*[-\u2013\u2014]\s*\d[\d,.]*)?(?:\s*(?:%|percent))?"
+    r"\d[\d,.]*(?:\s*[-\u2013\u2014]\s*\d[\d,.]*)?"
+    r"(?:\s*(?:%|(?i:percent)\b))?"
 )
 _ABBREVIATED_YEAR_RANGE = re.compile(
     r"^(?P<start>\d{4})\s*[-\u2013\u2014]\s*(?P<end>\d{2})$"

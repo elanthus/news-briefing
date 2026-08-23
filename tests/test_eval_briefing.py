@@ -722,6 +722,40 @@ class ClaimGroundingTest(unittest.TestCase):
 
         self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
 
+    def test_uppercase_percent_matches_percent_symbol_in_evidence(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = "Reported an increase of 47%."
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Reported an increase of 47 PERCENT.",
+        )
+
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
+    def test_percentage_points_do_not_match_percent(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "The result moved by 47 percentage points."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — The result moved by 47%.",
+        )
+
+        self.assertIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
+    def test_percentile_does_not_match_percent(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "The result landed in the 47 percentile."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — The result landed at 47%.",
+        )
+
+        self.assertIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
     def test_decimal_and_range_percentage_spellings_are_equivalent(self):
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["us_politics"][0]["summary"] = (
