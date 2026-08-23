@@ -22,6 +22,7 @@ PUBLIC_ARTIFACTS = {
 FINDING_FIELDS = {"level", "check", "domain", "message"}
 STRUCTURED_PATH = re.compile(r"^(topics|excluded_topics)\.(.+?)\[(\d+)\]")
 EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
+FALLBACK_LOG_NAME = "fallback-log.json"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,37 @@ def _load_json(path: Path) -> object | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeError):
         return None
+
+
+def _selected_generation_run(run_dir: Path) -> Path | None:
+    """Resolve a fallback-chain root to its selected successful child run."""
+    fallback_path = run_dir / FALLBACK_LOG_NAME
+    if not fallback_path.exists():
+        return run_dir
+    fallback = _load_json(fallback_path)
+    if not isinstance(fallback, dict) or fallback.get("status") != "ready":
+        return None
+    selected = fallback.get("selected_run_dir")
+    if not isinstance(selected, str) or not selected or Path(selected).name != selected:
+        return None
+    selected_path = run_dir / selected
+    try:
+        resolved_root = run_dir.resolve(strict=True)
+        resolved_selected = selected_path.resolve(strict=True)
+    except OSError:
+        return None
+    if selected_path.is_symlink() or resolved_selected.parent != resolved_root:
+        return None
+    manifest = _load_json(resolved_selected / "manifest.json")
+    final = manifest.get("final") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("status") != "complete"
+        or not isinstance(final, dict)
+        or final.get("status") != "ready"
+    ):
+        return None
+    return resolved_selected
 
 
 def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
@@ -312,8 +344,17 @@ def prepare_publication(
     repair_actions: tuple[dict[str, str], ...] = ()
     public_content: bytes | None = None
 
-    manifest = _load_json(run_dir / "manifest.json")
-    if isinstance(manifest, dict) and manifest.get("status") == "complete":
+    generation_run_dir = _selected_generation_run(run_dir)
+    manifest = (
+        _load_json(generation_run_dir / "manifest.json")
+        if generation_run_dir is not None
+        else None
+    )
+    if (
+        generation_run_dir is not None
+        and isinstance(manifest, dict)
+        and manifest.get("status") == "complete"
+    ):
         final = manifest.get("final")
         if isinstance(final, dict):
             status = final.get("status")
@@ -331,13 +372,15 @@ def prepare_publication(
                         findings_count = len(normalized)
                         findings = _attach_review_context(
                             normalized,
-                            _final_structured_output(run_dir, manifest, final),
+                            _final_structured_output(generation_run_dir, manifest, final),
                         )
                 if disposition in PUBLIC_ARTIFACTS:
                     # Repair provenance is published only with a public artifact;
                     # non-public dispositions keep the minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
-                    public_content = _bound_artifact(run_dir, manifest, final, disposition)
+                    public_content = _bound_artifact(
+                        generation_run_dir, manifest, final, disposition
+                    )
                     if public_content is None:
                         disposition = "blocked"
                         findings_count = 0

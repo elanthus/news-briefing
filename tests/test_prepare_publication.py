@@ -11,6 +11,131 @@ from prepare_publication import prepare_publication
 
 
 class PreparePublicationTests(unittest.TestCase):
+    def test_resolves_selected_ready_run_from_fallback_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            selected = chain / "02-deepseek-deepseek-v4-flash-0731"
+            selected.mkdir(parents=True)
+            content = b"fallback briefing\n"
+            (selected / "final.md").write_bytes(content)
+            self._write_manifest(selected, "ready", "final", "final.md", content, [])
+            (chain / "fallback-log.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "selected_run_dir": selected.name,
+                        "selected_model": "deepseek/deepseek-v4-flash-0731",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual((history / "2026-08-20.md").read_bytes(), content)
+
+    def test_fallback_log_without_a_safe_ready_selection_fails_closed(self) -> None:
+        invalid_logs: tuple[object, ...] = (
+            {"status": "ready", "selected_run_dir": ""},
+            {"status": "ready", "selected_run_dir": ".."},
+            {"status": "ready", "selected_run_dir": "../outside"},
+            {"status": "failed", "selected_run_dir": "01-tencent-hy3"},
+            ["malformed"],
+        )
+        for fallback_log in invalid_logs:
+            with self.subTest(fallback_log=fallback_log), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                chain = root / "run"
+                chain.mkdir()
+                stale_content = b"stale root briefing\n"
+                (chain / "final.md").write_bytes(stale_content)
+                self._write_manifest(
+                    chain, "ready", "final", "final.md", stale_content, []
+                )
+                (chain / "fallback-log.json").write_text(
+                    json.dumps(fallback_log),
+                    encoding="utf-8",
+                )
+
+                history = root / "history"
+                record = prepare_publication(
+                    chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+                )
+
+                self.assertEqual(record.disposition, "blocked")
+                self.assertFalse((history / "2026-08-20.md").exists())
+
+    def test_fallback_selection_cannot_escape_through_a_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            outside = root / "outside"
+            chain.mkdir()
+            outside.mkdir()
+            content = b"outside briefing\n"
+            (outside / "final.md").write_bytes(content)
+            self._write_manifest(outside, "ready", "final", "final.md", content, [])
+            (chain / "outbound").symlink_to(outside, target_is_directory=True)
+            (chain / "fallback-log.json").write_text(
+                json.dumps({"status": "ready", "selected_run_dir": "outbound"}),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "blocked")
+            self.assertFalse((history / "2026-08-20.md").exists())
+
+    def test_ready_fallback_log_cannot_select_a_review_required_child(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            selected = chain / "01-tencent-hy3"
+            selected.mkdir(parents=True)
+            preview = b"review-required fallback preview\n"
+            (selected / "preview.md").write_bytes(preview)
+            self._write_manifest(
+                selected,
+                "review_required",
+                "preview",
+                "preview.md",
+                preview,
+                [
+                    {
+                        "level": "WARN",
+                        "check": "unsupported_quotation",
+                        "domain": "evidence",
+                        "message": "Verify the selected fallback report.",
+                    }
+                ],
+            )
+            (chain / "fallback-log.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "selected_run_dir": selected.name,
+                        "selected_model": "tencent/hy3",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "blocked")
+            self.assertFalse((history / "2026-08-20.md").exists())
+
     def test_copies_hash_bound_review_preview_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

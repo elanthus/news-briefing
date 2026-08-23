@@ -92,18 +92,14 @@ jobs:
             fi
 
             if [[ -f "$corpus" ]]; then
-              if ! python run_briefing.py \
-                --provider openrouter \
-                --model tencent/hy3 \
-                --temperature 0.2 \
+              if ! python run_daily_briefing.py \
                 --corpus "$corpus" \
                 --run-dir "$run_dir" \
                 --output "$report" \
                 --force \
                 --max-corrections 3 \
-                --max-tokens 20000 \
-                --reasoning-effort high; then
-                echo "::warning::Briefing generation did not produce a ready report for $report_date"
+                --max-tokens 20000; then
+                echo "::warning::All briefing models failed for $report_date; see $run_dir/fallback.log"
               fi
             fi
 
