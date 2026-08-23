@@ -115,14 +115,20 @@ python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 
 ## Try it
 
-Python 3.11+. The pipeline itself has no runtime dependencies; the only pinned package is the Markdown renderer used to build the static site. Install it first if you want to run the test suite or build the site locally:
+Python 3.11+. The pipeline itself has no runtime dependencies. The default test suite exercises that standard-library-only path with no setup:
+
+```bash
+python3 -m unittest -v
+```
+
+Static-site generation is optional and has its own test module and pinned Markdown renderer. Install it only if you want to build or test the site locally:
 
 ```bash
 python3 -m pip install --requirement requirements-site.txt
-python3 -m unittest
+python3 -m unittest -v tests.site_test_build
 ```
 
-Every command below runs without it.
+Every command below runs without the site renderer.
 
 Fetch a live corpus and look at what the model would be allowed to see:
 

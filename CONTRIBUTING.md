@@ -32,6 +32,15 @@ environment with:
 uv sync --project evaluator --group dev
 ```
 
+Static-site tests are intentionally excluded from default discovery. If you are
+changing `build_site.py` or the generated site, install the pinned renderer and
+run the opt-in module explicitly:
+
+```bash
+python3 -m pip install --requirement requirements-site.txt
+python3 -m unittest -v tests.site_test_build
+```
+
 Never commit API keys, `.env` files, generated corpora, briefings, or evaluator
 run artifacts.
 
@@ -64,6 +73,10 @@ uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
 uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
 ```
+
+CI and the agentic-preflight gate also run `tests.site_test_build` with
+`requirements-site.txt`; the module stays opt-in locally so the typical suite
+retains its no-install contract.
 
 The live-source smoke test is informational and is not required for a pull
 request. If you run live model evaluations, disclose the provider, exact model,
