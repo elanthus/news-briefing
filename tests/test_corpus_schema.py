@@ -485,11 +485,19 @@ class VersionTest(unittest.TestCase):
         for value in ("1", True, False, None, 1.5, 0, -1):
             with self.subTest(value=value):
                 candidate = corpus(schema_version=value)
+                candidate["errors"] = [{
+                    "source_type": "rss",
+                    "source_id": "example",
+                    "status": "error",
+                    "error_type": "parse",
+                    "message": "invalid feed",
+                    "duration_ms": 1,
+                }]
                 self.assertIsNone(corpus_version(candidate))
                 self.assertFalse(is_readable(candidate))
-                self.assertTrue(only(
-                    validate_corpus(candidate), "schema_version"
-                ))
+                problems = validate_corpus(candidate)
+                self.assertEqual(problems, only(problems, "schema_version"))
+                self.assertEqual(len(problems), 1)
 
     def test_legacy_and_current_corpora_are_readable(self):
         legacy = corpus()
