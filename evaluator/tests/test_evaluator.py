@@ -1661,6 +1661,19 @@ class LabelReviewAdapter(Adapter):
         return Generation(text=json.dumps({"reviews": reviews}), latency_ms=1.0)
 
 
+class RawLabelReviewAdapter(Adapter):
+    provider = "offline-label-review"
+
+    def __init__(self, model: str, response: dict[str, Any]):
+        super().__init__(model)
+        self.response = response
+        self.calls = 0
+
+    def generate(self, prompt: str) -> Generation:
+        self.calls += 1
+        return Generation(text=json.dumps(self.response), latency_ms=1.0)
+
+
 class FailOnceAdapter(FakeAdapter):
     def __init__(self, model: str):
         super().__init__(model)
@@ -4408,6 +4421,68 @@ class LabelReviewTest(unittest.TestCase):
         self.assertEqual(
             parsed["case-001"]["labels"], ["figure_supported_elsewhere"]
         )
+
+    def test_review_parser_rejects_every_non_string_label_with_value_error(self) -> None:
+        malformed_labels: tuple[object, ...] = ({}, [], 1, True, None)
+        for label in malformed_labels:
+            with self.subTest(label=label), self.assertRaisesRegex(
+                    ValueError, "contains non-string labels"):
+                _parse_reviews(json.dumps({
+                    "reviews": [{
+                        "case": "case-001",
+                        "labels": [label],
+                        "rationale": "fixture rationale",
+                    }],
+                }), {"case-001"})
+
+    def test_review_parser_preserves_unknown_and_duplicate_label_errors(self) -> None:
+        for labels, message in (
+            (["not-in-rubric"], "contains invalid labels"),
+            (["unsupported_claim", "unsupported_claim"], "has duplicate labels"),
+        ):
+            with self.subTest(labels=labels), self.assertRaisesRegex(ValueError, message):
+                _parse_reviews(json.dumps({
+                    "reviews": [{
+                        "case": "case-001",
+                        "labels": labels,
+                        "rationale": "fixture rationale",
+                    }],
+                }), {"case-001"})
+
+    def test_malformed_fresh_response_is_saved_then_retried_as_value_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(json.dumps({
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }), encoding="utf-8")
+            output_dir = temporary / "output"
+            malformed = RawLabelReviewAdapter("reviewer", {
+                "reviews": [{
+                    "case": "case-001",
+                    "labels": [{}],
+                    "rationale": "fixture rationale",
+                }],
+            })
+
+            with self.assertRaisesRegex(ValueError, "contains non-string labels"):
+                run_label_review(malformed, None, output_dir, suite_path)
+
+            checkpoint = output_dir / "reviewer-batch-01.json"
+            self.assertTrue(checkpoint.is_file())
+            good = LabelReviewAdapter("reviewer", {"case-001": []})
+            result = run_label_review(good, None, output_dir, suite_path)
+            self.assertEqual(malformed.calls, 1)
+            self.assertEqual(good.calls, 1)
+            self.assertFalse(result["reviewer_calls"][0]["resumed"])
+            self.assertEqual(result["cases"][0]["reviewer_labels"], [])
 
     def test_blinded_payload_omits_fixture_metadata_and_human_labels(self) -> None:
         suite = {
