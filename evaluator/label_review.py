@@ -30,7 +30,10 @@ LABEL_RUBRIC = {
     "conflicting_evidence": (
         "The cited evidence contains mutually conflicting accounts that the prose fails to qualify."
     ),
-    "corpus_health_missing": "The corpus records a source failure but the briefing has no Corpus health section.",
+    "corpus_health_missing": (
+        "The corpus records a source failure or undated-item drop but the briefing has no "
+        "Corpus health section."
+    ),
     "corpus_health_not_machine_readable": "The required health manifest is absent, malformed, or has the wrong shape.",
     "duplicate_failed_source": "A failed source occurs more than once in the health manifest.",
     "duplicate_undated_source": "A source with undated drops occurs more than once in the health manifest.",

@@ -1148,6 +1148,10 @@ class BuildSiteTests(unittest.TestCase):
         for payload in (
             '{"failed_sources":{}}',
             '{"failed_sources":[]}',
+            '{"failed_sources":[],"undated_sources":null}',
+            ('{"failed_sources":[],"undated_sources":['
+             '{"source_type":"rss","source_id":"NPR","count":1},'
+             '{"source_type":"rss","source_id":"NPR","count":2}]}'),
             '{"failed_sources":["rss"]}',
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
             '["not","an","object"]',

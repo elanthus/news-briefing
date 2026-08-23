@@ -479,7 +479,11 @@ def _corpus_health_records(
                 return None
         failures.append((item["source_type"], item["source_id"], item["status"]))
     undated: list[tuple[str, str, int]] = []
-    for item in payload.get("undated_sources", []):
+    undated_value = payload.get("undated_sources", [])
+    if not isinstance(undated_value, list):
+        return None
+    seen_undated: set[tuple[str, str]] = set()
+    for item in undated_value:
         if (not isinstance(item, dict)
                 or set(item) != {"source_type", "source_id", "count"}
                 or not isinstance(item.get("source_type"), str)
@@ -493,6 +497,10 @@ def _corpus_health_records(
         if any(any(char < " " or char == "\x7f" for char in item[key])
                for key in ("source_type", "source_id")):
             return None
+        identity = (item["source_type"], item["source_id"])
+        if identity in seen_undated:
+            return None
+        seen_undated.add(identity)
         undated.append((item["source_type"], item["source_id"], item["count"]))
     if not failures and not undated:
         return None

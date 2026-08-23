@@ -220,6 +220,10 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_renderer_reports_undated_source_drops(self):
         corpus, config, projected, output = fixture_contract()
+        corpus["errors"] = []
+        corpus["sources"] = [
+            source for source in corpus["sources"] if source["status"] == "ok"
+        ]
         source = corpus["sources"][0]
         source["parsed_entries"] += 2
         corpus["processing"][source["category"]]["undated_dropped"] += 2
@@ -229,6 +233,7 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn('"undated_sources"', briefing)
         self.assertIn(f'"source_id":"{source["source_id"]}"', briefing)
         self.assertIn('"count":2', briefing)
+        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
         self.assertEqual(eval_briefing.evaluate(corpus, briefing, config), [])
 
     def test_report_date_overrides_exclusive_window_end_in_title(self):
