@@ -104,105 +104,24 @@ The complete fetch → rank and summarize → check → single correction → fi
   python3 eval_briefing.py --corpus docs/runs/2026-08-17/corpus-2026-08-17.json --briefing docs/runs/2026-08-17/briefing.md --config docs/runs/2026-08-17/briefing-config.json
   ```
 
-### 2026-08-09 — the run behind the committed reference pair
+### 2026-08-16 — OpenRouter GLM 5.2 dogfood run
 
-The complete fetch → rank and summarize → check loop that produced [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). Every count below is derived from those two committed files, so this entry can be re-derived instead of taken on trust.
+The complete fetch → rank and summarize → check → single correction → final check loop, run with OpenRouter [`z-ai/glm-5.2`](https://openrouter.ai/z-ai/glm-5.2). Unlike the surrounding entries, this run has no `docs/runs/2026-08-16/` archive: the corpus, drafts, and configuration snapshot were not committed, so the figures below cannot be re-derived and there is no reproduce command. The prompt and configuration hashes were recorded at run time and identify the exact inputs.
 
-- Agent and execution environment: Claude Opus 5 subagent via Claude Desktop 2.1.222, in a local macOS checkout with Python 3.14.6.
-- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `8f89fb6` (SHA-256 `3d470b528b257e52de3889bdda9dadda2f8f5255ac81abad4ae6010404c9885d`).
-- Corpus window: 2026-08-09 00:34 UTC → 2026-08-10 00:34 UTC (24h), with the default caps of 25 items per source and 60 per category.
-- Corpus: 158 items — 27 US politics, 53 US news, 46 world, 7 AI/tech, 25 developer-community. Elapsed fetch time: 27.1 seconds.
-- Source failures: `r/ClaudeCode`, `r/LocalLLaMA` and `r/cursor` all returned HTTP 429 — three of the four subreddits. No Hacker News item cleared the window either, so both dev sub-sections drew on r/ClaudeAI alone, with no engagement signal available for any dev-community item. The briefing says so in its corpus-health section rather than just looking thin.
-- Processing: 10 AI/tech and 2 developer-community items failed the relevance filter; 2 US-news duplicates were dropped. Neither cap bound. All counters reconcile against `fetched`.
-- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming all three failed sources.
-- Checker, first result: 1 error, 1 warning — `ungrounded_link` for the AI Dev Practices item “Cowork Projects keep CLAUDE.md outside the project folder,” plus the expected transitional `slots_underfilled` warning because the checker still required 5 US Politics topics while the new prompt required 3.
-- Correction made after checking: replaced the ungrounded “Cowork Projects” item and URL with the corpus-supported “A developer uses Claude to build tools around their own ADHD needs” item. The following checker-contract task changed the US Politics target from 5 to 3, removing the transitional warning without changing the briefing.
-- Checker, final result: 0 errors, 0 warnings — still reproducible today:
-
-  ```bash
-  python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
-  ```
-
-Note on the claim-grounding checks: the four problems they caught on arrival (three over-reaching summaries, one misattributed quotation) were in the **2026-08-08** briefing, the baseline this pair replaced. That briefing was corrected in `30fafca` and removed from `fixtures/` in `2750a25`. This run's briefing has never been edited since it was committed.
-
-### 2026-08-10 — scheduled daily-news-briefing task
-
-The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/2026-08-10/), so this entry can be re-derived instead of taken on trust.
-
-- Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
-- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `c47973a` (SHA-256 `c83082cbeaa8df013a8de6251b8e26011aceccf9728b49fee5a955894daf49b2`). This is the latest prompt change before corpus generation and the version in the parent of the contemporaneous log commit; the artifacts were archived later, after another prompt change.
-- Corpus window: 2026-08-09 17:10:48 UTC → 2026-08-10 17:10:48 UTC (24h), default caps of 25 items per source and 60 per category.
-- Corpus: 208 items — 26 US politics, 60 US news, 47 world, 15 AI/tech, 60 developer-community. Elapsed fetch time wasn't captured on the actual run; an immediate follow-up fetch under the same environment and script took 23.9 seconds, given here as representative.
-- Source failures: `r/ClaudeCode` returned HTTP 429 — the only failure. All four other Reddit sources, Hacker News, and every RSS feed cleared the window.
-- Processing: 19 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; the 60-per-category cap bound on US news (8 dropped) and developer-community (9 dropped). No source cap bound. All counters reconciled against `fetched`.
-- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the one failed source.
-- Checker, first result: 3 errors, 7 warnings — three `category_ineligible` errors because the AI News section (eligible categories: `ai_tech`, `us_news`) cited two `us_politics` items (the Zuckerberg manifesto's "biggest risk" framing and the Sanders AI-pause letter); plus warnings for two unsupported figures (the Will Scharf item's "$400m" figure and the gas-price item's "$1" increase, both true but cited against items that didn't contain them), two unsupported quotations (the Netanyahu item's "historic" quote and the Zuckerberg item's "with as many people..." quote, both cited against items that didn't contain them), and three `claim_exceeds_evidence` warnings on the AI Dev Tools items sourced from Hacker News posts with empty corpus summaries, where the drafted summaries added unsupported framing beyond the bare title.
-- Correction made after checking: moved the Sanders AI-pause letter into US Politics, where `us_politics` is an eligible category, dropping the progressive-primary-wins topic to the exclusion log to keep the section at 3; re-cited the Zuckerberg manifesto against eligible `ai_tech`/`us_news` sources and swapped in a Wired "AI slop backlash" item (from an eligible `ai_tech` source) to refill AI News's fourth slot; added the missing supporting citations for the Will Scharf and gas-price figures and the Netanyahu quote; and trimmed the three Hacker News-sourced AI Dev Tools items down to only what their (otherwise summary-less) titles support, per the empty-summary grounding rule.
-- Checker, final result: 0 errors, 0 warnings — reproducible today:
-
-  ```bash
-  python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
-  ```
-
-### 2026-08-11 — Codex dogfood run and dated fixture sample
-
-The complete fetch → rank and summarize → check loop requested as a dated sample. Unlike the fixed 2026-08-09 regression pair, this run is preserved as a separate dated fixture set: [`corpus-2026-08-11.json`](../fixtures/corpus-2026-08-11.json), [`briefing-2026-08-11.md`](../fixtures/briefing-2026-08-11.md), and [`briefing-config-2026-08-11.json`](../fixtures/briefing-config-2026-08-11.json).
-
-- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
-- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `2adfeba` (SHA-256 `a5067598917874ef5e30acfd65d7b2e55c9992c5b4c6ba2368a160696fa7e72b`).
-- Corpus window: 2026-08-10 16:47:41 UTC → 2026-08-11 16:47:41 UTC (24h), with the default caps of 25 items per source and 60 per category.
-- Corpus: 230 items — 40 US politics, 60 US news, 55 world, 22 AI/tech, and 53 developer-community. Elapsed fetch time: 19.5 seconds.
-- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode` and `r/LocalLLaMA` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all three coverage gaps.
-- Processing: 40 AI/tech items and 1 developer-community item failed the relevance filter; 3 developer-community duplicates were dropped; the 60-per-category cap bound on US news, dropping 18 items. No source cap bound, and all counters reconcile against `fetched`.
-- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
-- Checker, first result: 0 errors, 2 warnings — one `unsupported_figure` warning for adding the year 2026 to the homicide summary when that year was absent from its cited item, and one for spelling the emissions estimate as `5%` when the corpus used `5 percent`.
-- Correction made after checking: removed the unsupported year from the homicide summary and changed the emissions estimate to the corpus-supported words “five percent.” No topics or citations changed.
-- Checker, final result: 0 errors, 0 warnings. The full 197-test suite also passed. Reproduce the final checker result with:
-
-  ```bash
-  python3 eval_briefing.py --corpus fixtures/corpus-2026-08-11.json --briefing fixtures/briefing-2026-08-11.md --config fixtures/briefing-config-2026-08-11.json
-  ```
-
-### 2026-08-12 — Codex daily dogfood run
-
-The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/2026-08-12/).
-
-- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
-- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `5e31cfa` (SHA-256 `e115aeb706bc87c3a9df87b349672d6f858e7ddf6a6b346dd6da0602b97fcf3a`).
-- Corpus window: 2026-08-11 18:54:09 UTC → 2026-08-12 18:54:09 UTC (24h), with the default caps of 25 items per source and 60 per category.
-- Corpus: 210 items — 40 US politics, 60 US news, 58 world, 24 AI/tech, and 28 developer-community. Elapsed live fetch time: 25.4 seconds.
-- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all four coverage gaps.
-- Processing: 55 AI/tech items and 3 developer-community items failed the relevance filter; the 60-per-category cap bound on US news, dropping 11 items. No duplicate, source-cap, field-budget, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
-- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
-- Checker, first result: 1 error, 1 warning — an `ungrounded_link` error because the “second brain” Reddit citation used a percent-encoded form that did not exactly match the corpus URL, and an `unsupported_figure` warning because the Blacksmith valuation figure appeared in the item's URL but not in its title or summary.
-- Corrections made after checking: replaced the Blacksmith valuation figure with the corpus-supported statement that its valuation jumped almost tenfold in less than a year. The first URL correction still included typographic quotation marks from the source title and produced 1 `ungrounded_link` error with 0 warnings on the intermediate check; the citation was then changed to the exact corpus URL slug.
-- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
-
-  ```bash
-  python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
-  ```
-
-### 2026-08-13 — Claude Code CLI dogfood run
-
-The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/2026-08-13/).
-
-- Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
-- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`). The CLI also loaded unarchived startup-hook context, so this identifies only the repository prompt, not the complete model input.
-- Corpus window: 2026-08-12 16:53:27 UTC → 2026-08-13 16:53:27 UTC (24h), with the default caps of 25 items per source and 60 per category.
-- Corpus: 236 items — 35 US politics, 60 US news, 58 world, 23 AI/tech, and 60 developer-community. Elapsed live fetch time: 10.5 seconds.
-- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries. The briefing's corpus-health prose and machine-readable manifest record the resulting coverage gap.
-- Processing: 36 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; a per-source cap dropped 6 world items; and the 60-per-category cap dropped 24 US-news and 43 developer-community items. No field, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
-- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the empty source.
-- CLI behavior: the first buffered attempt was stopped after 369.1 seconds because it exposed no progress and had not written a file; it cost $0.3564 and made no web requests or file changes. A retry with streaming diagnostics completed in 363.4 seconds and cost $1.2746. That retry first wrote a partial one-section draft, recognized the truncation itself, and replaced it with the complete briefing. Total model cost across both attempts was $1.6310. User-level Claude Code startup hooks also loaded unrelated learning-mode and skill context despite the narrow tool allowlist; `--safe-mode` would make a future run more reproducible and less noisy.
-- Checker, first result: 0 errors, 1 warning — `claim_exceeds_evidence` because the Hacker News item “Codex in ChatGPT desktop app for Linux is now in preview” had an empty summary, while the generated prose expanded its 56-character title into 184 characters of unsupported framing.
-- Correction made after checking: reduced that summary to the title-supported statement, “Codex in the ChatGPT desktop app for Linux is now in preview.” No topic, citation, or section placement changed.
-- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
-
-  ```bash
-  python3 eval_briefing.py --corpus docs/runs/2026-08-13/corpus-2026-08-13.json --briefing docs/runs/2026-08-13/briefing.md --config docs/runs/2026-08-13/briefing-config.json
-  ```
-
-- Offline verification: all 219 core tests and all 38 evaluator tests passed.
+- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Operator date August 16, 2026 in `America/Los_Angeles`.
+- Prompt version: [`briefing-prompt.md`](../briefing-prompt.md) at base commit `b340548be06ec2d1a898bffda384defe5fd31730` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`; Git blob `731d706316b358b65550a22c8116dba5c0847df8`), prompt version name `production`. The assembled first-pass request, including the operator-date prefix, trusted configuration, and fetched corpus, had SHA-256 `b0473bf8ba717ff62f8be8ebc556f0776528b8c271d6d2914588ceb00a7a5231`.
+- Configuration version: `briefing-config.json` from the same base commit (SHA-256 `ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9`; Git blob `38429ea90cdd97ad95d949a232ccd169134e9905`).
+- Generation controls: temperature 0, no seed, reasoning enabled at `high` effort, a 100,000-token completion ceiling, and a 600-second per-call timeout. The model received only the trusted prompt and configuration plus the closed, untrusted corpus; no tools, browsing, or external retrieval were available to it.
+- Corpus window: 2026-08-16 06:06:13 UTC → 2026-08-17 06:06:13 UTC (24h).
+- Corpus: 171 retained items — 26 US politics, 60 US news, 52 world, 7 AI/tech, and 26 developer-community. Live fetch time: 25.503 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` each returned HTTP 429. All four gaps appeared in the final briefing's prose and machine-readable corpus-health manifest.
+- Processing: 10 relevance-filter drops, 2 duplicate drops, 1 per-source-cap drop, and 3 category-cap drops. No field-budget, source-budget, or global-budget drops occurred. Sixty-six summaries were truncated at the configured field limit; all counters reconcile from 187 fetched items to 171 retained items.
+- Briefing: 22 reported topics filled all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), with all 25 configured exclusion-log entries and every degraded source reported.
+- Checker, first result: 1 error, 0 warnings — a World Events topic cited an Axios item categorized as `us_politics`, which is not eligible for that section.
+- Correction made after checking: one checker-guided correction removed the ineligible Axios citation, added an eligible NPR citation, and revised the topic summary to remain supported by the eligible Guardian, PBS, and NPR corpus items. No topic or section placement changed.
+- Checker, final result: **0 errors and 0 warnings** (`PASS`), reported as `Briefing is consistent with its corpus.`
+- Usage and cost: the first draft took 62.328 seconds for 30,043 prompt and 5,391 completion tokens (1,103 reasoning, 4,288 visible output) at $0.05920254; the correction took 30.940 seconds for 34,426 prompt and 5,021 completion tokens (789 reasoning, 4,232 visible output) at $0.07028880. Totals: 93.268 seconds, 64,469 prompt + 10,412 completion tokens, and **$0.12949134** reported by OpenRouter. Both calls completed on their first provider attempt, and no cache, audio, video, or image tokens were reported.
+- Assessment: GLM 5.2 produced a structurally complete, fully grounded briefing on its first attempt except for one cross-category citation, and the deterministic finding was specific enough to repair in one pass without creating new errors or warnings. This is one stochastic live run, not a benchmark or a general model-quality claim.
 
 ### 2026-08-15 — OpenRouter Tencent Hy3 dogfood run
 
@@ -244,3 +163,103 @@ At owner request, Hy3 was run again against the exact archived corpus and config
   ```bash
   python3 eval_briefing.py --corpus docs/runs/2026-08-15/hy3-reasoning-enabled/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/hy3-reasoning-enabled/briefing-config.json
   ```
+
+### 2026-08-13 — Claude Code CLI dogfood run
+
+The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/2026-08-13/).
+
+- Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`). The CLI also loaded unarchived startup-hook context, so this identifies only the repository prompt, not the complete model input.
+- Corpus window: 2026-08-12 16:53:27 UTC → 2026-08-13 16:53:27 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 236 items — 35 US politics, 60 US news, 58 world, 23 AI/tech, and 60 developer-community. Elapsed live fetch time: 10.5 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries. The briefing's corpus-health prose and machine-readable manifest record the resulting coverage gap.
+- Processing: 36 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; a per-source cap dropped 6 world items; and the 60-per-category cap dropped 24 US-news and 43 developer-community items. No field, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the empty source.
+- CLI behavior: the first buffered attempt was stopped after 369.1 seconds because it exposed no progress and had not written a file; it cost $0.3564 and made no web requests or file changes. A retry with streaming diagnostics completed in 363.4 seconds and cost $1.2746. That retry first wrote a partial one-section draft, recognized the truncation itself, and replaced it with the complete briefing. Total model cost across both attempts was $1.6310. User-level Claude Code startup hooks also loaded unrelated learning-mode and skill context despite the narrow tool allowlist; `--safe-mode` would make a future run more reproducible and less noisy.
+- Checker, first result: 0 errors, 1 warning — `claim_exceeds_evidence` because the Hacker News item “Codex in ChatGPT desktop app for Linux is now in preview” had an empty summary, while the generated prose expanded its 56-character title into 184 characters of unsupported framing.
+- Correction made after checking: reduced that summary to the title-supported statement, “Codex in the ChatGPT desktop app for Linux is now in preview.” No topic, citation, or section placement changed.
+- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-13/corpus-2026-08-13.json --briefing docs/runs/2026-08-13/briefing.md --config docs/runs/2026-08-13/briefing-config.json
+  ```
+
+- Offline verification: all 219 core tests and all 38 evaluator tests passed.
+
+### 2026-08-12 — Codex daily dogfood run
+
+The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/2026-08-12/).
+
+- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `5e31cfa` (SHA-256 `e115aeb706bc87c3a9df87b349672d6f858e7ddf6a6b346dd6da0602b97fcf3a`).
+- Corpus window: 2026-08-11 18:54:09 UTC → 2026-08-12 18:54:09 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 210 items — 40 US politics, 60 US news, 58 world, 24 AI/tech, and 28 developer-community. Elapsed live fetch time: 25.4 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode`, `r/LocalLLaMA`, and `r/cursor` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all four coverage gaps.
+- Processing: 55 AI/tech items and 3 developer-community items failed the relevance filter; the 60-per-category cap bound on US news, dropping 11 items. No duplicate, source-cap, field-budget, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
+- Checker, first result: 1 error, 1 warning — an `ungrounded_link` error because the “second brain” Reddit citation used a percent-encoded form that did not exactly match the corpus URL, and an `unsupported_figure` warning because the Blacksmith valuation figure appeared in the item's URL but not in its title or summary.
+- Corrections made after checking: replaced the Blacksmith valuation figure with the corpus-supported statement that its valuation jumped almost tenfold in less than a year. The first URL correction still included typographic quotation marks from the source title and produced 1 `ungrounded_link` error with 0 warnings on the intermediate check; the citation was then changed to the exact corpus URL slug.
+- Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
+  ```
+
+### 2026-08-11 — Codex dogfood run and dated fixture sample
+
+The complete fetch → rank and summarize → check loop requested as a dated sample. Unlike the fixed 2026-08-09 regression pair, this run is preserved as a separate dated fixture set: [`corpus-2026-08-11.json`](../fixtures/corpus-2026-08-11.json), [`briefing-2026-08-11.md`](../fixtures/briefing-2026-08-11.md), and [`briefing-config-2026-08-11.json`](../fixtures/briefing-config-2026-08-11.json).
+
+- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `2adfeba` (SHA-256 `a5067598917874ef5e30acfd65d7b2e55c9992c5b4c6ba2368a160696fa7e72b`).
+- Corpus window: 2026-08-10 16:47:41 UTC → 2026-08-11 16:47:41 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 230 items — 40 US politics, 60 US news, 55 world, 22 AI/tech, and 53 developer-community. Elapsed fetch time: 19.5 seconds.
+- Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/ClaudeCode` and `r/LocalLLaMA` returned HTTP 429. The briefing's corpus-health prose and machine-readable manifest record all three coverage gaps.
+- Processing: 40 AI/tech items and 1 developer-community item failed the relevance filter; 3 developer-community duplicates were dropped; the 60-per-category cap bound on US news, dropping 18 items. No source cap bound, and all counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming every failed or empty source.
+- Checker, first result: 0 errors, 2 warnings — one `unsupported_figure` warning for adding the year 2026 to the homicide summary when that year was absent from its cited item, and one for spelling the emissions estimate as `5%` when the corpus used `5 percent`.
+- Correction made after checking: removed the unsupported year from the homicide summary and changed the emissions estimate to the corpus-supported words “five percent.” No topics or citations changed.
+- Checker, final result: 0 errors, 0 warnings. The full 197-test suite also passed. Reproduce the final checker result with:
+
+  ```bash
+  python3 eval_briefing.py --corpus fixtures/corpus-2026-08-11.json --briefing fixtures/briefing-2026-08-11.md --config fixtures/briefing-config-2026-08-11.json
+  ```
+
+### 2026-08-10 — scheduled daily-news-briefing task
+
+The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/2026-08-10/), so this entry can be re-derived instead of taken on trust.
+
+- Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `c47973a` (SHA-256 `c83082cbeaa8df013a8de6251b8e26011aceccf9728b49fee5a955894daf49b2`). This is the latest prompt change before corpus generation and the version in the parent of the contemporaneous log commit; the artifacts were archived later, after another prompt change.
+- Corpus window: 2026-08-09 17:10:48 UTC → 2026-08-10 17:10:48 UTC (24h), default caps of 25 items per source and 60 per category.
+- Corpus: 208 items — 26 US politics, 60 US news, 47 world, 15 AI/tech, 60 developer-community. Elapsed fetch time wasn't captured on the actual run; an immediate follow-up fetch under the same environment and script took 23.9 seconds, given here as representative.
+- Source failures: `r/ClaudeCode` returned HTTP 429 — the only failure. All four other Reddit sources, Hacker News, and every RSS feed cleared the window.
+- Processing: 19 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; the 60-per-category cap bound on US news (8 dropped) and developer-community (9 dropped). No source cap bound. All counters reconciled against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the one failed source.
+- Checker, first result: 3 errors, 7 warnings — three `category_ineligible` errors because the AI News section (eligible categories: `ai_tech`, `us_news`) cited two `us_politics` items (the Zuckerberg manifesto's "biggest risk" framing and the Sanders AI-pause letter); plus warnings for two unsupported figures (the Will Scharf item's "$400m" figure and the gas-price item's "$1" increase, both true but cited against items that didn't contain them), two unsupported quotations (the Netanyahu item's "historic" quote and the Zuckerberg item's "with as many people..." quote, both cited against items that didn't contain them), and three `claim_exceeds_evidence` warnings on the AI Dev Tools items sourced from Hacker News posts with empty corpus summaries, where the drafted summaries added unsupported framing beyond the bare title.
+- Correction made after checking: moved the Sanders AI-pause letter into US Politics, where `us_politics` is an eligible category, dropping the progressive-primary-wins topic to the exclusion log to keep the section at 3; re-cited the Zuckerberg manifesto against eligible `ai_tech`/`us_news` sources and swapped in a Wired "AI slop backlash" item (from an eligible `ai_tech` source) to refill AI News's fourth slot; added the missing supporting citations for the Will Scharf and gas-price figures and the Netanyahu quote; and trimmed the three Hacker News-sourced AI Dev Tools items down to only what their (otherwise summary-less) titles support, per the empty-summary grounding rule.
+- Checker, final result: 0 errors, 0 warnings — reproducible today:
+
+  ```bash
+  python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
+  ```
+
+### 2026-08-09 — the run behind the committed reference pair
+
+The complete fetch → rank and summarize → check loop that produced [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). Every count below is derived from those two committed files, so this entry can be re-derived instead of taken on trust.
+
+- Agent and execution environment: Claude Opus 5 subagent via Claude Desktop 2.1.222, in a local macOS checkout with Python 3.14.6.
+- Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `8f89fb6` (SHA-256 `3d470b528b257e52de3889bdda9dadda2f8f5255ac81abad4ae6010404c9885d`).
+- Corpus window: 2026-08-09 00:34 UTC → 2026-08-10 00:34 UTC (24h), with the default caps of 25 items per source and 60 per category.
+- Corpus: 158 items — 27 US politics, 53 US news, 46 world, 7 AI/tech, 25 developer-community. Elapsed fetch time: 27.1 seconds.
+- Source failures: `r/ClaudeCode`, `r/LocalLLaMA` and `r/cursor` all returned HTTP 429 — three of the four subreddits. No Hacker News item cleared the window either, so both dev sub-sections drew on r/ClaudeAI alone, with no engagement signal available for any dev-community item. The briefing says so in its corpus-health section rather than just looking thin.
+- Processing: 10 AI/tech and 2 developer-community items failed the relevance filter; 2 US-news duplicates were dropped. Neither cap bound. All counters reconcile against `fetched`.
+- Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming all three failed sources.
+- Checker, first result: 1 error, 1 warning — `ungrounded_link` for the AI Dev Practices item “Cowork Projects keep CLAUDE.md outside the project folder,” plus the expected transitional `slots_underfilled` warning because the checker still required 5 US Politics topics while the new prompt required 3.
+- Correction made after checking: replaced the ungrounded “Cowork Projects” item and URL with the corpus-supported “A developer uses Claude to build tools around their own ADHD needs” item. The following checker-contract task changed the US Politics target from 5 to 3, removing the transitional warning without changing the briefing.
+- Checker, final result: 0 errors, 0 warnings — still reproducible today:
+
+  ```bash
+  python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
+  ```
+
+Note on the claim-grounding checks: the four problems they caught on arrival (three over-reaching summaries, one misattributed quotation) were in the **2026-08-08** briefing, the baseline this pair replaced. That briefing was corrected in `30fafca` and removed from `fixtures/` in `2750a25`. This run's briefing has never been edited since it was committed.
