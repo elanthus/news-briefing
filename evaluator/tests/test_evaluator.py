@@ -4580,11 +4580,11 @@ class LabelReviewTest(unittest.TestCase):
                 (output_dir / "label-review-run.json").read_text(encoding="utf-8")
             )
             self.assertEqual(identity["schema_version"], 4)
-            self.assertEqual(len(identity["reviewer"]["prompt_sha256"]), 64)
-            self.assertEqual(len(identity["adjudicator"]["prompt_sha256"]), 64)
+            self.assertEqual(len(identity["reviewer"]["prompt_template_sha256"]), 64)
+            self.assertEqual(len(identity["adjudicator"]["prompt_template_sha256"]), 64)
             self.assertNotEqual(
-                identity["reviewer"]["prompt_sha256"],
-                identity["adjudicator"]["prompt_sha256"],
+                identity["reviewer"]["prompt_template_sha256"],
+                identity["adjudicator"]["prompt_template_sha256"],
             )
 
             review_prompt = label_review._review_prompt
@@ -4610,6 +4610,66 @@ class LabelReviewTest(unittest.TestCase):
 
             self.assertEqual(reviewer.calls, 1)
             self.assertEqual(adjudicator.calls, 1)
+
+    def test_batch_checkpoints_are_bound_to_exact_effective_prompts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(json.dumps({
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }), encoding="utf-8")
+
+            reviewer = LabelReviewAdapter(
+                "reviewer", {"case-001": ["unsupported_claim"]}
+            )
+            adjudicator = LabelReviewAdapter("adjudicator", {"case-001": []})
+            reviewer_output = temporary / "reviewer-change"
+            run_label_review(reviewer, adjudicator, reviewer_output, suite_path)
+            review_prompt = label_review._review_prompt
+            with patch.object(
+                    label_review, "_review_prompt",
+                    side_effect=lambda cases: review_prompt(cases)
+                    + ("\nChanged real-batch review prose.\n" if cases else "")):
+                changed = run_label_review(
+                    reviewer, adjudicator, reviewer_output, suite_path
+                )
+            self.assertEqual(reviewer.calls, 2)
+            self.assertEqual(adjudicator.calls, 1)
+            self.assertFalse(changed["reviewer_calls"][0]["resumed"])
+            self.assertTrue(changed["adjudicator_calls"][0]["resumed"])
+
+            reviewer = LabelReviewAdapter(
+                "reviewer", {"case-001": ["unsupported_claim"]}
+            )
+            adjudicator = LabelReviewAdapter("adjudicator", {"case-001": []})
+            adjudicator_output = temporary / "adjudicator-change"
+            run_label_review(reviewer, adjudicator, adjudicator_output, suite_path)
+            adjudication_prompt = label_review._adjudication_prompt
+            with patch.object(
+                    label_review, "_adjudication_prompt",
+                    side_effect=lambda cases: adjudication_prompt(cases)
+                    + ("\nChanged real-batch adjudication prose.\n" if cases else "")):
+                changed = run_label_review(
+                    reviewer, adjudicator, adjudicator_output, suite_path
+                )
+            self.assertEqual(reviewer.calls, 1)
+            self.assertEqual(adjudicator.calls, 2)
+            self.assertTrue(changed["reviewer_calls"][0]["resumed"])
+            self.assertFalse(changed["adjudicator_calls"][0]["resumed"])
+
+            checkpoint = json.loads(
+                (adjudicator_output / "adjudicator-batch-01.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(len(checkpoint["prompt_sha256"]), 64)
 
     def test_review_labels_loads_env_file_before_provider_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
