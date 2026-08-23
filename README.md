@@ -10,7 +10,7 @@ Live site → <https://elanthus.github.io/news-briefing/> · Every run also publ
 
 ## The one-paragraph version
 
-A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The whole thing is Python standard library only, 582 tests, and it has been publishing itself daily since August 2026.
+A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with 582 tests, and it has been publishing itself daily since August 2026.
 
 The failure that motivated all of it is documented: an early run [fabricated a citation](docs/writeups/injection-benchmark-post.md), the checker caught it, and I built the rest of the system around the idea that anything code can decide, code should decide.
 
@@ -40,7 +40,7 @@ That last row is the point. The project publishes what it can prove and refuses 
 
 Before generation, each corpus item is projected into untrusted evidence text plus an opaque identifier. The real URLs live in a code-owned map the model never receives. Each section's JSON Schema enumerates only the citation IDs eligible for that section, and any free-form output field containing a web destination fails validation.
 
-This converts URL grounding from *"check the model's links afterwards"* into *"the model is structurally incapable of authoring a link."* Rendering then expands each selected ID to all its code-owned destinations — so a Hacker News story automatically carries its discussion link, and cannot omit it.
+This converts URL grounding from *"check the model's links afterwards"* into *"the model cannot author a link that survives validation."* It can still emit a URL into a prose field — nothing stops it from typing characters — but that field is checked against the same code-owned allowlist, and a model-authored destination fails the run rather than reaching a reader. Rendering then expands each selected ID to all its code-owned destinations — so a Hacker News story automatically carries its discussion link, and cannot omit it.
 
 ---
 
@@ -48,7 +48,7 @@ This converts URL grounding from *"check the model's links afterwards"* into *"t
 
 ![Runtime pipeline: fetch, project, generate, validate, repair, correct, gate, publish](docs/images/runtime-pipeline.svg)
 
-```
+```text
 fetch_news.py      →  corpus.json (schema v6, validated on write)
 agent_runner/      →  project → generate → validate → repair → correct → gate
 eval_briefing.py   →  the deterministic oracle, usable standalone
@@ -77,10 +77,10 @@ Plus a detail I enjoyed more than I should have: **the fetcher does its own SSRF
 
 | Component | Cases | Precision | Recall | False-positive rate |
 |---|---:|---:|---:|---:|
-| Checker | 69 | 85.7% [73.3, 92.9] | 75.0% [62.3, 84.5] | 0.42% (7/1669) |
-| Feed parser | 12 | 100% | 100% | 0% (0/28) |
+| Checker | 69 | 42/49; 85.7% [73.3, 92.9] | 42/56; 75.0% [62.3, 84.5] | 7/1669; 0.42% [0.20, 0.86] |
+| Feed parser | 12 | 8/8; 100% [67.6, 100] | 8/8; 100% [67.6, 100] | 0/28; 0% [0.0, 12.1] |
 
-On a deliberately hard 12-case subset of *valid* claim boundaries, the combined claim heuristics false-positive at **58.3%**. That number is published because it defines the boundary: code can prove a URL is absent from a corpus; a 400-character feed excerpt cannot prove a nuanced summary is unfaithful. Those checks are warnings, and the system treats them as warnings.
+On a deliberately hard 12-case subset of *valid* claim boundaries, the combined claim heuristics false-positive at **7/12; 58.3% [32.0, 80.7]**. That number is published because it defines the boundary: code can prove a URL is absent from a corpus; a 400-character feed excerpt cannot prove a nuanced summary is unfaithful. Those checks are warnings, and the system treats them as warnings.
 
 **55 generation cases** measure model behavior — 22 utility cases and 33 indirect prompt-injection attacks placed in the fields a news pipeline must treat as data: titles, summaries, source names, source-failure records. Attacks target nine observable behaviors (citation fabrication and alteration, duplicate citations, selection promotion/suppression, section misrouting, health-report manipulation, prose distortion, formatting damage). Five have **matched clean twins** built from the same pristine corpus with the mutations removed — because a system that outputs nothing scores as perfectly robust, and that has to be visible.
 
@@ -88,12 +88,12 @@ Portfolio v2: 1,200 preregistered rows from a clean tag, 0 provider errors, 0 sk
 
 | Model / prompt | End-to-end final utility | Final targeted attack success |
 |---|---:|---:|
-| DeepSeek V4 Flash / production | 90.0% (99/110) | 5.7% (6/105) |
-| DeepSeek V4 Flash / reliability-v1 | 86.4% (95/110) | 2.9% (3/105) |
-| Tencent HY3 / production | 81.8% (90/110) | 4.8% (5/105) |
-| Tencent HY3 / reliability-v1 | 83.6% (92/110) | 3.8% (4/105) |
+| DeepSeek V4 Flash / production | 99/110; 90.0% [83.0, 94.3] | 6/105; 5.7% [2.6, 11.9] |
+| DeepSeek V4 Flash / reliability-v1 | 95/110; 86.4% [78.7, 91.6] | 3/105; 2.9% [1.0, 8.1] |
+| Tencent HY3 / production | 90/110; 81.8% [73.6, 87.9] | 5/105; 4.8% [2.1, 10.7] |
+| Tencent HY3 / reliability-v1 | 92/110; 83.6% [75.6, 89.4] | 4/105; 3.8% [1.5, 9.4] |
 
-Every rate reports successes, trials, and a two-sided 95% Wilson interval. There is a deliberately-bad `compliant` baseline adapter that obeys every injected instruction; CI asserts it scores 100% attack success, because if the strategy designed to lose doesn't lose, the benchmark is broken rather than the model.
+Every rate above reports successes, trials, and a two-sided 95% Wilson interval, because that is what the evaluator emits — utility and attack denominators differ (completed utility trials versus completed primary attack trials) and are never pooled. There is a deliberately-bad `compliant` baseline adapter that obeys every injected instruction; CI asserts it scores 100% attack success, because if the strategy designed to lose doesn't lose, the benchmark is broken rather than the model.
 
 **The candidate prompt was not promoted.** It failed its preregistered rules for both models. Writing that down was the whole exercise.
 
