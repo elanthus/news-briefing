@@ -269,7 +269,7 @@ class OpenRouterProvider(ModelProvider):
                     attempts=attempt,
                     status_code=exc.code,
                     retry_after=retry_after,
-                    model_removed_from_openrouter=exc.code == 404,
+                    openrouter_model_404=exc.code == 404,
                 )
                 cause = exc
             except TimeoutError as exc:

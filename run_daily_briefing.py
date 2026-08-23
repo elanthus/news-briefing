@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,6 +37,7 @@ PRODUCTION_MODEL_CHAIN = (
 
 LOG_NAME = "fallback-log.json"
 TEXT_LOG_NAME = "fallback.log"
+OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models"
 
 
 @dataclass(frozen=True)
@@ -105,11 +108,49 @@ def _failure_reason(result: RunResult | None, manifest: dict[str, Any] | None, e
     return f"{status}: " + ("; ".join(details) if details else "no ready report was produced")
 
 
-def _model_removed(manifest: dict[str, Any] | None, exc: Exception | None) -> bool:
-    if isinstance(exc, ProviderError) and exc.model_removed_from_openrouter:
+def _openrouter_model_404(manifest: dict[str, Any] | None, exc: Exception | None) -> bool:
+    if isinstance(exc, ProviderError) and exc.openrouter_model_404:
         return True
     error = _manifest_error(manifest)
-    return bool(error and error.get("model_removed_from_openrouter") is True)
+    return bool(error and error.get("openrouter_model_404") is True)
+
+
+def _catalog_model_removed_from_openrouter(model: str) -> bool | None:
+    """Return exact catalog absence after a 404, or None when it cannot be checked."""
+    request = urllib.request.Request(
+        OPENROUTER_MODELS_ENDPOINT,
+        headers={"User-Agent": "news-briefing/model-availability-check"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read())
+    except (OSError, UnicodeError, json.JSONDecodeError, urllib.error.URLError):
+        return None
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return None
+    model_ids = {
+        row.get("id")
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("id"), str)
+    }
+    return model not in model_ids
+
+
+def _model_removed(
+    model: str,
+    manifest: dict[str, Any] | None,
+    exc: Exception | None,
+) -> bool | None:
+    if not _openrouter_model_404(manifest, exc):
+        return False
+    return _catalog_model_removed_from_openrouter(model)
+
+
+def _removal_label(removed: bool | None) -> str:
+    if removed is None:
+        return "unknown"
+    return str(removed).lower()
 
 
 def _is_publishable_ready_result(
@@ -153,7 +194,7 @@ def _quarantined_report(
     candidate: ModelCandidate,
     result: RunResult | None,
     reason: str,
-    removed: bool,
+    removed: bool | None,
 ) -> str:
     if result is not None and result.output_path is not None and result.output_path.is_file():
         try:
@@ -162,7 +203,7 @@ def _quarantined_report(
             pass
     candidate_dir.mkdir(parents=True, exist_ok=True)
     report = candidate_dir / "failure.md"
-    removal = "yes" if removed else "no"
+    removal = "unknown" if removed is None else ("yes" if removed else "no")
     diagnostic_note = (
         "See `manifest.json` and `trace.jsonl` in this directory for the provider and "
         "checkpoint diagnostics."
@@ -201,7 +242,7 @@ def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]
         )
         if row["failure_reason"] is not None:
             line += (
-                f" model_removed_from_openrouter={str(row['model_removed_from_openrouter']).lower()}"
+                f" model_removed_from_openrouter={_removal_label(row['model_removed_from_openrouter'])}"
                 f" failure_reason={json.dumps(row['failure_reason'], ensure_ascii=False)}"
                 f" quarantined_report={row['quarantined_report']}"
             )
@@ -258,7 +299,7 @@ def run_fallback_chain(
             return ChainResult("ready", candidate.model, candidate_dir, run_dir)
 
         reason = _failure_reason(result, manifest, failure)
-        removed = _model_removed(manifest, failure)
+        removed = _model_removed(candidate.model, manifest, failure)
         quarantined_report = _quarantined_report(
             run_dir, candidate_dir, candidate, result, reason, removed
         )
@@ -277,7 +318,7 @@ def run_fallback_chain(
         _write_chain_logs(run_dir, started_at, attempts)
         print(
             f"FAILED model={candidate.model} "
-            f"model_removed_from_openrouter={str(removed).lower()} "
+            f"model_removed_from_openrouter={_removal_label(removed)} "
             f"failure_reason={reason} quarantined_report={quarantined_report}",
             file=sys.stderr,
         )

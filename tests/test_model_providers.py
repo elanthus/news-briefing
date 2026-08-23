@@ -138,7 +138,7 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("list_secret", str(raised.exception))
         self.assertIn("[redacted]", str(raised.exception))
 
-    def test_openrouter_marks_404_as_removed_model(self):
+    def test_openrouter_records_404_for_model_catalog_check(self):
         error = urllib.error.HTTPError(
             "https://openrouter.ai/api/v1/chat/completions",
             404,
@@ -151,8 +151,8 @@ class ProviderTests(unittest.TestCase):
             "urllib.request.urlopen", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
-        self.assertTrue(raised.exception.model_removed_from_openrouter)
-        self.assertTrue(raised.exception.record()["model_removed_from_openrouter"])
+        self.assertTrue(raised.exception.openrouter_model_404)
+        self.assertTrue(raised.exception.record()["openrouter_model_404"])
         self.assertEqual(raised.exception.status_code, 404)
 
     def test_openrouter_does_not_retry_ambiguous_response_timeout(self):

@@ -37,7 +37,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                         "openrouter HTTP 404: model not found",
                         transient=False,
                         status_code=404,
-                        model_removed_from_openrouter=True,
+                        openrouter_model_404=True,
                     )
                     (run_dir / "manifest.json").write_text(
                         json.dumps({"status": "failed", "error": failure.record()}),
@@ -87,7 +87,10 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                 )
                 return RunResult(0, run_dir, run_settings.output_path, "ready")
 
-            with patch("run_daily_briefing.run_workflow", side_effect=fake_run):
+            with patch("run_daily_briefing.run_workflow", side_effect=fake_run), patch(
+                "run_daily_briefing._catalog_model_removed_from_openrouter",
+                return_value=True,
+            ):
                 result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
 
             log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
@@ -110,6 +113,31 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertTrue(log["attempts"][1]["quarantined_report"].endswith("preview.md"))
         self.assertIn("model_removed_from_openrouter=true", text_log)
         self.assertIn("quarantined_report=", text_log)
+
+    def test_catalog_check_distinguishes_present_removed_and_unknown_models(self) -> None:
+        class CatalogResponse:
+            def __init__(self, payload):
+                self.payload = json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return self.payload
+
+        from run_daily_briefing import _catalog_model_removed_from_openrouter
+
+        present = CatalogResponse({"data": [{"id": "tencent/hy3"}]})
+        absent = CatalogResponse({"data": [{"id": "deepseek/deepseek-v4-flash-0731"}]})
+        with patch("urllib.request.urlopen", return_value=present):
+            self.assertFalse(_catalog_model_removed_from_openrouter("tencent/hy3"))
+        with patch("urllib.request.urlopen", return_value=absent):
+            self.assertTrue(_catalog_model_removed_from_openrouter("tencent/hy3"))
+        with patch("urllib.request.urlopen", side_effect=OSError("offline")):
+            self.assertIsNone(_catalog_model_removed_from_openrouter("tencent/hy3"))
 
     def test_ready_primary_stops_before_fallback_models(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
