@@ -302,6 +302,7 @@ def _review_batch(
         prompt,
         checkpoint,
         lambda text: _parse_reviews(text, expected_ids),
+        bind_prompt=True,
     )
 
 
@@ -341,6 +342,7 @@ def run_label_review(
         "provider": reviewer.provider,
         "model": reviewer.model,
         "generation_controls": reviewer.generation_controls(),
+        "prompt_template_sha256": sha256_bytes(_review_prompt([]).encode("utf-8")),
     }
     adjudicator_metadata = (
         None if adjudicator is None
@@ -348,10 +350,13 @@ def run_label_review(
             "provider": adjudicator.provider,
             "model": adjudicator.model,
             "generation_controls": adjudicator.generation_controls(),
+            "prompt_template_sha256": sha256_bytes(
+                _adjudication_prompt([]).encode("utf-8")
+            ),
         }
     )
     identity = {
-        "schema_version": 3,
+        "schema_version": 4,
         "suite_sha256": sha256_bytes(raw),
         "selected_case_ids": sorted(case["id"] for case in selected_cases),
         "reviewer": reviewer_metadata,

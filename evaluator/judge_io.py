@@ -70,18 +70,27 @@ def checkpointed_generate(
     prompt: str,
     checkpoint: Path,
     parse: Callable[[str], Parsed],
+    *,
+    bind_prompt: bool = False,
 ) -> tuple[Generation, Parsed, bool]:
     """Return a valid cached generation or durably save and parse one new call."""
+    prompt_sha256 = sha256_bytes(prompt.encode("utf-8")) if bind_prompt else None
     if checkpoint.exists():
         try:
             payload = json.loads(checkpoint.read_text(encoding="utf-8"))
             if not isinstance(payload, dict):
                 raise ValueError(f"checkpoint {checkpoint.name} is not a JSON object")
+            saved_prompt_sha256 = payload.pop("prompt_sha256", None)
+            if bind_prompt and saved_prompt_sha256 != prompt_sha256:
+                raise ValueError(f"checkpoint {checkpoint.name} belongs to another prompt")
             generation = Generation(**payload)
             return generation, parse(generation.text), True
         except (OSError, TypeError, ValueError):
             # Retry corrupt checkpoints and malformed saved model responses.
             pass
     generation = adapter.generate(prompt)
-    write_json_atomic(checkpoint, generation.record())
+    record = generation.record()
+    if bind_prompt:
+        record["prompt_sha256"] = prompt_sha256
+    write_json_atomic(checkpoint, record)
     return generation, parse(generation.text), False
