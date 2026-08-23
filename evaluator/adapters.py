@@ -498,15 +498,21 @@ def _grouped_headings(sections: list[dict[str, Any]]) -> list[tuple[str, list[di
 
 def _corpus_health_lines(corpus: dict[str, Any]) -> list[str]:
     errors = corpus.get("errors", [])
-    if not errors:
+    undated_sources = corpus_schema.undated_source_records(corpus)
+    if not errors and not undated_sources:
         return []
-    payload = {
+    payload: dict[str, Any] = {
         "failed_sources": [
             {"source_type": error["source_type"], "source_id": error["source_id"], "status": error["status"]}
             for error in errors
         ]
     }
-    return ["---", "", "### Corpus health", "Coverage was degraded.", "```json", json.dumps(payload), "```", ""]
+    if undated_sources:
+        payload["undated_sources"] = undated_sources
+    return [
+        "---", "", "### Corpus health", "Coverage was degraded.",
+        "```json", json.dumps(payload), "```", "",
+    ]
 
 
 def _render_baseline(

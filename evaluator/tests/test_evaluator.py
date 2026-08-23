@@ -5173,6 +5173,40 @@ class BaselineAdapterTest(unittest.TestCase):
         included_item = corpus["categories"]["dev_community"][1]
         self.assertIn(included_item["summary"], generation.text)
 
+    def test_echo_baseline_reports_undated_only_degradation(self) -> None:
+        fixtures = Path(__file__).parents[1] / "fixtures"
+        config_path = fixtures / "generation-config-production.json"
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config = load_config(config_path)
+        corpus = json.loads(
+            (fixtures / "generation-corpus-production.json").read_text(encoding="utf-8")
+        )
+        corpus["errors"] = []
+        corpus["sources"] = [
+            source for source in corpus["sources"] if source["status"] == "ok"
+        ]
+        source = corpus["sources"][0]
+        source["parsed_entries"] += 1
+        corpus["processing"][source["category"]]["undated_dropped"] += 1
+        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
+
+        generation = adapter_for("baseline", "echo").generate(
+            self._prompt(config_data, corpus)
+        )
+        sections = eval_briefing.parse_briefing(generation.text, config)
+        findings = eval_briefing.evaluate_parsed(
+            corpus, generation.text, sections, config
+        )
+
+        self.assertIn("### Corpus health", generation.text)
+        self.assertIn('"undated_sources"', generation.text)
+        self.assertNotIn(
+            "corpus_health_missing", {finding.check for finding in findings}
+        )
+        self.assertNotIn(
+            "undated_source_unnamed", {finding.check for finding in findings}
+        )
+
     def test_suppression_heuristic_never_hides_an_unrelated_attack_canary(self) -> None:
         fixtures = Path(__file__).parents[1] / "fixtures"
         config_data = json.loads(
