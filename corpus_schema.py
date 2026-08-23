@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 from datetime import date, datetime
-from typing import Any, TypedDict
+from typing import Any, TypedDict, TypeGuard
 
 # Version 5 requires enforced context budgets and their truncation/drop
 # telemetry. Version 6 expands model-visible summaries so ordinary feed
@@ -103,10 +103,25 @@ V5_TOP_LEVEL_TYPES: dict[str, type] = {
 }
 
 
+def _is_integer(value: Any) -> TypeGuard[int]:
+    """Whether a JSON value is an integer rather than a Python boolean."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _has_declared_type(value: Any, expected: type | tuple[type, ...]) -> bool:
+    """Apply schema type declarations with JSON's integer/boolean distinction."""
+    if expected is int:
+        return _is_integer(value)
+    if (isinstance(expected, tuple) and isinstance(value, bool)
+            and int in expected and bool not in expected):
+        return False
+    return isinstance(value, expected)
+
+
 def corpus_version(corpus: dict[str, Any]) -> int:
     """Schema version of a loaded corpus, treating absence as generation 0."""
     version = corpus.get("schema_version", LEGACY_SCHEMA_VERSION)
-    if isinstance(version, bool) or not isinstance(version, int):
+    if not _is_integer(version):
         return LEGACY_SCHEMA_VERSION
     return version
 
@@ -210,7 +225,7 @@ def validate_corpus(corpus: Any) -> list[str]:
     for field, expected in TOP_LEVEL_TYPES.items():
         if field not in corpus:
             problems.append(f"missing top-level field {field!r}")
-        elif not isinstance(corpus[field], expected):
+        elif not _has_declared_type(corpus[field], expected):
             problems.append(
                 f"{field!r} should be {getattr(expected, '__name__', expected)}, "
                 f"got {type(corpus[field]).__name__}")
@@ -220,18 +235,18 @@ def validate_corpus(corpus: Any) -> list[str]:
         for field, expected in V4_TOP_LEVEL_TYPES.items():
             if field not in corpus:
                 problems.append(f"missing top-level field {field!r}")
-            elif not isinstance(corpus[field], expected):
+            elif not _has_declared_type(corpus[field], expected):
                 problems.append(f"{field!r} should be {expected.__name__}, "
                                 f"got {type(corpus[field]).__name__}")
     if version >= 5:
         for field, expected in V5_TOP_LEVEL_TYPES.items():
             if field not in corpus:
                 problems.append(f"missing top-level field {field!r}")
-            elif not isinstance(corpus[field], expected):
+            elif not _has_declared_type(corpus[field], expected):
                 problems.append(f"{field!r} should be {expected.__name__}, "
                                 f"got {type(corpus[field]).__name__}")
 
-    if isinstance(corpus.get("schema_version"), int):
+    if _is_integer(corpus.get("schema_version")):
         if corpus["schema_version"] > SCHEMA_VERSION:
             problems.append(
                 f"schema_version is {corpus['schema_version']}, "
@@ -261,8 +276,7 @@ def validate_corpus(corpus: Any) -> list[str]:
         problems.append("cutoff must not be later than generated_at")
 
     window_hours = corpus.get("window_hours")
-    if (isinstance(window_hours, bool) or not isinstance(window_hours, int)
-            or window_hours <= 0):
+    if not _is_integer(window_hours) or window_hours <= 0:
         if "window_hours" in corpus:
             problems.append("'window_hours' should be a positive integer")
 
@@ -272,7 +286,7 @@ def validate_corpus(corpus: Any) -> list[str]:
             problems.append("limits should contain source_cap and category_cap only")
         for field in ("source_cap", "category_cap"):
             value = limits.get(field)
-            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            if not _is_integer(value) or value <= 0:
                 problems.append(f"limits.{field} should be a positive integer")
 
     categories = corpus.get("categories")
@@ -300,7 +314,7 @@ def validate_corpus(corpus: Any) -> list[str]:
                          if not isinstance(e, str)]
 
     if "fetch_duration_ms" in corpus and (
-            not isinstance(corpus["fetch_duration_ms"], int)
+            not _is_integer(corpus["fetch_duration_ms"])
             or corpus["fetch_duration_ms"] < 0):
         problems.append("'fetch_duration_ms' should be a non-negative integer")
 
@@ -355,8 +369,7 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
                 problems.append(f"{where}.{field} should be a string")
         for field in ("points", "comments"):
             value = item.get(field)
-            if field in item and (isinstance(value, bool) or not isinstance(value, int)
-                                  or value < 0):
+            if field in item and (not _is_integer(value) or value < 0):
                 problems.append(f"{where}.{field} should be a non-negative integer")
         if version >= 5:
             byte_limits = {
@@ -412,7 +425,7 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
         if unknown:
             problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
         for field, expected in required.items():
-            if field in status and not isinstance(status[field], expected):
+            if field in status and not _has_declared_type(status[field], expected):
                 problems.append(f"{where}.{field} has the wrong type")
         if status.get("source_type") not in {"rss", "hacker_news", "reddit"}:
             problems.append(f"{where}.source_type is not recognized")
@@ -422,20 +435,17 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
             problems.append(f"{where}.status should be 'ok', 'empty', or 'error'")
         for field in ("parsed_entries", "dated_entries", "retained_entries", "duration_ms"):
             value = status.get(field)
-            if isinstance(value, bool) or (isinstance(value, int) and value < 0):
+            if _is_integer(value) and value < 0:
                 problems.append(f"{where}.{field} should be non-negative")
         for field, limit in (("retained_bytes", SOURCE_CONTEXT_MAX_BYTES),
                              ("estimated_tokens", SOURCE_CONTEXT_MAX_TOKENS)):
             value = status.get(field)
-            if version >= 5 and (isinstance(value, bool) or not isinstance(value, int)
-                                 or value < 0 or value > limit):
+            if version >= 5 and (not _is_integer(value) or value < 0 or value > limit):
                 problems.append(f"{where}.{field} should be between 0 and {limit}")
         parsed = status.get("parsed_entries")
         dated = status.get("dated_entries")
         retained = status.get("retained_entries")
-        if (isinstance(parsed, int) and not isinstance(parsed, bool)
-                and isinstance(dated, int) and not isinstance(dated, bool)
-                and isinstance(retained, int) and not isinstance(retained, bool)):
+        if (_is_integer(parsed) and _is_integer(dated) and _is_integer(retained)):
             if not 0 <= retained <= dated <= parsed:
                 problems.append(f"{where} entry counts should satisfy retained <= dated <= parsed")
         has_error = "error_type" in status or "message" in status
@@ -473,7 +483,7 @@ def _validate_legacy_sources(sources: Any) -> list[str]:
         if unknown := set(status) - allowed:
             problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
         for field, expected in required.items():
-            if field in status and not isinstance(status[field], expected):
+            if field in status and not _has_declared_type(status[field], expected):
                 problems.append(f"{where}.{field} has the wrong type")
         if status.get("status") not in {"ok", "error"}:
             problems.append(f"{where}.status should be 'ok' or 'error'")
@@ -497,7 +507,7 @@ def _validate_errors(errors: list[Any]) -> list[str]:
         if error.get("status") not in {"empty", "error"}:
             problems.append(f"{where}.status should be 'empty' or 'error'")
         duration = error.get("duration_ms")
-        if isinstance(duration, bool) or not isinstance(duration, int) or duration < 0:
+        if not _is_integer(duration) or duration < 0:
             problems.append(f"{where}.duration_ms should be a non-negative integer")
     return problems
 
@@ -517,7 +527,7 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
         parsed = source.get("parsed_entries")
         dated = source.get("dated_entries")
         status = source.get("status")
-        if status == "ok" and (not isinstance(parsed, int) or not isinstance(dated, int)
+        if status == "ok" and (not _is_integer(parsed) or not _is_integer(dated)
                                or parsed == 0 or dated == 0):
             problems.append(f"sources[{index}] cannot be ok with zero parsed or dated entries")
         if status == "empty" and source.get("http_success") is not True:
@@ -544,15 +554,12 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
             category = source.get("category")
             parsed = source.get("parsed_entries")
             dated = source.get("dated_entries")
-            if (category in source_undated
-                    and isinstance(parsed, int) and not isinstance(parsed, bool)
-                    and isinstance(dated, int) and not isinstance(dated, bool)):
+            if category in source_undated and _is_integer(parsed) and _is_integer(dated):
                 source_undated[category] += max(parsed - dated, 0)
         for category, expected_undated in source_undated.items():
             stats = processing.get(category)
             if (isinstance(stats, dict)
-                    and isinstance(stats.get("undated_dropped"), int)
-                    and not isinstance(stats["undated_dropped"], bool)
+                    and _is_integer(stats.get("undated_dropped"))
                     and stats["undated_dropped"] != expected_undated):
                 problems.append(
                     f"processing[{category!r}].undated_dropped is "
@@ -576,8 +583,8 @@ def undated_source_records(corpus: dict[str, Any]) -> list[UndatedSourceRecord]:
         dated = source.get("dated_entries")
         source_type = source.get("source_type")
         source_id = source.get("source_id")
-        if (not isinstance(parsed, int) or isinstance(parsed, bool)
-                or not isinstance(dated, int) or isinstance(dated, bool)
+        if (not _is_integer(parsed)
+                or not _is_integer(dated)
                 or not isinstance(source_type, str) or not isinstance(source_id, str)):
             continue
         if (count := parsed - dated) > 0:
@@ -620,7 +627,7 @@ def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[s
     if set(context) != set(required):
         return [f"context_budget should contain exactly {sorted(required)}"]
     for field, expected_type in required.items():
-        if not isinstance(context[field], expected_type) or isinstance(context[field], bool):
+        if not _has_declared_type(context[field], expected_type):
             problems.append(f"context_budget.{field} has the wrong type")
     field_limits = context.get("field_limits")
     expected_fields = {
@@ -636,8 +643,18 @@ def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[s
         "query_bytes": ITEM_QUERY_MAX_BYTES,
         "query_tokens": ITEM_QUERY_MAX_TOKENS,
     }
-    if field_limits != expected_fields:
-        problems.append("context_budget.field_limits does not match schema limits")
+    if isinstance(field_limits, dict):
+        if set(field_limits) != set(expected_fields):
+            problems.append("context_budget.field_limits does not match schema limits")
+        else:
+            for field, expected_limit in expected_fields.items():
+                value = field_limits[field]
+                if not _is_integer(value):
+                    problems.append(
+                        f"context_budget.field_limits.{field} has the wrong type")
+                elif value != expected_limit:
+                    problems.append(
+                        f"context_budget.field_limits.{field} should be {expected_limit}")
     exact_limits = {
         "source_max_bytes": SOURCE_CONTEXT_MAX_BYTES,
         "source_max_tokens": SOURCE_CONTEXT_MAX_TOKENS,
@@ -649,11 +666,12 @@ def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[s
             problems.append(f"context_budget.{field} should be {expected_limit}")
     for field in required.keys() - {"field_limits"}:
         value = context.get(field)
-        if isinstance(value, int) and not isinstance(value, bool) and value < 0:
+        if _is_integer(value) and value < 0:
             problems.append(f"context_budget.{field} should be non-negative")
-    if isinstance(context.get("used_bytes"), int) and context["used_bytes"] > GLOBAL_CONTEXT_MAX_BYTES:
+    if (_is_integer(context.get("used_bytes"))
+            and context["used_bytes"] > GLOBAL_CONTEXT_MAX_BYTES):
         problems.append("context_budget.used_bytes exceeds global_max_bytes")
-    if (isinstance(context.get("estimated_tokens"), int)
+    if (_is_integer(context.get("estimated_tokens"))
             and context["estimated_tokens"] > GLOBAL_CONTEXT_MAX_TOKENS):
         problems.append("context_budget.estimated_tokens exceeds global_max_tokens")
     if isinstance(processing, dict):
@@ -669,8 +687,7 @@ def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[s
         for processing_field, context_field in expected_names.items():
             values = [stats.get(processing_field) for stats in processing.values()
                       if isinstance(stats, dict)]
-            numeric_values = [value for value in values
-                              if isinstance(value, int) and not isinstance(value, bool)]
+            numeric_values = [value for value in values if _is_integer(value)]
             if len(numeric_values) == len(values):
                 if sum(numeric_values) != context.get(context_field):
                     problems.append(
@@ -692,11 +709,13 @@ def _validate_processing(processing: dict[str, Any],
         if missing:
             problems.append(f"processing[{name!r}] is missing {missing}")
             continue
-        if any(not isinstance(stats[f], int) for f in fields):
-            problems.append(f"processing[{name!r}] has a non-integer counter")
-            continue
-        if any(isinstance(stats[f], bool) or stats[f] < 0 for f in fields):
-            problems.append(f"processing[{name!r}] has a negative or boolean counter")
+        invalid = [field for field in fields
+                   if not _is_integer(stats[field]) or stats[field] < 0]
+        if invalid:
+            problems.extend(
+                f"processing[{name!r}].{field} should be a non-negative integer"
+                for field in invalid
+            )
             continue
         accounted = (stats["kept"] + stats["relevance_dropped"]
                      + stats["duplicates_dropped"] + stats["source_cap_dropped"]

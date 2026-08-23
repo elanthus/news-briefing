@@ -198,6 +198,125 @@ class TopLevelTest(unittest.TestCase):
         self.assertEqual(validate_corpus([1, 2]), ["corpus is not a JSON object"])
 
 
+class IntegerBooleanTest(unittest.TestCase):
+    """Every integer declaration rejects JSON booleans, including legacy fields."""
+
+    def test_top_level_and_limit_integers_reject_booleans(self):
+        for value in (True, False):
+            for field in ("schema_version", "window_hours", "fetch_duration_ms"):
+                with self.subTest(field=field, value=value):
+                    self.assertTrue(only(
+                        validate_corpus(corpus(**{field: value})), field
+                    ))
+            for field in ("source_cap", "category_cap"):
+                with self.subTest(field=f"limits.{field}", value=value):
+                    c = corpus()
+                    c["limits"][field] = value
+                    self.assertTrue(only(validate_corpus(c), f"limits.{field}"))
+
+    def test_item_metrics_reject_booleans(self):
+        for value in (True, False):
+            for field in ("points", "comments"):
+                with self.subTest(field=field, value=value):
+                    c = corpus()
+                    c["categories"]["us_politics"][0][field] = value
+                    self.assertTrue(only(validate_corpus(c), f".{field}"))
+
+    def test_current_source_counters_reject_booleans(self):
+        source = {
+            "source_type": "rss", "source_id": "NPR Politics",
+            "category": "us_politics", "status": "ok",
+            "requested": True, "http_success": True,
+            "parsed_entries": 1, "dated_entries": 1, "retained_entries": 1,
+            "retained_bytes": 100, "estimated_tokens": 25, "duration_ms": 42,
+        }
+        integer_fields = (
+            "parsed_entries", "dated_entries", "retained_entries",
+            "retained_bytes", "estimated_tokens", "duration_ms",
+        )
+        for value in (True, False):
+            for field in integer_fields:
+                with self.subTest(field=field, value=value):
+                    changed = copy.deepcopy(source)
+                    changed[field] = value
+                    self.assertTrue(only(
+                        validate_corpus(corpus(sources=[changed])),
+                        f"sources[0].{field}",
+                    ))
+
+    def test_error_durations_reject_booleans(self):
+        source = {
+            "source_type": "rss", "source_id": "Broken", "category": "us_politics",
+            "status": "error", "requested": True, "http_success": False,
+            "parsed_entries": 0, "dated_entries": 0, "retained_entries": 0,
+            "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 4,
+            "error_type": "HTTPError", "message": "503",
+        }
+        for value in (True, False):
+            with self.subTest(value=value):
+                error = {
+                    "source_type": "rss", "source_id": "Broken", "status": "error",
+                    "error_type": "HTTPError", "message": "503", "duration_ms": value,
+                }
+                self.assertTrue(only(
+                    validate_corpus(corpus(sources=[source], errors=[error])),
+                    "errors[0].duration_ms",
+                ))
+
+    def test_processing_counters_reject_booleans(self):
+        integer_fields = (
+            "fetched", "undated_dropped", "relevance_dropped",
+            "duplicates_dropped", "source_cap_dropped", "category_cap_dropped",
+            "field_budget_dropped", "source_budget_dropped", "global_budget_dropped",
+            "title_truncated", "summary_truncated", "context_bytes",
+            "estimated_tokens", "kept",
+        )
+        for value in (True, False):
+            for field in integer_fields:
+                with self.subTest(field=field, value=value):
+                    c = corpus()
+                    c["processing"]["us_politics"][field] = value
+                    self.assertTrue(only(
+                        validate_corpus(c), f"processing['us_politics'].{field}"
+                    ))
+
+    def test_context_budget_integers_reject_booleans(self):
+        c = corpus()
+        direct_fields = tuple(c["context_budget"].keys() - {"field_limits"})
+        nested_fields = tuple(c["context_budget"]["field_limits"])
+        for value in (True, False):
+            for field in direct_fields:
+                with self.subTest(field=f"context_budget.{field}", value=value):
+                    changed = corpus()
+                    changed["context_budget"][field] = value
+                    self.assertTrue(only(
+                        validate_corpus(changed), f"context_budget.{field}"
+                    ))
+            for field in nested_fields:
+                with self.subTest(field=f"field_limits.{field}", value=value):
+                    changed = corpus()
+                    changed["context_budget"]["field_limits"][field] = value
+                    self.assertTrue(only(
+                        validate_corpus(changed), f"context_budget.field_limits.{field}"
+                    ))
+
+    def test_legacy_source_counters_reject_booleans(self):
+        legacy_source = {
+            "source": "NPR Politics", "category": "us_politics", "status": "ok",
+            "item_count": 1, "undated_dropped": 0, "duration_ms": 4,
+        }
+        for value in (True, False):
+            for field in ("item_count", "undated_dropped", "duration_ms"):
+                with self.subTest(field=field, value=value):
+                    c = corpus()
+                    del c["schema_version"]
+                    changed = dict(legacy_source, **{field: value})
+                    c["sources"] = [changed]
+                    self.assertTrue(only(
+                        validate_corpus(c), f"sources[0].{field}"
+                    ))
+
+
 class CategoryTest(unittest.TestCase):
     def test_arbitrary_valid_category_is_allowed(self):
         c = corpus()
