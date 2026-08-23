@@ -1,3 +1,5 @@
+"""Opt-in static-site tests; run with ``python -m unittest tests.site_test_build``."""
+
 from __future__ import annotations
 
 import argparse
