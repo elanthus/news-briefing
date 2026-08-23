@@ -19,6 +19,7 @@ from unittest.mock import patch
 import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
+import evaluator.label_review as label_review
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.__main__ import ProgressBar, _prompt_values, _provider_values
 from evaluator.adapters import (
@@ -4540,7 +4541,7 @@ class LabelReviewTest(unittest.TestCase):
             identity = json.loads(
                 (temporary / "output" / "label-review-run.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(identity["schema_version"], 3)
+            self.assertEqual(identity["schema_version"], 4)
             self.assertEqual(
                 result["reviewer"]["generation_controls"],
                 {"reasoning_enabled": True, "reasoning_effort": "high"},
@@ -4553,6 +4554,62 @@ class LabelReviewTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "different label-review run"):
                 run_label_review(disabled, None, temporary / "output", suite_path)
+
+    def test_checkpoints_are_bound_to_prompts_and_label_rubric(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite_path = temporary / "suite.json"
+            suite_path.write_text(json.dumps({
+                "schema_version": 1,
+                "cases": [{
+                    "id": "one",
+                    "component": "checker",
+                    "family": "valid_edge",
+                    "variant": "valid-baseline",
+                    "human_labels": [],
+                }],
+            }), encoding="utf-8")
+            reviewer = LabelReviewAdapter(
+                "reviewer", {"case-001": ["unsupported_claim"]}
+            )
+            adjudicator = LabelReviewAdapter("adjudicator", {"case-001": []})
+            output_dir = temporary / "output"
+
+            run_label_review(reviewer, adjudicator, output_dir, suite_path)
+            identity = json.loads(
+                (output_dir / "label-review-run.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(identity["schema_version"], 4)
+            self.assertEqual(len(identity["reviewer"]["prompt_sha256"]), 64)
+            self.assertEqual(len(identity["adjudicator"]["prompt_sha256"]), 64)
+            self.assertNotEqual(
+                identity["reviewer"]["prompt_sha256"],
+                identity["adjudicator"]["prompt_sha256"],
+            )
+
+            review_prompt = label_review._review_prompt
+            with patch.object(
+                    label_review, "_review_prompt",
+                    side_effect=lambda cases: review_prompt(cases) + "\nChanged review prose.\n"):
+                with self.assertRaisesRegex(ValueError, "different label-review run"):
+                    run_label_review(reviewer, adjudicator, output_dir, suite_path)
+
+            adjudication_prompt = label_review._adjudication_prompt
+            with patch.object(
+                    label_review, "_adjudication_prompt",
+                    side_effect=lambda cases: adjudication_prompt(cases)
+                    + "\nChanged adjudication prose.\n"):
+                with self.assertRaisesRegex(ValueError, "different label-review run"):
+                    run_label_review(reviewer, adjudicator, output_dir, suite_path)
+
+            with patch.dict(
+                    label_review.LABEL_RUBRIC,
+                    {"new_label": "A changed rubric entry."}):
+                with self.assertRaisesRegex(ValueError, "different label-review run"):
+                    run_label_review(reviewer, adjudicator, output_dir, suite_path)
+
+            self.assertEqual(reviewer.calls, 1)
+            self.assertEqual(adjudicator.calls, 1)
 
     def test_review_labels_loads_env_file_before_provider_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
