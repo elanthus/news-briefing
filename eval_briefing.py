@@ -357,7 +357,11 @@ def parse_briefing(text: str, config: briefing_config.BriefingConfig | None = No
             topic = _TOPIC_LINE.match(line)
             if topic:
                 bucket["topics"].append(topic.group("title").strip())
-                bucket["topic_texts"].append(topic.group("prose").strip())
+                # Inline citations belong to the grounding contract, not to
+                # the model-authored claim. Keep their destinations below,
+                # but exclude them from figure, quotation, and length checks.
+                claim_prose = _LINK.sub("", topic.group("prose")).strip()
+                bucket["topic_texts"].append(claim_prose)
                 bucket["topic_links"].append([])
                 bucket["topic_link_spellings"].append([])
 

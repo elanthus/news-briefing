@@ -702,6 +702,39 @@ class ClaimGroundingTest(unittest.TestCase):
                                   "**Politics topic 1** — summary text here, up 47 percent.")
         self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text)))
 
+    def test_figure_in_inline_citation_url_is_not_claim_prose(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0].update(
+            url="https://ex.com/story/2026",
+            summary="Supported claim.",
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.\n🔗 https://ex.com/p1",
+            "**Politics topic 1** — Supported claim. 🔗 https://ex.com/story/2026",
+        )
+
+        sections = parse_briefing(text)
+        self.assertEqual(sections["US Politics"]["topic_texts"][0], "Supported claim.")
+        self.assertEqual(
+            sections["US Politics"]["topic_links"][0],
+            ["https://ex.com/story/2026"],
+        )
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
+    def test_long_inline_citation_url_does_not_inflate_claim_length(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        long_url = "https://ex.com/story/" + "a" * 120
+        corpus["categories"]["us_politics"][0].update(
+            url=long_url,
+            summary="Supported claim.",
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.\n🔗 https://ex.com/p1",
+            f"**Politics topic 1** — Supported claim. 🔗 {long_url}",
+        )
+
+        self.assertNotIn("claim_exceeds_evidence", checks(evaluate(corpus, text), WARN))
+
     def test_calendar_day_present_in_corpus_excerpt_is_accepted(self):
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["us_politics"][0]["summary"] = (
