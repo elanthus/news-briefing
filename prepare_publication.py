@@ -80,7 +80,15 @@ def _selected_generation_run(run_dir: Path) -> Path | None:
     selected = fallback.get("selected_run_dir")
     if not isinstance(selected, str) or not selected or Path(selected).name != selected:
         return None
-    return run_dir / selected
+    selected_path = run_dir / selected
+    try:
+        resolved_root = run_dir.resolve(strict=True)
+        resolved_selected = selected_path.resolve(strict=True)
+    except OSError:
+        return None
+    if selected_path.is_symlink() or resolved_selected.parent != resolved_root:
+        return None
+    return resolved_selected
 
 
 def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:

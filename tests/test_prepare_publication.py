@@ -42,6 +42,7 @@ class PreparePublicationTests(unittest.TestCase):
     def test_fallback_log_without_a_safe_ready_selection_fails_closed(self) -> None:
         invalid_logs: tuple[object, ...] = (
             {"status": "ready", "selected_run_dir": ""},
+            {"status": "ready", "selected_run_dir": ".."},
             {"status": "ready", "selected_run_dir": "../outside"},
             {"status": "failed", "selected_run_dir": "01-tencent-hy3"},
             ["malformed"],
@@ -68,6 +69,30 @@ class PreparePublicationTests(unittest.TestCase):
 
                 self.assertEqual(record.disposition, "blocked")
                 self.assertFalse((history / "2026-08-20.md").exists())
+
+    def test_fallback_selection_cannot_escape_through_a_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            outside = root / "outside"
+            chain.mkdir()
+            outside.mkdir()
+            content = b"outside briefing\n"
+            (outside / "final.md").write_bytes(content)
+            self._write_manifest(outside, "ready", "final", "final.md", content, [])
+            (chain / "outbound").symlink_to(outside, target_is_directory=True)
+            (chain / "fallback-log.json").write_text(
+                json.dumps({"status": "ready", "selected_run_dir": "outbound"}),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "blocked")
+            self.assertFalse((history / "2026-08-20.md").exists())
 
     def test_copies_hash_bound_review_preview_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
