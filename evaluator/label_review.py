@@ -276,7 +276,10 @@ def _parse_reviews(text: str, expected_ids: set[str]) -> dict[str, dict[str, Any
         rationale = row.get("rationale")
         if case_id not in expected_ids or case_id in parsed:
             raise ValueError(f"unexpected or duplicate review case {case_id!r}")
-        if not isinstance(labels, list) or any(label not in LABEL_RUBRIC for label in labels):
+        if not isinstance(labels, list) or any(
+                not isinstance(label, str) for label in labels):
+            raise ValueError(f"review {case_id!r} contains non-string labels")
+        if any(label not in LABEL_RUBRIC for label in labels):
             raise ValueError(f"review {case_id!r} contains invalid labels")
         if len(labels) != len(set(labels)) or not isinstance(rationale, str) or not rationale.strip():
             raise ValueError(f"review {case_id!r} has duplicate labels or no rationale")
