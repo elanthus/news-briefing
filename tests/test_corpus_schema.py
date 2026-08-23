@@ -459,6 +459,35 @@ class VersionTest(unittest.TestCase):
         del c["schema_version"]
         self.assertEqual(corpus_version(c), LEGACY_SCHEMA_VERSION)
 
+    def test_versionless_legacy_corpus_validates(self):
+        legacy = {
+            "generated_at": "2026-08-08T12:00:00+00:00",
+            "cutoff": "2026-08-07T12:00:00+00:00",
+            "window_hours": 24,
+            "limits": {"source_cap": 25, "category_cap": 60},
+            "categories": {"us_politics": [item()]},
+            "processing": {"us_politics": {
+                "fetched": 1, "undated_dropped": 0, "relevance_dropped": 0,
+                "duplicates_dropped": 0, "source_cap_dropped": 0,
+                "category_cap_dropped": 0, "kept": 1,
+            }},
+            "errors": [],
+            "sources": [{
+                "source": "NPR Politics", "category": "us_politics", "status": "ok",
+                "item_count": 1, "undated_dropped": 0, "duration_ms": 4,
+            }],
+        }
+
+        self.assertTrue(is_readable(legacy))
+        self.assertEqual(validate_corpus(legacy), [])
+
+    def test_present_malformed_version_remains_invalid(self):
+        for value in ("1", True, False, None, 1.5, 0, -1):
+            with self.subTest(value=value):
+                self.assertTrue(only(
+                    validate_corpus(corpus(schema_version=value)), "schema_version"
+                ))
+
     def test_legacy_and_current_corpora_are_readable(self):
         legacy = corpus()
         del legacy["schema_version"]
