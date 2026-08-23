@@ -794,7 +794,8 @@ def render_briefing(
                 )
             lines.append("")
 
-    if corpus.get("errors"):
+    undated_sources = corpus_schema.undated_source_records(corpus)
+    if corpus.get("errors") or undated_sources:
         failures = [
             {
                 "source_type": error["source_type"],
@@ -803,14 +804,17 @@ def render_briefing(
             }
             for error in corpus["errors"]
         ]
+        health_manifest: dict[str, Any] = {"failed_sources": failures}
+        if undated_sources:
+            health_manifest["undated_sources"] = undated_sources
         lines.extend([
             "---",
             "",
             "### Corpus health",
-            "Coverage was degraded by the source failures or empty responses listed below.",
+            "Coverage was degraded by the source failures, empty responses, or undated drops listed below.",
             "",
             "```json",
-            json.dumps({"failed_sources": failures}, ensure_ascii=False, separators=(",", ":")),
+            json.dumps(health_manifest, ensure_ascii=False, separators=(",", ":")),
             "```",
             "",
         ])
@@ -940,7 +944,12 @@ def render_validation_status(
         if _finding_value(finding, "level") == eval_briefing.WARN
     ]
     source_issues = corpus.get("errors", [])
-    resolved = outcome or classify_outcome(findings, source_issues)
+    undated_sources = corpus_schema.undated_source_records(corpus)
+    resolved = outcome or classify_outcome(
+        findings,
+        source_issues,
+        coverage_degraded=bool(source_issues or undated_sources),
+    )
     disposition_label = resolved.disposition.replace("_", " ").upper()
     lines = [
         "",
@@ -974,6 +983,17 @@ def render_validation_status(
                 f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
                 f"status={issue['status']}; error_type={issue['error_type']}; "
                 f"message={issue['message']}"
+            )
+    else:
+        lines.append("None")
+    lines.append("")
+    lines.append("**Undated source drops**")
+    if undated_sources:
+        for issue in undated_sources:
+            lines.append(
+                "- "
+                f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
+                f"count={issue['count']}"
             )
     else:
         lines.append("None")

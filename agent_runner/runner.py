@@ -490,13 +490,17 @@ def _finalize_candidate(
         raise RuntimeError("the final structured candidate could not be rendered")
     briefing = (store.root / briefing_name).read_text(encoding="utf-8")
     findings = eval_briefing.evaluate(corpus, briefing, config)
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     completed = briefing.rstrip() + "\n" + render_validation_status(
         findings, corpus, outcome=outcome
     )
     after = eval_briefing.evaluate(corpus, completed, config)
     if _checker_fingerprint(after) != _checker_fingerprint(findings):
-        outcome = classify_outcome(after, corpus.get("errors", []))
+        outcome = classify_outcome(
+            after, corpus.get("errors", []),
+            coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
         completed = briefing.rstrip() + "\n" + render_validation_status(
             after, corpus, outcome=outcome
         )
@@ -506,7 +510,9 @@ def _finalize_candidate(
         findings = stabilized
     else:
         findings = after
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     if outcome.disposition == "ready":
         store.write_text("briefing.md", completed)
         run_path = store.write_text("final.md", completed)
@@ -564,7 +570,9 @@ def _finalize_structured_preview(
     findings = json.loads(
         (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
     )
-    outcome = classify_outcome(findings, corpus.get("errors", []))
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
     if outcome.disposition == "ready":
         raise RuntimeError("an invalid structured candidate was unexpectedly classified as ready")
     store.write_json("preview-structured.json", redact_preview_value(output))
@@ -826,6 +834,9 @@ def run_workflow(
             else {"type": type(exc).__name__, "message": str(exc)}
         )
         source_issues = corpus.get("errors", []) if corpus is not None else []
-        outcome = classify_outcome([], source_issues, protocol_completed=False)
+        outcome = classify_outcome(
+            [], source_issues, protocol_completed=False,
+            coverage_degraded=(corpus_schema.corpus_health_degraded(corpus)
+                               if corpus is not None else False))
         store.fail(error, outcome=outcome.record())
         raise

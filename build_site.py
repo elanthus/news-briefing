@@ -429,9 +429,10 @@ def _section_subheading(line: str) -> str | None:
 
 
 _CORPUS_HEALTH_HEADING = "### Corpus health"
-_CORPUS_HEALTH_EXPLANATION = (
-    "Coverage was degraded by the source failures or empty responses listed below."
-)
+_CORPUS_HEALTH_EXPLANATIONS = {
+    "Coverage was degraded by the source failures or empty responses listed below.",
+    "Coverage was degraded by the source failures, empty responses, or undated drops listed below.",
+}
 _TYPE_LABELS = {
     "rss": ("RSS feed", "RSS feeds"),
     "hacker_news": ("Hacker News search", "Hacker News searches"),
@@ -447,16 +448,19 @@ _STATUS_BULLET_LABELS = {
 }
 
 
-def _corpus_failures(fence_body: str) -> list[tuple[str, str, str]] | None:
+def _corpus_health_records(
+    fence_body: str,
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, int]]] | None:
     """Strictly parse the machine block; ``None`` on any shape mismatch."""
     try:
         payload = json.loads(fence_body)
     except ValueError:
         return None
-    if not isinstance(payload, dict) or set(payload) != {"failed_sources"}:
+    if (not isinstance(payload, dict)
+            or set(payload) not in ({"failed_sources"}, {"failed_sources", "undated_sources"})):
         return None
     sources = payload["failed_sources"]
-    if not isinstance(sources, list) or not sources:
+    if not isinstance(sources, list):
         return None
     keys = ("source_type", "source_id", "status")
     failures: list[tuple[str, str, str]] = []
@@ -474,7 +478,25 @@ def _corpus_failures(fence_body: str) -> list[tuple[str, str, str]] | None:
             if any(char < " " or char == "\x7f" for char in value):
                 return None
         failures.append((item["source_type"], item["source_id"], item["status"]))
-    return failures
+    undated: list[tuple[str, str, int]] = []
+    for item in payload.get("undated_sources", []):
+        if (not isinstance(item, dict)
+                or set(item) != {"source_type", "source_id", "count"}
+                or not isinstance(item.get("source_type"), str)
+                or not item["source_type"]
+                or not isinstance(item.get("source_id"), str)
+                or not item["source_id"]
+                or not isinstance(item.get("count"), int)
+                or isinstance(item.get("count"), bool)
+                or item["count"] <= 0):
+            return None
+        if any(any(char < " " or char == "\x7f" for char in item[key])
+               for key in ("source_type", "source_id")):
+            return None
+        undated.append((item["source_type"], item["source_id"], item["count"]))
+    if not failures and not undated:
+        return None
+    return failures, undated
 
 
 def _join_phrases(phrases: list[str]) -> str:
@@ -485,7 +507,8 @@ def _join_phrases(phrases: list[str]) -> str:
     return ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
 
 
-def _corpus_health_prose(failures: list[tuple[str, str, str]]) -> list[str]:
+def _corpus_health_prose(failures: list[tuple[str, str, str]],
+                         undated: list[tuple[str, str, int]]) -> list[str]:
     """Grouped Markdown prose for the failure list, in first-appearance order."""
     groups: dict[tuple[str, str], list[str]] = {}
     for source_type, source_id, status in failures:
@@ -508,6 +531,12 @@ def _corpus_health_prose(failures: list[tuple[str, str, str]]) -> list[str]:
         ]
         verb = _STATUS_SENTENCES.get(status, status)
         sentences.append(f"{_join_phrases(phrases)} {verb}.")
+    if undated:
+        item_count = sum(count for _source_type, _source_id, count in undated)
+        source_count = len(undated)
+        sentences.append(
+            f"{source_count} source{'s' if source_count != 1 else ''} dropped "
+            f"{item_count} item{'s' if item_count != 1 else ''} without parseable dates.")
 
     lines = [f"⚠ {' '.join(sentences)}", ""]
     for (source_type, status), ids in groups.items():
@@ -519,6 +548,12 @@ def _corpus_health_prose(failures: list[tuple[str, str, str]]) -> list[str]:
             for source_id in ids
         )
         lines.append(f"- **{label} — {bullet_status}:** {rendered_ids}")
+    for source_type, source_id, count in undated:
+        singular, _plural = _TYPE_LABELS.get(source_type, (source_type, source_type))
+        rendered_id = f'"{source_id}"' if source_type == "hacker_news" else source_id
+        lines.append(
+            f"- **{singular[0].upper() + singular[1:]} — undated items dropped:** "
+            f"{rendered_id} ({count})")
     return lines
 
 
@@ -544,12 +579,12 @@ def _humanize_corpus_health(markdown: str) -> str:
         block = lines[index + 1 : index + 6]
         if len(block) < 5 or block[4] != "```":
             return markdown
-        if block[:3] != [_CORPUS_HEALTH_EXPLANATION, "", "```json"]:
+        if block[0] not in _CORPUS_HEALTH_EXPLANATIONS or block[1:3] != ["", "```json"]:
             return markdown
-        failures = _corpus_failures(block[3])
-        if failures is None:
+        records = _corpus_health_records(block[3])
+        if records is None:
             return markdown
-        prose = _corpus_health_prose(failures)
+        prose = _corpus_health_prose(*records)
         return "\n".join(lines[: index + 1] + [""] + prose + lines[index + 6 :])
     return markdown
 

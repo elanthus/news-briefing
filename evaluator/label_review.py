@@ -33,6 +33,7 @@ LABEL_RUBRIC = {
     "corpus_health_missing": "The corpus records a source failure but the briefing has no Corpus health section.",
     "corpus_health_not_machine_readable": "The required health manifest is absent, malformed, or has the wrong shape.",
     "duplicate_failed_source": "A failed source occurs more than once in the health manifest.",
+    "duplicate_undated_source": "A source with undated drops occurs more than once in the health manifest.",
     "duplicate_citation": "The exact same citation spelling is printed more than once within one topic.",
     "excluded_topic_without_link": "An exclusion-log entry lacks a required line containing a 🔗 citation.",
     "failed_source_unnamed": (
@@ -40,6 +41,15 @@ LABEL_RUBRIC = {
     ),
     "failed_source_status_mismatch": (
         "A known failed source is reported with a status different from the corpus record."
+    ),
+    "undated_source_count_mismatch": (
+        "A source's reported undated-item count differs from the corpus record."
+    ),
+    "undated_source_unnamed": (
+        "A source with corpus-recorded undated drops is absent from the health manifest."
+    ),
+    "unexpected_undated_source": (
+        "The health manifest reports undated drops absent from the corpus."
     ),
     "feed_empty": "The XML is a valid RSS/Atom feed but contains no item or entry.",
     "feed_rejected": "The XML is malformed or contains a DOCTYPE, which the feed security contract rejects.",

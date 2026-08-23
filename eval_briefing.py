@@ -639,12 +639,21 @@ def check_corpus_health_reported(sections: dict[str, Section],
                                  corpus: dict[str, Any]) -> list[Finding]:
     """A degraded run must look degraded, or the briefing overstates coverage."""
     errors = corpus.get("errors", [])
-    if not errors:
+    undated_sources = corpus_schema.undated_source_records(corpus)
+    undated_total = sum(
+        stats.get("undated_dropped", 0)
+        for stats in corpus.get("processing", {}).values()
+        if isinstance(stats, dict)
+    )
+    if not errors and not undated_total:
         return []
     if CORPUS_HEALTH not in sections:
+        degradation = f"{len(errors)} fetch error(s)"
+        if undated_total:
+            degradation += f" and {undated_total} undated item drop(s)"
         missing_findings = [Finding(
             ERROR, "corpus_health_missing",
-            f"corpus recorded {len(errors)} fetch error(s) but the "
+            f"corpus recorded {degradation} but the "
             f"briefing has no {CORPUS_HEALTH!r} section")]
         if corpus_schema.corpus_version(corpus) >= 4:
             for error in errors:
@@ -652,9 +661,16 @@ def check_corpus_health_reported(sections: dict[str, Section],
                     ERROR, "failed_source_unnamed",
                     f"failed source {error['source_type']}:{error['source_id']} "
                     f"({error['status']}) is absent because the health manifest is missing"))
+            for undated_source in undated_sources:
+                missing_findings.append(Finding(
+                    ERROR, "undated_source_unnamed",
+                    f"source {undated_source['source_type']}:{undated_source['source_id']} dropped "
+                    f"{undated_source['count']} undated item(s) and is absent because the health "
+                    "manifest is missing"))
         return missing_findings
     if corpus_schema.corpus_version(corpus) >= 4:
-        return _check_structured_corpus_health(sections[CORPUS_HEALTH], errors)
+        return _check_structured_corpus_health(
+            sections[CORPUS_HEALTH], errors, undated_sources)
 
     findings: list[Finding] = []
     health_text = _normalize_source_mention(
@@ -671,8 +687,10 @@ def check_corpus_health_reported(sections: dict[str, Section],
 
 
 def _check_structured_corpus_health(section: Section,
-                                    errors: list[dict[str, Any]]) -> list[Finding]:
-    """Require exact failed-source identities in a JSON health manifest."""
+                                    errors: list[dict[str, Any]],
+                                    undated_sources: list[corpus_schema.UndatedSourceRecord],
+                                    ) -> list[Finding]:
+    """Require exact degraded-source identities in a JSON health manifest."""
     text = "\n".join(section["lines"])
     blocks = re.findall(r"```json\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
     if len(blocks) != 1:
@@ -685,10 +703,13 @@ def _check_structured_corpus_health(section: Section,
         return [Finding(
             ERROR, "corpus_health_not_machine_readable",
             f"Corpus health JSON is invalid at line {exc.lineno}, column {exc.colno}")]
-    if not isinstance(manifest, dict) or set(manifest) != {"failed_sources"}:
+    expected_keys = {"failed_sources"}
+    if undated_sources:
+        expected_keys.add("undated_sources")
+    if not isinstance(manifest, dict) or set(manifest) != expected_keys:
         return [Finding(
             ERROR, "corpus_health_not_machine_readable",
-            "Corpus health JSON must be an object containing only failed_sources")]
+            "Corpus health JSON must contain exactly " + ", ".join(sorted(expected_keys)))]
     reported = manifest["failed_sources"]
     if not isinstance(reported, list):
         return [Finding(ERROR, "corpus_health_not_machine_readable",
@@ -741,6 +762,50 @@ def _check_structured_corpus_health(section: Section,
     if len(actual) != len(reported):
         findings.append(Finding(ERROR, "duplicate_failed_source",
                                 "health manifest contains a duplicate failed-source record"))
+    if undated_sources:
+        reported_undated = manifest["undated_sources"]
+        if not isinstance(reported_undated, list):
+            findings.append(Finding(ERROR, "corpus_health_not_machine_readable",
+                                    "undated_sources must be a JSON array"))
+            return findings
+        expected_undated = {
+            (record["source_type"], record["source_id"]): record["count"]
+            for record in undated_sources
+        }
+        actual_undated: dict[tuple[str, str], set[int]] = {}
+        for index, record in enumerate(reported_undated):
+            if (not isinstance(record, dict)
+                    or set(record) != {"source_type", "source_id", "count"}
+                    or not isinstance(record.get("source_type"), str)
+                    or not isinstance(record.get("source_id"), str)
+                    or not isinstance(record.get("count"), int)
+                    or isinstance(record.get("count"), bool)
+                    or record["count"] <= 0):
+                findings.append(Finding(
+                    ERROR, "corpus_health_not_machine_readable",
+                    f"undated_sources[{index}] must contain string source_type, source_id, "
+                    "and positive integer count only"))
+                continue
+            key = (record["source_type"], record["source_id"])
+            actual_undated.setdefault(key, set()).add(record["count"])
+        for key in sorted(expected_undated.keys() | actual_undated.keys()):
+            if key not in actual_undated:
+                findings.append(Finding(
+                    ERROR, "undated_source_unnamed",
+                    f"source {key[0]}:{key[1]} with {expected_undated[key]} undated item(s) "
+                    "is absent from the health manifest"))
+            elif key not in expected_undated:
+                findings.append(Finding(
+                    ERROR, "unexpected_undated_source",
+                    f"health manifest reports unrecorded undated drops for {key[0]}:{key[1]}"))
+            elif actual_undated[key] != {expected_undated[key]}:
+                findings.append(Finding(
+                    ERROR, "undated_source_count_mismatch",
+                    f"source {key[0]}:{key[1]} dropped {expected_undated[key]} undated item(s) "
+                    f"but the health manifest reports {sorted(actual_undated[key])}"))
+        if len(reported_undated) != len(actual_undated):
+            findings.append(Finding(ERROR, "duplicate_undated_source",
+                                    "health manifest contains a duplicate undated-source record"))
     return findings
 
 
