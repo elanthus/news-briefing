@@ -48,6 +48,7 @@ class ProviderError(RuntimeError):
         retry_after: float | None = None,
         provider_request_id: str | None = None,
         ambiguous_completion: bool = False,
+        model_removed_from_openrouter: bool = False,
     ):
         super().__init__(message)
         self.transient = transient
@@ -56,6 +57,7 @@ class ProviderError(RuntimeError):
         self.retry_after = retry_after
         self.provider_request_id = provider_request_id
         self.ambiguous_completion = ambiguous_completion
+        self.model_removed_from_openrouter = model_removed_from_openrouter
 
     def record(self) -> dict[str, Any]:
         return {
@@ -67,6 +69,7 @@ class ProviderError(RuntimeError):
             "retry_after": self.retry_after,
             "provider_request_id": self.provider_request_id,
             "ambiguous_completion": self.ambiguous_completion,
+            "model_removed_from_openrouter": self.model_removed_from_openrouter,
         }
 
 

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/daily-briefing.yml").read_text(encoding="utf-8")
+DAILY_RUNNER = Path("run_daily_briefing.py").read_text(encoding="utf-8")
 
 
 class DailyWorkflowTests(unittest.TestCase):
@@ -84,14 +85,28 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("no stored corpus is available", WORKFLOW)
         self.assertNotIn("days_ago <= 2", WORKFLOW)
 
-    def test_generation_uses_hy3_with_high_reasoning(self) -> None:
-        self.assertIn("--model tencent/hy3", WORKFLOW)
-        self.assertIn("--reasoning-effort high", WORKFLOW)
-        self.assertNotIn("--model deepseek/deepseek-v4-flash-0731", WORKFLOW)
-        self.assertNotIn("--model openai/gpt-5.6-luna", WORKFLOW)
+    def test_generation_uses_ordered_production_fallback_chain(self) -> None:
+        self.assertIn("python run_daily_briefing.py", WORKFLOW)
+        models = [
+            'ModelCandidate("tencent/hy3", 0.2, "high")',
+            'ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high")',
+            'ModelCandidate("xiaomi/mimo-v2.5", 0.2, None)',
+        ]
+        positions = [DAILY_RUNNER.index(model) for model in models]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("openai/gpt-5.6-luna", DAILY_RUNNER)
 
     def test_generation_uses_explicit_production_temperature(self) -> None:
-        self.assertIn("--temperature 0.2", WORKFLOW)
+        self.assertEqual(DAILY_RUNNER.count("ModelCandidate("), 3)
+        self.assertEqual(DAILY_RUNNER.count(", 0.2,"), 3)
+
+    def test_generation_logs_failures_quarantines_and_removed_models(self) -> None:
+        self.assertIn('LOG_NAME = "fallback-log.json"', DAILY_RUNNER)
+        self.assertIn('TEXT_LOG_NAME = "fallback.log"', DAILY_RUNNER)
+        self.assertIn('"failure_reason": reason', DAILY_RUNNER)
+        self.assertIn('"quarantined_report": quarantined_report', DAILY_RUNNER)
+        self.assertIn('"model_removed_from_openrouter": removed', DAILY_RUNNER)
+        self.assertIn("see $run_dir/fallback.log", WORKFLOW)
 
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)

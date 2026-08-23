@@ -22,6 +22,7 @@ PUBLIC_ARTIFACTS = {
 FINDING_FIELDS = {"level", "check", "domain", "message"}
 STRUCTURED_PATH = re.compile(r"^(topics|excluded_topics)\.(.+?)\[(\d+)\]")
 EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
+FALLBACK_LOG_NAME = "fallback-log.json"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,19 @@ def _load_json(path: Path) -> object | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeError):
         return None
+
+
+def _selected_generation_run(run_dir: Path) -> Path:
+    """Resolve a fallback-chain root to its selected successful child run."""
+    fallback = _load_json(run_dir / FALLBACK_LOG_NAME)
+    if fallback is None:
+        return run_dir
+    if not isinstance(fallback, dict) or fallback.get("status") != "ready":
+        return run_dir
+    selected = fallback.get("selected_run_dir")
+    if not isinstance(selected, str) or Path(selected).name != selected:
+        return run_dir
+    return run_dir / selected
 
 
 def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
@@ -312,7 +326,8 @@ def prepare_publication(
     repair_actions: tuple[dict[str, str], ...] = ()
     public_content: bytes | None = None
 
-    manifest = _load_json(run_dir / "manifest.json")
+    generation_run_dir = _selected_generation_run(run_dir)
+    manifest = _load_json(generation_run_dir / "manifest.json")
     if isinstance(manifest, dict) and manifest.get("status") == "complete":
         final = manifest.get("final")
         if isinstance(final, dict):
@@ -331,13 +346,15 @@ def prepare_publication(
                         findings_count = len(normalized)
                         findings = _attach_review_context(
                             normalized,
-                            _final_structured_output(run_dir, manifest, final),
+                            _final_structured_output(generation_run_dir, manifest, final),
                         )
                 if disposition in PUBLIC_ARTIFACTS:
                     # Repair provenance is published only with a public artifact;
                     # non-public dispositions keep the minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
-                    public_content = _bound_artifact(run_dir, manifest, final, disposition)
+                    public_content = _bound_artifact(
+                        generation_run_dir, manifest, final, disposition
+                    )
                     if public_content is None:
                         disposition = "blocked"
                         findings_count = 0

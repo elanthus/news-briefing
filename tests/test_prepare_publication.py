@@ -11,6 +11,50 @@ from prepare_publication import prepare_publication
 
 
 class PreparePublicationTests(unittest.TestCase):
+    def test_resolves_selected_ready_run_from_fallback_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            selected = chain / "02-deepseek-deepseek-v4-flash-0731"
+            selected.mkdir(parents=True)
+            content = b"fallback briefing\n"
+            (selected / "final.md").write_bytes(content)
+            self._write_manifest(selected, "ready", "final", "final.md", content, [])
+            (chain / "fallback-log.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "selected_run_dir": selected.name,
+                        "selected_model": "deepseek/deepseek-v4-flash-0731",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            history = root / "history"
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", history, date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual((history / "2026-08-20.md").read_bytes(), content)
+
+    def test_fallback_log_without_a_safe_ready_selection_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            chain.mkdir()
+            (chain / "fallback-log.json").write_text(
+                json.dumps({"status": "ready", "selected_run_dir": "../outside"}),
+                encoding="utf-8",
+            )
+
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "blocked")
+
     def test_copies_hash_bound_review_preview_and_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
