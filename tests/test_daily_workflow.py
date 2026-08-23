@@ -84,13 +84,14 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("no stored corpus is available", WORKFLOW)
         self.assertNotIn("days_ago <= 2", WORKFLOW)
 
-    def test_generation_uses_deepseek_v4_flash_0731_with_high_reasoning(self) -> None:
-        self.assertIn("--model deepseek/deepseek-v4-flash-0731", WORKFLOW)
+    def test_generation_uses_hy3_with_high_reasoning(self) -> None:
+        self.assertIn("--model tencent/hy3", WORKFLOW)
         self.assertIn("--reasoning-effort high", WORKFLOW)
+        self.assertNotIn("--model deepseek/deepseek-v4-flash-0731", WORKFLOW)
         self.assertNotIn("--model openai/gpt-5.6-luna", WORKFLOW)
 
     def test_generation_uses_explicit_production_temperature(self) -> None:
-        self.assertIn("--temperature 0", WORKFLOW)
+        self.assertIn("--temperature 0.2", WORKFLOW)
 
     def test_every_run_carries_forward_stored_corpora(self) -> None:
         self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
