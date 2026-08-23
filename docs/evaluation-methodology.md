@@ -1,5 +1,9 @@
 # Evaluation methodology
 
+How the evaluator's suites are scored, and what those scores may and may not be used to claim. Read this before quoting a number from [`evaluator/`](../evaluator/README.md) or from any portfolio result document: the sections below define each score family's denominator, the boundary between deterministic and human judgment, and the limitations that rule out a single composite reliability score.
+
+This methodology operationalizes the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/): documented and repeatable test, evaluation, verification, and validation; representative conditions; independent assessment; explicit uncertainty; and tracking risk over time. The complete publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
+
 ## Scope and threat model
 
 The evaluator measures two separate systems. The 81-case offline suite measures deterministic briefing checks and feed parsing. The 55-case generation suite measures model behavior on 22 utility cases and 33 indirect prompt-injection attacks; five attacks also create clean twins at run time. These score families have different units and denominators and are never combined into one reliability score.
@@ -34,46 +38,18 @@ Runs record immutable suite, root and case-specific corpus, configuration, promp
 
 The suite is fixed, small, and intentionally enriched for known boundaries. Provider behavior and model aliases can change. CLI and API sampling controls are not equivalent. Human grounding decisions can disagree and require agreement statistics plus adjudication. These limitations preclude a single composite reliability score or claims that small model/prompt differences are decisive.
 
-## Portfolio-v1 completion status
+## Portfolio-v2 completion status (current)
 
-Portfolio v1 is retained as a dated historical snapshot. Its generation manifest came from a dirty source
-tree whose diff was not preserved, so its published model metrics are superseded by portfolio v2 and must
-not be presented as the current reproducible result.
+Portfolio v2 supersedes the portfolio-v1 model metrics and is the result to cite. Portfolio v2 completed 1,200/1,200 generation rows from clean tag `portfolio-v2-source-20260819`, with no provider errors, skips, or correction errors and $3.8005 in reported generation cost. The DeepSeek and HY3 adapter blocks ran in parallel-compatible component checkpoints after an external process interruption. Public export validates common immutable identity, requires whole completed adapter blocks, rejects duplicate rows, records both component hashes, and combines the rows only for reporting. The raw checkpoints are not rewritten.
 
-The final five-trial matrix completed 1,200/1,200 planned rows with no provider failures or skips. Compatible
-prompt comparisons pair case ID and trial and use 10,000 authored-case-cluster bootstrap resamples. All 180
-URL-scoped meaning propositions received blinded Nemotron judgments, but these are machine evidence rather
-than human approval. DeepSeek V4 Pro 0813 then machine-labeled all 2,170 generated utility topics from the
-blinded grounding packet. MiniMax M3 independently reviewed the stratified 434-topic audit packet, agreeing
-on 388/434 labels (89.4%). The primary machine rates are reported descriptively; disagreements were not
-adjudicated. These automated judgments do not satisfy a human-review gate. Full production usage would use
-fully human-curated labeling.
+The committed public evidence contains every generated output and score primitive needed to recalculate the aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain local because their corpora and configuration are committed and their generated prose is already in the public manifest. `python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence` verifies the bundle and regenerates its aggregate report without credentials.
 
-The candidate is not approved for either evaluated model. At least one available preregistered requirement
-already fails in each comparison, so completing grounding review cannot convert the present result into a
-pass. The versioned aggregate history preserves the suite, prompt, model, protocol, date, completeness,
-latency, cost, and decision. The regression policy prevents incomplete or incompatible runs from satisfying
-a gate and treats its practical thresholds as review triggers rather than automatic significance claims.
+The candidate fails available promotion rules for both models, so missing human grounding cannot turn either decision into a pass. Portfolio v2 intentionally publishes no meaning-preservation or grounding rate: its 180 semantic forms and topic-level grounding forms are unjudged. Temperature zero, provider seed, and disabled reasoning were requested and recorded, but do not guarantee byte-identical output or prove that every routed backend enforced every sampling parameter.
 
-This methodology operationalizes the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/): documented and repeatable test, evaluation, verification, and validation; representative conditions; independent assessment; explicit uncertainty; and tracking risk over time. The complete publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
+## Portfolio-v1 completion status (superseded)
 
-## Portfolio-v2 completion status
+Portfolio v1 is retained as a dated historical snapshot. Its generation manifest came from a dirty source tree whose diff was not preserved, so its published model metrics are superseded by portfolio v2 and must not be presented as the current reproducible result.
 
-Portfolio v2 completed 1,200/1,200 generation rows from clean tag
-`portfolio-v2-source-20260819`, with no provider errors, skips, or correction errors and $3.8005 in reported
-generation cost. The DeepSeek and HY3 adapter blocks ran in parallel-compatible component checkpoints after
-an external process interruption. Public export validates common immutable identity, requires whole completed
-adapter blocks, rejects duplicate rows, records both component hashes, and combines the rows only for
-reporting. The raw checkpoints are not rewritten.
+The final five-trial matrix completed 1,200/1,200 planned rows with no provider failures or skips. Compatible prompt comparisons pair case ID and trial and use 10,000 authored-case-cluster bootstrap resamples. All 180 URL-scoped meaning propositions received blinded Nemotron judgments, but these are machine evidence rather than human approval. DeepSeek V4 Pro 0813 then machine-labeled all 2,170 generated utility topics from the blinded grounding packet. MiniMax M3 independently reviewed the stratified 434-topic audit packet, agreeing on 388/434 labels (89.4%). The primary machine rates are reported descriptively; disagreements were not adjudicated. These automated judgments do not satisfy a human-review gate. Full production usage would use fully human-curated labeling.
 
-The committed public evidence contains every generated output and score primitive needed to recalculate the
-aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain
-local because their corpora and configuration are committed and their generated prose is already in the
-public manifest. `python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence` verifies the
-bundle and regenerates its aggregate report without credentials.
-
-The candidate fails available promotion rules for both models, so missing human grounding cannot turn either
-decision into a pass. Portfolio v2 intentionally publishes no meaning-preservation or grounding rate: its 180
-semantic forms and topic-level grounding forms are unjudged. Temperature zero, provider seed, and disabled
-reasoning were requested and recorded, but do not guarantee byte-identical output or prove that every routed
-backend enforced every sampling parameter.
+The candidate is not approved for either evaluated model. At least one available preregistered requirement already fails in each comparison, so completing grounding review cannot convert the present result into a pass. The versioned aggregate history preserves the suite, prompt, model, protocol, date, completeness, latency, cost, and decision. The regression policy prevents incomplete or incompatible runs from satisfying a gate and treats its practical thresholds as review triggers rather than automatic significance claims.
