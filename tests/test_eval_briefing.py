@@ -702,6 +702,38 @@ class ClaimGroundingTest(unittest.TestCase):
                                   "**Politics topic 1** — summary text here, up 47 percent.")
         self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text)))
 
+    def test_percent_symbol_matches_spelled_percent_in_evidence(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = "Reported an increase of 47 percent."
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Reported an increase of 47%.",
+        )
+
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
+    def test_spelled_percent_matches_percent_symbol_in_evidence(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = "Reported an increase of 47%."
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Reported an increase of 47 percent.",
+        )
+
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
+    def test_decimal_and_range_percentage_spellings_are_equivalent(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0]["summary"] = (
+            "Measured 49.6 percent adoption across a 10–12% interval."
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Measured 49.6% adoption across a 10–12 percent interval.",
+        )
+
+        self.assertNotIn("unsupported_figure", checks(evaluate(corpus, text), WARN))
+
     def test_figure_in_inline_citation_url_is_not_claim_prose(self):
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["us_politics"][0].update(

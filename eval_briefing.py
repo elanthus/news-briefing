@@ -824,8 +824,8 @@ def _normalize(text: str) -> str:
 
 
 def _normalize_figure(text: str) -> str:
-    """Normalize figures while expanding abbreviated year-range endings."""
-    value = text.strip()
+    """Normalize percentage spelling and abbreviated year-range endings."""
+    value = re.sub(r"\s*percent$", "%", text.strip(), flags=re.IGNORECASE)
     if match := _ABBREVIATED_YEAR_RANGE.fullmatch(value):
         start = int(match.group("start"))
         end = (start // 100) * 100 + int(match.group("end"))
