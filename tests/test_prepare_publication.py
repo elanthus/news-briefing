@@ -207,7 +207,7 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertIn("https://model.example/claim", record.findings[0].context.model_authored)
             self.assertEqual(record.degraded_sources, ("reddit:cursor",))
             self.assertEqual((history / "2026-08-20.md").read_bytes(), preview)
-            sidecar = json.loads((history / "2026-08-20.json").read_text())
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings"][0]["message"], findings[0]["message"])
             self.assertNotIn("unsupported_figure", json.dumps(sidecar))
             self.assertEqual(
@@ -497,7 +497,7 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(len(record.repair_actions), 2)
             self.assertEqual(record.repair_actions[0]["action"], "drop_entry")
             self.assertEqual(record.repair_actions[0]["path"], "topics.AI News[1]")
-            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["repair_actions"], repair_actions)
 
     def test_ready_run_without_repair_has_empty_repair_actions(self) -> None:
@@ -515,7 +515,7 @@ class PreparePublicationTests(unittest.TestCase):
 
             self.assertEqual(record.disposition, "ready")
             self.assertEqual(record.repair_actions, ())
-            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["repair_actions"], [])
 
     def test_rejected_run_keeps_repair_actions_out_of_the_sidecar(self) -> None:
@@ -554,7 +554,7 @@ class PreparePublicationTests(unittest.TestCase):
 
             self.assertEqual(record.disposition, "rejected")
             self.assertEqual(record.repair_actions, ())
-            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["repair_actions"], [])
 
     def test_review_required_findings_carry_structured_path(self) -> None:
@@ -599,7 +599,7 @@ class PreparePublicationTests(unittest.TestCase):
             assert ctx is not None
             self.assertEqual(ctx.path, "topics.AI News[0]")
             self.assertEqual(ctx.section, "AI News")
-            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings"][0]["context"]["path"], "topics.AI News[0]")
 
     @staticmethod

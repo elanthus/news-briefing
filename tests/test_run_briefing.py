@@ -80,8 +80,8 @@ class RunnerTests(unittest.TestCase):
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            briefing = (root / "briefing.md").read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            briefing = (root / "briefing.md").read_text(encoding="utf-8")
             run_root = root / "run"
             artifact_hashes = {
                 name: sha256_file(run_root / name)
@@ -128,7 +128,7 @@ class RunnerTests(unittest.TestCase):
             )
             with patch("agent_runner.runner._fetch_corpus") as fetch:
                 result = run_workflow(FakeProvider([output]), settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             replayed = (root / "run/corpus.json").read_text(encoding="utf-8")
             trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
         self.assertEqual(result.status, "ready")
@@ -162,7 +162,7 @@ class RunnerTests(unittest.TestCase):
                 "agent_runner.runner._fetch_corpus"
             ) as fetch:
                 result = run_workflow(FakeProvider([output]), settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             archived = (root / "run/corpus.json").read_bytes()
 
         self.assertEqual(result.status, "ready")
@@ -202,7 +202,7 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), strict=True)
             result = run_workflow(FakeProvider([output]), settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
 
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.exit_code, 1)
@@ -226,7 +226,7 @@ class RunnerTests(unittest.TestCase):
                 replace(self.settings(requested_output), max_corrections=0),
                 root / "run",
             )
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             output_exists = requested_output.exists()
 
         self.assertEqual(result.status, "ready")
@@ -248,8 +248,8 @@ class RunnerTests(unittest.TestCase):
             requested_output = root / "briefing.md"
             settings = replace(self.settings(requested_output), max_corrections=0)
             result = run_workflow(provider, settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            preview = (root / "run/preview.md").read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            preview = (root / "run/preview.md").read_text(encoding="utf-8")
             output_exists = requested_output.exists()
         self.assertEqual(result.status, "review_required")
         self.assertEqual(result.exit_code, 1)
@@ -276,7 +276,7 @@ class RunnerTests(unittest.TestCase):
                 replace(self.settings(root / "briefing.md"), max_corrections=0),
                 root / "run",
             )
-            preview = (root / "run/preview.md").read_text()
+            preview = (root / "run/preview.md").read_text(encoding="utf-8")
         self.assertEqual(result.status, "review_required")
         self.assertNotIn("attacker.invalid", preview)
         section_name = config.sections[0].name
@@ -297,7 +297,7 @@ class RunnerTests(unittest.TestCase):
                 replace(self.settings(root / "briefing.md"), max_corrections=0),
                 root / "run",
             )
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "rejected")
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "violated")
@@ -327,7 +327,7 @@ class RunnerTests(unittest.TestCase):
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         self.assertEqual([row["kind"] for row in manifest["attempts"]], ["initial", "correction"])
         self.assertFalse(manifest["attempts"][0]["contract_success"])
@@ -357,8 +357,8 @@ class RunnerTests(unittest.TestCase):
                 replace(self.settings(requested_output), max_corrections=0),
                 root / "run",
             )
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            final = requested_output.read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            final = requested_output.read_text(encoding="utf-8")
             output_exists = requested_output.exists()
         self.assertEqual(result.status, "ready")
         self.assertTrue(output_exists)
@@ -394,7 +394,7 @@ class RunnerTests(unittest.TestCase):
             # Default budget (max_corrections=1) is available, but eager repair
             # must claim the repairable finding before any correction is spent.
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         self.assertEqual(len(provider.requests), 1)
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
@@ -419,7 +419,7 @@ class RunnerTests(unittest.TestCase):
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         final_findings = manifest["final"]["findings"]
         underfilled = [row for row in final_findings if row["check"] == "slots_underfilled"]
@@ -457,8 +457,8 @@ class RunnerTests(unittest.TestCase):
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            final = (root / "briefing.md").read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            final = (root / "briefing.md").read_text(encoding="utf-8")
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.exit_code, 0)
         repair = [
@@ -486,7 +486,7 @@ class RunnerTests(unittest.TestCase):
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
         self.assertIn("correction", kinds)
@@ -510,9 +510,9 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
             result = run_workflow(provider, settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             preview_structured = json.loads(
-                (root / "run/preview-structured.json").read_text()
+                (root / "run/preview-structured.json").read_text(encoding="utf-8")
             )
         self.assertEqual(result.status, "rejected")
         self.assertEqual(manifest["final"]["status"], "rejected")
@@ -560,7 +560,7 @@ class RunnerTests(unittest.TestCase):
         ), patch.object(eval_briefing, "evaluate", side_effect=evaluate_with_injected_error):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
         self.assertEqual(kinds, ["initial", "deterministic_repair", "correction"])
@@ -588,9 +588,9 @@ class RunnerTests(unittest.TestCase):
                 replace(self.settings(root / "briefing.md"), max_corrections=0),
                 root / "run",
             )
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            preview = (root / "run/preview.md").read_text()
-            structured_preview = (root / "run/preview-structured.json").read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            preview = (root / "run/preview.md").read_text(encoding="utf-8")
+            structured_preview = (root / "run/preview-structured.json").read_text(encoding="utf-8")
         self.assertEqual(result.status, "rejected")
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "violated")
         self.assertEqual(manifest["final"]["outcome"]["coverage"], "degraded")
@@ -614,7 +614,7 @@ class RunnerTests(unittest.TestCase):
                 RunStore.resume(root, identity=identity)
             (root / "trace.jsonl").write_bytes(trace)
             resumed.trace("trace_restored")
-            (root / "artifact.txt").write_text("tampered")
+            (root / "artifact.txt").write_text("tampered", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "hash differs"):
                 RunStore.resume(root, identity=identity)
 
@@ -664,7 +664,7 @@ class RunnerTests(unittest.TestCase):
                 root / "run",
                 resume=True,
             )
-            manifest = json.loads((root / "run/manifest.json").read_text())
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(result.status, "ready")
             self.assertEqual(manifest["status"], "complete")
             self.assertEqual(resumed_provider.requests, [])
@@ -718,8 +718,8 @@ class RunnerTests(unittest.TestCase):
             ) as run:
                 with self.assertRaisesRegex(RuntimeError, "30s fetch deadline"):
                     run_workflow(FakeProvider([]), settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text())
-            trace = (root / "run/trace.jsonl").read_text()
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
         self.assertEqual(run.call_args.kwargs["timeout"], 30)
         self.assertEqual(manifest["status"], "failed")
         self.assertEqual(manifest["error"]["type"], "RuntimeError")

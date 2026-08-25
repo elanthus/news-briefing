@@ -275,7 +275,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("No briefing prose is available", index)
             self.assertNotIn("REJECTED CONTENT", index)
             self.assertFalse((output / "2026-08-20.html").exists())
-            self.assertNotIn("REJECTED CONTENT", (output / "history.json").read_text())
+            self.assertNotIn("REJECTED CONTENT", (output / "history.json").read_text(encoding="utf-8"))
 
     def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -309,7 +309,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("2026-08-13", index)
             self.assertTrue((output / "2026-08-14.html").is_file())
             self.assertTrue((output / "2026-08-13.html").is_file())
-            history = json.loads((output / "history.json").read_text())
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 [entry["date"] for entry in history["entries"]],
                 ["2026-08-20", "2026-08-14", "2026-08-13"],
@@ -331,7 +331,7 @@ class BuildSiteTests(unittest.TestCase):
 
             output = root / "site"
             build_site(briefings, output)
-            seven_day_history = json.loads((output / "history.json").read_text())
+            seven_day_history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(len(seven_day_history["entries"]), 7)
             self.assertEqual(seven_day_history["entries"][-1]["date"], "2026-08-13")
             self.assertTrue((output / "2026-08-13.html").is_file())
@@ -344,7 +344,7 @@ class BuildSiteTests(unittest.TestCase):
             )
             build_site(briefings, output)
 
-            history = json.loads((output / "history.json").read_text())
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(len(history["entries"]), 7)
             self.assertEqual(history["entries"][0]["date"], "2026-08-20")
             self.assertEqual(history["entries"][-1]["date"], "2026-08-14")
@@ -376,7 +376,7 @@ class BuildSiteTests(unittest.TestCase):
                 exclude_dates={"2026-08-15", "2026-08-16"},
             )
 
-            history = json.loads((output / "history.json").read_text())
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(
                 [entry["date"] for entry in history["entries"]],
                 ["2026-08-17"],
@@ -427,12 +427,12 @@ class BuildSiteTests(unittest.TestCase):
             output = root / "site"
             build_site(current, output, prior_history=legacy, bootstrap_dir=bootstrap)
 
-            self.assertIn("current briefing", (output / "index.html").read_text())
-            self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text())
-            page_18 = (output / "2026-08-18.html").read_text()
+            self.assertIn("current briefing", (output / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("legacy live briefing", (output / "2026-08-19.html").read_text(encoding="utf-8"))
+            page_18 = (output / "2026-08-18.html").read_text(encoding="utf-8")
             self.assertIn("did not pass automated checks", page_18)
             self.assertNotIn("dogfood preview", page_18)
-            history = json.loads((output / "history.json").read_text())
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(history["schema_version"], 4)
             self.assertEqual(len(history["entries"]), 3)
 
@@ -592,7 +592,7 @@ class BuildSiteTests(unittest.TestCase):
             )
             first_site = root / "site-1"
             build_site(first, first_site)
-            history = json.loads((first_site / "history.json").read_text())
+            history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
             self.assertEqual(history["schema_version"], 4)
             self.assertEqual(history["entries"][0]["repair_actions"], actions)
 
@@ -602,7 +602,7 @@ class BuildSiteTests(unittest.TestCase):
             self._write_sidecar(second, date="2026-08-20", disposition="ready")
             second_site = root / "site-2"
             build_site(second, second_site, prior_history=first_site / "history.json")
-            rebuilt = json.loads((second_site / "history.json").read_text())
+            rebuilt = json.loads((second_site / "history.json").read_text(encoding="utf-8"))
             by_date = {entry["date"]: entry for entry in rebuilt["entries"]}
             self.assertEqual(by_date["2026-08-19"]["repair_actions"], actions)
             self.assertEqual(by_date["2026-08-20"]["repair_actions"], [])

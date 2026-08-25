@@ -28,8 +28,8 @@ class BootstrapHistoryTests(unittest.TestCase):
                 (history / "2026-08-18.md").read_bytes(),
                 (ROOT / "docs/runs/2026-08-18/replay-deepseek-v4-flash/preview.md").read_bytes(),
             )
-            legacy = json.loads((history / "2026-08-17.json").read_text())
-            modern = json.loads((history / "2026-08-18.json").read_text())
+            legacy = json.loads((history / "2026-08-17.json").read_text(encoding="utf-8"))
+            modern = json.loads((history / "2026-08-18.json").read_text(encoding="utf-8"))
             self.assertEqual(legacy["disposition"], "review_required")
             self.assertEqual(legacy["findings_count"], 2)
             self.assertEqual(legacy["findings"][0]["domain"], "editorial")
@@ -79,7 +79,7 @@ class BootstrapHistoryTests(unittest.TestCase):
             with patch("bootstrap_history.DOGFOOD_RUNS", configured):
                 bootstrap_history(root, history)
 
-            sidecar = json.loads((history / "2026-08-20.json").read_text())
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["disposition"], "rejected")
             self.assertEqual(sidecar["findings_count"], 1)
             self.assertEqual(sidecar["findings"], [])
@@ -133,7 +133,7 @@ class BootstrapHistoryTests(unittest.TestCase):
             with patch("bootstrap_history.DOGFOOD_RUNS", configured):
                 bootstrap_history(root, root / "history")
 
-            sidecar = json.loads((root / "history/2026-08-20.json").read_text())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings_count"], 1)
             self.assertEqual(len(sidecar["findings"]), 1)
             self.assertEqual(sidecar["findings"][0]["check"], "unsupported_quotation")
