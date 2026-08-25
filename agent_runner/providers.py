@@ -48,7 +48,13 @@ def _command_version(command: str) -> str | None:
         return None
     try:
         completed = subprocess.run(
-            [command, "--version"], text=True, capture_output=True, check=False, timeout=10
+            [command, "--version"],
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -125,6 +131,10 @@ def _run_cli(
                 command,
                 input=prompt,
                 text=True,
+                # CLI children speak UTF-8; the Windows locale codec cannot
+                # round-trip corpus text (e.g. U+200A from scraped articles).
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 timeout=remaining,
                 check=False,

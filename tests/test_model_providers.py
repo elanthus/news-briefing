@@ -216,6 +216,12 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(attempts, 2)
         self.assertEqual(run.call_count, 2)
 
+    def test_cli_pipes_use_utf8_regardless_of_locale(self):
+        succeeded = subprocess.CompletedProcess([], 0, "result", "")
+        with patch("subprocess.run", return_value=succeeded) as run:
+            _run_cli(["model", "run"], "prompt with hair space", timeout=30)
+        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+
     def test_cli_does_not_retry_ambiguous_failure_after_output(self):
         failed = subprocess.CompletedProcess([], 1, "partial output", "service unavailable")
         with patch("subprocess.run", return_value=failed) as run, self.assertRaises(
