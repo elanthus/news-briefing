@@ -28,7 +28,6 @@ import re
 import socket
 import ssl
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -43,6 +42,7 @@ from typing import Any, NamedTuple, Never, NotRequired, TypedDict
 from xml.parsers import expat
 
 import corpus_schema
+from agent_runner.checkpoint import write_text_atomic
 from corpus_schema import canonicalize_url
 
 # Feed operators see this traffic from every clone. Naming the project and
@@ -1702,13 +1702,7 @@ def main() -> int:
     failed = bool(schema_problems) or total == 0
     wrote_file = False
     if args.output and not failed:
-        directory = os.path.dirname(os.path.abspath(args.output))
-        with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=directory, delete=False,
-        ) as handle:
-            handle.write(text)
-            temp_path = handle.name
-        os.replace(temp_path, args.output)
+        write_text_atomic(Path(args.output), text)
         print(f"Wrote {total} items ({len(corpus['errors'])} fetch errors) "
               f"to {args.output}")
         wrote_file = True

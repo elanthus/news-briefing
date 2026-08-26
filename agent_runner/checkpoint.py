@@ -22,8 +22,14 @@ def sha256_file(path: Path) -> str:
 def write_bytes_atomic(path: Path, value: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
-    temporary.write_bytes(value)
-    os.replace(temporary, path)
+    try:
+        temporary.write_bytes(value)
+        os.replace(temporary, path)
+    except BaseException:
+        # A failed write must not leave the temporary behind: the target
+        # directory may be swept into artifacts or globbed by later stages.
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def write_text_atomic(path: Path, text: str) -> None:

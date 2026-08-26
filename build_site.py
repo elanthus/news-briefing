@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import corpus_schema
+import eval_briefing
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
@@ -27,10 +28,13 @@ FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
 CONTEXT_FIELDS = {"section", "headline", "model_authored"}
 CONTEXT_V4_FIELDS = CONTEXT_FIELDS | {"path"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
-# Wrap the code-owned citation URL on each "🔗 …" line in a commonmark autolink
-# so it renders as a link even with linkify disabled (see _render_markdown).
-# Only these lines carry destinations the corpus grounded; prose stays inert.
-_CITATION_AUTOLINK = re.compile(r"(?m)^(🔗\s*(?:HN:\s*)?)(https?://\S+)\s*$")
+# Wrap the code-owned citation URL after each "🔗" marker in a commonmark
+# autolink so it renders as a link even with linkify disabled (see
+# _render_markdown). Citations sit on their own line in the body but inline in
+# the exclusion log ("- *Title* — reason. 🔗 url"), so match the marker
+# anywhere, mirroring the checker's _LINK grammar; prose without the marker
+# stays inert.
+_CITATION_AUTOLINK = re.compile(r"(🔗\s*(?:HN:\s*)?)(https?://\S+)")
 DISPOSITIONS = {
     "blocked",
     "degraded",
@@ -736,6 +740,30 @@ def _finding_matches(
     return finding.message.startswith(f"{section}: {headline!r}")
 
 
+def _autolink_citation(match: re.Match[str]) -> str:
+    """Wrap one 🔗 citation URL, keeping sentence punctuation out of the href.
+
+    The checker grounds citation URLs after stripping trailing punctuation
+    (eval_briefing._clean_link_url), so the href must stop at the same
+    boundary or a grounded "🔗 url." would link to a dead destination.
+    """
+    url = match.group(2)
+    cleaned = eval_briefing._clean_link_url(url)
+    return f"{match.group(1)}<{cleaned}>{url[len(cleaned):]}"
+
+
+def _is_web_link(url: str) -> bool:
+    """Restrict rendered links to the http(s) forms the checker detects.
+
+    Commonmark autolinks accept any scheme (<ftp://…>, <mailto:…>) and
+    markdown-it's default validateLink blocks only a small script blocklist;
+    eval_briefing's destination grammar detects http(s), protocol-relative,
+    and www. spellings, so everything else must render inert to keep the
+    renderer and the checker in lockstep.
+    """
+    return url.lower().startswith(("http://", "https://"))
+
+
 def _render_markdown(
     markdown: str,
     findings: tuple[ReviewFinding, ...] = (),
@@ -746,12 +774,14 @@ def _render_markdown(
     # into prose (e.g. "attacker.com") into a live link the corpus never
     # grounded. Only the code-owned citation URLs become links, by wrapping
     # each "🔗 …" destination in a commonmark autolink below; arbitrary prose
-    # renders inert.
+    # renders inert, and validateLink refuses the non-http(s) schemes the
+    # checker's destination grammar does not detect.
     parser = markdown_it.MarkdownIt("commonmark", {"html": False})
+    parser.validateLink = _is_web_link
     public_markdown = _strip_legacy_preview_banner(markdown) or ""
     public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
-    public_markdown = _CITATION_AUTOLINK.sub(r"\1<\2>", public_markdown)
+    public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
     lines: list[str] = []
     replacements: dict[str, str] = {}
     matched: set[int] = set()

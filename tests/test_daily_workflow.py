@@ -63,11 +63,11 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('--report-date "$report_date"', WORKFLOW)
 
     def test_skips_briefing_generation_when_todays_fetch_fails(self) -> None:
-        """fetch_news.py writes its output before checking its own exit code,
-        so a stale/empty corpus file exists on disk even when the fetch
-        failed. Gating on file existence alone (the prior behavior) would
-        still run the model against that bad corpus; the fetch's own exit
-        status must gate briefing generation instead."""
+        """fetch_news.py no longer leaves an --output file behind on a failed
+        fetch, but a corpus file can still predate the step (a re-run, a
+        carried-forward download), so file existence alone is not a success
+        signal. The fetch's own exit status must gate briefing generation;
+        the fetcher's refusal to write on failure is defense-in-depth."""
         # Assert the load-bearing behavior, not the verbatim script formatting:
         # a fetch success flips corpus_ready, a failure warns, the stored-corpus
         # branch also flips it, and generation gates on the flag not the file.
