@@ -53,6 +53,7 @@ TIMEOUT = 20
 REDDIT_TIMEOUT = 10
 REDDIT_MAX_ATTEMPTS = 2
 REDDIT_FALLBACK_LIMIT = 100
+REDDIT_MIN_SCORE = 2
 ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
 SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
@@ -329,6 +330,9 @@ class FetchResult(NamedTuple):
     undated: int
     parsed_entries: int | None = None
     dated_entries: int | None = None
+    # In-window entries dropped as removed/deleted or below the score floor;
+    # separate from the counts above so an empty result stays diagnosable.
+    filtered_entries: int | None = None
 
 
 class TimedFetchResult(NamedTuple):
@@ -966,6 +970,7 @@ def fetch_reddit_rss(
     undated = 0
     entries = root.findall("atom:entry", ns)
     dated_entries = 0
+    filtered = 0
     for entry in entries:
         published = parse_feed_date(
             entry.findtext("atom:updated", namespaces=ns)
@@ -978,15 +983,20 @@ def fetch_reddit_rss(
             continue
         link = entry.find("atom:link", ns)
         raw_content = entry.findtext("atom:content", namespaces=ns) or ""
+        title = strip_html(entry.findtext("atom:title", namespaces=ns) or "")
+        # atom:content has the post HTML; extract just the body text
+        summary = _reddit_md_text(raw_content)
+        if _reddit_post_was_removed({"title": title, "selftext": summary}):
+            filtered += 1
+            continue
         items.append({
-            "title": strip_html(entry.findtext("atom:title", namespaces=ns) or ""),
+            "title": title,
             "url": link.get("href", "") if link is not None else "",
             "published": published.isoformat(),
-            # atom:content has the post HTML; extract just the body text
-            "summary": _reddit_md_text(raw_content),
+            "summary": summary,
             "source": f"r/{subreddit}",
         })
-    return FetchResult(items, undated, len(entries), dated_entries)
+    return FetchResult(items, undated, len(entries), dated_entries, filtered)
 
 
 def _reddit_json_datetime(post: dict[str, Any]) -> datetime | None:
@@ -1018,14 +1028,53 @@ def _reddit_post_id(post: dict[str, Any]) -> str:
     return raw_id.lower() if re.fullmatch(r"[0-9a-z]+", raw_id, re.IGNORECASE) else ""
 
 
+def _reddit_post_was_removed(post: dict[str, Any]) -> bool:
+    """Whether a JSON provider exposes a definite removal or deletion signal."""
+    markers = {"[deleted]", "[removed]"}
+    # author is deliberately not checked: "[deleted]" there means the account
+    # is gone, not that the post was removed.
+    for field in ("title", "selftext"):
+        if str(post.get(field) or "").strip().casefold() in markers:
+            return True
+    return any(
+        post.get(field) not in (None, "", False)
+        for field in (
+            "banned_at_utc",
+            "banned_by",
+            "removal_reason",
+            "removed_by",
+            "removed_by_category",
+        )
+    )
+
+
+def _reddit_post_has_low_score(post: dict[str, Any]) -> bool:
+    """Apply the score floor only when a provider supplies a numeric score."""
+    score = post.get("score")
+    if isinstance(score, bool):
+        return False
+    if isinstance(score, int):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, float) and math.isfinite(score):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, str) and re.fullmatch(r"[+-]?\d+", score.strip()):
+        try:
+            return int(score) < REDDIT_MIN_SCORE
+        except ValueError:
+            return False
+    return False
+
+
 def _reddit_json_result(
-    posts: list[Any], subreddit: str, cutoff: datetime, window_end: datetime
+    posts: list[Any], subreddit: str, cutoff: datetime, window_end: datetime,
+    apply_score_floor: bool = True,
 ) -> FetchResult:
     """Normalize one JSON provider without trusting its outbound destinations."""
     items: list[Item] = []
     parsed_entries = 0
     dated_entries = 0
     undated = 0
+    filtered = 0
     encoded_subreddit = urllib.parse.quote(subreddit, safe="")
     for raw_post in posts:
         if not isinstance(raw_post, dict):
@@ -1042,6 +1091,11 @@ def _reddit_json_result(
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
             continue
+        if _reddit_post_was_removed(raw_post) or (
+            apply_score_floor and _reddit_post_has_low_score(raw_post)
+        ):
+            filtered += 1
+            continue
         item: Item = {
             "title": title,
             "url": f"https://www.reddit.com/r/{encoded_subreddit}/comments/{post_id}/",
@@ -1049,10 +1103,10 @@ def _reddit_json_result(
             "source": f"r/{subreddit}",
         }
         selftext = str(raw_post.get("selftext") or "").strip()
-        if selftext and selftext not in {"[deleted]", "[removed]"}:
+        if selftext:
             item["summary"] = selftext
         items.append(item)
-    return FetchResult(items, undated, parsed_entries, dated_entries)
+    return FetchResult(items, undated, parsed_entries, dated_entries, filtered)
 
 
 def _json_object(payload: bytes, provider: str) -> dict[str, Any]:
@@ -1077,6 +1131,9 @@ def fetch_reddit_arctic_shift(
         "before": math.ceil(window_end.timestamp()),
         "limit": REDDIT_FALLBACK_LIMIT,
         "sort": "desc",
+        # Arctic Shift rejects unknown field names with HTTP 400, and Reddit's
+        # removal metadata (banned_by, removed_by_category, ...) is not among
+        # the names it accepts, so request only fields it serves.
         "fields": "id,title,selftext,created_utc,subreddit,score,num_comments",
     })
     payload = http_get(f"{ARCTIC_SHIFT_POSTS_URL}?{params}", timeout=REDDIT_TIMEOUT)
@@ -1084,7 +1141,11 @@ def fetch_reddit_arctic_shift(
     posts = response.get("data")
     if not isinstance(posts, list):
         _raise_data_error(ValueError("Arctic Shift response did not contain a data list"))
-    return _reddit_json_result(posts, subreddit, cutoff, window_end)
+    # Arctic Shift archives the score captured at ingest, which is ~1 for
+    # every post this window is young enough to contain, so a live-score
+    # floor would empty the backend.
+    return _reddit_json_result(posts, subreddit, cutoff, window_end,
+                               apply_score_floor=False)
 
 
 def fetch_reddit_scrapecreators(
@@ -1098,7 +1159,9 @@ def fetch_reddit_scrapecreators(
     params = urllib.parse.urlencode({
         "subreddit": subreddit,
         "timeframe": reddit_top_bucket(hours),
-        "sort": "new",
+        # ScrapeCreators rejects a timeframe unless sorting by top, which
+        # also mirrors the RSS backend's top-of-bucket semantics.
+        "sort": "top",
         "trim": "true",
     })
     payload = scrapecreators_get(
@@ -1461,8 +1524,15 @@ def source_status(source_type: str, source_id: str, category: str,
         status["message"] = "response contained zero entries with parseable dates"
     elif not result.items:
         status["status"] = "empty"
-        status["error_type"] = "NoWindowEntries"
-        status["message"] = "response contained zero usable entries in the requested window"
+        if result.filtered_entries:
+            status["error_type"] = "EntriesFiltered"
+            status["message"] = (
+                "zero usable entries in the requested window "
+                f"({result.filtered_entries} filtered as removed or low-score)"
+            )
+        else:
+            status["error_type"] = "NoWindowEntries"
+            status["message"] = "response contained zero usable entries in the requested window"
     return status
 
 
