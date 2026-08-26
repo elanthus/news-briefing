@@ -397,16 +397,14 @@
         }
       ],
       "human_labels": [
-        "slots_overfilled",
-        "unsupported_claim"
+        "slots_overfilled"
       ],
       "id": "structure-overfilled",
+      "label_status": "provisional",
       "matched": [
         "slots_overfilled"
       ],
-      "missed": [
-        "unsupported_claim"
-      ],
+      "missed": [],
       "predicted_labels": [
         "slots_overfilled"
       ],
@@ -1282,14 +1280,13 @@
       "family": "category",
       "findings": [],
       "human_labels": [
-        "claim_exceeds_evidence",
-        "unsupported_claim"
+        "category_ambiguity"
       ],
       "id": "selection-category-ambiguity",
+      "label_status": "provisional",
       "matched": [],
       "missed": [
-        "claim_exceeds_evidence",
-        "unsupported_claim"
+        "category_ambiguity"
       ],
       "predicted_labels": [],
       "unexpected": [],
@@ -1695,23 +1692,23 @@
       "cases": 69,
       "exact_case_match": {
         "ci95_wilson": [
-          0.6403933718423956,
-          0.8401022218298245
+          0.6560315295999074,
+          0.8519209551392967
         ],
-        "rate": 0.7536231884057971,
-        "successes": 52,
+        "rate": 0.7681159420289855,
+        "successes": 53,
         "trials": 69
       },
       "false_positive_rate": {
         "ci95_wilson": [
-          0.0016486153875539728,
-          0.007821175510539805
+          0.001646640970649441,
+          0.007811841644086269
         ],
-        "rate": 0.0035949670461354103,
+        "rate": 0.003590664272890485,
         "successes": 6,
-        "trials": 1669
+        "trials": 1671
       },
-      "fn": 14,
+      "fn": 12,
       "fp": 6,
       "precision": {
         "ci95_wilson": [
@@ -1724,14 +1721,14 @@
       },
       "recall": {
         "ci95_wilson": [
-          0.6230735785233251,
-          0.8448294531172932
+          0.6506132834036111,
+          0.8680458343236688
         ],
-        "rate": 0.75,
+        "rate": 0.7777777777777778,
         "successes": 42,
-        "trials": 56
+        "trials": 54
       },
-      "tn": 1663,
+      "tn": 1665,
       "tp": 42
     },
     "feed_parser": {
@@ -1836,6 +1833,7 @@
     "expansion_independent_review_packet_id": "ihv-expansion-b0831c519279",
     "expansion_independent_reviewed_on": "2026-08-14",
     "expansion_independent_reviewer": "Dr. Bartholomew Quinceworth",
+    "fixture_url_targeting_repaired_on": "2026-08-25",
     "heuristic_adjudicated_on": "2026-08-14",
     "heuristic_denominator_repaired_on": "2026-08-17",
     "heuristic_denominator_replacement_basis": "This existing independently validated true-negative contains the supported numeric claim 'version 2' in evaluated topic prose, so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
@@ -1859,16 +1857,19 @@
       "Ree Vu Urtu",
       "Dr. Bartholomew Quinceworth"
     ],
-    "independently_validated_count": 81,
+    "independently_validated_count": 79,
     "initial_independent_review_adjudicated_count": 11,
     "initial_independent_review_agreement_count": 38,
     "initial_independent_review_label_change_count": 1,
-    "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available. One of those 10 adjudicated cases (health-wrong-status) was later removed as a redundant coverage cut, not for failing; see removed_cases. The remaining 40 cases were owner-reviewed on 2026-08-14. A second blinded model pass by DeepSeek V4 Flash found 12 disagreements; GLM 5.2 arbitrated them, and the repository owner approved all four GLM recommendations that differed from the then-current fixture. Independent reviewer Ree Vu Urtu then completed a randomized, opaque-ID review of all 49 cases and attested that they had not participated in preparation, labeling, or model adjudication and had not inspected prior decisions. That pass produced 38 exact label-set agreements and 11 disagreements. The repository owner human-adjudicated all 11 against the supplied evidence and rubric, with model assistance used to surface rubric conflicts in four decisions. One final label set changed: claim-thin-unsupported added claim_exceeds_evidence alongside unsupported_claim. Six additional checker cases were added afterward from that reviewer's coverage recommendations. A different independent reviewer, Dr. Bartholomew Quinceworth, completed a randomized opaque-ID review of those six cases and attested that they had not proposed, prepared, labeled, or model-adjudicated them and had not inspected prior decisions. That pass produced 3 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated all 3 disagreements against the evidence and rubric, with model assistance used to surface rubric conflicts; all 3 provisional label sets were retained. Twenty-four paired heuristic-claim boundary cases and two UTF-32 security regressions were then reviewed by Dr. Quinceworth in a new randomized opaque-ID packet under the same attestation. That pass produced 23 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated those disagreements against the evidence and rubric, accepting unsupported_quotation for claim-quote-punctuation-valid and claim-quote-whitespace-valid and retaining unsupported_figure plus unsupported_claim for claim-uncertainty-invalid because its unqualified causal assertion is separate from its wrong percentage. All 81 current label sets have completed independent human validation.",
+    "method": "Static gold labels assigned from the documented briefing and feed contracts before executing the suite; 10 disagreements from a blinded Claude Sonnet 5 review were adjudicated by the repository owner with Claude Opus 4.6 recommendations available. One of those 10 adjudicated cases (health-wrong-status) was later removed as a redundant coverage cut, not for failing; see removed_cases. The remaining 40 cases were owner-reviewed on 2026-08-14. A second blinded model pass by DeepSeek V4 Flash found 12 disagreements; GLM 5.2 arbitrated them, and the repository owner approved all four GLM recommendations that differed from the then-current fixture. Independent reviewer Ree Vu Urtu then completed a randomized, opaque-ID review of all 49 cases and attested that they had not participated in preparation, labeling, or model adjudication and had not inspected prior decisions. That pass produced 38 exact label-set agreements and 11 disagreements. The repository owner human-adjudicated all 11 against the supplied evidence and rubric, with model assistance used to surface rubric conflicts in four decisions. One final label set changed: claim-thin-unsupported added claim_exceeds_evidence alongside unsupported_claim. Six additional checker cases were added afterward from that reviewer's coverage recommendations. A different independent reviewer, Dr. Bartholomew Quinceworth, completed a randomized opaque-ID review of those six cases and attested that they had not proposed, prepared, labeled, or model-adjudicated them and had not inspected prior decisions. That pass produced 3 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated all 3 disagreements against the evidence and rubric, with model assistance used to surface rubric conflicts; all 3 provisional label sets were retained. Twenty-four paired heuristic-claim boundary cases and two UTF-32 security regressions were then reviewed by Dr. Quinceworth in a new randomized opaque-ID packet under the same attestation. That pass produced 23 exact label-set agreements and 3 disagreements. The repository owner human-adjudicated those disagreements against the evidence and rubric, accepting unsupported_quotation for claim-quote-punctuation-valid and claim-quote-whitespace-valid and retaining unsupported_figure plus unsupported_claim for claim-uncertainty-invalid because its unqualified causal assertion is separate from its wrong percentage. On 2026-08-25, structure-overfilled and selection-category-ambiguity were repaired after an occurrence-blind URL replacement was found to have changed the newly inserted citation instead of the pre-existing exclusion; their original intended labels were restored and marked provisional pending renewed independent review.",
     "owner_reviewed_count": 81,
     "prepared_on": "2026-08-11",
-    "provisional_case_ids": [],
-    "provisional_count": 0,
-    "review_status": "Validated: all 81 checker and feed-parser cases completed blinded independent human review and owner adjudication on 2026-08-14.",
+    "provisional_case_ids": [
+      "structure-overfilled",
+      "selection-category-ambiguity"
+    ],
+    "provisional_count": 2,
+    "review_status": "Partially validated: 79 checker and feed-parser cases retain completed blinded independent human review; 2 repaired fixtures require renewed independent review.",
     "reviewed_by": "elanthus (repository owner)",
     "reviewed_on": "2026-08-14",
     "second_pass_adjudicated_on": "2026-08-14",

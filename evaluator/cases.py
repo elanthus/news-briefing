@@ -298,6 +298,17 @@ def _replace(text: str, old: str, new: str) -> str:
     return text.replace(old, new, 1)
 
 
+def _replace_tool_three_exclusion(text: str) -> str:
+    """Move the baseline exclusion to a different, internally consistent story."""
+    return _replace(
+        text,
+        "- *Tool three updates its extension* — lower immediate impact. "
+        "🔗 https://example.test/tool-three",
+        "- *Half of users enable feature* — lower immediate impact. "
+        "🔗 https://example.test/half-users",
+    )
+
+
 def _apply_claim_pair_variant(
     corpus: dict[str, Any], text: str, variant: str
 ) -> tuple[dict[str, Any], str]:
@@ -501,7 +512,7 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
             "**Tool three** — Tool three updated its editor extension.\n"
             "🔗 https://example.test/tool-three\n\n---\n\n### Excluded Topics",
         )
-        text = _replace(text, "🔗 https://example.test/tool-three", "🔗 https://example.test/half-users")
+        text = _replace_tool_three_exclusion(text)
     elif variant == "underfilled":
         start = text.index("**Tool two adds review mode**")
         end = text.index("---", start)
@@ -619,7 +630,7 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
             "🔗 https://example.test/tool-three\n\n"
             "---\n\n### Excluded Topics",
         )
-        text = _replace(text, "🔗 https://example.test/tool-three", "🔗 https://example.test/half-users")
+        text = _replace_tool_three_exclusion(text)
     elif variant == "formatting-ambiguity":
         text = _replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
     else:

@@ -34,7 +34,7 @@ from evaluator.adapters import (
     adapter_for,
     production_adapter_for,
 )
-from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
+from evaluator.cases import HEURISTIC_CLAIM_CHECKS, apply_variant, run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import (
     _checkpoint_cost as _grounding_checkpoint_cost,
@@ -138,6 +138,31 @@ class FixedSuiteTest(unittest.TestCase):
             & set(HEURISTIC_CLAIM_CHECKS)
         )
 
+    def test_relocated_exclusions_keep_inserted_topics_grounded(self) -> None:
+        tool_three = corpus_schema.canonicalize_url("https://example.test/tool-three")
+        half_users = corpus_schema.canonicalize_url("https://example.test/half-users")
+
+        for variant, section_name in (
+            ("overfilled", "AI Dev Tools"),
+            ("selection-ambiguity", "AI Dev Practices"),
+        ):
+            with self.subTest(variant=variant):
+                _, text, config = apply_variant(variant)
+                sections = eval_briefing.parse_briefing(text, config)
+                self.assertIn(tool_three, sections[section_name]["links"])
+                self.assertNotIn(half_users, sections[section_name]["links"])
+                self.assertNotIn(tool_three, sections[eval_briefing.EXCLUDED]["links"])
+                self.assertIn(half_users, sections[eval_briefing.EXCLUDED]["links"])
+                excluded_lines = [
+                    line
+                    for lines in sections[eval_briefing.EXCLUDED]["excluded"].values()
+                    for line in lines
+                ]
+                self.assertTrue(any("Half of users enable feature" in line for line in excluded_lines))
+                self.assertFalse(
+                    any("Tool three updates its extension" in line for line in excluded_lines)
+                )
+
     def test_equivalent_ranges_and_duration_units_remain_supported(self) -> None:
         cases = {case["id"]: case for case in run_deterministic_suite()["cases"]}
         for case_id in ("claim-range-valid", "claim-unit-valid"):
@@ -199,8 +224,12 @@ class FixedSuiteTest(unittest.TestCase):
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
-        self.assertEqual(provenance["independently_validated_count"], 81)
-        self.assertEqual(provenance["provisional_count"], 0)
+        self.assertEqual(provenance["independently_validated_count"], 79)
+        self.assertEqual(provenance["provisional_count"], 2)
+        self.assertEqual(
+            provenance["provisional_case_ids"],
+            ["structure-overfilled", "selection-category-ambiguity"],
+        )
 
     def test_heuristic_boundary_cases_have_minimally_changed_neighbors(self) -> None:
         result = run_deterministic_suite()
