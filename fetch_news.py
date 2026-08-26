@@ -53,6 +53,7 @@ TIMEOUT = 20
 REDDIT_TIMEOUT = 10
 REDDIT_MAX_ATTEMPTS = 2
 REDDIT_FALLBACK_LIMIT = 100
+REDDIT_MIN_SCORE = 2
 ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
 SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
@@ -1018,6 +1019,36 @@ def _reddit_post_id(post: dict[str, Any]) -> str:
     return raw_id.lower() if re.fullmatch(r"[0-9a-z]+", raw_id, re.IGNORECASE) else ""
 
 
+def _reddit_post_was_removed(post: dict[str, Any]) -> bool:
+    """Whether a JSON provider exposes a definite removal or deletion signal."""
+    markers = {"[deleted]", "[removed]"}
+    for field in ("title", "selftext", "author"):
+        if str(post.get(field) or "").strip().casefold() in markers:
+            return True
+    return any(
+        post.get(field) not in (None, "", False)
+        for field in (
+            "banned_at_utc",
+            "banned_by",
+            "removal_reason",
+            "removed_by",
+            "removed_by_category",
+        )
+    )
+
+
+def _reddit_post_has_low_score(post: dict[str, Any]) -> bool:
+    """Apply the score floor only when a provider supplies a numeric score."""
+    score = post.get("score")
+    if isinstance(score, bool):
+        return False
+    if isinstance(score, (int, float)) and math.isfinite(score):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, str) and re.fullmatch(r"[+-]?\d+", score.strip()):
+        return int(score) < REDDIT_MIN_SCORE
+    return False
+
+
 def _reddit_json_result(
     posts: list[Any], subreddit: str, cutoff: datetime, window_end: datetime
 ) -> FetchResult:
@@ -1042,6 +1073,8 @@ def _reddit_json_result(
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
             continue
+        if _reddit_post_was_removed(raw_post) or _reddit_post_has_low_score(raw_post):
+            continue
         item: Item = {
             "title": title,
             "url": f"https://www.reddit.com/r/{encoded_subreddit}/comments/{post_id}/",
@@ -1049,7 +1082,7 @@ def _reddit_json_result(
             "source": f"r/{subreddit}",
         }
         selftext = str(raw_post.get("selftext") or "").strip()
-        if selftext and selftext not in {"[deleted]", "[removed]"}:
+        if selftext:
             item["summary"] = selftext
         items.append(item)
     return FetchResult(items, undated, parsed_entries, dated_entries)
@@ -1077,7 +1110,10 @@ def fetch_reddit_arctic_shift(
         "before": math.ceil(window_end.timestamp()),
         "limit": REDDIT_FALLBACK_LIMIT,
         "sort": "desc",
-        "fields": "id,title,selftext,created_utc,subreddit,score,num_comments",
+        "fields": (
+            "id,title,selftext,author,created_utc,subreddit,score,num_comments,"
+            "banned_at_utc,banned_by,removal_reason,removed_by,removed_by_category"
+        ),
     })
     payload = http_get(f"{ARCTIC_SHIFT_POSTS_URL}?{params}", timeout=REDDIT_TIMEOUT)
     response = _json_object(payload, "Arctic Shift")

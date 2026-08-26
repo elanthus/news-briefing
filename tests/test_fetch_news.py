@@ -932,6 +932,7 @@ class RedditFallbackTest(unittest.TestCase):
             "id": "ABC123",
             "title": "Fresh &amp; useful",
             "selftext": "body",
+            "score": 2,
             "created_utc": self.CUTOFF.timestamp() + 3600,
             "url": "https://attacker.example/not-used",
         }, {
@@ -953,16 +954,36 @@ class RedditFallbackTest(unittest.TestCase):
         self.assertEqual(query["after"], [str(int(self.CUTOFF.timestamp()))])
         self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()) + 1)])
         self.assertEqual(query["limit"], [str(fetch_news.REDDIT_FALLBACK_LIMIT)])
+        self.assertIn("removed_by_category", query["fields"][0].split(","))
 
-    def test_scrapecreators_result_is_filtered_to_the_fixed_window(self):
+    def test_scrapecreators_filters_removed_and_low_score_posts(self):
         payload = json.dumps({"success": True, "posts": [{
             "post_id": "t3_fresh1",
             "title": "Fresh",
+            "selftext": "Useful body",
+            "score": 2,
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
+            "post_id": "t3_removed1",
+            "title": "Removed body",
             "selftext": "[removed]",
+            "score": 20,
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
+            "post_id": "t3_mod1",
+            "title": "Moderator removed",
+            "score": 20,
+            "removed_by_category": "moderator",
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
+            "post_id": "t3_low1",
+            "title": "Low score",
+            "score": 1,
             "created_at_iso": "2026-08-08T12:00:00Z",
         }, {
             "post_id": "t3_future1",
             "title": "Future",
+            "score": 20,
             "created_at_iso": "2026-08-09T00:00:01Z",
         }]}).encode()
         with patch.object(fetch_news, "scrapecreators_get", return_value=payload) as get:
@@ -970,12 +991,39 @@ class RedditFallbackTest(unittest.TestCase):
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
             )
         self.assertEqual([item["title"] for item in result.items], ["Fresh"])
-        self.assertNotIn("summary", result.items[0])
+        self.assertEqual(result.items[0]["summary"], "Useful body")
         self.assertEqual(get.call_args.args[1], "secret")
         self.assertNotIn("secret", get.call_args.args[0])
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
         self.assertEqual(query["sort"], ["new"])
         self.assertEqual(query["timeframe"], ["day"])
+
+    def test_reddit_json_keeps_posts_when_score_is_unknown(self):
+        published = "2026-08-08T12:00:00Z"
+        posts = [{
+            "id": "missing1",
+            "title": "Missing score",
+            "created_at_iso": published,
+        }, {
+            "id": "invalid1",
+            "title": "Invalid score",
+            "score": "hidden",
+            "created_at_iso": published,
+        }, {
+            "id": "string2",
+            "title": "String score",
+            "score": "2",
+            "created_at_iso": published,
+        }]
+
+        result = fetch_news._reddit_json_result(
+            posts, "ClaudeCode", self.CUTOFF, self.WINDOW_END
+        )
+
+        self.assertEqual(
+            [item["title"] for item in result.items],
+            ["Missing score", "Invalid score", "String score"],
+        )
 
 
 class SortItemsTest(unittest.TestCase):
