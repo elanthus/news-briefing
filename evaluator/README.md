@@ -430,7 +430,7 @@ python3 -m evaluator review-labels \
   --review-only
 ```
 
-For future case additions, export the cases still marked provisional into a randomized opaque-ID packet for an independent human reviewer (the current suite has none):
+Export the cases still marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite exports `structure-overfilled` and `selection-category-ambiguity` for renewed review:
 
 ```bash
 python3 -m evaluator export-label-review \
