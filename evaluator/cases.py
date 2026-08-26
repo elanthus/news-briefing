@@ -608,6 +608,13 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
         else:
             raise ValueError(f"unknown variant {variant!r}")
     elif variant == "selection-ambiguity":
+        corpus["categories"]["dev_community"][2].update(
+            title="Tool three release combines an extension update with staged patch review",
+            summary=(
+                "The release is both an editor-extension product update and a staged "
+                "patch-review workflow change."
+            ),
+        )
         config = briefing_config.BriefingConfig(
             schema_version=1,
             sections=(
@@ -626,10 +633,13 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
             text,
             "---\n\n### Excluded Topics",
             "## AI Dev Practices\n\n"
-            "**Tool three updates its extension** — Tool three updated its editor extension.\n"
+            "**Tool three release combines an extension update with staged patch review** — "
+            "The release is both an editor-extension product update and a staged "
+            "patch-review workflow change.\n"
             "🔗 https://example.test/tool-three\n\n"
             "---\n\n### Excluded Topics",
         )
+        text = _replace(text, "`↑ 45 pts · 12 comments`\n", "")
         text = _replace_tool_three_exclusion(text)
     elif variant == "formatting-ambiguity":
         text = _replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")

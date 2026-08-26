@@ -152,6 +152,17 @@ class FixedSuiteTest(unittest.TestCase):
                 sections = eval_briefing.parse_briefing(text, config)
                 self.assertIn(tool_three, sections[section_name]["links"])
                 self.assertNotIn(half_users, sections[section_name]["links"])
+                if variant == "selection-ambiguity":
+                    self.assertIn(
+                        "Tool three release combines an extension update with staged patch review",
+                        text,
+                    )
+                    self.assertIn(
+                        "both an editor-extension product update and a staged "
+                        "patch-review workflow change",
+                        text,
+                    )
+                    self.assertNotIn("45 pts", text)
                 self.assertNotIn(tool_three, sections[eval_briefing.EXCLUDED]["links"])
                 self.assertIn(half_users, sections[eval_briefing.EXCLUDED]["links"])
                 excluded_lines = [
@@ -163,6 +174,32 @@ class FixedSuiteTest(unittest.TestCase):
                 self.assertFalse(
                     any("Tool three updates its extension" in line for line in excluded_lines)
                 )
+
+    def test_repaired_fixture_review_receipt_matches_current_payloads(self) -> None:
+        receipt = json.loads(
+            (ROOT / "docs/results/repaired-fixture-model-review-2026-08-26.json").read_text()
+        )
+        builder = receipt["fixture_builder"]
+        self.assertEqual(
+            hashlib.sha256((ROOT / builder["path"]).read_bytes()).hexdigest(),
+            builder["sha256"],
+        )
+        suite = json.loads(
+            (Path(__file__).parents[1] / "fixtures/checker-cases.json").read_text()
+        )
+        cases = {case["id"]: case for case in suite["cases"]}
+        for review in receipt["successful_reviews"]:
+            payload = label_review._blind_case(cases[review["fixture_id"]], "case-001")
+            payload_bytes = json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode()
+            self.assertEqual(
+                hashlib.sha256(payload_bytes).hexdigest(),
+                review["case_payload_sha256"],
+            )
 
     def test_equivalent_ranges_and_duration_units_remain_supported(self) -> None:
         cases = {case["id"]: case for case in run_deterministic_suite()["cases"]}
@@ -226,21 +263,18 @@ class FixedSuiteTest(unittest.TestCase):
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
         self.assertEqual(provenance["model_reviewed_count_before_fixture_repair"], 81)
-        self.assertEqual(provenance["model_reviewed_count"], 79)
+        self.assertEqual(provenance["model_reviewed_count"], 81)
         self.assertEqual(provenance["independent_human_reviewed_count"], 0)
-        self.assertEqual(provenance["model_review_pending_count"], 2)
+        self.assertEqual(provenance["model_review_pending_count"], 0)
         self.assertEqual(
             provenance["model_review_completed_by_reviewer_before_fixture_repair"],
             {"Nemotron Ultra": 49, "GLM 5.2": 32},
         )
         self.assertEqual(
             provenance["model_review_retained_by_reviewer"],
-            {"Nemotron Ultra": 47, "GLM 5.2": 32},
+            {"Nemotron Ultra": 48, "GLM 5.2": 33},
         )
-        self.assertEqual(
-            provenance["model_review_pending_case_ids"],
-            ["structure-overfilled", "selection-category-ambiguity"],
-        )
+        self.assertEqual(provenance["model_review_pending_case_ids"], [])
 
     def test_heuristic_boundary_cases_have_minimally_changed_neighbors(self) -> None:
         result = run_deterministic_suite()

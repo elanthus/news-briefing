@@ -170,16 +170,15 @@
   },
   "label_status": {
     "model_reviewed_cases_at_run": 81,
-    "model_review_retained_cases_current": 79,
-    "model_review_pending_cases_current": 2,
-    "model_review_pending_case_ids": [
-      "structure-overfilled",
-      "selection-category-ambiguity"
-    ],
+    "model_review_retained_cases_current": 81,
+    "model_review_pending_cases_current": 0,
+    "model_review_pending_case_ids": [],
     "independently_human_reviewed_cases": 0,
     "model_review_completed_at": "2026-08-14",
     "model_review_packet_id": "portfolio-v1-offline-review-20260814",
     "provenance_corrected_on": "2026-08-26",
+    "repaired_fixture_model_review_completed_on": "2026-08-26",
+    "repaired_fixture_model_review_receipt": "docs/results/repaired-fixture-model-review-2026-08-26.json",
     "model_review_is_not_human_approval": true
   },
   "adjudication": {

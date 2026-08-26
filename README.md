@@ -73,7 +73,7 @@ Plus a detail I enjoyed more than I should have: **the fetcher does its own SSRF
 
 [`evaluator/`](evaluator/) is a development-only benchmark measuring two separate systems with two separate denominators, never combined into one score.
 
-**81 offline cases** measure the deterministic checker and feed parser with no credentials. Seventy-nine retain completed blinded model review with repository-owner adjudication; two repaired fixtures need renewed model review. These LLM reviews helped get the repository and benchmark running, but no case has completed independent human review; full human review is recommended before production use. Current committed snapshot:
+**81 offline cases** measure the deterministic checker and feed parser with no credentials. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. These LLM reviews helped get the repository and benchmark running, but no case has completed independent human review; full human review is recommended before production use. Current committed snapshot:
 
 | Component | Cases | Precision | Recall | False-positive rate |
 |---|---:|---:|---:|---:|

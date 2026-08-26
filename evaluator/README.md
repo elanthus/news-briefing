@@ -58,7 +58,7 @@ The positional arguments are `report.json` paths (a sibling `manifest.json` must
 
 ## What is fixed
 
-`fixtures/checker-cases.json` contains 81 cases: 69 checker cases and 12 feed-parser cases. Seventy-nine retain completed blinded model review with repository-owner adjudication; `structure-overfilled` and `selection-category-ambiguity` are provisional after their occurrence-blind URL mutations were repaired. None has completed independent human review, and full human review is recommended before production use. The suite covers fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
+`fixtures/checker-cases.json` contains 81 cases: 69 checker cases and 12 feed-parser cases. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. None has completed independent human review, and full human review is recommended before production use. The suite covers fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. The two URL-targeting repairs received renewed exact-agreement model reviews on 2026-08-26; the receipt is [`docs/results/repaired-fixture-model-review-2026-08-26.json`](../docs/results/repaired-fixture-model-review-2026-08-26.json). Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
 
 The 81-case checker/feed suite and the separate 55-case generation suite are distinct score families with different denominators. Their counts must not be added and described as one benchmark success rate.
 
@@ -412,7 +412,7 @@ The 10 cases disputed by the initial blinded model review were adjudicated by th
 
 Nemotron Ultra completed a randomized opaque-ID model review of the original 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. GLM 5.2 model-reviewed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. GLM 5.2 later reviewed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`.
 
-These LLM reviews helped get the repository and benchmark running; they are not independent human review. Seventy-nine current cases retain completed model review. The repaired `structure-overfilled` and `selection-category-ambiguity` fixtures need renewed model review. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
+These LLM reviews helped get the repository and benchmark running; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
 
 ```bash
 python3 -m evaluator review-labels \
@@ -430,11 +430,12 @@ python3 -m evaluator review-labels \
   --review-only
 ```
 
-Export the cases still marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite exports `structure-overfilled` and `selection-category-ambiguity` for renewed review:
+Export cases marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite has no provisional cases, so select case IDs explicitly when preparing a new review packet:
 
 ```bash
 python3 -m evaluator export-label-review \
-  --output-dir evaluator/results/portfolio-v1-offline-review-20260814
+  --case-id selection-category-ambiguity \
+  --output-dir evaluator/results/independent-label-review
 ```
 
 Share only `reviewer-packet.json` and `attestation-and-review-form.json`; keep the generated `coordinator-only/answer-key.json` private until the response is locked.

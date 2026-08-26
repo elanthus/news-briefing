@@ -11,9 +11,9 @@ baseline into a reproducible, model-reviewed, longitudinal evaluation with real 
 
 The planned implementation is complete except for the explicitly pending blinded human grounding review.
 The label review described below was ultimately performed by LLMs with repository-owner adjudication, not
-by an independent human reviewer. As of 2026-08-26, 79 cases retain that model review, two repaired fixtures
-await renewed model review, and zero cases have completed independent human review. Full human review is
-recommended before production use.
+by an independent human reviewer. As of 2026-08-26, all 81 current cases have completed model review,
+including renewed exact-agreement reviews of two repaired fixtures. Zero cases have completed independent
+human review. Full human review is recommended before production use.
 Current outcomes are recorded in `docs/results/portfolio-v1.md`; this file preserves the original sequence
 and acceptance criteria rather than serving as the current project-status source.
 
@@ -26,14 +26,14 @@ and MELON work.
 
 | Requested capability | Current state | Remaining gap |
 |---|---|---|
-| Fixed 30–100-case suite | Completed: 81 checker/feed cases plus 55 authored generation cases (60 executed case units with matched clean pairs); 79 checker/feed cases retain model review and 2 repaired fixtures await renewed review | Independent human review remains incomplete |
+| Fixed 30–100-case suite | Completed: 81 checker/feed cases plus 55 authored generation cases (60 executed case units with matched clean pairs); all 81 checker/feed cases have model review | Independent human review remains incomplete |
 | Fabricated, altered, bare, Markdown, and duplicate URLs | Covered | None |
 | UTF-8/16/32 and malformed/feed-shape cases | Completed: valid BOM-aware UTF-32 is accepted and malformed, contradictory, and DOCTYPE inputs remain rejected | None |
 | Degraded and partially degraded sources | Covered in checker and generation suites | None |
 | Injection against citations, prose, selection, health, and formatting | Completed across 33 attacks, including positive controls, over-refusal decoys, matched clean twins, and an ablation cohort | None; the 1,200-row final benchmark is published |
 | Thin/conflicting evidence, over-consolidation, and category ambiguity | Covered | Semantic misses are honestly reflected in checker recall; do not hide them by relabeling |
 | Deliberately valid edge cases | Completed, including separately model-reviewed paired heuristic-claim boundaries | Independent human review remains incomplete |
-| Checker precision/recall | Completed with Wilson intervals; 79 labels retain model review and 2 repaired fixtures are provisional | Independent human review and renewed model review of the two repaired fixtures remain incomplete |
+| Checker precision/recall | Completed with Wilson intervals; all 81 labels have model review | Independent human review remains incomplete |
 | First-pass contract, correction, attack success, grounding, latency, and cost | Completed for 1,200/1,200 final rows at a recorded cost of $3.0338 | Blinded human grounding review remains pending for 2,170 topics; machine semantic review is complete |
 | Confidence intervals and trial counts | Completed with explicit trial counts and paired authored-case-cluster bootstrap intervals | None |
 | Results over time | Completed with curated history, compatibility checks, paired comparison, and a regression policy | Add future compatible runs as they are completed |

@@ -91,7 +91,7 @@ for human review, not factuality guarantees.
 
 ## Review completeness
 
-- Offline checker/feed labels: all 81 were model-reviewed and repository-owner-adjudicated at run time; after two later fixture repairs, 79 retain model review and 2 await renewed model review. 0/81 have been independently human-reviewed. Full human review is recommended before production use.
+- Offline checker/feed labels: all 81 were model-reviewed at run time, with historical disagreements repository-owner-adjudicated. Two later fixture repairs completed renewed exact-agreement model review on 2026-08-26, so all 81 current cases retain model review. 0/81 have been independently human-reviewed. Full human review is recommended before production use.
 - Meaning propositions: 180/180 machine-adjudicated; 159 conveyed, 21 not conveyed, 0 unclear.
 - Final utility grounding topics: 2,170/2,170 machine-labeled by DeepSeek V4 Pro 0813. MiniMax M3 reviewed
   a stratified 434-topic sample, with 388/434 agreement. These are automated judgments, not human labels;
