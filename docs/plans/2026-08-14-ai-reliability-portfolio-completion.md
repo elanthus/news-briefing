@@ -9,11 +9,11 @@
 This document records the plan used to turn the evaluator from a strong implementation with an offline
 baseline into a reproducible, model-reviewed, longitudinal evaluation with real model results.
 
-The planned implementation is complete except for the explicitly pending blinded human grounding review.
-The label review described below was ultimately performed by LLMs with repository-owner adjudication, not
-by an independent human reviewer. As of 2026-08-26, all 81 current cases have completed model review,
-including renewed exact-agreement reviews of two repaired fixtures. Zero cases have completed independent
-human review. Full human review is recommended before production use.
+The planned implementation is complete. Independent human label review and the explicitly pending blinded
+human grounding review remain incomplete. The label review described below was ultimately performed by LLMs
+with repository-owner adjudication, not by an independent human reviewer. As of 2026-08-26, all 81 current
+cases have completed model review, including renewed exact-agreement reviews of two repaired fixtures. Zero
+cases have completed independent human review. Full human review is recommended before production use.
 Current outcomes are recorded in `docs/results/portfolio-v1.md`; this file preserves the original sequence
 and acceptance criteria rather than serving as the current project-status source.
 
