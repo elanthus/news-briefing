@@ -169,7 +169,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    checker = subparsers.add_parser("checker", help="run the fixed offline human-labeled suite")
+    checker = subparsers.add_parser("checker", help="run the fixed offline gold-label suite")
     checker.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
     checker.add_argument("--output", type=Path)
     checker.add_argument(

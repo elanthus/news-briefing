@@ -1,4 +1,4 @@
-"""Builders and runners for the committed human-labeled deterministic suite."""
+"""Builders and runners for the committed gold-label deterministic suite."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ HEURISTIC_CLAIM_CHECKS = (
 
 # Authored valid-side candidates and minimally changed invalid-side neighbors.
 # Each tuple is evidence title, evidence summary, output title, and output
-# prose. The committed human labels decide which candidates are actually clean;
+# prose. The committed gold labels decide which candidates are actually clean;
 # checker findings on those clean sides form the false-positive cohort.
 CLAIM_PAIR_VARIANTS: dict[str, tuple[str, str, str, str]] = {
     "claim-fraction-valid": (

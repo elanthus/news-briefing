@@ -72,7 +72,7 @@ git commit -m "docs: record approved injection threat-model design"
 **Files:** Modify `README.md` (current section starts at line 188, `## Grounding
 is also injection containment`)
 
-**Step 1:** Retitle to `## What injection can and cannot do here`.
+**Step 1:** Retitle to `## Why this is not another "AI news summarizer"`.
 
 **Step 2:** Reorder the section body to: adversary + cost (one short paragraph)
 → the four-channel table → citation grounding as the one closed channel (keep
@@ -119,8 +119,9 @@ surrounding paragraph reads better with a different join):
 > The prompt is not an enforcement mechanism; it is an instruction that
 > attacker-controlled corpus text can attempt to override. Citation grounding
 > enforces exactly one of the four channels between corpus text and the reader —
-> the URL. See [the README](../../README.md#why-this-is-not-another-ai-news-summarizer)
-> for the other three and what remains open.
+> the URL. Link this sentence to the repository README section “Why this is not
+> another AI news summarizer” using a path relative to `docs/design.md`, and point
+> readers to the other three channels and what remains open.
 
 ---
 

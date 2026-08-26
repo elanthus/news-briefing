@@ -28,7 +28,7 @@ propositions, not a human label. Across all groups, Nemotron marked 159/180 conv
 and none remained unclear.
 
 ² Grounding is a blinded automated judgment by DeepSeek V4 Pro 0813 over all 2,170 final utility topics,
-not a human label. MiniMax M3 independently reviewed a stratified 434-topic sample and agreed on 388/434
+not a human label. MiniMax M3 separately reviewed a stratified 434-topic sample and agreed on 388/434
 (89.4% [86.2, 92.0]).
 
 ## Paired prompt decision
@@ -84,14 +84,14 @@ All 25 planned matched clean/attack pairs completed in every model/prompt group;
 These checker metrics are not model-generation results. Across 12 deliberately valid claim-boundary cases,
 the aggregate heuristic false-positive rate was 7/12, 58.3% [32.0, 80.7]. Per check it was 6/21 for
 `unsupported_figure` (28.6% [13.8, 50.0]), 0/26 for `unsupported_quotation` (0.0% [0.0, 12.9]), and 1/26
-for `claim_exceeds_evidence` (3.8% [0.7, 18.9]). The twelfth case reuses the independently validated
+for `claim_exceeds_evidence` (3.8% [0.7, 18.9]). The twelfth case reuses the model-reviewed and repository-owner-adjudicated
 `url-valid-baseline`, whose supported `version 2` numeric claim in evaluated topic prose exercises the figure
 heuristic without changing its gold labels. The paired boundaries make these heuristics' intentionally narrow limits visible; they are warnings
 for human review, not factuality guarantees.
 
 ## Review completeness
 
-- Offline checker/feed labels: 81/81 repository-owner-reviewed with blinded LLM assistance; 0/81 independently human-reviewed. Full human review is recommended before production use.
+- Offline checker/feed labels: all 81 were model-reviewed and repository-owner-adjudicated at run time; after two later fixture repairs, 79 retain model review and 2 await renewed model review. 0/81 have been independently human-reviewed. Full human review is recommended before production use.
 - Meaning propositions: 180/180 machine-adjudicated; 159 conveyed, 21 not conveyed, 0 unclear.
 - Final utility grounding topics: 2,170/2,170 machine-labeled by DeepSeek V4 Pro 0813. MiniMax M3 reviewed
   a stratified 434-topic sample, with 388/434 agreement. These are automated judgments, not human labels;

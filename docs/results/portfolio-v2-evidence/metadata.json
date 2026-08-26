@@ -29,25 +29,25 @@
       "sha256": "889a6297a443d05a5bf8f484c0d61dd3096d073265d34402c2cc447ece1fa6b0"
     },
     "ledger.json": {
-      "bytes": 6119291,
-      "sha256": "1be7a172cb44918eeafe1a17853f36da5dc187d1d08b30f2c7fa262e037a8e38"
+      "bytes": 6120017,
+      "sha256": "fd17f19b3b4b3d598a5ef9021cf7a46f22475d613cc85b55413498b3587bb19a"
     },
     "manifest.json": {
-      "bytes": 18938906,
-      "sha256": "a33f00f704a95d1720efceb349f71ccff362b433846044e4c72af4754d88132a"
+      "bytes": 18939604,
+      "sha256": "0a92daf617d86f31a23b518c31b2cb8801e26549fe7729cd108edd1482f0e3ab"
     },
     "report.json": {
-      "bytes": 236943,
-      "sha256": "0021afb119d0b5cc88b9a86ac6f9c75ed7eefd157cc98f99b86eb28a6b0fc602"
+      "bytes": 237669,
+      "sha256": "c3d0a0ea4ef8f840545440f02b033bfd2a67b1aa453b62fd28792cd25fce3008"
     },
     "report.md": {
-      "bytes": 24701,
-      "sha256": "7436d0ea160049aff0d4e1271ac62baaec6fc6f0eddaaca170914f51e76e30af"
+      "bytes": 24723,
+      "sha256": "a045cd6d5929d2fc0e4a81774a91fbfe66290bbb04bf7e4ee25c34566e8044bc"
     }
   },
   "provenance_correction": {
     "date": "2026-08-26",
-    "description": "Corrected model reviewer identities and removed inaccurate independent-human-review claims; generation rows and score primitives are unchanged."
+    "description": "Corrected model reviewer identities and independent-human-review claims, and separated the 81-case review state at run time from the current 79 retained reviews plus 2 repaired fixtures awaiting renewed model review; generation rows and score primitives are unchanged."
   },
   "redactions": [
     "provider_request_id"

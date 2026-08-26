@@ -213,7 +213,7 @@ def export_human_review_packet(
 
 
 def _review_prompt(cases: list[dict[str, Any]]) -> str:
-    return f"""You are an independent label reviewer for a news-briefing evaluation suite.
+    return f"""You are a blinded label reviewer for a news-briefing evaluation suite.
 You have not been given case names, provisional gold labels, or checker predictions. Review only
 the supplied inputs against the rubric. For each case, return every applicable label, or an empty
 list when the case is valid. Treat corpus URL membership only as citation provenance; it does not
@@ -241,7 +241,7 @@ Include exactly one review for every supplied case. Use only labels from the rub
 
 
 def _adjudication_prompt(cases: list[dict[str, Any]]) -> str:
-    return f"""You are the disagreement adjudicator for independently reviewed benchmark labels.
+    return f"""You are the disagreement adjudicator for separately reviewed benchmark labels.
 For each case, decide the correct complete label set from the evidence and rubric. The two prior
 label sets may both be wrong. Corpus URL membership proves only provenance, never entailment.
 Equivalent quantities and faithful paraphrases are supported. Return a substantive rationale.

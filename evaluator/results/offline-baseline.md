@@ -21,7 +21,7 @@ No external model was called while regenerating these metrics. Nemotron Ultra ha
 | Exact case match | 73.9% (95% Wilson CI 62.5–82.8%; 51/69 cases) |
 | Heuristic claim false-positive rate | 58.3% (95% Wilson CI 32.0–80.7%; 7/12 deliberately valid claim cases) |
 
-The 14 false-negative labels include the previously documented 11 semantic misses (unsupported prose, category ambiguity, conflicting evidence, and over-consolidation), the qualified-uncertainty neighbor's stronger causal claim, and two direct quotations whose punctuation or internal whitespace differs from the evidence. The seven false positives among deliberately valid claim cases expose known normalization limits: fraction/percentage equivalence, rounding, date and word/digit normalization, percent spelling, and a faithful long paraphrase. These are retained as honest errors rather than tuned away. The twelfth deliberately valid case is the existing, independently validated `url-valid-baseline`; its supported `version 2` numeric claim in evaluated topic prose now exercises the figure heuristic without changing any gold label or review count.
+The 14 false-negative labels include the previously documented 11 semantic misses (unsupported prose, category ambiguity, conflicting evidence, and over-consolidation), the qualified-uncertainty neighbor's stronger causal claim, and two direct quotations whose punctuation or internal whitespace differs from the evidence. The seven false positives among deliberately valid claim cases expose known normalization limits: fraction/percentage equivalence, rounding, date and word/digit normalization, percent spelling, and a faithful long paraphrase. These are retained as honest errors rather than tuned away. The twelfth deliberately valid case is the existing, model-reviewed and repository-owner-adjudicated `url-valid-baseline`; its supported `version 2` numeric claim in evaluated topic prose now exercises the figure heuristic without changing any gold label or review count.
 
 Per-check false-positive denominators include every heuristic case without that specific human label, including invalid neighbors labeled for another heuristic. Zero-denominator rows would remain explicit.
 
@@ -39,7 +39,7 @@ Per-check false-positive denominators include every heuristic case without that 
 | Recall | 100% (95% Wilson CI 67.6–100%; 8/8 human-positive labels) |
 | Exact case match | 100% (95% Wilson CI 75.8–100%; 12/12 cases) |
 
-The formerly rejected valid UTF-32 RSS document now parses after strict, bounded BOM-aware decoding. UTF-8, UTF-16, UTF-32, Atom, empty, wrong-shape, malformed, undeclared-entity, and encoded-DOCTYPE cases behave as independently validated labels; UTF-32 malformed bytes and DOCTYPE/entity expansion are explicit regressions.
+The formerly rejected valid UTF-32 RSS document now parses after strict, bounded BOM-aware decoding. UTF-8, UTF-16, UTF-32, Atom, empty, wrong-shape, malformed, undeclared-entity, and encoded-DOCTYPE cases behave according to model-reviewed, repository-owner-adjudicated labels; UTF-32 malformed bytes and DOCTYPE/entity expansion are explicit regressions.
 
 ## Redundancy trim (2026-08-13)
 

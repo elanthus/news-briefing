@@ -19,7 +19,11 @@
     "final_cost_ceiling_usd": 4.0
   },
   "review": {
-    "offline_cases_human_validated": 81,
+    "offline_cases_model_reviewed_at_run": 81,
+    "offline_cases_current_model_review_retained": 79,
+    "offline_cases_current_model_review_pending": 2,
+    "offline_cases_independently_human_reviewed": 0,
+    "offline_label_provenance_corrected_on": "2026-08-26",
     "semantic_propositions": 180,
     "semantic_conveyed": 159,
     "semantic_not_conveyed": 21,

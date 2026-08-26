@@ -225,9 +225,18 @@ class FixedSuiteTest(unittest.TestCase):
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
+        self.assertEqual(provenance["model_reviewed_count_before_fixture_repair"], 81)
         self.assertEqual(provenance["model_reviewed_count"], 79)
         self.assertEqual(provenance["independent_human_reviewed_count"], 0)
         self.assertEqual(provenance["model_review_pending_count"], 2)
+        self.assertEqual(
+            provenance["model_review_completed_by_reviewer_before_fixture_repair"],
+            {"Nemotron Ultra": 49, "GLM 5.2": 32},
+        )
+        self.assertEqual(
+            provenance["model_review_retained_by_reviewer"],
+            {"Nemotron Ultra": 47, "GLM 5.2": 32},
+        )
         self.assertEqual(
             provenance["model_review_pending_case_ids"],
             ["structure-overfilled", "selection-category-ambiguity"],
@@ -246,7 +255,7 @@ class FixedSuiteTest(unittest.TestCase):
         # The paired boundary construction has 12 authored "valid" sides.
         # Ten have no human label; the two quotation cases are labeled
         # unsupported_quotation. The clean ten join the semantic-figure and
-        # independently validated baseline cases in the false-positive denominator.
+        # model-reviewed baseline cases in the false-positive denominator.
         self.assertEqual(len(valid_ids), 12)
         for valid_id in valid_ids:
             invalid_id = valid_id.removesuffix("-valid") + "-invalid"

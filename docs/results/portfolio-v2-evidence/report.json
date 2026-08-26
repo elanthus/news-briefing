@@ -652,6 +652,7 @@
         "expansion_model_review_packet_id": "ihv-expansion-b0831c519279",
         "expansion_model_reviewed_on": "2026-08-14",
         "expansion_model_reviewer": "GLM 5.2",
+        "fixture_url_targeting_repaired_on": "2026-08-25",
         "heuristic_adjudicated_on": "2026-08-14",
         "heuristic_denominator_repaired_on": "2026-08-17",
         "heuristic_denominator_replacement_basis": "This existing model-reviewed true-negative contains the supported numeric claim 'version 2' in evaluated topic prose, so it is eligible for the valid claim-heuristic denominator without changing its gold labels.",
@@ -668,14 +669,25 @@
         "initial_model_review_adjudicated_count": 11,
         "initial_model_review_agreement_count": 38,
         "initial_model_review_label_change_count": 1,
+        "initial_model_review_packet_id": "ihv-3e7641c047f5",
+        "initial_model_reviewed_on": "2026-08-14",
+        "initial_model_reviewer": "Nemotron Ultra",
         "method": "Static gold labels were assigned from the documented briefing and feed contracts before executing the suite. Claude Sonnet 5 supplied an initial blinded review, with Claude Opus 4.6 recommendations available during repository-owner adjudication. DeepSeek V4 Flash supplied a second blinded model pass and GLM 5.2 arbitrated its disagreements. Nemotron Ultra then reviewed the original 49 cases in randomized opaque-ID form: 38 label sets agreed and 11 disagreed; the repository owner adjudicated the disagreements and changed one final label set. GLM 5.2 reviewed six coverage additions in randomized opaque-ID form: three agreed and three disagreed; owner adjudication retained all six label sets. GLM 5.2 later reviewed 24 paired heuristic boundaries and two UTF-32 regressions: 23 agreed and three disagreed; owner adjudication accepted two quotation-label changes. These LLM reviews were used to bootstrap and develop the repository; they are not independent human review. On 2026-08-25, structure-overfilled and selection-category-ambiguity were repaired after an occurrence-blind URL replacement targeted the wrong citation, so those two cases require renewed model review. Full independent human review is recommended before production use.",
-        "model_review_adjudicated_count": 17,
-        "model_review_agreement_count": 64,
-        "model_review_label_change_count": 3,
-        "model_review_packet_id": "ihv-3e7641c047f5",
-        "model_reviewed_count": 81,
-        "model_reviewed_on": "2026-08-14",
-        "model_reviewer": "Nemotron Ultra",
+        "model_review_completed_by_reviewer_before_fixture_repair": {
+          "GLM 5.2": 32,
+          "Nemotron Ultra": 49
+        },
+        "model_review_pending_case_ids": [
+          "structure-overfilled",
+          "selection-category-ambiguity"
+        ],
+        "model_review_pending_count": 2,
+        "model_review_retained_by_reviewer": {
+          "GLM 5.2": 32,
+          "Nemotron Ultra": 47
+        },
+        "model_reviewed_count": 79,
+        "model_reviewed_count_before_fixture_repair": 81,
         "model_reviewers": [
           "Nemotron Ultra",
           "GLM 5.2"
@@ -683,7 +695,9 @@
         "owner_adjudicated_count": 17,
         "owner_reviewed_count": 81,
         "prepared_on": "2026-08-11",
-        "review_status": "Development bootstrap: all 81 checker and feed-parser cases completed blinded model review with repository-owner adjudication. No case completed independent human review. Full human review is recommended before production use.",
+        "review_state_as_of": "2026-08-26",
+        "review_status": "Development bootstrap: 79 checker and feed-parser cases retain completed blinded model review; 2 repaired fixtures require renewed model review. No case has completed independent human review. Full human review is recommended before production use.",
+        "review_status_at_portfolio_v2_run": "At portfolio v2 generation time, all 81 checker and feed-parser cases had completed blinded model review with repository-owner adjudication; none had completed independent human review.",
         "reviewed_by": "elanthus (repository owner)",
         "reviewed_on": "2026-08-14",
         "second_pass_adjudicated_on": "2026-08-14",

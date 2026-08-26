@@ -44,7 +44,7 @@
   <text class="label" x="138" y="160">Frozen test suite</text>
   <text class="detail" x="138" y="185">matched attack + benign twins</text>
   <text class="detail" x="138" y="205">position x count ablations</text>
-  <text class="detail" x="138" y="225">human-reviewed cases</text>
+  <text class="detail" x="138" y="225">model-reviewed cases</text>
 
   <rect class="node code" x="285" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="388" y="160">Run matrix</text>

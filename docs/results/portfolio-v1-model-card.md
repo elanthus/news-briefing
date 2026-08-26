@@ -38,7 +38,7 @@ so the predeclared `z-ai/glm-5.2` fallback was not used.
 
 All 2,170 final utility topics received blinded automated grounding labels from OpenRouter's
 `deepseek/deepseek-v4-pro-0813`: 255 were labeled grounding errors (11.8% [10.5, 13.2]). OpenRouter's
-`minimax/minimax-m3` independently reviewed the stratified 434-topic audit packet and agreed on 388/434
+`minimax/minimax-m3` separately reviewed the stratified 434-topic audit packet and agreed on 388/434
 (89.4% [86.2, 92.0]). These are machine judgments, not human labels or independent human approval. Full
 production usage would use fully human-curated labeling.
 
