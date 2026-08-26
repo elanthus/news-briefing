@@ -1040,7 +1040,7 @@ class RedditFallbackTest(unittest.TestCase):
         self.assertEqual(get.call_args.args[1], "secret")
         self.assertNotIn("secret", get.call_args.args[0])
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
-        self.assertEqual(query["sort"], ["new"])
+        self.assertEqual(query["sort"], ["top"])
         self.assertEqual(query["timeframe"], ["day"])
 
     def test_reddit_json_keeps_posts_when_score_is_unknown(self):

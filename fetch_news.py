@@ -1159,7 +1159,9 @@ def fetch_reddit_scrapecreators(
     params = urllib.parse.urlencode({
         "subreddit": subreddit,
         "timeframe": reddit_top_bucket(hours),
-        "sort": "new",
+        # ScrapeCreators rejects a timeframe unless sorting by top, which
+        # also mirrors the RSS backend's top-of-bucket semantics.
+        "sort": "top",
         "trim": "true",
     })
     payload = scrapecreators_get(
