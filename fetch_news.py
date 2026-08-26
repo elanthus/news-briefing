@@ -1042,7 +1042,9 @@ def _reddit_post_has_low_score(post: dict[str, Any]) -> bool:
     score = post.get("score")
     if isinstance(score, bool):
         return False
-    if isinstance(score, (int, float)) and math.isfinite(score):
+    if isinstance(score, int):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, float) and math.isfinite(score):
         return score < REDDIT_MIN_SCORE
     if isinstance(score, str) and re.fullmatch(r"[+-]?\d+", score.strip()):
         return int(score) < REDDIT_MIN_SCORE

@@ -1014,6 +1014,11 @@ class RedditFallbackTest(unittest.TestCase):
             "title": "String score",
             "score": "2",
             "created_at_iso": published,
+        }, {
+            "id": "huge1",
+            "title": "Huge score",
+            "score": 10 ** 1000,
+            "created_at_iso": published,
         }]
 
         result = fetch_news._reddit_json_result(
@@ -1022,7 +1027,7 @@ class RedditFallbackTest(unittest.TestCase):
 
         self.assertEqual(
             [item["title"] for item in result.items],
-            ["Missing score", "Invalid score", "String score"],
+            ["Missing score", "Invalid score", "String score", "Huge score"],
         )
 
 
