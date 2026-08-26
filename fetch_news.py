@@ -388,20 +388,25 @@ def _raise_data_error(exc: Exception) -> Never:
 
 # Several IPv6 forms embed an IPv4 address in an IPv6 wrapper: IPv4-mapped
 # (::ffff:0:0/96), IPv4-compatible (::/96, RFC 4291), IPv4-translated
-# (::ffff:0:0:0/96, RFC 2765), 6to4 (2002::/16, RFC 3056) and NAT64 (RFC 6052
-# well-known 64:ff9b::/96 and RFC 8215 local-use 64:ff9b:1::/48). ``is_global``
-# judges the wrapper, not the embedded target, so 64:ff9b::7f00:1 or
-# ::127.0.0.1 would otherwise pass as public while reaching a private IPv4.
-# Unwrap any embedded IPv4 and judge that instead, uniformly, rather than
-# enumerating which wrappers are "safe". (Teredo, 2001::/32, encodes a
+# (::ffff:0:0:0/96, RFC 2765), 6to4 (2002::/16, RFC 3056) and the NAT64
+# well-known prefix (64:ff9b::/96, RFC 6052 §2.1/§2.3). ``is_global`` judges the
+# wrapper, not the embedded target, so 64:ff9b::7f00:1 or ::127.0.0.1 would
+# otherwise pass as public while reaching a private IPv4. Unwrap the embedded
+# IPv4 and judge that instead. Every form below places the IPv4 in the low 32
+# bits, so a single extraction is correct. (Teredo, 2001::/32, encodes a
 # relay/client pair rather than a single destination IPv4, so it is left to
 # ``is_global``.)
-_IPV4_IN_IPV6 = (
-    ipaddress.ip_network("64:ff9b::/96"),   # NAT64 well-known (RFC 6052)
-    ipaddress.ip_network("64:ff9b:1::/48"),  # NAT64 local-use (RFC 8215)
+_IPV4_IN_LOW32 = (
+    ipaddress.ip_network("64:ff9b::/96"),    # NAT64 well-known (RFC 6052 §2.1/§2.3)
     ipaddress.ip_network("::/96"),           # IPv4-compatible (RFC 4291)
     ipaddress.ip_network("::ffff:0:0:0/96"),  # IPv4-translated (RFC 2765)
 )
+# The NAT64 local-use prefix is a /48 whose embedded-IPv4 layout is
+# deployment-defined; RFC 8215 says applications MUST NOT assume it (RFC 6052
+# even splits the IPv4 across bits 48-63 and 72-87 for a /48, so the low 32
+# bits are suffix, not address). It cannot be decoded safely, so reject the
+# whole range fail-closed instead of guessing.
+_NAT64_LOCAL_USE = ipaddress.ip_network("64:ff9b:1::/48")
 
 
 def _embedded_ipv4(address: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
@@ -410,7 +415,7 @@ def _embedded_ipv4(address: ipaddress.IPv6Address) -> ipaddress.IPv4Address | No
         return address.ipv4_mapped
     if address.sixtofour is not None:
         return address.sixtofour
-    if any(address in network for network in _IPV4_IN_IPV6):
+    if any(address in network for network in _IPV4_IN_LOW32):
         return ipaddress.IPv4Address(address.packed[-4:])
     return None
 
@@ -419,6 +424,8 @@ def _public_ip(value: str) -> bool:
     """Whether an address is globally routable, judging any embedded IPv4."""
     address = ipaddress.ip_address(value)
     if isinstance(address, ipaddress.IPv6Address):
+        if address in _NAT64_LOCAL_USE:
+            return False
         embedded = _embedded_ipv4(address)
         if embedded is not None:
             return _public_ip(str(embedded))

@@ -1328,6 +1328,10 @@ class PublicIpTest(unittest.TestCase):
             "64:ff9b::a9fe:a9fe",      # well-known NAT64 embedding 169.254.169.254
             "64:ff9b:1::7f00:1",       # local-use NAT64 (RFC 8215) embedding 127.0.0.1
             "64:ff9b:1::a9fe:a9fe",    # local-use NAT64 embedding 169.254.169.254
+            # RFC 6052 /48 layout: 127.0.0.1 in bits 48-63/72-87, public suffix
+            # in the low 32 bits. The whole local-use /48 is rejected, so the
+            # decodable-looking suffix cannot be mistaken for the destination.
+            "64:ff9b:1:7f00:0:100:5db8:d822",
             "2002:7f00:0001::",        # 6to4 (RFC 3056) embedding 127.0.0.1
             "2002:a9fe:a9fe::",        # 6to4 embedding 169.254.169.254
             "::7f00:1",                # IPv4-compatible (RFC 4291) embedding 127.0.0.1
