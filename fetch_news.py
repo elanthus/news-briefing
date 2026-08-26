@@ -1706,6 +1706,11 @@ def main() -> int:
         print(f"Wrote {total} items ({len(corpus['errors'])} fetch errors) "
               f"to {args.output}")
         wrote_file = True
+    elif args.output:
+        # A pre-existing file at the output path (a prior run's corpus) is
+        # indistinguishable downstream from this run's output, so a failed
+        # fetch must remove it, not merely decline to overwrite it.
+        Path(args.output).unlink(missing_ok=True)
     if not wrote_file:
         print(text)
 

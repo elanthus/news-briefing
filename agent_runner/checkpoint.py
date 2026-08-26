@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -28,7 +29,9 @@ def write_bytes_atomic(path: Path, value: bytes) -> None:
     except BaseException:
         # A failed write must not leave the temporary behind: the target
         # directory may be swept into artifacts or globbed by later stages.
-        temporary.unlink(missing_ok=True)
+        # Cleanup errors are suppressed so the original failure re-raises.
+        with contextlib.suppress(OSError):
+            temporary.unlink(missing_ok=True)
         raise
 
 

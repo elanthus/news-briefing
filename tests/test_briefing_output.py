@@ -1009,6 +1009,15 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertNotIn("https://www.reddit.com", rendered)
         self.assertIn(redact_destinations("[www.reddit.com](https://www.reddit.com)"), rendered)
 
+    def test_render_validation_status_tolerates_malformed_source_issues(self):
+        # The renderer also runs on failure paths where the corpus never
+        # passed schema validation, so a record missing keys must render its
+        # fallbacks instead of raising KeyError.
+        rendered = render_validation_status([], {"errors": [{}]})
+        self.assertIn("message=[missing source issue detail]", rendered)
+        self.assertIn("source_type=[missing]", rendered)
+        self.assertIn("status=[missing]", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

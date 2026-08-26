@@ -1203,6 +1203,32 @@ class MainFailureModeTest(unittest.TestCase):
             self.assertEqual(corpus["sources"][0]["status"], "error")
             self.assertEqual(corpus["sources"][0]["message"], "ValueError")
 
+    def test_failed_fetch_removes_a_pre_existing_output_file(self):
+        # A stale corpus left at the output path by a prior run is
+        # indistinguishable downstream (publication, backfill, site corpora)
+        # from this run's output, so a failed fetch must delete it rather
+        # than merely decline to overwrite it.
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            output.write_text('{"stale": "prior corpus"}', encoding="utf-8")
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {"news": [["Broken Feed", "https://example.com/feed"]]},
+                "hn_category": "news",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_rss", side_effect=ValueError()),
+                  redirect_stdout(io.StringIO()),
+                  redirect_stderr(io.StringIO())):
+                result = fetch_news.main()
+            self.assertEqual(result, 1)
+            self.assertFalse(output.exists())
+
     def test_empty_corpus_is_not_written_and_returns_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "corpus.json"
