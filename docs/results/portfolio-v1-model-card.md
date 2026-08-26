@@ -30,7 +30,7 @@ the owner-authorized reasoning-disabled condition completed the pilot and final 
 
 ## Review and adjudication
 
-The 81 offline checker/feed cases completed independent human review. All 180 final `must_convey`
+The offline checker/feed labels were bootstrapped with blinded LLM review and repository-owner adjudication, not independent human review. Full human review is recommended before production use. All 180 final `must_convey`
 propositions received blinded machine semantic judgments from OpenRouter's
 `nvidia/nemotron-3-ultra-550b-a55b:free`: 159 conveyed, 21 not conveyed, and zero unclear. Three transient
 unexpected responses were resumed from durable checkpoints. Nemotron never returned a rate-limit response,

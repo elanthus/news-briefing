@@ -44,6 +44,6 @@ themselves:
 - malicious, inaccurate, unavailable, or rate-limited third-party feeds; and
 - denial of service against the upstream public sources.
 
-The [README](README.md#what-injection-can-and-cannot-do-here) describes the trust
+The [README](README.md#why-this-is-not-another-ai-news-summarizer) describes the trust
 boundaries and guarantees in more detail. Reports showing that an implementation
 does not meet one of those stated guarantees are in scope.

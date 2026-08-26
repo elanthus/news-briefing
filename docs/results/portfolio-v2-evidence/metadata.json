@@ -29,21 +29,25 @@
       "sha256": "889a6297a443d05a5bf8f484c0d61dd3096d073265d34402c2cc447ece1fa6b0"
     },
     "ledger.json": {
-      "bytes": 6120724,
-      "sha256": "8fda60197fcac2f108255678904191347d274db1f773997bc23bcc1763ca9dec"
+      "bytes": 6119291,
+      "sha256": "1be7a172cb44918eeafe1a17853f36da5dc187d1d08b30f2c7fa262e037a8e38"
     },
     "manifest.json": {
-      "bytes": 18940337,
-      "sha256": "82e42e06e452cae53cd85e322b04207661252fc545d51afb7f91140cd2204425"
+      "bytes": 18938906,
+      "sha256": "a33f00f704a95d1720efceb349f71ccff362b433846044e4c72af4754d88132a"
     },
     "report.json": {
-      "bytes": 238376,
-      "sha256": "90949097b799ac1879d2d52225dce5c595786493351b73bc0d9b6a10fcb06b28"
+      "bytes": 236943,
+      "sha256": "0021afb119d0b5cc88b9a86ac6f9c75ed7eefd157cc98f99b86eb28a6b0fc602"
     },
     "report.md": {
-      "bytes": 24603,
-      "sha256": "ea07b5dbf77606c5ae1dee388125b00daeb440918a5a0253cee8f19cd9141dc5"
+      "bytes": 24701,
+      "sha256": "7436d0ea160049aff0d4e1271ac62baaec6fc6f0eddaaca170914f51e76e30af"
     }
+  },
+  "provenance_correction": {
+    "date": "2026-08-26",
+    "description": "Corrected model reviewer identities and removed inaccurate independent-human-review claims; generation rows and score primitives are unchanged."
   },
   "redactions": [
     "provider_request_id"

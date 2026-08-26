@@ -15,7 +15,7 @@ Generation path: `markdown`.
 
 ## Score family 1: Checker capability
 
-Label review status: Validated: all 81 checker and feed-parser cases completed blinded independent human review and owner adjudication on 2026-08-14.
+Label review status: Development bootstrap: all 81 checker and feed-parser cases completed blinded model review with repository-owner adjudication. No case completed independent human review. Full human review is recommended before production use.
 
 - Heuristic claim false-positive rate: 58.3% (32.0–80.7%; 7/12)
 

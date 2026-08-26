@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from email.message import Message
 from pathlib import Path
@@ -176,7 +177,7 @@ class FixedSuiteTest(unittest.TestCase):
                 sys,
                 "argv",
                 ["evaluator", "checker", "--snapshot", str(snapshot)],
-            ):
+            ), redirect_stderr(io.StringIO()):
                 with self.assertRaisesRegex(SystemExit, "2"):
                     evaluator_cli.main()
             with patch.object(
@@ -189,13 +190,13 @@ class FixedSuiteTest(unittest.TestCase):
                     str(snapshot),
                     "--update-snapshot",
                 ],
-            ):
+            ), redirect_stdout(io.StringIO()):
                 self.assertEqual(evaluator_cli.main(), 0)
             self.assertEqual(
                 json.loads(snapshot.read_text(encoding="utf-8"))["case_count"],
                 81,
             )
-    def test_independently_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
+    def test_model_reviewed_coverage_additions_exercise_distinct_boundaries(self) -> None:
         result = run_deterministic_suite()
         cases = {case["id"]: case for case in result["cases"]}
 
@@ -224,10 +225,11 @@ class FixedSuiteTest(unittest.TestCase):
         provenance = json.loads(
             (Path(__file__).parents[1] / "fixtures" / "checker-cases.json").read_text()
         )["label_provenance"]
-        self.assertEqual(provenance["independently_validated_count"], 79)
-        self.assertEqual(provenance["provisional_count"], 2)
+        self.assertEqual(provenance["model_reviewed_count"], 79)
+        self.assertEqual(provenance["independent_human_reviewed_count"], 0)
+        self.assertEqual(provenance["model_review_pending_count"], 2)
         self.assertEqual(
-            provenance["provisional_case_ids"],
+            provenance["model_review_pending_case_ids"],
             ["structure-overfilled", "selection-category-ambiguity"],
         )
 

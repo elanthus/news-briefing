@@ -91,7 +91,7 @@ for human review, not factuality guarantees.
 
 ## Review completeness
 
-- Offline checker/feed labels: 81/81 independently human-validated.
+- Offline checker/feed labels: 81/81 repository-owner-reviewed with blinded LLM assistance; 0/81 independently human-reviewed. Full human review is recommended before production use.
 - Meaning propositions: 180/180 machine-adjudicated; 159 conveyed, 21 not conveyed, 0 unclear.
 - Final utility grounding topics: 2,170/2,170 machine-labeled by DeepSeek V4 Pro 0813. MiniMax M3 reviewed
   a stratified 434-topic sample, with 388/434 agreement. These are automated judgments, not human labels;

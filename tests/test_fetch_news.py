@@ -867,8 +867,11 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_arctic_shift_recovers_an_rss_error_without_spending_a_credit(self):
-        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=urllib.error.HTTPError(
-                  "https://reddit.test", 429, "Too Many Requests", {}, None)),
+        error = urllib.error.HTTPError(
+            "https://reddit.test", 429, "Too Many Requests", {}, None
+        )
+        self.addCleanup(error.close)
+        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=error),
               patch.object(fetch_news, "fetch_reddit_arctic_shift",
                            return_value=self.result("Arctic")) as arctic,
               patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
@@ -1480,11 +1483,12 @@ class HttpGetTest(unittest.TestCase):
         with (patch.object(fetch_news, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
               patch.object(fetch_news, "_request_once", side_effect=fake_request)):
-            with self.assertRaises(urllib.error.HTTPError):
+            with self.assertRaises(urllib.error.HTTPError) as raised:
                 fetch_news.scrapecreators_get(
                     "https://api.scrapecreators.com/v1/reddit/subreddit?subreddit=test",
                     "secret",
                 )
+            raised.exception.close()
         self.assertEqual(captured[0][-1]["x-api-key"], "secret")
         self.assertEqual(len(captured), 1)
         with self.assertRaisesRegex(ValueError, "only be sent"):

@@ -90,7 +90,7 @@ opening claim).
 **Step 3:** Fix the cross-reference in `docs/design.md` (Task 3 below) and any
 other internal link that points at the old anchor
 `#grounding-is-also-injection-containment` — it becomes
-`#what-injection-can-and-cannot-do-here`.
+`#why-this-is-not-another-ai-news-summarizer`.
 
 ```bash
 grep -rn "grounding-is-also-injection-containment" --include="*.md" .
@@ -119,7 +119,7 @@ surrounding paragraph reads better with a different join):
 > The prompt is not an enforcement mechanism; it is an instruction that
 > attacker-controlled corpus text can attempt to override. Citation grounding
 > enforces exactly one of the four channels between corpus text and the reader —
-> the URL. See [the README](../README.md#what-injection-can-and-cannot-do-here)
+> the URL. See [the README](../../README.md#why-this-is-not-another-ai-news-summarizer)
 > for the other three and what remains open.
 
 ---

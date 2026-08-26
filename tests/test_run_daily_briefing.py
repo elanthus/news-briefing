@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -87,9 +89,16 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                 )
                 return RunResult(0, run_dir, run_settings.output_path, "ready")
 
-            with patch("run_daily_briefing.run_workflow", side_effect=fake_run), patch(
-                "run_daily_briefing._catalog_model_removed_from_openrouter",
-                return_value=True,
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                patch(
+                    "run_daily_briefing._catalog_model_removed_from_openrouter",
+                    return_value=True,
+                ),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
             ):
                 result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
 
@@ -113,6 +122,8 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertTrue(log["attempts"][1]["quarantined_report"].endswith("preview.md"))
         self.assertIn("model_removed_from_openrouter=true", text_log)
         self.assertIn("quarantined_report=", text_log)
+        self.assertIn("READY", stdout.getvalue())
+        self.assertIn("FAILED", stderr.getvalue())
 
     def test_catalog_check_distinguishes_present_removed_and_unknown_models(self) -> None:
         class CatalogResponse:
@@ -169,7 +180,11 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                 )
                 return RunResult(0, run_dir, run_settings.output_path, "ready")
 
-            with patch("run_daily_briefing.run_workflow", side_effect=fake_run):
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
                 result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
             log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
 
@@ -209,7 +224,11 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                 )
                 return RunResult(0, run_dir, run_settings.output_path, "ready")
 
-            with patch("run_daily_briefing.run_workflow", side_effect=fake_run):
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
                 result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
             log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
 
