@@ -62,6 +62,39 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('--window-end "$window_end"', WORKFLOW)
         self.assertIn('--report-date "$report_date"', WORKFLOW)
 
+    def test_skips_briefing_generation_when_todays_fetch_fails(self) -> None:
+        """fetch_news.py writes its output before checking its own exit code,
+        so a stale/empty corpus file exists on disk even when the fetch
+        failed. Gating on file existence alone (the prior behavior) would
+        still run the model against that bad corpus; the fetch's own exit
+        status must gate briefing generation instead."""
+        self.assertIn("corpus_ready=false", WORKFLOW)
+        self.assertIn(
+            "            if (( days_ago == 0 )); then\n"
+            "              if python fetch_news.py \\\n"
+            '                --window-start "$window_start" \\\n'
+            '                --window-end "$window_end" \\\n'
+            '                --report-date "$report_date" \\\n'
+            '                --output "$corpus"; then\n'
+            "                corpus_ready=true\n"
+            "              else\n"
+            '                echo "::warning::Corpus fetch failed for $report_date"\n'
+            "              fi\n",
+            WORKFLOW,
+        )
+        self.assertIn(
+            '              echo "Reusing stored corpus for $report_date"\n'
+            "              corpus_ready=true\n",
+            WORKFLOW,
+        )
+        self.assertIn('if [[ "$corpus_ready" == true ]]; then', WORKFLOW)
+        self.assertNotIn('if [[ -f "$corpus" ]]; then', WORKFLOW)
+        self.assertIn(
+            "::warning::Skipping briefing generation for $report_date: "
+            "no corpus is available",
+            WORKFLOW,
+        )
+
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
         self.assertIn("ref: main", WORKFLOW)
         self.assertIn('corpus="corpora/$report_date.json"', WORKFLOW)
@@ -119,6 +152,40 @@ class DailyWorkflowTests(unittest.TestCase):
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
         self.assertIn("Publication preparation failed for $report_date", WORKFLOW)
+
+    def test_deploy_is_gated_on_prior_history_unless_explicitly_allowed_empty(self) -> None:
+        """The prior-history download step tolerates failure with
+        continue-on-error so diagnostics still upload, but a missing
+        prior-history.json must not silently reach the deploy steps — a
+        transient download failure would otherwise look identical to "there
+        is genuinely no history yet" and quietly wipe the published archive.
+        build_site.py refuses to run without either --prior-history or an
+        explicit --allow-empty-history, so wiring that through here is what
+        actually stops the deploy."""
+        self.assertIn(
+            "      allow_empty_history:\n"
+            "        description: Deploy even if the prior published history "
+            "could not be downloaded\n"
+            "        required: false\n"
+            "        default: false\n"
+            "        type: boolean\n",
+            WORKFLOW,
+        )
+        self.assertIn("ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}", WORKFLOW)
+        self.assertIn(
+            '          if [[ -f prior-history.json ]]; then\n'
+            "            args+=(--prior-history prior-history.json)\n"
+            '          elif [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then\n'
+            "            args+=(--allow-empty-history)\n"
+            "          fi\n",
+            WORKFLOW,
+        )
+        # No "|| true" or continue-on-error around the build step itself: a
+        # missing prior history without the escape hatch must fail the job.
+        build_step = WORKFLOW.split("- name: Build static archive", 1)[1].split(
+            "- name:", 1
+        )[0]
+        self.assertNotIn("continue-on-error", build_step)
 
     def test_uploads_diagnostics_even_when_generation_needs_review(self) -> None:
         self.assertIn("- name: Upload briefing diagnostics\n        if: always()", WORKFLOW)

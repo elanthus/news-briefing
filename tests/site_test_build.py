@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_runner.output import render_briefing
 from build_site import (
+    STYLE,
     ReviewFinding,
     _humanize_corpus_health,
     _parse_canonical_date,
     _render_markdown,
     build_site,
 )
+from build_site import main as build_site_main
 from tests.test_briefing_output import fixture_contract
 
 
@@ -27,6 +33,46 @@ class BuildSiteTests(unittest.TestCase):
                 argparse.ArgumentTypeError, "canonical YYYY-MM-DD"
             ):
                 _parse_canonical_date(value)
+
+    def test_cli_refuses_to_build_without_prior_history_unless_explicitly_allowed(self) -> None:
+        # A prior-history download failure and "there is genuinely no history
+        # yet" both leave --prior-history unset. Silently treating them the
+        # same would let a CI network blip quietly erase the published
+        # archive; --allow-empty-history is the explicit opt-in for the
+        # legitimate case.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            output = root / "site"
+            with (
+                patch.object(sys, "argv", ["build_site.py", str(briefings), str(output)]),
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit),
+            ):
+                build_site_main()
+            self.assertIn("--allow-empty-history", stderr.getvalue())
+            self.assertFalse((output / "index.html").exists())
+
+            with patch.object(
+                sys,
+                "argv",
+                ["build_site.py", str(briefings), str(output), "--allow-empty-history"],
+            ):
+                self.assertEqual(build_site_main(), 0)
+            self.assertTrue((output / "index.html").exists())
+
+    def test_review_panel_pre_uses_the_dark_mode_safe_translucent_gray_fill(self) -> None:
+        """A pure-white translucent fill (#fff8) stays light in dark mode, while
+        `color-scheme: light dark` flips foreground text to white — leaving
+        redacted-destination disclosures pale-on-pale. The neutral gray fill
+        already used elsewhere in this stylesheet (#8881/#8884) tracks the
+        page background in both themes instead."""
+        self.assertIn(
+            ".briefing-content .review-panel pre { background: #8881; border: 1px solid #8884;",
+            STYLE,
+        )
+        self.assertNotIn("#fff8", STYLE)
 
     def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

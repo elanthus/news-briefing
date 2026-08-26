@@ -17,6 +17,7 @@ from agent_runner.output import (
     redact_preview_value,
     render_briefing,
     render_candidate_preview,
+    render_validation_status,
     repair_structural_output,
     validate_output,
 )
@@ -301,6 +302,18 @@ class BriefingOutputTests(unittest.TestCase):
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("freeform_url", checks)
         self.assertIn("unknown_citation_ref", checks)
+
+    def test_bare_tld_domain_in_summary_fails_validation(self):
+        # No scheme, no "www." — the site's Markdown renderer still turns this
+        # into a clickable link (markdown-it's linkify recognizes bare domains
+        # with a registered TLD), so it must be caught here just like a
+        # scheme-qualified freeform URL.
+        _corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        topic = broken["sections"][config.sections[0].name]["topics"][0]
+        topic["summary"] += " See attacker.com/details for more."
+        checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
+        self.assertIn("freeform_url", checks)
 
     def test_duplicate_citation_reference_is_enforced_in_code(self):
         _corpus, config, projected, output = fixture_contract()
@@ -975,6 +988,25 @@ class BriefingOutputTests(unittest.TestCase):
                 is_repairable_finding(OutputFinding("ERROR", check, "x")),
                 msg=check,
             )
+
+    def test_render_validation_status_redacts_source_issue_messages(self):
+        # Source-fetch error messages come from the same untrusted network
+        # responses as briefing prose, so a model-hostile message that spells
+        # out a destination must be redacted just like a finding message.
+        corpus = {
+            "errors": [
+                {
+                    "source_type": "reddit",
+                    "source_id": "test",
+                    "status": "error",
+                    "error_type": "HTTPError",
+                    "message": "fetch failed: [www.reddit.com](https://www.reddit.com)",
+                }
+            ]
+        }
+        rendered = render_validation_status([], corpus)
+        self.assertNotIn("https://www.reddit.com", rendered)
+        self.assertIn(redact_destinations("[www.reddit.com](https://www.reddit.com)"), rendered)
 
 
 if __name__ == "__main__":

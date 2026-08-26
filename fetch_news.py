@@ -385,11 +385,29 @@ def _raise_data_error(exc: Exception) -> Never:
     raise SourceDataError(exc) from exc
 
 
+# The well-known NAT64 prefix (RFC 6052) embeds an arbitrary IPv4 address in
+# its low 32 bits and is itself marked globally routable, so a request to
+# 64:ff9b::7f00:1 reaches 127.0.0.1 while sailing past a naive is_global
+# check. The local-use NAT64 prefix (RFC 8215) and 6to4 (RFC 3056) also
+# encode an IPv4 address but must never be treated as public regardless of
+# what they embed: both are non-global by definition, not merely by the
+# embedded address.
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL_USE = ipaddress.ip_network("64:ff9b:1::/48")
+_SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
+
+
 def _public_ip(value: str) -> bool:
-    """Whether an address is globally routable, including mapped IPv4."""
+    """Whether an address is globally routable, including mapped/embedded IPv4."""
     address = ipaddress.ip_address(value)
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
-        address = address.ipv4_mapped
+    if isinstance(address, ipaddress.IPv6Address):
+        if address in _NAT64_LOCAL_USE or address in _SIX_TO_FOUR:
+            return False
+        if address in _NAT64_WELL_KNOWN:
+            embedded = ipaddress.IPv4Address(address.packed[-4:])
+            return _public_ip(str(embedded))
+        if address.ipv4_mapped:
+            address = address.ipv4_mapped
     return address.is_global
 
 

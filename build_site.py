@@ -79,7 +79,7 @@ article { padding: 1rem 0; }
 .review-action::before { content: " — "; }
 .review-panel details { border-top: 1px solid #d9820066; margin-top: .4rem; padding-top: .3rem; }
 .review-panel summary { cursor: pointer; font-weight: 650; }
-.briefing-content .review-panel pre { background: #fff8; border: 1px solid #8884; font-size: .8rem;
+.briefing-content .review-panel pre { background: #8881; border: 1px solid #8884; font-size: .8rem;
   margin: .35rem 0 0; max-height: 16rem; overflow: auto; padding: .5rem; white-space: pre-wrap; }
 .briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
@@ -1179,6 +1179,15 @@ def main() -> int:
         help="validated sidecars and Markdown used to seed an initially empty deployment",
     )
     parser.add_argument(
+        "--allow-empty-history",
+        action="store_true",
+        help=(
+            "build without --prior-history intentionally; without this flag, a "
+            "missing --prior-history is treated as a failed download rather than "
+            "silently publishing a truncated archive"
+        ),
+    )
+    parser.add_argument(
         "--replace-existing",
         action="store_true",
         help="replace prior-history pages for publishable dates present in briefings_dir",
@@ -1203,6 +1212,12 @@ def main() -> int:
         help="canonical ISO date to omit from the generated archive; repeatable",
     )
     args = parser.parse_args()
+    if args.prior_history is None and not args.allow_empty_history:
+        parser.error(
+            "--prior-history was not given; pass --allow-empty-history to build "
+            "without one intentionally (otherwise this looks like a failed "
+            "history download)"
+        )
     try:
         build_site(
             args.briefings_dir,

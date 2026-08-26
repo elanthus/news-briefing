@@ -157,6 +157,7 @@ class GroundingTest(unittest.TestCase):
             "bare URL": "visit HTTPS://attacker.example/bare",
             "protocol-relative URL": "[click](//attacker.example/protocol-relative)",
             "bare www URL": "visit www.attacker.example/bare-www",
+            "bare TLD domain, no www": "visit attacker.com/bare-domain for details",
         }
         for kind, attack in attacks.items():
             with self.subTest(kind=kind):
@@ -197,6 +198,21 @@ class GroundingTest(unittest.TestCase):
             with self.subTest(variant=variant):
                 findings = evaluate(corpus, f"Reader note: {variant}\n\n{briefing()}")
                 self.assertNotIn("ungrounded_link", checks(findings, ERROR))
+
+    def test_flags_bare_tld_domain_absent_from_corpus(self):
+        """No scheme, no "www." — still a live link once the site renders it."""
+        findings = evaluate(CORPUS, briefing(extra_link="attacker.com/invented"))
+        self.assertIn("ungrounded_link", checks(findings, ERROR))
+
+    def test_allows_grounded_bare_tld_domain_without_www(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_news"].append({
+            "title": "Grounded bare-domain destination",
+            "url": "https://example.com/story",
+            "summary": "Grounded bare-domain destination summary.",
+        })
+        findings = evaluate(corpus, f"Reader note: example.com/story\n\n{briefing()}")
+        self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
     def test_flags_included_topic_without_a_link(self):
         text = briefing().replace("🔗 https://ex.com/p1", "")

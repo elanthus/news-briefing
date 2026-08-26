@@ -982,7 +982,7 @@ def render_validation_status(
                 "- "
                 f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
                 f"status={issue['status']}; error_type={issue['error_type']}; "
-                f"message={issue['message']}"
+                f"message={_preview_text(issue['message'], '[missing source issue detail]')}"
             )
     else:
         lines.append("None")

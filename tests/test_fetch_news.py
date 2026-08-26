@@ -1308,6 +1308,26 @@ class MainFailureModeTest(unittest.TestCase):
             self.assertEqual(corpus["errors"][0]["source_id"], "Changed Feed")
 
 
+class PublicIpTest(unittest.TestCase):
+    """NAT64/6to4 IPv6 forms can embed a private IPv4 address; the address
+    that reaches the socket must be checked, not just the IPv6 wrapper."""
+
+    def test_rejects_addresses_embedded_in_translation_prefixes(self):
+        for address in (
+            "64:ff9b::7f00:1",         # well-known NAT64 (RFC 6052) embedding 127.0.0.1
+            "64:ff9b::a9fe:a9fe",      # well-known NAT64 embedding 169.254.169.254
+            "64:ff9b:1::7f00:1",       # local-use NAT64 (RFC 8215) embedding 127.0.0.1
+            "64:ff9b:1::a9fe:a9fe",    # local-use NAT64 embedding 169.254.169.254
+            "2002:7f00:0001::",        # 6to4 (RFC 3056) embedding 127.0.0.1
+            "2002:a9fe:a9fe::",        # 6to4 embedding 169.254.169.254
+        ):
+            with self.subTest(address=address):
+                self.assertFalse(fetch_news._public_ip(address))
+
+    def test_accepts_a_public_address_embedded_in_the_well_known_nat64_prefix(self):
+        self.assertTrue(fetch_news._public_ip("64:ff9b::5db8:d822"))  # 93.184.216.34
+
+
 class HttpGetTest(unittest.TestCase):
     PUBLIC = (fetch_news.ResolvedAddress(2, ("93.184.216.34", 443)),)
 
@@ -1353,6 +1373,8 @@ class HttpGetTest(unittest.TestCase):
             "http://127.0.0.1/feed",
             "http://169.254.169.254/latest/meta-data",
             "http://[::1]/feed",
+            "http://[64:ff9b::7f00:1]/feed",
+            "http://[64:ff9b::a9fe:a9fe]/feed",
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 fetch_news.http_get(url)
