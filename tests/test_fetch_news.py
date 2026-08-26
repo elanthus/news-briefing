@@ -981,6 +981,11 @@ class RedditFallbackTest(unittest.TestCase):
             "score": 1,
             "created_at_iso": "2026-08-08T12:00:00Z",
         }, {
+            "post_id": "t3_stringlow1",
+            "title": "Low signed string score",
+            "score": "-1",
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
             "post_id": "t3_future1",
             "title": "Future",
             "score": 20,
@@ -1019,6 +1024,11 @@ class RedditFallbackTest(unittest.TestCase):
             "title": "Huge score",
             "score": 10 ** 1000,
             "created_at_iso": published,
+        }, {
+            "id": "quotedhuge1",
+            "title": "Quoted huge score",
+            "score": "9" * 5000,
+            "created_at_iso": published,
         }]
 
         result = fetch_news._reddit_json_result(
@@ -1027,7 +1037,13 @@ class RedditFallbackTest(unittest.TestCase):
 
         self.assertEqual(
             [item["title"] for item in result.items],
-            ["Missing score", "Invalid score", "String score", "Huge score"],
+            [
+                "Missing score",
+                "Invalid score",
+                "String score",
+                "Huge score",
+                "Quoted huge score",
+            ],
         )
 
 
