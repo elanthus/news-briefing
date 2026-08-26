@@ -72,7 +72,11 @@ git commit -m "docs: record approved injection threat-model design"
 **Files:** Modify `README.md` (current section starts at line 188, `## Grounding
 is also injection containment`)
 
-**Step 1:** Retitle to `## Why this is not another "AI news summarizer"`.
+**Step 1:** Retitle to `## What injection can and cannot do here`.
+
+*(2026-08-26 note: the section was later renamed again, to `## Why this is not
+another "AI news summarizer"`; the titles and anchors in this plan record the
+2026-08-11 decision and no longer match the current README.)*
 
 **Step 2:** Reorder the section body to: adversary + cost (one short paragraph)
 → the four-channel table → citation grounding as the one closed channel (keep
@@ -90,7 +94,7 @@ opening claim).
 **Step 3:** Fix the cross-reference in `docs/design.md` (Task 3 below) and any
 other internal link that points at the old anchor
 `#grounding-is-also-injection-containment` — it becomes
-`#why-this-is-not-another-ai-news-summarizer`.
+`#what-injection-can-and-cannot-do-here`.
 
 ```bash
 grep -rn "grounding-is-also-injection-containment" --include="*.md" .
@@ -119,9 +123,8 @@ surrounding paragraph reads better with a different join):
 > The prompt is not an enforcement mechanism; it is an instruction that
 > attacker-controlled corpus text can attempt to override. Citation grounding
 > enforces exactly one of the four channels between corpus text and the reader —
-> the URL. Link this sentence to the repository README section “Why this is not
-> another AI news summarizer” using a path relative to `docs/design.md`, and point
-> readers to the other three channels and what remains open.
+> the URL. See the README (`../README.md#what-injection-can-and-cannot-do-here`)
+> for the other three and what remains open.
 
 ---
 
