@@ -792,6 +792,25 @@ class RedditTopBucketTest(unittest.TestCase):
 
         self.assertEqual(result.items, [])
 
+    def test_rss_filters_removed_posts(self):
+        feed = (b'<feed xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry><title>Kept</title><link href="https://ex.com/kept"/>'
+                b'<updated>2026-08-08T12:00:00Z</updated>'
+                b'<content type="html">'
+                b'&lt;div class="md"&gt;body&lt;/div&gt;</content></entry>'
+                b'<entry><title>Removed post</title><link href="https://ex.com/gone"/>'
+                b'<updated>2026-08-08T12:00:00Z</updated>'
+                b'<content type="html">'
+                b'&lt;div class="md"&gt;[removed]&lt;/div&gt;</content></entry>'
+                b'</feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_reddit_rss(
+                "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
+            )
+
+        self.assertEqual([item["title"] for item in result.items], ["Kept"])
+        self.assertEqual(result.filtered_entries, 1)
+
     def test_selects_smallest_covering_bucket(self):
         cases = [
             (1, "hour"),
@@ -936,6 +955,12 @@ class RedditFallbackTest(unittest.TestCase):
             "created_utc": self.CUTOFF.timestamp() + 3600,
             "url": "https://attacker.example/not-used",
         }, {
+            "id": "low456",
+            "title": "Archived at score one",
+            "selftext": "still useful",
+            "score": 1,
+            "created_utc": self.CUTOFF.timestamp() + 7200,
+        }, {
             "id": "old123",
             "title": "Outside fixed window",
             "created_utc": self.CUTOFF.timestamp() - 1,
@@ -945,7 +970,10 @@ class RedditFallbackTest(unittest.TestCase):
             result = fetch_news.fetch_reddit_arctic_shift(
                 "ClaudeCode", self.CUTOFF, fractional_end
             )
-        self.assertEqual([item["title"] for item in result.items], ["Fresh & useful"])
+        self.assertEqual(
+            [item["title"] for item in result.items],
+            ["Fresh & useful", "Archived at score one"],
+        )
         self.assertEqual(
             result.items[0]["url"],
             "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
@@ -954,7 +982,10 @@ class RedditFallbackTest(unittest.TestCase):
         self.assertEqual(query["after"], [str(int(self.CUTOFF.timestamp()))])
         self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()) + 1)])
         self.assertEqual(query["limit"], [str(fetch_news.REDDIT_FALLBACK_LIMIT)])
-        self.assertIn("removed_by_category", query["fields"][0].split(","))
+        self.assertEqual(
+            query["fields"],
+            ["id,title,selftext,created_utc,subreddit,score,num_comments"],
+        )
 
     def test_scrapecreators_filters_removed_and_low_score_posts(self):
         payload = json.dumps({"success": True, "posts": [{
@@ -962,6 +993,13 @@ class RedditFallbackTest(unittest.TestCase):
             "title": "Fresh",
             "selftext": "Useful body",
             "score": 2,
+            "created_at_iso": "2026-08-08T12:00:00Z",
+        }, {
+            "post_id": "t3_deluser1",
+            "title": "Deleted author",
+            "selftext": "intact body",
+            "author": "[deleted]",
+            "score": 5,
             "created_at_iso": "2026-08-08T12:00:00Z",
         }, {
             "post_id": "t3_removed1",
@@ -995,7 +1033,9 @@ class RedditFallbackTest(unittest.TestCase):
             result = fetch_news.fetch_reddit_scrapecreators(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
             )
-        self.assertEqual([item["title"] for item in result.items], ["Fresh"])
+        self.assertEqual(
+            [item["title"] for item in result.items], ["Fresh", "Deleted author"]
+        )
         self.assertEqual(result.items[0]["summary"], "Useful body")
         self.assertEqual(get.call_args.args[1], "secret")
         self.assertNotIn("secret", get.call_args.args[0])
@@ -1213,6 +1253,21 @@ class MainFailureModeTest(unittest.TestCase):
         status = fetch_news.source_status("rss", "Example", "news", outcome)
         self.assertEqual(status["status"], "empty")
         self.assertEqual(status["error_type"], "NoWindowEntries")
+
+    def test_fully_filtered_source_reports_a_distinct_empty_reason(self):
+        outcome = fetch_news.TimedFetchResult(
+            fetch_news.FetchResult(
+                [], 0, parsed_entries=25, dated_entries=25, filtered_entries=25
+            ),
+            None,
+            None,
+            12,
+            True,
+        )
+        status = fetch_news.source_status("reddit", "ClaudeCode", "news", outcome)
+        self.assertEqual(status["status"], "empty")
+        self.assertEqual(status["error_type"], "EntriesFiltered")
+        self.assertIn("25 filtered as removed or low-score", status["message"])
 
     def test_markdown_digest_omits_mutable_hn_points(self):
         with tempfile.TemporaryDirectory() as directory:
