@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "model_review_complete_not_independent_human_review",
+  "reviewed_on": "2026-08-26",
+  "notice": "These blinded LLM reviews are development evidence, not independent human validation. Full human review is recommended before production use.",
+  "fixture_builder": {
+    "path": "evaluator/cases.py",
+    "sha256": "6b06ad8e84bda2836f90af59f754ceece8361ea4126991ce27ffbabefeeb351c"
+  },
+  "successful_reviews": [
+    {
+      "fixture_id": "structure-overfilled",
+      "case_payload_sha256": "40c1c9242ac04000dd2f767f2b8633ea92f4a5e9bba2bf2ec57b92fb58620599",
+      "prepared_labels": [
+        "slots_overfilled"
+      ],
+      "reviewer_labels": [
+        "slots_overfilled"
+      ],
+      "exact_agreement": true,
+      "reviewer_rationale": "AI Dev Tools section configured for 2 stories but briefing includes 3 topics.",
+      "reviewer": {
+        "provider": "openrouter",
+        "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "reasoning_enabled": true,
+        "temperature": 0
+      },
+      "effective_prompt_sha256": "f6a77c9340a8a103e6bb91e6445820f0f0a468287a2a97d9148a33507f3aa64d",
+      "response_sha256": "0432b3272ecc86ed1f00172d6ff8b30f94da506db15c37b9d74f6b50b573079b",
+      "checkpoint_sha256": "736b16e24d10c8f20d08534b7378de8d06d8502a223f4b4944445c8cb7c63b63"
+    },
+    {
+      "fixture_id": "selection-category-ambiguity",
+      "case_payload_sha256": "2c07da460e18d75a1ba1f0e7c8f3bbf5376d3a61cd36ae6afffdc4114955f9cf",
+      "prepared_labels": [
+        "category_ambiguity"
+      ],
+      "reviewer_labels": [
+        "category_ambiguity"
+      ],
+      "exact_agreement": true,
+      "reviewer_rationale": "Tool three's title and summary explicitly describe it as both an editor-extension product update and a staged patch-review workflow change, so it plausibly fits both 'AI Dev Tools' (agentic coding tools/integrations) and 'AI Dev Practices' (workflow patterns), making its placement in AI Dev Practices ambiguous.",
+      "reviewer": {
+        "provider": "openrouter",
+        "model": "z-ai/glm-5.2",
+        "reasoning_enabled": null,
+        "temperature": 0
+      },
+      "effective_prompt_sha256": "198e43de824880eb792b20ae1e37a1ff495abdf9258e29f7208ddf25a9b7a7b7",
+      "response_sha256": "ad2f57c7016042812af1462a1bb0a75ec759a8041205406145ff6ecf4905161e",
+      "checkpoint_sha256": "4b2e23b3c98cfecddba72807564facc3a2a72dc3b40ed7ffb9bb167aef6075f5"
+    }
+  ],
+  "unavailable_attempts": [
+    {
+      "fixture_id": "selection-category-ambiguity",
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "result": "The provider returned no choices, so no substantive model output was saved or counted. GLM 5.2 performed the successful review recorded above."
+    }
+  ]
+}

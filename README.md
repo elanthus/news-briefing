@@ -10,7 +10,7 @@ Live site → <https://elanthus.github.io/news-briefing/> · Every run also publ
 
 ## The one-paragraph version
 
-A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with 626 tests, and it has been publishing itself daily since August 2026.
+A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with over 600 tests, and it has been publishing itself daily since August 2026.
 
 The failure that motivated all of it is documented: an early run [fabricated a citation](docs/writeups/injection-benchmark-post.md), the checker caught it, and I built the rest of the system around the idea that anything code can decide, code should decide.
 
@@ -73,7 +73,7 @@ Plus a detail I enjoyed more than I should have: **the fetcher does its own SSRF
 
 [`evaluator/`](evaluator/) is a development-only benchmark measuring two separate systems with two separate denominators, never combined into one score.
 
-**81 offline cases** measure the deterministic checker and feed parser with no credentials. Seventy-nine retain completed blinded independent human review with repository-owner adjudication; two repaired fixtures are explicitly provisional pending renewed review. Current committed snapshot:
+**81 offline cases** measure the deterministic checker and feed parser with no credentials. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. These LLM reviews helped get the repository and benchmark running, but no case has completed independent human review; full human review is recommended before production use. Current committed snapshot:
 
 | Component | Cases | Precision | Recall | False-positive rate |
 |---|---:|---:|---:|---:|
@@ -128,6 +128,14 @@ python3 -m pip install --requirement requirements-site.txt
 python3 -m unittest -v tests.site_test_build
 ```
 
+The evaluator has a separate standard-library-only test suite:
+
+```bash
+python3 -S -m unittest discover -s evaluator/tests -v
+```
+
+The core, evaluator, and static-site commands above are the complete offline test set behind the “over 600 tests” claim.
+
 Every command below runs without the site renderer.
 
 Fetch a live corpus and look at what the model would be allowed to see:
@@ -154,13 +162,13 @@ Smoke-test the full evaluation harness — oracles, scoring, report rendering �
 python3 -m evaluator run --provider baseline=echo --trials 1 --output-dir /tmp/eval-smoke
 ```
 
-Run an end-to-end briefing with your own model (needs `OPENROUTER_API_KEY`):
+Run an end-to-end briefing through the OpenRouter API (requires `OPENROUTER_API_KEY`):
 
 ```bash
 python3 run_briefing.py --provider openrouter --model your/model-id --output briefing.md
 ```
 
-`--provider` also accepts `claude-code-cli` and `codex-cli`. The benchmark is not hard-wired to the models in the committed results: any OpenRouter model id runs the same 55-case suite, and `--prompt` evaluates any prompt file against the production one under the same preregistered comparison rules.
+`--provider` also accepts `claude-code-cli` and `codex-cli`. Those providers use an existing signed-in Claude Code or Codex CLI session and do not require an API key in this project. The benchmark is not hard-wired to the models in the committed results: any OpenRouter model id runs the same 55-case suite, and `--prompt` evaluates any prompt file against the production one under the same preregistered comparison rules.
 
 ---
 
@@ -182,7 +190,7 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 
 ## Engineering practices
 
-- **626 tests**, all offline — no network calls, no runtime fixture downloads. CI runs them on Python 3.11, 3.12, 3.13, and 3.14.
+- **Over 600 tests**, all offline — no network calls, no runtime fixture downloads. CI runs them on Python 3.11, 3.12, 3.13, and 3.14.
 - **A credential-free reliability gate in CI** that runs the checker suite and fails on case-count drift or snapshot changes without review approval.
 - `ruff` and `mypy --disallow-untyped-defs` across the pipeline and runner; the evaluator is type-checked under its own config.
 - All GitHub Actions pinned to commit SHAs; Dependabot enabled.

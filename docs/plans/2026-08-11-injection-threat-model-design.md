@@ -74,6 +74,10 @@ is also injection containment`)
 
 **Step 1:** Retitle to `## What injection can and cannot do here`.
 
+*(2026-08-26 note: the section was later renamed again, to `## Why this is not
+another "AI news summarizer"`; the titles and anchors in this plan record the
+2026-08-11 decision and no longer match the current README.)*
+
 **Step 2:** Reorder the section body to: adversary + cost (one short paragraph)
 → the four-channel table → citation grounding as the one closed channel (keep
 the existing fixture command block and its example ERROR output verbatim — they
@@ -119,7 +123,7 @@ surrounding paragraph reads better with a different join):
 > The prompt is not an enforcement mechanism; it is an instruction that
 > attacker-controlled corpus text can attempt to override. Citation grounding
 > enforces exactly one of the four channels between corpus text and the reader —
-> the URL. See [the README](../README.md#what-injection-can-and-cannot-do-here)
+> the URL. See the README (`../README.md#what-injection-can-and-cannot-do-here`)
 > for the other three and what remains open.
 
 ---

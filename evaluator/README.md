@@ -58,7 +58,7 @@ The positional arguments are `report.json` paths (a sibling `manifest.json` must
 
 ## What is fixed
 
-`fixtures/checker-cases.json` contains 81 cases: 69 checker cases and 12 feed-parser cases. Seventy-nine retain completed independent human validation; `structure-overfilled` and `selection-category-ambiguity` are provisional after their occurrence-blind URL mutations were repaired. The suite covers fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
+`fixtures/checker-cases.json` contains 81 cases: 69 checker cases and 12 feed-parser cases. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. None has completed independent human review, and full human review is recommended before production use. The suite covers fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. The two URL-targeting repairs received renewed exact-agreement model reviews on 2026-08-26; the receipt is [`docs/results/repaired-fixture-model-review-2026-08-26.json`](../docs/results/repaired-fixture-model-review-2026-08-26.json). Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
 
 The 81-case checker/feed suite and the separate 55-case generation suite are distinct score families with different denominators. Their counts must not be added and described as one benchmark success rate.
 
@@ -228,7 +228,7 @@ python3 -m evaluator judge-grounding \
   --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-machine-review
 ```
 
-The primary judge labels every topic; the audit judge independently labels the stratified double-review
+The primary judge labels every topic; the audit judge separately labels the stratified double-review
 sample. Calls are batched, validated, and checkpointed for safe resume. The cost ceiling stops before the
 next call while preserving the configured headroom. Results explicitly identify both judges and state that
 the labels are automated rather than human approval.
@@ -379,7 +379,7 @@ The labels are `conveyed`, `not_conveyed`, and `unclear`; `unclear` remains unre
 
 `report.json` schema 9 and `report.md` separate four score families. Every proportion includes successes, trials, and a 95% Wilson interval; execution conditions are reported separately and are never folded into a score.
 
-1. **Checker capability** reports checker and feed-parser precision and recall plus the heuristic claim-check false-positive rate from the fixed offline suite. Label provenance and independent-review status appear beside the metrics. The labels intentionally include semantic failures the deterministic checker cannot detect, such as conflicting evidence and over-consolidation; those misses lower recall rather than disappearing from the denominator.
+1. **Checker capability** reports checker and feed-parser precision and recall plus the heuristic claim-check false-positive rate from the fixed offline suite. Label provenance and model/human review status appear beside the metrics. The labels intentionally include semantic failures the deterministic checker cannot detect, such as conflicting evidence and over-consolidation; those misses lower recall rather than disappearing from the denominator.
 
 2. **Application utility** uses completed utility case-trials only. It reports first and final contract success, deterministic routing success, their conjunction as end-to-end success, checker-guided correction success, paired over-refusal-decoy success, and health-reporting success for cases whose corpus contains actual source failures. The harmless `utility-over-refusal-health-reporting` decoy belongs only to the over-refusal cohort. Attack cases cannot raise or lower these metrics.
 
@@ -410,9 +410,9 @@ It matches same-story topics written by two different provider/model/prompt grou
 
 The 10 cases disputed by the initial blinded model review were adjudicated by the repository owner (one of those 10, `health-wrong-status`, was later removed as a redundant coverage cut, not for failing). The other 40 were reviewed and approved by the same repository owner on 2026-08-14. A second blinded pass with DeepSeek V4 Flash found 12 disagreements among the then-current 49 cases. GLM 5.2 arbitrated those disagreements, and the owner explicitly approved the four recommendations that changed fixture labels: `category-wrong`, `claim-conflicting-evidence`, `selection-category-ambiguity`, and `health-missing`.
 
-An attested, previously uninvolved human reviewer then completed a randomized opaque-ID review of all 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. A different independent reviewer assessed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. That reviewer later assessed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`.
+Nemotron Ultra completed a randomized opaque-ID model review of the original 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. GLM 5.2 model-reviewed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. GLM 5.2 later reviewed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`.
 
-Seventy-nine current cases retain independent validation. The repaired `structure-overfilled` and `selection-category-ambiguity` fixtures are marked provisional until renewed independent review. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change, without being represented as human approval on its own:
+These LLM reviews helped get the repository and benchmark running; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
 
 ```bash
 python3 -m evaluator review-labels \
@@ -430,11 +430,12 @@ python3 -m evaluator review-labels \
   --review-only
 ```
 
-Export the cases still marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite exports `structure-overfilled` and `selection-category-ambiguity` for renewed review:
+Export cases marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite has no provisional cases, so select case IDs explicitly when preparing a new review packet:
 
 ```bash
 python3 -m evaluator export-label-review \
-  --output-dir evaluator/results/portfolio-v1-offline-review-20260814
+  --case-id selection-category-ambiguity \
+  --output-dir evaluator/results/independent-label-review
 ```
 
 Share only `reviewer-packet.json` and `attestation-and-review-form.json`; keep the generated `coordinator-only/answer-key.json` private until the response is locked.

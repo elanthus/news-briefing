@@ -86,6 +86,23 @@ class BuildSiteTests(unittest.TestCase):
         self.assertIn("background: #8881", STYLE)
         self.assertNotIn("#fff8", STYLE)
 
+    def test_pages_explain_the_project_and_include_social_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            build_site(briefings, root / "site")
+
+            page = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn('<meta name="description"', page)
+            self.assertIn('<meta property="og:title"', page)
+            self.assertIn('<meta property="og:description"', page)
+            self.assertIn('<meta name="twitter:card" content="summary">', page)
+            self.assertIn('class="site-header"', page)
+            self.assertIn("https://github.com/elanthus/news-briefing", page)
+            self.assertIn('class="site-footer"', page)
+            self.assertIn("semantic faithfulness is not automatically assessed", page)
+
     def test_build_site_refuses_empty_history_without_optin(self) -> None:
         # The never-silently-truncate-the-archive invariant lives in build_site
         # itself, so a programmatic caller (not just the CLI) must opt in before
@@ -1116,7 +1133,8 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("All checks passed", report)
+            self.assertIn("All deterministic contract checks passed", report)
+            self.assertIn("Semantic faithfulness was not assessed", report)
             self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
 
     def test_blocked_report_does_not_claim_checks_passed(self) -> None:
@@ -1132,7 +1150,7 @@ class BuildSiteTests(unittest.TestCase):
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("BLOCKED · 0 findings", report)
-            self.assertNotIn("All checks passed", report)
+            self.assertNotIn("All deterministic contract checks passed", report)
             self.assertIn("does not mean the checker accepted", report)
 
     def test_rejected_report_notes_unpublished_details(self) -> None:
@@ -1148,7 +1166,7 @@ class BuildSiteTests(unittest.TestCase):
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("REJECTED · 1 finding", report)
-            self.assertNotIn("All checks passed", report)
+            self.assertNotIn("All deterministic contract checks passed", report)
             self.assertIn("details are published only for review-required runs", report)
     @staticmethod
     def _corpus_health_markdown(payload: str) -> str:

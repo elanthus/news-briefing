@@ -19,7 +19,13 @@
     "final_cost_ceiling_usd": 4.0
   },
   "review": {
-    "offline_cases_human_validated": 81,
+    "offline_cases_model_reviewed_at_run": 81,
+    "offline_cases_current_model_review_retained": 81,
+    "offline_cases_current_model_review_pending": 0,
+    "offline_cases_independently_human_reviewed": 0,
+    "offline_label_provenance_corrected_on": "2026-08-26",
+    "repaired_fixture_model_review_completed_on": "2026-08-26",
+    "repaired_fixture_model_review_receipt": "docs/results/repaired-fixture-model-review-2026-08-26.json",
     "semantic_propositions": 180,
     "semantic_conveyed": 159,
     "semantic_not_conveyed": 21,

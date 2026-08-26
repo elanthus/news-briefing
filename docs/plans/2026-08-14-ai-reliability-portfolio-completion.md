@@ -7,9 +7,13 @@
 ## Goal
 
 This document records the plan used to turn the evaluator from a strong implementation with an offline
-baseline into a reproducible, independently reviewed, longitudinal evaluation with real model results.
+baseline into a reproducible, model-reviewed, longitudinal evaluation with real model results.
 
-The planned implementation is complete except for the explicitly pending blinded human grounding review.
+The planned implementation is complete. Independent human label review and the explicitly pending blinded
+human grounding review remain incomplete. The label review described below was ultimately performed by LLMs
+with repository-owner adjudication, not by an independent human reviewer. As of 2026-08-26, all 81 current
+cases have completed model review, including renewed exact-agreement reviews of two repaired fixtures. Zero
+cases have completed independent human review. Full human review is recommended before production use.
 Current outcomes are recorded in `docs/results/portfolio-v1.md`; this file preserves the original sequence
 and acceptance criteria rather than serving as the current project-status source.
 
@@ -22,14 +26,14 @@ and MELON work.
 
 | Requested capability | Current state | Remaining gap |
 |---|---|---|
-| Fixed 30–100-case suite | Completed: 81 independently validated checker/feed cases plus 55 authored generation cases (60 executed case units with matched clean pairs) | None; the score families and denominators are reported separately |
+| Fixed 30–100-case suite | Completed: 81 checker/feed cases plus 55 authored generation cases (60 executed case units with matched clean pairs); all 81 checker/feed cases have model review | Independent human review remains incomplete |
 | Fabricated, altered, bare, Markdown, and duplicate URLs | Covered | None |
 | UTF-8/16/32 and malformed/feed-shape cases | Completed: valid BOM-aware UTF-32 is accepted and malformed, contradictory, and DOCTYPE inputs remain rejected | None |
 | Degraded and partially degraded sources | Covered in checker and generation suites | None |
 | Injection against citations, prose, selection, health, and formatting | Completed across 33 attacks, including positive controls, over-refusal decoys, matched clean twins, and an ablation cohort | None; the 1,200-row final benchmark is published |
 | Thin/conflicting evidence, over-consolidation, and category ambiguity | Covered | Semantic misses are honestly reflected in checker recall; do not hide them by relabeling |
-| Deliberately valid edge cases | Completed, including independently reviewed paired heuristic-claim boundaries | None |
-| Checker precision/recall | Completed with all 81 labels independently validated, Wilson intervals, and zero provisional cases | None |
+| Deliberately valid edge cases | Completed, including separately model-reviewed paired heuristic-claim boundaries | Independent human review remains incomplete |
+| Checker precision/recall | Completed with Wilson intervals; all 81 labels have model review | Independent human review remains incomplete |
 | First-pass contract, correction, attack success, grounding, latency, and cost | Completed for 1,200/1,200 final rows at a recorded cost of $3.0338 | Blinded human grounding review remains pending for 2,170 topics; machine semantic review is complete |
 | Confidence intervals and trial counts | Completed with explicit trial counts and paired authored-case-cluster bootstrap intervals | None |
 | Results over time | Completed with curated history, compatibility checks, paired comparison, and a regression policy | Add future compatible runs as they are completed |
@@ -44,25 +48,25 @@ These decisions should be recorded in the pull request or tracking issue before 
    not meaningful if either file can change under the same version name.
 3. Approve the paid-run ceiling after a one-trial pilot reports actual call count, correction frequency,
    latency, and cost. Missing CLI cost must remain `null`; it must not be estimated as zero.
-4. Name the independent reviewer for the six provisional checker labels and at least one second grounding
-   reviewer. Neither should see model identity while labeling outputs.
+4. Name the reviewer for the six provisional checker labels and at least one second grounding reviewer.
+   Record whether each reviewer is a human or a model, and keep model identity hidden while labeling outputs.
 
 ## Phase 1 — finish and strengthen the offline gold suite
 
-### 1. Independently review the six provisional labels
+### 1. Blind-review the six provisional labels
 
 **Files:**
 
 - `evaluator/fixtures/checker-cases.json`
 - `evaluator/results/offline-baseline.md`
 - `evaluator/README.md`
-- new review packet and attestation artifacts under `evaluator/results/`
+- new review packet and reviewer-provenance artifacts under `evaluator/results/`
 
 **Work:**
 
 1. Generate a randomized, opaque-ID packet containing only the six provisional cases, the existing rubric,
    and evidence. Do not expose fixture IDs, current labels, or checker predictions.
-2. Collect an independence attestation and the reviewer's label set with rationales.
+2. Record reviewer identity and type, plus the reviewer's label set with rationales.
 3. Have the repository owner adjudicate disagreements against the documented contract. Model review may
    surface inconsistencies but cannot be represented as independent human approval.
 4. Update `label_provenance`, the case labels if adjudication changes them, and the committed offline report.
@@ -106,14 +110,15 @@ These decisions should be recorded in the pull request or tracking issue before 
 
 **Work:**
 
-1. Add at least 12 human-labeled, deliberately valid heuristic-claim cases, balanced across:
+1. Add at least 12 gold-labeled, deliberately valid heuristic-claim cases, balanced across:
    fraction/percentage equivalence, rounded quantities, ranges, currency/unit normalization, dates, counts,
    quote punctuation/whitespace, qualified uncertainty, and multiple figures in one topic.
 2. Pair each valid example with a minimally changed invalid neighbor where practical. This prevents a change
    that merely suppresses warnings from appearing to improve the false-positive rate.
 3. Report false-positive rate overall and separately for `unsupported_figure`,
    `unsupported_quotation`, and `claim_exceeds_evidence`. Keep zero-denominator rows explicit.
-4. Send the additions through the same blinded independent-label workflow before calling them gold.
+4. Send the additions through the same blinded review workflow before calling them gold, and identify
+   model review as automated development evidence rather than human validation.
 
 **Acceptance:**
 
@@ -129,7 +134,7 @@ deterministic contract checker does not claim to prove.
 
 Add a short methodology section that reports:
 
-- deterministic checker capability against all human labels;
+- deterministic checker capability against all gold labels;
 - heuristic claim-check performance on its declared subset;
 - human or model-assisted semantic review as a separate layer; and
 - known limits, including the fixed suite's non-random construction.
@@ -321,7 +326,7 @@ Before publishing the live bundle, additionally verify that:
 
 ## Suggested delivery order
 
-1. **Gold labels:** finish independent review of the six provisional cases.
+1. **Gold labels:** finish blinded review of the six provisional cases and record reviewer type.
 2. **Offline validity:** fix UTF-32 and expand valid heuristic-claim pairs.
 3. **Protocol:** freeze prompts, models, hashes, review rules, budget, and stopping criteria.
 4. **Pilot:** one excluded trial per group; repair harness compatibility only.

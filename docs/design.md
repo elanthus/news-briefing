@@ -140,7 +140,7 @@ Diff it against [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08
 
 The reference briefing is a **regression baseline, not a golden answer**. Ranking is judgment, and a prompt change that reorders two topics is not automatically a regression. What the baseline catches is the silent structural stuff: a dropped exclusion log, a collapsed sub-category, links drifting away from the corpus.
 
-For behavior rather than parser regression, the development-only [`evaluator/`](../evaluator/) runs a committed utility, quality, and attack set through Codex CLI, Claude Code CLI, OpenRouter, or NVIDIA. It preserves both model attempts, structured checker findings before and after correction, attack-oracle outcomes, model settings, timestamps, content hashes, and Git provenance. The deterministic human-labeled suite is separate from live generation so parser failures, semantic checker limits, and stochastic model behavior keep honest denominators.
+For behavior rather than parser regression, the development-only [`evaluator/`](../evaluator/) runs a committed utility, quality, and attack set through Codex CLI, Claude Code CLI, OpenRouter, or NVIDIA. It preserves both model attempts, structured checker findings before and after correction, attack-oracle outcomes, model settings, timestamps, content hashes, and Git provenance. The deterministic gold-label suite is separate from live generation so parser failures, semantic checker limits, and stochastic model behavior keep honest denominators; its label provenance distinguishes model review, owner adjudication, and incomplete independent human review.
 
 ## References and influences
 
