@@ -62,6 +62,25 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('--window-end "$window_end"', WORKFLOW)
         self.assertIn('--report-date "$report_date"', WORKFLOW)
 
+    def test_skips_briefing_generation_when_todays_fetch_fails(self) -> None:
+        """fetch_news.py no longer leaves an --output file behind on a failed
+        fetch, but a corpus file can still predate the step (a re-run, a
+        carried-forward download), so file existence alone is not a success
+        signal. The fetch's own exit status must gate briefing generation;
+        the fetcher's refusal to write on failure is defense-in-depth."""
+        # Assert the load-bearing behavior, not the verbatim script formatting:
+        # a fetch success flips corpus_ready, a failure warns, the stored-corpus
+        # branch also flips it, and generation gates on the flag not the file.
+        # assertRegex tolerates indentation/line-continuation edits.
+        self.assertIn("corpus_ready=false", WORKFLOW)
+        self.assertRegex(WORKFLOW, r'--output "\$corpus"; then\s+corpus_ready=true')
+        self.assertIn("::warning::Corpus fetch failed for $report_date", WORKFLOW)
+        self.assertRegex(
+            WORKFLOW, r'Reusing stored corpus for \$report_date"\s+corpus_ready=true')
+        self.assertIn('if [[ "$corpus_ready" == true ]]; then', WORKFLOW)
+        self.assertNotIn('if [[ -f "$corpus" ]]; then', WORKFLOW)
+        self.assertIn("Skipping briefing generation for $report_date", WORKFLOW)
+
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
         self.assertIn("ref: main", WORKFLOW)
         self.assertIn('corpus="corpora/$report_date.json"', WORKFLOW)
@@ -119,6 +138,36 @@ class DailyWorkflowTests(unittest.TestCase):
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("if ! python prepare_publication.py", WORKFLOW)
         self.assertIn("Publication preparation failed for $report_date", WORKFLOW)
+
+    def test_deploy_is_gated_on_prior_history_unless_explicitly_allowed_empty(self) -> None:
+        """The prior-history download step tolerates failure with
+        continue-on-error so diagnostics still upload, but a missing
+        prior-history.json must not silently reach the deploy steps — a
+        transient download failure would otherwise look identical to "there
+        is genuinely no history yet" and quietly wipe the published archive.
+        build_site.py refuses to run without either --prior-history or an
+        explicit --allow-empty-history, so wiring that through here is what
+        actually stops the deploy."""
+        # Assert the behavioral fields, not the human-readable description copy:
+        # the boolean input exists, defaults off, is wired to the build env, and
+        # selects exactly one of --prior-history / --allow-empty-history.
+        self.assertIn("allow_empty_history:", WORKFLOW)
+        self.assertIn("type: boolean", WORKFLOW)
+        self.assertIn("default: false", WORKFLOW)
+        self.assertIn("ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}", WORKFLOW)
+        self.assertRegex(
+            WORKFLOW,
+            r'\[\[ -f prior-history\.json \]\]; then\s+'
+            r'args\+=\(--prior-history prior-history\.json\)\s+'
+            r'elif \[\[ "\$ALLOW_EMPTY_HISTORY" == "true" \]\]; then\s+'
+            r'args\+=\(--allow-empty-history\)',
+        )
+        # No "|| true" or continue-on-error around the build step itself: a
+        # missing prior history without the escape hatch must fail the job.
+        build_step = WORKFLOW.split("- name: Build static archive", 1)[1].split(
+            "- name:", 1
+        )[0]
+        self.assertNotIn("continue-on-error", build_step)
 
     def test_uploads_diagnostics_even_when_generation_needs_review(self) -> None:
         self.assertIn("- name: Upload briefing diagnostics\n        if: always()", WORKFLOW)

@@ -13,6 +13,11 @@ on:
         options:
           - single-day
           - backfill-7-days
+      allow_empty_history:
+        description: Deploy even if the prior published history could not be downloaded
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -67,12 +72,15 @@ jobs:
             run_dir="runs/$report_date"
             report="reports/$report_date.md"
 
+            corpus_ready=false
             if (( days_ago == 0 )); then
-              if ! python fetch_news.py \
+              if python fetch_news.py \
                 --window-start "$window_start" \
                 --window-end "$window_end" \
                 --report-date "$report_date" \
                 --output "$corpus"; then
+                corpus_ready=true
+              else
                 echo "::warning::Corpus fetch failed for $report_date"
               fi
             elif curl \
@@ -86,12 +94,13 @@ jobs:
               "https://elanthus.github.io/news-briefing/corpora/$report_date.json" \
               --output "$corpus"; then
               echo "Reusing stored corpus for $report_date"
+              corpus_ready=true
             else
               echo "::warning::Skipping $report_date: no stored corpus is available"
               continue
             fi
 
-            if [[ -f "$corpus" ]]; then
+            if [[ "$corpus_ready" == true ]]; then
               if ! python run_daily_briefing.py \
                 --corpus "$corpus" \
                 --run-dir "$run_dir" \
@@ -101,6 +110,8 @@ jobs:
                 --max-tokens 20000; then
                 echo "::warning::All briefing models failed for $report_date; see $run_dir/fallback.log"
               fi
+            else
+              echo "::warning::Skipping briefing generation for $report_date: no corpus is available"
             fi
 
             if ! python prepare_publication.py \
@@ -133,12 +144,17 @@ jobs:
       - name: Download prior live history
         if: always()
         continue-on-error: true
+        # Retry a transient Pages/CDN failure: a missing prior-history.json fails
+        # the deploy (build_site requires it), which would throw away this run's
+        # already-paid fetch and model spend over one blip.
         run: |
           curl \
             --fail \
             --location \
             --max-time 30 \
             --max-filesize 50000000 \
+            --retry 3 \
+            --retry-connrefused \
             --remove-on-error \
             --silent \
             --show-error \
@@ -169,6 +185,7 @@ jobs:
         if: always()
         env:
           BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}
         run: |
           args=(briefing-history site)
           if [[ "$BOOTSTRAP_OUTCOME" == "success" ]]; then
@@ -176,6 +193,8 @@ jobs:
           fi
           if [[ -f prior-history.json ]]; then
             args+=(--prior-history prior-history.json)
+          elif [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then
+            args+=(--allow-empty-history)
           fi
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             args+=(--replace-existing)

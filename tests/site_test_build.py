@@ -3,20 +3,40 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_runner.output import render_briefing
 from build_site import (
+    STYLE,
     ReviewFinding,
     _humanize_corpus_health,
     _parse_canonical_date,
     _render_markdown,
-    build_site,
 )
+from build_site import build_site as _build_site
+from build_site import main as build_site_main
 from tests.test_briefing_output import fixture_contract
+
+
+def build_site(*args, **kwargs):
+    """Call build_site defaulting the empty-history opt-in on.
+
+    Most site tests build from briefings/bootstrap with no prior history; the
+    real guard (build_site refuses that unless allow_empty_history is set) is
+    exercised directly by test_build_site_refuses_empty_history_without_optin
+    and by the CLI's mutually-exclusive group. Tests that pass prior_history
+    exercise the ordinary path unchanged.
+    """
+    if "allow_empty_history" not in kwargs and "prior_history" not in kwargs:
+        kwargs["allow_empty_history"] = True
+    return _build_site(*args, **kwargs)
 
 
 class BuildSiteTests(unittest.TestCase):
@@ -27,6 +47,58 @@ class BuildSiteTests(unittest.TestCase):
                 argparse.ArgumentTypeError, "canonical YYYY-MM-DD"
             ):
                 _parse_canonical_date(value)
+
+    def test_cli_refuses_to_build_without_prior_history_unless_explicitly_allowed(self) -> None:
+        # A prior-history download failure and "there is genuinely no history
+        # yet" both leave --prior-history unset. Silently treating them the
+        # same would let a CI network blip quietly erase the published
+        # archive; --allow-empty-history is the explicit opt-in for the
+        # legitimate case.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            output = root / "site"
+            with (
+                patch.object(sys, "argv", ["build_site.py", str(briefings), str(output)]),
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit),
+            ):
+                build_site_main()
+            self.assertIn("--allow-empty-history", stderr.getvalue())
+            self.assertFalse((output / "index.html").exists())
+
+            with patch.object(
+                sys,
+                "argv",
+                ["build_site.py", str(briefings), str(output), "--allow-empty-history"],
+            ):
+                self.assertEqual(build_site_main(), 0)
+            self.assertTrue((output / "index.html").exists())
+
+    def test_review_panel_pre_uses_the_dark_mode_safe_translucent_gray_fill(self) -> None:
+        """A pure-white translucent fill (#fff8) stays light in dark mode, while
+        `color-scheme: light dark` flips foreground text to white — leaving
+        redacted-destination disclosures pale-on-pale. The neutral gray fill
+        (#8881) tracks the page background in both themes instead. Asserting the
+        two load-bearing facts, not the full rule text, keeps the test from
+        breaking on unrelated formatting changes to the stylesheet."""
+        self.assertIn("background: #8881", STYLE)
+        self.assertNotIn("#fff8", STYLE)
+
+    def test_build_site_refuses_empty_history_without_optin(self) -> None:
+        # The never-silently-truncate-the-archive invariant lives in build_site
+        # itself, so a programmatic caller (not just the CLI) must opt in before
+        # building with no prior history.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            with self.assertRaises(ValueError):
+                _build_site(briefings, root / "site")
+            self.assertFalse((root / "site" / "index.html").exists())
+            _build_site(briefings, root / "site", allow_empty_history=True)
+            self.assertTrue((root / "site" / "index.html").exists())
 
     def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

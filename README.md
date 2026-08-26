@@ -10,7 +10,7 @@ Live site → <https://elanthus.github.io/news-briefing/> · Every run also publ
 
 ## The one-paragraph version
 
-A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with 613 tests, and it has been publishing itself daily since August 2026.
+A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with 626 tests, and it has been publishing itself daily since August 2026.
 
 The failure that motivated all of it is documented: an early run [fabricated a citation](docs/writeups/injection-benchmark-post.md), the checker caught it, and I built the rest of the system around the idea that anything code can decide, code should decide.
 
@@ -182,7 +182,7 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 
 ## Engineering practices
 
-- **613 tests**, all offline — no network calls, no runtime fixture downloads. CI runs them on Python 3.11, 3.12, 3.13, and 3.14.
+- **626 tests**, all offline — no network calls, no runtime fixture downloads. CI runs them on Python 3.11, 3.12, 3.13, and 3.14.
 - **A credential-free reliability gate in CI** that runs the checker suite and fails on case-count drift or snapshot changes without review approval.
 - `ruff` and `mypy --disallow-untyped-defs` across the pipeline and runner; the evaluator is type-checked under its own config.
 - All GitHub Actions pinned to commit SHAs; Dependabot enabled.

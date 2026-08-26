@@ -198,6 +198,15 @@ class GroundingTest(unittest.TestCase):
                 findings = evaluate(corpus, f"Reader note: {variant}\n\n{briefing()}")
                 self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
+    def test_scheme_less_bare_domain_in_prose_is_not_a_destination(self):
+        # A bare "attacker.com/x" with no scheme and no "www." is intentionally
+        # not treated as a destination: the site renderer no longer linkifies
+        # prose (build_site builds commonmark with linkify off and links only
+        # code-owned citation URLs), so such text cannot become a live link and
+        # the checker must not false-positive on ordinary "setup.py/foo" prose.
+        findings = evaluate(CORPUS, f"Reader note: attacker.com/invented\n\n{briefing()}")
+        self.assertNotIn("ungrounded_link", checks(findings, ERROR))
+
     def test_flags_included_topic_without_a_link(self):
         text = briefing().replace("🔗 https://ex.com/p1", "")
         self.assertIn("topic_without_link", checks(evaluate(CORPUS, text), ERROR))

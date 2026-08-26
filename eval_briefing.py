@@ -119,6 +119,18 @@ _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 _HTTP_URL = re.compile(r"\bhttps?://[^\s<>\"']+", re.IGNORECASE)
 _PROTOCOL_RELATIVE_URL = re.compile(r"(?<![:/])//[^\s<>\"']+")
 _WWW_URL = re.compile(r"(?<![\w@/.-])www\.[^\s<>\"']+", re.IGNORECASE)
+# These three cover every form the site renderer turns into a link: the
+# renderer only links http(s) URLs (build_site.py overrides markdown-it's
+# validateLink, so autolinked schemes like <ftp://…> or <mailto:…> render
+# inert), and every such link embeds an explicit scheme, a protocol-relative
+# "//host", or a "www." host. A bare domain with no scheme — "attacker.com"
+# in prose — is deliberately NOT treated as a destination: the renderer no
+# longer linkifies prose (build_site.py builds commonmark with linkify
+# disabled and links only the code-owned citation URLs), so such text
+# renders inert and cannot become a clickable link. That
+# keeps one grammar shared by checker and renderer instead of a hand-curated
+# TLD table chasing a third-party linkifier this stdlib-only checker cannot
+# import.
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
@@ -132,7 +144,12 @@ def _clean_link_url(value: str) -> str:
 
 
 def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
-    """Return non-overlapping web destinations and their absolute forms."""
+    """Return non-overlapping web destinations and their absolute forms.
+
+    Sorted by start offset so callers that splice from the end (redaction)
+    can rely on descending positions; the per-pattern scan below would
+    otherwise group matches by pattern rather than by position.
+    """
     candidates: list[tuple[int, int, str, str]] = []
     occupied: list[tuple[int, int]] = []
     patterns = (
@@ -149,6 +166,7 @@ def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
             spelled = _clean_link_url(match.group())
             candidates.append((start, end, spelled, make_absolute(spelled)))
             occupied.append((start, end))
+    candidates.sort(key=lambda candidate: candidate[0])
     return candidates
 
 

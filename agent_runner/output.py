@@ -978,11 +978,21 @@ def render_validation_status(
     lines.append("**Source issues**")
     if source_issues:
         for issue in source_issues:
+            # Every field is redacted via _preview_text and fetched with
+            # .get(): each comes from the same untrusted fetch and is
+            # re-scanned by the checker when _finalize_candidate re-evaluates
+            # the completed briefing, so a destination in any of them would
+            # otherwise self-trip ungrounded_link. Validated corpora constrain
+            # status to a code-owned enum and guarantee every key, but this
+            # renderer also runs on failure paths, so it must not KeyError on
+            # a malformed record.
             lines.append(
                 "- "
-                f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
-                f"status={issue['status']}; error_type={issue['error_type']}; "
-                f"message={issue['message']}"
+                f"source_type={_preview_text(issue.get('source_type'), '[missing]')}; "
+                f"source_id={_preview_text(issue.get('source_id'), '[missing]')}; "
+                f"status={_preview_text(issue.get('status'), '[missing]')}; "
+                f"error_type={_preview_text(issue.get('error_type'), '[missing]')}; "
+                f"message={_preview_text(issue.get('message'), '[missing source issue detail]')}"
             )
     else:
         lines.append("None")
@@ -992,7 +1002,8 @@ def render_validation_status(
         for issue in undated_sources:
             lines.append(
                 "- "
-                f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
+                f"source_type={_preview_text(issue['source_type'], '[missing]')}; "
+                f"source_id={_preview_text(issue['source_id'], '[missing]')}; "
                 f"count={issue['count']}"
             )
     else:

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import corpus_schema
+import eval_briefing
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
@@ -27,6 +28,13 @@ FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
 CONTEXT_FIELDS = {"section", "headline", "model_authored"}
 CONTEXT_V4_FIELDS = CONTEXT_FIELDS | {"path"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
+# Wrap the code-owned citation URL after each "🔗" marker in a commonmark
+# autolink so it renders as a link even with linkify disabled (see
+# _render_markdown). Citations sit on their own line in the body but inline in
+# the exclusion log ("- *Title* — reason. 🔗 url"), so match the marker
+# anywhere, mirroring the checker's _LINK grammar; prose without the marker
+# stays inert.
+_CITATION_AUTOLINK = re.compile(r"(🔗\s*(?:HN:\s*)?)(https?://\S+)")
 DISPOSITIONS = {
     "blocked",
     "degraded",
@@ -79,7 +87,7 @@ article { padding: 1rem 0; }
 .review-action::before { content: " — "; }
 .review-panel details { border-top: 1px solid #d9820066; margin-top: .4rem; padding-top: .3rem; }
 .review-panel summary { cursor: pointer; font-weight: 650; }
-.briefing-content .review-panel pre { background: #fff8; border: 1px solid #8884; font-size: .8rem;
+.briefing-content .review-panel pre { background: #8881; border: 1px solid #8884; font-size: .8rem;
   margin: .35rem 0 0; max-height: 16rem; overflow: auto; padding: .5rem; white-space: pre-wrap; }
 .briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
@@ -732,17 +740,48 @@ def _finding_matches(
     return finding.message.startswith(f"{section}: {headline!r}")
 
 
+def _autolink_citation(match: re.Match[str]) -> str:
+    """Wrap one 🔗 citation URL, keeping sentence punctuation out of the href.
+
+    The checker grounds citation URLs after stripping trailing punctuation
+    (eval_briefing._clean_link_url), so the href must stop at the same
+    boundary or a grounded "🔗 url." would link to a dead destination.
+    """
+    url = match.group(2)
+    cleaned = eval_briefing._clean_link_url(url)
+    return f"{match.group(1)}<{cleaned}>{url[len(cleaned):]}"
+
+
+def _is_web_link(url: str) -> bool:
+    """Restrict rendered links to the http(s) forms the checker detects.
+
+    Commonmark autolinks accept any scheme (<ftp://…>, <mailto:…>) and
+    markdown-it's default validateLink blocks only a small script blocklist;
+    eval_briefing's destination grammar detects http(s), protocol-relative,
+    and www. spellings, so everything else must render inert to keep the
+    renderer and the checker in lockstep.
+    """
+    return url.lower().startswith(("http://", "https://"))
+
+
 def _render_markdown(
     markdown: str,
     findings: tuple[ReviewFinding, ...] = (),
 ) -> tuple[str, frozenset[int]]:
     """Render untrusted Markdown and place story-specific findings beside the story."""
     markdown_it = importlib.import_module("markdown_it")
-    parser = markdown_it.MarkdownIt("commonmark", {"html": False, "linkify": True})
-    parser.enable("linkify")
+    # linkify is deliberately OFF: it would turn any bare domain a model wrote
+    # into prose (e.g. "attacker.com") into a live link the corpus never
+    # grounded. Only the code-owned citation URLs become links, by wrapping
+    # each "🔗 …" destination in a commonmark autolink below; arbitrary prose
+    # renders inert, and validateLink refuses the non-http(s) schemes the
+    # checker's destination grammar does not detect.
+    parser = markdown_it.MarkdownIt("commonmark", {"html": False})
+    parser.validateLink = _is_web_link
     public_markdown = _strip_legacy_preview_banner(markdown) or ""
     public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
+    public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
     lines: list[str] = []
     replacements: dict[str, str] = {}
     matched: set[int] = set()
@@ -1108,8 +1147,18 @@ def build_site(
     replace_existing: bool = False,
     corpora_dirs: Sequence[Path] = (),
     exclude_dates: Sequence[str] = (),
+    *,
+    allow_empty_history: bool = False,
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
+    # The never-silently-truncate-the-archive invariant lives here, on the
+    # function that owns archive construction, so every caller (not only the
+    # CLI) must opt in before building without prior history.
+    if prior_history is None and not allow_empty_history:
+        raise ValueError(
+            "no prior_history was given; pass allow_empty_history=True to build "
+            "without one intentionally, otherwise this silently truncates the "
+            "published archive")
     if not briefings_dir.is_dir():
         raise ValueError(f"briefings directory does not exist: {briefings_dir}")
     by_date: dict[str, BriefingEntry] = {}
@@ -1168,10 +1217,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("briefings_dir", type=Path)
     parser.add_argument("output_dir", type=Path)
-    parser.add_argument(
+    history_source = parser.add_mutually_exclusive_group(required=True)
+    history_source.add_argument(
         "--prior-history",
         type=Path,
         help="validated history.json downloaded from the previously deployed site",
+    )
+    history_source.add_argument(
+        "--allow-empty-history",
+        action="store_true",
+        help=(
+            "build without --prior-history intentionally; required when no "
+            "history is passed, so a failed history download (which also leaves "
+            "--prior-history unset) cannot silently publish a truncated archive"
+        ),
     )
     parser.add_argument(
         "--bootstrap-dir",
@@ -1212,6 +1271,7 @@ def main() -> int:
             args.replace_existing,
             args.corpora_dirs,
             [excluded_date.isoformat() for excluded_date in args.exclude_dates],
+            allow_empty_history=args.allow_empty_history,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
