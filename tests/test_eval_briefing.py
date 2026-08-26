@@ -157,7 +157,6 @@ class GroundingTest(unittest.TestCase):
             "bare URL": "visit HTTPS://attacker.example/bare",
             "protocol-relative URL": "[click](//attacker.example/protocol-relative)",
             "bare www URL": "visit www.attacker.example/bare-www",
-            "bare TLD domain, no www": "visit attacker.com/bare-domain for details",
         }
         for kind, attack in attacks.items():
             with self.subTest(kind=kind):
@@ -199,19 +198,13 @@ class GroundingTest(unittest.TestCase):
                 findings = evaluate(corpus, f"Reader note: {variant}\n\n{briefing()}")
                 self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
-    def test_flags_bare_tld_domain_absent_from_corpus(self):
-        """No scheme, no "www." — still a live link once the site renders it."""
-        findings = evaluate(CORPUS, briefing(extra_link="attacker.com/invented"))
-        self.assertIn("ungrounded_link", checks(findings, ERROR))
-
-    def test_allows_grounded_bare_tld_domain_without_www(self):
-        corpus = json.loads(json.dumps(CORPUS))
-        corpus["categories"]["us_news"].append({
-            "title": "Grounded bare-domain destination",
-            "url": "https://example.com/story",
-            "summary": "Grounded bare-domain destination summary.",
-        })
-        findings = evaluate(corpus, f"Reader note: example.com/story\n\n{briefing()}")
+    def test_scheme_less_bare_domain_in_prose_is_not_a_destination(self):
+        # A bare "attacker.com/x" with no scheme and no "www." is intentionally
+        # not treated as a destination: the site renderer no longer linkifies
+        # prose (build_site builds commonmark with linkify off and links only
+        # code-owned citation URLs), so such text cannot become a live link and
+        # the checker must not false-positive on ordinary "setup.py/foo" prose.
+        findings = evaluate(CORPUS, f"Reader note: attacker.com/invented\n\n{briefing()}")
         self.assertNotIn("ungrounded_link", checks(findings, ERROR))
 
     def test_flags_included_topic_without_a_link(self):

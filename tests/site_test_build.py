@@ -19,10 +19,24 @@ from build_site import (
     _humanize_corpus_health,
     _parse_canonical_date,
     _render_markdown,
-    build_site,
 )
+from build_site import build_site as _build_site
 from build_site import main as build_site_main
 from tests.test_briefing_output import fixture_contract
+
+
+def build_site(*args, **kwargs):
+    """Call build_site defaulting the empty-history opt-in on.
+
+    Most site tests build from briefings/bootstrap with no prior history; the
+    real guard (build_site refuses that unless allow_empty_history is set) is
+    exercised directly by test_build_site_refuses_empty_history_without_optin
+    and by the CLI's mutually-exclusive group. Tests that pass prior_history
+    exercise the ordinary path unchanged.
+    """
+    if "allow_empty_history" not in kwargs and "prior_history" not in kwargs:
+        kwargs["allow_empty_history"] = True
+    return _build_site(*args, **kwargs)
 
 
 class BuildSiteTests(unittest.TestCase):
@@ -66,13 +80,25 @@ class BuildSiteTests(unittest.TestCase):
         """A pure-white translucent fill (#fff8) stays light in dark mode, while
         `color-scheme: light dark` flips foreground text to white — leaving
         redacted-destination disclosures pale-on-pale. The neutral gray fill
-        already used elsewhere in this stylesheet (#8881/#8884) tracks the
-        page background in both themes instead."""
-        self.assertIn(
-            ".briefing-content .review-panel pre { background: #8881; border: 1px solid #8884;",
-            STYLE,
-        )
+        (#8881) tracks the page background in both themes instead. Asserting the
+        two load-bearing facts, not the full rule text, keeps the test from
+        breaking on unrelated formatting changes to the stylesheet."""
+        self.assertIn("background: #8881", STYLE)
         self.assertNotIn("#fff8", STYLE)
+
+    def test_build_site_refuses_empty_history_without_optin(self) -> None:
+        # The never-silently-truncate-the-archive invariant lives in build_site
+        # itself, so a programmatic caller (not just the CLI) must opt in before
+        # building with no prior history.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            with self.assertRaises(ValueError):
+                _build_site(briefings, root / "site")
+            self.assertFalse((root / "site" / "index.html").exists())
+            _build_site(briefings, root / "site", allow_empty_history=True)
+            self.assertTrue((root / "site" / "index.html").exists())
 
     def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

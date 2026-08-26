@@ -804,7 +804,27 @@ def run_workflow(
                     citations=projected.citations,
                     settings=settings,
                 )
-            correction = correction_request(original_request, output, findings)
+            try:
+                correction = correction_request(original_request, output, findings)
+            except ValueError as exc:
+                # Building the correction prompt redacts destinations out of the
+                # prior output; a destination-bearing dict key raises here. That
+                # is a fail-closed signal, not a reason to abort the whole run —
+                # finalize the candidate as a quarantined preview instead of
+                # letting the ValueError escape to the generic failure path.
+                store.manifest["correction_error"] = {
+                    "type": type(exc).__name__, "message": str(exc)}
+                store.trace("correction_skipped", type=type(exc).__name__, message=str(exc))
+                store.checkpoint("correction_skipped")
+                return _finalize_after_deterministic_repair(
+                    store,
+                    attempt,
+                    output,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
+                    settings=settings,
+                )
             try:
                 output = _call_provider(
                     store,

@@ -68,32 +68,18 @@ class DailyWorkflowTests(unittest.TestCase):
         failed. Gating on file existence alone (the prior behavior) would
         still run the model against that bad corpus; the fetch's own exit
         status must gate briefing generation instead."""
+        # Assert the load-bearing behavior, not the verbatim script formatting:
+        # a fetch success flips corpus_ready, a failure warns, the stored-corpus
+        # branch also flips it, and generation gates on the flag not the file.
+        # assertRegex tolerates indentation/line-continuation edits.
         self.assertIn("corpus_ready=false", WORKFLOW)
-        self.assertIn(
-            "            if (( days_ago == 0 )); then\n"
-            "              if python fetch_news.py \\\n"
-            '                --window-start "$window_start" \\\n'
-            '                --window-end "$window_end" \\\n'
-            '                --report-date "$report_date" \\\n'
-            '                --output "$corpus"; then\n'
-            "                corpus_ready=true\n"
-            "              else\n"
-            '                echo "::warning::Corpus fetch failed for $report_date"\n'
-            "              fi\n",
-            WORKFLOW,
-        )
-        self.assertIn(
-            '              echo "Reusing stored corpus for $report_date"\n'
-            "              corpus_ready=true\n",
-            WORKFLOW,
-        )
+        self.assertRegex(WORKFLOW, r'--output "\$corpus"; then\s+corpus_ready=true')
+        self.assertIn("::warning::Corpus fetch failed for $report_date", WORKFLOW)
+        self.assertRegex(
+            WORKFLOW, r'Reusing stored corpus for \$report_date"\s+corpus_ready=true')
         self.assertIn('if [[ "$corpus_ready" == true ]]; then', WORKFLOW)
         self.assertNotIn('if [[ -f "$corpus" ]]; then', WORKFLOW)
-        self.assertIn(
-            "::warning::Skipping briefing generation for $report_date: "
-            "no corpus is available",
-            WORKFLOW,
-        )
+        self.assertIn("Skipping briefing generation for $report_date", WORKFLOW)
 
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
         self.assertIn("ref: main", WORKFLOW)
@@ -162,23 +148,19 @@ class DailyWorkflowTests(unittest.TestCase):
         build_site.py refuses to run without either --prior-history or an
         explicit --allow-empty-history, so wiring that through here is what
         actually stops the deploy."""
-        self.assertIn(
-            "      allow_empty_history:\n"
-            "        description: Deploy even if the prior published history "
-            "could not be downloaded\n"
-            "        required: false\n"
-            "        default: false\n"
-            "        type: boolean\n",
-            WORKFLOW,
-        )
+        # Assert the behavioral fields, not the human-readable description copy:
+        # the boolean input exists, defaults off, is wired to the build env, and
+        # selects exactly one of --prior-history / --allow-empty-history.
+        self.assertIn("allow_empty_history:", WORKFLOW)
+        self.assertIn("type: boolean", WORKFLOW)
+        self.assertIn("default: false", WORKFLOW)
         self.assertIn("ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}", WORKFLOW)
-        self.assertIn(
-            '          if [[ -f prior-history.json ]]; then\n'
-            "            args+=(--prior-history prior-history.json)\n"
-            '          elif [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then\n'
-            "            args+=(--allow-empty-history)\n"
-            "          fi\n",
+        self.assertRegex(
             WORKFLOW,
+            r'\[\[ -f prior-history\.json \]\]; then\s+'
+            r'args\+=\(--prior-history prior-history\.json\)\s+'
+            r'elif \[\[ "\$ALLOW_EMPTY_HISTORY" == "true" \]\]; then\s+'
+            r'args\+=\(--allow-empty-history\)',
         )
         # No "|| true" or continue-on-error around the build step itself: a
         # missing prior history without the escape hatch must fail the job.

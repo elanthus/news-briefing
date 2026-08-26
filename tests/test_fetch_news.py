@@ -1188,17 +1188,22 @@ class MainFailureModeTest(unittest.TestCase):
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(fetch_news, "fetch_rss", side_effect=ValueError()),
-                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                  redirect_stdout(io.StringIO()) as stdout,
+                  redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
             self.assertEqual(result, 1)
-            corpus = json.loads(output.read_text(encoding="utf-8"))
+            # A failed fetch must not leave a corpus on disk (it would validate
+            # and be published/reused as if the fetch succeeded); the value
+            # still goes to stdout for inspection.
+            self.assertFalse(output.exists())
+            corpus = json.loads(stdout.getvalue())
             self.assertEqual(corpus["errors"][0]["source_type"], "rss")
             self.assertEqual(corpus["errors"][0]["source_id"], "Broken Feed")
             self.assertEqual(corpus["errors"][0]["error_type"], "ValueError")
             self.assertEqual(corpus["sources"][0]["status"], "error")
             self.assertEqual(corpus["sources"][0]["message"], "ValueError")
 
-    def test_empty_corpus_is_written_but_returns_failure(self):
+    def test_empty_corpus_is_not_written_and_returns_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "corpus.json"
             sources = Path(directory) / "sources.json"
@@ -1216,12 +1221,15 @@ class MainFailureModeTest(unittest.TestCase):
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(fetch_news, "fetch_rss",
                                return_value=fetch_news.FetchResult([], 0)),
-                  redirect_stdout(io.StringIO()),
+                  redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
             self.assertEqual(result, 1)
             self.assertIn("no usable items", stderr.getvalue())
-            corpus = json.loads(output.read_text(encoding="utf-8"))
+            # The zero-item corpus is schema-valid, so it must not be left on
+            # disk where publication and backfill would treat it as a good run.
+            self.assertFalse(output.exists())
+            corpus = json.loads(stdout.getvalue())
             self.assertEqual(sum(map(len, corpus["categories"].values())), 0)
 
     def test_community_sources_use_their_configured_destinations(self):
@@ -1297,9 +1305,11 @@ class MainFailureModeTest(unittest.TestCase):
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(fetch_news, "http_get", return_value=b"<html><body>ok</body></html>"),
-                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                  redirect_stdout(io.StringIO()) as stdout,
+                  redirect_stderr(io.StringIO())):
                 self.assertEqual(fetch_news.main(), 1)
-            corpus = json.loads(output.read_text(encoding="utf-8"))
+            self.assertFalse(output.exists())
+            corpus = json.loads(stdout.getvalue())
             health = corpus["sources"][0]
             self.assertTrue(health["http_success"])
             self.assertEqual(health["parsed_entries"], 0)
@@ -1320,6 +1330,10 @@ class PublicIpTest(unittest.TestCase):
             "64:ff9b:1::a9fe:a9fe",    # local-use NAT64 embedding 169.254.169.254
             "2002:7f00:0001::",        # 6to4 (RFC 3056) embedding 127.0.0.1
             "2002:a9fe:a9fe::",        # 6to4 embedding 169.254.169.254
+            "::7f00:1",                # IPv4-compatible (RFC 4291) embedding 127.0.0.1
+            "::a9fe:a9fe",             # IPv4-compatible embedding 169.254.169.254
+            "::ffff:0:7f00:1",         # IPv4-translated (RFC 2765) embedding 127.0.0.1
+            "::ffff:0:a9fe:a9fe",      # IPv4-translated embedding 169.254.169.254
         ):
             with self.subTest(address=address):
                 self.assertFalse(fetch_news._public_ip(address))

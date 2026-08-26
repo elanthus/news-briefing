@@ -27,6 +27,10 @@ FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
 CONTEXT_FIELDS = {"section", "headline", "model_authored"}
 CONTEXT_V4_FIELDS = CONTEXT_FIELDS | {"path"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
+# Wrap the code-owned citation URL on each "🔗 …" line in a commonmark autolink
+# so it renders as a link even with linkify disabled (see _render_markdown).
+# Only these lines carry destinations the corpus grounded; prose stays inert.
+_CITATION_AUTOLINK = re.compile(r"(?m)^(🔗\s*(?:HN:\s*)?)(https?://\S+)\s*$")
 DISPOSITIONS = {
     "blocked",
     "degraded",
@@ -738,11 +742,16 @@ def _render_markdown(
 ) -> tuple[str, frozenset[int]]:
     """Render untrusted Markdown and place story-specific findings beside the story."""
     markdown_it = importlib.import_module("markdown_it")
-    parser = markdown_it.MarkdownIt("commonmark", {"html": False, "linkify": True})
-    parser.enable("linkify")
+    # linkify is deliberately OFF: it would turn any bare domain a model wrote
+    # into prose (e.g. "attacker.com") into a live link the corpus never
+    # grounded. Only the code-owned citation URLs become links, by wrapping
+    # each "🔗 …" destination in a commonmark autolink below; arbitrary prose
+    # renders inert.
+    parser = markdown_it.MarkdownIt("commonmark", {"html": False})
     public_markdown = _strip_legacy_preview_banner(markdown) or ""
     public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
+    public_markdown = _CITATION_AUTOLINK.sub(r"\1<\2>", public_markdown)
     lines: list[str] = []
     replacements: dict[str, str] = {}
     matched: set[int] = set()
@@ -1108,8 +1117,18 @@ def build_site(
     replace_existing: bool = False,
     corpora_dirs: Sequence[Path] = (),
     exclude_dates: Sequence[str] = (),
+    *,
+    allow_empty_history: bool = False,
 ) -> None:
     """Render ready briefings and review-required previews from validated inputs."""
+    # The never-silently-truncate-the-archive invariant lives here, on the
+    # function that owns archive construction, so every caller (not only the
+    # CLI) must opt in before building without prior history.
+    if prior_history is None and not allow_empty_history:
+        raise ValueError(
+            "no prior_history was given; pass allow_empty_history=True to build "
+            "without one intentionally, otherwise this silently truncates the "
+            "published archive")
     if not briefings_dir.is_dir():
         raise ValueError(f"briefings directory does not exist: {briefings_dir}")
     by_date: dict[str, BriefingEntry] = {}
@@ -1168,24 +1187,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("briefings_dir", type=Path)
     parser.add_argument("output_dir", type=Path)
-    parser.add_argument(
+    history_source = parser.add_mutually_exclusive_group(required=True)
+    history_source.add_argument(
         "--prior-history",
         type=Path,
         help="validated history.json downloaded from the previously deployed site",
+    )
+    history_source.add_argument(
+        "--allow-empty-history",
+        action="store_true",
+        help=(
+            "build without --prior-history intentionally; required when no "
+            "history is passed, so a failed history download (which also leaves "
+            "--prior-history unset) cannot silently publish a truncated archive"
+        ),
     )
     parser.add_argument(
         "--bootstrap-dir",
         type=Path,
         help="validated sidecars and Markdown used to seed an initially empty deployment",
-    )
-    parser.add_argument(
-        "--allow-empty-history",
-        action="store_true",
-        help=(
-            "build without --prior-history intentionally; without this flag, a "
-            "missing --prior-history is treated as a failed download rather than "
-            "silently publishing a truncated archive"
-        ),
     )
     parser.add_argument(
         "--replace-existing",
@@ -1212,12 +1232,6 @@ def main() -> int:
         help="canonical ISO date to omit from the generated archive; repeatable",
     )
     args = parser.parse_args()
-    if args.prior_history is None and not args.allow_empty_history:
-        parser.error(
-            "--prior-history was not given; pass --allow-empty-history to build "
-            "without one intentionally (otherwise this looks like a failed "
-            "history download)"
-        )
     try:
         build_site(
             args.briefings_dir,
@@ -1227,6 +1241,7 @@ def main() -> int:
             args.replace_existing,
             args.corpora_dirs,
             [excluded_date.isoformat() for excluded_date in args.exclude_dates],
+            allow_empty_history=args.allow_empty_history,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))

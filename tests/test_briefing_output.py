@@ -303,17 +303,18 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn("freeform_url", checks)
         self.assertIn("unknown_citation_ref", checks)
 
-    def test_bare_tld_domain_in_summary_fails_validation(self):
-        # No scheme, no "www." — the site's Markdown renderer still turns this
-        # into a clickable link (markdown-it's linkify recognizes bare domains
-        # with a registered TLD), so it must be caught here just like a
-        # scheme-qualified freeform URL.
+    def test_scheme_less_bare_domain_in_summary_is_allowed(self):
+        # A bare "attacker.com/x" (no scheme, no "www.") is intentionally not a
+        # freeform_url: the site renderer no longer linkifies prose, so it
+        # cannot become a live link, and flagging it would false-positive on
+        # ordinary software prose like "see setup.py/foo". Grounding is enforced
+        # by the renderer linking only code-owned citation URLs.
         _corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         topic = broken["sections"][config.sections[0].name]["topics"][0]
         topic["summary"] += " See attacker.com/details for more."
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
-        self.assertIn("freeform_url", checks)
+        self.assertNotIn("freeform_url", checks)
 
     def test_duplicate_citation_reference_is_enforced_in_code(self):
         _corpus, config, projected, output = fixture_contract()

@@ -978,10 +978,17 @@ def render_validation_status(
     lines.append("**Source issues**")
     if source_issues:
         for issue in source_issues:
+            # Every free-text field is redacted, not only ``message``: each
+            # comes from the same untrusted fetch and is re-scanned by the
+            # checker when _finalize_candidate re-evaluates the completed
+            # briefing, so a destination in any of them would otherwise
+            # self-trip ungrounded_link. status is a code-owned enum.
             lines.append(
                 "- "
-                f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
-                f"status={issue['status']}; error_type={issue['error_type']}; "
+                f"source_type={_preview_text(issue['source_type'], '[missing]')}; "
+                f"source_id={_preview_text(issue['source_id'], '[missing]')}; "
+                f"status={issue['status']}; "
+                f"error_type={_preview_text(issue['error_type'], '[missing]')}; "
                 f"message={_preview_text(issue['message'], '[missing source issue detail]')}"
             )
     else:
@@ -992,7 +999,8 @@ def render_validation_status(
         for issue in undated_sources:
             lines.append(
                 "- "
-                f"source_type={issue['source_type']}; source_id={issue['source_id']}; "
+                f"source_type={_preview_text(issue['source_type'], '[missing]')}; "
+                f"source_id={_preview_text(issue['source_id'], '[missing]')}; "
                 f"count={issue['count']}"
             )
     else:

@@ -119,60 +119,16 @@ _LINK = re.compile(r"🔗\s*(?:HN:\s*)?(?P<url>\S+)")
 _HTTP_URL = re.compile(r"\bhttps?://[^\s<>\"']+", re.IGNORECASE)
 _PROTOCOL_RELATIVE_URL = re.compile(r"(?<![:/])//[^\s<>\"']+")
 _WWW_URL = re.compile(r"(?<![\w@/.-])www\.[^\s<>\"']+", re.IGNORECASE)
-# The site renderer (build_site.py) turns on markdown-it's "linkify" extension,
-# which makes a bare domain with a registered TLD clickable even with no
-# scheme and no "www." prefix — e.g. "attacker.com" inside ordinary prose.
-# The renderer's own TLD table (linkify-it-py) is a third-party dependency
-# this stdlib-only checker cannot import, so this is a curated allowlist
-# (ICANN ccTLDs plus common/likely-abused gTLDs) rather than the exact table
-# the renderer uses. It is deliberately conservative in the other direction:
-# any dotted, TLD-shaped token is treated as a destination, so legitimate
-# prose should cite it through citation_refs instead of writing it out.
-_BARE_DOMAIN_TLDS = frozenset({
-    # Original and infrastructure gTLDs.
-    "com", "org", "net", "edu", "gov", "mil", "int", "info", "biz", "name",
-    "pro", "coop", "aero", "museum", "jobs", "mobi", "travel", "cat", "asia",
-    "xxx", "tel", "arpa",
-    # Common modern gTLDs frequently used for short/redirect-style domains.
-    "app", "dev", "xyz", "page", "site", "online", "store", "tech", "cloud",
-    "live", "news", "blog", "click", "link", "top",
-    # ISO 3166-1 alpha-2 country-code TLDs.
-    "ad", "ae", "af", "ag", "ai", "al", "am", "ao", "aq", "ar", "as", "at",
-    "au", "aw", "ax", "az", "ba", "bb", "bd", "be", "bf", "bg", "bh", "bi",
-    "bj", "bl", "bm", "bn", "bo", "bq", "br", "bs", "bt", "bv", "bw", "by",
-    "bz", "ca", "cc", "cd", "cf", "cg", "ch", "ci", "ck", "cl", "cm", "cn",
-    "co", "cr", "cu", "cv", "cw", "cx", "cy", "cz", "de", "dj", "dk", "dm",
-    "do", "dz", "ec", "ee", "eg", "eh", "er", "es", "et", "fi", "fj", "fk",
-    "fm", "fo", "fr", "ga", "gb", "gd", "ge", "gf", "gg", "gh", "gi", "gl",
-    "gm", "gn", "gp", "gq", "gr", "gs", "gt", "gu", "gw", "gy", "hk", "hm",
-    "hn", "hr", "ht", "hu", "id", "ie", "il", "im", "in", "io", "iq", "ir",
-    "is", "it", "je", "jm", "jo", "jp", "ke", "kg", "kh", "ki", "km", "kn",
-    "kp", "kr", "kw", "ky", "kz", "la", "lb", "lc", "li", "lk", "lr", "ls",
-    "lt", "lu", "lv", "ly", "ma", "mc", "md", "me", "mf", "mg", "mh", "mk",
-    "ml", "mm", "mn", "mo", "mp", "mq", "mr", "ms", "mt", "mu", "mv", "mw",
-    "mx", "my", "mz", "na", "nc", "ne", "nf", "ng", "ni", "nl", "no", "np",
-    "nr", "nu", "nz", "om", "pa", "pe", "pf", "pg", "ph", "pk", "pl", "pm",
-    "pn", "pr", "ps", "pt", "pw", "py", "qa", "re", "ro", "rs", "ru", "rw",
-    "sa", "sb", "sc", "sd", "se", "sg", "sh", "si", "sj", "sk", "sl", "sm",
-    "sn", "so", "sr", "ss", "st", "sv", "sx", "sy", "sz", "tc", "td", "tf",
-    "tg", "th", "tj", "tk", "tl", "tm", "tn", "to", "tr", "tt", "tv", "tw",
-    "tz", "ua", "ug", "um", "us", "uy", "uz", "va", "vc", "ve", "vg", "vi",
-    "vn", "vu", "wf", "ws", "ye", "yt", "za", "zm", "zw",
-})
-_BARE_DOMAIN_URL = re.compile(
-    r"(?<![\w@/.-])"
-    r"(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+"
-    r"(?P<tld>[a-zA-Z]{2,24})"
-    # A dotted, TLD-shaped word with no path is ambiguous prose in a corpus
-    # about software (README.md, model.ai, a version like "app.io" as a
-    # product name) — common enough that matching it outright regressed real
-    # briefings in testing. Requiring a path/query/fragment is what actually
-    # distinguishes "a destination" from "a filename or product name" here;
-    # it narrows coverage (a bare "attacker.com" with no path is missed) but
-    # that residual case is closed at the rendering layer instead — see the
-    # disabled linkify extension in build_site.py.
-    r"(?=[/?#])[^\s<>\"']*"
-)
+# These three cover every form the site renderer turns into a link: an
+# explicit scheme, a protocol-relative "//host", and a "www." host (Markdown
+# links, autolinks, and HTML all embed one of them). A bare domain with no
+# scheme — "attacker.com" in prose — is deliberately NOT treated as a
+# destination: the renderer no longer linkifies prose (build_site.py builds
+# commonmark with linkify disabled and links only the code-owned citation
+# URLs), so such text renders inert and cannot become a clickable link. That
+# keeps one grammar shared by checker and renderer instead of a hand-curated
+# TLD table chasing a third-party linkifier this stdlib-only checker cannot
+# import.
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
@@ -185,24 +141,22 @@ def _clean_link_url(value: str) -> str:
     return url
 
 
-def _recognized_bare_domain(match: re.Match[str]) -> bool:
-    return match.group("tld").casefold() in _BARE_DOMAIN_TLDS
-
-
 def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
-    """Return non-overlapping web destinations and their absolute forms."""
+    """Return non-overlapping web destinations and their absolute forms.
+
+    Sorted by start offset so callers that splice from the end (redaction)
+    can rely on descending positions; the per-pattern scan below would
+    otherwise group matches by pattern rather than by position.
+    """
     candidates: list[tuple[int, int, str, str]] = []
     occupied: list[tuple[int, int]] = []
     patterns = (
-        (_HTTP_URL, lambda value: value, None),
-        (_PROTOCOL_RELATIVE_URL, lambda value: f"https:{value}", None),
-        (_WWW_URL, lambda value: f"https://{value}", None),
-        (_BARE_DOMAIN_URL, lambda value: f"https://{value}", _recognized_bare_domain),
+        (_HTTP_URL, lambda value: value),
+        (_PROTOCOL_RELATIVE_URL, lambda value: f"https:{value}"),
+        (_WWW_URL, lambda value: f"https://{value}"),
     )
-    for pattern, make_absolute, is_valid in patterns:
+    for pattern, make_absolute in patterns:
         for match in pattern.finditer(text):
-            if is_valid is not None and not is_valid(match):
-                continue
             start, end = match.span()
             if any(start < prior_end and prior_start < end
                    for prior_start, prior_end in occupied):
@@ -210,6 +164,7 @@ def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
             spelled = _clean_link_url(match.group())
             candidates.append((start, end, spelled, make_absolute(spelled)))
             occupied.append((start, end))
+    candidates.sort(key=lambda candidate: candidate[0])
     return candidates
 
 
