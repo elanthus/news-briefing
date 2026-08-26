@@ -73,11 +73,11 @@ Plus a detail I enjoyed more than I should have: **the fetcher does its own SSRF
 
 [`evaluator/`](evaluator/) is a development-only benchmark measuring two separate systems with two separate denominators, never combined into one score.
 
-**81 offline cases** measure the deterministic checker and feed parser with no credentials. All 81 completed blinded independent human review with repository-owner adjudication. Current committed snapshot:
+**81 offline cases** measure the deterministic checker and feed parser with no credentials. Seventy-nine retain completed blinded independent human review with repository-owner adjudication; two repaired fixtures are explicitly provisional pending renewed review. Current committed snapshot:
 
 | Component | Cases | Precision | Recall | False-positive rate |
 |---|---:|---:|---:|---:|
-| Checker | 69 | 42/48; 87.5% [75.3, 94.1] | 42/56; 75.0% [62.3, 84.5] | 6/1669; 0.36% [0.16, 0.78] |
+| Checker | 69 | 42/48; 87.5% [75.3, 94.1] | 42/54; 77.8% [65.1, 86.8] | 6/1671; 0.36% [0.16, 0.78] |
 | Feed parser | 12 | 8/8; 100% [67.6, 100] | 8/8; 100% [67.6, 100] | 0/28; 0% [0.0, 12.1] |
 
 On a deliberately hard 12-case subset of *valid* claim boundaries, the combined claim heuristics false-positive at **6/12; 50.0% [25.4, 74.6]**. That number is published because it defines the boundary: code can prove a URL is absent from a corpus; a 400-character feed excerpt cannot prove a nuanced summary is unfaithful. Those checks are warnings, and the system treats them as warnings.
