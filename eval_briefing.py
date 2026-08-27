@@ -527,8 +527,12 @@ def check_slot_allocation(sections: dict[str, Section],
     runner spends its correction budget instead of finalizing the empty section.
     """
     findings: list[Finding] = []
+    discussion_articles = {
+        discussion: article
+        for article, discussion in hacker_news_links(corpus).items()
+    }
     used_urls = {
-        url
+        discussion_articles.get(url, url)
         for bucket in sections.values()
         for url in bucket["links"]
     }

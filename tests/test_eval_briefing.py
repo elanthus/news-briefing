@@ -406,6 +406,23 @@ class SlotAllocationTest(unittest.TestCase):
         self.assertEqual(len(empty), 1)
         self.assertEqual(empty[0].level, WARN)
 
+    def test_discussion_only_exclusion_counts_as_used_eligible_material(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["dev_community"] = [
+            corpus["categories"]["dev_community"][0]
+        ]
+        corpus["categories"]["ai_tech"] = []
+        text = briefing(tools=0).replace(
+            "https://ex.com/t4", "https://news.ycombinator.com/item?id=1")
+        findings = eval_briefing.check_slot_allocation(
+            parse_briefing(text), corpus, FIXTURE_CONFIG)
+        empty = [
+            finding for finding in findings
+            if finding.check == "slots_underfilled" and "AI Dev Tools" in finding.message
+        ]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0].level, WARN)
+
     def test_each_section_is_counted_independently(self):
         findings = evaluate(CORPUS, briefing(ai_news=3, tools=3))
         messages = [f.message for f in findings if f.check == "slots_underfilled"]
