@@ -527,10 +527,9 @@ def check_slot_allocation(sections: dict[str, Section],
     runner spends its correction budget instead of finalizing the empty section.
     """
     findings: list[Finding] = []
-    included_urls = {
+    used_urls = {
         url
-        for name, bucket in sections.items()
-        if name != EXCLUDED
+        for bucket in sections.values()
         for url in bucket["links"]
     }
     for section in config.sections:
@@ -546,7 +545,7 @@ def check_slot_allocation(sections: dict[str, Section],
                 for item in corpus.get("categories", {}).get(category, [])
                 if isinstance(item, dict) and isinstance(item.get("url"), str)
             }
-            unused_eligible = eligible_urls - included_urls
+            unused_eligible = eligible_urls - used_urls
             level = ERROR if actual == 0 and unused_eligible else WARN
             suffix = (
                 f"; {len(unused_eligible)} unused eligible corpus item(s) remain"

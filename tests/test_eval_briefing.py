@@ -393,6 +393,19 @@ class SlotAllocationTest(unittest.TestCase):
         self.assertEqual(len(empty), 1)
         self.assertEqual(empty[0].level, WARN)
 
+    def test_empty_section_with_only_excluded_eligible_material_is_a_warning(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["world"] = [corpus["categories"]["world"][5]]
+        corpus["categories"]["us_news"] = []
+        findings = eval_briefing.check_slot_allocation(
+            parse_briefing(briefing(world=0)), corpus, FIXTURE_CONFIG)
+        empty = [
+            finding for finding in findings
+            if finding.check == "slots_underfilled" and "World Events" in finding.message
+        ]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0].level, WARN)
+
     def test_each_section_is_counted_independently(self):
         findings = evaluate(CORPUS, briefing(ai_news=3, tools=3))
         messages = [f.message for f in findings if f.check == "slots_underfilled"]
