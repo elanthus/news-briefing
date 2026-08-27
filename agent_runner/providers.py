@@ -43,6 +43,25 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
     return value
 
 
+def _codex_compatible_schema(value: Any) -> Any:
+    """Return a copy containing only JSON Schema keywords Codex accepts.
+
+    Codex structured outputs currently reject ``uniqueItems``. The workflow's
+    code-owned validator still checks citation-reference uniqueness after the
+    response is returned, so removing it from the provider schema does not
+    weaken publication validation.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _codex_compatible_schema(nested)
+            for key, nested in value.items()
+            if key != "uniqueItems"
+        }
+    if isinstance(value, list):
+        return [_codex_compatible_schema(item) for item in value]
+    return value
+
+
 def _command_version(command: str) -> str | None:
     if shutil.which(command) is None:
         return None
@@ -467,7 +486,10 @@ class CodexCliProvider(ModelProvider):
             raise ProviderError("codex command is required for codex-cli", transient=False)
         with tempfile.TemporaryDirectory(prefix="news-briefing-codex-") as directory:
             schema_path = Path(directory) / "output-schema.json"
-            schema_path.write_text(json.dumps(request.output_schema), encoding="utf-8")
+            schema_path.write_text(
+                json.dumps(_codex_compatible_schema(request.output_schema)),
+                encoding="utf-8",
+            )
             command = [
                 "codex",
                 "exec",

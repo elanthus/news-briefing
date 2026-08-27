@@ -12,6 +12,7 @@ from agent_runner.providers import (
     ClaudeCodeProvider,
     CodexCliProvider,
     OpenRouterProvider,
+    _codex_compatible_schema,
     _command_version,
     _run_cli,
 )
@@ -48,6 +49,23 @@ class TimeoutResponse(FakeResponse):
 
 
 class ProviderTests(unittest.TestCase):
+    def test_codex_schema_removes_unique_items_without_mutating_source(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "uniqueItems": True,
+                }
+            },
+        }
+
+        compatible = _codex_compatible_schema(schema)
+
+        self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
+        self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
+
     def test_openrouter_sends_schema_and_parses_usage(self):
         payload = {
             "id": "gen-1",
