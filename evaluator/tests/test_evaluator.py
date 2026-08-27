@@ -5208,7 +5208,7 @@ class BaselineAdapterTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown baseline strategy"):
             adapter_for("baseline", "sandbagging")
 
-    def test_empty_baseline_has_structural_floor_only(self) -> None:
+    def test_empty_baseline_is_blocked_by_empty_section_guard(self) -> None:
         config_path = Path(__file__).parents[1] / "fixtures" / "generation-config-3.json"
         config_data = json.loads(config_path.read_text(encoding="utf-8"))
         config = load_config(config_path)
@@ -5219,7 +5219,9 @@ class BaselineAdapterTest(unittest.TestCase):
         findings = eval_briefing.evaluate_parsed(corpus, generation.text, sections, config)
 
         self.assertEqual(generation.cost_usd, 0.0)
-        self.assertEqual([f for f in findings if f.level == eval_briefing.ERROR], [])
+        errors = [f for f in findings if f.level == eval_briefing.ERROR]
+        self.assertEqual([finding.check for finding in errors], ["slots_underfilled"])
+        self.assertIn("unused eligible corpus item", errors[0].message)
         self.assertIn("slots_underfilled", {f.check for f in findings})
         self.assertEqual(sections["AI Dev Tools"]["topics"], [])
 
@@ -5524,7 +5526,7 @@ class BaselineReportTest(unittest.TestCase):
                 group["model"]: group for group in report["score_families"]["application_utility"]["groups"]
             }
             utility_expected = {
-                "empty": {"end_to_end_success_final": 0, "first_pass_contract_success": 22,
+                "empty": {"end_to_end_success_final": 0, "first_pass_contract_success": 0,
                           "routing_success_final": 0},
                 "echo": {"end_to_end_success_final": 19, "first_pass_contract_success": 21,
                          "routing_success_final": 19},

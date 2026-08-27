@@ -427,6 +427,46 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
         self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
 
+    def test_repair_that_empties_section_forces_model_correction(self):
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        for topic in broken["sections"][section.name]["topics"]:
+            topic["citation_refs"] = [ineligible_ref]
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            repair_findings = json.loads(
+                (
+                    root
+                    / "run"
+                    / manifest["attempts"][1]["findings_artifact"]
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["initial", "deterministic_repair", "correction"],
+        )
+        empty = [
+            row for row in repair_findings
+            if row["check"] == "slots_underfilled" and section.name in row["message"]
+        ]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0]["level"], "ERROR")
+        self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
+        self.assertIn("unused eligible corpus item", provider.requests[1].prompt)
+
     def test_bloated_summary_is_swapped_and_run_finalizes_ready(self):
         corpus, config, projected, output = fixture_contract()
         evidence = eval_briefing.corpus_evidence(corpus)
