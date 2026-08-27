@@ -29,10 +29,10 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             settings = self._settings(root)
-            seen: list[tuple[str, str | None]] = []
+            seen: list[tuple[str, str | None, int]] = []
 
             def fake_run(provider, run_settings, run_dir):
-                seen.append((provider.model, provider.reasoning_effort))
+                seen.append((provider.model, provider.reasoning_effort, provider.max_tokens))
                 run_dir.mkdir(parents=True)
                 if provider.model == "tencent/hy3":
                     failure = ProviderError(
@@ -100,7 +100,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                 redirect_stdout(stdout),
                 redirect_stderr(stderr),
             ):
-                result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
+                result = run_fallback_chain(settings, root / "run", max_tokens=100_000)
 
             log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
             text_log = (root / "run/fallback.log").read_text(encoding="utf-8")
@@ -108,14 +108,14 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(
             seen,
             [
-                ("tencent/hy3", "high"),
-                ("deepseek/deepseek-v4-flash-0731", "high"),
-                ("xiaomi/mimo-v2.5", None),
+                ("tencent/hy3", "high", 100_000),
+                ("deepseek/deepseek-v4-flash-0731", "high", 100_000),
+                ("google/gemini-3.7-flash", None, 65_536),
             ],
         )
         self.assertEqual(result.status, "ready")
-        self.assertEqual(result.selected_model, "xiaomi/mimo-v2.5")
-        self.assertEqual(log["selected_model"], "xiaomi/mimo-v2.5")
+        self.assertEqual(result.selected_model, "google/gemini-3.7-flash")
+        self.assertEqual(log["selected_model"], "google/gemini-3.7-flash")
         self.assertTrue(log["attempts"][0]["model_removed_from_openrouter"])
         self.assertIn("failure.md", log["attempts"][0]["quarantined_report"])
         self.assertIn("ungrounded_link: outside corpus", log["attempts"][1]["failure_reason"])
