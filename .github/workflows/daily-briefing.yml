@@ -107,7 +107,7 @@ jobs:
                 --output "$report" \
                 --force \
                 --max-corrections 3 \
-                --max-tokens 20000; then
+                --max-tokens 100000; then
                 echo "::warning::All briefing models failed for $report_date; see $run_dir/fallback.log"
               fi
             else

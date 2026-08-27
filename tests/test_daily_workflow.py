@@ -107,9 +107,9 @@ class DailyWorkflowTests(unittest.TestCase):
     def test_generation_uses_ordered_production_fallback_chain(self) -> None:
         self.assertIn("python run_daily_briefing.py", WORKFLOW)
         models = [
-            'ModelCandidate("tencent/hy3", 0.2, "high")',
-            'ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high")',
-            'ModelCandidate("xiaomi/mimo-v2.5", 0.2, None)',
+            'ModelCandidate("tencent/hy3", 0.2, "high", 100_000)',
+            'ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high", 100_000)',
+            'ModelCandidate("google/gemini-3.7-flash", 0.2, None, 65_536)',
         ]
         positions = [DAILY_RUNNER.index(model) for model in models]
         self.assertEqual(positions, sorted(positions))
@@ -118,6 +118,11 @@ class DailyWorkflowTests(unittest.TestCase):
     def test_generation_uses_explicit_production_temperature(self) -> None:
         self.assertEqual(DAILY_RUNNER.count("ModelCandidate("), 3)
         self.assertEqual(DAILY_RUNNER.count(", 0.2,"), 3)
+
+    def test_generation_uses_model_compatible_token_caps(self) -> None:
+        self.assertIn("--max-tokens 100000", WORKFLOW)
+        self.assertIn("default=100_000", DAILY_RUNNER)
+        self.assertIn("min(max_tokens, candidate.max_tokens_cap)", DAILY_RUNNER)
 
     def test_generation_logs_failures_quarantines_and_removed_models(self) -> None:
         self.assertIn('LOG_NAME = "fallback-log.json"', DAILY_RUNNER)
