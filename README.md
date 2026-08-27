@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/favicon-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/favicon-light.png">
+  <img alt="Verified newspaper mark for news-briefing" src="docs/images/favicon-light.png" width="128">
+</picture>
+
 # news-briefing
 
 **An LLM writes my daily AI news briefing. It chooses the stories and writes the summaries — code decides what is recent, what may be cited, and whether the result may be published.**

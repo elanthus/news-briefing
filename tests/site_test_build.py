@@ -103,6 +103,30 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('class="site-footer"', page)
             self.assertIn("semantic faithfulness is not automatically assessed", page)
 
+    def test_build_copies_theme_aware_favicons(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            output = root / "site"
+
+            build_site(briefings, output)
+
+            page = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn(
+                '<link rel="icon" href="favicon-light.png" '
+                'type="image/png" sizes="512x512">',
+                page,
+            )
+            self.assertIn('media="(prefers-color-scheme: light)"', page)
+            self.assertIn('media="(prefers-color-scheme: dark)"', page)
+            repository_root = Path(__file__).resolve().parents[1]
+            for filename in ("favicon-light.png", "favicon-dark.png"):
+                self.assertEqual(
+                    (output / filename).read_bytes(),
+                    (repository_root / "docs" / "images" / filename).read_bytes(),
+                )
+
     def test_build_site_refuses_empty_history_without_optin(self) -> None:
         # The never-silently-truncate-the-archive invariant lives in build_site
         # itself, so a programmatic caller (not just the CLI) must opt in before
@@ -182,6 +206,8 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("Important detail", index)
             self.assertNotIn("UNPUBLISHED BRIEFING CANDIDATE", index)
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn('href="../favicon-light.png"', report)
+            self.assertIn('href="../favicon-dark.png"', report)
             self.assertIn("Review required · 2 findings", report)
             self.assertIn("WARN · evidence · unsupported figure:", report)
             self.assertIn("states &#x27;&lt;60&gt;&#x27;", report)

@@ -49,6 +49,8 @@ PROJECT_URL = "https://github.com/elanthus/news-briefing"
 PROJECT_DESCRIPTION = (
     "A daily LLM-generated news briefing with deterministic corpus and citation checks."
 )
+FAVICON_SOURCE_DIR = Path(__file__).resolve().parent / "docs" / "images"
+FAVICON_FILENAMES = ("favicon-light.png", "favicon-dark.png")
 
 
 def _parse_canonical_date(value: str) -> date:
@@ -384,9 +386,10 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     }
 
 
-def _document(title: str, body: str) -> str:
+def _document(title: str, body: str, *, asset_prefix: str = "") -> str:
     escaped_title = html.escape(title)
     escaped_description = html.escape(PROJECT_DESCRIPTION)
+    escaped_asset_prefix = html.escape(asset_prefix, quote=True)
     return (
         "<!doctype html>\n"
         '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
@@ -396,6 +399,12 @@ def _document(title: str, body: str) -> str:
         f'<meta property="og:description" content="{escaped_description}">\n'
         '<meta property="og:type" content="website">\n'
         '<meta name="twitter:card" content="summary">\n'
+        f'<link rel="icon" href="{escaped_asset_prefix}favicon-light.png" '
+        'type="image/png" sizes="512x512">\n'
+        f'<link rel="icon" href="{escaped_asset_prefix}favicon-light.png" '
+        'type="image/png" sizes="512x512" media="(prefers-color-scheme: light)">\n'
+        f'<link rel="icon" href="{escaped_asset_prefix}favicon-dark.png" '
+        'type="image/png" sizes="512x512" media="(prefers-color-scheme: dark)">\n'
         f"<title>{escaped_title}</title>\n<style>{STYLE}</style>\n"
         "</head>\n<body>\n"
         '<header class="site-header">'
@@ -1116,7 +1125,11 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
         f"<p>{_corpus_health(entry)}</p>"
         "</section>"
     )
-    return _document(f"Integrity report — {entry.slug}", "\n".join(parts))
+    return _document(
+        f"Integrity report — {entry.slug}",
+        "\n".join(parts),
+        asset_prefix="../",
+    )
 
 
 def _publish_corpora(
@@ -1215,6 +1228,9 @@ def build_site(
     entries = entries[:7]
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    for favicon_filename in FAVICON_FILENAMES:
+        source = FAVICON_SOURCE_DIR / favicon_filename
+        (output_dir / favicon_filename).write_bytes(source.read_bytes())
     for stale_page in output_dir.glob("*.html"):
         stale_page.unlink()
     reports_dir = output_dir / "reports"
