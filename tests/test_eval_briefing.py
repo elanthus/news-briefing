@@ -371,6 +371,28 @@ class SlotAllocationTest(unittest.TestCase):
         self.assertIn("slots_underfilled", checks(findings, WARN))
         self.assertEqual(checks(findings, ERROR), set())
 
+    def test_empty_section_with_unused_eligible_material_is_an_error(self):
+        findings = evaluate(CORPUS, briefing(world=0))
+        empty = [
+            finding for finding in findings
+            if finding.check == "slots_underfilled" and "World Events" in finding.message
+        ]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0].level, ERROR)
+        self.assertIn("unused eligible corpus item", empty[0].message)
+
+    def test_empty_section_without_unused_eligible_material_is_a_warning(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["world"] = []
+        corpus["categories"]["us_news"] = corpus["categories"]["us_news"][:4]
+        findings = evaluate(corpus, briefing(world=0, exclusions=0))
+        empty = [
+            finding for finding in findings
+            if finding.check == "slots_underfilled" and "World Events" in finding.message
+        ]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0].level, WARN)
+
     def test_each_section_is_counted_independently(self):
         findings = evaluate(CORPUS, briefing(ai_news=3, tools=3))
         messages = [f.message for f in findings if f.check == "slots_underfilled"]
@@ -989,7 +1011,11 @@ class PromptSafetyContractTest(unittest.TestCase):
     def test_prompts_omit_mutable_hn_engagement_metrics(self):
         prompts = {
             path: (ROOT / path).read_text(encoding="utf-8").lower()
-            for path in ("briefing-prompt.md", "briefing-runner-prompt.md")
+            for path in (
+                "briefing-prompt.md",
+                "briefing-runner-prompt.md",
+                "briefing-runner-prompt-deepseek-v4-flash.md",
+            )
         }
         self.assertIn("do not print hacker news points", prompts["briefing-prompt.md"])
         self.assertIn("do not report mutable engagement metrics",
@@ -998,6 +1024,21 @@ class PromptSafetyContractTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertNotIn("↑ [points] pts", prompt)
                 self.assertNotIn("engagement signal on its own line", prompt)
+
+    def test_deepseek_prompt_targets_measured_reference_failure(self):
+        prompt = (
+            ROOT / "briefing-runner-prompt-deepseek-v4-flash.md"
+        ).read_text(encoding="utf-8").lower()
+        for required in (
+            "physically listed",
+            "indivisible record",
+            "never borrow a reference",
+            "no section is empty",
+            "replace it with an unused eligible item",
+            "neither promote nor suppress",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, prompt)
 
 
 class PromptInjectionContainmentTest(unittest.TestCase):

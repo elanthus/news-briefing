@@ -515,8 +515,24 @@ def check_every_entry_cites_source(sections: dict[str, Section]) -> list[Finding
 
 
 def check_slot_allocation(sections: dict[str, Section],
+                          corpus: dict[str, Any],
                           config: briefing_config.BriefingConfig) -> list[Finding]:
+    """Enforce section ceilings and reject avoidable empty sections.
+
+    Ordinary underfill remains a warning because semantic fit can make a
+    physically eligible corpus thin. A completely empty section is different:
+    when at least one eligible corpus item remains unused anywhere in the
+    briefing, publishing it would turn a repair/drop bookkeeping failure into a
+    misleading claim that no coverage existed. Make that case blocking so the
+    runner spends its correction budget instead of finalizing the empty section.
+    """
     findings: list[Finding] = []
+    included_urls = {
+        url
+        for name, bucket in sections.items()
+        if name != EXCLUDED
+        for url in bucket["links"]
+    }
     for section in config.sections:
         name = section.name
         expected = section.target_stories
@@ -524,10 +540,22 @@ def check_slot_allocation(sections: dict[str, Section],
             continue
         actual = len(sections[name]["topics"])
         if actual < expected:
+            eligible_urls = {
+                corpus_schema.canonicalize_url(item["url"])
+                for category in section.corpus_categories
+                for item in corpus.get("categories", {}).get(category, [])
+                if isinstance(item, dict) and isinstance(item.get("url"), str)
+            }
+            unused_eligible = eligible_urls - included_urls
+            level = ERROR if actual == 0 and unused_eligible else WARN
+            suffix = (
+                f"; {len(unused_eligible)} unused eligible corpus item(s) remain"
+                if level == ERROR
+                else " (thin corpus is a legitimate cause)"
+            )
             findings.append(Finding(
-                WARN, "slots_underfilled",
-                f"{name}: {actual} topics, expected {expected} "
-                f"(thin corpus is a legitimate cause)"))
+                level, "slots_underfilled",
+                f"{name}: {actual} topics, expected {expected}{suffix}"))
         elif actual > expected:
             findings.append(Finding(
                 ERROR, "slots_overfilled",
@@ -1086,7 +1114,7 @@ def evaluate_parsed(corpus: dict[str, Any], text: str, sections: dict[str, Secti
     findings += check_section_categories(sections, corpus, config)
     findings += check_every_entry_cites_source(sections)
     findings += check_no_double_listing(sections)
-    findings += check_slot_allocation(sections, config)
+    findings += check_slot_allocation(sections, corpus, config)
     findings += check_no_repeated_topics(sections)
     findings += check_exclusion_log(sections, corpus, config)
     findings += check_hn_discussion_links(sections, hacker_news_links(corpus))
