@@ -25,14 +25,14 @@ class ModelCandidate:
     model: str
     temperature: float
     reasoning_effort: str | None
+    max_tokens_cap: int
 
 
 PRODUCTION_MODEL_CHAIN = (
-    ModelCandidate("tencent/hy3", 0.2, "high"),
-    ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high"),
-    # MiMo supports reasoning, but OpenRouter does not advertise reasoning_effort
-    # for this endpoint. Omitting the effort keeps require_parameters fail-closed.
-    ModelCandidate("xiaomi/mimo-v2.5", 0.2, None),
+    ModelCandidate("tencent/hy3", 0.2, "high", 100_000),
+    ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high", 100_000),
+    # Gemini 3.7 Flash advertises a maximum completion length of 65,536 tokens.
+    ModelCandidate("google/gemini-3.7-flash", 0.2, None, 65_536),
 )
 
 LOG_NAME = "fallback-log.json"
@@ -273,7 +273,7 @@ def run_fallback_chain(
                 temperature=candidate.temperature,
                 reasoning_enabled=True,
                 reasoning_effort=candidate.reasoning_effort,
-                max_tokens=max_tokens,
+                max_tokens=min(max_tokens, candidate.max_tokens_cap),
             )
             result = run_workflow(provider, settings, candidate_dir)
         except Exception as exc:  # every failed production attempt advances the chain
@@ -337,7 +337,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--timeout", type=_positive_int, default=600)
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=3)
-    parser.add_argument("--max-tokens", type=_positive_int, default=20_000)
+    parser.add_argument("--max-tokens", type=_positive_int, default=100_000)
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
 
