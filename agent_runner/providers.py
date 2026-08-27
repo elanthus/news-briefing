@@ -11,6 +11,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from copy import deepcopy
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -28,6 +29,36 @@ _TRANSIENT_CLI_MARKERS = (
     "connection refused",
     "timed out",
     "timeout",
+)
+_SCHEMA_MAP_KEYWORDS = frozenset(
+    {
+        "$defs",
+        "definitions",
+        "dependencies",
+        "dependentSchemas",
+        "patternProperties",
+        "properties",
+    }
+)
+_SCHEMA_VALUE_KEYWORDS = frozenset(
+    {
+        "additionalItems",
+        "additionalProperties",
+        "allOf",
+        "anyOf",
+        "contains",
+        "contentSchema",
+        "else",
+        "if",
+        "items",
+        "not",
+        "oneOf",
+        "prefixItems",
+        "propertyNames",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    }
 )
 
 
@@ -52,11 +83,20 @@ def _codex_compatible_schema(value: Any) -> Any:
     weaken publication validation.
     """
     if isinstance(value, dict):
-        return {
-            key: _codex_compatible_schema(nested)
-            for key, nested in value.items()
-            if key != "uniqueItems"
-        }
+        compatible: dict[str, Any] = {}
+        for key, nested in value.items():
+            if key == "uniqueItems":
+                continue
+            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
+                compatible[key] = {
+                    name: _codex_compatible_schema(schema)
+                    for name, schema in nested.items()
+                }
+            elif key in _SCHEMA_VALUE_KEYWORDS:
+                compatible[key] = _codex_compatible_schema(nested)
+            else:
+                compatible[key] = deepcopy(nested)
+        return compatible
     if isinstance(value, list):
         return [_codex_compatible_schema(item) for item in value]
     return value

@@ -52,8 +52,17 @@ class ProviderTests(unittest.TestCase):
     def test_codex_schema_removes_unique_items_without_mutating_source(self):
         schema = {
             "type": "object",
+            "const": {"uniqueItems": True},
             "properties": {
+                "uniqueItems": {"type": "boolean"},
                 "refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "uniqueItems": True,
+                }
+            },
+            "$defs": {
+                "nested": {
                     "type": "array",
                     "items": {"type": "string"},
                     "uniqueItems": True,
@@ -64,6 +73,9 @@ class ProviderTests(unittest.TestCase):
         compatible = _codex_compatible_schema(schema)
 
         self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
+        self.assertNotIn("uniqueItems", compatible["$defs"]["nested"])
+        self.assertEqual(compatible["properties"]["uniqueItems"], {"type": "boolean"})
+        self.assertEqual(compatible["const"], {"uniqueItems": True})
         self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_sends_schema_and_parses_usage(self):
