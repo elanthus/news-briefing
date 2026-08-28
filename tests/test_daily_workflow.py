@@ -147,6 +147,44 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("name: briefing-corpus-archive", WORKFLOW)
         self.assertIn("private-artifacts/corpus-archive.tar.gz.enc", WORKFLOW)
 
+    def test_archive_secrets_are_not_exposed_to_feed_or_model_processing(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+        generation_step = WORKFLOW.split(
+            "- name: Generate scheduled daily or manual backfill reports", 1
+        )[1].split("- name:", 1)[0]
+
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", restore_step)
+        self.assertIn("CORPUS_ARCHIVE_PASSPHRASE", restore_step)
+        self.assertNotIn("GITHUB_TOKEN", generation_step)
+        self.assertNotIn("CORPUS_ARCHIVE_PASSPHRASE", generation_step)
+        self.assertIn("python fetch_news.py", generation_step)
+        self.assertIn("python run_daily_briefing.py", generation_step)
+
+    def test_legacy_corpus_migration_is_all_or_nothing(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+
+        self.assertIn("legacy-corpora/$d.json", restore_step)
+        self.assertIn("if (( migrated != 13 )); then", restore_step)
+        failure = restore_step.index("if (( migrated != 13 )); then")
+        copy = restore_step.index("cp legacy-corpora/*.json corpora/")
+        self.assertLess(failure, copy)
+
+    def test_completed_migration_marker_allows_archive_gap_recovery(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+
+        self.assertIn("corpus-storage.json", restore_step)
+        self.assertIn(
+            "python corpus_storage.py validate published-corpus-storage.json",
+            restore_step,
+        )
+        self.assertIn("starting a fresh corpus window", restore_step)
+
     def test_removes_known_bad_historical_pages(self) -> None:
         self.assertIn("--exclude-date 2026-08-15", WORKFLOW)
         self.assertIn("--exclude-date 2026-08-16", WORKFLOW)

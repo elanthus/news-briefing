@@ -31,13 +31,14 @@ class FakeResponse:
 
 
 class RedirectingOpener:
-    def __init__(self):
+    def __init__(self, location: str = "https://objects.example.test/signed-artifact"):
         self.request: urllib.request.Request | None = None
+        self.location = location
 
     def open(self, request: urllib.request.Request, timeout: int):
         self.request = request
         headers = Message()
-        headers["Location"] = "https://objects.example.test/signed-artifact"
+        headers["Location"] = self.location
         raise urllib.error.HTTPError(request.full_url, 302, "Found", headers, None)
 
 
@@ -150,6 +151,25 @@ class RestorePrivateCorporaTests(unittest.TestCase):
             opener.request.get_header("X-github-api-version"),
             restore_private_corpora.API_VERSION,
         )
+
+    def test_non_https_artifact_redirect_is_refused_before_opening(self) -> None:
+        for location in (
+            "file:///tmp/private-artifact.zip",
+            "ftp://objects.example.test/private-artifact.zip",
+            "//objects.example.test/private-artifact.zip",
+            "https://user:password@objects.example.test/private-artifact.zip",
+        ):
+            with self.subTest(location=location):
+                opener = RedirectingOpener(location)
+                with (
+                    patch("urllib.request.build_opener", return_value=opener),
+                    patch("urllib.request.urlopen") as unsigned_open,
+                    self.assertRaisesRegex(ValueError, "absolute HTTPS URL"),
+                ):
+                    restore_private_corpora._download_without_forwarding_token(
+                        "https://api.github.test/archive", "github token"
+                    )
+                unsigned_open.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -104,6 +104,14 @@ def _download_without_forwarding_token(url: str, token: str) -> bytes:
         with response:
             return _read_bounded(response, MAX_ARTIFACT_BYTES)
 
+    redirect = urllib.parse.urlsplit(location)
+    if (
+        redirect.scheme.lower() != "https"
+        or not redirect.netloc
+        or redirect.username is not None
+        or redirect.password is not None
+    ):
+        raise ValueError("GitHub artifact redirect must be an absolute HTTPS URL")
     unsigned = urllib.request.Request(location, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(unsigned, timeout=60) as response:
         return _read_bounded(response, MAX_ARTIFACT_BYTES)

@@ -98,6 +98,9 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
     audit, but points and comment counts are mutable snapshots that should not
     become briefing claims.
     """
+    corpus_version = corpus_schema.corpus_version(corpus)
+    if corpus_version is None:
+        raise ValueError("corpus has no readable schema version")
     projected_categories: dict[str, list[dict[str, Any]]] = {}
     citations: dict[str, Citation] = {}
     item_number = 0
@@ -127,7 +130,7 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
             projected_items.append(projected)
         projected_categories[category] = projected_items
     document = redact_destinations({
-        "schema_version": corpus["schema_version"],
+        "schema_version": corpus_version,
         "generated_at": corpus["generated_at"],
         "cutoff": corpus["cutoff"],
         "window_hours": corpus["window_hours"],

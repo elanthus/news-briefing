@@ -1490,6 +1490,36 @@ class BuildSiteTests(unittest.TestCase):
             self.assertFalse((output / "manifests/2026-08-05.json").exists())
             self.assertFalse((output / "corpora").exists())
 
+    def test_unusable_historical_corpus_does_not_abort_site_build(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            corpora = root / "corpora"
+            corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            for day in ("2026-08-19", "2026-08-20"):
+                (corpora / f"{day}.json").write_text(
+                    json.dumps({**valid_corpus, "report_date": day}),
+                    encoding="utf-8",
+                )
+
+            def build_manifest(payload, _raw):
+                if payload["report_date"] == "2026-08-19":
+                    raise ValueError("projection cannot use historical corpus")
+                return {"report_date": payload["report_date"]}
+
+            output = root / "site"
+            with patch("build_site.build_audit_manifest", side_effect=build_manifest):
+                build_site(briefings, output, corpora_dirs=[corpora])
+
+            self.assertTrue((output / "index.html").is_file())
+            self.assertTrue((output / "reports/2026-08-20.html").is_file())
+            self.assertTrue((output / "manifests/2026-08-20.json").is_file())
+            self.assertFalse((output / "manifests/2026-08-19.json").exists())
+
     def test_no_corpora_dir_builds_site_without_manifests_or_raw_corpora(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1504,6 +1534,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, output)
 
             self.assertTrue((output / "index.html").is_file())
+            self.assertTrue((output / "corpus-storage.json").is_file())
             self.assertFalse((output / "corpora").exists())
             self.assertFalse((output / "manifests").exists())
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")

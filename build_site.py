@@ -19,6 +19,7 @@ from typing import Any
 import corpus_schema
 import eval_briefing
 from audit_manifest import build_audit_manifest
+from corpus_storage import write_storage_marker
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
@@ -1201,7 +1202,13 @@ def _publish_audit_manifests(
                 or payload.get("report_date") != slug
             ):
                 continue
-            survivors[slug] = build_audit_manifest(payload, raw)
+            try:
+                survivors[slug] = build_audit_manifest(payload, raw)
+            except (AssertionError, KeyError, TypeError, ValueError):
+                # A historical corpus can satisfy its storage schema yet be
+                # unusable by a newer projection. Isolate that date so one bad
+                # retained input cannot suppress the rest of the Pages build.
+                continue
     if not survivors:
         return frozenset()
     manifests_out.mkdir(parents=True, exist_ok=True)
@@ -1281,6 +1288,7 @@ def build_site(
         json.dumps(_history_payload(entries), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    write_storage_marker(output_dir)
     for entry in entries[1:]:
         (output_dir / f"{entry.slug}.html").write_text(
             _render_briefing(entry, entries),

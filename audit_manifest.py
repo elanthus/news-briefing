@@ -27,6 +27,9 @@ def build_audit_manifest(corpus: dict[str, Any], raw_corpus: bytes) -> dict[str,
     if problems:
         raise ValueError("corpus violates its schema: " + "; ".join(problems))
 
+    corpus_version = corpus_schema.corpus_version(corpus)
+    if corpus_version is None:
+        raise ValueError("corpus has no readable schema version")
     projected = project_corpus(corpus)
     citations_by_item: dict[str, list[dict[str, str]]] = {}
     seen_urls_by_item: dict[str, set[tuple[str, str]]] = {}
@@ -68,7 +71,7 @@ def build_audit_manifest(corpus: dict[str, Any], raw_corpus: bytes) -> dict[str,
 
     return {
         "schema_version": AUDIT_MANIFEST_SCHEMA_VERSION,
-        "corpus_schema_version": corpus["schema_version"],
+        "corpus_schema_version": corpus_version,
         "report_date": corpus.get("report_date"),
         "generated_at": corpus["generated_at"],
         "cutoff": corpus["cutoff"],

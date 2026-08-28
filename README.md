@@ -189,6 +189,7 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 | [`eval_briefing.py`](eval_briefing.py) | The deterministic checker, usable standalone against any corpus/briefing pair |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
 | [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, and content hashes |
+| [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker used for safe migration and archive-gap recovery |
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded 14-day retention for exact operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
 | [`build_site.py`](build_site.py) | Static archive: briefings, per-run integrity reports, and public audit manifests |

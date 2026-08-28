@@ -48,13 +48,7 @@ jobs:
       - name: Install site renderer dependency
         run: python -m pip install --requirement requirements-site.txt
 
-      - name: Generate scheduled daily or manual backfill reports
-        env:
-          MANUAL_MODE: ${{ inputs.mode }}
-          SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          GITHUB_TOKEN: ${{ github.token }}
-          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+      - name: Capture briefing window
         run: |
           mkdir -p briefing-history corpora reports runs
           snapshot_end_epoch=$(date --utc +%s)
@@ -62,40 +56,87 @@ jobs:
           window_start=$(date --utc --date="@$window_start_epoch" --iso-8601=seconds)
           window_end=$(date --utc --date="@$snapshot_end_epoch" --iso-8601=seconds)
           today=$(TZ=America/New_York date --date="@$snapshot_end_epoch" +%F)
+          echo "SNAPSHOT_END_EPOCH=$snapshot_end_epoch" >> "$GITHUB_ENV"
+          echo "WINDOW_START=$window_start" >> "$GITHUB_ENV"
+          echo "WINDOW_END=$window_end" >> "$GITHUB_ENV"
           echo "REPORT_TODAY=$today" >> "$GITHUB_ENV"
+
+      - name: Restore private corpus window
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          today="$REPORT_TODAY"
+
+          download_public_file() {
+            local url="$1"
+            local output="$2"
+            local status
+            if ! status=$(curl \
+              --location \
+              --max-time 30 \
+              --max-filesize 50000000 \
+              --remove-on-error \
+              --silent \
+              --show-error \
+              --write-out "%{http_code}" \
+              "$url" \
+              --output "$output"); then
+              echo "::error::Could not download $url"
+              return 2
+            fi
+            if [[ "$status" == "200" ]]; then
+              return 0
+            fi
+            if [[ "$status" == "404" ]]; then
+              return 1
+            fi
+            echo "::error::Unexpected HTTP $status from $url"
+            return 2
+          }
 
           set +e
           python restore_private_corpora.py --output-dir corpora
           restore_status=$?
           set -e
           if (( restore_status == 4 )); then
-            echo "No private corpus archive exists yet; migrating retained corpora from Pages"
-            migrated=0
-            for days_ago in $(seq 1 13); do
-              d=$(TZ=America/New_York date --date="$today $days_ago days ago" +%F)
-              if curl \
-                --fail \
-                --location \
-                --max-time 30 \
-                --max-filesize 50000000 \
-                --remove-on-error \
-                --silent \
-                --show-error \
-                "https://elanthus.github.io/news-briefing/corpora/$d.json" \
-                --output "corpora/$d.json"; then
-                migrated=$((migrated + 1))
-              fi
-            done
-            if (( migrated == 0 )) && curl \
-              --fail \
-              --location \
-              --max-time 30 \
-              --silent \
-              --show-error \
-              https://elanthus.github.io/news-briefing/history.json \
-              --output existing-history.json; then
-              echo "::error::Published history exists but no retained corpus could be migrated"
+            marker_status=0
+            download_public_file \
+              https://elanthus.github.io/news-briefing/corpus-storage.json \
+              published-corpus-storage.json || marker_status=$?
+            if (( marker_status == 0 )); then
+              python corpus_storage.py validate published-corpus-storage.json
+              echo "No unexpired private archive remains; starting a fresh corpus window"
+            elif (( marker_status == 2 )); then
               exit 1
+            else
+              history_status=0
+              download_public_file \
+                https://elanthus.github.io/news-briefing/history.json \
+                existing-history.json || history_status=$?
+              if (( history_status == 0 )); then
+                echo "No private corpus archive exists yet; migrating all retained corpora from Pages"
+                mkdir -p legacy-corpora
+                migrated=0
+                for days_ago in $(seq 1 13); do
+                  d=$(TZ=America/New_York date --date="$today $days_ago days ago" +%F)
+                  if download_public_file \
+                    "https://elanthus.github.io/news-briefing/corpora/$d.json" \
+                    "legacy-corpora/$d.json"; then
+                    migrated=$((migrated + 1))
+                  fi
+                done
+                if (( migrated != 13 )); then
+                  echo "::error::Migrated only $migrated of 13 retained public corpora; leaving Pages unchanged for a complete retry"
+                  exit 1
+                fi
+                python private_archive.py prune-corpora legacy-corpora --newest "$today"
+                cp legacy-corpora/*.json corpora/
+              elif (( history_status == 1 )); then
+                echo "No published history exists; starting the first corpus window"
+              else
+                exit 1
+              fi
             fi
           elif (( restore_status != 0 )); then
             echo "::error::Private corpus restoration failed"
@@ -103,6 +144,15 @@ jobs:
           fi
           python private_archive.py prune-corpora corpora --newest "$today"
 
+      - name: Generate scheduled daily or manual backfill reports
+        env:
+          MANUAL_MODE: ${{ inputs.mode }}
+          SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          today="$REPORT_TODAY"
+          window_start="$WINDOW_START"
+          window_end="$WINDOW_END"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_MODE" == "backfill-7-days" ]]; then
             day_offsets=(6 5 4 3 2 1 0)
           else
