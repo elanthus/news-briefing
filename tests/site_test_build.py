@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import sys
@@ -1408,7 +1409,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("states &#x27;42&#x27;", report)
             self.assertIn("drop_entry", report)
 
-    def test_publishes_valid_dated_corpora_with_first_dir_precedence(self) -> None:
+    def test_publishes_text_free_manifests_with_first_dir_precedence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1443,15 +1444,28 @@ class BuildSiteTests(unittest.TestCase):
             output = root / "site"
             build_site(briefings, output, corpora_dirs=[fresh, prior])
 
-            published = (output / "corpora/2026-08-20.json").read_text(encoding="utf-8")
-            self.assertEqual(published, fresh_corpus)
-            self.assertTrue((output / "corpora/2026-08-14.json").is_file())
-            self.assertFalse((output / "corpora/2026-08-19.json").exists())
-            self.assertFalse((output / "corpora/2026-08-18.json").exists())
-            self.assertFalse((output / "corpora/2026-08-21.json").exists())
-            self.assertFalse((output / "corpora/not-a-date.json").exists())
+            published_path = output / "manifests/2026-08-20.json"
+            published = json.loads(published_path.read_text(encoding="utf-8"))
+            self.assertEqual(published["report_date"], "2026-08-20")
+            self.assertEqual(
+                published["corpus_sha256"],
+                hashlib.sha256(fresh_corpus.encode("utf-8")).hexdigest(),
+            )
+            first_item = valid_corpus["categories"][next(iter(valid_corpus["categories"]))][0]
+            rendered_manifest = published_path.read_text(encoding="utf-8")
+            self.assertNotIn(first_item["title"], rendered_manifest)
+            self.assertNotIn(first_item.get("summary", "not present"), rendered_manifest)
+            self.assertTrue((output / "manifests/2026-08-14.json").is_file())
+            self.assertFalse((output / "manifests/2026-08-19.json").exists())
+            self.assertFalse((output / "manifests/2026-08-18.json").exists())
+            self.assertFalse((output / "manifests/2026-08-21.json").exists())
+            self.assertFalse((output / "manifests/not-a-date.json").exists())
+            self.assertFalse((output / "corpora").exists())
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn('../manifests/2026-08-20.json', report)
+            self.assertIn("source-owned titles and excerpts are not included", report)
 
-    def test_prunes_corpora_older_than_fourteen_days(self) -> None:
+    def test_prunes_manifests_older_than_fourteen_days(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1471,11 +1485,12 @@ class BuildSiteTests(unittest.TestCase):
             output = root / "site"
             build_site(briefings, output, corpora_dirs=[corpora])
 
-            self.assertTrue((output / "corpora/2026-08-07.json").is_file())
-            self.assertFalse((output / "corpora/2026-08-06.json").exists())
-            self.assertFalse((output / "corpora/2026-08-05.json").exists())
+            self.assertTrue((output / "manifests/2026-08-07.json").is_file())
+            self.assertFalse((output / "manifests/2026-08-06.json").exists())
+            self.assertFalse((output / "manifests/2026-08-05.json").exists())
+            self.assertFalse((output / "corpora").exists())
 
-    def test_no_corpora_dir_builds_site_without_corpora(self) -> None:
+    def test_no_corpora_dir_builds_site_without_manifests_or_raw_corpora(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1484,12 +1499,17 @@ class BuildSiteTests(unittest.TestCase):
             self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
 
             output = root / "site"
+            (output / "corpora").mkdir(parents=True)
+            (output / "corpora/stale.json").write_text("private", encoding="utf-8")
             build_site(briefings, output)
 
             self.assertTrue((output / "index.html").is_file())
             self.assertFalse((output / "corpora").exists())
+            self.assertFalse((output / "manifests").exists())
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertNotIn("Download audit manifest", report)
 
-    def test_corpora_without_history_entries_publishes_nothing(self) -> None:
+    def test_corpora_without_history_entries_publish_nothing(self) -> None:
         # No entries means no date anchor for pruning: fail safe, publish nothing.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1508,6 +1528,7 @@ class BuildSiteTests(unittest.TestCase):
 
             self.assertTrue((output / "index.html").is_file())
             self.assertFalse((output / "corpora").exists())
+            self.assertFalse((output / "manifests").exists())
 
     @staticmethod
     def _finding(

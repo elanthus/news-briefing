@@ -11,7 +11,7 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-Live site → <https://elanthus.github.io/news-briefing/> · Every run also publishes an [integrity report](docs/images/auditor-report.png) and the exact corpus it was generated from.
+Live site → <https://elanthus.github.io/news-briefing/> · Every published run links an [integrity report](docs/images/auditor-report.png) to a text-free audit manifest of the corpus it was generated from.
 
 ---
 
@@ -188,7 +188,10 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, verified checkpoints |
 | [`eval_briefing.py`](eval_briefing.py) | The deterministic checker, usable standalone against any corpus/briefing pair |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
-| [`build_site.py`](build_site.py) | Static archive: briefings, per-run integrity reports, published corpora, 14-day retention |
+| [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, and content hashes |
+| [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded 14-day retention for exact operational corpora and diagnostics |
+| [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
+| [`build_site.py`](build_site.py) | Static archive: briefings, per-run integrity reports, and public audit manifests |
 | [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
 | [`docs/design.md`](docs/design.md) | Why each stage works the way it does |
 | [`docs/evaluation-methodology.md`](docs/evaluation-methodology.md) | Threat model, labels, denominators, uncertainty, limitations |
@@ -202,7 +205,7 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 - `ruff` and `mypy --disallow-untyped-defs` across the pipeline and runner; the evaluator is type-checked under its own config.
 - All GitHub Actions pinned to commit SHAs; Dependabot enabled.
 - A live end-to-end smoke job that hits real feeds and is `continue-on-error` — a slow news day must never fail a pull request.
-- Fourteen days of published corpora retained so historical backfill replays stored inputs rather than reconstructing them from retention-limited live feeds.
+- Fourteen days of exact corpora retained only in authenticated encrypted workflow artifacts so historical backfill replays stored inputs rather than reconstructing them from retention-limited live feeds. GitHub Pages receives text-free audit manifests instead of raw source excerpts.
 
 Design influences are cited rather than gestured at: the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) for documented, repeatable, uncertainty-explicit evaluation, and [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) / [MELON](https://proceedings.mlr.press/v267/zhu25z.html) for measuring utility alongside injection resistance.
 
