@@ -29,7 +29,7 @@ def portable_path(path: Path) -> str:
 
 
 def parse_json_response(text: str, response_name: str) -> Any:
-    """Decode a JSON response while tolerating a fence or short prose preface."""
+    """Decode a JSON response while tolerating a fence or surrounding prose."""
     value = text.strip()
     if value.startswith("```"):
         lines = value.splitlines()

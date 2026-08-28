@@ -236,10 +236,11 @@ REDDIT_BASE_LIMIT = 25
 REDDIT_MAX_LIMIT = 100  # cap applied to scaled anonymous RSS requests
 
 # The Verge, Ars, and Wired feeds cover all of technology (and sometimes
-# shopping/entertainment), while the GitHub Changelog covers the whole product.
-# Filter only those broad feeds; category-specific and community sources pass
-# through unchanged. This cuts obvious corpus noise before it consumes model
-# context without pretending that a keyword filter can rank importance.
+# shopping/entertainment), the GitHub Changelog covers the whole product, and
+# Hacker News covers everything voted up — each gets its own relevance filter
+# below. Category-specific feeds and subreddits pass through unchanged. This
+# cuts obvious corpus noise before it consumes model context without
+# pretending that a keyword filter can rank importance.
 AI_RELEVANCE = re.compile(
     r"\b(?:ai|artificial intelligence|machine learning|deep learning|llm|"
     r"language model|neural|openai|anthropic|claude|chatgpt|gpt-?\d|gemini|"
