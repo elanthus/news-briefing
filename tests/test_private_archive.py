@@ -127,6 +127,16 @@ class PrivateArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "violates its schema"):
                 prune_corpora(corpora, date(2026, 8, 20))
 
+    def test_prune_refuses_invalid_json_download_before_archiving(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            corpora = Path(directory)
+            (corpora / "2026-08-20.json").write_text(
+                "{not a corpus", encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(ValueError, "invalid JSON"):
+                prune_corpora(corpora, date(2026, 8, 20))
+
 
 if __name__ == "__main__":
     unittest.main()

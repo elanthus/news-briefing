@@ -117,17 +117,17 @@ jobs:
               if (( history_status == 0 )); then
                 echo "No private corpus archive exists yet; migrating all retained corpora from Pages"
                 mkdir -p legacy-corpora
-                migrated=0
+                downloaded=0
                 for days_ago in $(seq 1 13); do
                   d=$(TZ=America/New_York date --date="$today $days_ago days ago" +%F)
                   if download_public_file \
                     "https://elanthus.github.io/news-briefing/corpora/$d.json" \
                     "legacy-corpora/$d.json"; then
-                    migrated=$((migrated + 1))
+                    downloaded=$((downloaded + 1))
                   fi
                 done
-                if (( migrated != 13 )); then
-                  echo "::error::Migrated only $migrated of 13 retained public corpora; leaving Pages unchanged for a complete retry"
+                if (( downloaded != 13 )); then
+                  echo "::error::Downloaded only $downloaded of 13 retained public corpora; leaving Pages unchanged for a complete retry"
                   exit 1
                 fi
                 python private_archive.py prune-corpora legacy-corpora --newest "$today"

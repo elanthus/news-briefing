@@ -1176,6 +1176,7 @@ def _publish_audit_manifests(
 
     oldest_kept = newest_entry_date - timedelta(days=13)
     survivors: dict[str, dict[str, Any]] = {}
+    claimed_slugs: set[str] = set()
     for corpora_dir in corpora_dirs:
         for corpus in sorted(corpora_dir.glob("*.json")):
             if not corpus.is_file():
@@ -1187,7 +1188,7 @@ def _publish_audit_manifests(
             slug = day.isoformat()
             if (
                 corpus.stem != slug
-                or slug in survivors
+                or slug in claimed_slugs
                 or day < oldest_kept
                 or day > newest_entry_date
             ):
@@ -1202,6 +1203,7 @@ def _publish_audit_manifests(
                 or payload.get("report_date") != slug
             ):
                 continue
+            claimed_slugs.add(slug)
             try:
                 survivors[slug] = build_audit_manifest(payload, raw)
             except (AssertionError, KeyError, TypeError, ValueError):

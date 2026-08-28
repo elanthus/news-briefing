@@ -29,7 +29,12 @@ def write_storage_marker(output_dir: Path) -> Path:
 def validate_storage_marker(path: Path) -> None:
     """Require the exact marker contract used by archive-gap recovery."""
     payload = json.loads(path.read_bytes())
-    if payload != STORAGE_MARKER:
+    if not isinstance(payload, dict) or payload.keys() != STORAGE_MARKER.keys():
+        raise ValueError("unrecognized corpus storage marker")
+    if any(
+        type(payload[key]) is not type(expected) or payload[key] != expected
+        for key, expected in STORAGE_MARKER.items()
+    ):
         raise ValueError("unrecognized corpus storage marker")
 
 

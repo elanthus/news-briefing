@@ -1497,28 +1497,45 @@ class BuildSiteTests(unittest.TestCase):
             briefings.mkdir()
             (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
             self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
-            corpora = root / "corpora"
-            corpora.mkdir()
+            first = root / "first-corpora"
+            fallback = root / "fallback-corpora"
+            first.mkdir()
+            fallback.mkdir()
             valid_corpus, _config, _projected, _output = fixture_contract()
-            for day in ("2026-08-19", "2026-08-20"):
-                (corpora / f"{day}.json").write_text(
-                    json.dumps({**valid_corpus, "report_date": day}),
-                    encoding="utf-8",
-                )
+            (first / "2026-08-19.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-19"}),
+                encoding="utf-8",
+            )
+            unusable = json.loads(json.dumps(valid_corpus))
+            unusable["categories"][next(iter(unusable["categories"]))][0][
+                "title"
+            ] = "Projection failure"
+            (first / "2026-08-20.json").write_text(
+                json.dumps({**unusable, "report_date": "2026-08-20"}),
+                encoding="utf-8",
+            )
+            (fallback / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-20"}),
+                encoding="utf-8",
+            )
 
             def build_manifest(payload, _raw):
-                if payload["report_date"] == "2026-08-19":
+                first_item = next(iter(payload["categories"].values()))[0]
+                if first_item["title"] == "Projection failure":
                     raise ValueError("projection cannot use historical corpus")
                 return {"report_date": payload["report_date"]}
 
             output = root / "site"
-            with patch("build_site.build_audit_manifest", side_effect=build_manifest):
-                build_site(briefings, output, corpora_dirs=[corpora])
+            with patch(
+                "build_site.build_audit_manifest", side_effect=build_manifest
+            ) as manifest_builder:
+                build_site(briefings, output, corpora_dirs=[first, fallback])
 
             self.assertTrue((output / "index.html").is_file())
             self.assertTrue((output / "reports/2026-08-20.html").is_file())
-            self.assertTrue((output / "manifests/2026-08-20.json").is_file())
-            self.assertFalse((output / "manifests/2026-08-19.json").exists())
+            self.assertTrue((output / "manifests/2026-08-19.json").is_file())
+            self.assertFalse((output / "manifests/2026-08-20.json").exists())
+            self.assertEqual(manifest_builder.call_count, 2)
 
     def test_no_corpora_dir_builds_site_without_manifests_or_raw_corpora(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
