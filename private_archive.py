@@ -22,7 +22,9 @@ CORPUS_MEMBER = re.compile(r"^corpora/(\d{4}-\d{2}-\d{2})\.json$")
 MAX_CORPUS_BYTES = 50_000_000
 MAX_RESTORED_BYTES = 100_000_000
 ARCHIVE_MAGIC = b"NBPA1\x00"
-ARCHIVE_SALT_BYTES = 16
+# OpenSSL 1.1/LibreSSL accept an eight-byte explicit salt, while OpenSSL 3 also
+# accepts it. Keep the versioned envelope portable across local and CI runners.
+ARCHIVE_SALT_BYTES = 8
 ARCHIVE_MAC_BYTES = 32
 PBKDF2_ITERATIONS = 200_000
 

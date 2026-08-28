@@ -205,7 +205,7 @@ python3 run_briefing.py --provider openrouter --model your/model-id --output bri
 - `ruff` and `mypy --disallow-untyped-defs` across the pipeline and runner; the evaluator is type-checked under its own config.
 - All GitHub Actions pinned to commit SHAs; Dependabot enabled.
 - A live end-to-end smoke job that hits real feeds and is `continue-on-error` — a slow news day must never fail a pull request.
-- Fourteen days of exact corpora retained only in authenticated encrypted workflow artifacts so historical backfill replays stored inputs rather than reconstructing them from retention-limited live feeds. GitHub Pages receives text-free audit manifests instead of raw source excerpts.
+- The rolling fourteen-day production corpus is retained only in authenticated encrypted workflow artifacts so historical backfill replays stored inputs rather than reconstructing them from retention-limited live feeds. GitHub Pages receives text-free audit manifests instead of raw source excerpts; frozen development fixtures remain in the repository for reproducibility.
 
 Design influences are cited rather than gestured at: the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) for documented, repeatable, uncertainty-explicit evaluation, and [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) / [MELON](https://proceedings.mlr.press/v267/zhu25z.html) for measuring utility alongside injection resistance.
 
