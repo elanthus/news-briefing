@@ -175,6 +175,12 @@ class DailyWorkflowTests(unittest.TestCase):
 
         self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", restore_step)
         self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", restore_step)
+        self.assertIn(
+            'if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && '
+            '"$MANUAL_MODE" == "single-day" ]]; then',
+            restore_step,
+        )
+        self.assertIn('targeted_report_date="$today"', restore_step)
         self.assertIn('targeted_report_date="$MANUAL_REPORT_DATE"', restore_step)
         self.assertIn("legacy-corpora/$d.json", restore_step)
         self.assertIn("if (( downloaded != 13 )); then", restore_step)
@@ -187,6 +193,10 @@ class DailyWorkflowTests(unittest.TestCase):
             restore_step,
         )
         failure = restore_step.index("if (( downloaded != 13 )); then")
+        default_target = restore_step.index('targeted_report_date="$today"')
+        explicit_target = restore_step.index(
+            'targeted_report_date="$MANUAL_REPORT_DATE"'
+        )
         validation = restore_step.index(
             'prune-corpora legacy-corpora --newest "$today"'
         )
@@ -194,6 +204,8 @@ class DailyWorkflowTests(unittest.TestCase):
             'if compgen -G "legacy-corpora/*.json" > /dev/null; then'
         )
         copy = restore_step.index("cp legacy-corpora/*.json corpora/")
+        self.assertLess(default_target, explicit_target)
+        self.assertLess(explicit_target, failure)
         self.assertLess(failure, validation)
         self.assertLess(validation, copy_guard)
         self.assertLess(copy_guard, copy)
