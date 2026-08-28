@@ -2186,6 +2186,7 @@ class RunnerTest(unittest.TestCase):
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             row = manifest["results"][0]
+            artifact = output / row["artifact_dir"]
             self.assertEqual(row["status"], "provider_error")
             self.assertEqual(row["error"]["stage"], "first")
             self.assertEqual(len(row["error"]["completed_stage_calls"]), 1)
@@ -2194,6 +2195,34 @@ class RunnerTest(unittest.TestCase):
             cost = report["operations"]["groups"][0]["cost"]
             self.assertEqual(cost["reported_calls"], 2)
             self.assertEqual(cost["total_usd"], 0.005)
+            self.assertEqual(
+                json.loads((artifact / "first-selection.json").read_text()),
+                {
+                    "schema_version": 1,
+                    "sections": {
+                        "AI Dev Tools": {
+                            "topics": [{"citation_refs": ["citation_0001"]}]
+                        }
+                    },
+                    "excluded_topics": {},
+                },
+            )
+            selected_evidence = json.loads(
+                (artifact / "first-selected-evidence.json").read_text()
+            )
+            self.assertNotIn("citation_", json.dumps(selected_evidence))
+            self.assertNotIn("item_", json.dumps(selected_evidence))
+            self.assertEqual(
+                (artifact / "first-prose-request.txt").read_text(encoding="utf-8"),
+                adapter.requests[1],
+            )
+            self.assertEqual(
+                json.loads((artifact / "first-prose-schema.json").read_text()),
+                adapter.schemas[1],
+            )
+            self.assertIsNone(
+                json.loads((artifact / "first-prose.json").read_text())
+            )
 
     def test_production_parity_resume_requires_structured_artifacts(self) -> None:
         class InterruptSecondStructuredCall(StructuredFakeAdapter):

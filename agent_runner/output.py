@@ -53,8 +53,8 @@ class ModelCorpus:
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
 OPAQUE_REFERENCE_REDACTION = "[opaque reference omitted]"
 MODEL_EXCLUDED_ITEM_FIELDS = frozenset({"url", "discussion", "points", "comments"})
-OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d{4}\b", re.IGNORECASE)
-ITEM_REFERENCE = re.compile(r"\bitem_\d{4}\b", re.IGNORECASE)
+OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d+\b", re.IGNORECASE)
+ITEM_REFERENCE = re.compile(r"\bitem_\d+\b", re.IGNORECASE)
 
 
 def _redact_text_destinations(value: str) -> str:
@@ -93,10 +93,10 @@ def redact_destinations(value: Any) -> Any:
 def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
     """Remove opaque handles before feeding rejected output back to a model.
 
-    Selection corrections still need the selectable ``citation_####`` handles
-    from the prior selection. Internal ``item_####`` references are never
-    model inputs. Prose corrections receive neither spelling because both are
-    forbidden in model-authored prose.
+    Selection corrections still need the selectable ``citation_`` plus digits
+    handles from the prior selection. Internal ``item_`` plus digits references
+    are never model inputs. Prose corrections receive neither spelling because
+    both are forbidden in model-authored prose.
     """
     pattern = OPAQUE_REFERENCE if include_citations else ITEM_REFERENCE
     if isinstance(value, str):

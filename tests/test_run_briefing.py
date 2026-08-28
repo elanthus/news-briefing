@@ -216,7 +216,7 @@ class RunnerTests(unittest.TestCase):
         ][next(iter(output["sections"]))]["properties"]["topics"]["items"]["properties"]
         self.assertNotIn("citation_refs", prose_fields)
         self.assertNotIn(unselected_title, prose_request)
-        self.assertNotRegex(selected_evidence, r"\b(?:citation|item)_\d{4}\b")
+        self.assertNotRegex(selected_evidence, r"\b(?:citation|item)_\d+\b")
 
     def test_replays_exact_corpus_without_fetching(self):
         corpus, _config, _projected, output = fixture_contract()
@@ -470,7 +470,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("duplicate_item", correction_prompt)
         self.assertIn("unknown_citation_ref", correction_prompt)
         self.assertIn("[opaque reference omitted]", correction_prompt)
-        self.assertNotRegex(correction_prompt, r"\bitem_\d{4}\b")
+        self.assertNotRegex(correction_prompt, r"\bitem_\d+\b")
         # Selection corrections still receive citation handles, including the
         # rejected prior selection, so the model can replace it from the
         # eligible handle set in the original request.
@@ -705,8 +705,8 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("[opaque reference omitted]", correction_prompt)
         self.assertNotIn("citation_0001", correction_prompt)
         self.assertNotIn("item_0001", correction_prompt)
-        self.assertNotRegex(correction_prompt, r"\b(?:citation|item)_\d{4}\b")
-        self.assertNotRegex(published, r"\b(?:citation|item)_\d{4}\b")
+        self.assertNotRegex(correction_prompt, r"\b(?:citation|item)_\d+\b")
+        self.assertNotRegex(published, r"\b(?:citation|item)_\d+\b")
 
     def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
         corpus, config, _projected, output = fixture_contract()

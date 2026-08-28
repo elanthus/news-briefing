@@ -397,16 +397,18 @@ class _ProductionParityAttempt:
 
 
 class _ProductionParityProviderError(RuntimeError):
-    """A failed stage plus provider calls completed earlier in the candidate."""
+    """A failed stage plus the completed portion of its candidate."""
 
     def __init__(
         self,
         cause: Exception,
         completed_calls: list[tuple[str, Generation]],
+        partial_attempt: _ProductionParityAttempt,
     ):
         super().__init__(str(cause))
         self.cause = cause
         self.completed_calls = completed_calls
+        self.partial_attempt = partial_attempt
 
 
 def _output_findings(findings: list[Any]) -> list[eval_briefing.Finding]:
@@ -584,7 +586,22 @@ def _production_parity_after_selection(
             prose_request, prose_schema, f"{trace_id}-prose"
         )
     except Exception as exc:
-        raise _ProductionParityProviderError(exc, calls) from exc
+        text, sections = _empty_structured_result(config)
+        partial_attempt = _ProductionParityAttempt(
+            generation=_combine_structured_calls(calls, selection),
+            text=text,
+            sections=sections,
+            findings=selection_findings,
+            selection=selection,
+            prose=None,
+            selected_evidence=selected_evidence,
+            prose_request=prose_request,
+            prose_schema=prose_schema,
+            correction_stage="prose",
+        )
+        raise _ProductionParityProviderError(
+            exc, calls, partial_attempt
+        ) from exc
     calls.append(("prose", prose_generation))
     prose = prose_generation.structured_output
     prose_findings = _output_findings(validate_prose_output(prose, config, selection))
@@ -1289,6 +1306,11 @@ _RUNNER_ARTIFACT_FILES = (
     "first-selected-evidence.json",
     "first-prose-request.txt",
     "first-prose-schema.json",
+    "correction-selection.json",
+    "correction-prose.json",
+    "correction-selected-evidence.json",
+    "correction-prose-request.txt",
+    "correction-prose-schema.json",
     "final-selection.json",
     "final-prose.json",
     "final-selected-evidence.json",
@@ -1349,6 +1371,19 @@ def _validate_checkpoint_artifacts(
     status = row.get("status")
     if status in {"provider_error", "skipped_circuit_open"}:
         required.append(case_dir / "error.json")
+        completed_calls = (
+            row.get("error", {}).get("completed_stage_calls")
+            if isinstance(row.get("error"), dict)
+            else None
+        )
+        if generation_path == "production-parity" and completed_calls:
+            required.extend([
+                case_dir / "first-selection.json",
+                case_dir / "first-prose.json",
+                case_dir / "first-selected-evidence.json",
+                case_dir / "first-prose-request.txt",
+                case_dir / "first-prose-schema.json",
+            ])
     elif status in {"completed", "completed_with_correction_error"}:
         if row.get("grounding_adjudication") != (
             f"{expected_artifact_dir}/grounding-adjudication.json"
@@ -1368,6 +1403,17 @@ def _validate_checkpoint_artifacts(
             ])
         if status == "completed_with_correction_error":
             required.append(case_dir / "correction-error.json")
+            correction_calls = row.get("correction_error", {}).get(
+                "completed_stage_calls"
+            )
+            if generation_path == "production-parity" and correction_calls:
+                required.extend([
+                    case_dir / "correction-selection.json",
+                    case_dir / "correction-prose.json",
+                    case_dir / "correction-selected-evidence.json",
+                    case_dir / "correction-prose-request.txt",
+                    case_dir / "correction-prose-schema.json",
+                ])
         semantic_path = row.get("semantic_adjudication")
         if semantic_path is not None:
             if semantic_path != f"{expected_artifact_dir}/semantic-adjudication.json":
@@ -1931,9 +1977,11 @@ def run_evaluation(
                     first = adapter.generate(request)
             except Exception as exc:
                 completed_calls: list[tuple[str, Generation]] = []
+                partial_attempt: _ProductionParityAttempt | None = None
                 provider_exc = exc
                 if isinstance(exc, _ProductionParityProviderError):
                     completed_calls = exc.completed_calls
+                    partial_attempt = exc.partial_attempt
                     provider_exc = exc.cause
                 if (
                     ceiling_applies
@@ -1948,6 +1996,10 @@ def run_evaluation(
                 error = _provider_error("first", provider_exc)
                 if completed_calls:
                     error["completed_stage_calls"] = _stage_call_records(completed_calls)
+                if partial_attempt is not None:
+                    _write_production_attempt_artifacts(
+                        case_dir, "first", partial_attempt
+                    )
                 consecutive_failures += 1
                 if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
                     circuit_reason = error
@@ -2050,9 +2102,11 @@ def run_evaluation(
                             )
                     except Exception as exc:
                         completed_calls = []
+                        partial_attempt = None
                         provider_exc = exc
                         if isinstance(exc, _ProductionParityProviderError):
                             completed_calls = exc.completed_calls
+                            partial_attempt = exc.partial_attempt
                             provider_exc = exc.cause
                         if (
                             ceiling_applies
@@ -2076,6 +2130,10 @@ def run_evaluation(
                         if completed_calls:
                             correction_error["completed_stage_calls"] = (
                                 _stage_call_records(completed_calls)
+                            )
+                        if partial_attempt is not None:
+                            _write_production_attempt_artifacts(
+                                case_dir, "correction", partial_attempt
                             )
                         _write_json_atomic(
                             case_dir / "correction-error.json", correction_error

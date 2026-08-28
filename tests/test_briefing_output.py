@@ -19,6 +19,7 @@ from agent_runner.output import (
     is_repairable_finding,
     project_corpus,
     project_selected_evidence,
+    redact_opaque_references,
     redact_destinations,
     redact_preview_value,
     render_briefing,
@@ -126,7 +127,7 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(visible_refs, list(projected.citations))
         self.assertEqual(len(visible_refs), retained_count)
         self.assertEqual(
-            len(re.findall(r"citation_\d{4}", rendered)),
+            len(re.findall(r"citation_\d+", rendered)),
             retained_count,
         )
         self.assertNotIn("item_", rendered)
@@ -299,7 +300,7 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(set(selection_fields), {"citation_refs"})
 
         evidence = project_selected_evidence(selection, projected)
-        self.assertNotRegex(json.dumps(evidence), r"\b(?:citation|item)_\d{4}\b")
+        self.assertNotRegex(json.dumps(evidence), r"\b(?:citation|item)_\d+\b")
         prose = detach_prose(output, config)
         prose_schema = build_prose_schema(config, selection)
         prose_fields = prose_schema["properties"]["sections"]["properties"][first_name][
@@ -331,7 +332,7 @@ class BriefingOutputTests(unittest.TestCase):
         first_ref = next(iter(projected.citations))
         self.assertIn(projected.citations[first_ref].article_url, briefing)
         self.assertNotIn(first_ref, briefing)
-        self.assertNotRegex(briefing, r"\b(?:citation|item)_\d{4}\b")
+        self.assertNotRegex(briefing, r"\b(?:citation|item)_\d+\b")
 
     def test_renderer_reports_undated_source_drops(self):
         corpus, config, projected, output = fixture_contract()
@@ -437,6 +438,83 @@ class BriefingOutputTests(unittest.TestCase):
         )
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("opaque_reference_in_prose", checks)
+
+    def test_opaque_references_wider_than_four_digits_are_blocking(self):
+        corpus = {
+            "schema_version": 1,
+            "generated_at": "2026-08-27T12:00:00+00:00",
+            "cutoff": "2026-08-26T12:00:00+00:00",
+            "window_hours": 24,
+            "categories": {
+                "dev_community": [
+                    {
+                        "title": f"Story {number}",
+                        "url": f"https://example.test/{number}",
+                    }
+                    for number in range(1, 10_001)
+                ]
+            },
+        }
+        config = briefing_config.parse_config({
+            "schema_version": 1,
+            "sections": [{
+                "name": "AI Dev Tools",
+                "group": None,
+                "target_stories": 1,
+                "corpus_categories": ["dev_community"],
+                "guidance": "Select one item.",
+                "excluded_stories": 0,
+            }],
+        })
+        projected = project_corpus(corpus)
+        self.assertIn("citation_10000", projected.citations)
+        self.assertEqual(
+            projected.citations["citation_10000"].item_ref,
+            "item_10000",
+        )
+        selection = {
+            "schema_version": 1,
+            "sections": {
+                "AI Dev Tools": {
+                    "topics": [{"citation_refs": ["citation_10000"]}]
+                }
+            },
+            "excluded_topics": {},
+        }
+        prose = {
+            "schema_version": 1,
+            "sections": {
+                "AI Dev Tools": {
+                    "topics": [{
+                        "headline": "Opaque citation_10000",
+                        "summary": "Opaque item_10000",
+                    }]
+                }
+            },
+            "excluded_topics": {},
+        }
+
+        prose_checks = {
+            finding.check
+            for finding in validate_prose_output(prose, config, selection)
+        }
+        output = attach_frozen_selection(selection, prose, config)
+        output_checks = {
+            finding.check
+            for finding in validate_output(output, config, projected.citations)
+        }
+
+        self.assertIn("opaque_reference_in_prose", prose_checks)
+        self.assertIn("opaque_reference_in_prose", output_checks)
+        redacted = redact_opaque_references(prose, include_citations=True)
+        self.assertNotIn("citation_10000", json.dumps(redacted))
+        self.assertNotIn("item_10000", json.dumps(redacted))
+        selection_redacted = redact_opaque_references(
+            {"message": "Keep citation_10000 but remove item_10000"},
+            include_citations=False,
+        )
+        self.assertIn("citation_10000", json.dumps(selection_redacted))
+        self.assertNotIn("item_10000", json.dumps(selection_redacted))
 
     def test_scheme_less_bare_domain_in_summary_is_allowed(self):
         # A bare "attacker.com/x" (no scheme, no "www.") is intentionally not a
@@ -933,7 +1011,7 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertTrue(tainted)
         evidence = eval_briefing.corpus_evidence(corpus)
         excerpt = self._cited_excerpt(projected, entry["citation_refs"], evidence)
-        self.assertRegex(excerpt, r"\b(?:citation|item)_\d{4}\b")
+        self.assertRegex(excerpt, r"\b(?:citation|item)_\d+\b")
         entry["summary"] = self._bloat(excerpt)
         original_entry = copy.deepcopy(entry)
 
@@ -946,7 +1024,7 @@ class BriefingOutputTests(unittest.TestCase):
         )
         self.assertNotRegex(
             repaired["sections"][first.name]["topics"][0]["summary"],
-            r"\b(?:citation|item)_\d{4}\b",
+            r"\b(?:citation|item)_\d+\b",
         )
         self.assertEqual(actions, [])
 
