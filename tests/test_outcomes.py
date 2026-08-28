@@ -57,6 +57,16 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(rejected.disposition, "rejected")
         self.assertEqual(rejected.evidence, "violated")
 
+        opaque = classify_outcome([
+            OutputFinding(
+                "ERROR",
+                "opaque_reference_in_prose",
+                "summary contains citation_0001",
+            )
+        ], [])
+        self.assertEqual(opaque.disposition, "rejected")
+        self.assertEqual(opaque.evidence, "violated")
+
     def test_schema_failure_keeps_evidence_unassessed(self):
         outcome = classify_outcome([
             OutputFinding("ERROR", "structured_missing_field", "reason missing")
@@ -72,6 +82,7 @@ class OutcomeTests(unittest.TestCase):
 
     def test_finding_domains_are_explicit(self):
         self.assertEqual(finding_domain("unknown_citation_ref"), "evidence")
+        self.assertEqual(finding_domain("opaque_reference_in_prose"), "evidence")
         self.assertEqual(finding_domain("structured_missing_field"), "schema")
         self.assertEqual(finding_domain("slots_underfilled"), "quality")
         self.assertEqual(finding_domain("unsupported_figure"), "quality")

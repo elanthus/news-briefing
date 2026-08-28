@@ -34,15 +34,16 @@ def build_audit_manifest(corpus: dict[str, Any], raw_corpus: bytes) -> dict[str,
     citations_by_item: dict[str, list[dict[str, str]]] = {}
     seen_urls_by_item: dict[str, set[tuple[str, str]]] = {}
     for citation in projected.citations.values():
-        canonical = corpus_schema.canonicalize_url(citation.url)
-        identity = (citation.kind, canonical)
-        seen = seen_urls_by_item.setdefault(citation.item_ref, set())
-        if identity in seen:
-            continue
-        seen.add(identity)
-        citations_by_item.setdefault(citation.item_ref, []).append(
-            {"kind": citation.kind, "url": canonical}
-        )
+        for destination in citation.destinations():
+            canonical = corpus_schema.canonicalize_url(destination.url)
+            identity = (destination.kind, canonical)
+            seen = seen_urls_by_item.setdefault(citation.item_ref, set())
+            if identity in seen:
+                continue
+            seen.add(identity)
+            citations_by_item.setdefault(citation.item_ref, []).append(
+                {"kind": destination.kind, "url": canonical}
+            )
 
     manifest_items: list[dict[str, Any]] = []
     projected_categories = projected.document["categories"]
@@ -51,9 +52,15 @@ def build_audit_manifest(corpus: dict[str, Any], raw_corpus: bytes) -> dict[str,
         if not isinstance(projected_items, list) or len(projected_items) != len(raw_items):
             raise AssertionError("model projection changed corpus item membership")
         for raw_item, projected_item in zip(raw_items, projected_items, strict=True):
-            item_id = projected_item.get("item_ref")
-            if not isinstance(item_id, str):
-                raise AssertionError("model projection omitted an item reference")
+            citation_ref = projected_item.get("citation_ref")
+            projected_citation = (
+                projected.citations.get(citation_ref)
+                if isinstance(citation_ref, str)
+                else None
+            )
+            if projected_citation is None:
+                raise AssertionError("model projection omitted a citation reference")
+            item_id = projected_citation.item_ref
             excerpt = raw_item.get("summary")
             manifest_items.append(
                 {

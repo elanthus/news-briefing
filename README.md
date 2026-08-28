@@ -45,9 +45,9 @@ That last row is the point. The project publishes what it can prove and refuses 
 
 ### The citation-projection trick
 
-Before generation, each corpus item is projected into untrusted evidence text plus an opaque identifier. The real URLs live in a code-owned map the model never receives. Each section's JSON Schema enumerates only the citation IDs eligible for that section, and any free-form output field containing a web destination fails validation.
+Before generation, each corpus item is projected into untrusted evidence text plus exactly one opaque citation identifier. The model-visible sequence is item-aligned even when an item has both article and discussion destinations; both real URLs live together in a code-owned map the model never receives. Internal item IDs are not exposed to the model. Each section's JSON Schema enumerates only the citation IDs eligible for that section, and any free-form output field containing a web destination or opaque reference token fails validation.
 
-This converts URL grounding from *"check the model's links afterwards"* into *"the model cannot author a link that survives validation."* It can still emit a URL into a prose field — nothing stops it from typing characters — but that field is checked against the same code-owned allowlist, and a model-authored destination fails the run rather than reaching a reader. Rendering then expands each selected ID to all its code-owned destinations — so a Hacker News story automatically carries its discussion link, and cannot omit it.
+This converts URL grounding from *"check the model's links afterwards"* into *"the model cannot author a link that survives validation."* It can still emit a URL or handle into a prose field — nothing stops it from typing characters — but deterministic validation rejects either violation and gives the bounded correction loop a chance to replace the candidate. Rendering then expands each selected ID to all its code-owned destinations — so a Hacker News story automatically carries its discussion link, and cannot omit it.
 
 ---
 

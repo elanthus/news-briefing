@@ -192,6 +192,67 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(result.selected_model, "tencent/hy3")
         self.assertEqual(len(log["attempts"]), 1)
 
+    def test_uncorrected_opaque_reference_advances_to_fallback_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self._settings(root)
+            seen: list[str] = []
+
+            def fake_run(provider, run_settings, run_dir):
+                seen.append(provider.model)
+                run_dir.mkdir(parents=True)
+                if provider.model == PRODUCTION_MODEL_CHAIN[0].model:
+                    preview = run_dir / "preview.md"
+                    preview.write_text("quarantined candidate\n", encoding="utf-8")
+                    (run_dir / "manifest.json").write_text(
+                        json.dumps({
+                            "status": "complete",
+                            "final": {
+                                "status": "rejected",
+                                "findings": [{
+                                    "check": "opaque_reference_in_prose",
+                                    "message": "summary contains citation_0042",
+                                }],
+                            },
+                        }),
+                        encoding="utf-8",
+                    )
+                    return RunResult(1, run_dir, preview, "rejected")
+
+                content = b"fallback without opaque handles\n"
+                (run_dir / "final.md").write_bytes(content)
+                run_settings.output_path.write_bytes(content)
+                digest = hashlib.sha256(content).hexdigest()
+                (run_dir / "manifest.json").write_text(
+                    json.dumps({
+                        "status": "complete",
+                        "artifacts": {"final.md": digest},
+                        "final": {
+                            "status": "ready",
+                            "artifact_type": "final",
+                            "run_artifact": "final.md",
+                            "output_sha256": digest,
+                        },
+                    }),
+                    encoding="utf-8",
+                )
+                return RunResult(0, run_dir, run_settings.output_path, "ready")
+
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = run_fallback_chain(settings, root / "run", max_tokens=20_000)
+            log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(seen, [candidate.model for candidate in PRODUCTION_MODEL_CHAIN[:2]])
+        self.assertIn(
+            "opaque_reference_in_prose",
+            log["attempts"][0]["failure_reason"],
+        )
+
     def test_ready_status_with_missing_artifacts_advances_to_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
