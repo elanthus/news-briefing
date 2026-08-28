@@ -1,6 +1,6 @@
 # Low claim/evidence overlap diagnostic
 
-`low_claim_evidence_overlap` is a deliberately narrow, nonblocking quality warning. It reports a topic only when both the model claim and its cited excerpts contain at least eight distinctive lexical terms, fewer than two terms overlap, and overlap is at most 12% of the claim terms. It is a triage signal, not a claim that semantic entailment failed: paraphrase and named-entity variation remain outside deterministic proof.
+`low_claim_evidence_overlap` is a deliberately narrow, nonblocking quality warning. It reports a topic only when both the model claim and its cited excerpts contain at least eight distinctive lexical terms, fewer than two terms overlap, and overlap is at most 8% of the claim terms. The 8% ceiling independently constrains the diagnostic: a one-term match needs at least 13 claim terms, while a zero-term match can still qualify at the eight-term minimum. It is a triage signal, not a claim that semantic entailment failed: paraphrase and named-entity variation remain outside deterministic proof.
 
 ## Predefined promotion gate
 

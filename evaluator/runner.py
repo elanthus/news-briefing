@@ -11,6 +11,7 @@ import secrets
 import subprocess
 from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -21,10 +22,18 @@ import eval_briefing
 from agent_runner.output import (
     Citation,
     ModelCorpus,
-    build_output_schema,
+    attach_frozen_selection,
+    build_prose_schema,
+    build_selection_schema,
     project_corpus,
+    project_selected_evidence,
     render_briefing,
     validate_output,
+    validate_prose_output,
+    validate_selection,
+)
+from agent_runner.runner import (
+    build_prose_request as structured_prose_request,
 )
 from agent_runner.runner import (
     build_request as structured_model_request,
@@ -33,7 +42,7 @@ from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
 
-from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
+from evaluator.adapters import Adapter, Generation, ProviderRequestError, is_transient_provider_error
 from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
 from evaluator.metrics import latency_summary, rate
 
@@ -369,6 +378,329 @@ def _evaluate_structured_generation(
     sections = eval_briefing.parse_briefing(rendered, config)
     findings.extend(eval_briefing.evaluate_parsed(corpus, rendered, sections, config))
     return rendered, sections, findings
+
+
+@dataclass(frozen=True)
+class _ProductionParityAttempt:
+    """One evaluator candidate assembled from production's staged contract."""
+
+    generation: Generation
+    text: str
+    sections: dict[str, eval_briefing.Section]
+    findings: list[eval_briefing.Finding]
+    selection: dict[str, Any] | None
+    prose: dict[str, Any] | None
+    selected_evidence: dict[str, Any] | None
+    prose_request: str | None
+    prose_schema: dict[str, Any] | None
+    correction_stage: str
+
+
+def _output_findings(findings: list[Any]) -> list[eval_briefing.Finding]:
+    return [
+        eval_briefing.Finding(finding.level, finding.check, finding.message)
+        for finding in findings
+    ]
+
+
+def _production_selection_findings(
+    selection: Any,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> list[eval_briefing.Finding]:
+    """Apply the selection checks used by the scheduled production runner."""
+    findings = _output_findings(validate_selection(selection, config, citations))
+    if any(finding.level == eval_briefing.ERROR for finding in findings):
+        return findings
+    if not isinstance(selection, dict):
+        return findings
+
+    used_items = {
+        citations[ref].item_ref
+        for section_value in selection["sections"].values()
+        for entry in section_value["topics"]
+        for ref in entry["citation_refs"]
+    } | {
+        citations[ref].item_ref
+        for entries in selection["excluded_topics"].values()
+        for entry in entries
+        for ref in entry["citation_refs"]
+    }
+    for section in config.sections:
+        if selection["sections"][section.name]["topics"]:
+            continue
+        unused_eligible = {
+            citation.item_ref
+            for citation in citations.values()
+            if citation.category in section.corpus_categories
+            and citation.item_ref not in used_items
+        }
+        if unused_eligible:
+            findings.append(eval_briefing.Finding(
+                eval_briefing.ERROR,
+                "slots_underfilled",
+                f"{section.name}: 0 topics, expected {section.target_stories}; "
+                f"{len(unused_eligible)} unused eligible corpus item(s) remain",
+            ))
+    return findings
+
+
+def _sum_reported_int(values: list[int | None]) -> int | None:
+    if any(value is None for value in values):
+        return None
+    return sum(value for value in values if value is not None)
+
+
+def _sum_reported_float(values: list[float | None]) -> float | None:
+    if any(value is None for value in values):
+        return None
+    return sum(value for value in values if value is not None)
+
+
+def _combine_structured_calls(
+    calls: list[tuple[str, Generation]],
+    structured_output: dict[str, Any] | None,
+) -> Generation:
+    """Represent one staged candidate without hiding its actual provider calls."""
+    if not calls:
+        raise ValueError("a production-parity candidate requires at least one provider call")
+    cost_notes = list(dict.fromkeys(
+        generation.cost_note
+        for _stage, generation in calls
+        if generation.cost_note
+    ))
+    return Generation(
+        text=calls[-1][1].text,
+        latency_ms=sum(generation.latency_ms for _stage, generation in calls),
+        input_tokens=_sum_reported_int([
+            generation.input_tokens for _stage, generation in calls
+        ]),
+        output_tokens=_sum_reported_int([
+            generation.output_tokens for _stage, generation in calls
+        ]),
+        cost_usd=_sum_reported_float([
+            generation.cost_usd for _stage, generation in calls
+        ]),
+        cost_note="; ".join(cost_notes) or None,
+        provider_request_id=(
+            calls[0][1].provider_request_id if len(calls) == 1 else None
+        ),
+        usage={
+            "production_parity_calls": [
+                {"stage": stage, **generation.record()}
+                for stage, generation in calls
+            ]
+        },
+        attempts=sum(generation.attempts for _stage, generation in calls),
+        structured_output=structured_output,
+    )
+
+
+def _empty_structured_result(
+    config: briefing_config.BriefingConfig,
+) -> tuple[str, dict[str, eval_briefing.Section]]:
+    return "", eval_briefing.parse_briefing("", config)
+
+
+def _production_parity_after_selection(
+    *,
+    adapter: Adapter,
+    calls: list[tuple[str, Generation]],
+    selection_generation: Generation,
+    policy: str,
+    config_data: dict[str, Any],
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    projected: ModelCorpus,
+    trace_id: str,
+) -> _ProductionParityAttempt:
+    selection = selection_generation.structured_output
+    selection_findings = _production_selection_findings(
+        selection, config, projected.citations
+    )
+    if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
+        text, sections = _empty_structured_result(config)
+        return _ProductionParityAttempt(
+            generation=_combine_structured_calls(
+                calls, selection if isinstance(selection, dict) else None
+            ),
+            text=text,
+            sections=sections,
+            findings=selection_findings,
+            selection=selection if isinstance(selection, dict) else None,
+            prose=None,
+            selected_evidence=None,
+            prose_request=None,
+            prose_schema=None,
+            correction_stage="selection",
+        )
+    if not isinstance(selection, dict):
+        raise AssertionError("valid selection must be an object")
+
+    selected_evidence = project_selected_evidence(selection, projected)
+    prose_request = structured_prose_request(policy, config_data, selected_evidence)
+    prose_schema = build_prose_schema(config, selection)
+    prose_generation = adapter.generate_structured(
+        prose_request, prose_schema, f"{trace_id}-prose"
+    )
+    calls.append(("prose", prose_generation))
+    prose = prose_generation.structured_output
+    prose_findings = _output_findings(validate_prose_output(prose, config, selection))
+    complete_output = attach_frozen_selection(selection, prose, config)
+    combined = _combine_structured_calls(calls, complete_output)
+    if any(finding.level == eval_briefing.ERROR for finding in prose_findings):
+        text, sections = _empty_structured_result(config)
+        findings = prose_findings
+    else:
+        text, sections, findings = _evaluate_structured_generation(
+            combined, corpus, config, projected.citations
+        )
+    return _ProductionParityAttempt(
+        generation=combined,
+        text=text,
+        sections=sections,
+        findings=findings,
+        selection=selection,
+        prose=prose if isinstance(prose, dict) else None,
+        selected_evidence=selected_evidence,
+        prose_request=prose_request,
+        prose_schema=prose_schema,
+        correction_stage="prose",
+    )
+
+
+def _production_parity_first_attempt(
+    *,
+    adapter: Adapter,
+    selection_request: str,
+    selection_schema: dict[str, Any],
+    policy: str,
+    config_data: dict[str, Any],
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    projected: ModelCorpus,
+    trace_id: str,
+) -> _ProductionParityAttempt:
+    selection_generation = adapter.generate_structured(
+        selection_request, selection_schema, f"{trace_id}-selection"
+    )
+    return _production_parity_after_selection(
+        adapter=adapter,
+        calls=[("selection", selection_generation)],
+        selection_generation=selection_generation,
+        policy=policy,
+        config_data=config_data,
+        corpus=corpus,
+        config=config,
+        projected=projected,
+        trace_id=trace_id,
+    )
+
+
+def _production_parity_correction_attempt(
+    *,
+    adapter: Adapter,
+    prior: _ProductionParityAttempt,
+    selection_request: str,
+    selection_schema: dict[str, Any],
+    policy: str,
+    config_data: dict[str, Any],
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    projected: ModelCorpus,
+    trace_id: str,
+) -> _ProductionParityAttempt:
+    finding_records = [finding._asdict() for finding in prior.findings]
+    if prior.correction_stage == "selection":
+        correction_prompt = structured_correction_request(
+            selection_request,
+            prior.selection or {},
+            finding_records,
+        )
+        selection_generation = adapter.generate_structured(
+            correction_prompt,
+            selection_schema,
+            f"{trace_id}-selection-correction",
+        )
+        return _production_parity_after_selection(
+            adapter=adapter,
+            calls=[("selection_correction", selection_generation)],
+            selection_generation=selection_generation,
+            policy=policy,
+            config_data=config_data,
+            corpus=corpus,
+            config=config,
+            projected=projected,
+            trace_id=f"{trace_id}-after-selection-correction",
+        )
+
+    if (
+        prior.selection is None
+        or prior.prose_request is None
+        or prior.prose_schema is None
+    ):
+        raise AssertionError("prose correction requires a frozen selection and prose contract")
+    correction_prompt = structured_correction_request(
+        prior.prose_request,
+        prior.prose or {},
+        finding_records,
+        prose_only=True,
+    )
+    prose_generation = adapter.generate_structured(
+        correction_prompt,
+        prior.prose_schema,
+        f"{trace_id}-prose-correction",
+    )
+    prose = prose_generation.structured_output
+    prose_findings = _output_findings(
+        validate_prose_output(prose, config, prior.selection)
+    )
+    complete_output = attach_frozen_selection(prior.selection, prose, config)
+    combined = _combine_structured_calls(
+        [("prose_correction", prose_generation)], complete_output
+    )
+    if any(finding.level == eval_briefing.ERROR for finding in prose_findings):
+        text, sections = _empty_structured_result(config)
+        findings = prose_findings
+    else:
+        text, sections, findings = _evaluate_structured_generation(
+            combined, corpus, config, projected.citations
+        )
+    return _ProductionParityAttempt(
+        generation=combined,
+        text=text,
+        sections=sections,
+        findings=findings,
+        selection=prior.selection,
+        prose=prose if isinstance(prose, dict) else None,
+        selected_evidence=prior.selected_evidence,
+        prose_request=prior.prose_request,
+        prose_schema=prior.prose_schema,
+        correction_stage="prose",
+    )
+
+
+def _write_production_attempt_artifacts(
+    case_dir: Path,
+    prefix: str,
+    attempt: _ProductionParityAttempt,
+) -> None:
+    """Preserve each stage so prompt/schema compatibility can be audited."""
+    _write_json_atomic(case_dir / f"{prefix}-selection.json", attempt.selection)
+    _write_json_atomic(case_dir / f"{prefix}-prose.json", attempt.prose)
+    if attempt.selected_evidence is not None:
+        _write_json_atomic(
+            case_dir / f"{prefix}-selected-evidence.json",
+            attempt.selected_evidence,
+        )
+    if attempt.prose_request is not None:
+        _write_text_atomic(
+            case_dir / f"{prefix}-prose-request.txt", attempt.prose_request
+        )
+    if attempt.prose_schema is not None:
+        _write_json_atomic(
+            case_dir / f"{prefix}-prose-schema.json", attempt.prose_schema
+        )
 
 
 def _topic_routes(
@@ -903,12 +1235,23 @@ _RUNNER_ARTIFACT_FILES = (
     "model-corpus.json",
     "citation-map.json",
     "output-schema.json",
+    "selection-schema.json",
     "error.json",
     "correction-error.json",
     "first.md",
     "final.md",
     "first-structured.json",
     "final-structured.json",
+    "first-selection.json",
+    "first-prose.json",
+    "first-selected-evidence.json",
+    "first-prose-request.txt",
+    "first-prose-schema.json",
+    "final-selection.json",
+    "final-prose.json",
+    "final-selected-evidence.json",
+    "final-prose-request.txt",
+    "final-prose-schema.json",
     "grounding-adjudication.json",
     "semantic-adjudication.json",
 )
@@ -959,6 +1302,7 @@ def _validate_checkpoint_artifacts(
             case_dir / "model-corpus.json",
             case_dir / "citation-map.json",
             case_dir / "output-schema.json",
+            case_dir / "selection-schema.json",
         ])
     status = row.get("status")
     if status in {"provider_error", "skipped_circuit_open"}:
@@ -1457,10 +1801,10 @@ def run_evaluation(
             config_data = _json(config_path)
             config = briefing_config.load_config(config_path)
             projected: ModelCorpus | None = None
-            output_schema: dict[str, Any] | None = None
+            selection_schema: dict[str, Any] | None = None
             if generation_path == "production-parity":
                 projected = project_corpus(corpus)
-                output_schema = build_output_schema(config, projected.citations)
+                selection_schema = build_selection_schema(config, projected.citations)
                 request = structured_model_request(prompt, config_data, projected)
             else:
                 request = model_request(prompt, config_data, corpus)
@@ -1469,13 +1813,16 @@ def run_evaluation(
             _prepare_artifact_dir(case_dir, resume=resume_manifest is not None)
             _write_json_atomic(case_dir / "corpus.json", corpus)
             _write_text_atomic(case_dir / "request.txt", request)
-            if projected is not None and output_schema is not None:
+            if projected is not None and selection_schema is not None:
                 _write_json_atomic(case_dir / "model-corpus.json", projected.document)
                 _write_json_atomic(
                     case_dir / "citation-map.json",
                     {ref: citation.__dict__ for ref, citation in projected.citations.items()},
                 )
-                _write_json_atomic(case_dir / "output-schema.json", output_schema)
+                # Keep output-schema.json as a compatibility alias for older
+                # tooling, but make its first-pass role explicit as well.
+                _write_json_atomic(case_dir / "output-schema.json", selection_schema)
+                _write_json_atomic(case_dir / "selection-schema.json", selection_schema)
             base_result = _base_result(
                 adapter,
                 prompt_version,
@@ -1522,9 +1869,22 @@ def run_evaluation(
                 continue
             try:
                 if generation_path == "production-parity":
-                    if output_schema is None:
-                        raise AssertionError("production-parity output schema was not built")
-                    first = adapter.generate_structured(request, output_schema, safe_key)
+                    if projected is None or selection_schema is None:
+                        raise AssertionError(
+                            "production-parity projection and selection schema were not built"
+                        )
+                    parity_first = _production_parity_first_attempt(
+                        adapter=adapter,
+                        selection_request=request,
+                        selection_schema=selection_schema,
+                        policy=prompt,
+                        config_data=config_data,
+                        corpus=corpus,
+                        config=config,
+                        projected=projected,
+                        trace_id=safe_key,
+                    )
+                    first = parity_first.generation
                 else:
                     first = adapter.generate(request)
             except Exception as exc:
@@ -1564,11 +1924,10 @@ def run_evaluation(
                 observed_ceiling_cost_usd += first.cost_usd
                 manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
             if generation_path == "production-parity":
-                if projected is None:
-                    raise AssertionError("production-parity corpus projection was not built")
-                first_text, first_sections, before = _evaluate_structured_generation(
-                    first, corpus, config, projected.citations
-                )
+                first_text = parity_first.text
+                first_sections = parity_first.sections
+                before = parity_first.findings
+                _write_production_attempt_artifacts(case_dir, "first", parity_first)
             else:
                 first_text = first.text
                 first_sections = eval_briefing.parse_briefing(first_text, config)
@@ -1585,6 +1944,7 @@ def run_evaluation(
             # measurements rather than leaking them into a repair turn.
             needs_correction = not first_contract
             corrected = None
+            parity_corrected: _ProductionParityAttempt | None = None
             correction_error = None
             if needs_correction:
                 if (
@@ -1605,20 +1965,24 @@ def run_evaluation(
                     try:
                         finding_records = [finding._asdict() for finding in before]
                         if generation_path == "production-parity":
-                            if output_schema is None:
+                            if projected is None or selection_schema is None:
                                 raise AssertionError(
-                                    "production-parity output schema was not built"
+                                    "production-parity projection and selection schema "
+                                    "were not built"
                                 )
-                            correction_prompt = structured_correction_request(
-                                request,
-                                first.structured_output or {},
-                                finding_records,
+                            parity_corrected = _production_parity_correction_attempt(
+                                adapter=adapter,
+                                prior=parity_first,
+                                selection_request=request,
+                                selection_schema=selection_schema,
+                                policy=prompt,
+                                config_data=config_data,
+                                corpus=corpus,
+                                config=config,
+                                projected=projected,
+                                trace_id=safe_key,
                             )
-                            corrected = adapter.generate_structured(
-                                correction_prompt,
-                                output_schema,
-                                f"{safe_key}-correction",
-                            )
+                            corrected = parity_corrected.generation
                         else:
                             corrected = adapter.generate(correction_request(
                                 request,
@@ -1657,13 +2021,11 @@ def run_evaluation(
                 final_grounding_errors = first_grounding_errors
             else:
                 if generation_path == "production-parity":
-                    if projected is None:
-                        raise AssertionError(
-                            "production-parity corpus projection was not built"
-                        )
-                    final_text, final_sections, after = _evaluate_structured_generation(
-                        corrected, corpus, config, projected.citations
-                    )
+                    if parity_corrected is None:
+                        raise AssertionError("production-parity correction was not evaluated")
+                    final_text = parity_corrected.text
+                    final_sections = parity_corrected.sections
+                    after = parity_corrected.findings
                 else:
                     final_text = corrected.text
                     final_sections = eval_briefing.parse_briefing(final_text, config)
@@ -1681,6 +2043,8 @@ def run_evaluation(
             _write_text_atomic(case_dir / "first.md", first_text)
             _write_text_atomic(case_dir / "final.md", final_text)
             if generation_path == "production-parity":
+                parity_final = parity_corrected or parity_first
+                _write_production_attempt_artifacts(case_dir, "final", parity_final)
                 _write_json_atomic(
                     case_dir / "first-structured.json", first.structured_output
                 )
@@ -1758,14 +2122,21 @@ def _completed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
     """Return records for provider calls, including failed calls that may be billed."""
+    def expand(record: dict[str, Any]) -> list[dict[str, Any]]:
+        usage = record.get("usage")
+        staged = usage.get("production_parity_calls") if isinstance(usage, dict) else None
+        if isinstance(staged, list) and all(isinstance(call, dict) for call in staged):
+            return staged
+        return [record]
+
     calls = []
     if isinstance(row.get("first"), dict):
-        calls.append(row["first"])
+        calls.extend(expand(row["first"]))
     elif row.get("status") == "provider_error" and isinstance(row.get("error"), dict):
         calls.append(row["error"])
 
     if isinstance(row.get("correction"), dict):
-        calls.append(row["correction"])
+        calls.extend(expand(row["correction"]))
     elif (
         isinstance(row.get("correction_error"), dict)
         and row["correction_error"].get("type") != "CostCeilingReached"

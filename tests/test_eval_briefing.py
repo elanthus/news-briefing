@@ -1006,6 +1006,32 @@ class ClaimGroundingTest(unittest.TestCase):
                     "low_claim_evidence_overlap", checks(evaluate(CORPUS, text), WARN)
                 )
 
+    def test_low_overlap_ratio_independently_constrains_one_term_matches(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0].update(
+            title="Orchard irrigation sensors improve drought planning",
+            summary=(
+                "Growers used soil moisture telemetry to schedule watering and preserve crops."
+            ),
+        )
+        claim_12 = (
+            "**Orchard banking merger reshapes insurance markets** — "
+            "Satellite lenders consolidated pension underwriting exchanges."
+        )
+        claim_13 = claim_12.replace("underwriting exchanges", "underwriting regional exchanges")
+        self.assertEqual(len(eval_briefing._overlap_terms(claim_12)), 12)
+        self.assertEqual(len(eval_briefing._overlap_terms(claim_13)), 13)
+
+        for claim, expected in ((claim_12, False), (claim_13, True)):
+            with self.subTest(claim=claim):
+                text = briefing().replace(
+                    "**Politics topic 1** — summary text here.", claim
+                )
+                self.assertEqual(
+                    "low_claim_evidence_overlap" in checks(evaluate(corpus, text), WARN),
+                    expected,
+                )
+
     def test_a_topic_with_no_resolvable_evidence_is_skipped(self):
         """Ungrounded links are already an ERROR; don't double-report them."""
         text = briefing(extra_link="https://ex.com/unknown")

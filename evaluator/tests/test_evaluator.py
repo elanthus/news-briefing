@@ -1527,22 +1527,40 @@ class StructuredFakeAdapter(Adapter):
     ) -> Generation:
         self.requests.append(prompt)
         self.schemas.append(output_schema)
-        output = {
-            "schema_version": 1,
-            "sections": {
-                "AI Dev Tools": {
-                    "topics": [{
-                        "headline": "Tiny MCP server for local notes",
-                        "summary": (
-                            "A small MCP server stores local notes and exposes search and "
-                            "retrieval tools."
-                        ),
-                        "citation_refs": ["citation_0001"],
-                    }]
-                }
-            },
-            "excluded_topics": {},
-        }
+        topic_schema = output_schema["properties"]["sections"]["properties"][
+            "AI Dev Tools"
+        ]["properties"]["topics"]["items"]
+        required = set(topic_schema["required"])
+        if required == {"citation_refs"}:
+            self.assert_selection_contract(prompt, topic_schema)
+            output = {
+                "schema_version": 1,
+                "sections": {
+                    "AI Dev Tools": {
+                        "topics": [{"citation_refs": ["citation_0001"]}]
+                    }
+                },
+                "excluded_topics": {},
+            }
+        elif required == {"headline", "summary"}:
+            self.assert_prose_contract(prompt, topic_schema)
+            output = {
+                "schema_version": 1,
+                "sections": {
+                    "AI Dev Tools": {
+                        "topics": [{
+                            "headline": "Tiny MCP server for local notes",
+                            "summary": (
+                                "A small MCP server stores local notes and exposes search and "
+                                "retrieval tools."
+                            ),
+                        }]
+                    }
+                },
+                "excluded_topics": {},
+            }
+        else:
+            raise AssertionError(f"unexpected structured contract: {sorted(required)}")
         return Generation(
             text=json.dumps(output),
             structured_output=output,
@@ -1550,6 +1568,19 @@ class StructuredFakeAdapter(Adapter):
             input_tokens=50,
             output_tokens=20,
         )
+
+    def assert_selection_contract(
+        self, prompt: str, topic_schema: dict[str, Any]
+    ) -> None:
+        assert "--- SELECTION PASS ---" in prompt
+        assert "headline" not in topic_schema["properties"]
+        assert "summary" not in topic_schema["properties"]
+
+    def assert_prose_contract(
+        self, prompt: str, topic_schema: dict[str, Any]
+    ) -> None:
+        assert "--- PROSE PASS ---" in prompt
+        assert "citation_refs" not in topic_schema["properties"]
 
 
 class RepairingStructuredFakeAdapter(StructuredFakeAdapter):
@@ -1564,6 +1595,27 @@ class RepairingStructuredFakeAdapter(StructuredFakeAdapter):
         output["sections"]["AI Dev Tools"]["topics"][0]["citation_refs"] = [
             "citation_9999"
         ]
+        return Generation(
+            text=json.dumps(output),
+            structured_output=output,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+        )
+
+
+class RepairingProseStructuredFakeAdapter(StructuredFakeAdapter):
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        generation = super().generate_structured(prompt, output_schema, trace_id)
+        if len(self.requests) != 2:
+            return generation
+        output = copy.deepcopy(generation.structured_output)
+        assert output is not None
+        output["sections"]["AI Dev Tools"]["topics"][0]["summary"] = (
+            "Opaque citation_0001 leaked into prose."
+        )
         return Generation(
             text=json.dumps(output),
             structured_output=output,
@@ -1990,16 +2042,31 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(manifest["schema_version"], 9)
             self.assertEqual(manifest["generation_path"], "production-parity")
             self.assertEqual(report["operations"]["run_status"], "complete")
-            self.assertEqual(len(adapter.requests), 1)
-            request = adapter.requests[0]
-            self.assertIn("--- UNTRUSTED PROJECTED CORPUS (JSON) ---", request)
-            self.assertNotIn('"points"', request)
-            self.assertNotIn('"comments"', request)
-            self.assertNotIn("https://news.ycombinator.com/item?id=90000001", request)
-            schema_version = adapter.schemas[0]["properties"]["schema_version"]
-            self.assertEqual(schema_version["type"], "integer")
-            self.assertEqual(schema_version["minimum"], 1)
-            self.assertEqual(schema_version["maximum"], 1)
+            self.assertEqual(
+                report["operations"]["groups"][0]["cost"]["unreported_calls"], 2
+            )
+            self.assertEqual(len(adapter.requests), 2)
+            selection_request, prose_request = adapter.requests
+            self.assertIn(
+                "--- UNTRUSTED PROJECTED CORPUS (JSON) ---", selection_request
+            )
+            self.assertNotIn('"points"', selection_request)
+            self.assertNotIn('"comments"', selection_request)
+            self.assertNotIn(
+                "https://news.ycombinator.com/item?id=90000001", selection_request
+            )
+            self.assertIn("--- FROZEN POSITION-SCOPED EVIDENCE (JSON) ---", prose_request)
+            self.assertNotIn("citation_0001", prose_request)
+
+            selection_topic = adapter.schemas[0]["properties"]["sections"][
+                "properties"
+            ]["AI Dev Tools"]["properties"]["topics"]["items"]
+            prose_topic = adapter.schemas[1]["properties"]["sections"]["properties"][
+                "AI Dev Tools"
+            ]["properties"]["topics"]["items"]
+            self.assertEqual(selection_topic["required"], ["citation_refs"])
+            self.assertEqual(set(prose_topic["required"]), {"headline", "summary"})
+            self.assertNotIn("citation_refs", prose_topic["properties"])
 
             artifact = output / manifest["results"][0]["artifact_dir"]
             rendered = (artifact / "first.md").read_text(encoding="utf-8")
@@ -2009,6 +2076,9 @@ class RunnerTest(unittest.TestCase):
             self.assertNotIn("42", rendered)
             self.assertNotIn("7 comments", rendered)
             self.assertTrue((artifact / "output-schema.json").exists())
+            self.assertTrue((artifact / "selection-schema.json").exists())
+            self.assertTrue((artifact / "first-prose-schema.json").exists())
+            self.assertTrue((artifact / "first-selected-evidence.json").exists())
             self.assertTrue((artifact / "first-structured.json").exists())
 
     def test_production_parity_correction_repairs_structured_output_before_rendering(self) -> None:
@@ -2030,20 +2100,58 @@ class RunnerTest(unittest.TestCase):
             row = manifest["results"][0]
             artifact = output / row["artifact_dir"]
             self.assertTrue(row["correction_attempted"])
-            self.assertEqual(len(adapter.requests), 2)
+            self.assertEqual(len(adapter.requests), 3)
             self.assertEqual((artifact / "first.md").read_text(encoding="utf-8"), "")
-            self.assertIn("citation_9999", adapter.requests[1])
+            corrected_selection_topic = adapter.schemas[1]["properties"]["sections"][
+                "properties"
+            ]["AI Dev Tools"]["properties"]["topics"]["items"]
+            self.assertEqual(corrected_selection_topic["required"], ["citation_refs"])
+            self.assertIn("replacement selection JSON object", adapter.requests[1])
+            self.assertIn("--- PROSE PASS ---", adapter.requests[2])
             self.assertIn(
                 "https://news.ycombinator.com/item?id=90000001",
                 (artifact / "final.md").read_text(encoding="utf-8"),
             )
+
+    def test_production_parity_prose_correction_keeps_the_frozen_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            adapter = RepairingProseStructuredFakeAdapter("fixture")
+
+            run_evaluation(
+                [adapter],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row = manifest["results"][0]
+            artifact = output / row["artifact_dir"]
+            self.assertTrue(row["correction_attempted"])
+            self.assertEqual(len(adapter.requests), 3)
+            corrected_prose_topic = adapter.schemas[2]["properties"]["sections"][
+                "properties"
+            ]["AI Dev Tools"]["properties"]["topics"]["items"]
+            self.assertEqual(
+                set(corrected_prose_topic["required"]), {"headline", "summary"}
+            )
+            self.assertNotIn("citation_refs", corrected_prose_topic["properties"])
+            self.assertIn("replacement prose JSON object", adapter.requests[2])
+            self.assertNotIn("citation_0001 leaked", adapter.requests[2])
+            self.assertNotIn("citation_", (artifact / "final.md").read_text(encoding="utf-8"))
 
     def test_production_parity_resume_requires_structured_artifacts(self) -> None:
         class InterruptSecondStructuredCall(StructuredFakeAdapter):
             def generate_structured(
                 self, prompt: str, output_schema: dict[str, Any], trace_id: str
             ) -> Generation:
-                if len(self.requests) == 1:
+                # A complete production-parity case makes selection and prose
+                # calls. Interrupt the selection call for the second case.
+                if len(self.requests) == 2:
                     raise KeyboardInterrupt("simulated structured interruption")
                 return super().generate_structured(prompt, output_schema, trace_id)
 

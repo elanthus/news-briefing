@@ -981,7 +981,10 @@ _TITLE_STOP_WORDS = frozenset({
 LOW_OVERLAP_MIN_CLAIM_TERMS = 8
 LOW_OVERLAP_MIN_SUPPORT_TERMS = 8
 LOW_OVERLAP_MIN_SHARED_TERMS = 2
-LOW_OVERLAP_MAX_CLAIM_RATIO = 0.12
+# Keep this below 1 / MIN_CLAIM_TERMS. With fewer than two shared
+# terms, a 12% ceiling was redundant for every case except 1/8; 8% makes
+# the ratio independently constrain one-term matches (1/8 through 1/12).
+LOW_OVERLAP_MAX_CLAIM_RATIO = 0.08
 _OVERLAP_STOP_WORDS = _TITLE_STOP_WORDS | frozenset({
     "after", "also", "are", "been", "being", "but", "can", "could", "did",
     "does", "has", "have", "how", "its", "may", "more", "new", "not", "now",
