@@ -245,7 +245,10 @@ def project_selected_evidence(
             for name, entries in selection["excluded_topics"].items()
         },
     }
-    redacted = redact_destinations(document)
+    redacted = redact_opaque_references(
+        redact_destinations(document),
+        include_citations=True,
+    )
     if not isinstance(redacted, dict):
         raise AssertionError("selected evidence projection must be an object")
     return redacted

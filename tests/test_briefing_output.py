@@ -324,6 +324,29 @@ class BriefingOutputTests(unittest.TestCase):
             selection["sections"][first_name]["topics"][0]["citation_refs"],
         )
 
+    def test_selected_evidence_redacts_opaque_references_from_corpus_text(self):
+        _corpus, _config, projected, _output = fixture_contract()
+        selected_ref = next(iter(projected.citations))
+        selected_item = next(
+            item
+            for items in projected.document["categories"].values()
+            for item in items
+            if item["citation_ref"] == selected_ref
+        )
+        selected_item["title"] = "Untrusted citation_10000 and item_12345 tokens"
+        selection = {
+            "schema_version": 1,
+            "sections": {
+                "Example": {"topics": [{"citation_refs": [selected_ref]}]},
+            },
+            "excluded_topics": {},
+        }
+
+        evidence = project_selected_evidence(selection, projected)
+
+        self.assertNotRegex(json.dumps(evidence), r"\b(?:citation|item)_\d+\b")
+        self.assertIn("[opaque reference omitted]", json.dumps(evidence))
+
     def test_valid_output_renders_checker_clean_with_exact_urls(self):
         corpus, config, projected, output = fixture_contract()
         self.assertEqual(validate_output(output, config, projected.citations), [])
