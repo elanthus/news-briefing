@@ -210,6 +210,17 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertLess(validation, copy_guard)
         self.assertLess(copy_guard, copy)
 
+    def test_public_download_removes_non_success_response_body(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+
+        success = restore_step.index('if [[ "$status" == "200" ]]; then')
+        cleanup = restore_step.index('rm -f -- "$output"')
+        missing = restore_step.index('if [[ "$status" == "404" ]]; then')
+        self.assertLess(success, cleanup)
+        self.assertLess(cleanup, missing)
+
     def test_completed_migration_marker_allows_archive_gap_recovery(self) -> None:
         restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
             "- name:", 1
