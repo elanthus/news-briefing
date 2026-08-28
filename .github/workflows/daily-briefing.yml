@@ -67,10 +67,26 @@ jobs:
 
       - name: Restore private corpus window
         env:
+          MANUAL_MODE: ${{ inputs.mode }}
+          MANUAL_REPORT_DATE: ${{ inputs.report_date }}
           GITHUB_TOKEN: ${{ github.token }}
           CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
         run: |
           today="$REPORT_TODAY"
+          targeted_report_date=""
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_MODE" == "single-day" && -n "$MANUAL_REPORT_DATE" ]]; then
+            if [[ ! "$MANUAL_REPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || \
+              [[ "$(date --utc --date="$MANUAL_REPORT_DATE" +%F 2>/dev/null)" != "$MANUAL_REPORT_DATE" ]]; then
+              echo "::error::report_date must be a real calendar date in YYYY-MM-DD form"
+              exit 1
+            fi
+            oldest=$(TZ=America/New_York date --date="$today 13 days ago" +%F)
+            if [[ "$MANUAL_REPORT_DATE" < "$oldest" || "$MANUAL_REPORT_DATE" > "$today" ]]; then
+              echo "::error::report_date must be inside the retained private corpus window ($oldest through $today)"
+              exit 1
+            fi
+            targeted_report_date="$MANUAL_REPORT_DATE"
+          fi
 
           download_public_file() {
             local url="$1"
@@ -131,8 +147,12 @@ jobs:
                   fi
                 done
                 if (( downloaded != 13 )); then
-                  echo "::error::Downloaded only $downloaded of 13 retained public corpora; leaving Pages unchanged for a complete retry"
-                  exit 1
+                  if [[ -n "$targeted_report_date" && ( "$targeted_report_date" == "$today" || -f "legacy-corpora/$targeted_report_date.json" ) ]]; then
+                    echo "::warning::Downloaded $downloaded of 13 retained public corpora; continuing targeted repair for $targeted_report_date without regenerating other dates"
+                  else
+                    echo "::error::Downloaded only $downloaded of 13 retained public corpora; leaving Pages unchanged for a complete retry"
+                    exit 1
+                  fi
                 fi
                 python private_archive.py prune-corpora legacy-corpora --newest "$today"
                 cp legacy-corpora/*.json corpora/

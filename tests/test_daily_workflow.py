@@ -168,13 +168,24 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("python fetch_news.py", generation_step)
         self.assertIn("python run_daily_briefing.py", generation_step)
 
-    def test_legacy_corpus_migration_is_all_or_nothing(self) -> None:
+    def test_legacy_corpus_migration_is_all_or_nothing_except_targeted_repair(self) -> None:
         restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
             "- name:", 1
         )[0]
 
+        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", restore_step)
+        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", restore_step)
+        self.assertIn('targeted_report_date="$MANUAL_REPORT_DATE"', restore_step)
         self.assertIn("legacy-corpora/$d.json", restore_step)
         self.assertIn("if (( downloaded != 13 )); then", restore_step)
+        self.assertIn(
+            '-f "legacy-corpora/$targeted_report_date.json"', restore_step
+        )
+        self.assertIn("without regenerating other dates", restore_step)
+        self.assertIn(
+            "Downloaded only $downloaded of 13 retained public corpora",
+            restore_step,
+        )
         failure = restore_step.index("if (( downloaded != 13 )); then")
         validation = restore_step.index(
             'prune-corpora legacy-corpora --newest "$today"'
