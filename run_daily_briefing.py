@@ -80,6 +80,18 @@ def _manifest_error(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
     return error if isinstance(error, dict) else None
 
 
+def _run_telemetry(manifest: dict[str, Any] | None) -> dict[str, Any]:
+    """Expose comparable cost, latency, and citation counts in the chain log."""
+    if manifest is None:
+        return {"generation": None, "citation_cardinality": None}
+    generation = manifest.get("generation_totals")
+    cardinality = manifest.get("citation_cardinality")
+    return {
+        "generation": generation if isinstance(generation, dict) else None,
+        "citation_cardinality": cardinality if isinstance(cardinality, dict) else None,
+    }
+
+
 def _failure_reason(result: RunResult | None, manifest: dict[str, Any] | None, exc: Exception | None) -> str:
     error = _manifest_error(manifest)
     if error is not None:
@@ -292,6 +304,7 @@ def run_fallback_chain(
                 "failure_reason": None,
                 "model_removed_from_openrouter": False,
                 "quarantined_report": None,
+                **_run_telemetry(manifest),
             }
             attempts.append(row)
             _write_chain_logs(run_dir, started_at, attempts)
@@ -313,6 +326,7 @@ def run_fallback_chain(
             "failure_reason": reason,
             "model_removed_from_openrouter": removed,
             "quarantined_report": quarantined_report,
+            **_run_telemetry(manifest),
         }
         attempts.append(row)
         _write_chain_logs(run_dir, started_at, attempts)

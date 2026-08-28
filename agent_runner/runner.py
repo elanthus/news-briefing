@@ -6,7 +6,7 @@ import json
 import platform
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -28,8 +28,12 @@ from agent_runner.output import (
     Citation,
     ModelCorpus,
     OutputFinding,
-    build_output_schema,
+    attach_frozen_selection,
+    build_prose_schema,
+    build_selection_schema,
+    detach_prose,
     project_corpus,
+    project_selected_evidence,
     redact_destinations,
     redact_preview_value,
     render_briefing,
@@ -37,6 +41,8 @@ from agent_runner.output import (
     render_validation_status,
     repair_structural_output,
     validate_output,
+    validate_prose_output,
+    validate_selection,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -279,6 +285,10 @@ def build_request(
     safe_config = redact_destinations(config_data)
     return (
         f"{policy.rstrip()}\n\n"
+        "--- SELECTION PASS ---\n"
+        "Select and group evidence only. Return citation_refs in the required schema; "
+        "do not draft headlines, summaries, or exclusion reasons. Each corpus item has "
+        "exactly one selectable citation_ref.\n\n"
         "--- TRUSTED BRIEFING CONFIG (JSON) ---\n"
         f"{json.dumps(safe_config, indent=2, ensure_ascii=False)}\n\n"
         "--- UNTRUSTED PROJECTED CORPUS (JSON) ---\n"
@@ -286,18 +296,49 @@ def build_request(
     )
 
 
+def build_prose_request(
+    policy: str,
+    config_data: dict[str, Any],
+    selected_evidence: dict[str, Any],
+) -> str:
+    """Build a prose-only request containing no unselected corpus evidence."""
+    safe_config = redact_destinations(config_data)
+    return (
+        f"{policy.rstrip()}\n\n"
+        "--- PROSE PASS ---\n"
+        "The evidence for every output position was selected and frozen by code. "
+        "Write exactly one headline and summary (or exclusion reason) for each "
+        "position, in order, using only that position's evidence. Return no citation "
+        "fields and no opaque citation_#### or item_#### tokens. Code will attach the "
+        "frozen references after this response.\n\n"
+        "--- TRUSTED BRIEFING CONFIG (JSON) ---\n"
+        f"{json.dumps(safe_config, indent=2, ensure_ascii=False)}\n\n"
+        "--- FROZEN POSITION-SCOPED EVIDENCE (JSON) ---\n"
+        f"{json.dumps(selected_evidence, indent=2, ensure_ascii=False)}\n"
+    )
+
+
 def correction_request(
     original: str,
     prior_output: dict[str, Any],
     findings: list[dict[str, str]],
+    *,
+    prose_only: bool = False,
 ) -> str:
     safe_output = redact_destinations(prior_output)
     safe_findings = redact_destinations(findings)
+    instruction = (
+        "Return one complete replacement prose JSON object. Correct every deterministic "
+        "finding below without adding citation fields or changing the frozen evidence order."
+        if prose_only
+        else
+        "Return one complete replacement selection JSON object. Correct every deterministic "
+        "finding below using only the supplied citation references and without drafting prose."
+    )
     return (
         f"{original}\n\n"
         "--- CORRECTION PASS ---\n"
-        "Return one complete replacement JSON object. Correct every deterministic finding below while "
-        "preserving grounded editorial content and using only the supplied citation references.\n"
+        f"{instruction}\n"
         f"Findings: {json.dumps(safe_findings, ensure_ascii=False)}\n"
         f"Previous structured output: {json.dumps(safe_output, ensure_ascii=False)}\n"
     )
@@ -379,6 +420,54 @@ def _deterministic_repair_attempt(
     return attempt, repaired
 
 
+def _deterministic_selection_repair_attempt(
+    store: RunStore,
+    selection: dict[str, Any],
+    *,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    repaired, actions = repair_structural_output(selection, config, citations)
+    current = store.manifest["attempts"][-1]
+    if not actions or not isinstance(repaired, dict):
+        return current, selection
+
+    index = len(store.manifest["attempts"]) + 1
+    _raw_name, structured_name, _events_name, _briefing_name, _findings_name = _attempt_paths(index)
+    store.write_json(structured_name, repaired)
+    attempt = {
+        "index": index,
+        "kind": "selection_repair",
+        "received_at": utc_now(),
+        "raw_artifact": None,
+        "model_output_artifact": None,
+        "structured_artifact": structured_name,
+        "provider_events_artifact": None,
+        "generation": None,
+        "repair_actions": actions,
+        "validated": False,
+        "contract_success": None,
+        "briefing_artifact": None,
+        "findings_artifact": None,
+    }
+    store.manifest["attempts"].append(attempt)
+    store.trace(
+        "selection_repair_completed",
+        attempt=index,
+        source_attempt=current["index"],
+        actions=len(actions),
+    )
+    store.checkpoint("selection_repair_received")
+    _validate_selection_attempt(
+        store,
+        attempt,
+        repaired,
+        config=config,
+        citations=citations,
+    )
+    return attempt, repaired
+
+
 def _call_provider(
     store: RunStore,
     provider: ModelProvider,
@@ -387,6 +476,7 @@ def _call_provider(
     schema: dict[str, Any],
     timeout_seconds: int,
     kind: str,
+    transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     index = len(store.manifest["attempts"]) + 1
     store.trace("provider_call_started", attempt=index, kind=kind, provider=provider.name, model=provider.model)
@@ -398,8 +488,15 @@ def _call_provider(
         trace_id=store.manifest["trace_id"],
     ))
     raw_name, structured_name, events_name, _briefing_name, _findings_name = _attempt_paths(index)
+    model_output_name = f"attempt-{index:02d}-model-output.json"
+    structured_output = (
+        transform(response.structured_output)
+        if transform is not None
+        else response.structured_output
+    )
     store.write_text(raw_name, response.raw_output)
-    store.write_json(structured_name, response.structured_output)
+    store.write_json(model_output_name, response.structured_output)
+    store.write_json(structured_name, structured_output)
     if response.provider_events:
         store.write_text(
             events_name,
@@ -413,6 +510,7 @@ def _call_provider(
         "kind": kind,
         "received_at": utc_now(),
         "raw_artifact": raw_name,
+        "model_output_artifact": model_output_name,
         "structured_artifact": structured_name,
         "provider_events_artifact": events_name if response.provider_events else None,
         "generation": response.record(),
@@ -422,6 +520,42 @@ def _call_provider(
         "findings_artifact": None,
     }
     store.manifest["attempts"].append(attempt)
+    totals = store.manifest.setdefault("generation_totals", {
+        "calls": 0,
+        "latency_ms": 0.0,
+        "input_tokens": 0,
+        "input_token_calls": 0,
+        "output_tokens": 0,
+        "output_token_calls": 0,
+        "cost_usd": 0.0,
+        "cost_calls": 0,
+        "transport_attempts": 0,
+        "by_stage": {},
+    })
+    stage = totals["by_stage"].setdefault(kind, {
+        "calls": 0,
+        "latency_ms": 0.0,
+        "input_tokens": 0,
+        "input_token_calls": 0,
+        "output_tokens": 0,
+        "output_token_calls": 0,
+        "cost_usd": 0.0,
+        "cost_calls": 0,
+        "transport_attempts": 0,
+    })
+    for aggregate in (totals, stage):
+        aggregate["calls"] += 1
+        aggregate["latency_ms"] += response.latency_ms
+        aggregate["transport_attempts"] += response.attempts
+        if response.input_tokens is not None:
+            aggregate["input_tokens"] += response.input_tokens
+            aggregate["input_token_calls"] += 1
+        if response.output_tokens is not None:
+            aggregate["output_tokens"] += response.output_tokens
+            aggregate["output_token_calls"] += 1
+        if response.cost_usd is not None:
+            aggregate["cost_usd"] += response.cost_usd
+            aggregate["cost_calls"] += 1
     store.trace(
         "provider_call_completed",
         attempt=index,
@@ -431,7 +565,7 @@ def _call_provider(
         transport_attempts=response.attempts,
     )
     store.checkpoint(f"{kind}_received")
-    return response.structured_output
+    return structured_output
 
 
 def _validate_attempt(
@@ -443,8 +577,9 @@ def _validate_attempt(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
     repair_actions: Sequence[dict[str, str]] = (),
+    pre_findings: Sequence[OutputFinding] = (),
 ) -> list[dict[str, str]]:
-    structured_findings = validate_output(output, config, citations)
+    structured_findings = [*pre_findings, *validate_output(output, config, citations)]
     rendered: str | None = None
     checker_findings: list[eval_briefing.Finding] = []
     if not any(finding.level == "ERROR" for finding in structured_findings):
@@ -470,6 +605,113 @@ def _validate_attempt(
     )
     store.checkpoint(f"attempt_{index}_validated")
     return records
+
+
+def _validate_selection_attempt(
+    store: RunStore,
+    attempt: dict[str, Any],
+    selection: dict[str, Any],
+    *,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> list[dict[str, str]]:
+    selection_findings = validate_selection(selection, config, citations)
+    allocation_findings: list[OutputFinding] = []
+    if not any(finding.level == "ERROR" for finding in selection_findings):
+        used_items = {
+            citations[ref].item_ref
+            for section_value in selection["sections"].values()
+            for entry in section_value["topics"]
+            for ref in entry["citation_refs"]
+        } | {
+            citations[ref].item_ref
+            for entries in selection["excluded_topics"].values()
+            for entry in entries
+            for ref in entry["citation_refs"]
+        }
+        for section in config.sections:
+            actual = len(selection["sections"][section.name]["topics"])
+            if actual:
+                continue
+            unused_eligible = {
+                citation.item_ref
+                for citation in citations.values()
+                if citation.category in section.corpus_categories
+                and citation.item_ref not in used_items
+            }
+            if unused_eligible:
+                allocation_findings.append(OutputFinding(
+                    "ERROR",
+                    "slots_underfilled",
+                    f"{section.name}: 0 topics, expected {section.target_stories}; "
+                    f"{len(unused_eligible)} unused eligible corpus item(s) remain",
+                ))
+    records = _finding_records([*selection_findings, *allocation_findings])
+    index = attempt["index"]
+    _raw_name, _structured_name, _events_name, _briefing_name, findings_name = _attempt_paths(index)
+    store.write_json(findings_name, records)
+    attempt["findings_artifact"] = findings_name
+    attempt["validated"] = True
+    attempt["contract_success"] = not any(row["level"] == "ERROR" for row in records)
+    store.trace(
+        "selection_validated",
+        attempt=index,
+        errors=sum(row["level"] == "ERROR" for row in records),
+        warnings=sum(row["level"] == "WARN" for row in records),
+    )
+    store.checkpoint(f"attempt_{index}_validated")
+    return records
+
+
+def _corrections_used(store: RunStore) -> int:
+    return sum(
+        attempt.get("kind") in {"selection_correction", "correction"}
+        for attempt in store.manifest["attempts"]
+    )
+
+
+def _finalize_selection_preview(
+    store: RunStore,
+    attempt: dict[str, Any],
+    selection: dict[str, Any],
+    *,
+    corpus: dict[str, Any],
+    settings: RunnerSettings,
+) -> RunResult:
+    findings = json.loads(
+        (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
+    )
+    outcome = classify_outcome(
+        findings,
+        corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus),
+    )
+    safe_selection = redact_preview_value(selection)
+    store.write_json("preview-structured.json", safe_selection)
+    preview_path = store.write_text(
+        "preview.md",
+        "# Evidence selection rejected\n\n"
+        "No prose was generated because the evidence-selection pass did not satisfy "
+        "the deterministic contract. See `preview-structured.json` and the findings "
+        "artifact for details.\n\n"
+        "```json\n"
+        f"{json.dumps(safe_selection, indent=2, ensure_ascii=False)}\n"
+        "```\n",
+    )
+    final = {
+        "status": outcome.disposition,
+        "outcome": outcome.record(),
+        "attempt": attempt["index"],
+        "findings": findings,
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
+        "artifact_type": "preview",
+        "run_artifact": preview_path.name,
+        "requested_output_path": _portable_path(settings.output_path),
+        "output_path": None,
+        "output_sha256": None,
+    }
+    store.finalize(final)
+    return RunResult(1, store.root, preview_path, outcome.disposition)
 
 
 def _checker_fingerprint(findings: list[eval_briefing.Finding]) -> list[tuple[str, str, str]]:
@@ -691,32 +933,186 @@ def run_workflow(
         if category_problems:
             raise ValueError("; ".join(category_problems))
         projected = project_corpus(corpus)
-        schema = build_output_schema(config, projected.citations)
+        selection_schema = build_selection_schema(config, projected.citations)
+        retained_items = sum(len(items) for items in corpus["categories"].values())
+        store.manifest["citation_cardinality"] = {
+            "retained_items": retained_items,
+            "model_visible_handles": len(projected.citations),
+            "selected_items": None,
+        }
         if not (store.root / "model-corpus.json").exists():
             store.write_json("model-corpus.json", projected.document)
             store.write_json(
                 "citation-map.json",
                 {ref: citation.__dict__ for ref, citation in projected.citations.items()},
             )
-            store.write_json("output-schema.json", schema)
+            store.write_json("selection-schema.json", selection_schema)
             store.checkpoint("request_ready")
         policy = settings.prompt_path.read_text(encoding="utf-8")
-        original_request = build_request(policy, config_data, projected)
-        if not (store.root / "request.txt").exists():
-            store.write_text("request.txt", original_request)
+        selection_request = build_request(policy, config_data, projected)
+        if not (store.root / "selection-request.txt").exists():
+            store.write_text("selection-request.txt", selection_request)
             store.checkpoint("request_ready")
 
-        if not store.manifest["attempts"]:
+        frozen_path = store.root / "frozen-selection.json"
+        if frozen_path.is_file():
+            selection = json.loads(store.read_verified_text("frozen-selection.json"))
+            selected_refs = {
+                ref
+                for section in selection["sections"].values()
+                for entry in section["topics"]
+                for ref in entry["citation_refs"]
+            } | {
+                ref
+                for entries in selection["excluded_topics"].values()
+                for entry in entries
+                for ref in entry["citation_refs"]
+            }
+            store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
+        else:
+            selection_attempts = [
+                attempt for attempt in store.manifest["attempts"]
+                if attempt.get("kind") in {
+                    "selection", "selection_correction", "selection_repair"
+                }
+            ]
+            if not selection_attempts:
+                selection = _call_provider(
+                    store,
+                    provider,
+                    prompt=selection_request,
+                    schema=selection_schema,
+                    timeout_seconds=settings.timeout_seconds,
+                    kind="selection",
+                )
+            else:
+                selection_attempt = selection_attempts[-1]
+                selection = json.loads(
+                    (store.root / selection_attempt["structured_artifact"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+            while True:
+                selection_attempt = store.manifest["attempts"][-1]
+                if selection_attempt.get("kind") not in {
+                    "selection", "selection_correction", "selection_repair"
+                }:
+                    raise RuntimeError("prose generation started before evidence was frozen")
+                if selection_attempt["validated"]:
+                    selection_findings = json.loads(
+                        (store.root / selection_attempt["findings_artifact"]).read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                else:
+                    selection_findings = _validate_selection_attempt(
+                        store,
+                        selection_attempt,
+                        selection,
+                        config=config,
+                        citations=projected.citations,
+                    )
+                if selection_attempt["contract_success"]:
+                    selected_refs = {
+                        ref
+                        for section in selection["sections"].values()
+                        for entry in section["topics"]
+                        for ref in entry["citation_refs"]
+                    } | {
+                        ref
+                        for entries in selection["excluded_topics"].values()
+                        for entry in entries
+                        for ref in entry["citation_refs"]
+                    }
+                    store.write_json("frozen-selection.json", selection)
+                    store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
+                    store.trace(
+                        "evidence_selection_frozen",
+                        attempt=selection_attempt["index"],
+                        retained_items=retained_items,
+                        model_visible_handles=len(projected.citations),
+                        selected_items=len(selected_refs),
+                    )
+                    store.checkpoint("selection_frozen")
+                    break
+                blocking = [
+                    row for row in selection_findings if row["level"] == "ERROR"
+                ]
+                if (
+                    blocking
+                    and selection_attempt.get("kind") != "selection_repair"
+                    and all(row["check"] in REPAIRABLE_CHECKS for row in blocking)
+                ):
+                    repair_attempt, selection = _deterministic_selection_repair_attempt(
+                        store,
+                        selection,
+                        config=config,
+                        citations=projected.citations,
+                    )
+                    if repair_attempt is not selection_attempt:
+                        continue
+                if _corrections_used(store) >= settings.max_corrections:
+                    return _finalize_selection_preview(
+                        store,
+                        selection_attempt,
+                        selection,
+                        corpus=corpus,
+                        settings=settings,
+                    )
+                correction = correction_request(
+                    selection_request,
+                    selection,
+                    selection_findings,
+                )
+                try:
+                    selection = _call_provider(
+                        store,
+                        provider,
+                        prompt=correction,
+                        schema=selection_schema,
+                        timeout_seconds=settings.timeout_seconds,
+                        kind="selection_correction",
+                    )
+                except ProviderError as exc:
+                    store.manifest["correction_error"] = exc.record()
+                    store.trace("selection_correction_failed", **exc.record())
+                    store.checkpoint("selection_correction_failed")
+                    return _finalize_selection_preview(
+                        store,
+                        selection_attempt,
+                        selection,
+                        corpus=corpus,
+                        settings=settings,
+                    )
+
+        selected_evidence = project_selected_evidence(selection, projected)
+        prose_schema = build_prose_schema(config, selection)
+        prose_request = build_prose_request(policy, config_data, selected_evidence)
+        if not (store.root / "selected-evidence.json").exists():
+            store.write_json("selected-evidence.json", selected_evidence)
+            store.write_json("prose-schema.json", prose_schema)
+            store.write_text("prose-request.txt", prose_request)
+            store.checkpoint("prose_request_ready")
+
+        prose_attempts = [
+            attempt for attempt in store.manifest["attempts"]
+            if attempt.get("kind") not in {
+                "selection", "selection_correction", "selection_repair"
+            }
+        ]
+        if not prose_attempts:
             output = _call_provider(
                 store,
                 provider,
-                prompt=original_request,
-                schema=schema,
+                prompt=prose_request,
+                schema=prose_schema,
                 timeout_seconds=settings.timeout_seconds,
-                kind="initial",
+                kind="prose",
+                transform=lambda prose: attach_frozen_selection(selection, prose, config),
             )
         else:
-            last = store.manifest["attempts"][-1]
+            last = prose_attempts[-1]
             output = json.loads(
                 (store.root / last["structured_artifact"]).read_text(encoding="utf-8")
             )
@@ -728,6 +1124,16 @@ def run_workflow(
                     (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
                 )
             else:
+                prose_findings: Sequence[OutputFinding] = ()
+                if attempt.get("kind") in {"prose", "correction"}:
+                    model_output = json.loads(
+                        (store.root / attempt["model_output_artifact"]).read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    prose_findings = validate_prose_output(
+                        model_output, config, selection
+                    )
                 findings = _validate_attempt(
                     store,
                     attempt,
@@ -738,6 +1144,7 @@ def run_workflow(
                     # A resumed repair attempt validated here must render its
                     # recorded swap markers exactly as the unresumed run would.
                     repair_actions=attempt.get("repair_actions") or (),
+                    pre_findings=prose_findings,
                 )
             if attempt["contract_success"]:
                 # ``claim_exceeds_evidence`` is a WARN, so the candidate is
@@ -793,8 +1200,7 @@ def run_workflow(
                 )
                 if repair_attempt is not attempt:
                     continue
-            corrections_used = sum(row["kind"] == "correction" for row in store.manifest["attempts"])
-            if corrections_used >= settings.max_corrections:
+            if _corrections_used(store) >= settings.max_corrections:
                 return _finalize_after_deterministic_repair(
                     store,
                     attempt,
@@ -805,7 +1211,12 @@ def run_workflow(
                     settings=settings,
                 )
             try:
-                correction = correction_request(original_request, output, findings)
+                correction = correction_request(
+                    prose_request,
+                    detach_prose(output, config),
+                    findings,
+                    prose_only=True,
+                )
             except ValueError as exc:
                 # Building the correction prompt redacts destinations out of the
                 # prior output; a destination-bearing dict key raises here. That
@@ -830,9 +1241,10 @@ def run_workflow(
                     store,
                     provider,
                     prompt=correction,
-                    schema=schema,
+                    schema=prose_schema,
                     timeout_seconds=settings.timeout_seconds,
                     kind="correction",
+                    transform=lambda prose: attach_frozen_selection(selection, prose, config),
                 )
             except ProviderError as exc:
                 store.manifest["correction_error"] = exc.record()

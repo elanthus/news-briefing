@@ -15,7 +15,7 @@ Live site → <https://elanthus.github.io/news-briefing/> · Each published date
 
 ---
 
-A GitHub Actions cron job fetches roughly 150–250 items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. The model ranks and summarizes only the titles, feed excerpts, and metadata in that corpus; it does not fetch or read the linked articles. Before generation, code replaces every destination with an opaque citation handle. After generation, a deterministic policy checker verifies the selected handles, section eligibility, source-health declaration, and output shape before code restores the links. A failed candidate is corrected or quarantined, never silently published.
+A GitHub Actions cron job fetches roughly 150–250 items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. The model first selects and groups opaque item handles without prose. Code validates and freezes that evidence, then a second model call receives only the evidence selected for each output position and writes prose without citation fields. The model never fetches or reads linked articles. A deterministic policy checker verifies the frozen handles, section eligibility, source-health declaration, and output shape before code restores the links. A failed candidate is corrected or quarantined, never silently published.
 
 An early version [fabricated a citation](docs/writeups/injection-benchmark-post.md). The checker caught it, and the rest of the project grew around a simple boundary: anything deterministic code can decide should not be left to the prompt.
 
@@ -83,7 +83,7 @@ This is destination allowlisting, not semantic grounding. The model can type arb
 
 ```text
 fetch_news.py      →  corpus.json (schema v6, validated on write)
-agent_runner/      →  project → generate → validate → repair → correct → gate
+agent_runner/      →  project → select → freeze → write prose → validate → repair → correct → gate
 eval_briefing.py   →  deterministic policy checker, usable standalone
 prepare_publication.py / build_site.py  →  static site + per-run integrity report
 ```

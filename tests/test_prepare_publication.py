@@ -159,6 +159,12 @@ class PreparePublicationTests(unittest.TestCase):
                     "domain": "quality",
                     "message": "US Politics: 'Fuel restrictions end early' states '1'",
                 },
+                {
+                    "level": "WARN",
+                    "check": "low_claim_evidence_overlap",
+                    "domain": "quality",
+                    "message": "US Politics: claim and evidence share no distinctive terms",
+                },
             ]
             structured = {
                 "sections": {
@@ -210,6 +216,7 @@ class PreparePublicationTests(unittest.TestCase):
             sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings"][0]["message"], findings[0]["message"])
             self.assertNotIn("unsupported_figure", json.dumps(sidecar))
+            self.assertNotIn("low_claim_evidence_overlap", json.dumps(sidecar))
             self.assertEqual(
                 sidecar["findings"][0]["context"]["headline"],
                 "Fuel restrictions end early",

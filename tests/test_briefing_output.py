@@ -11,9 +11,14 @@ from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
     REPAIRABLE_CHECKS,
     OutputFinding,
+    attach_frozen_selection,
     build_output_schema,
+    build_prose_schema,
+    build_selection_schema,
+    detach_prose,
     is_repairable_finding,
     project_corpus,
+    project_selected_evidence,
     redact_destinations,
     redact_preview_value,
     render_briefing,
@@ -21,6 +26,8 @@ from agent_runner.output import (
     render_validation_status,
     repair_structural_output,
     validate_output,
+    validate_prose_output,
+    validate_selection,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -261,6 +268,60 @@ class BriefingOutputTests(unittest.TestCase):
             set(excluded_refs["items"]["enum"]), accountable_eligible
         )
         self.assertTrue(projected.citations)
+
+    def test_two_pass_contract_freezes_refs_and_removes_them_from_prose_schema(self):
+        _corpus, config, projected, output = fixture_contract()
+        selection = {
+            "schema_version": 1,
+            "sections": {
+                name: {
+                    "topics": [
+                        {"citation_refs": copy.deepcopy(entry["citation_refs"])}
+                        for entry in section["topics"]
+                    ]
+                }
+                for name, section in output["sections"].items()
+            },
+            "excluded_topics": {
+                name: [
+                    {"citation_refs": copy.deepcopy(entry["citation_refs"])}
+                    for entry in entries
+                ]
+                for name, entries in output["excluded_topics"].items()
+            },
+        }
+        self.assertEqual(validate_selection(selection, config, projected.citations), [])
+        selection_schema = build_selection_schema(config, projected.citations)
+        first_name = config.sections[0].name
+        selection_fields = selection_schema["properties"]["sections"]["properties"][
+            first_name
+        ]["properties"]["topics"]["items"]["properties"]
+        self.assertEqual(set(selection_fields), {"citation_refs"})
+
+        evidence = project_selected_evidence(selection, projected)
+        self.assertNotRegex(json.dumps(evidence), r"\b(?:citation|item)_\d{4}\b")
+        prose = detach_prose(output, config)
+        prose_schema = build_prose_schema(config, selection)
+        prose_fields = prose_schema["properties"]["sections"]["properties"][first_name][
+            "properties"
+        ]["topics"]["items"]["properties"]
+        self.assertEqual(set(prose_fields), {"headline", "summary"})
+        self.assertEqual(validate_prose_output(prose, config, selection), [])
+        self.assertEqual(attach_frozen_selection(selection, prose, config), output)
+
+        mutated = copy.deepcopy(prose)
+        mutated["sections"][first_name]["topics"][0]["citation_refs"] = [
+            next(reversed(projected.citations))
+        ]
+        checks = {
+            finding.check for finding in validate_prose_output(mutated, config, selection)
+        }
+        self.assertIn("structured_unknown_field", checks)
+        attached = attach_frozen_selection(selection, mutated, config)
+        self.assertEqual(
+            attached["sections"][first_name]["topics"][0]["citation_refs"],
+            selection["sections"][first_name]["topics"][0]["citation_refs"],
+        )
 
     def test_valid_output_renders_checker_clean_with_exact_urls(self):
         corpus, config, projected, output = fixture_contract()

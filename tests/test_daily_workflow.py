@@ -19,6 +19,12 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn("        type: choice", mode_input)
         self.assertIn("          - single-day", mode_input)
         self.assertIn("          - backfill-7-days", mode_input)
+        report_date_input = manual_dispatch.split("      report_date:\n", 1)[1].split(
+            "\n\n", 1
+        )[0]
+        self.assertIn("Optional YYYY-MM-DD", report_date_input)
+        self.assertIn("        required: false", report_date_input)
+        self.assertIn("        type: string", report_date_input)
         for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
@@ -29,24 +35,24 @@ class DailyWorkflowTests(unittest.TestCase):
             WORKFLOW,
         )
         self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", WORKFLOW)
-        self.assertIn(
-            '          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && '
-            '"$MANUAL_MODE" == "backfill-7-days" ]]; then\n'
-            "            day_offsets=(6 5 4 3 2 1 0)\n"
-            "          else\n"
-            "            day_offsets=(0)\n"
-            "          fi",
-            WORKFLOW,
-        )
+        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", WORKFLOW)
+        self.assertIn('report_dates=("$today")', WORKFLOW)
 
     def test_manual_run_can_backfill_today_and_six_prior_dates(self) -> None:
-        self.assertIn("day_offsets=(6 5 4 3 2 1 0)", WORKFLOW)
-        self.assertIn('for days_ago in "${day_offsets[@]}"; do', WORKFLOW)
+        self.assertIn("for days_ago in 6 5 4 3 2 1 0; do", WORKFLOW)
+        self.assertIn('report_dates+=("$(TZ=America/New_York date', WORKFLOW)
         self.assertIn('--date="$today $days_ago days ago" +%F', WORKFLOW)
+        self.assertIn('for report_date in "${report_dates[@]}"; do', WORKFLOW)
         self.assertIn("TZ=America/New_York", WORKFLOW)
 
+    def test_manual_single_date_is_validated_and_does_not_expand_the_archive(self) -> None:
+        self.assertIn('report_dates=("$MANUAL_REPORT_DATE")', WORKFLOW)
+        self.assertIn("report_date must be a real calendar date", WORKFLOW)
+        self.assertIn("inside the retained private corpus window", WORKFLOW)
+        self.assertIn('oldest=$(TZ=America/New_York date --date="$today 13 days ago" +%F)', WORKFLOW)
+
     def test_today_uses_fresh_exact_24_hour_corpus(self) -> None:
-        self.assertIn('if (( days_ago == 0 )); then', WORKFLOW)
+        self.assertIn('if [[ "$report_date" == "$today" ]]; then', WORKFLOW)
         self.assertIn(
             'window_start_epoch=$((snapshot_end_epoch - 86400))', WORKFLOW
         )
@@ -80,7 +86,7 @@ class DailyWorkflowTests(unittest.TestCase):
             r'Reusing privately restored corpus for \$report_date"\s+corpus_ready=true',
         )
         self.assertIn('if [[ "$corpus_ready" == true ]]; then', WORKFLOW)
-        today_branch = WORKFLOW.split('if (( days_ago == 0 )); then', 1)[1].split(
+        today_branch = WORKFLOW.split('if [[ "$report_date" == "$today" ]]; then', 1)[1].split(
             'elif [[ -f "$corpus" ]]; then', 1
         )[0]
         self.assertNotIn('[[ -f "$corpus" ]]', today_branch)

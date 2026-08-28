@@ -26,6 +26,7 @@ class FakeProvider:
         self.outputs = list(outputs)
         self.requests: list[GenerationRequest] = []
         self.generation_controls = generation_controls or {}
+        self._current_complete_output = None
 
     def info(self):
         return {
@@ -38,7 +39,70 @@ class FakeProvider:
 
     def generate(self, request):
         self.requests.append(request)
-        output = self.outputs.pop(0)
+        section_schemas = request.output_schema["properties"]["sections"]["properties"]
+        first_section = next(iter(section_schemas.values()))
+        entry_properties = first_section["properties"]["topics"]["items"]["properties"]
+        selection_pass = set(entry_properties) == {"citation_refs"}
+        correction = "--- CORRECTION PASS ---" in request.prompt
+
+        if selection_pass:
+            if self._current_complete_output is None or correction:
+                self._current_complete_output = self.outputs.pop(0)
+            complete = self._current_complete_output
+            output = {
+                "schema_version": complete["schema_version"],
+                "sections": {
+                    name: {
+                        "topics": [
+                            {"citation_refs": copy.deepcopy(entry.get("citation_refs"))}
+                            for entry in section["topics"]
+                        ]
+                    }
+                    for name, section in complete["sections"].items()
+                },
+                "excluded_topics": {
+                    name: [
+                        {"citation_refs": copy.deepcopy(entry.get("citation_refs"))}
+                        for entry in entries
+                    ]
+                    for name, entries in complete["excluded_topics"].items()
+                },
+            }
+        else:
+            if self._current_complete_output is None:
+                self._current_complete_output = self.outputs.pop(0)
+            complete = self._current_complete_output
+            output = {
+                "schema_version": complete["schema_version"],
+                "sections": {
+                    name: {
+                        "topics": [
+                            {
+                                "headline": entry.get("headline"),
+                                "summary": entry.get("summary"),
+                            }
+                            for entry in section["topics"][:
+                                section_schemas[name]["properties"]["topics"]["maxItems"]
+                            ]
+                        ]
+                    }
+                    for name, section in complete["sections"].items()
+                },
+                "excluded_topics": {
+                    name: [
+                        {
+                            "headline": entry.get("headline"),
+                            "reason": entry.get("reason"),
+                        }
+                        for entry in entries[:
+                            request.output_schema["properties"]["excluded_topics"]
+                            ["properties"][name]["maxItems"]
+                        ]
+                    ]
+                    for name, entries in complete["excluded_topics"].items()
+                },
+            }
+            self._current_complete_output = None
         return ModelResponse(
             raw_output=json.dumps(output),
             structured_output=output,
@@ -73,7 +137,7 @@ class RunnerTests(unittest.TestCase):
         )
 
     def test_end_to_end_success_checkpoints_and_writes_status(self):
-        corpus, _config, _projected, output = fixture_contract()
+        corpus, _config, projected, output = fixture_contract()
         provider = FakeProvider([output])
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
@@ -87,6 +151,27 @@ class RunnerTests(unittest.TestCase):
                 name: sha256_file(run_root / name)
                 for name in ("briefing-config.json", "briefing.md")
             }
+            frozen = json.loads((run_root / "frozen-selection.json").read_text(encoding="utf-8"))
+            selected_refs = {
+                ref
+                for section in frozen["sections"].values()
+                for entry in section["topics"]
+                for ref in entry["citation_refs"]
+            } | {
+                ref
+                for entries in frozen["excluded_topics"].values()
+                for entry in entries
+                for ref in entry["citation_refs"]
+            }
+            unselected_ref = next(ref for ref in projected.citations if ref not in selected_refs)
+            unselected_title = next(
+                item["title"]
+                for items in projected.document["categories"].values()
+                for item in items
+                if item["citation_ref"] == unselected_ref
+            )
+            prose_request = (run_root / "prose-request.txt").read_text(encoding="utf-8")
+            selected_evidence = (run_root / "selected-evidence.json").read_text(encoding="utf-8")
             host_root = str(root)
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.status, "ready")
@@ -112,7 +197,26 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("### Run outcome", briefing)
         self.assertIn("**Disposition: READY**", briefing)
         self.assertIn("- Coverage: `degraded`", briefing)
-        self.assertEqual(len(provider.requests), 1)
+        self.assertEqual(len(provider.requests), 2)
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["selection", "prose"],
+        )
+        self.assertEqual(
+            manifest["citation_cardinality"]["retained_items"], len(projected.citations)
+        )
+        self.assertEqual(
+            manifest["citation_cardinality"]["model_visible_handles"],
+            len(projected.citations),
+        )
+        self.assertGreater(manifest["citation_cardinality"]["selected_items"], 0)
+        self.assertEqual(manifest["generation_totals"]["calls"], 2)
+        prose_fields = provider.requests[1].output_schema["properties"]["sections"][
+            "properties"
+        ][next(iter(output["sections"]))]["properties"]["topics"]["items"]["properties"]
+        self.assertNotIn("citation_refs", prose_fields)
+        self.assertNotIn(unselected_title, prose_request)
+        self.assertNotRegex(selected_evidence, r"\b(?:citation|item)_\d{4}\b")
 
     def test_replays_exact_corpus_without_fetching(self):
         corpus, _config, _projected, output = fixture_contract()
@@ -329,7 +433,10 @@ class RunnerTests(unittest.TestCase):
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
-        self.assertEqual([row["kind"] for row in manifest["attempts"]], ["initial", "correction"])
+        self.assertEqual(
+            [row["kind"] for row in manifest["attempts"]],
+            ["selection", "selection_correction", "prose"],
+        )
         self.assertFalse(manifest["attempts"][0]["contract_success"])
         self.assertTrue(manifest["attempts"][1]["contract_success"])
         self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
@@ -367,12 +474,11 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["initial", "deterministic_repair"],
+            ["selection", "selection_repair", "prose"],
         )
-        self.assertNotIn(broken["sections"][section.name]["topics"][0]["headline"], final)
         self.assertNotIn(projected.citations[ineligible_ref].article_url, final)
         self.assertEqual(
-            manifest["attempts"][-1]["repair_actions"][0]["action"],
+            manifest["attempts"][1]["repair_actions"][0]["action"],
             "drop_entry",
         )
 
@@ -396,11 +502,11 @@ class RunnerTests(unittest.TestCase):
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
-        self.assertEqual(len(provider.requests), 1)
+        self.assertEqual(len(provider.requests), 2)
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
-        self.assertEqual(kinds, ["initial", "deterministic_repair"])
-        self.assertNotIn("correction", kinds)
-        self.assertTrue(manifest["attempts"][-1]["repair_actions"])
+        self.assertEqual(kinds, ["selection", "selection_repair", "prose"])
+        self.assertNotIn("selection_correction", kinds)
+        self.assertTrue(manifest["attempts"][1]["repair_actions"])
 
     def test_repair_underfill_stays_ready_with_nonblocking_warn(self):
         corpus, config, projected, output = fixture_contract()
@@ -456,7 +562,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["initial", "deterministic_repair", "correction"],
+            ["selection", "selection_repair", "selection_correction", "prose"],
         )
         empty = [
             row for row in repair_findings
@@ -512,7 +618,7 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertIn("[verbatim]", final)
         # No provider correction call was spent on the WARN.
-        self.assertEqual(len(provider.requests), 1)
+        self.assertEqual(len(provider.requests), 2)
 
     def test_unknown_ref_still_spends_a_correction(self):
         corpus, config, _projected, output = fixture_contract()
@@ -529,8 +635,8 @@ class RunnerTests(unittest.TestCase):
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
-        self.assertIn("correction", kinds)
-        self.assertEqual(len(provider.requests), 2)
+        self.assertIn("selection_correction", kinds)
+        self.assertEqual(len(provider.requests), 3)
 
     def test_opaque_reference_in_prose_spends_correction_and_is_not_published(self):
         corpus, config, _projected, output = fixture_contract()
@@ -548,7 +654,7 @@ class RunnerTests(unittest.TestCase):
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             published = requested_output.read_text(encoding="utf-8")
             first_findings = json.loads(
-                (root / "run" / manifest["attempts"][0]["findings_artifact"]).read_text(
+                (root / "run" / manifest["attempts"][1]["findings_artifact"]).read_text(
                     encoding="utf-8"
                 )
             )
@@ -556,13 +662,13 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["initial", "correction"],
+            ["selection", "prose", "correction"],
         )
         self.assertIn(
             "opaque_reference_in_prose",
             {finding["check"] for finding in first_findings},
         )
-        self.assertIn("opaque_reference_in_prose", provider.requests[1].prompt)
+        self.assertIn("opaque_reference_in_prose", provider.requests[2].prompt)
         self.assertNotRegex(published, r"\b(?:citation|item)_\d{4}\b")
 
     def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
@@ -592,11 +698,9 @@ class RunnerTests(unittest.TestCase):
         checks = {row["check"] for row in manifest["final"]["findings"]}
         self.assertIn("unknown_citation_ref", checks)
         self.assertIn("structured_item_limit", checks)
-        headlines = [
-            topic["headline"]
-            for topic in preview_structured["sections"][first.name]["topics"]
-        ]
-        self.assertIn("Fabricated story past the limit", headlines)
+        preview_entries = preview_structured["sections"][first.name]["topics"]
+        self.assertTrue(all(set(entry) == {"citation_refs"} for entry in preview_entries))
+        self.assertIn(["citation_9999"], [entry["citation_refs"] for entry in preview_entries])
 
     def test_eager_repair_preserves_budget_for_render_revealed_findings(self):
         corpus, config, _projected, output = fixture_contract()
@@ -636,8 +740,11 @@ class RunnerTests(unittest.TestCase):
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
-        self.assertEqual(kinds, ["initial", "deterministic_repair", "correction"])
-        self.assertEqual(len(provider.requests), 2)
+        self.assertEqual(
+            kinds,
+            ["selection", "selection_repair", "prose", "correction"],
+        )
+        self.assertEqual(len(provider.requests), 3)
 
     def test_rejected_structured_preview_redacts_destinations_and_unknown_refs(self):
         corpus, config, _projected, output = fixture_contract()
@@ -740,6 +847,7 @@ class RunnerTests(unittest.TestCase):
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(result.status, "ready")
             self.assertEqual(manifest["status"], "complete")
+            self.assertGreater(manifest["citation_cardinality"]["selected_items"], 0)
             self.assertEqual(resumed_provider.requests, [])
 
     def test_resume_rejects_unrecorded_corpus_file(self):
