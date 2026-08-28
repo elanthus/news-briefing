@@ -167,6 +167,8 @@ def _validate_corpus_payload(payload: bytes, day: str, label: str) -> None:
         corpus = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"private corpus is invalid JSON: {label}") from exc
+    if not isinstance(corpus, dict):
+        raise ValueError(f"private corpus is not a JSON object: {label}")
     problems = corpus_schema.validate_corpus(corpus)
     if problems:
         raise ValueError(

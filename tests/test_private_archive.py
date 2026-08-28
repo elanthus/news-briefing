@@ -89,6 +89,21 @@ class PrivateArchiveTests(unittest.TestCase):
         ):
             restore_corpora_from_bytes(payload.getvalue(), Path(directory))
 
+    def test_restore_refuses_non_object_corpus_json(self) -> None:
+        payload = io.BytesIO()
+        with tarfile.open(fileobj=payload, mode="w:gz") as archive:
+            directory = tarfile.TarInfo("corpora")
+            directory.type = tarfile.DIRTYPE
+            archive.addfile(directory)
+            content = b"[]"
+            info = tarfile.TarInfo("corpora/2026-08-20.json")
+            info.size = len(content)
+            archive.addfile(info, io.BytesIO(content))
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
+            ValueError, "not a JSON object"
+        ):
+            restore_corpora_from_bytes(payload.getvalue(), Path(directory))
+
     def test_prune_keeps_only_fourteen_days_ending_at_anchor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             corpora = Path(directory)

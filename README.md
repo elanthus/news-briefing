@@ -11,7 +11,7 @@
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-Live site → <https://elanthus.github.io/news-briefing/> · Every published run links an [integrity report](docs/images/auditor-report.png) to a text-free audit manifest of the corpus it was generated from.
+Live site → <https://elanthus.github.io/news-briefing/> · When its matching retained corpus is available, a published run's [integrity report](docs/images/auditor-report.png) links to a text-free audit manifest.
 
 ---
 
