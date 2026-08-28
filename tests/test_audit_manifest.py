@@ -19,7 +19,7 @@ class AuditManifestTests(unittest.TestCase):
 
         projection = project_corpus(corpus)
         expected_ids = [
-            item["item_ref"]
+            projection.citations[item["citation_ref"]].item_ref
             for items in projection.document["categories"].values()
             for item in items
         ]

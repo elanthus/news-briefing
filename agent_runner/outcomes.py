@@ -10,6 +10,7 @@ EVIDENCE_VIOLATION_CHECKS = {
     "altered_link",
     "excluded_topic_without_link",
     "freeform_url",
+    "opaque_reference_in_prose",
     "structured_citations",
     "topic_without_link",
     "ungrounded_link",

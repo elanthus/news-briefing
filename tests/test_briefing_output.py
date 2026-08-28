@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -29,11 +30,11 @@ def fixture_contract():
     corpus = json.loads((ROOT / "fixtures/corpus-2026-08-11.json").read_text(encoding="utf-8"))
     config = briefing_config.load_config(ROOT / "fixtures/briefing-config-2026-08-11.json")
     projected = project_corpus(corpus)
-    items = {
-        item["item_ref"]: item
-        for category in projected.document["categories"].values()
-        for item in category
-    }
+    items = {}
+    for category in projected.document["categories"].values():
+        for item in category:
+            citation = projected.citations[item["citation_ref"]]
+            items[citation.item_ref] = item
     refs_by_item = {}
     for ref, citation in projected.citations.items():
         refs_by_item.setdefault(citation.item_ref, []).append(ref)
@@ -95,9 +96,8 @@ def unused_hn_item(projected, output):
         item
         for items in projected.document["categories"].values()
         for item in items
-        if item["item_ref"] not in used_items
-        and {citation["kind"] for citation in item["citations"]}
-        == {"article", "discussion"}
+        if projected.citations[item["citation_ref"]].item_ref not in used_items
+        and projected.citations[item["citation_ref"]].discussion_url is not None
     )
 
 
@@ -107,7 +107,22 @@ class BriefingOutputTests(unittest.TestCase):
         rendered = json.dumps(projected.document)
         self.assertNotIn("https://", rendered)
         self.assertTrue(projected.citations)
-        self.assertTrue(all(citation.url.startswith("http") for citation in projected.citations.values()))
+        self.assertTrue(
+            all(citation.article_url.startswith("http") for citation in projected.citations.values())
+        )
+        visible_refs = [
+            item["citation_ref"]
+            for items in projected.document["categories"].values()
+            for item in items
+        ]
+        retained_count = sum(len(items) for items in corpus["categories"].values())
+        self.assertEqual(visible_refs, list(projected.citations))
+        self.assertEqual(len(visible_refs), retained_count)
+        self.assertEqual(
+            len(re.findall(r"citation_\d{4}", rendered)),
+            retained_count,
+        )
+        self.assertNotIn("item_", rendered)
 
         injected = copy.deepcopy(corpus)
         first_category = next(iter(injected["categories"].values()))
@@ -144,6 +159,43 @@ class BriefingOutputTests(unittest.TestCase):
         for item in projected_hn_items:
             self.assertNotIn("points", item)
             self.assertNotIn("comments", item)
+
+    def test_hn_companion_url_does_not_shift_following_item_handles(self):
+        corpus = {
+            "schema_version": 1,
+            "generated_at": "2026-08-27T12:00:00+00:00",
+            "cutoff": "2026-08-26T12:00:00+00:00",
+            "window_hours": 24,
+            "categories": {
+                "dev_community": [
+                    {
+                        "title": "HN article",
+                        "url": "https://example.test/hn-article",
+                        "discussion": "https://news.ycombinator.com/item?id=1",
+                    },
+                    {"title": "Ordinary second item", "url": "https://example.test/second"},
+                    {"title": "Ordinary third item", "url": "https://example.test/third"},
+                ]
+            },
+        }
+
+        projected = project_corpus(corpus)
+        items = projected.document["categories"]["dev_community"]
+
+        self.assertEqual(
+            [item["citation_ref"] for item in items],
+            ["citation_0001", "citation_0002", "citation_0003"],
+        )
+        self.assertEqual(
+            [citation.item_ref for citation in projected.citations.values()],
+            ["item_0001", "item_0002", "item_0003"],
+        )
+        first = projected.citations["citation_0001"]
+        self.assertEqual(first.article_url, "https://example.test/hn-article")
+        self.assertEqual(
+            first.discussion_url,
+            "https://news.ycombinator.com/item?id=1",
+        )
 
     def test_redaction_rejects_destination_bearing_dictionary_keys(self):
         with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
@@ -216,8 +268,9 @@ class BriefingOutputTests(unittest.TestCase):
         briefing = render_briefing(output, corpus, config, projected.citations)
         self.assertEqual(eval_briefing.evaluate(corpus, briefing, config), [])
         first_ref = next(iter(projected.citations))
-        self.assertIn(projected.citations[first_ref].url, briefing)
+        self.assertIn(projected.citations[first_ref].article_url, briefing)
         self.assertNotIn(first_ref, briefing)
+        self.assertNotRegex(briefing, r"\b(?:citation|item)_\d{4}\b")
 
     def test_renderer_reports_undated_source_drops(self):
         corpus, config, projected, output = fixture_contract()
@@ -250,48 +303,42 @@ class BriefingOutputTests(unittest.TestCase):
     def test_renderer_adds_hn_discussion_link_from_article_ref(self):
         corpus, config, projected, output = fixture_contract()
         item = unused_hn_item(projected, output)
-        refs = {citation["kind"]: citation["ref"] for citation in item["citations"]}
+        ref = item["citation_ref"]
+        citation = projected.citations[ref]
         topic = output["sections"]["AI Dev Tools"]["topics"][0]
         topic.update({
             "headline": item["title"],
             "summary": item.get("summary") or item["title"],
-            "citation_refs": [refs["article"]],
+            "citation_refs": [ref],
         })
 
         briefing = render_briefing(output, corpus, config, projected.citations)
-        article_url = projected.citations[refs["article"]].url
-        discussion_url = projected.citations[refs["discussion"]].url
-        self.assertEqual(briefing.count(article_url), 1)
-        self.assertEqual(briefing.count(discussion_url), 1)
+        self.assertEqual(briefing.count(citation.article_url), 1)
+        self.assertIsNotNone(citation.discussion_url)
+        self.assertEqual(briefing.count(citation.discussion_url), 1)
         self.assertNotIn(
             "missing_discussion_link",
             {finding.check for finding in eval_briefing.evaluate(corpus, briefing, config)},
         )
 
-    def test_renderer_deduplicates_explicit_hn_pair_and_self_post(self):
+    def test_renderer_deduplicates_hn_self_post(self):
         corpus, config, projected, output = fixture_contract()
         item = unused_hn_item(projected, output)
-        refs = {citation["kind"]: citation["ref"] for citation in item["citations"]}
+        ref = item["citation_ref"]
+        citation = projected.citations[ref]
         topic = output["sections"]["AI Dev Tools"]["topics"][0]
-        topic["citation_refs"] = [refs["article"], refs["discussion"]]
-        briefing = render_briefing(output, corpus, config, projected.citations)
-        self.assertEqual(
-            briefing.count(projected.citations[refs["discussion"]].url), 1
-        )
-
         self_post_citations = dict(projected.citations)
-        discussion = projected.citations[refs["discussion"]]
-        article = projected.citations[refs["article"]]
-        self_post_citations[refs["article"]] = type(article)(
-            article.ref,
-            article.item_ref,
-            article.category,
-            article.kind,
-            discussion.url,
+        self.assertIsNotNone(citation.discussion_url)
+        self_post_citations[ref] = type(citation)(
+            ref=citation.ref,
+            item_ref=citation.item_ref,
+            category=citation.category,
+            article_url=citation.discussion_url,
+            discussion_url=citation.discussion_url,
         )
-        topic["citation_refs"] = [refs["article"]]
+        topic["citation_refs"] = [ref]
         self_post = render_briefing(output, corpus, config, self_post_citations)
-        self.assertEqual(self_post.count(discussion.url), 1)
+        self.assertEqual(self_post.count(citation.discussion_url), 1)
 
     def test_unknown_reference_and_url_in_summary_fail(self):
         _corpus, config, projected, output = fixture_contract()
@@ -302,6 +349,33 @@ class BriefingOutputTests(unittest.TestCase):
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("freeform_url", checks)
         self.assertIn("unknown_citation_ref", checks)
+
+    def test_opaque_references_in_model_authored_prose_are_blocking(self):
+        _corpus, config, projected, output = fixture_contract()
+        cases = (
+            ("headline", "Headline leaks citation_0001"),
+            ("summary", "Summary leaks item_0002"),
+        )
+        for field, value in cases:
+            with self.subTest(field=field):
+                broken = copy.deepcopy(output)
+                broken["sections"][config.sections[0].name]["topics"][0][field] = value
+                findings = validate_output(broken, config, projected.citations)
+                opaque = [
+                    finding
+                    for finding in findings
+                    if finding.check == "opaque_reference_in_prose"
+                ]
+                self.assertTrue(opaque)
+                self.assertTrue(all(finding.level == "ERROR" for finding in opaque))
+
+        accountable = next(section for section in config.sections if section.excluded_stories)
+        broken = copy.deepcopy(output)
+        broken["excluded_topics"][accountable.name][0]["reason"] = (
+            "Lower impact than citation_0042."
+        )
+        checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
+        self.assertIn("opaque_reference_in_prose", checks)
 
     def test_scheme_less_bare_domain_in_summary_is_allowed(self):
         # A bare "attacker.com/x" (no scheme, no "www.") is intentionally not a
@@ -608,7 +682,7 @@ class BriefingOutputTests(unittest.TestCase):
             text
             for ref in refs
             if (text := evidence.get(
-                corpus_schema.canonicalize_url(projected.citations[ref].url)))
+                corpus_schema.canonicalize_url(projected.citations[ref].article_url)))
         )
         return " ".join(" ".join(texts).split())
 
@@ -652,7 +726,7 @@ class BriefingOutputTests(unittest.TestCase):
         }
         support = "e" * 58
         evidence = {
-            corpus_schema.canonicalize_url(citation.url): support
+            corpus_schema.canonicalize_url(citation.article_url): support
             for citation in projected.citations.values()
             if citation.item_ref in cited_items
         }
@@ -708,7 +782,7 @@ class BriefingOutputTests(unittest.TestCase):
             for ref in bloated_entry["citation_refs"]
         }
         cited_urls = {
-            corpus_schema.canonicalize_url(citation.url)
+            corpus_schema.canonicalize_url(citation.article_url)
             for citation in projected.citations.values()
             if citation.item_ref in cited_items
         }
@@ -740,7 +814,7 @@ class BriefingOutputTests(unittest.TestCase):
         broken = copy.deepcopy(output)
         entry = broken["sections"][first.name]["topics"][0]
         cited_urls = {
-            corpus_schema.canonicalize_url(projected.citations[ref].url)
+            corpus_schema.canonicalize_url(projected.citations[ref].article_url)
             for ref in entry["citation_refs"]
         }
         tainted = False

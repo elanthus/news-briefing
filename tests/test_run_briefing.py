@@ -370,7 +370,7 @@ class RunnerTests(unittest.TestCase):
             ["initial", "deterministic_repair"],
         )
         self.assertNotIn(broken["sections"][section.name]["topics"][0]["headline"], final)
-        self.assertNotIn(projected.citations[ineligible_ref].url, final)
+        self.assertNotIn(projected.citations[ineligible_ref].article_url, final)
         self.assertEqual(
             manifest["attempts"][-1]["repair_actions"][0]["action"],
             "drop_entry",
@@ -477,7 +477,7 @@ class RunnerTests(unittest.TestCase):
             text
             for ref in entry["citation_refs"]
             if (text := evidence.get(
-                corpus_schema.canonicalize_url(projected.citations[ref].url)))
+                corpus_schema.canonicalize_url(projected.citations[ref].article_url)))
         )
         excerpt = " ".join(" ".join(texts).split())
         self.assertTrue(excerpt)
@@ -531,6 +531,39 @@ class RunnerTests(unittest.TestCase):
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
         self.assertIn("correction", kinds)
         self.assertEqual(len(provider.requests), 2)
+
+    def test_opaque_reference_in_prose_spends_correction_and_is_not_published(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        broken["sections"][config.sections[0].name]["topics"][0]["summary"] += (
+            " Supported by citation_0001 and item_0001."
+        )
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            requested_output = root / "briefing.md"
+            result = run_workflow(provider, self.settings(requested_output), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            published = requested_output.read_text(encoding="utf-8")
+            first_findings = json.loads(
+                (root / "run" / manifest["attempts"][0]["findings_artifact"]).read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["initial", "correction"],
+        )
+        self.assertIn(
+            "opaque_reference_in_prose",
+            {finding["check"] for finding in first_findings},
+        )
+        self.assertIn("opaque_reference_in_prose", provider.requests[1].prompt)
+        self.assertNotRegex(published, r"\b(?:citation|item)_\d{4}\b")
 
     def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
         corpus, config, _projected, output = fixture_contract()

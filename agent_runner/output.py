@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,12 +24,24 @@ class OutputFinding(NamedTuple):
 
 
 @dataclass(frozen=True)
+class CitationDestination:
+    kind: str
+    url: str
+
+
+@dataclass(frozen=True)
 class Citation:
     ref: str
     item_ref: str
     category: str
-    kind: str
-    url: str
+    article_url: str
+    discussion_url: str | None
+
+    def destinations(self) -> tuple[CitationDestination, ...]:
+        destinations = [CitationDestination("article", self.article_url)]
+        if self.discussion_url:
+            destinations.append(CitationDestination("discussion", self.discussion_url))
+        return tuple(destinations)
 
 
 @dataclass(frozen=True)
@@ -39,6 +52,7 @@ class ModelCorpus:
 
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
 MODEL_EXCLUDED_ITEM_FIELDS = frozenset({"url", "discussion", "points", "comments"})
+OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d{4}\b", re.IGNORECASE)
 
 
 def _redact_text_destinations(value: str) -> str:
@@ -104,29 +118,33 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
     projected_categories: dict[str, list[dict[str, Any]]] = {}
     citations: dict[str, Citation] = {}
     item_number = 0
-    citation_number = 0
     for category, items in corpus["categories"].items():
         projected_items: list[dict[str, Any]] = []
         for item in items:
             item_number += 1
             item_ref = f"item_{item_number:04d}"
+            ref = f"citation_{item_number:04d}"
             projected = {
                 key: redact_destinations(value)
                 for key, value in item.items()
                 if key not in MODEL_EXCLUDED_ITEM_FIELDS
             }
-            projected["item_ref"] = item_ref
-            projected_citations = []
-            for key, kind in (("url", "article"), ("discussion", "discussion")):
-                url = item.get(key)
-                if not isinstance(url, str) or not url:
-                    continue
-                citation_number += 1
-                ref = f"citation_{citation_number:04d}"
-                citation = Citation(ref, item_ref, category, kind, url)
-                citations[ref] = citation
-                projected_citations.append({"ref": ref, "kind": kind})
-            projected["citations"] = projected_citations
+            article_url = item.get("url")
+            discussion_url = item.get("discussion")
+            if not isinstance(article_url, str) or not article_url:
+                raise ValueError(f"{item_ref} has no citable article URL")
+            if not isinstance(discussion_url, str) or not discussion_url:
+                discussion_url = None
+            citations[ref] = Citation(
+                ref=ref,
+                item_ref=item_ref,
+                category=category,
+                article_url=article_url,
+                discussion_url=discussion_url,
+            )
+            # The model sees one selectable handle per evidence item. Internal
+            # item identifiers and destination multiplicity stay code-owned.
+            projected["citation_ref"] = ref
             projected_items.append(projected)
         projected_categories[category] = projected_items
     document = redact_destinations({
@@ -138,6 +156,19 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
     })
     if not isinstance(document, dict):
         raise AssertionError("projected model corpus must be an object")
+    visible_refs = [
+        item.get("citation_ref")
+        for items in document["categories"].values()
+        for item in items
+    ]
+    if visible_refs != list(citations):
+        raise AssertionError(
+            "model-visible citation handles must be consecutive and item-aligned"
+        )
+    if len(citations) != item_number:
+        raise AssertionError(
+            "model-visible citation handle count must equal retained corpus item count"
+        )
     return ModelCorpus(document=document, citations=citations)
 
 
@@ -528,6 +559,14 @@ def _text(
         findings.append(OutputFinding(
             "ERROR", "freeform_url", f"{where} contains a web destination; use citation_refs only"
         ))
+    opaque_refs = sorted(set(OPAQUE_REFERENCE.findall(value)), key=str.lower)
+    if opaque_refs:
+        findings.append(OutputFinding(
+            "ERROR",
+            "opaque_reference_in_prose",
+            f"{where} contains opaque reference token(s) "
+            f"{', '.join(opaque_refs)}; use them only in citation_refs",
+        ))
     return value
 
 
@@ -675,29 +714,23 @@ def _corpus_date_label(corpus: dict[str, Any]) -> str:
 def _complete_item_citations(
     refs: list[str],
     citations: dict[str, Citation],
-) -> list[Citation]:
+) -> list[CitationDestination]:
     """Expand selected items to every distinct code-owned destination.
 
     A model chooses evidence items, not presentation details. In particular, an
     HN article and its discussion page are a deterministic pair that the
-    renderer owns. Canonical destination deduplication keeps self-posts and
-    explicitly supplied companion refs from rendering twice.
+    renderer owns. Canonical destination deduplication keeps self-posts from
+    rendering the same URL twice.
     """
-    item_order = list(dict.fromkeys(citations[ref].item_ref for ref in refs))
-    completed: list[Citation] = []
+    completed: list[CitationDestination] = []
     seen_destinations: set[str] = set()
-    kind_order = {"article": 0, "discussion": 1}
-    for item_ref in item_order:
-        item_citations = sorted(
-            (citation for citation in citations.values() if citation.item_ref == item_ref),
-            key=lambda citation: kind_order.get(citation.kind, len(kind_order)),
-        )
-        for citation in item_citations:
-            destination = corpus_schema.canonicalize_url(citation.url)
+    for ref in dict.fromkeys(refs):
+        for destination_record in citations[ref].destinations():
+            destination = corpus_schema.canonicalize_url(destination_record.url)
             if destination in seen_destinations:
                 continue
             seen_destinations.add(destination)
-            completed.append(citation)
+            completed.append(destination_record)
     return completed
 
 
@@ -866,13 +899,16 @@ def _preview_entries(
         lines.append(f"{marker}**{headline}** — {rendered_prose}{prose_note}")
         refs = entry.get("citation_refs")
         if isinstance(refs, list):
+            known_refs: list[str] = []
             for ref in refs:
                 citation = citations.get(ref) if isinstance(ref, str) else None
                 if citation is None:
                     lines.append("  - Unknown citation reference omitted.")
                     continue
-                prefix = "HN: " if citation.kind == "discussion" else ""
-                lines.append(f"🔗 {prefix}{citation.url}")
+                known_refs.append(ref)
+            for destination in _complete_item_citations(known_refs, citations):
+                prefix = "HN: " if destination.kind == "discussion" else ""
+                lines.append(f"🔗 {prefix}{destination.url}")
         else:
             lines.append("  - No citation references supplied.")
         lines.append("")
