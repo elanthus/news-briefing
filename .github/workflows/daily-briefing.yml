@@ -111,6 +111,7 @@ jobs:
             if [[ "$status" == "200" ]]; then
               return 0
             fi
+            rm -f -- "$output"
             if [[ "$status" == "404" ]]; then
               return 1
             fi
