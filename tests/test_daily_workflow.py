@@ -190,9 +190,13 @@ class DailyWorkflowTests(unittest.TestCase):
         validation = restore_step.index(
             'prune-corpora legacy-corpora --newest "$today"'
         )
+        copy_guard = restore_step.index(
+            'if compgen -G "legacy-corpora/*.json" > /dev/null; then'
+        )
         copy = restore_step.index("cp legacy-corpora/*.json corpora/")
         self.assertLess(failure, validation)
-        self.assertLess(validation, copy)
+        self.assertLess(validation, copy_guard)
+        self.assertLess(copy_guard, copy)
 
     def test_completed_migration_marker_allows_archive_gap_recovery(self) -> None:
         restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(

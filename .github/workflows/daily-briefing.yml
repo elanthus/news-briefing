@@ -155,7 +155,9 @@ jobs:
                   fi
                 fi
                 python private_archive.py prune-corpora legacy-corpora --newest "$today"
-                cp legacy-corpora/*.json corpora/
+                if compgen -G "legacy-corpora/*.json" > /dev/null; then
+                  cp legacy-corpora/*.json corpora/
+                fi
               elif (( history_status == 1 )); then
                 echo "No published history exists; starting the first corpus window"
               else
