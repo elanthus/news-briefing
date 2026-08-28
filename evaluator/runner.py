@@ -396,6 +396,19 @@ class _ProductionParityAttempt:
     correction_stage: str
 
 
+class _ProductionParityProviderError(RuntimeError):
+    """A failed stage plus provider calls completed earlier in the candidate."""
+
+    def __init__(
+        self,
+        cause: Exception,
+        completed_calls: list[tuple[str, Generation]],
+    ):
+        super().__init__(str(cause))
+        self.cause = cause
+        self.completed_calls = completed_calls
+
+
 def _output_findings(findings: list[Any]) -> list[eval_briefing.Finding]:
     return [
         eval_briefing.Finding(finding.level, finding.check, finding.message)
@@ -485,15 +498,41 @@ def _combine_structured_calls(
         provider_request_id=(
             calls[0][1].provider_request_id if len(calls) == 1 else None
         ),
-        usage={
-            "production_parity_calls": [
-                {"stage": stage, **generation.record()}
-                for stage, generation in calls
-            ]
-        },
+        usage={"production_parity_calls": _stage_call_records(calls)},
         attempts=sum(generation.attempts for _stage, generation in calls),
         structured_output=structured_output,
     )
+
+
+def _stage_call_records(
+    calls: list[tuple[str, Generation]],
+) -> list[dict[str, Any]]:
+    return [
+        {"stage": stage, **generation.record()}
+        for stage, generation in calls
+    ]
+
+
+def _reported_stage_cost(calls: list[tuple[str, Generation]]) -> float:
+    return sum(
+        generation.cost_usd
+        for _stage, generation in calls
+        if generation.cost_usd is not None
+    )
+
+
+def _reported_generation_cost(generation: Generation) -> float:
+    usage = generation.usage
+    staged = usage.get("production_parity_calls") if isinstance(usage, dict) else None
+    if isinstance(staged, list):
+        return sum(
+            cost
+            for record in staged
+            if isinstance(record, dict)
+            and isinstance((cost := record.get("cost_usd")), (int, float))
+            and not isinstance(cost, bool)
+        )
+    return generation.cost_usd or 0.0
 
 
 def _empty_structured_result(
@@ -540,9 +579,12 @@ def _production_parity_after_selection(
     selected_evidence = project_selected_evidence(selection, projected)
     prose_request = structured_prose_request(policy, config_data, selected_evidence)
     prose_schema = build_prose_schema(config, selection)
-    prose_generation = adapter.generate_structured(
-        prose_request, prose_schema, f"{trace_id}-prose"
-    )
+    try:
+        prose_generation = adapter.generate_structured(
+            prose_request, prose_schema, f"{trace_id}-prose"
+        )
+    except Exception as exc:
+        raise _ProductionParityProviderError(exc, calls) from exc
     calls.append(("prose", prose_generation))
     prose = prose_generation.structured_output
     prose_findings = _output_findings(validate_prose_output(prose, config, selection))
@@ -1888,14 +1930,24 @@ def run_evaluation(
                 else:
                     first = adapter.generate(request)
             except Exception as exc:
+                completed_calls: list[tuple[str, Generation]] = []
+                provider_exc = exc
+                if isinstance(exc, _ProductionParityProviderError):
+                    completed_calls = exc.completed_calls
+                    provider_exc = exc.cause
                 if (
                     ceiling_applies
-                    and isinstance(exc, ProviderRequestError)
-                    and exc.cost_usd is not None
+                    and isinstance(provider_exc, ProviderRequestError)
+                    and provider_exc.cost_usd is not None
                 ):
-                    observed_ceiling_cost_usd += exc.cost_usd
+                    observed_ceiling_cost_usd += provider_exc.cost_usd
                     manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
-                error = _provider_error("first", exc)
+                if ceiling_applies and completed_calls:
+                    observed_ceiling_cost_usd += _reported_stage_cost(completed_calls)
+                    manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
+                error = _provider_error("first", provider_exc)
+                if completed_calls:
+                    error["completed_stage_calls"] = _stage_call_records(completed_calls)
                 consecutive_failures += 1
                 if consecutive_failures >= CIRCUIT_BREAKER_THRESHOLD:
                     circuit_reason = error
@@ -1920,8 +1972,8 @@ def run_evaluation(
                         status = "circuit opened after provider error"
                     progress(adapter.provider, adapter.model, model_completed, model_total, status)
                 continue
-            if ceiling_applies and first.cost_usd is not None:
-                observed_ceiling_cost_usd += first.cost_usd
+            if ceiling_applies:
+                observed_ceiling_cost_usd += _reported_generation_cost(first)
                 manifest["observed_ceiling_cost_usd"] = observed_ceiling_cost_usd
             if generation_path == "production-parity":
                 first_text = parity_first.text
@@ -1989,25 +2041,42 @@ def run_evaluation(
                                 first.text,
                                 finding_records,
                             ))
-                        if (
-                            ceiling_applies
-                            and corrected.cost_usd is not None
-                        ):
-                            observed_ceiling_cost_usd += corrected.cost_usd
+                        if ceiling_applies:
+                            observed_ceiling_cost_usd += _reported_generation_cost(
+                                corrected
+                            )
                             manifest["observed_ceiling_cost_usd"] = (
                                 observed_ceiling_cost_usd
                             )
                     except Exception as exc:
+                        completed_calls = []
+                        provider_exc = exc
+                        if isinstance(exc, _ProductionParityProviderError):
+                            completed_calls = exc.completed_calls
+                            provider_exc = exc.cause
                         if (
                             ceiling_applies
-                            and isinstance(exc, ProviderRequestError)
-                            and exc.cost_usd is not None
+                            and isinstance(provider_exc, ProviderRequestError)
+                            and provider_exc.cost_usd is not None
                         ):
-                            observed_ceiling_cost_usd += exc.cost_usd
+                            observed_ceiling_cost_usd += provider_exc.cost_usd
                             manifest["observed_ceiling_cost_usd"] = (
                                 observed_ceiling_cost_usd
                             )
-                        correction_error = _provider_error("correction", exc)
+                        if ceiling_applies and completed_calls:
+                            observed_ceiling_cost_usd += _reported_stage_cost(
+                                completed_calls
+                            )
+                            manifest["observed_ceiling_cost_usd"] = (
+                                observed_ceiling_cost_usd
+                            )
+                        correction_error = _provider_error(
+                            "correction", provider_exc
+                        )
+                        if completed_calls:
+                            correction_error["completed_stage_calls"] = (
+                                _stage_call_records(completed_calls)
+                            )
                         _write_json_atomic(
                             case_dir / "correction-error.json", correction_error
                         )
@@ -2129,11 +2198,22 @@ def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
             return staged
         return [record]
 
+    def expand_error(error: dict[str, Any]) -> list[dict[str, Any]]:
+        completed = error.get("completed_stage_calls")
+        calls = (
+            list(completed)
+            if isinstance(completed, list)
+            and all(isinstance(call, dict) for call in completed)
+            else []
+        )
+        calls.append(error)
+        return calls
+
     calls = []
     if isinstance(row.get("first"), dict):
         calls.extend(expand(row["first"]))
     elif row.get("status") == "provider_error" and isinstance(row.get("error"), dict):
-        calls.append(row["error"])
+        calls.extend(expand_error(row["error"]))
 
     if isinstance(row.get("correction"), dict):
         calls.extend(expand(row["correction"]))
@@ -2141,7 +2221,7 @@ def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
         isinstance(row.get("correction_error"), dict)
         and row["correction_error"].get("type") != "CostCeilingReached"
     ):
-        calls.append(row["correction_error"])
+        calls.extend(expand_error(row["correction_error"]))
     return calls
 
 

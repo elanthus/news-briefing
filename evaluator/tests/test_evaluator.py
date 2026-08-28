@@ -1625,6 +1625,29 @@ class RepairingProseStructuredFakeAdapter(StructuredFakeAdapter):
         )
 
 
+class FailingProseStructuredFakeAdapter(StructuredFakeAdapter):
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        if len(self.requests) == 1:
+            self.requests.append(prompt)
+            self.schemas.append(output_schema)
+            raise ProviderRequestError(
+                "prose transport failed after selection",
+                transient=False,
+                cost_usd=0.003,
+            )
+        generation = super().generate_structured(prompt, output_schema, trace_id)
+        return Generation(
+            text=generation.text,
+            structured_output=generation.structured_output,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+            cost_usd=0.002,
+        )
+
+
 class CostedFakeAdapter(FakeAdapter):
     provider = "costed-fixture"
 
@@ -2143,6 +2166,34 @@ class RunnerTest(unittest.TestCase):
             self.assertIn("replacement prose JSON object", adapter.requests[2])
             self.assertNotIn("citation_0001 leaked", adapter.requests[2])
             self.assertNotIn("citation_", (artifact / "final.md").read_text(encoding="utf-8"))
+
+    def test_production_parity_preserves_selection_cost_when_prose_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            adapter = FailingProseStructuredFakeAdapter("fixture")
+
+            report = run_evaluation(
+                [adapter],
+                {"production": prompt},
+                output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+                cost_ceiling_usd=1.0,
+                cost_ceiling_provider=adapter.provider,
+            )
+
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row = manifest["results"][0]
+            self.assertEqual(row["status"], "provider_error")
+            self.assertEqual(row["error"]["stage"], "first")
+            self.assertEqual(len(row["error"]["completed_stage_calls"]), 1)
+            self.assertEqual(row["error"]["completed_stage_calls"][0]["stage"], "selection")
+            self.assertEqual(manifest["observed_ceiling_cost_usd"], 0.005)
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 2)
+            self.assertEqual(cost["total_usd"], 0.005)
 
     def test_production_parity_resume_requires_structured_artifacts(self) -> None:
         class InterruptSecondStructuredCall(StructuredFakeAdapter):

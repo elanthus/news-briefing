@@ -177,22 +177,26 @@ the failed stage: selection failures receive a replacement selection request,
 while prose or rendered-contract failures receive a prose-only request against
 the frozen evidence.
 
-Each trial preserves the raw and projected corpora, citation map, selection
-schema, stage-specific prose request and schema, selected-evidence projection,
-structured responses, and rendered Markdown. `output-schema.json` remains a
-compatibility alias for `selection-schema.json`. The default `markdown` path
-remains available for historical prompt and direct-format reliability
-comparisons. Both direct-Markdown prompts omit mutable Hacker News points and
-comment counts. Production-parity manifests record Codex's fixed medium
-reasoning and OpenRouter's effective reasoning enablement/effort; Claude Code
-remains provider-controlled.
+Each trial preserves the raw and projected corpora, citation map, and selection
+schema. A completed two-pass candidate also preserves its stage-specific prose
+request and schema, selected-evidence projection, structured responses, and
+rendered Markdown; a failed trial retains the artifacts produced before the
+failure. `output-schema.json` remains a compatibility alias for
+`selection-schema.json`. The default `markdown` path remains available for
+historical prompt and direct-format reliability comparisons. Both
+direct-Markdown prompts omit mutable Hacker News points and comment counts.
+Production-parity manifests record Codex's fixed medium reasoning and
+OpenRouter's effective reasoning enablement/effort; Claude Code remains
+provider-controlled.
 
 ### Cost ceilings
 
-The provider-scoped ceiling accumulates costs reported by OpenRouter and stops
-before the next request after the observed total reaches the ceiling. One in-flight
-request can therefore take the observed total slightly above the limit. A stopped
-ceiling, provider failure, or billing/credit error leaves checkpointed artifacts and
+The provider-scoped ceiling accumulates costs reported by OpenRouter. The
+direct-Markdown path checks it before each request. Production parity checks it
+before each candidate or correction; a selection call and its dependent prose
+call form one staged candidate. One direct request or staged candidate can
+therefore take the observed total above the limit. A stopped ceiling, provider
+failure, or billing/credit error leaves checkpointed artifacts and
 causes a nonzero command exit.
 
 ### Comparing prompt versions after a run
