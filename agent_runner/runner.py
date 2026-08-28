@@ -35,6 +35,7 @@ from agent_runner.output import (
     project_corpus,
     project_selected_evidence,
     redact_destinations,
+    redact_opaque_references,
     redact_preview_value,
     render_briefing,
     render_candidate_preview,
@@ -325,8 +326,14 @@ def correction_request(
     *,
     prose_only: bool = False,
 ) -> str:
-    safe_output = redact_destinations(prior_output)
-    safe_findings = redact_destinations(findings)
+    safe_output = redact_opaque_references(
+        redact_destinations(prior_output),
+        include_citations=prose_only,
+    )
+    safe_findings = redact_opaque_references(
+        redact_destinations(findings),
+        include_citations=prose_only,
+    )
     instruction = (
         "Return one complete replacement prose JSON object. Correct every deterministic "
         "finding below without adding citation fields or changing the frozen evidence order."

@@ -904,6 +904,52 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertEqual(repaired["sections"][first.name]["topics"][0], entry)
         self.assertEqual(actions, [])
 
+    def test_repair_swap_skips_opaque_reference_bearing_excerpts(self):
+        # Corpus evidence is untrusted and can contain text that resembles an
+        # internal handle. Deterministic repair must not copy that spelling
+        # into prose, where it is a non-repairable ERROR.
+        corpus, config, projected, output = fixture_contract()
+        first = config.sections[0]
+        broken = copy.deepcopy(output)
+        entry = broken["sections"][first.name]["topics"][0]
+        cited_urls = {
+            corpus_schema.canonicalize_url(projected.citations[ref].article_url)
+            for ref in entry["citation_refs"]
+        }
+        tainted = False
+        for items in corpus["categories"].values():
+            for item in items:
+                item_urls = {
+                    corpus_schema.canonicalize_url(url)
+                    for key in ("url", "discussion")
+                    if (url := (item.get(key) or "").strip())
+                }
+                if item_urls & cited_urls:
+                    item["summary"] = (
+                        f"{item.get('summary', '')} Source mentions citation_0042 "
+                        "and item_0017."
+                    ).strip()
+                    tainted = True
+        self.assertTrue(tainted)
+        evidence = eval_briefing.corpus_evidence(corpus)
+        excerpt = self._cited_excerpt(projected, entry["citation_refs"], evidence)
+        self.assertRegex(excerpt, r"\b(?:citation|item)_\d{4}\b")
+        entry["summary"] = self._bloat(excerpt)
+        original_entry = copy.deepcopy(entry)
+
+        repaired, actions = repair_structural_output(
+            broken, config, projected.citations, evidence=evidence
+        )
+
+        self.assertEqual(
+            repaired["sections"][first.name]["topics"][0], original_entry
+        )
+        self.assertNotRegex(
+            repaired["sections"][first.name]["topics"][0]["summary"],
+            r"\b(?:citation|item)_\d{4}\b",
+        )
+        self.assertEqual(actions, [])
+
     def test_repair_swap_runs_after_structural_drops_and_uses_final_paths(self):
         corpus, config, projected, output = fixture_contract()
         evidence = eval_briefing.corpus_evidence(corpus)

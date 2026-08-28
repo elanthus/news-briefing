@@ -51,8 +51,10 @@ class ModelCorpus:
 
 
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+OPAQUE_REFERENCE_REDACTION = "[opaque reference omitted]"
 MODEL_EXCLUDED_ITEM_FIELDS = frozenset({"url", "discussion", "points", "comments"})
 OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d{4}\b", re.IGNORECASE)
+ITEM_REFERENCE = re.compile(r"\bitem_\d{4}\b", re.IGNORECASE)
 
 
 def _redact_text_destinations(value: str) -> str:
@@ -86,6 +88,40 @@ def redact_destinations(value: Any) -> Any:
             redacted[key] = redact_destinations(item)
         return redacted
     return value
+
+
+def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
+    """Remove opaque handles before feeding rejected output back to a model.
+
+    Selection corrections still need the selectable ``citation_####`` handles
+    from the prior selection. Internal ``item_####`` references are never
+    model inputs. Prose corrections receive neither spelling because both are
+    forbidden in model-authored prose.
+    """
+    pattern = OPAQUE_REFERENCE if include_citations else ITEM_REFERENCE
+    if isinstance(value, str):
+        return pattern.sub(OPAQUE_REFERENCE_REDACTION, value)
+    if isinstance(value, list):
+        return [
+            redact_opaque_references(item, include_citations=include_citations)
+            for item in value
+        ]
+    if isinstance(value, dict):
+        redacted: dict[Any, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and pattern.search(key):
+                raise ValueError(
+                    "model input contains an opaque-reference-bearing dictionary key"
+                )
+            redacted[key] = redact_opaque_references(
+                item, include_citations=include_citations
+            )
+        return redacted
+    return value
+
+
+def _opaque_reference_tokens(value: str) -> list[str]:
+    return sorted(set(OPAQUE_REFERENCE.findall(value)), key=str.lower)
 
 
 def redact_preview_value(value: Any) -> Any:
@@ -515,6 +551,8 @@ def repair_structural_output(
     ``eval_briefing.corpus_evidence``) is provided, a final pass swaps any
     included summary that exceeds the claim/evidence ratio for its own
     deduplicated cited excerpt, so ``claim_exceeds_evidence`` cannot re-fire.
+    An excerpt containing a destination or opaque reference token is not safe
+    to place in model-authored prose and is therefore left untouched.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -684,11 +722,15 @@ def repair_structural_output(
                 # one-line topic grammar; collapsing only shrinks the prose, so
                 # the ratio check still passes against the raw corpus text.
                 excerpt = " ".join(support.split())
-                # Feed blurbs routinely carry bare URLs; swapping one into a
-                # summary would trade a repairable WARN for a non-repairable
-                # freeform_url ERROR. Fail closed: leave the entry untouched
-                # and preserved for review. Same detector as ``_text``.
-                if eval_briefing.output_urls(excerpt):
+                # Feed blurbs can carry URLs or opaque-reference spellings;
+                # swapping either into a summary would trade a repairable WARN
+                # for a non-repairable prose ERROR. Fail closed and preserve
+                # the entry for review. These are the same detectors as
+                # ``_text`` below.
+                if (
+                    eval_briefing.output_urls(excerpt)
+                    or _opaque_reference_tokens(excerpt)
+                ):
                     continue
                 entry["summary"] = excerpt
                 actions.append({
@@ -746,7 +788,7 @@ def _text(
         findings.append(OutputFinding(
             "ERROR", "freeform_url", f"{where} contains a web destination; use citation_refs only"
         ))
-    opaque_refs = sorted(set(OPAQUE_REFERENCE.findall(value)), key=str.lower)
+    opaque_refs = _opaque_reference_tokens(value)
     if opaque_refs:
         findings.append(OutputFinding(
             "ERROR",

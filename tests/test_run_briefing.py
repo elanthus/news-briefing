@@ -444,6 +444,38 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
+    def test_selection_correction_redacts_internal_item_ids_from_findings(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        first = config.sections[0]
+        second = config.sections[1]
+        repeated_refs = copy.deepcopy(
+            broken["sections"][first.name]["topics"][0]["citation_refs"]
+        )
+        broken["sections"][second.name]["topics"][0]["citation_refs"] = repeated_refs
+        broken["sections"][first.name]["topics"][1]["citation_refs"] = [
+            "citation_9999"
+        ]
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(
+                provider, self.settings(root / "briefing.md"), root / "run"
+            )
+
+        self.assertEqual(result.status, "ready")
+        correction_prompt = provider.requests[1].prompt
+        self.assertIn("duplicate_item", correction_prompt)
+        self.assertIn("unknown_citation_ref", correction_prompt)
+        self.assertIn("[opaque reference omitted]", correction_prompt)
+        self.assertNotRegex(correction_prompt, r"\bitem_\d{4}\b")
+        # Selection corrections still receive citation handles, including the
+        # rejected prior selection, so the model can replace it from the
+        # eligible handle set in the original request.
+        self.assertIn("citation_9999", correction_prompt)
+
     def test_category_error_is_removed_by_deterministic_repair(self):
         corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
@@ -668,7 +700,12 @@ class RunnerTests(unittest.TestCase):
             "opaque_reference_in_prose",
             {finding["check"] for finding in first_findings},
         )
-        self.assertIn("opaque_reference_in_prose", provider.requests[2].prompt)
+        correction_prompt = provider.requests[2].prompt
+        self.assertIn("opaque_reference_in_prose", correction_prompt)
+        self.assertIn("[opaque reference omitted]", correction_prompt)
+        self.assertNotIn("citation_0001", correction_prompt)
+        self.assertNotIn("item_0001", correction_prompt)
+        self.assertNotRegex(correction_prompt, r"\b(?:citation|item)_\d{4}\b")
         self.assertNotRegex(published, r"\b(?:citation|item)_\d{4}\b")
 
     def test_zero_budget_over_limit_unknown_ref_stays_rejected(self):
