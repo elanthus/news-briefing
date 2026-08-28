@@ -51,8 +51,10 @@ class ModelCorpus:
 
 
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
+OPAQUE_REFERENCE_REDACTION = "[opaque reference omitted]"
 MODEL_EXCLUDED_ITEM_FIELDS = frozenset({"url", "discussion", "points", "comments"})
-OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d{4}\b", re.IGNORECASE)
+OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d+\b", re.IGNORECASE)
+ITEM_REFERENCE = re.compile(r"\bitem_\d+\b", re.IGNORECASE)
 
 
 def _redact_text_destinations(value: str) -> str:
@@ -86,6 +88,40 @@ def redact_destinations(value: Any) -> Any:
             redacted[key] = redact_destinations(item)
         return redacted
     return value
+
+
+def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
+    """Remove opaque handles before feeding rejected output back to a model.
+
+    Selection corrections still need the selectable ``citation_`` plus digits
+    handles from the prior selection. Internal ``item_`` plus digits references
+    are never model inputs. Prose corrections receive neither spelling because
+    both are forbidden in model-authored prose.
+    """
+    pattern = OPAQUE_REFERENCE if include_citations else ITEM_REFERENCE
+    if isinstance(value, str):
+        return pattern.sub(OPAQUE_REFERENCE_REDACTION, value)
+    if isinstance(value, list):
+        return [
+            redact_opaque_references(item, include_citations=include_citations)
+            for item in value
+        ]
+    if isinstance(value, dict):
+        redacted: dict[Any, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and pattern.search(key):
+                raise ValueError(
+                    "model input contains an opaque-reference-bearing dictionary key"
+                )
+            redacted[key] = redact_opaque_references(
+                item, include_citations=include_citations
+            )
+        return redacted
+    return value
+
+
+def _opaque_reference_tokens(value: str) -> list[str]:
+    return sorted(set(OPAQUE_REFERENCE.findall(value)), key=str.lower)
 
 
 def redact_preview_value(value: Any) -> Any:
@@ -170,6 +206,52 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
             "model-visible citation handle count must equal retained corpus item count"
         )
     return ModelCorpus(document=document, citations=citations)
+
+
+def project_selected_evidence(
+    selection: dict[str, Any],
+    projected: ModelCorpus,
+) -> dict[str, Any]:
+    """Project only frozen, position-scoped evidence into the prose pass.
+
+    Citation handles are intentionally absent. Array position is the binding
+    between the frozen selection and the prose the second pass returns; code
+    reattaches the corresponding references after generation.
+    """
+    items_by_ref = {
+        item["citation_ref"]: {
+            key: copy.deepcopy(value)
+            for key, value in item.items()
+            if key != "citation_ref"
+        }
+        for items in projected.document["categories"].values()
+        for item in items
+    }
+
+    def selected_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {"evidence": [items_by_ref[ref] for ref in entry["citation_refs"]]}
+            for entry in entries
+        ]
+
+    document = {
+        "schema_version": 1,
+        "sections": {
+            name: {"topics": selected_entries(section["topics"])}
+            for name, section in selection["sections"].items()
+        },
+        "excluded_topics": {
+            name: selected_entries(entries)
+            for name, entries in selection["excluded_topics"].items()
+        },
+    }
+    redacted = redact_opaque_references(
+        redact_destinations(document),
+        include_citations=True,
+    )
+    if not isinstance(redacted, dict):
+        raise AssertionError("selected evidence projection must be an object")
+    return redacted
 
 
 def _text_property(max_length: int) -> dict[str, Any]:
@@ -281,6 +363,150 @@ def build_output_schema(
     }
 
 
+def build_selection_schema(
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> dict[str, Any]:
+    """Build the first-pass schema, which contains evidence choices only."""
+    section_properties: dict[str, Any] = {}
+    excluded_properties: dict[str, Any] = {}
+    accountable: list[str] = []
+    for section in config.sections:
+        eligible_refs = tuple(
+            ref
+            for ref, citation in citations.items()
+            if citation.category in section.corpus_categories
+        )
+        selection = {
+            "type": "object",
+            "properties": {"citation_refs": _citation_refs(eligible_refs)},
+            "required": ["citation_refs"],
+            "additionalProperties": False,
+        }
+        section_properties[section.name] = {
+            "type": "object",
+            "properties": {
+                "topics": {
+                    "type": "array",
+                    "description": f"At most {section.target_stories} evidence selections.",
+                    "items": selection,
+                    "minItems": 0,
+                    "maxItems": section.target_stories,
+                }
+            },
+            "required": ["topics"],
+            "additionalProperties": False,
+        }
+        if section.excluded_stories:
+            accountable.append(section.name)
+            excluded_properties[section.name] = {
+                "type": "array",
+                "description": (
+                    f"At most {section.excluded_stories} excluded evidence selections."
+                ),
+                "items": selection,
+                "minItems": 0,
+                "maxItems": section.excluded_stories,
+            }
+    return {
+        "type": "object",
+        "properties": {
+            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
+            "sections": {
+                "type": "object",
+                "properties": section_properties,
+                "required": [section.name for section in config.sections],
+                "additionalProperties": False,
+            },
+            "excluded_topics": {
+                "type": "object",
+                "properties": excluded_properties,
+                "required": accountable,
+                "additionalProperties": False,
+            },
+        },
+        "required": ["schema_version", "sections", "excluded_topics"],
+        "additionalProperties": False,
+    }
+
+
+def build_prose_schema(
+    config: briefing_config.BriefingConfig,
+    selection: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the second-pass schema with no model-writable citation fields."""
+    section_properties: dict[str, Any] = {}
+    excluded_properties: dict[str, Any] = {}
+    accountable: list[str] = []
+    for section in config.sections:
+        topic_count = len(selection["sections"][section.name]["topics"])
+        topic = {
+            "type": "object",
+            "properties": {
+                "headline": _text_property(300),
+                "summary": _text_property(1_500),
+            },
+            "required": ["headline", "summary"],
+            "additionalProperties": False,
+        }
+        section_properties[section.name] = {
+            "type": "object",
+            "properties": {
+                "topics": {
+                    "type": "array",
+                    "description": (
+                        f"Exactly {topic_count} prose entries, in frozen evidence order."
+                    ),
+                    "items": topic,
+                    "minItems": topic_count,
+                    "maxItems": topic_count,
+                }
+            },
+            "required": ["topics"],
+            "additionalProperties": False,
+        }
+        if section.excluded_stories:
+            accountable.append(section.name)
+            excluded_count = len(selection["excluded_topics"][section.name])
+            excluded_properties[section.name] = {
+                "type": "array",
+                "description": (
+                    f"Exactly {excluded_count} exclusion explanations, in frozen evidence order."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "headline": _text_property(300),
+                        "reason": _text_property(600),
+                    },
+                    "required": ["headline", "reason"],
+                    "additionalProperties": False,
+                },
+                "minItems": excluded_count,
+                "maxItems": excluded_count,
+            }
+    return {
+        "type": "object",
+        "properties": {
+            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
+            "sections": {
+                "type": "object",
+                "properties": section_properties,
+                "required": [section.name for section in config.sections],
+                "additionalProperties": False,
+            },
+            "excluded_topics": {
+                "type": "object",
+                "properties": excluded_properties,
+                "required": accountable,
+                "additionalProperties": False,
+            },
+        },
+        "required": ["schema_version", "sections", "excluded_topics"],
+        "additionalProperties": False,
+    }
+
+
 REPAIRABLE_CHECKS = frozenset({
     "category_ineligible_ref",
     "claim_exceeds_evidence",
@@ -328,6 +554,8 @@ def repair_structural_output(
     ``eval_briefing.corpus_evidence``) is provided, a final pass swaps any
     included summary that exceeds the claim/evidence ratio for its own
     deduplicated cited excerpt, so ``claim_exceeds_evidence`` cannot re-fire.
+    An excerpt containing a destination or opaque reference token is not safe
+    to place in model-authored prose and is therefore left untouched.
     """
     repaired = copy.deepcopy(output)
     actions: list[dict[str, str]] = []
@@ -497,11 +725,15 @@ def repair_structural_output(
                 # one-line topic grammar; collapsing only shrinks the prose, so
                 # the ratio check still passes against the raw corpus text.
                 excerpt = " ".join(support.split())
-                # Feed blurbs routinely carry bare URLs; swapping one into a
-                # summary would trade a repairable WARN for a non-repairable
-                # freeform_url ERROR. Fail closed: leave the entry untouched
-                # and preserved for review. Same detector as ``_text``.
-                if eval_briefing.output_urls(excerpt):
+                # Feed blurbs can carry URLs or opaque-reference spellings;
+                # swapping either into a summary would trade a repairable WARN
+                # for a non-repairable prose ERROR. Fail closed and preserve
+                # the entry for review. These are the same detectors as
+                # ``_text`` below.
+                if (
+                    eval_briefing.output_urls(excerpt)
+                    or _opaque_reference_tokens(excerpt)
+                ):
                     continue
                 entry["summary"] = excerpt
                 actions.append({
@@ -559,7 +791,7 @@ def _text(
         findings.append(OutputFinding(
             "ERROR", "freeform_url", f"{where} contains a web destination; use citation_refs only"
         ))
-    opaque_refs = sorted(set(OPAQUE_REFERENCE.findall(value)), key=str.lower)
+    opaque_refs = _opaque_reference_tokens(value)
     if opaque_refs:
         findings.append(OutputFinding(
             "ERROR",
@@ -568,6 +800,340 @@ def _text(
             f"{', '.join(opaque_refs)}; use them only in citation_refs",
         ))
     return value
+
+
+def validate_selection(
+    selection: Any,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> list[OutputFinding]:
+    """Validate the first pass without accepting any model-authored prose."""
+    findings: list[OutputFinding] = []
+    root = _object_fields(
+        selection,
+        required={"schema_version", "sections", "excluded_topics"},
+        where="selection",
+        findings=findings,
+    )
+    if root is None:
+        return findings
+    if root.get("schema_version") != 1:
+        findings.append(OutputFinding(
+            "ERROR", "structured_schema_version", "selection.schema_version must be 1"
+        ))
+    sections = _object_fields(
+        root.get("sections"),
+        required={section.name for section in config.sections},
+        where="selection.sections",
+        findings=findings,
+    )
+    accountable = {section.name for section in config.sections if section.excluded_stories}
+    excluded_topics = _object_fields(
+        root.get("excluded_topics"),
+        required=accountable,
+        where="selection.excluded_topics",
+        findings=findings,
+    )
+    if sections is None or excluded_topics is None:
+        return findings
+
+    used_items: dict[str, str] = {}
+
+    def validate_entries(
+        entries: Any,
+        *,
+        section: briefing_config.BriefingSection,
+        maximum: int,
+        excluded: bool,
+    ) -> None:
+        label = "excluded_topics" if excluded else "topics"
+        where = f"selection.{label}.{section.name}"
+        if not isinstance(entries, list):
+            findings.append(OutputFinding(
+                "ERROR", "structured_type", f"{where} must be an array"
+            ))
+            return
+        if len(entries) > maximum:
+            findings.append(OutputFinding(
+                "ERROR",
+                "structured_item_limit",
+                f"{where} has {len(entries)} entries; maximum is {maximum}",
+            ))
+        eligible_categories = set(section.corpus_categories)
+        for index, entry in enumerate(entries):
+            entry_where = f"{where}[{index}]"
+            parsed = _object_fields(
+                entry,
+                required={"citation_refs"},
+                where=entry_where,
+                findings=findings,
+            )
+            if parsed is None:
+                continue
+            refs = parsed.get("citation_refs")
+            if not isinstance(refs, list) or not refs:
+                findings.append(OutputFinding(
+                    "ERROR",
+                    "structured_citations",
+                    f"{entry_where}.citation_refs must be a non-empty array",
+                ))
+                continue
+            seen_refs: set[str] = set()
+            entry_items: set[str] = set()
+            for ref in refs:
+                if not isinstance(ref, str) or ref not in citations:
+                    findings.append(OutputFinding(
+                        "ERROR",
+                        "unknown_citation_ref",
+                        f"{entry_where} contains unknown citation ref {ref!r}",
+                    ))
+                    continue
+                if ref in seen_refs:
+                    findings.append(OutputFinding(
+                        "ERROR",
+                        "duplicate_citation_ref",
+                        f"{entry_where} repeats citation ref {ref}",
+                    ))
+                seen_refs.add(ref)
+                citation = citations[ref]
+                if citation.category not in eligible_categories:
+                    findings.append(OutputFinding(
+                        "ERROR",
+                        "category_ineligible_ref",
+                        f"{entry_where} uses {ref} from ineligible category {citation.category}",
+                    ))
+                entry_items.add(citation.item_ref)
+            for item_ref in entry_items:
+                prior = used_items.get(item_ref)
+                if prior is not None:
+                    findings.append(OutputFinding(
+                        "ERROR",
+                        "duplicate_item",
+                        f"{entry_where} repeats {item_ref}, already used by {prior}",
+                    ))
+                else:
+                    used_items[item_ref] = entry_where
+
+    for section in config.sections:
+        section_value = sections.get(section.name)
+        parsed_section = _object_fields(
+            section_value,
+            required={"topics"},
+            where=f"selection.sections.{section.name}",
+            findings=findings,
+        )
+        if parsed_section is not None:
+            validate_entries(
+                parsed_section.get("topics"),
+                section=section,
+                maximum=section.target_stories,
+                excluded=False,
+            )
+    for section in config.sections:
+        if section.excluded_stories:
+            validate_entries(
+                excluded_topics.get(section.name),
+                section=section,
+                maximum=section.excluded_stories,
+                excluded=True,
+            )
+    return findings
+
+
+def validate_prose_output(
+    prose: Any,
+    config: briefing_config.BriefingConfig,
+    selection: dict[str, Any],
+) -> list[OutputFinding]:
+    """Validate prose-only output against frozen entry counts and positions."""
+    findings: list[OutputFinding] = []
+    root = _object_fields(
+        prose,
+        required={"schema_version", "sections", "excluded_topics"},
+        where="prose",
+        findings=findings,
+    )
+    if root is None:
+        return findings
+    if root.get("schema_version") != 1:
+        findings.append(OutputFinding(
+            "ERROR", "structured_schema_version", "prose.schema_version must be 1"
+        ))
+    sections = _object_fields(
+        root.get("sections"),
+        required={section.name for section in config.sections},
+        where="prose.sections",
+        findings=findings,
+    )
+    accountable = {section.name for section in config.sections if section.excluded_stories}
+    excluded_topics = _object_fields(
+        root.get("excluded_topics"),
+        required=accountable,
+        where="prose.excluded_topics",
+        findings=findings,
+    )
+    if sections is None or excluded_topics is None:
+        return findings
+
+    def validate_entries(
+        entries: Any,
+        *,
+        where: str,
+        expected: int,
+        excluded: bool,
+    ) -> None:
+        if not isinstance(entries, list):
+            findings.append(OutputFinding(
+                "ERROR", "structured_type", f"{where} must be an array"
+            ))
+            return
+        if len(entries) != expected:
+            findings.append(OutputFinding(
+                "ERROR",
+                "frozen_selection_count",
+                f"{where} has {len(entries)} entries; frozen selection requires {expected}",
+            ))
+        required = {"headline", "reason"} if excluded else {"headline", "summary"}
+        for index, entry in enumerate(entries):
+            entry_where = f"{where}[{index}]"
+            parsed = _object_fields(
+                entry,
+                required=required,
+                where=entry_where,
+                findings=findings,
+            )
+            if parsed is None:
+                continue
+            _text(
+                parsed.get("headline"),
+                where=f"{entry_where}.headline",
+                maximum=300,
+                findings=findings,
+            )
+            prose_key = "reason" if excluded else "summary"
+            _text(
+                parsed.get(prose_key),
+                where=f"{entry_where}.{prose_key}",
+                maximum=600 if excluded else 1_500,
+                findings=findings,
+            )
+
+    for section in config.sections:
+        section_value = sections.get(section.name)
+        parsed_section = _object_fields(
+            section_value,
+            required={"topics"},
+            where=f"prose.sections.{section.name}",
+            findings=findings,
+        )
+        if parsed_section is not None:
+            validate_entries(
+                parsed_section.get("topics"),
+                where=f"prose.topics.{section.name}",
+                expected=len(selection["sections"][section.name]["topics"]),
+                excluded=False,
+            )
+    for section in config.sections:
+        if section.excluded_stories:
+            validate_entries(
+                excluded_topics.get(section.name),
+                where=f"prose.excluded_topics.{section.name}",
+                expected=len(selection["excluded_topics"][section.name]),
+                excluded=True,
+            )
+    return findings
+
+
+def attach_frozen_selection(
+    selection: dict[str, Any],
+    prose: Any,
+    config: briefing_config.BriefingConfig,
+) -> dict[str, Any]:
+    """Attach code-frozen references by position, ignoring model citation fields."""
+    prose_root = prose if isinstance(prose, dict) else {}
+    prose_sections = prose_root.get("sections")
+    if not isinstance(prose_sections, dict):
+        prose_sections = {}
+    prose_excluded = prose_root.get("excluded_topics")
+    if not isinstance(prose_excluded, dict):
+        prose_excluded = {}
+
+    def attach_entries(
+        selected_entries: list[dict[str, Any]],
+        model_entries: Any,
+        *,
+        excluded: bool,
+    ) -> list[dict[str, Any]]:
+        rows = model_entries if isinstance(model_entries, list) else []
+        completed: list[dict[str, Any]] = []
+        prose_key = "reason" if excluded else "summary"
+        for index, selected in enumerate(selected_entries):
+            model_entry = rows[index] if index < len(rows) and isinstance(rows[index], dict) else {}
+            completed.append({
+                "headline": model_entry.get("headline"),
+                prose_key: model_entry.get(prose_key),
+                "citation_refs": copy.deepcopy(selected["citation_refs"]),
+            })
+        return completed
+
+    sections: dict[str, Any] = {}
+    excluded_topics: dict[str, Any] = {}
+    for section in config.sections:
+        model_section = prose_sections.get(section.name)
+        model_topics = model_section.get("topics") if isinstance(model_section, dict) else None
+        sections[section.name] = {
+            "topics": attach_entries(
+                selection["sections"][section.name]["topics"],
+                model_topics,
+                excluded=False,
+            )
+        }
+        if section.excluded_stories:
+            excluded_topics[section.name] = attach_entries(
+                selection["excluded_topics"][section.name],
+                prose_excluded.get(section.name),
+                excluded=True,
+            )
+    return {
+        "schema_version": prose_root.get("schema_version"),
+        "sections": sections,
+        "excluded_topics": excluded_topics,
+    }
+
+
+def detach_prose(
+    output: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+) -> dict[str, Any]:
+    """Return the prose-only view of an attached candidate for correction."""
+    return {
+        "schema_version": output.get("schema_version"),
+        "sections": {
+            section.name: {
+                "topics": [
+                    {
+                        "headline": entry.get("headline"),
+                        "summary": entry.get("summary"),
+                    }
+                    for entry in output.get("sections", {}).get(section.name, {}).get("topics", [])
+                    if isinstance(entry, dict)
+                ]
+            }
+            for section in config.sections
+        },
+        "excluded_topics": {
+            section.name: [
+                {
+                    "headline": entry.get("headline"),
+                    "reason": entry.get("reason"),
+                }
+                for entry in output.get("excluded_topics", {}).get(section.name, [])
+                if isinstance(entry, dict)
+            ]
+            for section in config.sections
+            if section.excluded_stories
+        },
+    }
 
 
 def validate_output(

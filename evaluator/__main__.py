@@ -296,8 +296,8 @@ def main() -> int:
         default="markdown",
         help=(
             "markdown asks the model for the historical direct-Markdown contract; "
-            "production-parity uses the real structured transport, corpus projection, "
-            "validator, and renderer"
+            "production-parity uses the real two-pass selection/prose transport, "
+            "corpus projections, validators, and renderer"
         ),
     )
     run.add_argument("--trials", type=int, default=1)

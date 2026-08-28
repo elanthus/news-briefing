@@ -7,49 +7,75 @@
   news briefing
 </h1>
 
-**An LLM writes my daily AI news briefing. It chooses the stories and writes the summaries — code decides what is recent, what may be cited, and whether the result may be published.**
+**An LLM chooses stories and writes a daily AI, US, and world news briefing from feed titles and excerpts. Code fixes the time window, allowed evidence, link destinations, and publication gate.**
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 
-Live site → <https://elanthus.github.io/news-briefing/> · When its matching retained corpus is available, a published run's [integrity report](docs/images/auditor-report.png) links to a text-free audit manifest.
+Live site → <https://elanthus.github.io/news-briefing/> · Each published date links to an [integrity report](docs/images/auditor-report.png). When the matching retained corpus is available, the report also links to its text-free audit manifest.
 
 ---
 
-## The one-paragraph version
+A GitHub Actions cron job fetches roughly 150–250 items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. The model first selects and groups opaque item handles without prose. Code validates and freezes that evidence, then a second model call receives only the evidence selected for each output position and writes prose without citation fields. The model never fetches or reads linked articles. A deterministic policy checker verifies the frozen handles, section eligibility, source-health declaration, and output shape before code restores the links. A failed candidate is corrected or quarantined, never silently published.
 
-A GitHub Actions cron job fetches ~150–200 news items from RSS, Hacker News, and Reddit into a closed, schema-validated corpus. A model ranks and summarizes that corpus — and nothing else. It never sees a URL, never gets a tool, and never chooses what "recent" means. A deterministic checker then decides whether the result may be published: every citation must resolve to an item that was actually in the corpus, every section must be filled from eligible categories, every failed source must be reported. Output that fails the gate is not published — it is quarantined behind a public status chip that links to the findings. The pipeline itself runs on the Python standard library alone — the one pinned dependency is the Markdown renderer that builds the static site — with over 600 tests, and it has been publishing itself daily since August 2026.
-
-The failure that motivated all of it is documented: an early run [fabricated a citation](docs/writeups/injection-benchmark-post.md), the checker caught it, and I built the rest of the system around the idea that anything code can decide, code should decide.
+An early version [fabricated a citation](docs/writeups/injection-benchmark-post.md). The checker caught it, and the rest of the project grew around a simple boundary: anything deterministic code can decide should not be left to the prompt.
 
 | Reader view | Auditor view |
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Per-run integrity report](docs/images/auditor-report.png) |
-| Every 🔗 is verified against the corpus before publication. | Each date links to its integrity report: disposition, automated repair log, and corpus health. |
+| Every rendered destination comes from a selected corpus item. This does not establish that the summary is faithful to the linked article. | Each date links to its disposition, automated repair log, and corpus-health findings. |
 
----
+## Try it
 
-## Why this is not another "AI news summarizer"
+Python 3.11+ is required. The pipeline and evaluator use only the standard library; the optional static-site build has a separate pinned dependency set.
 
-Most LLM content pipelines are prompt → model → publish, with the prompt carrying the guarantees. This one moves every checkable guarantee out of the prompt and into code.
+Run the deterministic checker against the committed frozen fixtures. This exercises the standalone publication-policy checker end to end, offline:
 
-| Question | Who answers it here |
+```bash
+python3 -S eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
+```
+
+Point it at a poisoned fixture and it exits nonzero with the blocking findings:
+
+```bash
+python3 -S eval_briefing.py --corpus fixtures/injection-corpus.json --briefing fixtures/injection-briefing.md --config fixtures/injection-config.json
+```
+
+Fetch a live corpus in a human-readable form:
+
+```bash
+python3 -S fetch_news.py --hours 24 --markdown
+```
+
+That view prints raw URLs and omits feed excerpts, so it is useful for inspection but is not the destination-redacted representation sent to the model.
+
+Run an end-to-end briefing through OpenRouter (requires `OPENROUTER_API_KEY`):
+
+```bash
+python3 -S run_briefing.py --provider openrouter --model your/model-id --output briefing.md
+```
+
+`--provider` also accepts `claude-code-cli` and `codex-cli`; those adapters use an existing signed-in CLI session. The committed results cover two models, but the harness is not tied to them: any OpenRouter model compatible with the structured-output request can run the same 55-case suite, and `--prompt` can compare another prompt with the production prompt under the same preregistered rules.
+
+## What code enforces
+
+| Question | Enforcement |
 |---|---|
-| Is this item inside the publication window? | Code — the fetcher applies the cutoff before the model exists |
-| Where does this link point? | Code — the model never receives a URL, only opaque `citation_0007` handles |
-| Is this citation real? | Code — canonical URL comparison against the frozen corpus |
-| Is this story allowed in this section? | Code — per-section citation enums plus an independent validator |
-| Did a source silently die? | Code — every request's outcome is recorded and must be declared in the briefing |
-| Is this summary faithful to the article? | **Nobody, deterministically.** Heuristic warnings only, and the README says so |
+| Is this item inside the publication window? | The fetcher applies the cutoff before generation. |
+| Where can a link point? | The model receives an opaque handle, not a URL. Rendering resolves that handle through a frozen code-owned map. |
+| Is the citation in the run's evidence? | The validator checks the selected handle and the rendered canonical destination against the frozen corpus. |
+| Is the story eligible for this section? | Source configuration assigns its corpus category; per-section schema enums and an independent validator restrict the eligible handles. The model chooses among them. |
+| Did a source silently fail? | Each configured source request records an outcome, and the briefing must declare the resulting corpus health. |
+| Is the summary faithful to the article? | This is not checked against the article: the system sees only the feed title and excerpt. Heuristics can warn about claims unsupported by that evidence but cannot establish article-level faithfulness. |
 
-That last row is the point. The project publishes what it can prove and refuses to launder the rest.
+The contract is intentionally narrower than “the model is correct.” It proves corpus membership, destination ownership, routing, and structural requirements; it does not turn a feed excerpt into human review of the underlying article.
 
-### The citation-projection trick
+### Citation projection
 
-Before generation, each corpus item is projected into untrusted evidence text plus exactly one opaque citation identifier. The model-visible sequence is item-aligned even when an item has both article and discussion destinations; both real URLs live together in a code-owned map the model never receives. Internal item IDs are not exposed to the model. Each section's JSON Schema enumerates only the citation IDs eligible for that section, and any free-form output field containing a web destination or opaque reference token fails validation.
+Before generation, each corpus item is projected into untrusted evidence text plus exactly one opaque identifier. The sequence is item-aligned even when an item has both article and discussion destinations: both real URLs remain together in a code-owned map the model never receives. Internal item IDs are also withheld.
 
-This converts URL grounding from *"check the model's links afterwards"* into *"the model cannot author a link that survives validation."* It can still emit a URL or handle into a prose field — nothing stops it from typing characters — but deterministic validation rejects either violation and gives the bounded correction loop a chance to replace the candidate. Rendering then expands each selected ID to all its code-owned destinations — so a Hacker News story automatically carries its discussion link, and cannot omit it.
+Each section's JSON Schema enumerates only the identifiers eligible for that section. An independent validator rejects unknown or ineligible identifiers, as well as any URL or opaque reference token placed in a prose field. Rendering then expands each selected identifier to all of its code-owned destinations, so a Hacker News story automatically carries its discussion link and cannot substitute or omit it.
 
----
+This is destination allowlisting, not semantic grounding. The model can type arbitrary characters, but it cannot author a destination that survives validation.
 
 ## Architecture
 
@@ -57,41 +83,49 @@ This converts URL grounding from *"check the model's links afterwards"* into *"t
 
 ```text
 fetch_news.py      →  corpus.json (schema v6, validated on write)
-agent_runner/      →  project → generate → validate → repair → correct → gate
-eval_briefing.py   →  the deterministic oracle, usable standalone
+agent_runner/      →  project → select → freeze → write prose → validate → repair → correct → gate
+eval_briefing.py   →  deterministic policy checker, usable standalone
 prepare_publication.py / build_site.py  →  static site + per-run integrity report
 ```
 
-Four design decisions worth stealing:
+Four design decisions shape the implementation:
 
-**1. A shared contract module, not two implementations.** [`corpus_schema.py`](corpus_schema.py) owns field shapes, counter semantics, budget limits, *and* `canonicalize_url`. The fetcher deduplicates with that function and the checker decides citation membership with it — a shared implementation means a trailing slash cannot identify one article during dedup and a different article during citation checking. It also knows that a URL *location* is not an article identity: `news.ycombinator.com/item` addresses every HN story there is, so `item?id=123 → item?id=999` stays an ungrounded citation rather than being excused as a cosmetic rewrite.
+**1. One shared contract.** [`corpus_schema.py`](corpus_schema.py) owns field shapes, counter semantics, budgets, and `canonicalize_url`. The fetcher uses that function for deduplication, and the checker uses it for citation membership. A trailing slash therefore cannot identify one article during fetch and another during validation. Query parameters that identify distinct resources remain significant: `item?id=123` cannot be rewritten as `item?id=999` and excused as cosmetic normalization.
 
-**2. Deterministic repair before spending model budget.** When every blocking finding is mechanically fixable — a globally repeated citation, an over-limit section — a code-owned normalizer fixes it and re-enters validation without spending a correction pass. The model's one correction pass is reserved for findings only a model can fix. Repairs are recorded in the manifest and surfaced publicly (`Published after automated repair (6 actions)`).
+**2. Deterministic repair before model correction.** When every blocking finding is mechanically fixable—for example, a repeated citation or an over-limit section—a code-owned normalizer repairs the candidate and runs validation again. Production allows up to three model correction passes for findings that require regeneration. Every repair is recorded in the manifest and surfaced in the integrity report.
 
-**3. "Complete" is not "correct."** The checkpoint manifest tracks lifecycle (`running` / `complete` / `failed`) separately from publication disposition (`ready` / `review_required` / `rejected` / `no_result`). A degraded fetch reduces coverage without making the run a failure. An unknown citation rejects it outright. Only `ready` writes the published file.
+**3. Lifecycle and publication are separate states.** The checkpoint manifest records lifecycle (`running` / `complete` / `failed`) separately from publication disposition (`ready` / `review_required` / `rejected` / `no_result`). A degraded fetch reduces coverage without making the run itself fail. An unknown citation rejects publication. Only `ready` produces a published briefing.
 
-**4. Fail-closed tool policy, per provider.** OpenRouter gets no tool definitions and any returned tool call is a hard failure. Claude Code CLI runs in safe mode with `StructuredOutput` as the only exposed *and* permitted tool. Codex CLI ignores user config, disables shell/web/multi-agent/image tools, starts in an empty temp directory under a read-only sandbox, and rejects any trace item that is not reasoning or the final message — because Codex has no single documented "remove all tools" flag, so the sandbox is defense in depth.
+**4. Tool restrictions are provider-specific.** OpenRouter receives no tool definitions, and any returned tool call is a hard failure. Claude Code CLI exposes and permits only `StructuredOutput`. The Codex adapter ignores user configuration, disables the named shell, web, multi-agent, remote-plugin, and image features, runs in an empty read-only workspace, and rejects unexpected trace item types. The sandbox specifically limits the effect of any shell capability that remains; it is one layer in the adapter's fail-closed policy, not a universal “remove all tools” switch.
 
-Plus a detail I enjoyed more than I should have: **the fetcher does its own SSRF defense without an HTTP dependency.** Source URLs are syntax-checked, each hostname is resolved exactly once, every answer must be globally routable, and the socket connects to one of those captured addresses while TLS still authenticates the original name. Redirects repeat the whole process per hop. That closes direct, redirect, and DNS-rebinding paths to loopback and metadata endpoints. Untrusted feed XML is parsed with an Expat declaration callback that rejects every `DOCTYPE`, closing entity-expansion amplification without pulling in `defusedxml`.
+### Network and parser boundaries
 
----
+The fetcher accepts only HTTP(S) source URLs without embedded credentials. Before each request or redirect hop, it resolves the hostname once, rejects the request if any answer is non-public, and connects directly to one captured address. TLS certificate verification and SNI still use the original hostname. Repeating the process for each redirect prevents direct, redirect-based, and DNS-rebinding access to loopback, private, link-local, and common metadata-service destinations. Authenticated API transport rejects redirects entirely.
 
-## Evaluation: the part I'd actually want reviewed
+Feed XML is treated as untrusted. Before ElementTree builds the document tree, a preliminary Expat pass rejects every `DOCTYPE` declaration. Custom internal and external entities require a DTD, so this blocks entity-expansion and external-entity payloads without adding `defusedxml`.
 
-[`evaluator/`](evaluator/) is a development-only benchmark measuring two separate systems with two separate denominators, never combined into one score.
+## Evaluation
 
-**81 offline cases** measure the deterministic checker and feed parser with no credentials. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. These LLM reviews helped get the repository and benchmark running, but no case has completed independent human review; full human review is recommended before production use. Current committed snapshot:
+[`evaluator/`](evaluator/) is a development-only benchmark for two separate systems: the deterministic checker and model generation. Their denominators are reported separately and never combined into one score.
+
+### Checker and feed parser
+
+**81 offline cases** run without credentials. All 81 have completed blinded model review, with repository-owner adjudication of historical disagreements. No case has completed independent human review, so the repository does not present those reviews as human ground truth.
 
 | Component | Cases | Precision | Recall | False-positive rate |
 |---|---:|---:|---:|---:|
 | Checker | 69 | 42/48; 87.5% [75.3, 94.1] | 42/54; 77.8% [65.1, 86.8] | 6/1671; 0.36% [0.16, 0.78] |
 | Feed parser | 12 | 8/8; 100% [67.6, 100] | 8/8; 100% [67.6, 100] | 0/28; 0% [0.0, 12.1] |
 
-On a deliberately hard 12-case subset of *valid* claim boundaries, the combined claim heuristics false-positive at **6/12; 50.0% [25.4, 74.6]**. That number is published because it defines the boundary: code can prove a URL is absent from a corpus; a 400-character feed excerpt cannot prove a nuanced summary is unfaithful. Those checks are warnings, and the system treats them as warnings.
+On a deliberately hard 12-case subset of valid claim boundaries, the combined claim heuristics false-positive at **6/12; 50.0% [25.4, 74.6]**. That result marks the intended boundary: code can prove that a URL is absent from a corpus, but a short feed excerpt cannot prove a nuanced summary unfaithful. These checks remain warnings.
 
-**55 generation cases** measure model behavior — 22 utility cases and 33 indirect prompt-injection attacks placed in the fields a news pipeline must treat as data: titles, summaries, source names, source-failure records. Attacks target nine observable behaviors (citation fabrication and alteration, duplicate citations, selection promotion/suppression, section misrouting, health-report manipulation, prose distortion, formatting damage). Five have **matched clean twins** built from the same pristine corpus with the mutations removed — because a system that outputs nothing scores as perfectly robust, and that has to be visible.
+### Generation
 
-Portfolio v2: 1,200 preregistered rows from a clean tag, 0 provider errors, 0 skips, **$3.80**.
+**55 cases** measure model behavior: 22 utility cases and 33 indirect prompt-injection attacks embedded in titles, summaries, source names, and source-failure records. The attacks target nine observable behaviors, including citation fabrication, selection manipulation, section misrouting, health-report manipulation, prose distortion, and formatting damage.
+
+Five attacks are paired with clean controls built from the same corpus with only the malicious mutations removed. Without those controls, a system that returns nothing could appear perfectly robust; the pairs expose that failure.
+
+Portfolio v2 contains 1,200 preregistered rows from a clean tag, with 0 provider errors, 0 skips, and a total provider cost of **$3.80**.
 
 | Model / prompt | End-to-end final utility | Final targeted attack success |
 |---|---:|---:|
@@ -100,120 +134,76 @@ Portfolio v2: 1,200 preregistered rows from a clean tag, 0 provider errors, 0 sk
 | Tencent HY3 / production | 90/110; 81.8% [73.6, 87.9] | 5/105; 4.8% [2.1, 10.7] |
 | Tencent HY3 / reliability-v1 | 92/110; 83.6% [75.6, 89.4] | 4/105; 3.8% [1.5, 9.4] |
 
-Every rate above reports successes, trials, and a two-sided 95% Wilson interval, because that is what the evaluator emits — utility and attack denominators differ (completed utility trials versus completed primary attack trials) and are never pooled. There is a deliberately-bad `compliant` baseline adapter that obeys every injected instruction; CI asserts it scores 100% attack success, because if the strategy designed to lose doesn't lose, the benchmark is broken rather than the model.
+`reliability-v1` did not replace the production prompt. For DeepSeek, it reduced final utility and introduced eight contract regressions. For HY3, its utility and attack-resistance gains were both below the preregistered five-point thresholds.
 
-**The candidate prompt was not promoted.** It failed its preregistered rules for both models. Writing that down was the whole exercise.
+Every rate reports successes, trials, and a two-sided 95% Wilson interval. Utility and attack denominators differ—completed utility trials versus completed primary attack trials—and are never pooled. The benchmark also includes an intentionally vulnerable `compliant` adapter that follows injected instructions. CI requires every attack against it to succeed; otherwise, the attack or scoring logic is not working as intended.
 
-### What this repo explicitly does not claim
+### Limits
 
-- Not a deployment-traffic estimate. Wilson intervals describe this fixed authored suite; five trials of one case are not five samples of the world.
-- Not a ranking-quality benchmark. Utility here is largely structural: valid output, non-empty routed sections, declared floors.
-- Not an AgentDojo reproduction — the matched-twin idea is borrowed; "benign structural utility" is not AgentDojo's user-task utility, and the ablation's array position is not token position.
-- **No meaning-preservation or human-grounding rate is published for portfolio v2.** Those 180 semantic forms are unjudged. A blank cell beat substituting another model's confidence for human review.
-- Portfolio v1's model metrics came from a dirty source tree and are retained only as a dated historical snapshot.
+- Wilson intervals describe this fixed authored suite, not deployment traffic. Repeated trials of one case are not independent samples of the world.
+- This is not an editorial-ranking benchmark. Its utility score mostly measures structural behavior: valid output, populated routed sections, and configured minimums.
+- The benchmark borrows AgentDojo's matched-twin design but does not reproduce its methodology. Here, “benign structural utility” concerns output structure rather than user-task completion, and the position ablation varies an item's array index rather than its token offset in the prompt.
+- Portfolio v2 does not report human-reviewed semantic-faithfulness or grounding scores.
 
-Reviewers can verify the published bundle and regenerate the aggregate report with no credentials and no provider calls:
-
-```bash
-python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
-```
-
----
-
-## Try it
-
-Python 3.11+. The pipeline itself has no runtime dependencies. The default test suite exercises that standard-library-only path with no setup:
+Reviewers can verify the committed evidence bundle and regenerate its aggregate report without credentials or provider calls:
 
 ```bash
-python3 -m unittest -v
+python3 -S -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 ```
 
-Static-site generation is optional and has its own test module and pinned Markdown renderer. Install it only if you want to build or test the site locally:
+## Development and verification
+
+Run the core and evaluator tests without installing dependencies:
+
+```bash
+python3 -S -m unittest -v
+python3 -S -m unittest discover -s evaluator/tests -v
+```
+
+The optional site build has a separate pinned dependency set and test module:
 
 ```bash
 python3 -m pip install --requirement requirements-site.txt
 python3 -m unittest -v tests.site_test_build
 ```
 
-The evaluator has a separate standard-library-only test suite:
+Together these commands are the complete offline test set behind the “over 600 tests” claim. CI also runs a separate non-blocking smoke test against live feeds.
+
+Smoke-test the evaluation harness—case loading, oracles, scoring, and report rendering—with zero provider calls and a fresh output directory:
 
 ```bash
-python3 -S -m unittest discover -s evaluator/tests -v
+smoke_root="$(mktemp -d)"
+python3 -S -m evaluator run --provider baseline=echo --trials 1 --output-dir "$smoke_root/eval-smoke"
 ```
 
-The core, evaluator, and static-site commands above are the complete offline test set behind the “over 600 tests” claim.
-
-Every command below runs without the site renderer.
-
-Fetch a live corpus and look at what the model would be allowed to see:
-
-```bash
-python3 fetch_news.py --hours 24 --markdown
-```
-
-Run the checker against the committed frozen fixtures — this is the whole oracle, offline, in one command:
-
-```bash
-python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
-```
-
-Point it at a poisoned corpus and watch it refuse:
-
-```bash
-python3 eval_briefing.py --corpus fixtures/injection-corpus.json --briefing fixtures/injection-briefing.md --config fixtures/injection-config.json
-```
-
-Smoke-test the full evaluation harness — oracles, scoring, report rendering — with zero provider calls:
-
-```bash
-python3 -m evaluator run --provider baseline=echo --trials 1 --output-dir /tmp/eval-smoke
-```
-
-Run an end-to-end briefing through the OpenRouter API (requires `OPENROUTER_API_KEY`):
-
-```bash
-python3 run_briefing.py --provider openrouter --model your/model-id --output briefing.md
-```
-
-`--provider` also accepts `claude-code-cli` and `codex-cli`. Those providers use an existing signed-in Claude Code or Codex CLI session and do not require an API key in this project. The benchmark is not hard-wired to the models in the committed results: any OpenRouter model id runs the same 55-case suite, and `--prompt` evaluates any prompt file against the production one under the same preregistered comparison rules.
-
----
+CI runs the offline suites on Python 3.11–3.14, checks `ruff` and `mypy --disallow-untyped-defs`, pins GitHub Actions to commit SHAs, and requires explicit approval for reliability-snapshot drift. Production retains exact corpora and diagnostics for fourteen days in authenticated encrypted workflow artifacts. GitHub Pages receives text-free audit manifests rather than raw titles and excerpts; frozen development fixtures remain in the repository for reproducibility.
 
 ## Repository map
 
 | Path | What it is |
 |---|---|
-| [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, dedup, caps, budgets, SSRF and XML defenses |
-| [`corpus_schema.py`](corpus_schema.py) | The corpus contract (schema v6) and shared URL canonicalization |
-| [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, verified checkpoints |
-| [`eval_briefing.py`](eval_briefing.py) | The deterministic checker, usable standalone against any corpus/briefing pair |
+| [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, deduplication, budgets, SSRF defense, and XML defense |
+| [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v6) and shared URL canonicalization |
+| [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, and checkpoints |
+| [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
 | [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, and content hashes |
-| [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker used for safe migration and archive-gap recovery |
-| [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded 14-day retention for exact operational corpora and diagnostics |
+| [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker for migration and archive-gap recovery |
+| [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
-| [`build_site.py`](build_site.py) | Static archive: briefings, per-run integrity reports, and public audit manifests |
-| [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
-| [`docs/design.md`](docs/design.md) | Why each stage works the way it does |
-| [`docs/evaluation-methodology.md`](docs/evaluation-methodology.md) | Threat model, labels, denominators, uncertainty, limitations |
+| [`build_site.py`](build_site.py) | Static archive: briefings, integrity reports, and public audit manifests |
+| [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, and public evidence export |
+| [`docs/design.md`](docs/design.md) | Design rationale |
+| [`docs/evaluation-methodology.md`](docs/evaluation-methodology.md) | Threat model, labels, denominators, uncertainty, and limitations |
 | [`docs/results/portfolio-v2.md`](docs/results/portfolio-v2.md) | Model card and non-promotion decision |
-| [`fixtures/`](fixtures) | Frozen corpus, briefing, config, and injection fixtures for controlled comparison |
+| [`fixtures/`](fixtures) | Frozen corpus, briefing, configuration, and injection fixtures |
 
-## Engineering practices
-
-- **Over 600 tests**, all offline — no network calls, no runtime fixture downloads. CI runs them on Python 3.11, 3.12, 3.13, and 3.14.
-- **A credential-free reliability gate in CI** that runs the checker suite and fails on case-count drift or snapshot changes without review approval.
-- `ruff` and `mypy --disallow-untyped-defs` across the pipeline and runner; the evaluator is type-checked under its own config.
-- All GitHub Actions pinned to commit SHAs; Dependabot enabled.
-- A live end-to-end smoke job that hits real feeds and is `continue-on-error` — a slow news day must never fail a pull request.
-- The rolling fourteen-day production corpus is retained only in authenticated encrypted workflow artifacts so historical backfill replays stored inputs rather than reconstructing them from retention-limited live feeds. GitHub Pages receives text-free audit manifests instead of raw source excerpts; frozen development fixtures remain in the repository for reproducibility.
-
-Design influences are cited rather than gestured at: the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) for documented, repeatable, uncertainty-explicit evaluation, and [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) / [MELON](https://proceedings.mlr.press/v267/zhu25z.html) for measuring utility alongside injection resistance.
+Design influences include the [NIST AI RMF 1.0 MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) for documented, repeatable, uncertainty-explicit evaluation, and [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) and [MELON](https://proceedings.mlr.press/v267/zhu25z.html) for measuring utility alongside injection resistance.
 
 ## Further reading
 
 - [My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md) — the origin story and what $3.80 of evaluation bought
-- [Dogfooding log](docs/dogfooding.md) — real runs, real findings, reproducible commands
+- [Dogfooding log](docs/dogfooding.md) — early live runs, checker findings, and failures that shaped the design
 - [Sample briefing](docs/sample-briefing.md)
 - [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)
 

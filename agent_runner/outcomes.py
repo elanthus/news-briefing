@@ -43,6 +43,7 @@ QUALITY_CHECKS = {
     "exclusion_log_missing",
     "exclusion_log_short",
     "figure_supported_elsewhere",
+    "low_claim_evidence_overlap",
     "slots_underfilled",
     "unsupported_figure",
 }

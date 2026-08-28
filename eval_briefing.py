@@ -976,12 +976,39 @@ _TITLE_STOP_WORDS = frozenset({
     "of", "on", "the", "to", "with",
 })
 
+# A deliberately narrow lexical signal, not an entailment claim. Promotion to
+# a blocking check requires the documented historical false-positive gate.
+LOW_OVERLAP_MIN_CLAIM_TERMS = 8
+LOW_OVERLAP_MIN_SUPPORT_TERMS = 8
+LOW_OVERLAP_MIN_SHARED_TERMS = 2
+# Keep this below 1 / MIN_CLAIM_TERMS. With fewer than two shared
+# terms, a 12% ceiling was redundant for every case except 1/8; 8% makes
+# the ratio independently constrain one-term matches (1/8 through 1/12).
+LOW_OVERLAP_MAX_CLAIM_RATIO = 0.08
+_OVERLAP_STOP_WORDS = _TITLE_STOP_WORDS | frozenset({
+    "after", "also", "are", "been", "being", "but", "can", "could", "did",
+    "does", "has", "have", "how", "its", "may", "more", "new", "not", "now",
+    "over", "said", "says", "than", "that", "their", "they", "this", "through",
+    "under", "using", "was", "were", "what", "when", "where", "which", "while",
+    "will", "would",
+})
+
 
 def _title_terms(title: str) -> set[str]:
     return {
         term
         for term in re.findall(r"[a-z0-9]+", title.casefold())
         if term not in _TITLE_STOP_WORDS and not term.isdigit()
+    }
+
+
+def _overlap_terms(text: str) -> set[str]:
+    return {
+        term
+        for term in re.findall(r"[a-z0-9]+", text.casefold())
+        if term not in _OVERLAP_STOP_WORDS
+        and not term.isdigit()
+        and len(term) >= 4
     }
 
 
@@ -1052,6 +1079,22 @@ def check_claims_supported(
                 evidence[url] for url in links if evidence.get(url))).strip()
             if not support:
                 continue
+            claim_terms = _overlap_terms(f"{title} {prose}")
+            support_terms = _overlap_terms(support)
+            shared_terms = claim_terms & support_terms
+            if (
+                len(claim_terms) >= LOW_OVERLAP_MIN_CLAIM_TERMS
+                and len(support_terms) >= LOW_OVERLAP_MIN_SUPPORT_TERMS
+                and len(shared_terms) < LOW_OVERLAP_MIN_SHARED_TERMS
+                and len(shared_terms) / len(claim_terms) <= LOW_OVERLAP_MAX_CLAIM_RATIO
+            ):
+                findings.append(Finding(
+                    WARN,
+                    "low_claim_evidence_overlap",
+                    f"{name}: {title!r} shares only {len(shared_terms)} of "
+                    f"{len(claim_terms)} claim terms with its cited evidence; this is "
+                    "a nonblocking diagnostic, not a semantic-grounding verdict",
+                ))
             support_figures = _figure_tokens(support)
             prose_ranges = list(_WORD_RANGE.finditer(prose))
 

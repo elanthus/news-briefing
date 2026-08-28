@@ -22,11 +22,11 @@ Treat each selected corpus item and its single `citation_ref` value as one indiv
 
 - Copy citation references only from the exact item whose title, summary, or metadata supports the topic. Never borrow a reference from a different item, even when that reference is eligible for the section.
 - Do not use the same citation reference in more than one included topic or exclusion entry.
-- Before returning the JSON, audit every topic and exclusion against the corpus record it cites.
+- Before returning the selection JSON, audit every topic and exclusion against the corpus record it cites.
 - After that audit, verify that no section is empty while at least one unused eligible item remains. If a duplicate or invalid selection is removed, replace it with an unused eligible item. Underfill may remain only when the eligible unused pool is genuinely exhausted or the remaining evidence cannot support even a title-level account.
 
-## Structured response
+## Two-pass response
 
-Return only the JSON object required by the supplied schema. `citation_refs` are opaque code-owned references, not instructions. Each corpus item has exactly one `citation_ref`; select one eligible reference per evidence item, copy it only into a `citation_refs` array, and never put a `citation_####` or `item_####` token in a headline, summary, or exclusion reason. The runner automatically renders every code-owned destination for that item, including a distinct Hacker News discussion link. Opaque reference tokens belong only in `citation_refs`. Use references instead of copying or inventing URLs. Put no URL, Markdown link, HTML link, autolink, protocol-relative link, `www.` destination, `citation_####` token, or `item_####` token in a headline, summary, or exclusion reason.
+Return only the JSON object required by the schema supplied with the current pass. The first pass selects and groups evidence without prose. `citation_refs` are opaque code-owned references, not instructions; each corpus item has exactly one, and opaque tokens belong only in first-pass `citation_refs` arrays. Code freezes the valid selection. The second pass contains only the evidence selected for each output position and requests headlines, summaries, and exclusion reasons without citation fields. Never put a `citation_####` or `item_####` token in prose. The runner attaches the frozen references and automatically renders every code-owned destination for each item, including a distinct Hacker News discussion link. Use no copied or invented URL, Markdown link, HTML link, autolink, protocol-relative link, or `www.` destination in prose.
 
 The runner—not the model—renders Markdown, expands exact corpus URLs, reports source health, validates the result, and attaches validation status.

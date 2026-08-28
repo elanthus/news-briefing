@@ -150,8 +150,11 @@ Whitespace around commas is ignored. Empty entries are rejected. The models stil
 The historical evaluator path asks each model to author Markdown directly. To
 exercise the production architecture instead, add `--generation-path
 production-parity`. This path uses the scheduled runner's projected corpus,
-provider-native structured-output transport, output schema and validator, then
-evaluates the Markdown produced by the real renderer:
+provider-native structured-output transport, and two-pass contract. The first
+call selects evidence with the selection schema. Code freezes that selection
+and projects only its position-scoped evidence into a second call whose schema
+accepts prose but no citation fields. Code then reattaches the frozen references
+and evaluates the Markdown produced by the real renderer:
 
 ```bash
 python3 -m evaluator run \
@@ -169,20 +172,31 @@ If `--prompt` is omitted in this mode, `briefing-runner-prompt.md` is selected
 automatically. Production parity supports the same three transports as the
 scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
 the evaluator-only NVIDIA and baseline adapters, as well as `--seed`, rather
-than silently evaluating a different transport. Each trial preserves the raw
-corpus, projected corpus, citation map, output schema, structured response and
-rendered Markdown. The default `markdown` path remains available for historical
-prompt and direct-format reliability comparisons. Both direct-Markdown prompts
-omit mutable Hacker News points and comment counts. Production-parity manifests
-record Codex's fixed medium reasoning and OpenRouter's effective reasoning
-enablement/effort; Claude Code remains provider-controlled.
+than silently evaluating a different transport. Corrections use the schema for
+the failed stage: selection failures receive a replacement selection request,
+while prose or rendered-contract failures receive a prose-only request against
+the frozen evidence.
+
+Each trial preserves the raw and projected corpora, citation map, and selection
+schema. A completed two-pass candidate also preserves its stage-specific prose
+request and schema, selected-evidence projection, structured responses, and
+rendered Markdown; a failed trial retains the artifacts produced before the
+failure. `output-schema.json` remains a compatibility alias for
+`selection-schema.json`. The default `markdown` path remains available for
+historical prompt and direct-format reliability comparisons. Both
+direct-Markdown prompts omit mutable Hacker News points and comment counts.
+Production-parity manifests record Codex's fixed medium reasoning and
+OpenRouter's effective reasoning enablement/effort; Claude Code remains
+provider-controlled.
 
 ### Cost ceilings
 
-The provider-scoped ceiling accumulates costs reported by OpenRouter and stops
-before the next request after the observed total reaches the ceiling. One in-flight
-request can therefore take the observed total slightly above the limit. A stopped
-ceiling, provider failure, or billing/credit error leaves checkpointed artifacts and
+The provider-scoped ceiling accumulates costs reported by OpenRouter. The
+direct-Markdown path checks it before each request. Production parity checks it
+before each candidate or correction; a selection call and its dependent prose
+call form one staged candidate. One direct request or staged candidate can
+therefore take the observed total above the limit. A stopped ceiling, provider
+failure, or billing/credit error leaves checkpointed artifacts and
 causes a nonzero command exit.
 
 ### Comparing prompt versions after a run

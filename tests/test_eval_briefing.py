@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import eval_briefing
-from briefing_config import BriefingConfig, load_config
+from briefing_config import BriefingConfig, load_config, parse_config
 from eval_briefing import ERROR, WARN, load_corpus
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -970,6 +970,68 @@ class ClaimGroundingTest(unittest.TestCase):
         self.assertEqual(checks(findings, ERROR), set())
         self.assertTrue(checks(findings, WARN))
 
+    def test_low_overlap_diagnostic_is_narrow_and_nonblocking(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0].update(
+            title="Orchard irrigation sensors improve drought planning",
+            summary=(
+                "Growers used soil moisture telemetry to schedule watering and preserve crops."
+            ),
+        )
+        text = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Orbital banking merger reshapes insurance markets** — "
+            "Satellite lenders consolidated pension underwriting across regional exchanges.",
+        )
+        findings = evaluate(corpus, text)
+        overlap = [
+            finding for finding in findings
+            if finding.check == "low_claim_evidence_overlap"
+        ]
+        self.assertEqual(len(overlap), 1)
+        self.assertEqual(overlap[0].level, WARN)
+
+    def test_short_or_related_claims_do_not_trigger_low_overlap(self):
+        related = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Politics topic 1** — Politics summary text here with relevant details.",
+        )
+        short = briefing().replace(
+            "**Politics topic 1** — summary text here.",
+            "**Different title** — Brief update.",
+        )
+        for text in (related, short):
+            with self.subTest(text=text):
+                self.assertNotIn(
+                    "low_claim_evidence_overlap", checks(evaluate(CORPUS, text), WARN)
+                )
+
+    def test_low_overlap_ratio_independently_constrains_one_term_matches(self):
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["us_politics"][0].update(
+            title="Orchard irrigation sensors improve drought planning",
+            summary=(
+                "Growers used soil moisture telemetry to schedule watering and preserve crops."
+            ),
+        )
+        claim_12 = (
+            "**Orchard banking merger reshapes insurance markets** — "
+            "Satellite lenders consolidated pension underwriting exchanges."
+        )
+        claim_13 = claim_12.replace("underwriting exchanges", "underwriting regional exchanges")
+        self.assertEqual(len(eval_briefing._overlap_terms(claim_12)), 12)
+        self.assertEqual(len(eval_briefing._overlap_terms(claim_13)), 13)
+
+        for claim, expected in ((claim_12, False), (claim_13, True)):
+            with self.subTest(claim=claim):
+                text = briefing().replace(
+                    "**Politics topic 1** — summary text here.", claim
+                )
+                self.assertEqual(
+                    "low_claim_evidence_overlap" in checks(evaluate(corpus, text), WARN),
+                    expected,
+                )
+
     def test_a_topic_with_no_resolvable_evidence_is_skipped(self):
         """Ungrounded links are already an ERROR; don't double-report them."""
         text = briefing(extra_link="https://ex.com/unknown")
@@ -992,6 +1054,40 @@ class CommittedFixtureTest(unittest.TestCase):
         with open(ROOT / "fixtures/briefing-2026-08-09.md", encoding="utf-8") as f:
             findings = evaluate(corpus, f.read())
         self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
+
+    def test_low_overlap_on_retained_historical_clean_briefings(self):
+        run = ROOT / "docs/runs/2026-08-18/structured-output-enabled"
+        cases = (
+            (
+                ROOT / "fixtures/corpus-2026-08-09.json",
+                ROOT / "fixtures/briefing-2026-08-09.md",
+                ROOT / "fixtures/briefing-config-2026-08-09.json",
+            ),
+            (
+                run / "corpus-2026-08-18.json",
+                run / "final.md",
+                run / "briefing-config.json",
+            ),
+        )
+        topic_count = 0
+        overlap = []
+        for corpus_path, briefing_path, config_path in cases:
+            corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+            config = parse_config(json.loads(config_path.read_text(encoding="utf-8")))
+            briefing_text = briefing_path.read_text(encoding="utf-8")
+            parsed = eval_briefing.parse_briefing(briefing_text, config)
+            topic_count += sum(
+                len(section.get("topics", []))
+                for name, section in parsed.items()
+                if name not in {eval_briefing.EXCLUDED, eval_briefing.CORPUS_HEALTH}
+            )
+            overlap.extend(
+                finding
+                for finding in eval_briefing.evaluate(corpus, briefing_text, config)
+                if finding.check == "low_claim_evidence_overlap"
+            )
+        self.assertEqual(topic_count, 44)
+        self.assertEqual(overlap, [])
 
     def test_sample_briefing_matches_reference_fixture(self):
         """The portfolio showcase must contain the complete frozen result."""

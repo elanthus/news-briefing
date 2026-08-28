@@ -76,6 +76,20 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                     json.dumps(
                         {
                             "status": "complete",
+                            "generation_totals": {
+                                "calls": 2,
+                                "latency_ms": 1250.0,
+                                "input_tokens": 400,
+                                "output_tokens": 80,
+                                "cost_usd": 0.004,
+                                "transport_attempts": 2,
+                                "by_stage": {},
+                            },
+                            "citation_cardinality": {
+                                "retained_items": 200,
+                                "model_visible_handles": 200,
+                                "selected_items": 25,
+                            },
                             "artifacts": {"final.md": digest},
                             "final": {
                                 "status": "ready",
@@ -167,6 +181,20 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                     json.dumps(
                         {
                             "status": "complete",
+                            "generation_totals": {
+                                "calls": 2,
+                                "latency_ms": 1250.0,
+                                "input_tokens": 400,
+                                "output_tokens": 80,
+                                "cost_usd": 0.004,
+                                "transport_attempts": 2,
+                                "by_stage": {},
+                            },
+                            "citation_cardinality": {
+                                "retained_items": 200,
+                                "model_visible_handles": 200,
+                                "selected_items": 25,
+                            },
                             "artifacts": {"final.md": digest},
                             "final": {
                                 "status": "ready",
@@ -191,6 +219,11 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(seen, [PRODUCTION_MODEL_CHAIN[0].model])
         self.assertEqual(result.selected_model, "tencent/hy3")
         self.assertEqual(len(log["attempts"]), 1)
+        self.assertEqual(log["attempts"][0]["generation"]["calls"], 2)
+        self.assertEqual(
+            log["attempts"][0]["citation_cardinality"]["model_visible_handles"],
+            200,
+        )
 
     def test_uncorrected_opaque_reference_advances_to_fallback_model(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

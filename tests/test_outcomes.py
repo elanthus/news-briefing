@@ -45,6 +45,16 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.contract, "accepted")
         self.assertEqual(outcome.evidence, "corpus_bound")
 
+    def test_low_overlap_remains_a_nonblocking_quality_diagnostic(self):
+        finding = OutputFinding(
+            "WARN", "low_claim_evidence_overlap", "only one lexical term overlaps"
+        )
+        outcome = classify_outcome([finding], [])
+        self.assertEqual(finding_domain(finding.check), "quality")
+        self.assertFalse(is_actionable_finding({"domain": "quality"}))
+        self.assertEqual(outcome.disposition, "ready")
+        self.assertEqual(outcome.evidence, "corpus_bound")
+
     def test_editorial_error_is_reviewable_but_unknown_citation_is_rejected(self):
         reviewable = classify_outcome([
             OutputFinding("ERROR", "category_ineligible_ref", "wrong section")
@@ -86,6 +96,7 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(finding_domain("structured_missing_field"), "schema")
         self.assertEqual(finding_domain("slots_underfilled"), "quality")
         self.assertEqual(finding_domain("unsupported_figure"), "quality")
+        self.assertEqual(finding_domain("low_claim_evidence_overlap"), "quality")
         self.assertEqual(finding_domain("failed_source_unnamed"), "coverage")
         self.assertEqual(finding_domain("category_ineligible_ref"), "editorial")
 
