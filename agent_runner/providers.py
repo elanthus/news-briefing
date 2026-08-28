@@ -11,6 +11,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from copy import deepcopy
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -29,6 +30,36 @@ _TRANSIENT_CLI_MARKERS = (
     "timed out",
     "timeout",
 )
+_SCHEMA_MAP_KEYWORDS = frozenset(
+    {
+        "$defs",
+        "definitions",
+        "dependencies",
+        "dependentSchemas",
+        "patternProperties",
+        "properties",
+    }
+)
+_SCHEMA_VALUE_KEYWORDS = frozenset(
+    {
+        "additionalItems",
+        "additionalProperties",
+        "allOf",
+        "anyOf",
+        "contains",
+        "contentSchema",
+        "else",
+        "if",
+        "items",
+        "not",
+        "oneOf",
+        "prefixItems",
+        "propertyNames",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    }
+)
 
 
 def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
@@ -40,6 +71,34 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
         ) from exc
     if not isinstance(value, dict):
         raise ProviderError(f"{provider} returned a non-object JSON value", transient=False)
+    return value
+
+
+def _codex_compatible_schema(value: Any) -> Any:
+    """Return a copy containing only JSON Schema keywords Codex accepts.
+
+    Codex structured outputs currently reject ``uniqueItems``. The workflow's
+    code-owned validator still checks citation-reference uniqueness after the
+    response is returned, so removing it from the provider schema does not
+    weaken publication validation.
+    """
+    if isinstance(value, dict):
+        compatible: dict[str, Any] = {}
+        for key, nested in value.items():
+            if key == "uniqueItems":
+                continue
+            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
+                compatible[key] = {
+                    name: _codex_compatible_schema(schema)
+                    for name, schema in nested.items()
+                }
+            elif key in _SCHEMA_VALUE_KEYWORDS:
+                compatible[key] = _codex_compatible_schema(nested)
+            else:
+                compatible[key] = deepcopy(nested)
+        return compatible
+    if isinstance(value, list):
+        return [_codex_compatible_schema(item) for item in value]
     return value
 
 
@@ -467,7 +526,10 @@ class CodexCliProvider(ModelProvider):
             raise ProviderError("codex command is required for codex-cli", transient=False)
         with tempfile.TemporaryDirectory(prefix="news-briefing-codex-") as directory:
             schema_path = Path(directory) / "output-schema.json"
-            schema_path.write_text(json.dumps(request.output_schema), encoding="utf-8")
+            schema_path.write_text(
+                json.dumps(_codex_compatible_schema(request.output_schema)),
+                encoding="utf-8",
+            )
             command = [
                 "codex",
                 "exec",
