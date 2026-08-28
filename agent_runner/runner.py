@@ -587,7 +587,13 @@ def _validate_attempt(
     repair_actions: Sequence[dict[str, str]] = (),
     pre_findings: Sequence[OutputFinding] = (),
 ) -> list[dict[str, str]]:
-    structured_findings = [*pre_findings, *validate_output(output, config, citations)]
+    # When prose-stage validation fails, persist those findings once instead
+    # of checking the same fields again after attachment. This matches the
+    # production-parity evaluator. Complete-output validation remains the
+    # independent backstop after the prose-only contract passes.
+    structured_findings = list(pre_findings)
+    if not any(finding.level == "ERROR" for finding in structured_findings):
+        structured_findings.extend(validate_output(output, config, citations))
     rendered: str | None = None
     checker_findings: list[eval_briefing.Finding] = []
     if not any(finding.level == "ERROR" for finding in structured_findings):

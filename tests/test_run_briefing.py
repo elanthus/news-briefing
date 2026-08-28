@@ -700,6 +700,13 @@ class RunnerTests(unittest.TestCase):
             "opaque_reference_in_prose",
             {finding["check"] for finding in first_findings},
         )
+        self.assertEqual(
+            sum(
+                finding["check"] == "opaque_reference_in_prose"
+                for finding in first_findings
+            ),
+            1,
+        )
         correction_prompt = provider.requests[2].prompt
         self.assertIn("opaque_reference_in_prose", correction_prompt)
         self.assertIn("[opaque reference omitted]", correction_prompt)
