@@ -11,11 +11,11 @@ retention rules described here.
 
 The GitHub Pages workflow runs daily at 13:30 UTC and generates one report labeled with the current `America/New_York` date. A manual dispatch offers two modes: `single-day` duplicates that scheduled run for today, while `backfill-7-days` targets today plus the six prior Eastern report dates. Both manual modes replace successful existing reports for their target dates. Scheduled runs retain the normal publication rank safeguard. All modes check out `main` so generation uses the latest merged code, prompts, and configuration.
 
-The workflow captures one start timestamp and always fetches today's corpus fresh for the exact 24-hour interval ending at that instant. Earlier target dates reuse their published `site/corpora/YYYY-MM-DD.json` unchanged and are skipped when no stored corpus exists; they are never reconstructed from retention-limited live feeds.
+The workflow captures one start timestamp and always fetches today's corpus fresh for the exact 24-hour interval ending at that instant. Earlier target dates reuse exact corpora restored from the newest authenticated encrypted GitHub Actions archive and are skipped when no stored corpus exists; they are never reconstructed from retention-limited live feeds. The first run after the private-archive migration may import the prior fourteen-day corpus window from the old Pages paths. Later runs fail rather than silently treating an unreadable private archive as empty.
 
 Window boundaries are therefore approximate across dates. The first rolling window can overlap a preceding calendar-day corpus, so adjacent reports may temporarily repeat stories. Each later report likewise covers the exact 24 hours ending at that run's independently captured timestamp, so changes in capture time can create small overlaps or gaps between windows.
 
-Each date gets a separate corpus, run directory, and report path. Every run carries forward stored corpora and the static builder publishes the valid dated files with a fourteen-day retention window, so the archive becomes independently regenerable as storage accumulates.
+Each date gets a separate corpus, run directory, and report path. Every run restores and prunes exact corpora to the fourteen-day window, then uploads only an encrypted archive. The static builder derives a text-free public audit manifest for each valid dated corpus. This preserves deterministic backfill inputs without redistributing source-owned titles, feed excerpts, or community post bodies through GitHub Pages.
 
 ## Repair, correction, and publication
 
@@ -41,13 +41,23 @@ When a previewed story actually redacts a model-authored destination, its report
 
 The published `repair_actions` describe the final attempt only: a repair superseded by a later model correction is not the published content's provenance and remains in the manifest for audit.
 
-`rejected`, `blocked`, and `no_result` runs remain status-only. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories as a seven-day diagnostics artifact so correction attempts remain inspectable after the runner exits.
+`rejected`, `blocked`, and `no_result` runs remain status-only. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
 
 ## Site rendering and retention
 
 The newest retained run is rendered directly on the site home page. A date bar at the top links to separate pages for the other retained runs. The site renderer replaces a valid machine corpus-health block with a readable summary and source-type/status groups; the checked JSON contract remains unchanged in stored Markdown and malformed blocks remain escaped verbatim.
 
 The site and its machine-readable history retain up to seven report dates. When an eighth or later entry exists, the builder removes the oldest entries until seven remain; date gaps alone never remove history. The workflow can seed an initially empty archive from the hash-verified August 17 dogfood final and the August 18 DeepSeek dogfood preview.
+
+Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
+
+The text-free `corpus-storage.json` marker records that a successful Pages build uses encrypted operational storage rather than legacy public corpus files. During the one-time transition, all thirteen retained legacy dates are downloaded into a staging directory, validated, and copied into private storage only as a complete set; a partial migration fails before deployment and cannot be uploaded as the authoritative corpus archive. After the marker has been published, an expired or missing Actions artifact starts a fresh window instead of repeatedly attempting legacy migration. Today's corpus is still fetched fresh, while unavailable historical backfill dates are skipped.
+
+## Private operational artifacts
+
+The repository secret `CORPUS_ARCHIVE_PASSPHRASE` is required by the daily workflow. Exact corpora and diagnostics are first gzip-compressed, then encrypted with AES-256-CBC using a PBKDF2-SHA-256 derived key. A separately derived HMAC-SHA-256 authenticates the versioned envelope, and restoration verifies that MAC before decryption. The passphrase is supplied on standard input rather than in process arguments. The restore step alone receives both the GitHub token and archive passphrase; feed parsing and model generation receive neither. Archive restoration accepts only regular `corpora/YYYY-MM-DD.json` members whose JSON validates against the corpus schema and whose `report_date` matches the filename; unexpected members, traversal paths, duplicate dates, oversized data, and malformed corpora fail closed. The token-authenticated GitHub download follows only an absolute HTTPS artifact redirect, then downloads that destination without forwarding the token.
+
+The ciphertext artifacts and exact corpora retain fourteen report dates. Because this is a public repository, the encrypted artifact bytes may themselves be publicly downloadable; corpus confidentiality therefore depends on the repository secret remaining private and the authenticated-encryption envelope remaining intact. Rotating or deleting `CORPUS_ARCHIVE_PASSPHRASE` makes existing retained artifacts unreadable, so rotation must occur only after intentionally accepting that bounded backfill gap or after re-encrypting the retained archive.
 
 ## Machine-readable history
 

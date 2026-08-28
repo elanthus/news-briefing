@@ -20,6 +20,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -47,11 +48,7 @@ jobs:
       - name: Install site renderer dependency
         run: python -m pip install --requirement requirements-site.txt
 
-      - name: Generate scheduled daily or manual backfill reports
-        env:
-          MANUAL_MODE: ${{ inputs.mode }}
-          SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - name: Capture briefing window
         run: |
           mkdir -p briefing-history corpora reports runs
           snapshot_end_epoch=$(date --utc +%s)
@@ -59,7 +56,103 @@ jobs:
           window_start=$(date --utc --date="@$window_start_epoch" --iso-8601=seconds)
           window_end=$(date --utc --date="@$snapshot_end_epoch" --iso-8601=seconds)
           today=$(TZ=America/New_York date --date="@$snapshot_end_epoch" +%F)
+          echo "SNAPSHOT_END_EPOCH=$snapshot_end_epoch" >> "$GITHUB_ENV"
+          echo "WINDOW_START=$window_start" >> "$GITHUB_ENV"
+          echo "WINDOW_END=$window_end" >> "$GITHUB_ENV"
           echo "REPORT_TODAY=$today" >> "$GITHUB_ENV"
+
+      - name: Restore private corpus window
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          today="$REPORT_TODAY"
+
+          download_public_file() {
+            local url="$1"
+            local output="$2"
+            local status
+            if ! status=$(curl \
+              --location \
+              --max-time 30 \
+              --max-filesize 50000000 \
+              --remove-on-error \
+              --silent \
+              --show-error \
+              --write-out "%{http_code}" \
+              "$url" \
+              --output "$output"); then
+              echo "::error::Could not download $url"
+              return 2
+            fi
+            if [[ "$status" == "200" ]]; then
+              return 0
+            fi
+            if [[ "$status" == "404" ]]; then
+              return 1
+            fi
+            echo "::error::Unexpected HTTP $status from $url"
+            return 2
+          }
+
+          set +e
+          python restore_private_corpora.py --output-dir corpora
+          restore_status=$?
+          set -e
+          if (( restore_status == 4 )); then
+            marker_status=0
+            download_public_file \
+              https://elanthus.github.io/news-briefing/corpus-storage.json \
+              published-corpus-storage.json || marker_status=$?
+            if (( marker_status == 0 )); then
+              python corpus_storage.py validate published-corpus-storage.json
+              echo "No unexpired private archive remains; starting a fresh corpus window"
+            elif (( marker_status == 2 )); then
+              exit 1
+            else
+              history_status=0
+              download_public_file \
+                https://elanthus.github.io/news-briefing/history.json \
+                existing-history.json || history_status=$?
+              if (( history_status == 0 )); then
+                echo "No private corpus archive exists yet; migrating all retained corpora from Pages"
+                mkdir -p legacy-corpora
+                downloaded=0
+                for days_ago in $(seq 1 13); do
+                  d=$(TZ=America/New_York date --date="$today $days_ago days ago" +%F)
+                  if download_public_file \
+                    "https://elanthus.github.io/news-briefing/corpora/$d.json" \
+                    "legacy-corpora/$d.json"; then
+                    downloaded=$((downloaded + 1))
+                  fi
+                done
+                if (( downloaded != 13 )); then
+                  echo "::error::Downloaded only $downloaded of 13 retained public corpora; leaving Pages unchanged for a complete retry"
+                  exit 1
+                fi
+                python private_archive.py prune-corpora legacy-corpora --newest "$today"
+                cp legacy-corpora/*.json corpora/
+              elif (( history_status == 1 )); then
+                echo "No published history exists; starting the first corpus window"
+              else
+                exit 1
+              fi
+            fi
+          elif (( restore_status != 0 )); then
+            echo "::error::Private corpus restoration failed"
+            exit "$restore_status"
+          fi
+          python private_archive.py prune-corpora corpora --newest "$today"
+
+      - name: Generate scheduled daily or manual backfill reports
+        env:
+          MANUAL_MODE: ${{ inputs.mode }}
+          SCRAPECREATORS_API_KEY: ${{ secrets.SCRAPECREATORS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          today="$REPORT_TODAY"
+          window_start="$WINDOW_START"
+          window_end="$WINDOW_END"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$MANUAL_MODE" == "backfill-7-days" ]]; then
             day_offsets=(6 5 4 3 2 1 0)
           else
@@ -83,20 +176,11 @@ jobs:
               else
                 echo "::warning::Corpus fetch failed for $report_date"
               fi
-            elif curl \
-              --fail \
-              --location \
-              --max-time 30 \
-              --max-filesize 50000000 \
-              --remove-on-error \
-              --silent \
-              --show-error \
-              "https://elanthus.github.io/news-briefing/corpora/$report_date.json" \
-              --output "$corpus"; then
-              echo "Reusing stored corpus for $report_date"
+            elif [[ -f "$corpus" ]]; then
+              echo "Reusing privately restored corpus for $report_date"
               corpus_ready=true
             else
-              echo "::warning::Skipping $report_date: no stored corpus is available"
+              echo "::warning::Skipping $report_date: no private stored corpus is available"
               continue
             fi
 
@@ -122,18 +206,6 @@ jobs:
               echo "::warning::Publication preparation failed for $report_date"
             fi
           done
-
-      - name: Upload briefing diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: briefing-diagnostics-${{ github.run_id }}
-          path: |
-            corpora
-            reports
-            runs
-          if-no-files-found: warn
-          retention-days: 7
 
       - name: Bootstrap history from dogfood runs
         id: bootstrap
@@ -161,26 +233,6 @@ jobs:
             https://elanthus.github.io/news-briefing/history.json \
             --output prior-history.json
 
-      - name: Carry forward stored corpora
-        if: always()
-        run: |
-          mkdir -p corpora
-          for days_ago in $(seq 1 13); do
-            d=$(TZ=America/New_York date \
-              --date="$REPORT_TODAY $days_ago days ago" +%F)
-            [[ -f "corpora/$d.json" ]] && continue
-            curl \
-              --fail \
-              --location \
-              --max-time 30 \
-              --max-filesize 50000000 \
-              --remove-on-error \
-              --silent \
-              --show-error \
-              "https://elanthus.github.io/news-briefing/corpora/$d.json" \
-              --output "corpora/$d.json" || true
-          done
-
       - name: Build static archive
         if: always()
         env:
@@ -203,6 +255,41 @@ jobs:
           args+=(--exclude-date 2026-08-16)
           args+=(--corpora-dir corpora)
           python build_site.py "${args[@]}"
+
+      - name: Encrypt retained corpora and diagnostics
+        if: always()
+        env:
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          mkdir -p corpora reports runs private-artifacts
+          if compgen -G "corpora/*.json" > /dev/null; then
+            python private_archive.py create \
+              --output private-artifacts/corpus-archive.tar.gz.enc \
+              corpora
+          else
+            echo "::warning::No exact corpus exists to archive"
+          fi
+          python private_archive.py create \
+            --output private-artifacts/briefing-diagnostics.tar.gz.enc \
+            corpora reports runs
+
+      - name: Upload private corpus archive
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: briefing-corpus-archive
+          path: private-artifacts/corpus-archive.tar.gz.enc
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload encrypted briefing diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: briefing-diagnostics-${{ github.run_id }}
+          path: private-artifacts/briefing-diagnostics.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

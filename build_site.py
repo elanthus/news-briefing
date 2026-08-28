@@ -9,6 +9,7 @@ import html
 import importlib
 import json
 import re
+import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -17,6 +18,8 @@ from typing import Any
 
 import corpus_schema
 import eval_briefing
+from audit_manifest import build_audit_manifest
+from corpus_storage import write_storage_marker
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
@@ -1067,7 +1070,11 @@ def _render_review_panel(
     )
 
 
-def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
+def _render_report(
+    entry: BriefingEntry,
+    entries: list[BriefingEntry],
+    manifest_dates: frozenset[str] = frozenset(),
+) -> str:
     newest = entries[0]
     briefing_href = "index.html" if entry.slug == newest.slug else f"{entry.slug}.html"
     parts = [
@@ -1075,6 +1082,13 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
         f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
         f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
     ]
+    if entry.slug in manifest_dates:
+        parts.append(
+            '<p class="audit-artifact"><a href="../manifests/'
+            f'{html.escape(entry.slug)}.json">Download audit manifest (JSON)</a> — '
+            "corpus membership, canonical destinations, provenance, and content hashes; "
+            "source-owned titles and excerpts are not included.</p>"
+        )
     if entry.findings and entry.markdown is not None:
         # The quarantined preview is the evidence a reviewer judges findings
         # against: render it with each finding attached to its story, keeping
@@ -1132,22 +1146,37 @@ def _render_report(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
     )
 
 
-def _publish_corpora(
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _publish_audit_manifests(
     corpora_dirs: Sequence[Path],
     output_dir: Path,
-    newest_entry_date: date,
-) -> None:
-    """Copy validated per-day corpus files into ``output_dir / "corpora"``.
+    newest_entry_date: date | None,
+) -> frozenset[str]:
+    """Publish text-free manifests derived from validated private corpora.
 
-    First directory wins on date conflicts. Downloaded corpus files are
-    untrusted input: each must be a real file whose stem is a canonical ISO
-    date and whose bytes parse as JSON, and the published filename is rebuilt
-    from the parsed date rather than taken from the input. Validated bytes are
-    copied verbatim so hashes stay stable. Dates outside the 14-day window
-    ending at the newest history entry are pruned.
+    Raw corpora never enter the site output. First directory wins on date
+    conflicts. Each input must be a schema-valid corpus whose report date
+    matches its canonical filename. Dates outside the 14-day window ending at
+    the newest history entry are pruned.
     """
+    raw_corpora_out = output_dir / "corpora"
+    if raw_corpora_out.exists() or raw_corpora_out.is_symlink():
+        _remove_path(raw_corpora_out)
+    manifests_out = output_dir / "manifests"
+    if manifests_out.exists() or manifests_out.is_symlink():
+        _remove_path(manifests_out)
+    if newest_entry_date is None:
+        return frozenset()
+
     oldest_kept = newest_entry_date - timedelta(days=13)
-    survivors: dict[str, bytes] = {}
+    survivors: dict[str, dict[str, Any]] = {}
+    claimed_slugs: set[str] = set()
     for corpora_dir in corpora_dirs:
         for corpus in sorted(corpora_dir.glob("*.json")):
             if not corpus.is_file():
@@ -1159,7 +1188,7 @@ def _publish_corpora(
             slug = day.isoformat()
             if (
                 corpus.stem != slug
-                or slug in survivors
+                or slug in claimed_slugs
                 or day < oldest_kept
                 or day > newest_entry_date
             ):
@@ -1169,15 +1198,28 @@ def _publish_corpora(
                 payload = json.loads(raw)
             except ValueError:
                 continue
-            if corpus_schema.validate_corpus(payload):
+            if (
+                corpus_schema.validate_corpus(payload)
+                or payload.get("report_date") != slug
+            ):
                 continue
-            survivors[slug] = raw
+            claimed_slugs.add(slug)
+            try:
+                survivors[slug] = build_audit_manifest(payload, raw)
+            except (AssertionError, KeyError, TypeError, ValueError):
+                # A historical corpus can satisfy its storage schema yet be
+                # unusable by a newer projection. Isolate that date so one bad
+                # retained input cannot suppress the rest of the Pages build.
+                continue
     if not survivors:
-        return
-    corpora_out = output_dir / "corpora"
-    corpora_out.mkdir(parents=True, exist_ok=True)
-    for slug, raw in survivors.items():
-        (corpora_out / f"{slug}.json").write_bytes(raw)
+        return frozenset()
+    manifests_out.mkdir(parents=True, exist_ok=True)
+    for slug, manifest in survivors.items():
+        (manifests_out / f"{slug}.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    return frozenset(survivors)
 
 
 def build_site(
@@ -1228,6 +1270,11 @@ def build_site(
     entries = entries[:7]
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_dates = _publish_audit_manifests(
+        corpora_dirs,
+        output_dir,
+        entries[0].day if entries else None,
+    )
     for favicon_filename in FAVICON_FILENAMES:
         source = FAVICON_SOURCE_DIR / favicon_filename
         (output_dir / favicon_filename).write_bytes(source.read_bytes())
@@ -1243,6 +1290,7 @@ def build_site(
         json.dumps(_history_payload(entries), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    write_storage_marker(output_dir)
     for entry in entries[1:]:
         (output_dir / f"{entry.slug}.html").write_text(
             _render_briefing(entry, entries),
@@ -1250,11 +1298,9 @@ def build_site(
         )
     for entry in entries:
         (reports_dir / f"{entry.slug}.html").write_text(
-            _render_report(entry, entries),
+            _render_report(entry, entries, manifest_dates),
             encoding="utf-8",
         )
-    if corpora_dirs and entries:
-        _publish_corpora(corpora_dirs, output_dir, entries[0].day)
 
 
 def main() -> int:
@@ -1293,8 +1339,9 @@ def main() -> int:
         default=[],
         dest="corpora_dirs",
         help=(
-            "directory of per-day corpus JSON files to publish under site/corpora; "
-            "repeatable, earlier directories win on date conflicts"
+            "private directory of per-day corpus JSON files from which to publish "
+            "text-free manifests under site/manifests; repeatable, earlier "
+            "directories win on date conflicts"
         ),
     )
     parser.add_argument(

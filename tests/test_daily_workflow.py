@@ -76,9 +76,14 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertRegex(WORKFLOW, r'--output "\$corpus"; then\s+corpus_ready=true')
         self.assertIn("::warning::Corpus fetch failed for $report_date", WORKFLOW)
         self.assertRegex(
-            WORKFLOW, r'Reusing stored corpus for \$report_date"\s+corpus_ready=true')
+            WORKFLOW,
+            r'Reusing privately restored corpus for \$report_date"\s+corpus_ready=true',
+        )
         self.assertIn('if [[ "$corpus_ready" == true ]]; then', WORKFLOW)
-        self.assertNotIn('if [[ -f "$corpus" ]]; then', WORKFLOW)
+        today_branch = WORKFLOW.split('if (( days_ago == 0 )); then', 1)[1].split(
+            'elif [[ -f "$corpus" ]]; then', 1
+        )[0]
+        self.assertNotIn('[[ -f "$corpus" ]]', today_branch)
         self.assertIn("Skipping briefing generation for $report_date", WORKFLOW)
 
     def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
@@ -95,13 +100,14 @@ class DailyWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
 
-    def test_backfill_reuses_only_prior_stored_corpora(self) -> None:
-        self.assertIn(
+    def test_backfill_reuses_only_privately_restored_corpora(self) -> None:
+        self.assertIn("python restore_private_corpora.py --output-dir corpora", WORKFLOW)
+        self.assertIn('elif [[ -f "$corpus" ]]; then', WORKFLOW)
+        self.assertIn("no private stored corpus is available", WORKFLOW)
+        self.assertNotIn(
             "https://elanthus.github.io/news-briefing/corpora/$report_date.json",
             WORKFLOW,
         )
-        self.assertIn('elif curl \\', WORKFLOW)
-        self.assertIn("no stored corpus is available", WORKFLOW)
         self.assertNotIn("days_ago <= 2", WORKFLOW)
 
     def test_generation_uses_ordered_production_fallback_chain(self) -> None:
@@ -132,9 +138,56 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertIn('"model_removed_from_openrouter": removed', DAILY_RUNNER)
         self.assertIn("see $run_dir/fallback.log", WORKFLOW)
 
-    def test_every_run_carries_forward_stored_corpora(self) -> None:
-        self.assertIn("for days_ago in $(seq 1 13); do", WORKFLOW)
+    def test_every_run_restores_prunes_and_archives_private_corpora(self) -> None:
+        self.assertIn("actions: read", WORKFLOW)
+        self.assertIn("CORPUS_ARCHIVE_PASSPHRASE", WORKFLOW)
+        self.assertIn("python restore_private_corpora.py", WORKFLOW)
+        self.assertIn('prune-corpora corpora --newest "$today"', WORKFLOW)
         self.assertIn("--corpora-dir corpora", WORKFLOW)
+        self.assertIn("name: briefing-corpus-archive", WORKFLOW)
+        self.assertIn("private-artifacts/corpus-archive.tar.gz.enc", WORKFLOW)
+
+    def test_archive_secrets_are_not_exposed_to_feed_or_model_processing(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+        generation_step = WORKFLOW.split(
+            "- name: Generate scheduled daily or manual backfill reports", 1
+        )[1].split("- name:", 1)[0]
+
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", restore_step)
+        self.assertIn("CORPUS_ARCHIVE_PASSPHRASE", restore_step)
+        self.assertNotIn("GITHUB_TOKEN", generation_step)
+        self.assertNotIn("CORPUS_ARCHIVE_PASSPHRASE", generation_step)
+        self.assertIn("python fetch_news.py", generation_step)
+        self.assertIn("python run_daily_briefing.py", generation_step)
+
+    def test_legacy_corpus_migration_is_all_or_nothing(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+
+        self.assertIn("legacy-corpora/$d.json", restore_step)
+        self.assertIn("if (( downloaded != 13 )); then", restore_step)
+        failure = restore_step.index("if (( downloaded != 13 )); then")
+        validation = restore_step.index(
+            'prune-corpora legacy-corpora --newest "$today"'
+        )
+        copy = restore_step.index("cp legacy-corpora/*.json corpora/")
+        self.assertLess(failure, validation)
+        self.assertLess(validation, copy)
+
+    def test_completed_migration_marker_allows_archive_gap_recovery(self) -> None:
+        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
+            "- name:", 1
+        )[0]
+
+        self.assertIn("corpus-storage.json", restore_step)
+        self.assertIn(
+            "python corpus_storage.py validate published-corpus-storage.json",
+            restore_step,
+        )
+        self.assertIn("starting a fresh corpus window", restore_step)
 
     def test_removes_known_bad_historical_pages(self) -> None:
         self.assertIn("--exclude-date 2026-08-15", WORKFLOW)
@@ -174,12 +227,14 @@ class DailyWorkflowTests(unittest.TestCase):
         )[0]
         self.assertNotIn("continue-on-error", build_step)
 
-    def test_uploads_diagnostics_even_when_generation_needs_review(self) -> None:
-        self.assertIn("- name: Upload briefing diagnostics\n        if: always()", WORKFLOW)
+    def test_uploads_only_encrypted_diagnostics_even_when_generation_needs_review(self) -> None:
+        self.assertIn("- name: Upload encrypted briefing diagnostics\n        if: always()", WORKFLOW)
         self.assertIn("name: briefing-diagnostics-${{ github.run_id }}", WORKFLOW)
-        for path in ("corpora", "reports", "runs"):
-            self.assertIn(f"            {path}\n", WORKFLOW)
-        self.assertIn("retention-days: 7", WORKFLOW)
+        self.assertIn("private-artifacts/briefing-diagnostics.tar.gz.enc", WORKFLOW)
+        self.assertIn("python private_archive.py create", WORKFLOW)
+        self.assertIn("corpora reports runs", WORKFLOW)
+        self.assertNotIn("path: |\n            corpora", WORKFLOW)
+        self.assertIn("retention-days: 14", WORKFLOW)
 
 
 if __name__ == "__main__":
