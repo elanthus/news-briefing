@@ -12,7 +12,9 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
 - **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge and human-review layers.
 - **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
-- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v1 (superseded) and v2 (current); provenance, not instructions.
+- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v2 (current) then v1 (superseded); provenance, not instructions.
+
+> **Both committed portfolio runs used the direct-Markdown generation path**, in which the model authors the whole briefing including its own citations. That is not the production two-pass selection/prose architecture with citation projection, where the model never receives a destination. See [production-parity generation path](#production-parity-generation-path) for the difference and how to run the other one. Any result quoted from these runs characterizes model behavior under the weaker contract, not the production runner.
 
 Reported numbers follow the [evaluation methodology](../docs/evaluation-methodology.md), which defines the threat model, denominators, and limitations that govern how these results may be cited.
 
@@ -462,49 +464,13 @@ The default version is named `production` and hashes the root `briefing-prompt.m
 
 ## Historical portfolio runs
 
-These are dated records of the completed portfolio runs, retained for provenance. Portfolio v2 is the current citable result; its record lives here because it is a completed run, not because it is superseded. Neither record is instructions for a new run; the current commands are documented above.
-
-### Portfolio v1 (superseded)
-
-The historical portfolio-v1 protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
-Its one-trial pilot began with the versioned `production-2026-08` and `reliability-v1`
-prompts on Claude Sonnet 5 through Claude Code and DeepSeek V4 Flash through
-OpenRouter. Pilot rows are operational checks and are excluded from final estimates:
-
-```bash
-python3 -m evaluator run \
-  --provider claude-code-cli=claude-sonnet-5 \
-  --provider openrouter=deepseek/deepseek-v4-flash \
-  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
-  --prompt reliability-v1=evaluator/prompts/reliability-v1.md \
-  --trials 1 \
-  --timeout 300 \
-  --temperature 0 \
-  --reasoning enabled \
-  --reasoning-effort high \
-  --run-kind pilot \
-  --cost-ceiling-usd 5 \
-  --cost-ceiling-provider openrouter \
-  --output-dir evaluator/results/portfolio-v1-pilot-20260814
-```
-
-The 2026-08-15 operational pilot found the original Sonnet path incompatible with
-the production corpus at the frozen timeout and found that reasoning-enabled
-DeepSeek could consume the completion budget without returning text. The dated
-protocol amendments use reasoning-disabled DeepSeek and the owner-selected
-OpenRouter `tencent/hy3` replacement; both amended 120-row groups completed without
-execution errors. See [`docs/results/portfolio-v1-pilot.md`](../docs/results/portfolio-v1-pilot.md).
-
-The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, a
-five-trial matrix, and a hard $4 OpenRouter ceiling. It completed 1,200/1,200 rows with no failed or skipped
-rows and $3.0338 in reported generation cost. The candidate did not pass the preregistered promotion rule
-for either model; see the curated [final results](../docs/results/portfolio-v1.md), [machine-readable
-aggregates](../docs/results/portfolio-v1.json), and [model card](../docs/results/portfolio-v1-model-card.md).
+Dated records of the completed portfolio runs, retained for provenance. **Portfolio v2 is the current citable result** and comes first below; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
 
 ### Portfolio v2 (current)
 
 Portfolio v2 supersedes the dirty-source portfolio-v1 model metrics. Its clean-tagged rerun completed all
-1,200 rows with no execution errors and $3.8005 in reported generation cost. See the [curated result](../docs/results/portfolio-v2.md),
+1,200 rows with no execution errors and $3.8005 in reported generation cost, on the **direct-Markdown
+generation path** (`"generation_path": "markdown"`), not production parity. See the [curated result](../docs/results/portfolio-v2.md),
 [public evidence](../docs/results/portfolio-v2-evidence/), and [comparison](../docs/results/portfolio-v2-comparison.json).
 The exact generation source is tag `portfolio-v2-source-20260819`; the dated portfolio-v1 documents remain
 historical snapshots.
@@ -555,3 +521,40 @@ python3 -m evaluator export-public-run \
   --output-dir docs/results/portfolio-v2-evidence
 python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 ```
+
+### Portfolio v1 (superseded)
+
+The historical portfolio-v1 protocol is [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json).
+Its one-trial pilot began with the versioned `production-2026-08` and `reliability-v1`
+prompts on Claude Sonnet 5 through Claude Code and DeepSeek V4 Flash through
+OpenRouter. Pilot rows are operational checks and are excluded from final estimates:
+
+```bash
+python3 -m evaluator run \
+  --provider claude-code-cli=claude-sonnet-5 \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
+  --prompt reliability-v1=evaluator/prompts/reliability-v1.md \
+  --trials 1 \
+  --timeout 300 \
+  --temperature 0 \
+  --reasoning enabled \
+  --reasoning-effort high \
+  --run-kind pilot \
+  --cost-ceiling-usd 5 \
+  --cost-ceiling-provider openrouter \
+  --output-dir evaluator/results/portfolio-v1-pilot-20260814
+```
+
+The 2026-08-15 operational pilot found the original Sonnet path incompatible with
+the production corpus at the frozen timeout and found that reasoning-enabled
+DeepSeek could consume the completion budget without returning text. The dated
+protocol amendments use reasoning-disabled DeepSeek and the owner-selected
+OpenRouter `tencent/hy3` replacement; both amended 120-row groups completed without
+execution errors. See [`docs/results/portfolio-v1-pilot.md`](../docs/results/portfolio-v1-pilot.md).
+
+The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, a
+five-trial matrix, and a hard $4 OpenRouter ceiling. It completed 1,200/1,200 rows with no failed or skipped
+rows and $3.0338 in reported generation cost. The candidate did not pass the preregistered promotion rule
+for either model; see the curated [final results](../docs/results/portfolio-v1.md), [machine-readable
+aggregates](../docs/results/portfolio-v1.json), and [model card](../docs/results/portfolio-v1-model-card.md).

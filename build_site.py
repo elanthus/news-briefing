@@ -930,7 +930,7 @@ def _status_chip(entry: BriefingEntry) -> str:
         n = len(entry.repair_actions)
         label = f"⚠ Published after automated repair ({n} {'action' if n == 1 else 'actions'})"
     elif entry.disposition == "ready":
-        label = "✓ Verified"
+        label = "✓ Contract checks passed"
     elif entry.disposition == "review_required":
         label = "🔍 Review required"
     else:

@@ -2,6 +2,14 @@
 
 This is the operating record for news-briefing. It records the first run of the day, including degraded runs, rather than keeping only successful reruns.
 
+It is long on purpose — it is provenance, not a tutorial. If you are reading three entries, read these:
+
+- [2026-08-09 — the run behind the committed reference pair](#2026-08-09--the-run-behind-the-committed-reference-pair): the model cited an article that was never fetched, the checker caught it, the correction loop replaced it. This is the run the project's design argument comes from.
+- [2026-08-18 — Claude Code Sonnet 5 failed dogfood run](#2026-08-18--claude-code-sonnet-5-failed-dogfood-run): a deny-all tool rule also blocked the structured-output mechanism the schema needed. An adapter-policy conflict that only a live run surfaces.
+- [2026-08-15 — OpenRouter Tencent Hy3 dogfood run](#2026-08-15--openrouter-tencent-hy3-dogfood-run): the same corpus run twice, reasoning disabled and then enabled, so the difference is attributable to the setting rather than to a different day's news.
+
+The rest is the daily record, newest first.
+
 For a complete daily run, record:
 
 - the agent and execution environment;

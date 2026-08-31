@@ -811,7 +811,7 @@ class BuildSiteTests(unittest.TestCase):
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
 
-    def test_status_chip_verified_for_clean_ready_entry(self) -> None:
+    def test_status_chip_contract_checks_passed_for_clean_ready_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -824,7 +824,7 @@ class BuildSiteTests(unittest.TestCase):
             index = (root / "site/index.html").read_text(encoding="utf-8")
             self.assertIn("status-chip", index)
             self.assertIn("✓", index)
-            self.assertIn("Verified", index)
+            self.assertIn("Contract checks passed", index)
             self.assertIn("reports/2026-08-20.html", index)
             self.assertNotIn("Checker verdict:", index)
             self.assertNotIn("Corpus health:", index)
@@ -953,7 +953,7 @@ class BuildSiteTests(unittest.TestCase):
             index = (root / "site/index.html").read_text(encoding="utf-8")
             title = index.index("<h1>Daily Briefing — August 20, 2026</h1>")
             first_rule = index.index("<hr>", title)
-            status = index.index("Verified", first_rule)
+            status = index.index("Contract checks passed", first_rule)
             corpus = index.index("Corpus window: start → end", status)
             second_rule = index.index("<hr>", corpus)
             self.assertLess(title, first_rule)
