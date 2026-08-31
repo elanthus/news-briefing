@@ -44,6 +44,7 @@ themselves:
 - malicious, inaccurate, unavailable, or rate-limited third-party feeds; and
 - denial of service against the upstream public sources.
 
-The [README](README.md#why-this-is-not-another-ai-news-summarizer) describes the trust
-boundaries and guarantees in more detail. Reports showing that an implementation
-does not meet one of those stated guarantees are in scope.
+The README's [what code enforces, and what it doesn't](README.md#what-code-enforces-and-what-it-doesnt)
+table states the trust boundaries and guarantees; [`docs/design.md`](docs/design.md)
+covers the reasoning behind them. Reports showing that an implementation does not
+meet one of those stated guarantees are in scope.

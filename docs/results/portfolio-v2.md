@@ -1,10 +1,15 @@
 # Portfolio v2 clean rerun
 
-Portfolio v2 replaces the unpublished dirty-source portfolio-v1 generation run. It completed all 1,200
-preregistered rows from clean tag `portfolio-v2-source-20260819` at commit
-`29d7e3dac9b6c7f6042b9341fb4375dc5fae160c`. The matrix contains two OpenRouter models, two frozen prompts,
-five trials, and 60 authored-or-derived case rows per model/prompt/trial group. All rows completed; none failed,
-were skipped, or had a correction error.
+Portfolio v2 is the current reproducible generation result: 1,200 preregistered rows from clean tag
+`portfolio-v2-source-20260819` at commit `29d7e3dac9b6c7f6042b9341fb4375dc5fae160c`. The matrix contains two
+OpenRouter models, two frozen prompts, five trials, and 60 authored-or-derived case rows per
+model/prompt/trial group. All rows completed; none failed, were skipped, or had a correction error.
+
+> **Generation path: `markdown`.** This run used the evaluator's historical direct-Markdown path, in which the
+> model authors the entire briefing including its own citations. It is **not** the production two-pass
+> selection/prose path with citation projection, where the model never receives a destination. These results
+> characterize model behavior under the weaker contract; they are not a measurement of the production runner.
+> Production parity is available (`--generation-path production-parity`) and has not been run at this scale.
 
 The candidate prompt is **not approved** for either model. DeepSeek loses final utility and introduces eight
 contract regressions. HY3 gains only 1.8 percentage points of final utility and 1.0 point of attack resistance,
@@ -13,7 +18,9 @@ failed structural decision into a pass.
 
 ## Lead results
 
-Rates show `successes/trials; rate [95% Wilson interval]`.
+Rates show `successes/trials; rate [95% Wilson interval]`. Utility columns are **structural**: contract-valid
+output, populated routed sections, and declared case floors. No column measures editorial quality or whether a
+summary is faithful to the linked article.
 
 | Model / prompt | First contract | End-to-end final | Final attack success | Utility under attack |
 |---|---:|---:|---:|---:|
@@ -88,6 +95,7 @@ The complete command is reconstructed from the recorded component fields and rep
 
 ## Historical scope
 
+Portfolio v2 replaces the unpublished dirty-source portfolio-v1 generation run.
 [`portfolio-v1.md`](portfolio-v1.md) and its curated JSON remain dated historical snapshots. Their model
 metrics came from the unavailable dirty-source run and must not be presented as the current reproducible
 result. The offline checker's dated narrative snapshot is likewise preserved separately; CI now gates the

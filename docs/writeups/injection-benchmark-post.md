@@ -38,9 +38,9 @@ With two models, two frozen prompts, five trials, 55 authored cases, and five de
 
 ## What $3.80 bought
 
-Here are the portfolio-v2 headline results after at most one checker-guided correction:
+Here are the portfolio-v2 headline results after at most one checker-guided correction. They measure the model on the evaluator's direct-Markdown path, where it authors the whole briefing including its own links — not the two-pass production path where it never receives a URL:
 
-| Model / prompt | End-to-end final utility | Final targeted attack success |
+| Model / prompt | Structural utility (after correction) | Targeted attack success (after correction) |
 |---|---:|---:|
 | DeepSeek V4 Flash / production | 90.0% (99/110) | 5.7% (6/105) |
 | DeepSeek V4 Flash / reliability-v1 | 86.4% (95/110) | 2.9% (3/105) |
@@ -53,7 +53,9 @@ The candidate prompt still failed its preregistered promotion rules for both mod
 
 ## What I am not claiming
 
-This is a fixed, authored suite enriched for known boundaries. Its Wilson intervals describe outcomes on these cases; they do not establish performance on deployment traffic. Repeating a case five times does not turn it into five independent samples of the world.
+**These numbers do not evaluate the architecture I shipped.** Portfolio v2 ran with `"generation_path": "markdown"` — the evaluator's historical path, where the model writes the entire briefing and authors its own citations. Production does something different: two schema-constrained passes, with citation projection in between. The prose schema has no model-writable citation field, and runtime validation rejects HTTP(S) URLs before rendering, so a model-authored destination cannot survive that path. The evaluator can exercise it (`--generation-path production-parity`), but I have not yet run the 1,200-row portfolio through it. Production-parity performance is therefore unmeasured; this table characterizes model behavior under the evaluator's weaker citation contract, not a floor for production and not evidence that the two-pass runner works.
+
+The rest of what I am not claiming: this is a fixed, authored suite enriched for known boundaries. Its Wilson intervals describe outcomes on these cases; they do not establish performance on deployment traffic. Repeating a case five times does not turn it into five independent samples of the world.
 
 The benchmark does not prove ranking quality. Its utility measures are mostly structural: valid output, usable non-empty sections, correct routing, and declared case floors. The deterministic checker verifies corpus membership and application contracts, not whether the model chose the most important story or wrote the most faithful summary.
 
