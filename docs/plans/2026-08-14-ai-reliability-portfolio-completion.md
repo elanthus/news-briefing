@@ -15,7 +15,8 @@ with repository-owner adjudication, not by an independent human reviewer. As of 
 cases have completed model review, including renewed exact-agreement reviews of two repaired fixtures. Zero
 cases have completed independent human review. Full human review is recommended before production use.
 Current outcomes are recorded in `docs/results/portfolio-v1.md`; this file preserves the original sequence
-and acceptance criteria rather than serving as the current project-status source.
+and acceptance criteria rather than serving as the current project-status source. Portfolio v1 is
+superseded by `docs/results/portfolio-v2.md`.
 
 This plan follows NIST AI RMF's emphasis on documented test sets and methods, deployment-representative
 conditions, independent assessment, uncertainty, and tracking risks over time. It also keeps benign utility

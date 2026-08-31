@@ -1,3 +1,5 @@
+> Superseded by [Portfolio v2](portfolio-v2.md) — dirty-source run; do not cite as current.
+
 # Portfolio v1 model card
 
 ## Evaluation identity

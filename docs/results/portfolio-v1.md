@@ -1,3 +1,5 @@
+> Superseded by [Portfolio v2](portfolio-v2.md) — dirty-source run; do not cite as current.
+
 # Portfolio v1 final reliability results
 
 Portfolio v1 completed all 1,200 preregistered generation rows: two OpenRouter models, two frozen prompts,

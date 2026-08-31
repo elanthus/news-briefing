@@ -1,5 +1,10 @@
 # Injection Threat Model Rewrite Implementation Plan
 
+> **Historical planning snapshot — not living documentation.** This is the plan as written before
+> implementation. The design shipped through `evaluator/runner.py` and
+> `evaluator/fixtures/generation-cases.json`, rather than `run_ai_eval.py` and
+> `fixtures/ai-eval-suite.json`; this plan is not a map of the current code.
+>
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace the repo's "grounding is injection containment" overclaim with an

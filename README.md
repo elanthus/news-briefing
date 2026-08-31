@@ -131,6 +131,8 @@ Reviewers can verify the committed evidence bundle and regenerate its aggregate 
 python3 -S -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 ```
 
+The evidence bundle's checker score family is frozen at the 2026-08-19 run and predates the 2026-08-25 repair of two fixtures, so its regenerated report shows the older 42/49 precision, 42/56 recall, and 7/12 heuristic figures. The current checker numbers in the table above come from [`evaluator/snapshots/offline-checker.json`](evaluator/snapshots/offline-checker.json).
+
 ## At a glance
 
 | | |
@@ -139,7 +141,7 @@ python3 -S -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; three provider adapters (OpenRouter, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection — the model never receives a destination, so an ungrounded link is unwritable rather than merely detectable. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 683 offline tests — 467 core, 160 evaluator, 56 site build — on Python 3.11–3.14. `ruff`, `mypy --disallow-untyped-defs`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. |
+| **Verification** | 683 offline tests — 467 core, 160 evaluator, 56 site build — on Python 3.11–3.14. `ruff`, `mypy` (strict: `disallow_untyped_defs = true` in `pyproject.toml`), Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. |
 | **Measurement** | 81-case checker suite plus a 55-case injection/utility suite; 1,200 preregistered rows for $3.80 in provider spend. The candidate prompt failed its preregistered promotion rules and was not shipped. |
 
 ## Architecture
@@ -195,7 +197,7 @@ Smoke-test the evaluation harness — case loading, oracles, scoring, report ren
 python3 -S -m evaluator run --provider baseline=echo --trials 1 --output-dir "$(mktemp -d)/eval-smoke"
 ```
 
-CI runs the offline suites on Python 3.11–3.14, plus `ruff`, `mypy --disallow-untyped-defs`, and a non-blocking smoke test against live feeds. Production keeps exact corpora and diagnostics for fourteen days in encrypted workflow artifacts; GitHub Pages gets text-free audit manifests instead of raw titles and excerpts.
+CI runs the offline suites on Python 3.11–3.14, plus `ruff`, `mypy` using `disallow_untyped_defs = true` from `pyproject.toml`, and a non-blocking smoke test against live feeds. Production keeps exact corpora and diagnostics for fourteen days in encrypted workflow artifacts; GitHub Pages gets text-free audit manifests instead of raw titles and excerpts.
 
 <details>
 <summary><strong>Repository map</strong></summary>
@@ -203,7 +205,11 @@ CI runs the offline suites on Python 3.11–3.14, plus `ruff`, `mypy --disallow-
 | Path | What it is |
 |---|---|
 | [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, deduplication, budgets, SSRF defense, XML defense |
+| [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
 | [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v6) and shared URL canonicalization |
+| [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
+| [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
+| [`briefing-prompt.md`](briefing-prompt.md) | Evaluator's legacy direct-Markdown prompt |
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
 | [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
@@ -211,6 +217,7 @@ CI runs the offline suites on Python 3.11–3.14, plus `ruff`, `mypy --disallow-
 | [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker for migration and archive-gap recovery |
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
+| [`bootstrap_history.py`](bootstrap_history.py) | Seeds site history from selected, hash-verified committed run artifacts; used by the daily workflow |
 | [`build_site.py`](build_site.py) | Static archive: briefings, integrity reports, public audit manifests |
 | [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
 | [`fixtures/`](fixtures) | Frozen corpus, briefing, configuration, and injection fixtures |
@@ -222,6 +229,7 @@ CI runs the offline suites on Python 3.11–3.14, plus `ruff`, `mypy --disallow-
 - [My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md) — the origin story and what $3.80 of evaluation bought
 - [Design notes](docs/design.md) — why each stage works the way it does
 - [Evaluation methodology](docs/evaluation-methodology.md) — threat model, labels, denominators, limitations
+- [Publication archive contract](docs/publication-archive-contract.md) — what the archive publishes, withholds, and retains
 - [Portfolio v2 model card](docs/results/portfolio-v2.md) — full results and the non-promotion decision
 - [Benchmark usage guide](evaluator/README.md) — run the same suite against your own model or prompt
 - [Dogfooding log](docs/dogfooding.md) — early live runs, checker findings, and the failures that shaped the design

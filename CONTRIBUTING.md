@@ -21,8 +21,8 @@ there is no package installation step:
 ```bash
 git clone https://github.com/elanthus/news-briefing.git
 cd news-briefing
-python3 -m unittest -v
-python3 -m unittest discover -s evaluator/tests -v
+python3 -S -m unittest -v
+python3 -S -m unittest discover -s evaluator/tests -v
 ```
 
 The optional evaluator development tools can be installed in an isolated
@@ -57,26 +57,34 @@ run artifacts.
 - Keep changes focused. Avoid unrelated formatting or refactoring in the same pull
   request.
 
-Changes to `briefing-prompt.md`, security controls, fixture labels, or evaluator
-oracles need particular care. Explain the intended guarantee, add a regression
-case, and distinguish deterministic enforcement from heuristic or model-evaluated
-behavior.
+Changes to `briefing-runner-prompt.md`—the production prompt used by
+`run_briefing.py` and the daily chain—need particular care, as do changes to
+`briefing-prompt.md`, which serves the evaluator's direct-Markdown path. Changes
+to security controls, fixture labels, or evaluator oracles also need particular
+care. Explain the intended guarantee, add a regression case, and distinguish
+deterministic enforcement from heuristic or model-evaluated behavior.
 
 ## Checks
 
 Run the same offline checks used in continuous integration:
 
 ```bash
-python3 -m unittest -v
-python3 -m unittest discover -s evaluator/tests -v
+python3 -S -m unittest -v
+python3 -S -m unittest discover -s evaluator/tests -v
+python3 -S -m evaluator checker
 uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
 uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
 ```
 
-CI and the agentic-preflight gate also run `tests.site_test_build` with
-`requirements-site.txt`; the module stays opt-in locally so the typical suite
-retains its no-install contract.
+The evaluator checker validates checker behavior against the committed snapshot.
+CI fails on snapshot drift; snapshot updates are opt-in via `--update-snapshot`.
+
+CI and the agentic-preflight gate—the maintainer's local pre-push hook
+configuration (`.agentic-preflight.toml`), which outside contributors are not
+expected to run—also run `tests.site_test_build` with `requirements-site.txt`;
+the module stays opt-in locally so the typical suite retains its no-install
+contract.
 
 The live-source smoke test is informational and is not required for a pull
 request. If you run live model evaluations, disclose the provider, exact model,

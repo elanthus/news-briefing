@@ -20,7 +20,7 @@ Reported numbers follow the [evaluation methodology](../docs/evaluation-methodol
 
 ## Bring your own model or prompt
 
-The harness is not hard-wired to the models in the committed results. Any OpenRouter model id, Claude Code CLI model, or Codex CLI model can run the same 55-case generation suite, and any prompt file can be evaluated against the production prompt under the same preregistered comparison rules.
+The harness is not hard-wired to the models in the committed results. Any OpenRouter model id, NVIDIA NIM model id, Claude Code CLI model, or Codex CLI model can run the same 55-case generation suite, and any prompt file can be evaluated against the production prompt under the same preregistered comparison rules.
 
 **1. Smoke-test the harness offline, no credentials.** The deterministic baseline adapters exercise the full pipeline — oracles, scoring, and report rendering — with zero provider calls:
 
@@ -35,12 +35,12 @@ python3 -m evaluator run \
   --provider openrouter=YOUR_MODEL_ID \
   --trials 5 \
   --cost-ceiling-usd 5 \
-  --output-dir results/runs/my-model
+  --output-dir evaluator/results/my-model
 ```
 
-`--provider` is repeatable, `--all-providers` expands every comma-delimited model list in the env file, and `--resume` continues an interrupted checkpoint after validating run identity. With `--prompt` omitted, the run evaluates the repo's production `briefing-prompt.md`.
+`--provider` is repeatable, `--all-providers` expands every comma-delimited model list in the env file, and `--resume` continues an interrupted checkpoint after validating run identity. With `--prompt` omitted, the default `markdown` path uses the evaluator's direct-Markdown `briefing-prompt.md`; `--generation-path production-parity` instead defaults to `briefing-runner-prompt.md`.
 
-**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report results/runs/my-model/manifest.json` rebuilds the reports from that saved manifest without re-running anything; the manifest path is required.
+**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report evaluator/results/my-model/manifest.json` rebuilds the reports from that saved manifest without re-running anything; the manifest path is required.
 
 **4. Test a prompt change like a promotion decision.** Run both prompts in one matrix, then let the paired, case-clustered bootstrap decide:
 
@@ -49,14 +49,14 @@ python3 -m evaluator run \
   --provider openrouter=YOUR_MODEL_ID \
   --prompt production=briefing-prompt.md \
   --prompt candidate=my-prompt.md \
-  --trials 5 --output-dir results/runs/prompt-test
+  --trials 5 --output-dir evaluator/results/prompt-test
 
 python3 -m evaluator compare \
-  results/runs/prompt-test/report.json results/runs/prompt-test/report.json \
+  evaluator/results/prompt-test/report.json evaluator/results/prompt-test/report.json \
   --baseline-prompt production --candidate-prompt candidate --allow-descriptive
 ```
 
-The positional arguments are `report.json` paths (a sibling `manifest.json` must exist beside each). `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison applies the preregistered thresholds from the protocol: a candidate is promoted only on sufficient utility and attack-resistance gains with zero contract regressions. [Portfolio v2](../docs/results/portfolio-v2.md) is a worked example of that decision rejecting a candidate prompt.
+Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison applies the preregistered thresholds from the protocol: a candidate is promoted only on sufficient utility and attack-resistance gains with zero contract regressions. [Portfolio v2](../docs/results/portfolio-v2.md) is a worked example of that decision rejecting a candidate prompt.
 
 ## What is fixed
 
@@ -203,7 +203,7 @@ causes a nonzero command exit.
 
 ### Comparing prompt versions after a run
 
-Reproduce the historical prompt comparison from the legacy local final manifest without making provider calls:
+The following command is a provenance record from the maintainer's machine. It references the ignored `evaluator/results/portfolio-v1-final-20260815/` directory, which is absent from clones, so it is not runnable in a clone:
 
 ```bash
 python3 -m evaluator compare \
@@ -223,7 +223,7 @@ gated outcome.
 
 ### Grounding review packets
 
-Export the blinded primary and stratified 20% double-review packets from a completed final manifest:
+The following export command is also a provenance record from the maintainer's machine. It depends on the same ignored local directory and is not runnable in a clone:
 
 ```bash
 python3 -m evaluator export-grounding-review \
@@ -231,8 +231,7 @@ python3 -m evaluator export-grounding-review \
   --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review
 ```
 
-When a human review is not feasible, keep the human response forms blank and write model judgments to a
-separate machine-review directory:
+The following judging command is likewise a provenance record from the maintainer's machine. It depends on the same ignored local directory and is not runnable in a clone:
 
 ```bash
 python3 -m evaluator judge-grounding \
@@ -251,10 +250,11 @@ the labels are automated rather than human approval.
 
 ### What is retained and where
 
-Raw generations and review mappings stay local and ignored. Versioned aggregates live in
-[`history/portfolio-v1.json`](history/portfolio-v1.json); [`regression-policy.json`](regression-policy.json)
-defines compatibility, completeness, review-trigger, and promotion rules. Incomplete or incompatible runs
-cannot pass.
+Raw generations and review mappings stay local and ignored. Versioned aggregates for the superseded
+portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the current v2 aggregates
+are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/).
+[`regression-policy.json`](regression-policy.json) defines compatibility, completeness, review-trigger, and
+promotion rules. Incomplete or incompatible runs cannot pass.
 
 ### Everyday run commands
 
@@ -322,7 +322,7 @@ Three consecutive provider failures open a circuit for that exact provider/model
 
 ### Run outputs and final-run requirements
 
-Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts under `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
+Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts to its output directory. When `--output-dir` is omitted, that directory is `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
 
 A final run additionally requires `--source-tag TAG`. Before loading credentials or making a provider call,
 the CLI refuses a dirty worktree or a tag that does not point at `HEAD`. The manifest records the commit,

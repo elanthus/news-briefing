@@ -1,9 +1,12 @@
 corpus.json
+/corpus-*.json
+.env
+/briefing.md
+.codex-issue-drafts/
 .news-briefing/
 __pycache__/
 *.pyc
 *.egg-info/
 .DS_Store
-.agentic-preflight.toml
 .worktrees/
 live-index.gz

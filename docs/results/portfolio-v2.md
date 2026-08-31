@@ -1,4 +1,4 @@
-# Portfolio v2 clean rerun
+# Portfolio v2 model card (clean rerun)
 
 Portfolio v2 is the current reproducible generation result: 1,200 preregistered rows from clean tag
 `portfolio-v2-source-20260819` at commit `29d7e3dac9b6c7f6042b9341fb4375dc5fae160c`. The matrix contains two
@@ -65,6 +65,8 @@ aggregate JSON and Markdown reports, metadata, and SHA-256 checksums. Provider r
 only removed field. A credential/path scan found no API keys, authorization headers, request identifiers, or
 local absolute paths in the bundle.
 
+The bundle's Score family 1 (checker capability) is the checker state frozen at the 2026-08-19 run and predates the 2026-08-25 repair of the structure-overfilled and selection-category-ambiguity fixtures, so the report it regenerates shows 42/49 precision, 42/56 recall, and 7/12 heuristic false positives; the current checker numbers live in `evaluator/snapshots/offline-checker.json`.
+
 The committed bundle is about 24 MiB, below Git LFS territory. The two local raw directories total 155 MiB,
 but add only redundant copies of committed corpora, requests reproducible from committed prompts/configs,
 and outputs already present in the public manifest; they are therefore not publication inputs.
@@ -96,7 +98,8 @@ The complete command is reconstructed from the recorded component fields and rep
 ## Historical scope
 
 Portfolio v2 replaces the unpublished dirty-source portfolio-v1 generation run.
-[`portfolio-v1.md`](portfolio-v1.md) and its curated JSON remain dated historical snapshots. Their model
-metrics came from the unavailable dirty-source run and must not be presented as the current reproducible
-result. The offline checker's dated narrative snapshot is likewise preserved separately; CI now gates the
-current byte-for-byte snapshot in `evaluator/snapshots/offline-checker.json`.
+[`portfolio-v1.md`](portfolio-v1.md), [`portfolio-v1-model-card.md`](portfolio-v1-model-card.md), and
+[`portfolio-v1-pilot.md`](portfolio-v1-pilot.md), together with the curated JSON, remain dated historical
+snapshots. Their model metrics came from the unavailable dirty-source run and must not be presented as the
+current reproducible result. The offline checker's dated narrative snapshot is likewise preserved separately;
+CI now gates the current byte-for-byte snapshot in `evaluator/snapshots/offline-checker.json`.

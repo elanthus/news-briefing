@@ -2,8 +2,9 @@
 
 > **Historical planning snapshot — not living documentation.** This is the plan as written before
 > execution began on 2026-08-13. Actual case counts, schema versions, oracle field names, and
-> design choices shifted during implementation and code review (e.g. the final generation suite is
-> 43 cases, not the 67-then-trimmed figures estimated here; `must_route_to_wrong_section` and
+> design choices shifted during implementation and code review (e.g. after the trim described here,
+> the generation suite had 43 cases and was later expanded to the shipped 55;
+> `must_route_to_wrong_section` and
 > `require_utility_preserved` did not exist when this was written). For the current, authoritative
 > state of the suite, read [`evaluator/README.md`](../../evaluator/README.md) and
 > [`evaluator/results/offline-baseline.md`](../../evaluator/results/offline-baseline.md), not this
