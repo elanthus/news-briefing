@@ -128,7 +128,7 @@ On a deliberately hard 12-case subset of *valid* claim boundaries, the combined 
 Reviewers can verify the committed evidence bundle and regenerate its aggregate report with no credentials and no provider calls:
 
 ```bash
-python3 -S -m evaluator verify-public-run docs/results/portfolio-v2-evidence
+python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
 ```
 
 The evidence bundle's checker score family is frozen at the 2026-08-19 run and predates the 2026-08-25 repair of two fixtures, so its regenerated report shows the older 42/49 precision, 42/56 recall, and 7/12 heuristic figures. The current checker numbers in the table above come from [`evaluator/snapshots/offline-checker.json`](evaluator/snapshots/offline-checker.json).
