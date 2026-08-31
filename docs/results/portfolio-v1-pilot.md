@@ -1,3 +1,5 @@
+> Superseded by [Portfolio v2](portfolio-v2.md) — this was an operational pilot whose rows were excluded from final estimates; do not cite as current.
+
 # Portfolio v1 pilot — 2026-08-15
 
 This is an operational pilot, not the preregistered five-repetition result. Its rows are excluded from final estimates and must not be used to claim model or prompt superiority.

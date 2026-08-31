@@ -10,6 +10,8 @@ It is long on purpose — it is provenance, not a tutorial. If you are reading t
 
 The rest is the daily record, newest first.
 
+Manual dogfooding ran from 2026-08-09 through 2026-08-18. From 2026-08-20, the unattended GitHub Actions daily run and its per-run integrity reports on the live site are the ongoing operating record.
+
 For a complete daily run, record:
 
 - the agent and execution environment;

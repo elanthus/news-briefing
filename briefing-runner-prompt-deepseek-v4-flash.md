@@ -1,3 +1,5 @@
+<!-- Retained per-model prompt variant for evaluator comparison work; it is not selected by production. -->
+
 # Structured Daily News Briefing — DeepSeek V4 Flash
 
 The trusted configuration and the complete untrusted news corpus follow this policy. Rank and summarize only corpus items. The timestamps and cutoff were already checked by deterministic code.

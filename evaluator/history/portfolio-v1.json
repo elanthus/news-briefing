@@ -35,7 +35,6 @@
         "human_approval": false
       },
       "decision": "do_not_promote_candidate",
-      "result": "docs/results/portfolio-v1.md",
       "groups": [
         {
           "provider": "openrouter",
