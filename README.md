@@ -14,7 +14,7 @@
 
 ---
 
-My news agent cited an article that did not exist.
+My news agent cited an article it had never been given.
 
 The draft looked fine: 22 topics, an exclusion log, a source-health report. One link pointed at a story the fetcher had never retrieved. The deterministic checker rejected the run before anything published, the correction loop swapped in a real item, and I got the rule the rest of the project is built on — **anything code can decide, the prompt does not get to decide.**
 
@@ -28,6 +28,8 @@ So: a GitHub Actions cron job fetches 150–250 items from RSS, Hacker News, and
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Per-run integrity report](docs/images/auditor-report.png) |
 | The status chip links to that day's integrity report. A clean run means every deterministic contract check passed — links resolve to selected corpus items, sections routed correctly, source health declared. It does **not** mean the summary is faithful to the linked article; nothing here checks that. | Six automated repairs, then zero findings. Not a contradiction: deterministic repair runs *before* the publication gate, so a clean gate sits above the log of what it took to get there. |
+
+*Screenshot note: these images predate the status wording change from “Verified” to “Contract checks passed” and the integrity report's explicit semantic-faithfulness disclaimer. They are being kept until fresh images can be captured after the next successful daily deployment.*
 
 ## See it work
 
@@ -85,7 +87,7 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 
 [`evaluator/`](evaluator/) is a development-only benchmark for two separate systems — the deterministic checker and model generation. Their denominators are reported separately and never pooled.
 
-> **These numbers do not validate the production architecture.** Portfolio v2 ran on the evaluator's direct-Markdown path (`"generation_path": "markdown"` in the [run manifest](docs/results/portfolio-v2-evidence/manifest.json)), where the model writes the whole briefing and authors its own links. Production doesn't work that way — two schema-constrained passes with citation projection between them, so the model never receives a destination. Citation fabrication isn't a low rate there; it has no representation in the output format. The evaluator can run that path (`--generation-path production-parity`); I haven't paid for a 1,200-row run on it. So read the table as a floor on model behavior under a weaker contract.
+> **These numbers do not validate the production architecture.** Portfolio v2 ran on the evaluator's direct-Markdown path (`"generation_path": "markdown"` in the [run manifest](docs/results/portfolio-v2-evidence/manifest.json)), where the model writes the whole briefing and authors its own links. Production doesn't work that way: it uses two schema-constrained passes with citation projection between them. The prose schema has no model-writable citation field, and runtime validation rejects HTTP(S) URLs before rendering, so a model-authored destination cannot survive that path. The evaluator can exercise the production-parity path (`--generation-path production-parity`), but I haven't run the 1,200-row portfolio through it. Production-parity performance is therefore unmeasured; this table characterizes model behavior under the evaluator's weaker citation contract, not a floor for production.
 
 ### Generation: 55 cases, 1,200 rows, $3.80
 
