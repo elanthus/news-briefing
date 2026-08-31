@@ -113,7 +113,7 @@ uv sync --project evaluator --group dev
 The harness itself uses the standard library, so the offline suite can also run without installing anything:
 
 ```bash
-python3 -m evaluator checker --output evaluator/results/checker-report.json
+python3 -m evaluator checker
 ```
 
 The default suite is also checked byte-for-byte against

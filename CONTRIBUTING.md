@@ -71,7 +71,7 @@ Run the same offline checks used in continuous integration:
 ```bash
 python3 -S -m unittest -v
 python3 -S -m unittest discover -s evaluator/tests -v
-python3 -S -m evaluator checker
+python3 -m evaluator checker
 uvx ruff@0.14.2 check .
 uvx mypy@1.14.1
 uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator

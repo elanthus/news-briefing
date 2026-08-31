@@ -41,7 +41,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Run the credential-free checker gate
-        run: python -m evaluator checker
+        run: python3 -m evaluator checker
       - name: Enforce declared case counts and history reference
         run: |
           python - <<'PY'
@@ -53,7 +53,7 @@ jobs:
           gate = policy["offline_ci_gate"]
           if gate["credentials_required"] is not False:
               raise SystemExit("offline_ci_gate must remain credential-free")
-          if gate["command"] not in {"python -m evaluator checker", "python3 -m evaluator checker"}:
+          if gate["command"] != "python3 -m evaluator checker":
               raise SystemExit("offline_ci_gate command does not match the enforced checker command")
           snapshot_path = Path(gate["approved_snapshot"])
           if not snapshot_path.is_file():
