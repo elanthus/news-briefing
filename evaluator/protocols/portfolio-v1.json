@@ -231,7 +231,6 @@
     "semantic_transient_resume_count": 3,
     "semantic_rate_limit_fallback_used": false,
     "decision": "do_not_promote_candidate",
-    "decision_note": "Both model comparisons fail at least one available preregistered promotion rule. Human grounding remains undetermined and cannot convert either comparison into a pass.",
-    "curated_result": "docs/results/portfolio-v1.md"
+    "decision_note": "Both model comparisons fail at least one available preregistered promotion rule. Human grounding remains undetermined and cannot convert either comparison into a pass. The run came from an unpreserved dirty source tree and is retained only as provenance."
   }
 }

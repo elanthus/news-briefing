@@ -97,9 +97,9 @@ The complete command is reconstructed from the recorded component fields and rep
 
 ## Historical scope
 
-Portfolio v2 replaces the unpublished dirty-source portfolio-v1 generation run.
-[`portfolio-v1.md`](portfolio-v1.md), [`portfolio-v1-model-card.md`](portfolio-v1-model-card.md), and
-[`portfolio-v1-pilot.md`](portfolio-v1-pilot.md), together with the curated JSON, remain dated historical
-snapshots. Their model metrics came from the unavailable dirty-source run and must not be presented as the
-current reproducible result. The offline checker's dated narrative snapshot is likewise preserved separately;
-CI now gates the current byte-for-byte snapshot in `evaluator/snapshots/offline-checker.json`.
+Portfolio v2 replaces the unpublished dirty-source Portfolio v1 generation run. The final v1 narrative and
+model card are not retained because that run's source diff was unavailable. The operational
+[`portfolio-v1-pilot.md`](portfolio-v1-pilot.md) and machine-readable history remain provenance only and must
+not be cited as reproducible evaluation evidence. The offline checker's dated narrative snapshot is likewise
+preserved separately; CI now gates the current byte-for-byte snapshot in
+`evaluator/snapshots/offline-checker.json`.

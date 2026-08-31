@@ -472,8 +472,8 @@ Portfolio v2 supersedes the dirty-source portfolio-v1 model metrics. Its clean-t
 1,200 rows with no execution errors and $3.8005 in reported generation cost, on the **direct-Markdown
 generation path** (`"generation_path": "markdown"`), not production parity. See the [curated result](../docs/results/portfolio-v2.md),
 [public evidence](../docs/results/portfolio-v2-evidence/), and [comparison](../docs/results/portfolio-v2-comparison.json).
-The exact generation source is tag `portfolio-v2-source-20260819`; the dated portfolio-v1 documents remain
-historical snapshots.
+The exact generation source is tag `portfolio-v2-source-20260819`; Portfolio v1's protocol and machine
+history remain provenance only because its final run came from an unpreserved dirty source tree.
 
 The original portfolio-v2 command was:
 
@@ -553,8 +553,7 @@ protocol amendments use reasoning-disabled DeepSeek and the owner-selected
 OpenRouter `tencent/hy3` replacement; both amended 120-row groups completed without
 execution errors. See [`docs/results/portfolio-v1-pilot.md`](../docs/results/portfolio-v1-pilot.md).
 
-The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, a
-five-trial matrix, and a hard $4 OpenRouter ceiling. It completed 1,200/1,200 rows with no failed or skipped
-rows and $3.0338 in reported generation cost. The candidate did not pass the preregistered promotion rule
-for either model; see the curated [final results](../docs/results/portfolio-v1.md), [machine-readable
-aggregates](../docs/results/portfolio-v1.json), and [model card](../docs/results/portfolio-v1-model-card.md).
+The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, but it
+came from a dirty source tree whose diff was not preserved. Its narrative result and model card are therefore
+not retained as evaluation evidence. The [machine-readable aggregates](../docs/results/portfolio-v1.json)
+remain for provenance only and must not be cited as a reproducible result.
