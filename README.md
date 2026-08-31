@@ -27,9 +27,7 @@ So: a GitHub Actions cron job fetches 150–250 items from RSS, Hacker News, and
 | Reader view | Auditor view |
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Per-run integrity report](docs/images/auditor-report.png) |
-| The status chip links to that day's integrity report. A clean run means every deterministic contract check passed — links resolve to selected corpus items, sections routed correctly, source health declared. It does **not** mean the summary is faithful to the linked article; nothing here checks that. | Six automated repairs, then zero findings. Not a contradiction: deterministic repair runs *before* the publication gate, so a clean gate sits above the log of what it took to get there. |
-
-*Screenshot note: these images predate the status wording change from “Verified” to “Contract checks passed” and the integrity report's explicit semantic-faithfulness disclaimer. They are being kept until fresh images can be captured after the next successful daily deployment.*
+| The status chip links to that day's integrity report. A clean run means every deterministic contract check passed — links resolve to selected corpus items, sections routed correctly, source health declared. It does **not** mean the summary is faithful to the linked article; nothing here checks that. | Zero findings at the publication gate. The report exposes the audit manifest, states that semantic faithfulness was not assessed, and names degraded sources. |
 
 ## See it work
 
