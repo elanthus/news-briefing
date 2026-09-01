@@ -1,0 +1,58 @@
+{
+  "component_manifests": [
+    {
+      "circuit_breaker_threshold": 3,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 3.0,
+      "error_rows": 1,
+      "manifest_sha256": "801c7d194b9603920dfd0f28eb0748adb4f1d5f07a9787be576ea6bbab890a48",
+      "name": "parity-v1-final-20260901-flash",
+      "observed_cost_usd": 0.6318681857879999,
+      "original_run_status": "completed_with_errors",
+      "planned_case_trials": 600,
+      "rows": 600
+    },
+    {
+      "circuit_breaker_threshold": 3,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 3.0,
+      "error_rows": 0,
+      "manifest_sha256": "960ad629c1d7b4524ab5ac02c13daa95554cddc984f0d9404fc0a337a82dd331",
+      "name": "parity-v1-final-20260901-hy3",
+      "observed_cost_usd": 1.1664422299999986,
+      "original_run_status": "complete",
+      "planned_case_trials": 600,
+      "rows": 600
+    }
+  ],
+  "files": {
+    "adjudications.json": {
+      "bytes": 187612,
+      "sha256": "d6aaef77afa91d3f0ee3dec4d146fdbabde0411b19b1872a53bfc7e33a7a7808"
+    },
+    "ledger.json": {
+      "bytes": 13916335,
+      "sha256": "624ab3879a1a05e2900e6c4208c20bc15b18f723f02dd09823800665f46fe7da"
+    },
+    "manifest.json": {
+      "bytes": 18965853,
+      "sha256": "ef681901b970b9b0586698effc3a4f609b048c37801ebf4b5ae541644023055c"
+    },
+    "report.json": {
+      "bytes": 236288,
+      "sha256": "89be17633a6549891dd2dfce2913421e523ff0cc5b019bbeaace4f54d07abc8a"
+    },
+    "report.md": {
+      "bytes": 24793,
+      "sha256": "618ba413f3adc1852ef8282ca1fe88df3634fa9e21bb858b4ed37917ea73db41"
+    }
+  },
+  "redactions": [
+    "provider_request_id"
+  ],
+  "regeneration_command": "python3 -m evaluator verify-public-run docs/results/parity-v1-evidence",
+  "schema_version": 1,
+  "source_commit": "3af8a270b9dfb7927acd28a711bbf5260b7c599e",
+  "source_tag": "parity-v1-source-20260901c",
+  "source_tree": "c95c4bbc7a897945a0e35c64c91af90287296809"
+}

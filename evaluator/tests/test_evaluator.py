@@ -837,6 +837,32 @@ class PublicRunTest(unittest.TestCase):
             )
             self.assertEqual(verify_public_run(output)["rows"], 2)
 
+            # A recorded provider failure is published, not a reason to drop the
+            # whole component: the row keeps its place in the adapter matrix,
+            # carries its error, scores nothing, and is disclosed in the bundle.
+            failed = {
+                **row("model-b", 0.02),
+                "status": "provider_error",
+                "first": None,
+                "final": None,
+                "error": {"type": "ProviderRequestError", "message": "invalid JSON"},
+            }
+            supplement_manifest["results"] = [failed]
+            supplement_manifest["run_status"] = "completed_with_errors"
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            with_error = root / "with-error"
+            export_public_run([primary_path, supplement_path], with_error)
+            published_error = json.loads((with_error / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(published_error["run_status"], "completed_with_errors")
+            self.assertEqual(len(published_error["results"]), 2)
+            self.assertEqual(
+                sum(c["error_rows"] for c in published_error["split_run_components"]), 1
+            )
+            self.assertEqual(verify_public_run(with_error)["status"], "verified")
+            supplement_manifest["results"] = [row("model-b", 0.02)]
+            supplement_manifest["run_status"] = "complete"
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+
             supplement_manifest["circuit_breaker_threshold"] = 4
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "circuit_breaker_threshold"):
