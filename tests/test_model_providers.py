@@ -90,18 +90,15 @@ class ProviderTests(unittest.TestCase):
         ) as opened:
             result = provider.generate(REQUEST)
         sent = json.loads(opened.call_args.args[0].data)
-        self.assertEqual(
-            sent["response_format"]["json_schema"]["schema"],
-            _grammar_compatible_schema(SCHEMA),
-        )
+        self.assertEqual(sent["response_format"]["json_schema"]["schema"], SCHEMA)
         self.assertEqual(sent["provider"], {"require_parameters": True})
         self.assertEqual(sent["reasoning"], {"enabled": True})
         self.assertNotIn("tools", sent)
         self.assertEqual(result.structured_output, {"schema_version": 1})
         self.assertEqual(result.cost_usd, 0.01)
 
-    def test_openrouter_strips_unique_items_from_the_sent_schema(self):
-        """OpenRouter grammar backends reject uniqueItems; the validator still catches it."""
+    def test_openrouter_strips_unique_items_only_for_incompatible_models(self):
+        """hy3's backends cannot compile uniqueItems; every other model keeps it."""
         schema = {
             "type": "object",
             "properties": {
@@ -111,10 +108,17 @@ class ProviderTests(unittest.TestCase):
             "additionalProperties": False,
         }
         request = GenerationRequest("prompt", schema, 30, "0" * 32)
-        provider = OpenRouterProvider("vendor/model")
-        sent = provider._payload(request)["response_format"]["json_schema"]["schema"]
 
-        self.assertNotIn("uniqueItems", sent["properties"]["refs"])
+        stripped = OpenRouterProvider("tencent/hy3")._payload(request)
+        kept = OpenRouterProvider("vendor/model")._payload(request)
+
+        self.assertNotIn(
+            "uniqueItems",
+            stripped["response_format"]["json_schema"]["schema"]["properties"]["refs"],
+        )
+        self.assertTrue(
+            kept["response_format"]["json_schema"]["schema"]["properties"]["refs"]["uniqueItems"]
+        )
         self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_reasoning_can_be_explicitly_disabled(self):

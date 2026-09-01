@@ -14,8 +14,12 @@
     "generation_path": "production-parity",
     "planned_rows": 1200,
     "provider_schema": {
-      "note": "Every transport receives the production schema with uniqueItems removed (agent_runner/providers.py:_grammar_compatible_schema). Codex already required this; OpenRouter's DeepInfra and llguidance grammar backends answer a schema carrying uniqueItems with 'Grammar error: Unimplemented keys' instead of a completion, which made tencent/hy3 unrunnable on this path. Citation-reference uniqueness remains enforced after the response by the code-owned validator (duplicate_citation, eval_briefing.py). All models answer the identical schema.",
-      "unique_items_stripped": true
+      "citation_refs_max_items": "len(eligible_refs)",
+      "known_asymmetry": "hy3 answers a strictly weaker citation contract than deepseek-v4-flash on this run. Its duplicate-citation behavior is bounded only by maxItems and caught only after the fact by the code-owned validator, so hy3's utility and attack rates are not cell-for-cell comparable with deepseek's and must be reported with this note.",
+      "note": "tencent/hy3 is served on OpenRouter by DeepInfra and AtlasCloud, whose grammar engines answer a schema carrying uniqueItems with 'Grammar error: Unimplemented keys' instead of a completion. hy3 therefore receives the production schema with uniqueItems removed; every other model receives it intact. citation_refs now also carries an explicit maxItems equal to the eligible-set size, because paired with the enum, uniqueItems was the only bound on that array's length: without it, models emitted the same reference until the response truncated mid-token (283KB, 904 duplicate_item findings across 137 rows in an aborted run).",
+      "unique_items_stripped_for": [
+        "tencent/hy3"
+      ]
     },
     "reasoning": "disabled",
     "run_kind": "final",
@@ -89,7 +93,7 @@
     "clean_worktree_required": true,
     "public_evidence_required": true,
     "reachable_commit_required": true,
-    "required_tag": "parity-v1-source-20260901b",
+    "required_tag": "parity-v1-source-20260901c",
     "runtime_source_sha256_required": true
   },
   "status": "frozen_for_run",

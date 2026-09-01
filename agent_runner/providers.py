@@ -74,22 +74,25 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
     return value
 
 
+#: OpenRouter models whose backends cannot compile ``uniqueItems`` into a
+#: sampling grammar. ``tencent/hy3`` is served by DeepInfra and AtlasCloud, both
+#: of which answer a schema carrying the keyword with
+#: ``Grammar error: Unimplemented keys: ["uniqueItems"]`` instead of a
+#: completion. Models are listed individually rather than stripped globally:
+#: dropping the keyword measurably degrades output, so it stays in the schema
+#: for every model that can compile it.
+_UNIQUE_ITEMS_INCOMPATIBLE_MODELS = frozenset({"tencent/hy3"})
+
+
 def _grammar_compatible_schema(value: Any) -> Any:
-    """Return a copy containing only JSON Schema keywords every transport accepts.
+    """Return a copy without ``uniqueItems``, for backends that reject it.
 
-    Structured-output backends compile the schema into a sampling grammar, and
-    several of them do not implement ``uniqueItems``: Codex rejects it, and on
-    OpenRouter both DeepInfra and llguidance answer a request carrying it with
-    ``Grammar error: Unimplemented keys: ["uniqueItems"]`` rather than a
-    completion. The workflow's code-owned validator still checks
-    citation-reference uniqueness after the response is returned
-    (``duplicate_citation`` in ``eval_briefing.py``), so removing it from the
-    provider schema does not weaken publication validation.
-
-    Every provider receives the identical stripped schema. Sending a stricter
-    schema to whichever backends happen to support the keyword would mean two
-    models were answering different contracts, which is exactly what a
-    cross-model comparison must not do.
+    Codex structured outputs reject the keyword outright, and the OpenRouter
+    models in ``_UNIQUE_ITEMS_INCOMPATIBLE_MODELS`` cannot compile it. The
+    code-owned validator still rejects a duplicate citation after the response
+    is returned, but removing the keyword is not free: paired with the ``enum``,
+    distinctness also bounded the array's length, so a stripped schema depends
+    on ``citation_refs``'s explicit ``maxItems`` to stay terminating.
     """
     if isinstance(value, dict):
         compatible: dict[str, Any] = {}
@@ -276,6 +279,12 @@ class OpenRouterProvider(ModelProvider):
             "max_tokens": self.max_tokens,
         }
 
+    def _sent_schema(self, output_schema: dict[str, Any]) -> dict[str, Any]:
+        """Strip ``uniqueItems`` only for models whose backends cannot compile it."""
+        if self.model in _UNIQUE_ITEMS_INCOMPATIBLE_MODELS:
+            return _grammar_compatible_schema(output_schema)
+        return output_schema
+
     def _payload(self, request: GenerationRequest) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
@@ -287,7 +296,7 @@ class OpenRouterProvider(ModelProvider):
                 "json_schema": {
                     "name": "news_briefing",
                     "strict": True,
-                    "schema": _grammar_compatible_schema(request.output_schema),
+                    "schema": self._sent_schema(request.output_schema),
                 },
             },
             "provider": {"require_parameters": True},
@@ -460,10 +469,7 @@ class ClaudeCodeProvider(ModelProvider):
             "--disable-slash-commands",
             "--no-session-persistence",
             "--json-schema",
-            json.dumps(
-                _grammar_compatible_schema(request.output_schema),
-                separators=(",", ":"),
-            ),
+            json.dumps(request.output_schema, separators=(",", ":")),
         ]
         completed, latency_ms, attempts = _run_cli(
             command, request.prompt, timeout=request.timeout_seconds
