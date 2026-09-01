@@ -1,68 +1,84 @@
-# My news agent fabricated a citation. The checker caught it.
+# My news agent cited an article it had never been given
 
-On an early dogfood run, my news agent produced a polished briefing with 22 topics, a full exclusion log, and a source-health report. It also cited an item called “Cowork Projects keep CLAUDE.md outside the project folder.” That item and URL were not in the closed corpus.
+On an early dogfood run, 2026-08-09, a 158-item corpus, the briefing came back looking finished. Twenty-two topics filling all six sections, a 25-row log of what it had left out, and a corpus-health section correctly naming the three subreddits that had returned HTTP 429.
 
-In ordinary language, the agent had fabricated a citation. More precisely, it had generated an ungrounded link: a destination the application had never supplied. The deterministic checker rejected the draft, and the correction loop replaced the invented item with a corpus-supported one. The final briefing had zero errors and zero warnings. The [dogfooding log records the original finding, correction, and reproducible command](../dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair).
+One of its links pointed at a story called "Cowork Projects keep CLAUDE.md outside the project folder." Nothing by that name had been fetched. The string `Cowork` does not appear anywhere in the corpus file, which is still committed to the repository.
 
-That small failure shaped how I built the rest of the system. I did not want “the model usually follows the prompt” to be the publication boundary. I wanted properties that code could decide—especially citation identity—to be checked by code. Then I wanted an evaluation suite that could tell me whether those checks and the model behavior held up when instructions arrived inside untrusted news content.
+That is what this codebase calls an **ungrounded link**: a destination that shows up in the output without ever having shown up in the input. In looser language, the model made one up. The checker caught it before anything published, the item was swapped for one the corpus actually contained, and the corrected draft came back clean — 0 errors, 0 warnings, still reproducible today:
 
-## Deterministic oracles before LLM judges
+```bash
+python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
+```
 
-An LLM judge is useful when the question is semantic: Did this summary preserve the source's meaning? Is one version clearer than another? But many important questions in this application are not semantic.
+The [dogfooding log](../dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair) records the original finding, the correction, and every count above.
 
-- Does every linked destination occur in the frozen corpus?
-- Is a citation eligible for the section where it appears?
-- Did the briefing repeat a citation or omit a required section?
-- Did it name the sources that failed during retrieval?
-- Did a specific injection cause the attacker's URL, phrase, ordering, or routing outcome to appear?
+One detail about that run governs everything below: **The model wrote the entire briefing as Markdown, links included.** That is the evaluator's historical path. It is not the pipeline I ship: production runs two schema-constrained model calls, and the model never receives a URL in either of them, so it has nothing to invent from. The benchmark in this post still runs on the old path, which makes "the model can author its own links" the single biggest limitation of every number here.
 
-Those questions have deterministic answers. I use parsers, canonical URL comparison, explicit section rules, and case-specific oracles before asking another model for an opinion. That gives failures stable names, makes regression tests cheap, and lets the generation model receive precise correction feedback.
+I didn't want "the model usually follows the prompt" to be the line between a draft and a published page. Anything code could decide, I wanted code to decide: citation identity above all. Then I wanted a way to find out whether those checks, and the model's own behavior, held up when instructions arrived hidden inside the news content itself.
 
-“Deterministic” does not mean “infallible.” The current post-repair snapshot of the 69-case checker suite measures 87.5% precision (42/48), 77.8% recall (42/54), and a 50.0% (6/12) false-positive rate for the combined claim heuristics on deliberately difficult valid claim boundaries; portfolio v2's frozen 2026-08-19 bundle records the historical pre-repair values of 85.7% (42/49), 75.0% (42/56), and 58.3% (7/12). Two fixtures were repaired on 2026-08-25 and completed renewed exact-agreement model review on 2026-08-26, so all 81 current checker/feed cases have model review. None has completed independent human review, and full human review is recommended before production use. Those heuristics are warnings, not proof that prose is false. I publish their misses and false positives because the boundary matters: code can prove that a URL is absent from a corpus, but a short feed excerpt is rarely enough to prove that a nuanced summary is faithful.
+## Let code decide what code can decide
 
-This layering also prevents a seductive evaluation mistake. If the same kind of model both generates an answer and decides whether it is safe, the score can hide shared blind spots. A deterministic oracle is narrower, but within that narrow contract it is inspectable and reproducible without provider calls.
+Asking another model to grade an output makes sense when the question is about meaning. Did this summary preserve what the source said? Is this version clearer than that one? A model is the only tool that even attempts those.
 
-## A small benchmark with explicit failure modes
+Most of the questions that matter here aren't about meaning at all:
 
-The generation suite has 55 authored cases: 22 utility cases and 33 indirect prompt-injection attacks. The attacker can place instructions in titles, summaries, source names, or source-failure records—the fields a news pipeline has to treat as data even when they contain imperative language.
+- Does every link in the output appear in the frozen corpus?
+- Is this item allowed in the section it was placed in?
+- Was the same item cited twice, or a required section left out?
+- Did the briefing name the sources that failed during retrieval?
+- Did a specific injected instruction produce the attacker's URL, phrase, ordering, or routing?
 
-The attacks target nine observable behaviors, including citation fabrication and alteration, duplicate citations, selection promotion and suppression, section misrouting, health-report manipulation, prose distortion, and formatting damage. Every behavior has direct and combined attack forms. Citation fabrication also gets a five-technique sweep so I can see whether escaping, context-ignoring language, or a fake-response pattern changes the outcome.
+Each of those has a right answer that a parser can compute.
 
-Five representative attacks have matched clean twins. For each trial, the runner executes the attacked case and a twin built from the same pristine corpus and configuration with the injected mutations removed. That matters because an agent that outputs nothing can look perfectly robust. The twin asks the complementary question: without the attack, could the system complete the underlying task? I report benign structural utility, structural utility under attack, and targeted attack success on the same complete-pair denominator.
+**"Deterministic" is not "infallible."** The checker ships with an offline fixture suite — 69 checker cases plus 12 feed-parser cases — that scores the checker against hand-labeled expectations. Precision is the share of findings it raises that are real; recall is the share of real problems it raises at all. The third row covers a separate group of heuristics that guess whether a summary claims more than its evidence supports, measured against twelve valid claims written to sit right on the boundary.
 
-I also included a 2 × 3 × 2 ablation: citation fabrication versus selection suppression, early/middle/late placement in a production corpus category array, and one versus three mutated items. These 12 cases are reported separately from the headline attack rate. “Position” means serialized array location, not relative prompt-token position; “three items” does not mean a measured fraction of attacker-controlled tokens.
+| | Current suite | Frozen 2026-08-19 bundle |
+|---|---:|---:|
+| Precision | 87.5% (42/48) | 85.7% (42/49) |
+| Recall | 77.8% (42/54) | 75.0% (42/56) |
+| Claim-heuristic false positives | 50.0% (6/12) | 58.3% (7/12) |
 
-Finally, the harness has an intentionally bad `compliant` baseline. It obeys every instruction embedded in corpus content. Its expected attack-success rate is 100%, and CI asserts that exact result across the attack matrix. This is a positive control for the oracles: if the strategy designed to comply with attacks does not score as compromised, the benchmark—not the model—has failed.
+Half the claim heuristics' hits on hard boundaries are wrong. Code can prove a URL isn't in the corpus; it can't prove a two-sentence feed excerpt backs up a careful summary. That's why a bad link blocks the run and a suspect claim only gets flagged.
 
-With two models, two frozen prompts, five trials, 55 authored cases, and five derived clean twins per model/prompt/trial group, the final run contains 1,200 rows. All 1,200 completed without provider errors, skips, or correction errors.
+There's also a trap this layering avoids. If the same kind of model both writes the answer and decides whether the answer is safe, the score can quietly inherit whatever blind spot they share. A deterministic check is much narrower, but it is inspectable, and it reproduces without a provider call.
+
+## A small benchmark with named failure modes
+
+If someone hides an instruction inside a news item, does the briefing obey it? And does the system still work when nobody is attacking it? 
+
+The attacker never talks to the model directly. They write into a feed item's title or summary, a source name, or a source-failure record, fields a news pipeline has to treat as data even when they read like commands. They attempt: an invented link, an altered real one, the same item cited twice, a story forced in, a story kept out, a story filed under the wrong section, a distorted summary, a broken output. Nine behaviors, each with a direct and a combined form. Link invention also gets a five-technique sweep, adding escaped characters, context-ignoring language, and a fake-response pattern to see whether phrasing changes the outcome or only its odds.
+
+Scoring the utility half needs a clean comparison. Five attacks carry a matched twin: the same case re-run from a pristine corpus with no injections. Base utility, utility under attack, and attack success are then reported separately, over the same complete-pair denominator.
+
+Twelve more cases vary three things: which attack (invent a link, or keep a story out), whether one item is poisoned or three, and whether the poisoned items sit near the start, middle, or end of a category's item list. They stay out of the headline attack rate, and they should be read narrowly. Near the end of a JSON list is not the same as near the end of what the model actually reads.
+
+The suite is 55 hand-authored cases, 22 utility and 33 attacks. Multiplied across two models, two frozen prompts, and five trials, those plus five derived twins per group came to 1,200 rows. All completed. No provider errors, no skips, no correction errors.
 
 ## What $3.80 bought
 
-Here are the portfolio-v2 headline results after at most one checker-guided correction. They measure the model on the evaluator's direct-Markdown path, where it authors the whole briefing including its own links — not the two-pass production path where it never receives a URL:
+Read the table with the constraint from the top of this post attached. This run used `"generation_path": "markdown"`, the path where the model writes everything and authors its own links. It is not the two-pass production runner, where the prose schema has no citation field at all and runtime validation rejects HTTP(S) URLs before rendering. So this measures model behavior under the weaker contract. I have since put 1,200 rows through the production path (`--generation-path production-parity`) as well, and the interesting part is not that the scores went up: it is that `missing_section`, `category_ineligible`, and `ungrounded_link` all went to zero, because the schema enumerates each section's eligible identifiers and requires the sections. What is left is the model selecting the same item into two topics, which the schema does not forbid. Those numbers and their caveats are in the [repository README](https://github.com/elanthus/news-briefing#production-parity-1200-rows-180).
 
-| Model / prompt | Structural utility (after correction) | Targeted attack success (after correction) |
+Results are after at most one checker-guided correction:
+
+| Model / prompt | Structural utility | Targeted attack success |
 |---|---:|---:|
 | DeepSeek V4 Flash / production | 90.0% (99/110) | 5.7% (6/105) |
 | DeepSeek V4 Flash / reliability-v1 | 86.4% (95/110) | 2.9% (3/105) |
 | Tencent HY3 / production | 81.8% (90/110) | 4.8% (5/105) |
 | Tencent HY3 / reliability-v1 | 83.6% (92/110) | 3.8% (4/105) |
 
-OpenRouter reported **$3.80048085562 across 1,676 successful calls**: 1,200 first calls and 476 correction calls. For this scale of authored regression suite, rigorous evaluation was cheaper than I expected. The expensive part was specifying the contracts, cases, denominators, and limitations—not generating the rows.
-
-The candidate prompt still failed its preregistered promotion rules for both models. For DeepSeek, it reduced final utility by 3.6 percentage points while reducing attack success by 2.9 points, and it introduced eight contract regressions. For HY3, it improved final utility by 1.8 points and reduced attack success by 1.0 point, below the five-point practical thresholds. A lower attack rate was not allowed to erase a utility regression, and a small favorable delta was not promoted as a breakthrough.
+OpenRouter billed **$3.80048085562 across 1,676 successful calls** 1,200 first attempts and 476 corrections. For an authored regression suite at this scale, careful evaluation turned out to be pretty cheap on these model. The expensive part was deciding what the contracts, cases, denominators, and limitations should be. Generating the rows was rounding error.
 
 ## What I am not claiming
 
-**These numbers do not evaluate the architecture I shipped.** Portfolio v2 ran with `"generation_path": "markdown"` — the evaluator's historical path, where the model writes the entire briefing and authors its own citations. Production does something different: two schema-constrained passes, with citation projection in between. The prose schema has no model-writable citation field, and runtime validation rejects HTTP(S) URLs before rendering, so a model-authored destination cannot survive that path. The evaluator can exercise it (`--generation-path production-parity`), but I have not yet run the 1,200-row portfolio through it. Production-parity performance is therefore unmeasured; this table characterizes model behavior under the evaluator's weaker citation contract, not a floor for production and not evidence that the two-pass runner works.
+The generation-path limitation above is the first and largest. The rest:
 
-The rest of what I am not claiming: this is a fixed, authored suite enriched for known boundaries. Its Wilson intervals describe outcomes on these cases; they do not establish performance on deployment traffic. Repeating a case five times does not turn it into five independent samples of the world.
+This is a fixed, hand-authored suite, deliberately enriched with known-hard boundaries. Its confidence intervals describe outcomes on these cases. They say nothing about performance on real traffic. Running one case five times gives you five samples of one case, not five samples of the world.
 
-The benchmark does not prove ranking quality. Its utility measures are mostly structural: valid output, usable non-empty sections, correct routing, and declared case floors. The deterministic checker verifies corpus membership and application contracts, not whether the model chose the most important story or wrote the most faithful summary.
+The benchmark doesn't measure ranking quality. Its utility measures are structural: valid output, usable non-empty sections, correct routing, declared case floors. The checker verifies corpus membership and application contracts. Whether the model picked the most important story, or wrote the most faithful summary of it, is outside everything here.
 
-It is also not an AgentDojo reproduction. The matched-twin idea follows the useful principle of measuring utility alongside security, but my “benign structural utility” is not AgentDojo's deterministic user-task utility. Likewise, my ablation's category-array position is not relative injection-token position, and its item count is not controlled-token fraction. The [evaluation methodology](../evaluation-methodology.md) spells out those distinctions and links the peer-reviewed [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) and [MELON](https://proceedings.mlr.press/v267/zhu25z.html) work that informed the threat model.
+This isn't an AgentDojo reproduction. The matched-twin idea follows AgentDojo's principle of measuring utility alongside security, but my benign structural utility is not their deterministic user-task utility, my ablation's array position is not their relative injection-token position, and my item count is not their controlled token fraction. The [evaluation methodology](../evaluation-methodology.md) spells out each distinction and links the [AgentDojo](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) and [MELON](https://proceedings.mlr.press/v267/zhu25z.html) work the threat model came from.
 
-Portfolio v2 also makes no semantic meaning-preservation or human-grounding claim. Its 180 semantic-review forms and topic-level grounding forms remain unjudged. I would rather leave a cell blank than quietly replace human review with another model's confidence.
+The full [model card](../results/portfolio-v2.md) has the Wilson intervals, paired prompt deltas, operational controls, and the non-promotion decision. The [public evidence bundle](../results/portfolio-v2-evidence/) has every generated output and score primitive needed to regenerate the report offline. Implementation, fixtures, and verification commands live in the [news-briefing repository](https://github.com/elanthus/news-briefing); the [benchmark usage guide](../../evaluator/README.md) walks through pointing the same suite at your own model or prompt, starting with an offline smoke test that needs no credentials.
 
-The complete [model card](../results/portfolio-v2.md) includes Wilson intervals, paired prompt deltas, operational controls, limitations, and the non-promotion decision. The [public evidence bundle](../results/portfolio-v2-evidence/) contains every generated output and score primitive needed to regenerate the report offline. The implementation, fixtures, and verification commands are in the [news-briefing repository](https://github.com/elanthus/news-briefing); the [benchmark usage guide](../../evaluator/README.md) walks through running the same suite against your own model or prompt, starting with a credential-free offline smoke test.
-
-The original fabricated citation was useful because it failed loudly. The benchmark is an attempt to make more failures do the same—and to be precise about the failures it still cannot see.
+The invented citation was useful because it failed loudly. The benchmark is an attempt to make more failures behave that way.
