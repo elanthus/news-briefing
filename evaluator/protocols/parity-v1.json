@@ -1,0 +1,99 @@
+{
+  "authorization": {
+    "authorized_at": "2026-09-01",
+    "component_cost_ceiling_usd": 2.0,
+    "generation_cost_ceiling_usd": 4.0,
+    "remaining_budget_applies_to_semantic_and_grounding_review": true,
+    "total_openrouter_cost_ceiling_usd": 5.0
+  },
+  "comparability": {
+    "citation_fabrication_is_structurally_unreachable": true,
+    "note": "The prose schema exposes no citation field and code reattaches frozen references, so citation-fabrication attack rows cannot succeed by construction on this path. Per-behavior rates are therefore not comparable cell-for-cell with the direct-Markdown portfolio-v2 table, and the two runs' rows are never pooled."
+  },
+  "controls": {
+    "generation_path": "production-parity",
+    "planned_rows": 1200,
+    "reasoning": "disabled",
+    "run_kind": "final",
+    "seed": null,
+    "seed_note": "The production-parity path rejects --seed because it uses the scheduled runner's provider-native structured-output transport; sampling determinism rests on temperature 0 alone. Execution ordering is seeded and recorded per component.",
+    "temperature": 0.0,
+    "timeout_seconds": 300,
+    "trials_per_case": 5
+  },
+  "frozen_at": "2026-09-01T00:00:00Z",
+  "inputs": [
+    {
+      "path": "evaluator/fixtures/generation-corpus.json",
+      "sha256": "eea2c92dfe9784da118972936a826054fad64a18b66a3f2a351f963a6091898f"
+    },
+    {
+      "path": "evaluator/fixtures/generation-corpus-production.json",
+      "sha256": "fe7eb482048b743b4f11225c751352c350debe4ffc20b441944f908703dfc96b"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-1.json",
+      "sha256": "a9fc12dfa355fe3c950f4158ff3935643c585ea8b16eb4a13618324a795c6447"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-2.json",
+      "sha256": "855c7a47577673c8de699c43485ec911c1f375b49bb014d100271e8933d47388"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-3.json",
+      "sha256": "afec844144b923a3460f9b7c924d3536e8e9e92c4c412509bf99e1bfcef6a46d"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-production.json",
+      "sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9"
+    }
+  ],
+  "models": [
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    {
+      "model": "tencent/hy3",
+      "provider": "openrouter"
+    }
+  ],
+  "objective": "Measure generation performance on the production-parity two-pass path, so the published portfolio-v2 markdown-path numbers are no longer the only generation evidence. Portfolio v2 remains the direct-Markdown record; this run does not supersede it and its rows are not pooled with it.",
+  "prompts": [
+    {
+      "id": "production-runner",
+      "path": "briefing-runner-prompt.md",
+      "sha256": "2ea1f6211fd4b648cddab9d0aacfd703a05daede46da8aecfb5900f4e4c28d4f"
+    },
+    {
+      "id": "runner-deepseek-v4-flash",
+      "path": "briefing-runner-prompt-deepseek-v4-flash.md",
+      "sha256": "f8cf8b0a023a9f707f52948b6160c850efdfc5d4b29dc43d5895c18b3c5993f1"
+    }
+  ],
+  "protocol_id": "parity-v1",
+  "publication": {
+    "aggregate_regeneration_must_be_verified": true,
+    "provider_request_ids_must_be_redacted": true,
+    "raw_generated_outputs_required_in_release_bundle": true
+  },
+  "review": {
+    "machine_labels_are_not_human_approval": true
+  },
+  "schema_version": 1,
+  "source": {
+    "clean_worktree_required": true,
+    "public_evidence_required": true,
+    "reachable_commit_required": true,
+    "required_tag": "parity-v1-source-20260901",
+    "runtime_source_sha256_required": true
+  },
+  "status": "frozen_for_run",
+  "suite": {
+    "authored_cases": 55,
+    "derived_clean_cases": 5,
+    "path": "evaluator/fixtures/generation-cases.json",
+    "rows_per_model_prompt_trial": 60,
+    "sha256": "aa341680517d5f44b3b4dcb9fe4189a4102bcde75843eee8ffceb46f6dc14b5f"
+  }
+}
