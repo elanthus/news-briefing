@@ -12,7 +12,7 @@ from agent_runner.providers import (
     ClaudeCodeProvider,
     CodexCliProvider,
     OpenRouterProvider,
-    _codex_compatible_schema,
+    _grammar_compatible_schema,
     _command_version,
     _run_cli,
 )
@@ -49,7 +49,7 @@ class TimeoutResponse(FakeResponse):
 
 
 class ProviderTests(unittest.TestCase):
-    def test_codex_schema_removes_unique_items_without_mutating_source(self):
+    def test_grammar_schema_removes_unique_items_without_mutating_source(self):
         schema = {
             "type": "object",
             "const": {"uniqueItems": True},
@@ -70,7 +70,7 @@ class ProviderTests(unittest.TestCase):
             },
         }
 
-        compatible = _codex_compatible_schema(schema)
+        compatible = _grammar_compatible_schema(schema)
 
         self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
         self.assertNotIn("uniqueItems", compatible["$defs"]["nested"])
@@ -90,12 +90,32 @@ class ProviderTests(unittest.TestCase):
         ) as opened:
             result = provider.generate(REQUEST)
         sent = json.loads(opened.call_args.args[0].data)
-        self.assertEqual(sent["response_format"]["json_schema"]["schema"], SCHEMA)
+        self.assertEqual(
+            sent["response_format"]["json_schema"]["schema"],
+            _grammar_compatible_schema(SCHEMA),
+        )
         self.assertEqual(sent["provider"], {"require_parameters": True})
         self.assertEqual(sent["reasoning"], {"enabled": True})
         self.assertNotIn("tools", sent)
         self.assertEqual(result.structured_output, {"schema_version": 1})
         self.assertEqual(result.cost_usd, 0.01)
+
+    def test_openrouter_strips_unique_items_from_the_sent_schema(self):
+        """OpenRouter grammar backends reject uniqueItems; the validator still catches it."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+            },
+            "required": ["refs"],
+            "additionalProperties": False,
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        provider = OpenRouterProvider("vendor/model")
+        sent = provider._payload(request)["response_format"]["json_schema"]["schema"]
+
+        self.assertNotIn("uniqueItems", sent["properties"]["refs"])
+        self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_reasoning_can_be_explicitly_disabled(self):
         provider = OpenRouterProvider("vendor/model", reasoning_enabled=False)

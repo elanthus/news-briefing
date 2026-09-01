@@ -74,13 +74,22 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
     return value
 
 
-def _codex_compatible_schema(value: Any) -> Any:
-    """Return a copy containing only JSON Schema keywords Codex accepts.
+def _grammar_compatible_schema(value: Any) -> Any:
+    """Return a copy containing only JSON Schema keywords every transport accepts.
 
-    Codex structured outputs currently reject ``uniqueItems``. The workflow's
-    code-owned validator still checks citation-reference uniqueness after the
-    response is returned, so removing it from the provider schema does not
-    weaken publication validation.
+    Structured-output backends compile the schema into a sampling grammar, and
+    several of them do not implement ``uniqueItems``: Codex rejects it, and on
+    OpenRouter both DeepInfra and llguidance answer a request carrying it with
+    ``Grammar error: Unimplemented keys: ["uniqueItems"]`` rather than a
+    completion. The workflow's code-owned validator still checks
+    citation-reference uniqueness after the response is returned
+    (``duplicate_citation`` in ``eval_briefing.py``), so removing it from the
+    provider schema does not weaken publication validation.
+
+    Every provider receives the identical stripped schema. Sending a stricter
+    schema to whichever backends happen to support the keyword would mean two
+    models were answering different contracts, which is exactly what a
+    cross-model comparison must not do.
     """
     if isinstance(value, dict):
         compatible: dict[str, Any] = {}
@@ -89,16 +98,16 @@ def _codex_compatible_schema(value: Any) -> Any:
                 continue
             if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
                 compatible[key] = {
-                    name: _codex_compatible_schema(schema)
+                    name: _grammar_compatible_schema(schema)
                     for name, schema in nested.items()
                 }
             elif key in _SCHEMA_VALUE_KEYWORDS:
-                compatible[key] = _codex_compatible_schema(nested)
+                compatible[key] = _grammar_compatible_schema(nested)
             else:
                 compatible[key] = deepcopy(nested)
         return compatible
     if isinstance(value, list):
-        return [_codex_compatible_schema(item) for item in value]
+        return [_grammar_compatible_schema(item) for item in value]
     return value
 
 
@@ -278,7 +287,7 @@ class OpenRouterProvider(ModelProvider):
                 "json_schema": {
                     "name": "news_briefing",
                     "strict": True,
-                    "schema": request.output_schema,
+                    "schema": _grammar_compatible_schema(request.output_schema),
                 },
             },
             "provider": {"require_parameters": True},
@@ -451,7 +460,10 @@ class ClaudeCodeProvider(ModelProvider):
             "--disable-slash-commands",
             "--no-session-persistence",
             "--json-schema",
-            json.dumps(request.output_schema, separators=(",", ":")),
+            json.dumps(
+                _grammar_compatible_schema(request.output_schema),
+                separators=(",", ":"),
+            ),
         ]
         completed, latency_ms, attempts = _run_cli(
             command, request.prompt, timeout=request.timeout_seconds
@@ -527,7 +539,7 @@ class CodexCliProvider(ModelProvider):
         with tempfile.TemporaryDirectory(prefix="news-briefing-codex-") as directory:
             schema_path = Path(directory) / "output-schema.json"
             schema_path.write_text(
-                json.dumps(_codex_compatible_schema(request.output_schema)),
+                json.dumps(_grammar_compatible_schema(request.output_schema)),
                 encoding="utf-8",
             )
             command = [

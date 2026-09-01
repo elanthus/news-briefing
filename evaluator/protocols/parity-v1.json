@@ -13,6 +13,10 @@
   "controls": {
     "generation_path": "production-parity",
     "planned_rows": 1200,
+    "provider_schema": {
+      "note": "Every transport receives the production schema with uniqueItems removed (agent_runner/providers.py:_grammar_compatible_schema). Codex already required this; OpenRouter's DeepInfra and llguidance grammar backends answer a schema carrying uniqueItems with 'Grammar error: Unimplemented keys' instead of a completion, which made tencent/hy3 unrunnable on this path. Citation-reference uniqueness remains enforced after the response by the code-owned validator (duplicate_citation, eval_briefing.py). All models answer the identical schema.",
+      "unique_items_stripped": true
+    },
     "reasoning": "disabled",
     "run_kind": "final",
     "seed": null,
@@ -85,7 +89,7 @@
     "clean_worktree_required": true,
     "public_evidence_required": true,
     "reachable_commit_required": true,
-    "required_tag": "parity-v1-source-20260901",
+    "required_tag": "parity-v1-source-20260901b",
     "runtime_source_sha256_required": true
   },
   "status": "frozen_for_run",
