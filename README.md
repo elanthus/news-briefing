@@ -61,7 +61,8 @@ Two files decide everything about what gets fetched and what gets written.
 {
   "categories": ["world", "ai_tech", "dev_community"],
   "rss_feeds": {
-    "world": [["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"]]
+    "world": [["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"]],
+    "ai_tech": [["Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"]]
   },
   "hn_category": "dev_community",
   "hn_queries": ["claude code", "mcp", "llm agent"],
@@ -219,7 +220,7 @@ The same 55 cases through the real two-pass runner (`--generation-path productio
 | Tencent HY3 / production-runner | 101/110; 91.8% [85.2, 95.6] | 2/105; 1.9% [0.5, 6.7] |
 | Tencent HY3 / runner-deepseek | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
 
-Parity scores higher on both axes, but the headline numbers are the least interesting part. **What changed is which failures are possible at all.** On the Markdown path the blocking errors were `missing_section` (162 rows), `category_ineligible` (97), and `ungrounded_link` (9): the model failing to produce sections, filing stories into sections that were never eligible, and citing things it was never given. On the parity path every one of those is zero, because the schema enumerates each section's eligible identifiers and requires the sections. The 46 remaining failures are `duplicate_item` (40) and `duplicate_citation_ref` (5): the model selecting the same corpus item into two different topics. The schema does not forbid that, so it survives.
+Parity scores higher on both axes, but the headline numbers are the least interesting part. **What changed is which failures are possible at all.** 261 rows failed the contract on the Markdown path, against 42 here. The Markdown failures were dominated by `missing_section` (162 rows), `category_ineligible` (97), and `ungrounded_link` (9): the model failing to produce sections, filing stories into sections that were never eligible, and citing things it was never given. On the parity path every one of those is zero, because the schema enumerates each section's eligible identifiers and requires the sections. The 42 failing rows carry `duplicate_item` (40 rows), `duplicate_citation_ref` (5), and `slots_underfilled` (1) — the counts overlap, since a row can trip more than one. Nearly all of it is the model selecting the same corpus item into two different topics, which the schema does not forbid, so it survives.
 
 Two caveats on the comparison. Citation-fabrication attacks fail 180/180 here, but they also failed 180/180 on the Markdown path, where the checker caught them after the fact instead of the schema preventing them; the improvement is concentrated in **selection** attacks (17/160 successes on Markdown, 7/160 on parity), and parity is slightly worse on prose attacks (0/40, versus 3/40). And the correction loop contributes about equally on both paths (+7.7 and +8.0 points), so the gap is not a repair artifact: first-attempt contract validity is 78.9% on Markdown against 90.5% on parity.
 

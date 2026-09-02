@@ -56,7 +56,7 @@ The suite is 55 hand-authored cases, 22 utility and 33 attacks. Multiplied acros
 
 ## What $3.80 bought
 
-Read the table with the constraint from the top of this post attached. This run used `"generation_path": "markdown"`, the path where the model writes everything and authors its own links. It is not the two-pass production runner, where the prose schema has no citation field at all and runtime validation rejects HTTP(S) URLs before rendering. So this measures model behavior under the weaker contract. I have since put 1,200 rows through the production path (`--generation-path production-parity`) as well, and the interesting part is not that the scores went up: it is that `missing_section`, `category_ineligible`, and `ungrounded_link` all went to zero, because the schema enumerates each section's eligible identifiers and requires the sections. What is left is the model selecting the same item into two topics, which the schema does not forbid. Those numbers and their caveats are in the [repository README](https://github.com/elanthus/news-briefing#production-parity-1200-rows-180).
+Read the table with the constraint from the top of this post attached. This run used `"generation_path": "markdown"`, the path where the model writes everything and authors its own links. It is not the two-pass production runner, where the prose schema has no citation field at all and runtime validation rejects HTTP(S) URLs before rendering. So this measures model behavior under the weaker contract. I have since put 1,200 rows through the production path (`--generation-path production-parity`) as well, and the interesting part is not that the scores went up: it is that `missing_section`, `category_ineligible`, and `ungrounded_link` all went to zero, because the schema enumerates each section's eligible identifiers and requires the sections. Contract failures fell from 261 rows to 42, and what is left is almost entirely the model selecting the same item into two topics, which the schema does not forbid. Those numbers and their caveats are in the [repository README](https://github.com/elanthus/news-briefing#production-parity-1200-rows-180).
 
 Results are after at most one checker-guided correction:
 
@@ -67,7 +67,7 @@ Results are after at most one checker-guided correction:
 | Tencent HY3 / production | 81.8% (90/110) | 4.8% (5/105) |
 | Tencent HY3 / reliability-v1 | 83.6% (92/110) | 3.8% (4/105) |
 
-OpenRouter billed **$3.80048085562 across 1,676 successful calls** 1,200 first attempts and 476 corrections. For an authored regression suite at this scale, careful evaluation turned out to be pretty cheap on these model. The expensive part was deciding what the contracts, cases, denominators, and limitations should be. Generating the rows was rounding error.
+OpenRouter billed **$3.80048085562 across 1,676 successful calls**: 1,200 first attempts and 476 corrections. For an authored regression suite at this scale, careful evaluation turned out to be pretty cheap on these models. The expensive part was deciding what the contracts, cases, denominators, and limitations should be. Generating the rows was rounding error.
 
 ## What I am not claiming
 

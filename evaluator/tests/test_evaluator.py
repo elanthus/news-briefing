@@ -859,6 +859,22 @@ class PublicRunTest(unittest.TestCase):
                 sum(c["error_rows"] for c in published_error["split_run_components"]), 1
             )
             self.assertEqual(verify_public_run(with_error)["status"], "verified")
+            preserved = next(
+                r for r in published_error["results"] if r["status"] == "provider_error"
+            )
+            self.assertEqual(preserved["error"]["type"], "ProviderRequestError")
+            self.assertIsNone(preserved["first"])
+            self.assertIsNone(preserved["final"])
+
+            # A run that recorded failures but whose rows do not carry them is
+            # rejected, in the single-manifest path as well as the split one.
+            malformed = {**failed, "error": None}
+            supplement_manifest["results"] = [malformed]
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "recorded provider failure"):
+                export_public_run([supplement_path], root / "malformed-single")
+            with self.assertRaisesRegex(ValueError, "recorded provider failure"):
+                export_public_run([primary_path, supplement_path], root / "malformed-split")
             supplement_manifest["results"] = [row("model-b", 0.02)]
             supplement_manifest["run_status"] = "complete"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")

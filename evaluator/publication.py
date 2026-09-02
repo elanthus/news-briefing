@@ -233,6 +233,16 @@ def _merge_public_sources(
     if len(loaded) == 1:
         if first.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
             raise ValueError("public evidence requires a complete final run")
+        # Before completed_with_errors was publishable, "complete" alone implied
+        # every row was scored, so no row-shape check was needed here. It is now:
+        # accepting a run that recorded failures means accepting rows whose shape
+        # the aggregates depend on, and the split path checks exactly this.
+        for row in first["results"]:
+            if not _is_publishable_row(row):
+                raise ValueError(
+                    "public evidence requires every recorded row to be completed "
+                    "or to carry a recorded provider failure"
+                )
         return copy.deepcopy(first), loaded, [_component_descriptor(manifest_paths[0], first)]
 
     mismatches = sorted({

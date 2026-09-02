@@ -12,8 +12,8 @@ from agent_runner.providers import (
     ClaudeCodeProvider,
     CodexCliProvider,
     OpenRouterProvider,
-    _grammar_compatible_schema,
     _command_version,
+    _grammar_compatible_schema,
     _run_cli,
 )
 
