@@ -41,8 +41,37 @@ python3 -m pip install --requirement requirements-site.txt
 python3 -m unittest -v tests.site_test_build
 ```
 
+Smoke-test the evaluation harness (case loading, oracles, scoring, report
+rendering) with zero provider calls:
+
+```bash
+python3 -S -m evaluator run --provider baseline=echo --trials 1 --output-dir "$(mktemp -d)/eval-smoke"
+```
+
 Never commit API keys, `.env` files, generated corpora, briefings, or evaluator
 run artifacts.
+
+## Repository map
+
+| Path | What it is |
+|---|---|
+| [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, deduplication, budgets, SSRF defense, XML defense |
+| [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
+| [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v6) and shared URL canonicalization |
+| [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
+| [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
+| [`briefing-prompt.md`](briefing-prompt.md) | Evaluator's legacy direct-Markdown prompt |
+| [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
+| [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
+| [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
+| [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, content hashes |
+| [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker for migration and archive-gap recovery |
+| [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
+| [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
+| [`bootstrap_history.py`](bootstrap_history.py) | Seeds site history from selected, hash-verified committed run artifacts; used by the daily workflow |
+| [`build_site.py`](build_site.py) | Static archive: briefings, integrity reports, public audit manifests |
+| [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
+| [`fixtures/`](fixtures) | Frozen corpus, briefing, configuration, and injection fixtures |
 
 ## Making a change
 
@@ -79,6 +108,10 @@ uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
 
 The evaluator checker validates checker behavior against the committed snapshot.
 CI fails on snapshot drift; snapshot updates are opt-in via `--update-snapshot`.
+
+CI runs the offline suites on Python 3.11 through 3.14, plus `ruff` and `mypy`
+with `disallow_untyped_defs = true` from `pyproject.toml`, and a non-blocking
+smoke test against live feeds.
 
 CI and the agentic-preflight gate—the maintainer's local pre-push hook
 configuration (`.agentic-preflight.toml`), which outside contributors are not
