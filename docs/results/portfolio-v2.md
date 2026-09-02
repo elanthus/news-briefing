@@ -9,7 +9,7 @@ model/prompt/trial group. All rows completed; none failed, were skipped, or had 
 > model authors the entire briefing including its own citations. It is **not** the production two-pass
 > selection/prose path with citation projection, where the model never receives a destination. These results
 > characterize model behavior under the weaker contract; they are not a measurement of the production runner.
-> Production parity is available (`--generation-path production-parity`) and has not been run at this scale.
+> The same portfolio has since been run on the production-parity path; see the [parity v1 model card](parity-v1.md).
 
 The candidate prompt is **not approved** for either model. DeepSeek loses final utility and introduces eight
 contract regressions. HY3 gains only 1.8 percentage points of final utility and 1.0 point of attack resistance,
