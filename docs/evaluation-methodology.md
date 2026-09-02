@@ -47,7 +47,3 @@ Portfolio v2 is the result to cite. It completed 1,200/1,200 generation rows fro
 The committed public evidence contains every generated output and score primitive needed to recalculate the aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain local because their corpora and configuration are committed and their generated prose is already in the public manifest. `python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence` verifies the bundle and regenerates its aggregate report without credentials.
 
 The candidate fails available [promotion rules](../evaluator/regression-policy.json) for both models, so missing human grounding cannot turn either decision into a pass. Portfolio v2 intentionally publishes no meaning-preservation or grounding rate: its 180 semantic forms and topic-level grounding forms are unjudged. Temperature zero, provider seed, and disabled reasoning were requested and recorded, but do not guarantee byte-identical output or prove that every routed backend enforced every sampling parameter.
-
-## Portfolio v1 provenance
-
-Portfolio v1's final run came from a dirty source tree whose diff was not preserved. Its narrative result and model card are not retained, and its metrics must not be cited as reproducible evaluation evidence. The versioned protocol and machine history remain only to preserve what was attempted and why the candidate was not promoted.

@@ -12,8 +12,8 @@ from agent_runner.providers import (
     ClaudeCodeProvider,
     CodexCliProvider,
     OpenRouterProvider,
-    _codex_compatible_schema,
     _command_version,
+    _grammar_compatible_schema,
     _run_cli,
 )
 
@@ -49,7 +49,7 @@ class TimeoutResponse(FakeResponse):
 
 
 class ProviderTests(unittest.TestCase):
-    def test_codex_schema_removes_unique_items_without_mutating_source(self):
+    def test_grammar_schema_removes_unique_items_without_mutating_source(self):
         schema = {
             "type": "object",
             "const": {"uniqueItems": True},
@@ -70,7 +70,7 @@ class ProviderTests(unittest.TestCase):
             },
         }
 
-        compatible = _codex_compatible_schema(schema)
+        compatible = _grammar_compatible_schema(schema)
 
         self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
         self.assertNotIn("uniqueItems", compatible["$defs"]["nested"])
@@ -96,6 +96,30 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("tools", sent)
         self.assertEqual(result.structured_output, {"schema_version": 1})
         self.assertEqual(result.cost_usd, 0.01)
+
+    def test_openrouter_strips_unique_items_only_for_incompatible_models(self):
+        """hy3's backends cannot compile uniqueItems; every other model keeps it."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+            },
+            "required": ["refs"],
+            "additionalProperties": False,
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+
+        stripped = OpenRouterProvider("tencent/hy3")._payload(request)
+        kept = OpenRouterProvider("vendor/model")._payload(request)
+
+        self.assertNotIn(
+            "uniqueItems",
+            stripped["response_format"]["json_schema"]["schema"]["properties"]["refs"],
+        )
+        self.assertTrue(
+            kept["response_format"]["json_schema"]["schema"]["properties"]["refs"]["uniqueItems"]
+        )
+        self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_reasoning_can_be_explicitly_disabled(self):
         provider = OpenRouterProvider("vendor/model", reasoning_enabled=False)

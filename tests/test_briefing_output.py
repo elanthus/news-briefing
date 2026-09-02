@@ -248,6 +248,7 @@ class BriefingOutputTests(unittest.TestCase):
         refs = topics["items"]["properties"]["citation_refs"]
         self.assertEqual(refs["minItems"], 1)
         self.assertTrue(refs["uniqueItems"])
+        self.assertEqual(refs["maxItems"], len(refs["items"]["enum"]))
         eligible = {
             ref
             for ref, citation in projected.citations.items()

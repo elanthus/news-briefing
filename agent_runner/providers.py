@@ -74,13 +74,25 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
     return value
 
 
-def _codex_compatible_schema(value: Any) -> Any:
-    """Return a copy containing only JSON Schema keywords Codex accepts.
+#: OpenRouter models whose backends cannot compile ``uniqueItems`` into a
+#: sampling grammar. ``tencent/hy3`` is served by DeepInfra and AtlasCloud, both
+#: of which answer a schema carrying the keyword with
+#: ``Grammar error: Unimplemented keys: ["uniqueItems"]`` instead of a
+#: completion. Models are listed individually rather than stripped globally:
+#: dropping the keyword measurably degrades output, so it stays in the schema
+#: for every model that can compile it.
+_UNIQUE_ITEMS_INCOMPATIBLE_MODELS = frozenset({"tencent/hy3"})
 
-    Codex structured outputs currently reject ``uniqueItems``. The workflow's
-    code-owned validator still checks citation-reference uniqueness after the
-    response is returned, so removing it from the provider schema does not
-    weaken publication validation.
+
+def _grammar_compatible_schema(value: Any) -> Any:
+    """Return a copy without ``uniqueItems``, for backends that reject it.
+
+    Codex structured outputs reject the keyword outright, and the OpenRouter
+    models in ``_UNIQUE_ITEMS_INCOMPATIBLE_MODELS`` cannot compile it. The
+    code-owned validator still rejects a duplicate citation after the response
+    is returned, but removing the keyword is not free: paired with the ``enum``,
+    distinctness also bounded the array's length, so a stripped schema depends
+    on ``citation_refs``'s explicit ``maxItems`` to stay terminating.
     """
     if isinstance(value, dict):
         compatible: dict[str, Any] = {}
@@ -89,16 +101,16 @@ def _codex_compatible_schema(value: Any) -> Any:
                 continue
             if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
                 compatible[key] = {
-                    name: _codex_compatible_schema(schema)
+                    name: _grammar_compatible_schema(schema)
                     for name, schema in nested.items()
                 }
             elif key in _SCHEMA_VALUE_KEYWORDS:
-                compatible[key] = _codex_compatible_schema(nested)
+                compatible[key] = _grammar_compatible_schema(nested)
             else:
                 compatible[key] = deepcopy(nested)
         return compatible
     if isinstance(value, list):
-        return [_codex_compatible_schema(item) for item in value]
+        return [_grammar_compatible_schema(item) for item in value]
     return value
 
 
@@ -267,6 +279,12 @@ class OpenRouterProvider(ModelProvider):
             "max_tokens": self.max_tokens,
         }
 
+    def _sent_schema(self, output_schema: dict[str, Any]) -> dict[str, Any]:
+        """Strip ``uniqueItems`` only for models whose backends cannot compile it."""
+        if self.model in _UNIQUE_ITEMS_INCOMPATIBLE_MODELS:
+            return _grammar_compatible_schema(output_schema)
+        return output_schema
+
     def _payload(self, request: GenerationRequest) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
@@ -278,7 +296,7 @@ class OpenRouterProvider(ModelProvider):
                 "json_schema": {
                     "name": "news_briefing",
                     "strict": True,
-                    "schema": request.output_schema,
+                    "schema": self._sent_schema(request.output_schema),
                 },
             },
             "provider": {"require_parameters": True},
@@ -527,7 +545,7 @@ class CodexCliProvider(ModelProvider):
         with tempfile.TemporaryDirectory(prefix="news-briefing-codex-") as directory:
             schema_path = Path(directory) / "output-schema.json"
             schema_path.write_text(
-                json.dumps(_codex_compatible_schema(request.output_schema)),
+                json.dumps(_grammar_compatible_schema(request.output_schema)),
                 encoding="utf-8",
             )
             command = [

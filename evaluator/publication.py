@@ -123,6 +123,36 @@ def _adapter_key(value: dict[str, Any]) -> tuple[Any, Any]:
     return value.get("provider"), value.get("model")
 
 
+#: Row statuses that carry a recorded failure instead of a scored outcome. The
+#: runner guarantees such a row has an ``error`` dict and ``first``/``final``
+#: of None, so it contributes to no aggregate. Public evidence keeps the row so
+#: the bundle discloses the failure rather than silently dropping it.
+_UNSCORED_ROW_STATUSES = frozenset({"provider_error", "skipped_circuit_open"})
+
+#: Run statuses acceptable for public evidence. A run that recorded a provider
+#: failure is still a complete run of the frozen matrix; every row is present
+#: and the failures are disclosed in the component descriptor.
+_PUBLISHABLE_RUN_STATUSES = frozenset({"complete", "completed_with_errors"})
+
+
+def _is_publishable_row(row: dict[str, Any]) -> bool:
+    status = row.get("status")
+    if status == "completed":
+        return True
+    return (
+        status in _UNSCORED_ROW_STATUSES
+        and isinstance(row.get("error"), dict)
+        and row.get("first") is None
+        and row.get("final") is None
+    )
+
+
+def _error_row_count(source: dict[str, Any]) -> int:
+    return sum(
+        1 for row in source["results"] if row.get("status") in _UNSCORED_ROW_STATUSES
+    )
+
+
 def _component_descriptor(path: Path, source: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": path.parent.name,
@@ -130,6 +160,7 @@ def _component_descriptor(path: Path, source: dict[str, Any]) -> dict[str, Any]:
         "rows": len(source["results"]),
         "planned_case_trials": source.get("planned_case_trials"),
         "original_run_status": source.get("run_status"),
+        "error_rows": _error_row_count(source),
         "observed_cost_usd": source.get("observed_ceiling_cost_usd"),
         "cost_ceiling_usd": source.get("cost_ceiling_usd"),
         "cost_ceiling_provider": source.get("cost_ceiling_provider"),
@@ -200,8 +231,18 @@ def _merge_public_sources(
             raise ValueError("public evidence manifest results must be a list")
 
     if len(loaded) == 1:
-        if first.get("run_status") != "complete":
+        if first.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
             raise ValueError("public evidence requires a complete final run")
+        # Before completed_with_errors was publishable, "complete" alone implied
+        # every row was scored, so no row-shape check was needed here. It is now:
+        # accepting a run that recorded failures means accepting rows whose shape
+        # the aggregates depend on, and the split path checks exactly this.
+        for row in first["results"]:
+            if not _is_publishable_row(row):
+                raise ValueError(
+                    "public evidence requires every recorded row to be completed "
+                    "or to carry a recorded provider failure"
+                )
         return copy.deepcopy(first), loaded, [_component_descriptor(manifest_paths[0], first)]
 
     mismatches = sorted({
@@ -282,8 +323,11 @@ def _merge_public_sources(
         source_counts: dict[tuple[Any, Any], int] = {}
         source_row_keys: dict[tuple[Any, Any], set[tuple[Any, Any, Any]]] = {}
         for row in source["results"]:
-            if row.get("status") != "completed":
-                raise ValueError("public split evidence requires every recorded row to be completed")
+            if not _is_publishable_row(row):
+                raise ValueError(
+                    "public split evidence requires every recorded row to be completed "
+                    "or to carry a recorded provider failure"
+                )
             adapter = _adapter_key(row)
             if adapter not in {_adapter_key(control) for control in source_controls}:
                 raise ValueError("split final-run row references an unconfigured adapter")
@@ -309,7 +353,7 @@ def _merge_public_sources(
             raise ValueError(
                 "split final-run checkpoints may contain only exact whole adapter matrices"
             )
-        if source.get("run_status") == "complete":
+        if source.get("run_status") in _PUBLISHABLE_RUN_STATUSES:
             if len(source["results"]) != planned or set(source_counts) != set(source_control_keys):
                 raise ValueError("complete split final-run manifest is missing rows")
         elif source.get("run_status") != "running":
@@ -351,7 +395,11 @@ def _merge_public_sources(
         (per_adapter_matched_pairs or 0) * len(control_order)
     )
     merged["observed_ceiling_cost_usd"] = observed_cost
-    merged["run_status"] = "complete"
+    merged["run_status"] = (
+        "completed_with_errors"
+        if any(_error_row_count(source) for source, _path in loaded)
+        else "complete"
+    )
     timestamps = [
         source.get("completed_at") or source.get("checkpointed_at")
         for source, _path in loaded

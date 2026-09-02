@@ -264,6 +264,22 @@ def _text_property(max_length: int) -> dict[str, Any]:
 
 
 def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """Describe one topic's citation references.
+
+    ``maxItems`` carries the bound that ``uniqueItems`` used to imply. Paired
+    with the ``enum``, distinctness alone capped the array at the size of the
+    eligible set. Providers whose grammar backends cannot compile
+    ``uniqueItems`` receive the schema with that keyword removed
+    (``_grammar_compatible_schema``), and without an explicit maximum the
+    grammar then admits an unbounded run of repeated references. A stripped
+    schema was observed emitting one reference repeatedly until the response
+    truncated mid-token at 283KB. ``maxItems`` is implemented by every backend,
+    so the bound survives the strip and the array still cannot outrun its
+    eligible set. Note this bounds length only: models emit long ref arrays on
+    this path regardless of the keyword (95 entries observed with ``uniqueItems``
+    intact), and cross-topic item reuse is caught separately by
+    ``duplicate_item``, which ``uniqueItems`` never governed.
+    """
     schema: dict[str, Any] = {
         "type": "array",
         "description": (
@@ -277,6 +293,7 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     }
     if eligible_refs:
         schema["items"]["enum"] = list(eligible_refs)
+        schema["maxItems"] = len(eligible_refs)
     return schema
 
 
