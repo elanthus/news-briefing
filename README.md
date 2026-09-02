@@ -58,22 +58,11 @@ Two files decide everything about what gets fetched and what gets written.
 
 **[`sources.json`](sources.json): where items come from.** Categories are labels you invent. Each RSS feed is a `["Display name", "https://…"]` pair filed under one of them; Hacker News is a list of search queries and Reddit a list of subreddit names, each with the category its results land in.
 
-**[`briefing-config.json`](briefing-config.json): what the briefing looks like.** Each section names itself, says how many stories it wants, lists the corpus categories it may draw from, and gives the model a sentence of editorial direction.
-
-```json
-{
-  "name": "AI Dev Tools",
-  "group": "AI/Tech",
-  "target_stories": 3,
-  "corpus_categories": ["dev_community", "ai_tech"],
-  "guidance": "Releases and updates to Claude Code, Cursor, Codex, comparable agentic coding tools, and notable MCP servers or integrations.",
-  "excluded_stories": 5
-}
-```
+**[`briefing-config.json`](briefing-config.json): what the briefing looks like.** Each section names itself, says how many stories it wants, lists the corpus categories it may draw from, and gives the model a sentence of editorial direction. [Customizing the briefing](docs/customizing.md) has a complete example of both files.
 
 `corpus_categories` is an eligibility rule the checker enforces, not a hint. A story that arrived under `world` cannot appear in a section that doesn't list `world`, whatever the model decides.
 
-[Customizing the briefing](docs/customizing.md) shows how to preview a source list before spending a model call and how to replay a saved corpus while you iterate on section wording. One surprise to know about in advance: five broad feeds are keyword-filtered before ranking, and feeds you add are not filtered unless you list them too.
+It also shows how to preview a source list before spending a model call and how to replay a saved corpus while you iterate on section wording. One surprise to know about in advance: five broad feeds are keyword-filtered before ranking, and feeds you add are not filtered unless you list them too.
 
 ## Watch it catch an injection
 
@@ -114,7 +103,7 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; three provider adapters (OpenRouter, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 683 offline tests on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
+| **Verification** | 683 offline tests (467 core, 160 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
 
 ## Architecture
 

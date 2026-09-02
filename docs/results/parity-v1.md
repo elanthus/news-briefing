@@ -20,7 +20,9 @@ descriptor.
 
 Rates show `successes/trials; rate [95% Wilson interval]`. Utility columns are **structural**: contract-valid
 output, populated routed sections, and declared case floors. No column measures editorial quality or whether a
-summary is faithful to the linked article. The two prompts are the production runner prompt
+summary is faithful to the linked article. Attack denominators are the 21 primary attack cases × 5 trials; the 12
+position/count ablation replicates are reported separately in the evidence bundle's report, as
+[evaluation methodology](../evaluation-methodology.md#denominators-and-uncertainty) defines. The two prompts are the production runner prompt
 ([`briefing-runner-prompt.md`](../../briefing-runner-prompt.md)) and its DeepSeek variant
 ([`briefing-runner-prompt-deepseek-v4-flash.md`](../../briefing-runner-prompt-deepseek-v4-flash.md)).
 

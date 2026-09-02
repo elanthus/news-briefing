@@ -1,6 +1,6 @@
 # Customizing the briefing
 
-Two files decide everything about what gets fetched and what gets written. This page walks through both, then shows how to iterate on them without spending a model call per change. The [README](../README.md#point-it-at-your-own-news) has the short version.
+Two files decide what gets fetched and how the briefing is sectioned. The output contract itself lives in the production prompt, [`briefing-runner-prompt.md`](../briefing-runner-prompt.md). This page walks through both, then shows how to iterate on them without spending a model call per change. The [README](../README.md#point-it-at-your-own-news) has the short version.
 
 ## `sources.json`: where items come from
 
@@ -30,12 +30,17 @@ Each section names itself, says how many stories it wants, lists the corpus cate
 
 ```json
 {
-  "name": "AI Dev Tools",
-  "group": "AI/Tech",
-  "target_stories": 3,
-  "corpus_categories": ["dev_community", "ai_tech"],
-  "guidance": "Releases and updates to Claude Code, Cursor, Codex, comparable agentic coding tools, and notable MCP servers or integrations.",
-  "excluded_stories": 5
+  "schema_version": 1,
+  "sections": [
+    {
+      "name": "AI Dev Tools",
+      "group": "AI/Tech",
+      "target_stories": 3,
+      "corpus_categories": ["dev_community", "ai_tech"],
+      "guidance": "Releases and updates to Claude Code, Cursor, Codex, comparable agentic coding tools, and notable MCP servers or integrations.",
+      "excluded_stories": 5
+    }
+  ]
 }
 ```
 
@@ -64,7 +69,7 @@ python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --
 
 ## Run-time flags
 
-A run fetches live sources, generates, validates, repairs what it can, and asks the model to correct what it can't.
+By default a run fetches live sources (`--corpus` replays a saved one instead), generates, validates, repairs what it can, and asks the model to correct what it can't.
 
 | Flag | Effect |
 |---|---|
