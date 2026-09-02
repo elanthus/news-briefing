@@ -133,7 +133,7 @@ The production two-pass path, 1,200 preregistered rows, $1.80 in provider spend:
 | Tencent HY3 / production-runner | 101/110; 91.8% [85.2, 95.6] | 2/105; 1.9% [0.5, 6.7] |
 | Tencent HY3 / runner-deepseek | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
 
-**"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums. No cell here is a human-reviewed faithfulness score. Those review forms remain unjudged, and I'd rather leave a cell blank than substitute another model's confidence for human review.
+**"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums.
 
 The headline rates matter less than which failures are possible at all. On the older direct-Markdown path, where the model authors its own links, 261 of 1,200 rows failed the contract, dominated by missing sections, ineligible categories, and ungrounded links. On the production path every one of those counts is zero, because the schema enumerates each section's eligible identifiers and requires the sections. The 42 remaining failures are almost all the model selecting the same item into two topics.
 
