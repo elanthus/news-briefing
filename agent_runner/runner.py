@@ -218,8 +218,10 @@ def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
     store.write_text("fetch.stdout", _sanitize_process_output(completed.stdout, replacements))
     store.write_text("fetch.stderr", _sanitize_process_output(completed.stderr, replacements))
     if completed.returncode != 0:
+        sanitized_stderr = _sanitize_process_output(completed.stderr, replacements).strip()
         raise RuntimeError(
-            "fetch_news.py failed: " + (completed.stderr.strip() or f"exit status {completed.returncode}")
+            "fetch_news.py failed: "
+            + (sanitized_stderr or f"exit status {completed.returncode}")
         )
     store.record_artifact("corpus.json")
     try:
@@ -677,9 +679,9 @@ def _validate_selection_attempt(
     return records
 
 
-def _corrections_used(store: RunStore) -> int:
+def _corrections_used(store: RunStore, kind: str) -> int:
     return sum(
-        attempt.get("kind") in {"selection_correction", "correction"}
+        attempt.get("kind") == kind
         for attempt in store.manifest["attempts"]
     )
 
@@ -1066,7 +1068,10 @@ def run_workflow(
                     )
                     if repair_attempt is not selection_attempt:
                         continue
-                if _corrections_used(store) >= settings.max_corrections:
+                if (
+                    _corrections_used(store, "selection_correction")
+                    >= settings.max_corrections
+                ):
                     return _finalize_selection_preview(
                         store,
                         selection_attempt,
@@ -1214,7 +1219,7 @@ def run_workflow(
                 )
                 if repair_attempt is not attempt:
                     continue
-            if _corrections_used(store) >= settings.max_corrections:
+            if _corrections_used(store, "correction") >= settings.max_corrections:
                 return _finalize_after_deterministic_repair(
                     store,
                     attempt,

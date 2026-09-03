@@ -8,10 +8,14 @@ Run:
     python3 -m unittest -v
 """
 
+import http.server
 import io
 import json
 import re
+import socket
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 import urllib.parse
@@ -539,6 +543,44 @@ class HackerNewsTest(unittest.TestCase):
         with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(len(result.items), 1)
+
+    def test_null_engagement_is_zero_for_filtering_and_corpus_validation(self) -> None:
+        payload = {"hits": [{
+            "objectID": "20", "title": "Null engagement", "url": None,
+            "story_text": "", "created_at_i": int(utc(2026, 8, 8, 12).timestamp()),
+            "points": None, "num_comments": None,
+        }]}
+        encoded = json.dumps(payload).encode()
+        with patch.object(fetch_news, "http_get", return_value=encoded):
+            filtered = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        self.assertEqual(filtered.items, [])
+
+        with (
+            patch.object(fetch_news, "HN_MIN_POINTS", 0),
+            patch.object(fetch_news, "http_get", return_value=encoded),
+        ):
+            emitted = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        self.assertEqual(emitted.items[0]["points"], 0)
+        self.assertEqual(emitted.items[0]["comments"], 0)
+        corpus = {
+            "schema_version": 1,
+            "generated_at": utc(2026, 8, 9).isoformat(),
+            "cutoff": utc(2026, 8, 8).isoformat(),
+            "window_hours": 24,
+            "limits": {"source_cap": 25, "category_cap": 60},
+            "categories": {"hn": emitted.items},
+            "processing": {"hn": {
+                "fetched": 1,
+                "undated_dropped": 0,
+                "relevance_dropped": 0,
+                "duplicates_dropped": 0,
+                "source_cap_dropped": 0,
+                "category_cap_dropped": 0,
+                "kept": 1,
+            }},
+            "errors": [],
+        }
+        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
 
     def test_carries_story_text_as_grounding_context(self):
         payload = {"hits": [{
@@ -1587,13 +1629,70 @@ class HttpGetTest(unittest.TestCase):
 
     def test_redirect_to_private_destination_is_rejected_before_request(self):
         redirect = fetch_news.HttpResult(
-            302, "Found", {"Location": "http://127.0.0.1/admin"}, b"")
+            302, "Found", {"Location": "https://127.0.0.1/admin"}, b"")
         with (patch.object(fetch_news, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
               patch.object(fetch_news, "_request_once", return_value=redirect) as request):
             with self.assertRaisesRegex(ValueError, "non-public"):
                 fetch_news.http_get("https://example.com/feed")
         self.assertEqual(request.call_count, 1)
+
+    def test_https_redirect_downgrade_is_rejected_before_second_request(self) -> None:
+        redirect = fetch_news.HttpResult(
+            302, "Found", {"Location": "http://cdn.example.net/feed"}, b"")
+        with (
+            patch.object(
+                fetch_news, "_resolve_public_addresses", return_value=self.PUBLIC
+            ) as resolve,
+            patch.object(fetch_news, "_request_once", return_value=redirect) as request,
+            self.assertRaisesRegex(ValueError, "HTTPS request cannot redirect to HTTP"),
+        ):
+            fetch_news.http_get("https://example.com/feed")
+        self.assertEqual(resolve.call_count, 1)
+        self.assertEqual(request.call_count, 1)
+
+    def test_response_body_uses_total_deadline_against_trickle_server(self) -> None:
+        class TrickleHandler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_GET(self) -> None:
+                self.send_response(200)
+                self.send_header("Content-Length", "100")
+                self.end_headers()
+                for _index in range(100):
+                    try:
+                        self.wfile.write(b"x")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        break
+                    time.sleep(0.05)
+
+            def log_message(self, format_string: str, *args: object) -> None:
+                del format_string, args
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), TrickleHandler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        started = time.monotonic()
+        try:
+            address = fetch_news.ResolvedAddress(
+                socket.AF_INET, ("127.0.0.1", port)
+            )
+            with (
+                patch.object(
+                    fetch_news, "_resolve_public_addresses", return_value=(address,)
+                ),
+                self.assertRaisesRegex(TimeoutError, "total deadline"),
+            ):
+                fetch_news.http_get(
+                    f"http://example.com:{port}/trickle", timeout=1
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+        self.assertLess(time.monotonic() - started, 3)
 
     def test_scrapecreators_key_is_origin_locked_and_redirects_are_refused(self):
         redirect = fetch_news.HttpResult(
