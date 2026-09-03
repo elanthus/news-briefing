@@ -502,6 +502,8 @@ class OpenRouterProvider(ModelProvider):
 
 
 _LEAN_STRIPPED_KEYWORDS = frozenset({"minItems", "maxItems", "minLength", "maxLength"})
+#: Keywords whose value is a map from user-chosen names to subschemas.
+_SCHEMA_MAP_KEYWORDS = frozenset({"properties", "$defs", "definitions"})
 
 
 def _lean_local_schema(value: Any) -> Any:
@@ -536,7 +538,13 @@ def _lean_local_schema(value: Any) -> Any:
         )
         kept = {"minItems", "maxItems"} if exact_count else set()
         return {
-            key: _lean_local_schema(nested)
+            key: (
+                # Member names under a schema map are user data (a section can
+                # be called anything), not keywords; only their values are schemas.
+                {name: _lean_local_schema(member) for name, member in nested.items()}
+                if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict)
+                else _lean_local_schema(nested)
+            )
             for key, nested in value.items()
             if key not in _LEAN_STRIPPED_KEYWORDS or key in kept
         }

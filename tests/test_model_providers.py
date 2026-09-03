@@ -383,6 +383,27 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(refs["items"]["enum"], ["a", "b", "c"])
         self.assertEqual(topics["items"]["properties"]["summary"], {"type": "string"})
 
+    def test_openai_compatible_lean_profile_keeps_sections_named_like_keywords(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "sections": {
+                    "type": "object",
+                    "properties": {
+                        "maxLength": {"type": "array", "minItems": 0, "maxItems": 4, "items": {"type": "string"}},
+                        "minItems": {"type": "string", "maxLength": 20},
+                    },
+                    "required": ["maxLength", "minItems"],
+                }
+            },
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        lean = OpenAICompatibleProvider("m", lean_schema=True)
+        sections = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["sections"]
+        self.assertEqual(set(sections["properties"]), {"maxLength", "minItems"})
+        self.assertEqual(sections["properties"]["maxLength"], {"type": "array", "items": {"type": "string"}})
+        self.assertEqual(sections["properties"]["minItems"], {"type": "string"})
+
     def test_openai_compatible_wrapper_stripping_is_linear_on_unclosed_fences(self):
         pathological = "```" + " " * 200_000
         response = FakeResponse({"choices": [{"message": {"content": pathological}}]})
