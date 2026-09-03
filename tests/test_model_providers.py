@@ -1,7 +1,10 @@
+import http.server
 import io
 import json
 import os
 import subprocess
+import threading
+import time
 import unittest
 import urllib.error
 from pathlib import Path
@@ -11,10 +14,12 @@ from agent_runner.models import GenerationRequest, ProviderError
 from agent_runner.providers import (
     ClaudeCodeProvider,
     CodexCliProvider,
+    OpenAICompatibleProvider,
     OpenRouterProvider,
     _command_version,
     _grammar_compatible_schema,
     _run_cli,
+    provider_for,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,7 +91,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
         ) as opened:
             result = provider.generate(REQUEST)
         sent = json.loads(opened.call_args.args[0].data)
@@ -132,7 +137,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
         ), self.assertRaisesRegex(ProviderError, "empty tool policy"):
             provider.generate(REQUEST)
 
@@ -144,7 +149,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
         ):
             result = provider.generate(REQUEST)
         self.assertIsNone(result.cost_usd)
@@ -164,7 +169,7 @@ class ProviderTests(unittest.TestCase):
         })
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", side_effect=[error, success]
+            "agent_runner.providers._urlopen", side_effect=[error, success]
         ) as opened:
             result = provider.generate(REQUEST)
         self.assertEqual(opened.call_count, 2)
@@ -184,7 +189,7 @@ class ProviderTests(unittest.TestCase):
         )
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", side_effect=error
+            "agent_runner.providers._urlopen", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertNotIn("top_secret", str(raised.exception))
@@ -202,7 +207,7 @@ class ProviderTests(unittest.TestCase):
         )
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", side_effect=error
+            "agent_runner.providers._urlopen", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertTrue(raised.exception.openrouter_model_404)
@@ -212,12 +217,335 @@ class ProviderTests(unittest.TestCase):
     def test_openrouter_does_not_retry_ambiguous_response_timeout(self):
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "urllib.request.urlopen", return_value=TimeoutResponse({})
+            "agent_runner.providers._urlopen", return_value=TimeoutResponse({})
         ) as opened, self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertTrue(raised.exception.ambiguous_completion)
         self.assertEqual(raised.exception.attempts, 1)
         self.assertEqual(opened.call_count, 1)
+
+    def test_openai_compatible_defaults_to_ollama_and_supports_other_endpoints(self):
+        default = OpenAICompatibleProvider("qwen3:32b")
+        self.assertEqual(default.endpoint, "http://127.0.0.1:11434/v1/chat/completions")
+        self.assertEqual(default.info()["endpoint"], default.endpoint)
+        custom = OpenAICompatibleProvider(
+            "qwen3:32b", endpoint="http://127.0.0.1:8080/v1/chat/completions"
+        )
+        self.assertEqual(custom.info()["endpoint"], "http://127.0.0.1:8080/v1/chat/completions")
+        self.assertNotIn("OPENROUTER_API_KEY", json.dumps(custom.info()))
+
+    def test_provider_for_routes_openai_compatible_and_guards_endpoint(self):
+        provider = provider_for(
+            "openai-compatible",
+            "qwen3:32b",
+            temperature=0.3,
+            reasoning_enabled=None,
+            max_tokens=8000,
+            endpoint="http://127.0.0.1:8080/v1/chat/completions",
+        )
+        self.assertIsInstance(provider, OpenAICompatibleProvider)
+        self.assertEqual(provider.temperature, 0.3)
+        self.assertEqual(provider.max_tokens, 8000)
+        with self.assertRaisesRegex(ValueError, "openai-compatible provider only"):
+            provider_for("openrouter", "vendor/model", endpoint="http://127.0.0.1:8080/v1")
+
+    def test_openai_compatible_payload_omits_openrouter_fields_and_constrains_output(self):
+        # Contract for OpenAICompatibleProvider._payload. The schema must reach
+        # the server through response_format, and nothing OpenRouter-specific
+        # may leak into a request that a local server might reject.
+        request = GenerationRequest(
+            "prompt",
+            {"type": "object", "properties": {"refs": {"type": "array", "uniqueItems": True, "maxItems": 2}}},
+            30,
+            "0" * 32,
+        )
+        payload = OpenAICompatibleProvider("qwen3:32b", temperature=0.1, max_tokens=8000)._payload(request)
+        self.assertEqual(payload["model"], "qwen3:32b")
+        self.assertEqual(payload["messages"], [{"role": "user", "content": "prompt"}])
+        self.assertEqual(payload["temperature"], 0.1)
+        self.assertEqual(payload["max_tokens"], 8000)
+        self.assertEqual(payload["response_format"]["type"], "json_schema")
+        sent_refs = payload["response_format"]["json_schema"]["schema"]["properties"]["refs"]
+        self.assertNotIn("uniqueItems", sent_refs)
+        self.assertEqual(sent_refs["maxItems"], 2)
+        self.assertNotIn("provider", payload)
+        self.assertNotIn("reasoning", payload)
+        self.assertNotIn("max_tokens", OpenAICompatibleProvider("qwen3:32b")._payload(request))
+
+    def test_openai_compatible_lean_profile_removes_array_bounds_and_keeps_enums(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "topics": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "refs": {
+                                "type": "array",
+                                "items": {"type": "string", "enum": ["a", "b"]},
+                                "minItems": 1,
+                                "maxItems": 2,
+                                "uniqueItems": True,
+                            },
+                            "summary": {"type": "string", "minLength": 1, "maxLength": 300},
+                        },
+                    },
+                }
+            },
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        full = OpenAICompatibleProvider("m")
+        lean = OpenAICompatibleProvider("m", lean_schema=True)
+        full_topics = full._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        lean_topics = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        self.assertEqual(full_topics["items"]["properties"]["refs"]["maxItems"], 2)
+        refs = lean_topics["items"]["properties"]["refs"]
+        self.assertNotIn("maxItems", refs)
+        self.assertNotIn("minItems", refs)
+        self.assertNotIn("uniqueItems", refs)
+        self.assertEqual(refs["items"]["enum"], ["a", "b"])
+        self.assertNotIn("maxItems", lean_topics)
+        self.assertNotIn("minItems", lean_topics)
+        self.assertEqual(lean_topics["items"]["properties"]["summary"], {"type": "string"})
+        self.assertEqual(full_topics["items"]["properties"]["summary"]["maxLength"], 300)
+        self.assertEqual(schema["properties"]["topics"]["items"]["properties"]["refs"]["maxItems"], 2)
+        self.assertEqual(lean._payload(request)["max_tokens"], OpenAICompatibleProvider.LEAN_DEFAULT_MAX_TOKENS)
+        self.assertNotIn("max_tokens", full._payload(request))
+        self.assertEqual(OpenAICompatibleProvider("m", lean_schema=True, max_tokens=900).max_tokens, 900)
+        self.assertEqual(lean.info()["schema_profile"], "lean")
+        self.assertEqual(full.info()["schema_profile"], "full")
+        with self.assertRaisesRegex(ValueError, "lean_schema apply"):
+            provider_for("openrouter", "vendor/model", lean_schema=True)
+
+    def test_openai_compatible_timeout_hints_at_lean_schema_only_for_full_profile(self):
+        request = GenerationRequest("prompt", SCHEMA, 30, "0" * 32)
+        with patch("agent_runner.providers._urlopen", return_value=TimeoutResponse({})), self.assertRaises(
+            ProviderError
+        ) as raised:
+            OpenAICompatibleProvider("m").generate(request)
+        self.assertIn("--lean-schema", str(raised.exception))
+        self.assertTrue(raised.exception.ambiguous_completion)
+        self.assertTrue(raised.exception.transient)
+        with patch("agent_runner.providers._urlopen", return_value=TimeoutResponse({})), self.assertRaises(
+            ProviderError
+        ) as raised:
+            OpenAICompatibleProvider("m", lean_schema=True).generate(request)
+        self.assertNotIn("--lean-schema", str(raised.exception))
+
+    def test_openai_compatible_strips_think_blocks_and_code_fences(self):
+        wrapped = '<think>\nweighing the stories\n</think>\n```json\n{"schema_version": 1}\n```'
+        response = FakeResponse({"choices": [{"message": {"content": wrapped}}]})
+        with patch("agent_runner.providers._urlopen", return_value=response):
+            result = OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
+        self.assertEqual(result.structured_output, {"schema_version": 1})
+        self.assertEqual(result.raw_output, wrapped)
+        unclosed = FakeResponse({"choices": [{"message": {"content": "<think>still going"}}]})
+        with patch("agent_runner.providers._urlopen", return_value=unclosed), self.assertRaisesRegex(
+            ProviderError, "invalid JSON"
+        ):
+            OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
+
+    def test_openai_compatible_lean_profile_keeps_exact_count_arrays(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "topics": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "refs": {
+                                "type": "array",
+                                "items": {"type": "string", "enum": ["a", "b", "c"]},
+                                "minItems": 1,
+                                "maxItems": 3,
+                            },
+                            "summary": {"type": "string", "minLength": 1, "maxLength": 300},
+                        },
+                    },
+                }
+            },
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        lean = OpenAICompatibleProvider("m", lean_schema=True)
+        topics = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        # The prose pass returns exactly one entry per frozen selection; that bound survives.
+        self.assertEqual((topics["minItems"], topics["maxItems"]), (3, 3))
+        # Ranged bounds and string lengths are still dropped.
+        refs = topics["items"]["properties"]["refs"]
+        self.assertNotIn("minItems", refs)
+        self.assertNotIn("maxItems", refs)
+        self.assertEqual(refs["items"]["enum"], ["a", "b", "c"])
+        self.assertEqual(topics["items"]["properties"]["summary"], {"type": "string"})
+
+    def test_openai_compatible_lean_profile_keeps_sections_named_like_keywords(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "sections": {
+                    "type": "object",
+                    "properties": {
+                        "maxLength": {"type": "array", "minItems": 0, "maxItems": 4, "items": {"type": "string"}},
+                        "minItems": {"type": "string", "maxLength": 20},
+                    },
+                    "required": ["maxLength", "minItems"],
+                }
+            },
+        }
+        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        lean = OpenAICompatibleProvider("m", lean_schema=True)
+        sections = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["sections"]
+        self.assertEqual(set(sections["properties"]), {"maxLength", "minItems"})
+        self.assertEqual(sections["properties"]["maxLength"], {"type": "array", "items": {"type": "string"}})
+        self.assertEqual(sections["properties"]["minItems"], {"type": "string"})
+
+    def test_openai_compatible_wrapper_stripping_is_linear_on_unclosed_fences(self):
+        pathological = "```" + " " * 200_000
+        response = FakeResponse({"choices": [{"message": {"content": pathological}}]})
+        started = time.perf_counter()
+        with patch("agent_runner.providers._urlopen", return_value=response), self.assertRaisesRegex(
+            ProviderError, "invalid JSON"
+        ):
+            OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
+        self.assertLess(time.perf_counter() - started, 1.0)
+        # A fence without a newline after the opener is still unwrapped.
+        compact = FakeResponse({"choices": [{"message": {"content": '```json{"schema_version": 1}```'}}]})
+        with patch("agent_runner.providers._urlopen", return_value=compact):
+            result = OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
+        self.assertEqual(result.structured_output, {"schema_version": 1})
+
+    def test_chat_completion_truncated_at_max_tokens_is_named_not_reported_as_invalid_json(self):
+        truncated = {
+            "id": "req-1",
+            "choices": [{"finish_reason": "length", "message": {"content": '{"schema_version": 1, "sec'}}],
+        }
+        with patch("agent_runner.providers._urlopen", return_value=FakeResponse(truncated)), self.assertRaises(
+            ProviderError
+        ) as raised:
+            OpenAICompatibleProvider("qwen3:32b", lean_schema=True).generate(REQUEST)
+        self.assertIn("truncated at the max_tokens ceiling", str(raised.exception))
+        self.assertTrue(raised.exception.output_truncated)
+        self.assertFalse(raised.exception.transient)
+        self.assertEqual(raised.exception.provider_request_id, "req-1")
+        self.assertTrue(raised.exception.record()["output_truncated"])
+        # The parser is shared, so OpenRouter reports the same cause.
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "agent_runner.providers._urlopen", return_value=FakeResponse(truncated)
+        ), self.assertRaises(ProviderError) as raised:
+            OpenRouterProvider("vendor/model").generate(REQUEST)
+        self.assertTrue(raised.exception.output_truncated)
+
+    def test_openai_compatible_manifest_omits_endpoint_userinfo(self):
+        provider = OpenAICompatibleProvider("m", endpoint="https://user:token@gateway.example/v1/chat/completions")
+        self.assertEqual(provider.info()["endpoint"], "https://gateway.example/v1/chat/completions")
+        self.assertEqual(provider.endpoint, "https://user:token@gateway.example/v1/chat/completions")
+        plain = OpenAICompatibleProvider("m", endpoint="http://127.0.0.1:8080/v1/chat/completions")
+        self.assertEqual(plain.info()["endpoint"], "http://127.0.0.1:8080/v1/chat/completions")
+
+    def test_openai_compatible_refuses_bearer_token_over_cleartext_to_remote_hosts(self):
+        response = FakeResponse({"choices": [{"message": {"content": '{"schema_version": 1}'}}]})
+        with patch.dict(os.environ, {"OPENAI_COMPATIBLE_API_KEY": "secret"}):
+            with patch("agent_runner.providers._urlopen", return_value=response) as urlopen, self.assertRaises(
+                ProviderError
+            ) as raised:
+                OpenAICompatibleProvider("m", endpoint="http://gateway.example/v1/chat/completions").generate(REQUEST)
+            self.assertIn("cleartext", str(raised.exception))
+            self.assertFalse(raised.exception.transient)
+            urlopen.assert_not_called()
+            # Loopback over http and any host over https are fine.
+            for endpoint in (
+                "http://127.0.0.1:11434/v1/chat/completions",
+                "http://localhost:1234/v1/chat/completions",
+                "http://[::1]:8080/v1/chat/completions",
+                "https://gateway.example/v1/chat/completions",
+            ):
+                with self.subTest(endpoint=endpoint), patch(
+                    "agent_runner.providers._urlopen", return_value=response
+                ) as urlopen:
+                    OpenAICompatibleProvider("m", endpoint=endpoint).generate(REQUEST)
+                    sent = urlopen.call_args.args[0]
+                    self.assertEqual(sent.get_header("Authorization"), "Bearer secret")
+
+    def test_provider_transport_refuses_redirects_so_bearer_tokens_stay_home(self):
+        seen: list[tuple[str, str | None]] = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802 - http.server naming
+                seen.append((self.path, self.headers.get("Authorization")))
+                self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                self.send_response(307)
+                self.send_header("Location", "/elsewhere/v1/chat/completions")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *_args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            endpoint = f"http://127.0.0.1:{server.server_port}/v1/chat/completions"
+            with patch.dict(os.environ, {"OPENAI_COMPATIBLE_API_KEY": "secret"}), self.assertRaises(
+                ProviderError
+            ) as raised:
+                OpenAICompatibleProvider("m", endpoint=endpoint).generate(REQUEST)
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(raised.exception.status_code, 307)
+        self.assertFalse(raised.exception.transient)
+        # Exactly one request reached the server; the redirect target was never contacted.
+        self.assertEqual(seen, [("/v1/chat/completions", "Bearer secret")])
+
+    def test_openai_compatible_sends_bearer_token_only_when_configured(self):
+        provider = OpenAICompatibleProvider("qwen3:32b")
+        response = FakeResponse(
+            {
+                "id": "chatcmpl-1",
+                "choices": [{"message": {"content": json.dumps({"schema_version": 1})}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            }
+        )
+        with patch.dict(os.environ, {}, clear=True), patch(
+            "agent_runner.providers._urlopen", return_value=response
+        ) as opened:
+            result = provider.generate(REQUEST)
+        sent = opened.call_args.args[0]
+        self.assertFalse(sent.has_header("Authorization"))
+        self.assertEqual(sent.full_url, "http://127.0.0.1:11434/v1/chat/completions")
+        self.assertEqual(result.structured_output, {"schema_version": 1})
+        self.assertEqual(result.input_tokens, 10)
+        self.assertIsNone(result.cost_usd)
+
+        with patch.dict(os.environ, {"OPENAI_COMPATIBLE_API_KEY": "local-key"}), patch(
+            "agent_runner.providers._urlopen", return_value=response
+        ) as opened:
+            provider.generate(REQUEST)
+        self.assertEqual(opened.call_args.args[0].get_header("Authorization"), "Bearer local-key")
+
+    def test_openai_compatible_rejects_tool_calls(self):
+        response = FakeResponse(
+            {"choices": [{"message": {"content": "{}", "tool_calls": [{"id": "call_1"}]}}]}
+        )
+        with patch("agent_runner.providers._urlopen", return_value=response), self.assertRaisesRegex(
+            ProviderError, "openai-compatible violated the empty tool policy"
+        ):
+            OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
+
+    def test_openai_compatible_does_not_flag_404_as_openrouter_removal(self):
+        error = urllib.error.HTTPError(
+            "http://127.0.0.1:11434/v1/chat/completions", 404, "Not Found", {}, io.BytesIO(b"no such model")
+        )
+        with patch("agent_runner.providers._urlopen", side_effect=error), self.assertRaises(ProviderError) as raised:
+            OpenAICompatibleProvider("missing").generate(REQUEST)
+        self.assertFalse(raised.exception.openrouter_model_404)
+        self.assertIn("openai-compatible HTTP 404", str(raised.exception))
 
     def test_claude_allows_only_structured_output_tool(self):
         wrapper = {

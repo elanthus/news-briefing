@@ -39,8 +39,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--provider",
-        choices=("openrouter", "claude-code-cli", "codex-cli"),
+        choices=("openrouter", "openai-compatible", "claude-code-cli", "codex-cli"),
         required=True,
+    )
+    parser.add_argument(
+        "--endpoint",
+        help=(
+            "chat-completions URL for --provider openai-compatible "
+            "(default: Ollama at http://127.0.0.1:11434/v1/chat/completions)"
+        ),
+    )
+    parser.add_argument(
+        "--lean-schema",
+        action="store_true",
+        help=(
+            "openai-compatible only: send the output schema without array-size or string-length "
+            "bounds, for servers that compile them slowly (LM Studio's MLX engine)"
+        ),
     )
     parser.add_argument("--model", required=True, help="exact provider model identifier")
     parser.add_argument("--output", "-o", type=Path, required=True, help="final Markdown path")
@@ -75,8 +90,19 @@ def main() -> int:
         action="store_true",
         help="return nonzero for any finding or degraded source coverage",
     )
-    parser.add_argument("--temperature", type=float, help="OpenRouter sampling temperature (default: 0)")
-    parser.add_argument("--max-tokens", type=_positive_int, help="OpenRouter output ceiling (default: 100000)")
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        help="sampling temperature for openrouter and openai-compatible (default: 0)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=_positive_int,
+        help=(
+            "output ceiling: openrouter defaults to 100000, openai-compatible to the server's default, "
+            "or 16000 with --lean-schema"
+        ),
+    )
     parser.add_argument(
         "--reasoning",
         choices=("enabled", "disabled"),
@@ -101,12 +127,23 @@ def main() -> int:
     for label, path in required_paths:
         if not path.is_file():
             parser.error(f"{label} file does not exist: {path}")
-    if args.provider != "openrouter":
-        openrouter_options = [
+    if args.provider not in ("openrouter", "openai-compatible"):
+        sampling_options = [
             option
             for option, value in (
                 ("--temperature", args.temperature),
                 ("--max-tokens", args.max_tokens),
+            )
+            if value is not None
+        ]
+        if sampling_options:
+            parser.error(
+                f"{', '.join(sampling_options)} applies to --provider openrouter or openai-compatible only"
+            )
+    if args.provider != "openrouter":
+        openrouter_options = [
+            option
+            for option, value in (
                 ("--reasoning", args.reasoning),
                 ("--reasoning-effort", args.reasoning_effort),
             )
@@ -116,6 +153,14 @@ def main() -> int:
             parser.error(
                 f"{', '.join(openrouter_options)} applies to --provider openrouter only"
             )
+    if args.provider != "openai-compatible":
+        local_options = [
+            option
+            for option, value in (("--endpoint", args.endpoint), ("--lean-schema", args.lean_schema or None))
+            if value is not None
+        ]
+        if local_options:
+            parser.error(f"{', '.join(local_options)} applies to --provider openai-compatible only")
 
     reasoning_enabled = (
         args.reasoning == "enabled"
@@ -129,7 +174,9 @@ def main() -> int:
             temperature=0 if args.temperature is None else args.temperature,
             reasoning_enabled=reasoning_enabled,
             reasoning_effort=args.reasoning_effort,
-            max_tokens=100_000 if args.max_tokens is None else args.max_tokens,
+            max_tokens=args.max_tokens,
+            endpoint=args.endpoint,
+            lean_schema=args.lean_schema,
         )
         settings = RunnerSettings(
             config_path=args.config.resolve(),

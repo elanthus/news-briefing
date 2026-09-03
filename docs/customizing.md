@@ -79,4 +79,4 @@ By default a run fetches live sources (`--corpus` replays a saved one instead), 
 | `--strict` | Returns nonzero on any checker finding or degraded source, for use in automation. |
 | `--corpus` | Replays a saved corpus instead of fetching. |
 
-Provider selection (`--provider claude-code-cli`, `codex-cli`, or `openrouter`) is described in the README's [Generate one](../README.md#generate-one) section.
+Provider selection (`--provider claude-code-cli`, `codex-cli`, `openrouter`, or `openai-compatible` for a local server such as Ollama or LM Studio, with `--endpoint` and `--lean-schema` for the latter's MLX engine) is described in the README's [Generate one](../README.md#generate-one) section.
