@@ -244,6 +244,24 @@ def _run_cli(
     raise AssertionError("unreachable CLI retry state")
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect so ``Authorization`` never follows a ``Location`` header.
+
+    urllib's default handler copies the request headers, bearer token
+    included, onto whatever host the redirect names. The provider endpoints
+    are fixed URLs, so a redirect is a misconfiguration or a hostile
+    intermediary either way; it surfaces as a non-transient HTTP 3xx error.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        return None
+
+
+def _urlopen(request: urllib.request.Request, *, timeout: float) -> Any:
+    """Open a provider request through the no-redirect opener."""
+    return urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout)
+
+
 def _post_chat_completion(
     provider: str,
     endpoint: str,
@@ -277,7 +295,7 @@ def _post_chat_completion(
         failure: ProviderError | None = None
         cause: Exception | None = None
         try:
-            with urllib.request.urlopen(http_request, timeout=remaining) as response:
+            with _urlopen(http_request, timeout=remaining) as response:
                 response_body = response.read()
                 request_id = response.headers.get("x-request-id")
             break
