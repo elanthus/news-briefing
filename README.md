@@ -157,6 +157,9 @@ CI runs the offline suites on Python 3.11–3.14 with `ruff` and strict `mypy`. 
 
 ## Further reading
 
+- [`CLAUDE.md`](CLAUDE.md) — repository instructions for coding agents
+- [Architecture decision records](docs/adr/README.md) — implemented citation, evidence, and repair decisions
+- [Development and review workflow](docs/ai-workflow.md) — automated review, local gates, and recorded agent use
 - [My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md) — the origin story and what $3.80 of evaluation bought
 - [Customizing the briefing](docs/customizing.md) — sources, sections, corpus preview, and replay
 - [Design notes](docs/design.md) — why each stage works the way it does
