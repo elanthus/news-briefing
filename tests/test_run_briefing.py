@@ -444,6 +444,57 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
+    def test_selection_and_prose_each_receive_one_correction(self) -> None:
+        corpus, config, _projected, output = fixture_contract()
+        broken_selection = copy.deepcopy(output)
+        broken_selection["sections"][config.sections[0].name]["topics"][0][
+            "citation_refs"
+        ] = ["citation_9999"]
+        broken_prose = copy.deepcopy(output)
+        broken_prose["sections"][config.sections[0].name]["topics"][0]["summary"] += (
+            " Supported by citation_0001."
+        )
+        provider = FakeProvider([broken_selection, broken_prose, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(
+                provider,
+                replace(self.settings(root / "briefing.md"), max_corrections=1),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["selection", "selection_correction", "prose", "correction"],
+        )
+
+    def test_selection_stage_refuses_second_correction_with_budget_one(self) -> None:
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        broken["sections"][config.sections[0].name]["topics"][0]["citation_refs"] = [
+            "citation_9999"
+        ]
+        provider = FakeProvider([broken, broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(
+                provider,
+                replace(self.settings(root / "briefing.md"), max_corrections=1),
+                root / "run",
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(len(provider.requests), 2)
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["selection", "selection_correction"],
+        )
+
     def test_selection_correction_redacts_internal_item_ids_from_findings(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
@@ -980,6 +1031,29 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('"corpus.json"', trace)
         self.assertIn("corpus.json", stdout)
         self.assertIn("fetch_news.py", stderr)
+
+    def test_fetch_failure_message_sanitizes_host_paths_and_interpreter(self) -> None:
+        raw_interpreter = str(Path(sys.executable).resolve())
+        raw_fetcher = str((ROOT / "fetch_news.py").resolve())
+        completed = subprocess.CompletedProcess(
+            [raw_interpreter, raw_fetcher],
+            1,
+            stdout="",
+            stderr=f"{raw_interpreter}: cannot run {raw_fetcher}\n",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = RunStore.create(root / "run", identity={}, provider={}, code={})
+            with (
+                patch("agent_runner.runner.subprocess.run", return_value=completed),
+                self.assertRaises(RuntimeError) as raised,
+            ):
+                _fetch_corpus(store, self.settings(root / "briefing.md"))
+        message = str(raised.exception)
+        self.assertNotIn(raw_interpreter, message)
+        self.assertNotIn(raw_fetcher, message)
+        self.assertIn(Path(sys.executable).name, message)
+        self.assertIn("fetch_news.py", message)
 
     def test_cli_rejects_explicit_openrouter_options_for_cli_providers(self):
         cases = {

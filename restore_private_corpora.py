@@ -7,13 +7,14 @@ import argparse
 import io
 import json
 import os
+import sys
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from private_archive import decrypt_archive, restore_corpora_from_tar
 
@@ -26,12 +27,31 @@ MAX_ARTIFACT_BYTES = 64_000_000
 
 
 class NoArchiveError(RuntimeError):
-    """The repository has no unexpired corpus archive yet."""
+    """The repository has no eligible corpus archive candidate to restore."""
+
+
+class ArtifactCandidate(NamedTuple):
+    artifact_id: int
+    download_url: str
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
         return None
+
+
+def _is_main_repository_run(value: Any) -> bool:
+    if not isinstance(value, dict) or value.get("head_branch") != "main":
+        return False
+    head_repository_id = value.get("head_repository_id")
+    repository_id = value.get("repository_id")
+    return (
+        isinstance(head_repository_id, int)
+        and not isinstance(head_repository_id, bool)
+        and isinstance(repository_id, int)
+        and not isinstance(repository_id, bool)
+        and head_repository_id == repository_id
+    )
 
 
 def _read_bounded(response: Any, limit: int) -> bytes:
@@ -53,7 +73,9 @@ def _api_request(url: str, token: str) -> urllib.request.Request:
     )
 
 
-def _latest_download_url(repository: str, artifact_name: str, token: str) -> str:
+def _artifact_candidates(
+    repository: str, artifact_name: str, token: str
+) -> tuple[ArtifactCandidate, ...]:
     encoded_name = urllib.parse.quote(artifact_name, safe="")
     url = (
         f"https://api.github.com/repos/{repository}/actions/artifacts"
@@ -71,19 +93,28 @@ def _latest_download_url(repository: str, artifact_name: str, token: str) -> str
         if isinstance(artifact, dict)
         and artifact.get("name") == artifact_name
         and artifact.get("expired") is False
+        and isinstance(artifact.get("id"), int)
+        and not isinstance(artifact.get("id"), bool)
         and isinstance(artifact.get("archive_download_url"), str)
         and isinstance(artifact.get("created_at"), str)
+        and _is_main_repository_run(artifact.get("workflow_run"))
     ]
     if not candidates:
-        raise NoArchiveError(f"no unexpired {artifact_name!r} artifact exists")
-    newest = max(
+        raise NoArchiveError(
+            f"no eligible unexpired {artifact_name!r} artifact exists"
+        )
+    newest_first = sorted(
         candidates,
         key=lambda artifact: (
             artifact["created_at"],
-            artifact["id"] if isinstance(artifact.get("id"), int) else 0,
+            artifact["id"],
         ),
+        reverse=True,
     )
-    return newest["archive_download_url"]
+    return tuple(
+        ArtifactCandidate(artifact["id"], artifact["archive_download_url"])
+        for artifact in newest_first
+    )
 
 
 def _download_without_forwarding_token(url: str, token: str) -> bytes:
@@ -144,15 +175,31 @@ def restore(repository: str, output_dir: Path, token: str, passphrase: str) -> t
     if repository.count("/") != 1 or any(not part for part in repository.split("/")):
         raise ValueError("repository must use owner/name format")
 
-    download_url = _latest_download_url(repository, DEFAULT_ARTIFACT_NAME, token)
-    encrypted = _encrypted_member(_download_without_forwarding_token(download_url, token))
+    candidates = _artifact_candidates(repository, DEFAULT_ARTIFACT_NAME, token)
     with tempfile.TemporaryDirectory(prefix="news-briefing-restore-") as directory:
         root = Path(directory)
         encrypted_path = root / ENCRYPTED_MEMBER
         plaintext_path = root / "corpus-archive.tar.gz"
-        encrypted_path.write_bytes(encrypted)
-        decrypt_archive(encrypted_path, plaintext_path, passphrase)
-        return restore_corpora_from_tar(plaintext_path, output_dir)
+        for candidate in candidates:
+            encrypted = _encrypted_member(
+                _download_without_forwarding_token(candidate.download_url, token)
+            )
+            encrypted_path.write_bytes(encrypted)
+            try:
+                decrypt_archive(encrypted_path, plaintext_path, passphrase)
+            except ValueError as exc:
+                if str(exc) != "encrypted archive authentication failed":
+                    raise
+                print(
+                    f"warning: artifact {candidate.artifact_id} failed authentication; "
+                    "trying the next older artifact",
+                    file=sys.stderr,
+                )
+                continue
+            return restore_corpora_from_tar(plaintext_path, output_dir)
+    raise ValueError(
+        f"authentication failed for all {len(candidates)} eligible artifacts tried"
+    )
 
 
 def main() -> int:

@@ -57,6 +57,7 @@ REDDIT_MIN_SCORE = 2
 ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
 SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+RESPONSE_READ_CHUNK_BYTES = 64 * 1024
 MAX_REDIRECTS = 5
 MAX_URL_BYTES = corpus_schema.ITEM_URL_MAX_BYTES
 DEFAULT_WINDOW_HOURS = 24
@@ -517,9 +518,12 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         super().__init__(host, port=port, timeout=timeout)
         self._address = address
         self._pinned_timeout = timeout
+        self.pinned_socket: socket.socket | None = None
 
     def connect(self) -> None:
-        self.sock = _connect_pinned(self._address, self._pinned_timeout)
+        pinned_socket = _connect_pinned(self._address, self._pinned_timeout)
+        self.sock = pinned_socket
+        self.pinned_socket = pinned_socket
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -529,11 +533,16 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
         self._address = address
         self._pinned_timeout = timeout
         self._pinned_context = context
+        self.pinned_socket: socket.socket | None = None
 
     def connect(self) -> None:
         sock = _connect_pinned(self._address, self._pinned_timeout)
         try:
-            self.sock = self._pinned_context.wrap_socket(sock, server_hostname=self.host)
+            pinned_socket = self._pinned_context.wrap_socket(
+                sock, server_hostname=self.host
+            )
+            self.sock = pinned_socket
+            self.pinned_socket = pinned_socket
         except Exception:
             sock.close()
             raise
@@ -544,7 +553,7 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
                   timeout: int, extra_headers: dict[str, str] | None = None) -> HttpResult:
     """Make one request to an already validated and DNS-pinned address."""
     if parts.scheme.lower() == "https":
-        connection: http.client.HTTPConnection = _PinnedHTTPSConnection(
+        connection: _PinnedHTTPConnection | _PinnedHTTPSConnection = _PinnedHTTPSConnection(
             hostname, port, address, timeout, TLS_CONTEXT)
     else:
         connection = _PinnedHTTPConnection(hostname, port, address, timeout)
@@ -554,20 +563,54 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
     if extra_headers:
         headers.update(extra_headers)
     try:
+        deadline = time.monotonic() + timeout
         connection.request("GET", target, headers=headers)
         response = connection.getresponse()
         data = (b"" if response.status in {301, 302, 303, 307, 308}
-                else response.read(MAX_RESPONSE_BYTES + 1))
+                else _read_response_body(
+                    response, connection.pinned_socket, deadline, timeout
+                ))
         return HttpResult(response.status, str(response.reason), response.headers, data)
     finally:
         connection.close()
 
 
+def _read_response_body(
+    response: http.client.HTTPResponse,
+    sock: socket.socket | None,
+    deadline: float,
+    timeout: int,
+) -> bytes:
+    """Read one response within the request's total wall-clock deadline."""
+    if sock is None:
+        raise OSError("pinned connection socket is unavailable")
+    payload = bytearray()
+    while len(payload) <= MAX_RESPONSE_BYTES:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"request exceeded {timeout}s total deadline")
+        sock.settimeout(remaining)
+        try:
+            chunk = response.read1(min(
+                RESPONSE_READ_CHUNK_BYTES,
+                MAX_RESPONSE_BYTES + 1 - len(payload),
+            ))
+        except TimeoutError as exc:
+            raise TimeoutError(f"request exceeded {timeout}s total deadline") from exc
+        if not chunk:
+            break
+        payload.extend(chunk)
+    return bytes(payload)
+
+
 def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> bytes:
     """Fetch a public HTTP(S) URL with DNS pinning and safe redirects."""
     current = url
+    initial_scheme: str | None = None
     for redirect_count in range(MAX_REDIRECTS + 1):
         parts, hostname, port = _http_destination(current)
+        if initial_scheme is None:
+            initial_scheme = parts.scheme.lower()
         addresses = _resolve_public_addresses(hostname, port)
         result: HttpResult | None = None
         last_error: OSError | None = None
@@ -590,7 +633,13 @@ def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> 
                     result.headers, None)
             if redirect_count == MAX_REDIRECTS:
                 raise ValueError(f"redirect limit of {MAX_REDIRECTS} exceeded")
-            current = urllib.parse.urljoin(current, location)
+            redirected = urllib.parse.urljoin(current, location)
+            if (
+                initial_scheme == "https"
+                and urllib.parse.urlsplit(redirected).scheme.lower() == "http"
+            ):
+                raise ValueError("an HTTPS request cannot redirect to HTTP")
+            current = redirected
             # The next loop revalidates syntax, credentials, DNS and address
             # scope before making the redirected request.
             continue
@@ -880,7 +929,8 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
         published = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc)
         if not publication_in_window(published, cutoff, window_end):
             continue
-        if hit.get("points", 0) < HN_MIN_POINTS:
+        points = hit.get("points") or 0
+        if points < HN_MIN_POINTS:
             continue
         items.append({
             "title": hit.get("title", ""),
@@ -888,8 +938,8 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
             "discussion": f"https://news.ycombinator.com/item?id={hit['objectID']}",
             "published": published.isoformat(),
             "summary": strip_html(hit.get("story_text") or ""),
-            "points": hit.get("points", 0),
-            "comments": hit.get("num_comments", 0),
+            "points": points,
+            "comments": hit.get("num_comments") or 0,
             "source": "Hacker News",
             "query": query,
         })
