@@ -25,6 +25,7 @@ from agent_runner.output import (
     attach_frozen_selection,
     build_prose_schema,
     build_selection_schema,
+    detach_prose,
     project_corpus,
     project_selected_evidence,
     render_briefing,
@@ -41,6 +42,7 @@ from agent_runner.runner import (
 from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
+from agent_runner.runner import deterministic_repair_candidate
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError, is_transient_provider_error
 from evaluator.cases import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
@@ -122,7 +124,13 @@ def _mutate(target: dict[str, Any], mutations: list[dict[str, Any]]) -> None:
         try:
             for part in path[:-1]:
                 cursor = cursor[part]
-            cursor[path[-1]] = mutation["value"]
+            final = path[-1]
+            if isinstance(cursor, dict) and final not in cursor:
+                rendered = json.dumps(path, ensure_ascii=False)
+                raise ValueError(
+                    f"mutation {index} path does not exist: {rendered}"
+                )
+            cursor[final] = mutation["value"]
         except (IndexError, KeyError, TypeError) as exc:
             rendered = json.dumps(path, ensure_ascii=False)
             raise ValueError(f"mutation {index} path does not exist: {rendered}") from exc
@@ -358,6 +366,7 @@ def _evaluate_structured_generation(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair_actions: list[dict[str, str]] | None = None,
 ) -> tuple[str, dict[str, eval_briefing.Section], list[eval_briefing.Finding]]:
     """Validate and render one production-shaped structured response."""
     output = generation.structured_output
@@ -374,7 +383,13 @@ def _evaluate_structured_generation(
     ]
     if any(finding.level == eval_briefing.ERROR for finding in findings):
         return "", eval_briefing.parse_briefing("", config), findings
-    rendered = render_briefing(output, corpus, config, citations)
+    rendered = render_briefing(
+        output,
+        corpus,
+        config,
+        citations,
+        repair_actions=repair_actions or (),
+    )
     sections = eval_briefing.parse_briefing(rendered, config)
     findings.extend(eval_briefing.evaluate_parsed(corpus, rendered, sections, config))
     return rendered, sections, findings
@@ -394,6 +409,7 @@ class _ProductionParityAttempt:
     prose_request: str | None
     prose_schema: dict[str, Any] | None
     correction_stage: str
+    deterministic_repairs: list[dict[str, Any]]
 
 
 class _ProductionParityProviderError(RuntimeError):
@@ -543,6 +559,26 @@ def _empty_structured_result(
     return "", eval_briefing.parse_briefing("", config)
 
 
+def _finding_dicts(
+    findings: list[eval_briefing.Finding],
+) -> list[dict[str, str]]:
+    return [finding._asdict() for finding in findings]
+
+
+def _repair_record(
+    stage: str,
+    before: list[eval_briefing.Finding],
+    after: list[eval_briefing.Finding],
+    actions: list[dict[str, str]],
+) -> dict[str, Any]:
+    return {
+        "stage": stage,
+        "findings_before": _finding_dicts(before),
+        "findings_after": _finding_dicts(after),
+        "actions": actions,
+    }
+
+
 def _production_parity_after_selection(
     *,
     adapter: Adapter,
@@ -559,6 +595,27 @@ def _production_parity_after_selection(
     selection_findings = _production_selection_findings(
         selection, config, projected.citations
     )
+    deterministic_repairs: list[dict[str, Any]] = []
+    if isinstance(selection, dict):
+        repair = deterministic_repair_candidate(
+            selection,
+            _finding_dicts(selection_findings),
+            config=config,
+            citations=projected.citations,
+            selection_only=True,
+        )
+        if repair is not None:
+            before_repair = selection_findings
+            selection = repair.output
+            selection_findings = _production_selection_findings(
+                selection, config, projected.citations
+            )
+            deterministic_repairs.append(_repair_record(
+                "selection",
+                before_repair,
+                selection_findings,
+                repair.actions,
+            ))
     if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
         text, sections = _empty_structured_result(config)
         return _ProductionParityAttempt(
@@ -574,6 +631,7 @@ def _production_parity_after_selection(
             prose_request=None,
             prose_schema=None,
             correction_stage="selection",
+            deterministic_repairs=deterministic_repairs,
         )
     if not isinstance(selection, dict):
         raise AssertionError("valid selection must be an object")
@@ -598,6 +656,7 @@ def _production_parity_after_selection(
             prose_request=prose_request,
             prose_schema=prose_schema,
             correction_stage="prose",
+            deterministic_repairs=deterministic_repairs,
         )
         raise _ProductionParityProviderError(
             exc, calls, partial_attempt
@@ -614,6 +673,31 @@ def _production_parity_after_selection(
         text, sections, findings = _evaluate_structured_generation(
             combined, corpus, config, projected.citations
         )
+    repair = deterministic_repair_candidate(
+        complete_output,
+        _finding_dicts(findings),
+        corpus=corpus,
+        config=config,
+        citations=projected.citations,
+    )
+    if repair is not None:
+        before_repair = findings
+        complete_output = repair.output
+        prose = detach_prose(complete_output, config)
+        combined = _combine_structured_calls(calls, complete_output)
+        text, sections, findings = _evaluate_structured_generation(
+            combined,
+            corpus,
+            config,
+            projected.citations,
+            repair_actions=repair.actions,
+        )
+        deterministic_repairs.append(_repair_record(
+            "prose",
+            before_repair,
+            findings,
+            repair.actions,
+        ))
     return _ProductionParityAttempt(
         generation=combined,
         text=text,
@@ -625,6 +709,7 @@ def _production_parity_after_selection(
         prose_request=prose_request,
         prose_schema=prose_schema,
         correction_stage="prose",
+        deterministic_repairs=deterministic_repairs,
     )
 
 
@@ -725,6 +810,34 @@ def _production_parity_correction_attempt(
         text, sections, findings = _evaluate_structured_generation(
             combined, corpus, config, projected.citations
         )
+    deterministic_repairs: list[dict[str, Any]] = []
+    repair = deterministic_repair_candidate(
+        complete_output,
+        _finding_dicts(findings),
+        corpus=corpus,
+        config=config,
+        citations=projected.citations,
+    )
+    if repair is not None:
+        before_repair = findings
+        complete_output = repair.output
+        prose = detach_prose(complete_output, config)
+        combined = _combine_structured_calls(
+            [("prose_correction", prose_generation)], complete_output
+        )
+        text, sections, findings = _evaluate_structured_generation(
+            combined,
+            corpus,
+            config,
+            projected.citations,
+            repair_actions=repair.actions,
+        )
+        deterministic_repairs.append(_repair_record(
+            "prose",
+            before_repair,
+            findings,
+            repair.actions,
+        ))
     return _ProductionParityAttempt(
         generation=combined,
         text=text,
@@ -736,6 +849,7 @@ def _production_parity_correction_attempt(
         prose_request=prior.prose_request,
         prose_schema=prior.prose_schema,
         correction_stage="prose",
+        deterministic_repairs=deterministic_repairs,
     )
 
 
@@ -759,6 +873,11 @@ def _write_production_attempt_artifacts(
     if attempt.prose_schema is not None:
         _write_json_atomic(
             case_dir / f"{prefix}-prose-schema.json", attempt.prose_schema
+        )
+    if attempt.deterministic_repairs:
+        _write_json_atomic(
+            case_dir / f"{prefix}-deterministic-repairs.json",
+            attempt.deterministic_repairs,
         )
 
 
@@ -1306,16 +1425,19 @@ _RUNNER_ARTIFACT_FILES = (
     "first-selected-evidence.json",
     "first-prose-request.txt",
     "first-prose-schema.json",
+    "first-deterministic-repairs.json",
     "correction-selection.json",
     "correction-prose.json",
     "correction-selected-evidence.json",
     "correction-prose-request.txt",
     "correction-prose-schema.json",
+    "correction-deterministic-repairs.json",
     "final-selection.json",
     "final-prose.json",
     "final-selected-evidence.json",
     "final-prose-request.txt",
     "final-prose-schema.json",
+    "final-deterministic-repairs.json",
     "grounding-adjudication.json",
     "semantic-adjudication.json",
 )
@@ -2200,6 +2322,11 @@ def run_evaluation(
                     **first.record(),
                     "contract_success": first_contract,
                     "findings": [finding._asdict() for finding in before],
+                    "deterministic_repairs": (
+                        parity_first.deterministic_repairs
+                        if generation_path == "production-parity"
+                        else []
+                    ),
                     "oracle": oracle_before,
                     "generated_topics": first_topics,
                     "grounding_error_topics": first_grounding_errors,
@@ -2210,6 +2337,11 @@ def run_evaluation(
                 "final": {
                     "contract_success": final_contract,
                     "findings": [finding._asdict() for finding in after],
+                    "deterministic_repairs": (
+                        (parity_corrected or parity_first).deterministic_repairs
+                        if generation_path == "production-parity"
+                        else []
+                    ),
                     "oracle": oracle_after,
                     "generated_topics": final_topics,
                     "grounding_error_topics": final_grounding_errors,

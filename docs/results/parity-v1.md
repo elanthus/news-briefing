@@ -1,16 +1,18 @@
 # Production parity v1 model card
 
-Parity v1 is the first portfolio-scale run of the production two-pass generation path: 1,200 preregistered
+Parity v1 is the first portfolio-scale run of the evaluator's original production-parity path: 1,200 preregistered
 rows from clean tag `parity-v1-source-20260901c`, protocol [`parity-v1.json`](../../evaluator/protocols/parity-v1.json),
 public evidence in [`parity-v1-evidence/`](parity-v1-evidence/). The matrix contains two OpenRouter models,
 two frozen prompts, five trials, and 60 authored-or-derived case rows per model/prompt/trial group, the same
 55 cases as [Portfolio v2](portfolio-v2.md). Reported generation cost was $1.80.
 
-> **Generation path: `production-parity`.** The same cases run through the real two-pass runner
-> (`--generation-path production-parity`): the selection call picks evidence against a schema enumerating only
-> eligible identifiers, code freezes that selection, and a second call writes prose against a schema with no
-> citation field. This is the path the daily briefing uses. Portfolio v2 ran the evaluator's direct-Markdown
-> path, where the model authors its own links, so the two cards measure different contracts.
+> **Repair gap in this historical run.** The `production-parity` evaluator used the same two-pass contracts as
+> production: the selection call picked evidence against eligible identifiers, code froze that selection, and
+> a second call wrote prose without citation fields. However, it skipped the deterministic selection and prose
+> repair step that production runs before spending a model correction. The numbers below are therefore a floor
+> for the production path, not a measurement of the complete production path. The evaluator now uses the shared
+> production repair decision, but these numbers have not been rerun. A corrected-path rerun is required; the
+> historical run's reported generation cost was $1.80.
 
 1,200 rows completed with one recorded provider failure: a malformed response from DeepSeek's backend,
 published in the bundle as a `provider_error` row that scores nothing and is disclosed in the component
@@ -51,9 +53,10 @@ different topics, which the schema does not forbid, so it survives to the checke
 Two caveats on the comparison. Citation-fabrication attacks fail 180/180 here, but they also failed 180/180 on
 the Markdown path, where the checker caught them after the fact instead of the schema preventing them. The
 improvement is concentrated in **selection** attacks (17/160 successes on Markdown, 7/160 on parity), and
-parity is slightly worse on prose attacks (3/40, versus 0/40). And the correction loop contributes about
-equally on both paths (+7.7 and +8.0 points), so the gap is not a repair artifact: first-attempt contract
-validity is 78.9% on Markdown against 90.5% on parity.
+parity is slightly worse on prose attacks (3/40, versus 0/40). The correction loop contributed about equally
+on both measured paths (+7.7 and +8.0 points). Because this parity run omitted production's deterministic
+repair step, those figures cannot show how much of the remaining gap production repair removes. First-attempt
+contract validity was 78.9% on Markdown against 90.5% on this historical parity path.
 
 ## Provider schema support
 

@@ -21,6 +21,8 @@ import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
 import evaluator.label_review as label_review
+from agent_runner.models import GenerationRequest, ModelResponse
+from agent_runner.runner import RunnerSettings, run_workflow
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.__main__ import ProgressBar, _prompt_values, _provider_values
 from evaluator.adapters import (
@@ -952,6 +954,49 @@ class ComparisonTest(unittest.TestCase):
             "final": stage,
         }
 
+    def _decision_result(
+        self,
+        *,
+        baseline_utility: bool,
+        candidate_utility: bool,
+        baseline_attack: bool,
+        candidate_attack: bool,
+        grounding_reviewed: bool,
+    ) -> dict[str, Any]:
+        prompts = ("production-2026-08", "reliability-v1")
+        rows: list[dict[str, Any]] = []
+        for prompt, utility, attack in (
+            (prompts[0], baseline_utility, baseline_attack),
+            (prompts[1], candidate_utility, candidate_attack),
+        ):
+            utility_row = self._row(prompt, "utility-case", 0, utility)
+            attack_row = self._row(prompt, "attack-case", 0)
+            attack_row["case_kind"] = "attack"
+            for stage_name in ("first", "final"):
+                stage = attack_row[stage_name]
+                stage["oracle"] = {
+                    "utility_failure": False,
+                    "attack_success": attack,
+                }
+            if grounding_reviewed:
+                for row in (utility_row, attack_row):
+                    row["final"]["human_grounding_reviewed_topics"] = 2
+                    row["final"]["human_grounding_error_topics"] = 0
+            rows.extend((utility_row, attack_row))
+        manifest = {
+            **self._provenance(*prompts),
+            "suite_sha256": "suite",
+            "run_kind": "final",
+            "trials_per_case": 1,
+            "run_status": "complete",
+            "planned_case_trials": len(rows),
+            "results": rows,
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            return compare_runs(path, path, bootstrap_samples=100, seed=7)
+
     def test_identical_prompt_groups_compare_to_zero(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             temporary = Path(temporary_dir)
@@ -985,6 +1030,73 @@ class ComparisonTest(unittest.TestCase):
                 0.0,
             )
             self.assertEqual(comparison["operations"]["reported_cost"]["baseline"]["completed_calls"], 4)
+
+    def test_promotion_decision_passes_with_noninferior_attack_and_review(self) -> None:
+        result = self._decision_result(
+            baseline_utility=False,
+            candidate_utility=True,
+            baseline_attack=False,
+            candidate_attack=False,
+            grounding_reviewed=True,
+        )
+        decision = result["comparisons"][0]["decision"]
+        self.assertTrue(decision["minimum_utility_improvement_met"])
+        self.assertTrue(decision["attack_noninferiority_met"])
+        self.assertEqual(decision["human_grounding_nonincrease"], True)
+        self.assertEqual(decision["gated_outcome"], "promote_candidate")
+        policy = Path(__file__).parents[1] / "regression-policy.json"
+        self.assertEqual(
+            result["regression_policy_sha256"],
+            hashlib.sha256(policy.read_bytes()).hexdigest(),
+        )
+
+    def test_promotion_decision_fails_on_utility(self) -> None:
+        result = self._decision_result(
+            baseline_utility=True,
+            candidate_utility=True,
+            baseline_attack=False,
+            candidate_attack=False,
+            grounding_reviewed=True,
+        )
+        decision = result["comparisons"][0]["decision"]
+        self.assertFalse(decision["minimum_utility_improvement_met"])
+        self.assertTrue(decision["attack_noninferiority_met"])
+        self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
+
+    def test_promotion_decision_fails_on_attack_interval_upper_bound(self) -> None:
+        result = self._decision_result(
+            baseline_utility=False,
+            candidate_utility=True,
+            baseline_attack=False,
+            candidate_attack=True,
+            grounding_reviewed=True,
+        )
+        comparison = result["comparisons"][0]
+        upper_bound = comparison["metrics"]["targeted_attack_success_final"][
+            "ci95_case_cluster_bootstrap"
+        ][1]
+        self.assertGreater(upper_bound, 0.05)
+        self.assertFalse(comparison["decision"]["attack_noninferiority_met"])
+        self.assertEqual(
+            comparison["decision"]["gated_outcome"],
+            "do_not_promote_candidate",
+        )
+
+    def test_promotion_decision_is_inconclusive_without_grounding(self) -> None:
+        result = self._decision_result(
+            baseline_utility=False,
+            candidate_utility=True,
+            baseline_attack=False,
+            candidate_attack=False,
+            grounding_reviewed=False,
+        )
+        decision = result["comparisons"][0]["decision"]
+        self.assertTrue(decision["passes_all_available_rules"])
+        self.assertEqual(decision["human_grounding_nonincrease"], "undetermined")
+        self.assertEqual(
+            decision["gated_outcome"],
+            "inconclusive_pending_human_grounding",
+        )
 
     def test_incompatible_suite_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -1667,6 +1779,64 @@ class RepairingProseStructuredFakeAdapter(StructuredFakeAdapter):
         )
 
 
+class DeterministicallyRepairableStructuredFakeAdapter(StructuredFakeAdapter):
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        generation = super().generate_structured(prompt, output_schema, trace_id)
+        output = copy.deepcopy(generation.structured_output)
+        assert output is not None
+        topic = output["sections"]["AI Dev Tools"]["topics"][0]
+        if "citation_refs" in topic:
+            topic["citation_refs"].append(topic["citation_refs"][0])
+        else:
+            topic["summary"] = ("word " * 250).strip()
+        return Generation(
+            text=json.dumps(output),
+            structured_output=output,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+        )
+
+
+class StructuredAdapterProvider:
+    name = "structured-fixture"
+    model = "fixture"
+
+    def __init__(self, adapter: StructuredFakeAdapter):
+        self.adapter = adapter
+
+    def info(self) -> dict[str, Any]:
+        return {
+            "provider": self.name,
+            "model": self.model,
+            "authentication": "none",
+            "tool_policy": "no tools",
+        }
+
+    def generate(self, request: GenerationRequest) -> ModelResponse:
+        generation = self.adapter.generate_structured(
+            request.prompt,
+            request.output_schema,
+            request.trace_id,
+        )
+        structured_output = generation.structured_output
+        if structured_output is None:
+            raise AssertionError("structured fake returned no structured output")
+        return ModelResponse(
+            raw_output=generation.text,
+            structured_output=structured_output,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+            cost_usd=generation.cost_usd,
+            provider_request_id=generation.provider_request_id,
+            usage=generation.usage,
+            attempts=generation.attempts,
+        )
+
+
 class FailingProseStructuredFakeAdapter(StructuredFakeAdapter):
     def generate_structured(
         self, prompt: str, output_schema: dict[str, Any], trace_id: str
@@ -2145,6 +2315,105 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((artifact / "first-prose-schema.json").exists())
             self.assertTrue((artifact / "first-selected-evidence.json").exists())
             self.assertTrue((artifact / "first-structured.json").exists())
+
+    def test_production_parity_matches_production_deterministic_repairs(self) -> None:
+        def finding_set(rows: list[dict[str, Any]]) -> set[tuple[str, str, str]]:
+            return {
+                (row["level"], row["check"], row["message"])
+                for row in rows
+            }
+
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, evaluation_output = self._resume_fixture(
+                temporary, case_count=1
+            )
+            evaluator_adapter = DeterministicallyRepairableStructuredFakeAdapter(
+                "fixture"
+            )
+            run_evaluation(
+                [evaluator_adapter],
+                {"production": prompt},
+                evaluation_output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+            )
+            evaluator_manifest = json.loads(
+                (evaluation_output / "manifest.json").read_text(encoding="utf-8")
+            )
+            evaluator_row = evaluator_manifest["results"][0]
+
+            production_adapter = DeterministicallyRepairableStructuredFakeAdapter(
+                "fixture"
+            )
+            production_run = temporary / "production-run"
+            settings = RunnerSettings(
+                config_path=temporary / "config.json",
+                sources_path=ROOT / "sources.json",
+                prompt_path=prompt,
+                output_path=temporary / "briefing.md",
+                corpus_path=DEFAULT_CORPUS,
+                timeout_seconds=30,
+            )
+            run_workflow(
+                StructuredAdapterProvider(production_adapter),
+                settings,
+                production_run,
+            )
+            production_manifest = json.loads(
+                (production_run / "manifest.json").read_text(encoding="utf-8")
+            )
+
+            production_repairs: list[dict[str, Any]] = []
+            attempts = production_manifest["attempts"]
+            for index, attempt in enumerate(attempts):
+                if attempt["kind"] not in {"selection_repair", "deterministic_repair"}:
+                    continue
+                before = json.loads(
+                    (production_run / attempts[index - 1]["findings_artifact"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                after = json.loads(
+                    (production_run / attempt["findings_artifact"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                production_repairs.append({
+                    "stage": (
+                        "selection"
+                        if attempt["kind"] == "selection_repair"
+                        else "prose"
+                    ),
+                    "findings_before": finding_set(before),
+                    "findings_after": finding_set(after),
+                    "actions": attempt["repair_actions"],
+                })
+
+        evaluator_repairs = evaluator_row["first"]["deterministic_repairs"]
+        self.assertFalse(evaluator_row["correction_attempted"])
+        self.assertEqual(len(evaluator_adapter.requests), 2)
+        self.assertEqual(len(production_adapter.requests), 2)
+        self.assertEqual(len(evaluator_repairs), 2)
+        self.assertEqual(
+            [repair["stage"] for repair in evaluator_repairs],
+            [repair["stage"] for repair in production_repairs],
+        )
+        for evaluator_repair, production_repair in zip(
+            evaluator_repairs, production_repairs, strict=True
+        ):
+            self.assertEqual(
+                finding_set(evaluator_repair["findings_before"]),
+                production_repair["findings_before"],
+            )
+            self.assertEqual(
+                finding_set(evaluator_repair["findings_after"]),
+                production_repair["findings_after"],
+            )
+            self.assertEqual(
+                evaluator_repair["actions"], production_repair["actions"]
+            )
 
     def test_production_parity_correction_repairs_structured_output_before_rendering(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -4231,6 +4500,20 @@ class RunnerTest(unittest.TestCase):
             _mutate({}, [{"path": [], "value": "x"}])
         with self.assertRaisesRegex(ValueError, "path does not exist"):
             _mutate({}, [{"path": ["missing", 0], "value": "x"}])
+
+    def test_mutation_rejects_a_misspelled_final_dict_key(self) -> None:
+        target = {"story": {"title": "before"}}
+        with self.assertRaisesRegex(
+            ValueError,
+            r'mutation 0 path does not exist: \["story", "titel"\]',
+        ):
+            _mutate(target, [{"path": ["story", "titel"], "value": "after"}])
+        self.assertEqual(target, {"story": {"title": "before"}})
+
+    def test_mutation_updates_an_existing_dict_key(self) -> None:
+        target = {"story": {"title": "before"}}
+        _mutate(target, [{"path": ["story", "title"], "value": "after"}])
+        self.assertEqual(target["story"]["title"], "after")
 
     def test_generation_case_rejects_unknown_or_malformed_assertions(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown fields: must_inlcude_urls"):
