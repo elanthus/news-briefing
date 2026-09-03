@@ -1010,8 +1010,76 @@ class RunnerTests(unittest.TestCase):
                         with self.assertRaises(SystemExit) as raised:
                             briefing_cli.main()
                     self.assertEqual(raised.exception.code, 2)
-                    self.assertIn("applies to --provider openrouter only", stderr.getvalue())
+                    self.assertIn("applies to --provider openrouter", stderr.getvalue())
                     provider_for.assert_not_called()
+
+    def test_cli_rejects_endpoint_and_reasoning_outside_their_providers(self):
+        cases = [
+            ("openrouter", "--endpoint", "http://127.0.0.1:8080/v1/chat/completions", "--endpoint applies"),
+            ("codex-cli", "--endpoint", "http://127.0.0.1:8080/v1/chat/completions", "--endpoint applies"),
+            ("claude-code-cli", "--lean-schema", None, "--lean-schema applies"),
+            ("openai-compatible", "--reasoning", "enabled", "applies to --provider openrouter only"),
+            ("openai-compatible", "--reasoning-effort", "high", "applies to --provider openrouter only"),
+        ]
+        for provider, option, value, message in cases:
+            with self.subTest(provider=provider, option=option), tempfile.TemporaryDirectory() as directory:
+                argv = [
+                    "run_briefing.py",
+                    "--provider",
+                    provider,
+                    "--model",
+                    "test-model",
+                    "--output",
+                    str(Path(directory) / "briefing.md"),
+                    option,
+                ] + ([value] if value is not None else [])
+                with patch.object(sys, "argv", argv), patch.object(
+                    sys, "stderr", io.StringIO()
+                ) as stderr, patch.object(briefing_cli, "provider_for") as provider_for:
+                    with self.assertRaises(SystemExit) as raised:
+                        briefing_cli.main()
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn(message, stderr.getvalue())
+                provider_for.assert_not_called()
+
+    def test_cli_passes_sampling_options_and_endpoint_to_openai_compatible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "briefing.md"
+            argv = [
+                "run_briefing.py",
+                "--provider",
+                "openai-compatible",
+                "--model",
+                "qwen3:32b",
+                "--output",
+                str(output),
+                "--temperature",
+                "0.2",
+                "--max-tokens",
+                "8000",
+                "--endpoint",
+                "http://127.0.0.1:8080/v1/chat/completions",
+                "--lean-schema",
+            ]
+            result = RunResult(0, root / "run", output, "ready")
+            with patch.object(sys, "argv", argv), patch.object(
+                briefing_cli, "provider_for", return_value=FakeProvider([])
+            ) as provider_for, patch.object(
+                briefing_cli, "run_workflow", return_value=result
+            ), patch("builtins.print"):
+                exit_code = briefing_cli.main()
+        self.assertEqual(exit_code, 0)
+        provider_for.assert_called_once_with(
+            "openai-compatible",
+            "qwen3:32b",
+            temperature=0.2,
+            reasoning_enabled=None,
+            reasoning_effort=None,
+            max_tokens=8000,
+            endpoint="http://127.0.0.1:8080/v1/chat/completions",
+            lean_schema=True,
+        )
 
     def test_cli_propagates_runner_exit_code_and_cli_provider_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1042,7 +1110,9 @@ class RunnerTests(unittest.TestCase):
             temperature=0,
             reasoning_enabled=None,
             reasoning_effort=None,
-            max_tokens=100_000,
+            max_tokens=None,
+            endpoint=None,
+            lean_schema=False,
         )
 
     def test_cli_enables_openrouter_reasoning_by_default(self):
@@ -1072,7 +1142,9 @@ class RunnerTests(unittest.TestCase):
             temperature=0,
             reasoning_enabled=True,
             reasoning_effort=None,
-            max_tokens=100_000,
+            max_tokens=None,
+            endpoint=None,
+            lean_schema=False,
         )
 
 

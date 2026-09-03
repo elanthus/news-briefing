@@ -48,7 +48,14 @@ python3 -S run_briefing.py --provider codex-cli --model gpt-5.6-terra --output b
 
 # OpenRouter: needs OPENROUTER_API_KEY in your environment, takes any model OpenRouter serves
 python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-flash --output briefing.md
+
+# Local model: any OpenAI-compatible server. Defaults to Ollama on localhost; --endpoint points elsewhere
+python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --output briefing.md
 ```
+
+The local path needs a context window large enough for the corpus. A full run sends roughly 30,000 prompt tokens, and Ollama's default window is much smaller than that and truncates silently, so start it with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve` or shrink the corpus with `--source-cap` and `--category-cap`. llama.cpp server, LM Studio, and vLLM work the same way through `--endpoint http://host:port/v1/chat/completions`, and `OPENAI_COMPATIBLE_API_KEY` is sent as a bearer token when set.
+
+The output schema is enforced by the server's constrained decoder, and engines differ in how fast they compile it. llama.cpp's grammar path, which Ollama and GGUF models in LM Studio use, handles it directly. LM Studio's MLX engine expands bounded arrays into explicit states and did not finish compiling the full schema in 25 minutes. For that engine add `--lean-schema`, which drops the string-length bounds and the ranged array-size bounds and leaves the enums and exact-count arrays, so every citation is still limited to an eligible handle at the grammar level, the prose pass still returns exactly one entry per frozen selection, and the checker still enforces section sizes, text lengths, and duplicates. A run that times out on the first model call without ever generating is almost always this.
 
 A run fetches live sources, generates, validates, repairs what it can, and asks the model to correct what it can't. `--hours` moves the window, `--source-cap` and `--category-cap` bound how much any one publisher contributes, and `--strict` returns nonzero on any finding or degraded source.
 
@@ -100,10 +107,10 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | | |
 |---|---|
 | **Runs** | Unattended daily on GitHub Actions. 150–250 items per run across RSS, Hacker News, and Reddit; a fallback chain across three models until one run passes the gate. |
-| **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; three provider adapters (OpenRouter, Claude Code CLI, Codex CLI) behind one protocol. |
+| **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 683 offline tests (467 core, 160 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
+| **Verification** | 700 offline tests (484 core, 160 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
 
 ## Architecture
 
@@ -142,7 +149,7 @@ The [parity v1 model card](docs/results/parity-v1.md) has the full comparison an
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 467 core tests
+python3 -S -m unittest -v                              # 484 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 160 evaluator tests
 ```
 

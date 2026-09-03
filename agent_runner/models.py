@@ -49,6 +49,7 @@ class ProviderError(RuntimeError):
         provider_request_id: str | None = None,
         ambiguous_completion: bool = False,
         openrouter_model_404: bool = False,
+        output_truncated: bool = False,
     ):
         super().__init__(message)
         self.transient = transient
@@ -58,6 +59,7 @@ class ProviderError(RuntimeError):
         self.provider_request_id = provider_request_id
         self.ambiguous_completion = ambiguous_completion
         self.openrouter_model_404 = openrouter_model_404
+        self.output_truncated = output_truncated
 
     def record(self) -> dict[str, Any]:
         return {
@@ -70,6 +72,7 @@ class ProviderError(RuntimeError):
             "provider_request_id": self.provider_request_id,
             "ambiguous_completion": self.ambiguous_completion,
             "openrouter_model_404": self.openrouter_model_404,
+            "output_truncated": self.output_truncated,
         }
 
 
