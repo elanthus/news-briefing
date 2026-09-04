@@ -110,7 +110,7 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 728 offline tests (505 core, 167 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
+| **Verification** | 742 offline tests (519 core, 167 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
 
 ## Architecture
 
@@ -149,7 +149,7 @@ The [parity v1 model card](docs/results/parity-v1.md) has the full comparison an
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 505 core tests
+python3 -S -m unittest -v                              # 519 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 167 evaluator tests
 ```
 
@@ -162,6 +162,7 @@ CI runs the offline suites on Python 3.11–3.14 with `ruff` and strict `mypy`. 
 - [Development and review workflow](docs/ai-workflow.md) — automated review, local gates, and recorded agent use
 - [My news agent fabricated a citation. The checker caught it.](docs/writeups/injection-benchmark-post.md) — the origin story and what $3.80 of evaluation bought
 - [Customizing the briefing](docs/customizing.md) — sources, sections, corpus preview, and replay
+- [Operational run triage](docs/triage.md) — deterministic failure classes and manual diagnostics workflow
 - [Design notes](docs/design.md) — why each stage works the way it does
 - [Evaluation methodology](docs/evaluation-methodology.md) — threat model, labels, denominators, limitations
 - [Parity v1 model card](docs/results/parity-v1.md) — the production-path benchmark run

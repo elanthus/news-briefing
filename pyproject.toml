@@ -15,6 +15,7 @@ files = [
     "run_briefing.py",
     "run_daily_briefing.py",
     "daily_publish.py",
+    "triage_run.py",
     "prepare_publication.py",
     "publication_schema.py",
     "bootstrap_history.py",
