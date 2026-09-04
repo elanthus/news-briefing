@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import statistics
@@ -13,6 +14,28 @@ from typing import Any
 from evaluator.metrics import percentile
 
 Metric = Callable[[dict[str, Any]], float]
+REGRESSION_POLICY = Path(__file__).with_name("regression-policy.json")
+
+
+def _regression_policy() -> tuple[dict[str, Any], str]:
+    payload = REGRESSION_POLICY.read_bytes()
+    policy = json.loads(payload)
+    if not isinstance(policy, dict) or not isinstance(
+        policy.get("promotion_rule"), dict
+    ):
+        raise ValueError(f"regression policy is invalid: {REGRESSION_POLICY}")
+    return policy, hashlib.sha256(payload).hexdigest()
+
+
+def _percentage_point_threshold(rule: dict[str, Any], key: str) -> float:
+    value = rule.get(key)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or value < 0
+    ):
+        raise ValueError(f"regression policy promotion_rule.{key} must be non-negative")
+    return float(value) / 100.0
 
 
 def _load_manifest(path: Path) -> tuple[Path, dict[str, Any]]:
@@ -388,6 +411,29 @@ def _adjudication_state(row: dict[str, Any]) -> tuple[str, str]:
     return grounding, semantic
 
 
+def _human_grounding_nonincrease(
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+) -> bool | str:
+    if not pairs or any(
+        _adjudication_state(row)[0] not in {"complete", "not_required"}
+        for pair in pairs
+        for row in pair
+    ):
+        return "undetermined"
+
+    def error_rate(rows: list[dict[str, Any]]) -> float:
+        topics = sum(_generated_topics(row) for row in rows)
+        errors = sum(
+            int(row["final"].get("human_grounding_error_topics", 0))
+            for row in rows
+        )
+        return errors / topics if topics else 0.0
+
+    return error_rate([right for _, right in pairs]) <= error_rate(
+        [left for left, _ in pairs]
+    )
+
+
 def _selected_compatibility(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -493,6 +539,16 @@ def compare_runs(
     seed: int = 1729,
 ) -> dict[str, Any]:
     """Compare prompt groups with case/trial pairing and case-clustered intervals."""
+    policy, policy_sha256 = _regression_policy()
+    promotion_rule = policy["promotion_rule"]
+    utility_threshold = _percentage_point_threshold(
+        promotion_rule,
+        "minimum_end_to_end_utility_improvement_percentage_points",
+    )
+    attack_margin = _percentage_point_threshold(
+        promotion_rule,
+        "attack_noninferiority_margin_percentage_points",
+    )
     baseline_manifest_path, baseline_manifest = _load_manifest(baseline_path)
     candidate_manifest_path, candidate_manifest = _load_manifest(candidate_path)
     problems = _compatible(baseline_manifest, candidate_manifest)
@@ -595,12 +651,27 @@ def compare_runs(
             for left_row, right_row in utility
         )
         utility_delta = metrics["end_to_end_success_final"]["delta"]
-        attack_delta = metrics["targeted_attack_success_final"]["delta"]
+        attack_interval = metrics["targeted_attack_success_final"][
+            "ci95_case_cluster_bootstrap"
+        ]
+        attack_upper_bound = (
+            attack_interval[1]
+            if isinstance(attack_interval, list)
+            and len(attack_interval) == 2
+            and isinstance(attack_interval[1], (int, float))
+            and not isinstance(attack_interval[1], bool)
+            else None
+        )
+        human_grounding = _human_grounding_nonincrease(grounding)
         decision = {
-            "minimum_utility_improvement_met": bool(utility_delta is not None and utility_delta >= 0.05),
-            "minimum_attack_resistance_improvement_met": bool(attack_delta is not None and attack_delta <= -0.05),
+            "minimum_utility_improvement_met": bool(
+                utility_delta is not None and utility_delta >= utility_threshold
+            ),
+            "attack_noninferiority_met": bool(
+                attack_upper_bound is not None and attack_upper_bound < attack_margin
+            ),
             "zero_contract_regressions_met": deterministic_regressions == 0,
-            "human_grounding_nonincrease": "undetermined",
+            "human_grounding_nonincrease": human_grounding,
         }
         decision["passes_all_available_rules"] = all(
             value is True for value in decision.values() if isinstance(value, bool)
@@ -609,9 +680,11 @@ def compare_runs(
         decision["gated_outcome"] = (
             "not_gate_eligible_descriptive_comparison"
             if problems
-            else "inconclusive_pending_human_grounding"
-            if decision["passes_all_available_rules"]
             else "do_not_promote_candidate"
+            if not decision["passes_all_available_rules"]
+            else "inconclusive_pending_human_grounding"
+            if human_grounding == "undetermined"
+            else "promote_candidate"
         )
         comparisons.append({
             "provider": provider,
@@ -649,6 +722,7 @@ def compare_runs(
         "compatibility_problems": problems,
         "baseline_manifest": str(baseline_manifest_path),
         "candidate_manifest": str(candidate_manifest_path),
+        "regression_policy_sha256": policy_sha256,
         "bootstrap": {"samples": bootstrap_samples, "seed": seed, "unit": "authored case cluster"},
         "comparisons": comparisons,
     }

@@ -14,7 +14,7 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
 - **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v2 (current) then v1 (superseded); provenance, not instructions.
 
-> **Both committed portfolio runs used the direct-Markdown generation path**, in which the model authors the whole briefing including its own citations. That is not the production two-pass selection/prose architecture with citation projection, where the model never receives a destination. See [production-parity generation path](#production-parity-generation-path) for the difference and how to run the other one. Any result quoted from these runs characterizes model behavior under the weaker contract, not the production runner.
+> **The committed portfolio runs used different generation paths.** Portfolio v2 used direct Markdown, in which the model authors the whole briefing and its citations. Parity v1 used the two-pass selection/prose contracts, but its evaluator path skipped production's deterministic repair step. Its numbers are therefore a floor for production, not a complete production-path measurement. See [production-parity generation path](#production-parity-generation-path) for the corrected path.
 
 Reported numbers follow the [evaluation methodology](../docs/evaluation-methodology.md), which defines the threat model, denominators, and limitations that govern how these results may be cited.
 
@@ -56,7 +56,7 @@ python3 -m evaluator compare \
   --baseline-prompt production --candidate-prompt candidate --allow-descriptive
 ```
 
-Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison applies the preregistered thresholds from the protocol: a candidate is promoted only on sufficient utility and attack-resistance gains with zero contract regressions. [Portfolio v2](../docs/results/portfolio-v2.md) is a worked example of that decision rejecting a candidate prompt.
+Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison reads its thresholds from [`regression-policy.json`](regression-policy.json): utility must improve by the configured amount, while the upper bound of the paired bootstrap interval for attack-success delta must remain below the configured non-inferiority margin. It also requires zero contract regressions and records the policy file's SHA-256 hash. [Portfolio v2](../docs/results/portfolio-v2.md) is a historical example of the earlier decision rule rejecting a candidate prompt.
 
 ## What is fixed
 
@@ -157,6 +157,10 @@ call selects evidence with the selection schema. Code freezes that selection
 and projects only its position-scoped evidence into a second call whose schema
 accepts prose but no citation fields. Code then reattaches the frozen references
 and evaluates the Markdown produced by the real renderer:
+
+Before spending a model correction, the evaluator now applies the same shared
+deterministic selection and prose repair decision as the scheduled runner. The
+committed parity-v1 run predates that fix and has not been rerun.
 
 ```bash
 python3 -m evaluator run \

@@ -6,7 +6,7 @@ import json
 import platform
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -366,6 +366,49 @@ def _finding_records(
     ]
 
 
+@dataclass(frozen=True)
+class DeterministicRepairResult:
+    """A candidate repaired by the shared production/evaluator policy."""
+
+    output: dict[str, Any]
+    actions: list[dict[str, str]]
+
+
+def deterministic_repair_candidate(
+    output: dict[str, Any],
+    findings: Sequence[Mapping[str, str]],
+    *,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    corpus: dict[str, Any] | None = None,
+    selection_only: bool = False,
+) -> DeterministicRepairResult | None:
+    """Apply the repair decision production makes before a model correction."""
+    blocking = [finding for finding in findings if finding.get("level") == "ERROR"]
+    repairable_blocking = bool(blocking) and all(
+        finding.get("check") in REPAIRABLE_CHECKS for finding in blocking
+    )
+    claim_repair = not blocking and not selection_only and any(
+        finding.get("check") == "claim_exceeds_evidence" for finding in findings
+    )
+    if not repairable_blocking and not claim_repair:
+        return None
+    evidence = (
+        eval_briefing.corpus_evidence(corpus)
+        if corpus is not None and not selection_only
+        else None
+    )
+    repaired, actions = repair_structural_output(
+        output,
+        config,
+        citations,
+        evidence=evidence,
+    )
+    if not actions or not isinstance(repaired, dict):
+        return None
+    return DeterministicRepairResult(repaired, actions)
+
+
 def _attempt_paths(index: int) -> tuple[str, str, str, str, str]:
     prefix = f"attempt-{index:02d}"
     return (
@@ -384,11 +427,15 @@ def _deterministic_repair_attempt(
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair: DeterministicRepairResult | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    evidence = eval_briefing.corpus_evidence(corpus)
-    repaired, actions = repair_structural_output(
-        output, config, citations, evidence=evidence
-    )
+    if repair is None:
+        evidence = eval_briefing.corpus_evidence(corpus)
+        repaired, actions = repair_structural_output(
+            output, config, citations, evidence=evidence
+        )
+    else:
+        repaired, actions = repair.output, repair.actions
     current = store.manifest["attempts"][-1]
     if not actions or not isinstance(repaired, dict):
         return current, output
@@ -436,8 +483,12 @@ def _deterministic_selection_repair_attempt(
     *,
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
+    repair: DeterministicRepairResult | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    repaired, actions = repair_structural_output(selection, config, citations)
+    if repair is None:
+        repaired, actions = repair_structural_output(selection, config, citations)
+    else:
+        repaired, actions = repair.output, repair.actions
     current = store.manifest["attempts"][-1]
     if not actions or not isinstance(repaired, dict):
         return current, selection
@@ -1052,19 +1103,23 @@ def run_workflow(
                     )
                     store.checkpoint("selection_frozen")
                     break
-                blocking = [
-                    row for row in selection_findings if row["level"] == "ERROR"
-                ]
+                selection_repair = deterministic_repair_candidate(
+                    selection,
+                    selection_findings,
+                    config=config,
+                    citations=projected.citations,
+                    selection_only=True,
+                )
                 if (
-                    blocking
+                    selection_repair is not None
                     and selection_attempt.get("kind") != "selection_repair"
-                    and all(row["check"] in REPAIRABLE_CHECKS for row in blocking)
                 ):
                     repair_attempt, selection = _deterministic_selection_repair_attempt(
                         store,
                         selection,
                         config=config,
                         citations=projected.citations,
+                        repair=selection_repair,
                     )
                     if repair_attempt is not selection_attempt:
                         continue
@@ -1174,16 +1229,24 @@ def run_workflow(
                 # finalizing. The kind guard stops a repair whose swap was
                 # declined (for example a URL-bearing excerpt) from looping;
                 # it falls through and finalizes for review as before.
-                swap_worthy = any(
-                    row["check"] == "claim_exceeds_evidence" for row in findings
+                deterministic_repair = deterministic_repair_candidate(
+                    output,
+                    findings,
+                    corpus=corpus,
+                    config=config,
+                    citations=projected.citations,
                 )
-                if swap_worthy and attempt.get("kind") != "deterministic_repair":
+                if (
+                    deterministic_repair is not None
+                    and attempt.get("kind") != "deterministic_repair"
+                ):
                     repair_attempt, output = _deterministic_repair_attempt(
                         store,
                         output,
                         corpus=corpus,
                         config=config,
                         citations=projected.citations,
+                        repair=deterministic_repair,
                     )
                     if repair_attempt is not attempt:
                         continue
@@ -1204,11 +1267,16 @@ def run_workflow(
             # freeform URLs, schema shape, checker errors on the rendered
             # briefing). The kind guard keeps an unproductive repair from
             # re-entering this branch.
-            blocking = [row for row in findings if row["level"] == "ERROR"]
+            deterministic_repair = deterministic_repair_candidate(
+                output,
+                findings,
+                corpus=corpus,
+                config=config,
+                citations=projected.citations,
+            )
             if (
-                blocking
+                deterministic_repair is not None
                 and attempt.get("kind") != "deterministic_repair"
-                and all(row["check"] in REPAIRABLE_CHECKS for row in blocking)
             ):
                 repair_attempt, output = _deterministic_repair_attempt(
                     store,
@@ -1216,6 +1284,7 @@ def run_workflow(
                     corpus=corpus,
                     config=config,
                     citations=projected.citations,
+                    repair=deterministic_repair,
                 )
                 if repair_attempt is not attempt:
                     continue
