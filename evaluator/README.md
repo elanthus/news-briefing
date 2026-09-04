@@ -56,7 +56,7 @@ python3 -m evaluator compare \
   --baseline-prompt production --candidate-prompt candidate --allow-descriptive
 ```
 
-Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison reads its thresholds from [`regression-policy.json`](regression-policy.json): utility must improve by the configured amount, while the upper bound of the paired bootstrap interval for attack-success delta must remain below the configured non-inferiority margin. It also requires zero contract regressions and records the policy file's SHA-256 hash. [Portfolio v2](../docs/results/portfolio-v2.md) is a historical example of the earlier decision rule rejecting a candidate prompt.
+Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison reads its thresholds from [`regression-policy.json`](regression-policy.json): utility must improve by the configured amount, while the upper bound of the paired bootstrap interval for attack-success delta must remain below the configured non-inferiority margin. It also requires zero contract regressions and records the policy file's SHA-256 hash. [Portfolio v2](../docs/results/portfolio-v2.md) is a historical candidate rejection whose archived comparison predates the current non-inferiority rule.
 
 ## What is fixed
 
