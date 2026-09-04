@@ -7,39 +7,31 @@ import argparse
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 from agent_runner.outcomes import is_actionable_finding
+from publication_schema import (
+    FINDING_FIELDS,
+    ReviewContext,
+    ReviewFinding,
+    finding_has_fields,
+    finding_level_is_valid,
+    finding_payload,
+    finding_strings_are_valid,
+    parse_repair_actions,
+)
 
 FINAL_STATUSES = {"ready", "review_required", "rejected", "no_result"}
 PUBLIC_ARTIFACTS = {
     "ready": ("final", "final.md"),
     "review_required": ("preview", "preview.md"),
 }
-FINDING_FIELDS = {"level", "check", "domain", "message"}
 STRUCTURED_PATH = re.compile(r"^(topics|excluded_topics)\.(.+?)\[(\d+)\]")
 EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
 FALLBACK_LOG_NAME = "fallback-log.json"
-
-
-@dataclass(frozen=True)
-class ReviewContext:
-    section: str
-    headline: str
-    model_authored: str
-    path: str | None = None
-
-
-@dataclass(frozen=True)
-class ReviewFinding:
-    level: str
-    check: str
-    domain: str
-    message: str
-    context: ReviewContext | None = None
 
 
 @dataclass(frozen=True)
@@ -56,7 +48,7 @@ class PublicationRecord:
             "date": self.date,
             "disposition": self.disposition,
             "findings_count": self.findings_count,
-            "findings": [asdict(finding) for finding in self.findings],
+            "findings": [finding_payload(finding) for finding in self.findings],
             "degraded_sources": list(self.degraded_sources),
             "repair_actions": list(self.repair_actions),
         }
@@ -105,11 +97,12 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
         return None
     findings: list[ReviewFinding] = []
     for raw in raw_findings:
-        if not isinstance(raw, dict) or set(raw) != FINDING_FIELDS:
+        if not finding_has_fields(raw, {frozenset(FINDING_FIELDS)}):
             return None
-        if any(not isinstance(raw[field], str) or not raw[field].strip() for field in FINDING_FIELDS):
+        assert isinstance(raw, dict)
+        if not finding_strings_are_valid(raw):
             return None
-        if raw["level"] not in {"ERROR", "WARN"}:
+        if not finding_level_is_valid(raw):
             return None
         findings.append(
             ReviewFinding(
@@ -184,9 +177,6 @@ def _final_structured_output(
     return payload if isinstance(payload, dict) else None
 
 
-REPAIR_ACTION_FIELDS = {"action", "path", "reason"}
-
-
 def _extract_repair_actions(
     manifest: dict[str, Any],
     final: dict[str, Any],
@@ -194,17 +184,7 @@ def _extract_repair_actions(
     attempt = _final_attempt(manifest, final)
     if attempt is None or attempt.get("kind") != "deterministic_repair":
         return ()
-    raw_actions = attempt.get("repair_actions")
-    if not isinstance(raw_actions, list):
-        return ()
-    actions: list[dict[str, str]] = []
-    for raw in raw_actions:
-        if not isinstance(raw, dict) or set(raw) != REPAIR_ACTION_FIELDS:
-            return ()
-        if any(not isinstance(raw[k], str) for k in REPAIR_ACTION_FIELDS):
-            return ()
-        actions.append(raw)
-    return tuple(actions)
+    return parse_repair_actions(attempt.get("repair_actions"))
 
 
 def _review_context(
@@ -284,9 +264,13 @@ def _attach_review_context(
             check=finding.check,
             domain=finding.domain,
             message=finding.message,
-            context=_review_context(finding, output),
+            section=context.section if context is not None else None,
+            headline=context.headline if context is not None else None,
+            model_authored=context.model_authored if context is not None else None,
+            path=context.path if context is not None else None,
         )
         for finding in findings
+        for context in [_review_context(finding, output)]
     )
 
 

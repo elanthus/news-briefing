@@ -947,6 +947,336 @@ def _finalize_after_deterministic_repair(
     )
 
 
+def _selected_refs(selection: dict[str, Any]) -> set[str]:
+    return {
+        ref
+        for section in selection["sections"].values()
+        for entry in section["topics"]
+        for ref in entry["citation_refs"]
+    } | {
+        ref
+        for entries in selection["excluded_topics"].values()
+        for entry in entries
+        for ref in entry["citation_refs"]
+    }
+
+
+@dataclass(frozen=True)
+class _SelectionResult:
+    selection: dict[str, Any]
+    finalized: RunResult | None = None
+
+
+def _select_evidence(
+    store: RunStore,
+    provider: ModelProvider,
+    *,
+    selection_request: str,
+    selection_schema: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    retained_items: int,
+    corpus: dict[str, Any],
+    settings: RunnerSettings,
+) -> _SelectionResult:
+    frozen_path = store.root / "frozen-selection.json"
+    if frozen_path.is_file():
+        selection = json.loads(store.read_verified_text("frozen-selection.json"))
+        store.manifest["citation_cardinality"]["selected_items"] = len(
+            _selected_refs(selection)
+        )
+        return _SelectionResult(selection)
+
+    selection_attempts = [
+        attempt for attempt in store.manifest["attempts"]
+        if attempt.get("kind") in {
+            "selection", "selection_correction", "selection_repair"
+        }
+    ]
+    if not selection_attempts:
+        selection = _call_provider(
+            store,
+            provider,
+            prompt=selection_request,
+            schema=selection_schema,
+            timeout_seconds=settings.timeout_seconds,
+            kind="selection",
+        )
+    else:
+        selection_attempt = selection_attempts[-1]
+        selection = json.loads(
+            (store.root / selection_attempt["structured_artifact"]).read_text(
+                encoding="utf-8"
+            )
+        )
+
+    while True:
+        selection_attempt = store.manifest["attempts"][-1]
+        if selection_attempt.get("kind") not in {
+            "selection", "selection_correction", "selection_repair"
+        }:
+            raise RuntimeError("prose generation started before evidence was frozen")
+        if selection_attempt["validated"]:
+            selection_findings = json.loads(
+                (store.root / selection_attempt["findings_artifact"]).read_text(
+                    encoding="utf-8"
+                )
+            )
+        else:
+            selection_findings = _validate_selection_attempt(
+                store,
+                selection_attempt,
+                selection,
+                config=config,
+                citations=citations,
+            )
+        if selection_attempt["contract_success"]:
+            selected_refs = _selected_refs(selection)
+            store.write_json("frozen-selection.json", selection)
+            store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
+            store.trace(
+                "evidence_selection_frozen",
+                attempt=selection_attempt["index"],
+                retained_items=retained_items,
+                model_visible_handles=len(citations),
+                selected_items=len(selected_refs),
+            )
+            store.checkpoint("selection_frozen")
+            return _SelectionResult(selection)
+        selection_repair = deterministic_repair_candidate(
+            selection,
+            selection_findings,
+            config=config,
+            citations=citations,
+            selection_only=True,
+        )
+        if (
+            selection_repair is not None
+            and selection_attempt.get("kind") != "selection_repair"
+        ):
+            repair_attempt, selection = _deterministic_selection_repair_attempt(
+                store,
+                selection,
+                config=config,
+                citations=citations,
+                repair=selection_repair,
+            )
+            if repair_attempt is not selection_attempt:
+                continue
+        if (
+            _corrections_used(store, "selection_correction")
+            >= settings.max_corrections
+        ):
+            return _SelectionResult(
+                selection,
+                _finalize_selection_preview(
+                    store,
+                    selection_attempt,
+                    selection,
+                    corpus=corpus,
+                    settings=settings,
+                ),
+            )
+        correction = correction_request(
+            selection_request,
+            selection,
+            selection_findings,
+        )
+        try:
+            selection = _call_provider(
+                store,
+                provider,
+                prompt=correction,
+                schema=selection_schema,
+                timeout_seconds=settings.timeout_seconds,
+                kind="selection_correction",
+            )
+        except ProviderError as exc:
+            store.manifest["correction_error"] = exc.record()
+            store.trace("selection_correction_failed", **exc.record())
+            store.checkpoint("selection_correction_failed")
+            return _SelectionResult(
+                selection,
+                _finalize_selection_preview(
+                    store,
+                    selection_attempt,
+                    selection,
+                    corpus=corpus,
+                    settings=settings,
+                ),
+            )
+
+
+def _write_prose(
+    store: RunStore,
+    provider: ModelProvider,
+    *,
+    selection: dict[str, Any],
+    prose_request: str,
+    prose_schema: dict[str, Any],
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    settings: RunnerSettings,
+) -> RunResult:
+    prose_attempts = [
+        attempt for attempt in store.manifest["attempts"]
+        if attempt.get("kind") not in {
+            "selection", "selection_correction", "selection_repair"
+        }
+    ]
+    if not prose_attempts:
+        output = _call_provider(
+            store,
+            provider,
+            prompt=prose_request,
+            schema=prose_schema,
+            timeout_seconds=settings.timeout_seconds,
+            kind="prose",
+            transform=lambda prose: attach_frozen_selection(selection, prose, config),
+        )
+    else:
+        last = prose_attempts[-1]
+        output = json.loads(
+            (store.root / last["structured_artifact"]).read_text(encoding="utf-8")
+        )
+
+    while True:
+        attempt = store.manifest["attempts"][-1]
+        if attempt["validated"]:
+            findings = json.loads(
+                (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
+            )
+        else:
+            prose_findings: Sequence[OutputFinding] = ()
+            if attempt.get("kind") in {"prose", "correction"}:
+                model_output = json.loads(
+                    (store.root / attempt["model_output_artifact"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                prose_findings = validate_prose_output(model_output, config, selection)
+            findings = _validate_attempt(
+                store,
+                attempt,
+                output,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                # A resumed repair attempt validated here must render its
+                # recorded swap markers exactly as the unresumed run would.
+                repair_actions=attempt.get("repair_actions") or (),
+                pre_findings=prose_findings,
+            )
+        if attempt["contract_success"]:
+            deterministic_repair = deterministic_repair_candidate(
+                output,
+                findings,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+            )
+            if (
+                deterministic_repair is not None
+                and attempt.get("kind") != "deterministic_repair"
+            ):
+                repair_attempt, output = _deterministic_repair_attempt(
+                    store,
+                    output,
+                    corpus=corpus,
+                    config=config,
+                    citations=citations,
+                    repair=deterministic_repair,
+                )
+                if repair_attempt is not attempt:
+                    continue
+            return _finalize_candidate(
+                store,
+                attempt,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                settings=settings,
+            )
+        deterministic_repair = deterministic_repair_candidate(
+            output,
+            findings,
+            corpus=corpus,
+            config=config,
+            citations=citations,
+        )
+        if (
+            deterministic_repair is not None
+            and attempt.get("kind") != "deterministic_repair"
+        ):
+            repair_attempt, output = _deterministic_repair_attempt(
+                store,
+                output,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                repair=deterministic_repair,
+            )
+            if repair_attempt is not attempt:
+                continue
+        if _corrections_used(store, "correction") >= settings.max_corrections:
+            return _finalize_after_deterministic_repair(
+                store,
+                attempt,
+                output,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                settings=settings,
+            )
+        try:
+            correction = correction_request(
+                prose_request,
+                detach_prose(output, config),
+                findings,
+                prose_only=True,
+            )
+        except ValueError as exc:
+            store.manifest["correction_error"] = {
+                "type": type(exc).__name__, "message": str(exc)}
+            store.trace(
+                "correction_skipped", type=type(exc).__name__, message=str(exc)
+            )
+            store.checkpoint("correction_skipped")
+            return _finalize_after_deterministic_repair(
+                store,
+                attempt,
+                output,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                settings=settings,
+            )
+        try:
+            output = _call_provider(
+                store,
+                provider,
+                prompt=correction,
+                schema=prose_schema,
+                timeout_seconds=settings.timeout_seconds,
+                kind="correction",
+                transform=lambda prose: attach_frozen_selection(selection, prose, config),
+            )
+        except ProviderError as exc:
+            store.manifest["correction_error"] = exc.record()
+            store.trace("correction_failed", **exc.record())
+            store.checkpoint("correction_failed")
+            return _finalize_after_deterministic_repair(
+                store,
+                attempt,
+                output,
+                corpus=corpus,
+                config=config,
+                citations=citations,
+                settings=settings,
+            )
+
+
 def run_workflow(
     provider: ModelProvider,
     settings: RunnerSettings,
@@ -1021,144 +1351,20 @@ def run_workflow(
             store.write_text("selection-request.txt", selection_request)
             store.checkpoint("request_ready")
 
-        frozen_path = store.root / "frozen-selection.json"
-        if frozen_path.is_file():
-            selection = json.loads(store.read_verified_text("frozen-selection.json"))
-            selected_refs = {
-                ref
-                for section in selection["sections"].values()
-                for entry in section["topics"]
-                for ref in entry["citation_refs"]
-            } | {
-                ref
-                for entries in selection["excluded_topics"].values()
-                for entry in entries
-                for ref in entry["citation_refs"]
-            }
-            store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
-        else:
-            selection_attempts = [
-                attempt for attempt in store.manifest["attempts"]
-                if attempt.get("kind") in {
-                    "selection", "selection_correction", "selection_repair"
-                }
-            ]
-            if not selection_attempts:
-                selection = _call_provider(
-                    store,
-                    provider,
-                    prompt=selection_request,
-                    schema=selection_schema,
-                    timeout_seconds=settings.timeout_seconds,
-                    kind="selection",
-                )
-            else:
-                selection_attempt = selection_attempts[-1]
-                selection = json.loads(
-                    (store.root / selection_attempt["structured_artifact"]).read_text(
-                        encoding="utf-8"
-                    )
-                )
-
-            while True:
-                selection_attempt = store.manifest["attempts"][-1]
-                if selection_attempt.get("kind") not in {
-                    "selection", "selection_correction", "selection_repair"
-                }:
-                    raise RuntimeError("prose generation started before evidence was frozen")
-                if selection_attempt["validated"]:
-                    selection_findings = json.loads(
-                        (store.root / selection_attempt["findings_artifact"]).read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                else:
-                    selection_findings = _validate_selection_attempt(
-                        store,
-                        selection_attempt,
-                        selection,
-                        config=config,
-                        citations=projected.citations,
-                    )
-                if selection_attempt["contract_success"]:
-                    selected_refs = {
-                        ref
-                        for section in selection["sections"].values()
-                        for entry in section["topics"]
-                        for ref in entry["citation_refs"]
-                    } | {
-                        ref
-                        for entries in selection["excluded_topics"].values()
-                        for entry in entries
-                        for ref in entry["citation_refs"]
-                    }
-                    store.write_json("frozen-selection.json", selection)
-                    store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
-                    store.trace(
-                        "evidence_selection_frozen",
-                        attempt=selection_attempt["index"],
-                        retained_items=retained_items,
-                        model_visible_handles=len(projected.citations),
-                        selected_items=len(selected_refs),
-                    )
-                    store.checkpoint("selection_frozen")
-                    break
-                selection_repair = deterministic_repair_candidate(
-                    selection,
-                    selection_findings,
-                    config=config,
-                    citations=projected.citations,
-                    selection_only=True,
-                )
-                if (
-                    selection_repair is not None
-                    and selection_attempt.get("kind") != "selection_repair"
-                ):
-                    repair_attempt, selection = _deterministic_selection_repair_attempt(
-                        store,
-                        selection,
-                        config=config,
-                        citations=projected.citations,
-                        repair=selection_repair,
-                    )
-                    if repair_attempt is not selection_attempt:
-                        continue
-                if (
-                    _corrections_used(store, "selection_correction")
-                    >= settings.max_corrections
-                ):
-                    return _finalize_selection_preview(
-                        store,
-                        selection_attempt,
-                        selection,
-                        corpus=corpus,
-                        settings=settings,
-                    )
-                correction = correction_request(
-                    selection_request,
-                    selection,
-                    selection_findings,
-                )
-                try:
-                    selection = _call_provider(
-                        store,
-                        provider,
-                        prompt=correction,
-                        schema=selection_schema,
-                        timeout_seconds=settings.timeout_seconds,
-                        kind="selection_correction",
-                    )
-                except ProviderError as exc:
-                    store.manifest["correction_error"] = exc.record()
-                    store.trace("selection_correction_failed", **exc.record())
-                    store.checkpoint("selection_correction_failed")
-                    return _finalize_selection_preview(
-                        store,
-                        selection_attempt,
-                        selection,
-                        corpus=corpus,
-                        settings=settings,
-                    )
+        selection_result = _select_evidence(
+            store,
+            provider,
+            selection_request=selection_request,
+            selection_schema=selection_schema,
+            config=config,
+            citations=projected.citations,
+            retained_items=retained_items,
+            corpus=corpus,
+            settings=settings,
+        )
+        if selection_result.finalized is not None:
+            return selection_result.finalized
+        selection = selection_result.selection
 
         selected_evidence = project_selected_evidence(selection, projected)
         prose_schema = build_prose_schema(config, selection)
@@ -1169,184 +1375,17 @@ def run_workflow(
             store.write_text("prose-request.txt", prose_request)
             store.checkpoint("prose_request_ready")
 
-        prose_attempts = [
-            attempt for attempt in store.manifest["attempts"]
-            if attempt.get("kind") not in {
-                "selection", "selection_correction", "selection_repair"
-            }
-        ]
-        if not prose_attempts:
-            output = _call_provider(
-                store,
-                provider,
-                prompt=prose_request,
-                schema=prose_schema,
-                timeout_seconds=settings.timeout_seconds,
-                kind="prose",
-                transform=lambda prose: attach_frozen_selection(selection, prose, config),
-            )
-        else:
-            last = prose_attempts[-1]
-            output = json.loads(
-                (store.root / last["structured_artifact"]).read_text(encoding="utf-8")
-            )
-
-        while True:
-            attempt = store.manifest["attempts"][-1]
-            if attempt["validated"]:
-                findings = json.loads(
-                    (store.root / attempt["findings_artifact"]).read_text(encoding="utf-8")
-                )
-            else:
-                prose_findings: Sequence[OutputFinding] = ()
-                if attempt.get("kind") in {"prose", "correction"}:
-                    model_output = json.loads(
-                        (store.root / attempt["model_output_artifact"]).read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                    prose_findings = validate_prose_output(
-                        model_output, config, selection
-                    )
-                findings = _validate_attempt(
-                    store,
-                    attempt,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    # A resumed repair attempt validated here must render its
-                    # recorded swap markers exactly as the unresumed run would.
-                    repair_actions=attempt.get("repair_actions") or (),
-                    pre_findings=prose_findings,
-                )
-            if attempt["contract_success"]:
-                # ``claim_exceeds_evidence`` is a WARN, so the candidate is
-                # contract-clean — but finalizing now would classify it
-                # review_required and withhold the briefing. The same
-                # deterministic repair that handles blocking errors swaps the
-                # oversized summary for its cited excerpt, so run it before
-                # finalizing. The kind guard stops a repair whose swap was
-                # declined (for example a URL-bearing excerpt) from looping;
-                # it falls through and finalizes for review as before.
-                deterministic_repair = deterministic_repair_candidate(
-                    output,
-                    findings,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                )
-                if (
-                    deterministic_repair is not None
-                    and attempt.get("kind") != "deterministic_repair"
-                ):
-                    repair_attempt, output = _deterministic_repair_attempt(
-                        store,
-                        output,
-                        corpus=corpus,
-                        config=config,
-                        citations=projected.citations,
-                        repair=deterministic_repair,
-                    )
-                    if repair_attempt is not attempt:
-                        continue
-                return _finalize_candidate(
-                    store,
-                    attempt,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    settings=settings,
-                )
-            # Editorial placement errors are repaired deterministically by
-            # construction, so spending a model correction on them wastes budget
-            # and adds a provider round-trip. When every blocking finding is
-            # repairable, run repair now and re-enter the loop: the repaired
-            # attempt finalizes when clean, and the untouched correction budget
-            # stays available for findings repair cannot fix (unknown refs,
-            # freeform URLs, schema shape, checker errors on the rendered
-            # briefing). The kind guard keeps an unproductive repair from
-            # re-entering this branch.
-            deterministic_repair = deterministic_repair_candidate(
-                output,
-                findings,
-                corpus=corpus,
-                config=config,
-                citations=projected.citations,
-            )
-            if (
-                deterministic_repair is not None
-                and attempt.get("kind") != "deterministic_repair"
-            ):
-                repair_attempt, output = _deterministic_repair_attempt(
-                    store,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    repair=deterministic_repair,
-                )
-                if repair_attempt is not attempt:
-                    continue
-            if _corrections_used(store, "correction") >= settings.max_corrections:
-                return _finalize_after_deterministic_repair(
-                    store,
-                    attempt,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    settings=settings,
-                )
-            try:
-                correction = correction_request(
-                    prose_request,
-                    detach_prose(output, config),
-                    findings,
-                    prose_only=True,
-                )
-            except ValueError as exc:
-                # Building the correction prompt redacts destinations out of the
-                # prior output; a destination-bearing dict key raises here. That
-                # is a fail-closed signal, not a reason to abort the whole run —
-                # finalize the candidate as a quarantined preview instead of
-                # letting the ValueError escape to the generic failure path.
-                store.manifest["correction_error"] = {
-                    "type": type(exc).__name__, "message": str(exc)}
-                store.trace("correction_skipped", type=type(exc).__name__, message=str(exc))
-                store.checkpoint("correction_skipped")
-                return _finalize_after_deterministic_repair(
-                    store,
-                    attempt,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    settings=settings,
-                )
-            try:
-                output = _call_provider(
-                    store,
-                    provider,
-                    prompt=correction,
-                    schema=prose_schema,
-                    timeout_seconds=settings.timeout_seconds,
-                    kind="correction",
-                    transform=lambda prose: attach_frozen_selection(selection, prose, config),
-                )
-            except ProviderError as exc:
-                store.manifest["correction_error"] = exc.record()
-                store.trace("correction_failed", **exc.record())
-                store.checkpoint("correction_failed")
-                return _finalize_after_deterministic_repair(
-                    store,
-                    attempt,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=projected.citations,
-                    settings=settings,
-                )
+        return _write_prose(
+            store,
+            provider,
+            selection=selection,
+            prose_request=prose_request,
+            prose_schema=prose_schema,
+            corpus=corpus,
+            config=config,
+            citations=projected.citations,
+            settings=settings,
+        )
     except Exception as exc:
         error = (
             exc.record()
