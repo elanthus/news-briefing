@@ -1,0 +1,125 @@
+name: Triage briefing run
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: Optional exact diagnostics artifact name (blank selects the newest)
+        required: false
+        type: string
+      use_model:
+        description: Add an unverified OpenRouter summary when the provider secret is available
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  triage:
+    name: Classify encrypted diagnostics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Find and download diagnostics artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_ARTIFACT: ${{ inputs.artifact_name }}
+        run: |
+          pages="$RUNNER_TEMP/artifact-pages.json"
+          gh api --paginate --slurp \
+            "repos/${{ github.repository }}/actions/artifacts?per_page=100" > "$pages"
+          if [[ -n "$REQUESTED_ARTIFACT" ]]; then
+            selected=$(jq -r --arg name "$REQUESTED_ARTIFACT" '
+              [.[].artifacts[] | select(.expired == false and .name == $name)]
+              | sort_by(.created_at) | last
+              | if . == null then empty else [.id, .name, .created_at] | @tsv end
+            ' "$pages")
+          else
+            selected=$(jq -r '
+              [.[].artifacts[]
+                | select(.expired == false and (.name | startswith("briefing-diagnostics-")))]
+              | sort_by(.created_at) | last
+              | if . == null then empty else [.id, .name, .created_at] | @tsv end
+            ' "$pages")
+          fi
+          if [[ -z "$selected" ]]; then
+            echo "::error::No matching unexpired diagnostics artifact was found"
+            exit 1
+          fi
+          IFS=$'\t' read -r artifact_id artifact_name artifact_created_at <<< "$selected"
+          echo "Selected $artifact_name from $artifact_created_at"
+          gh api "repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip" \
+            > "$RUNNER_TEMP/diagnostics.zip"
+
+      - name: Decrypt diagnostics and select newest run
+        env:
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          encrypted_dir="$RUNNER_TEMP/encrypted-diagnostics"
+          extracted_dir="$RUNNER_TEMP/extracted-diagnostics"
+          mkdir -p "$encrypted_dir" "$extracted_dir"
+          unzip -q "$RUNNER_TEMP/diagnostics.zip" -d "$encrypted_dir"
+          encrypted=$(find "$encrypted_dir" -type f \
+            -name briefing-diagnostics.tar.gz.enc -print -quit)
+          if [[ -z "$encrypted" ]]; then
+            echo "::error::The artifact does not contain briefing-diagnostics.tar.gz.enc"
+            exit 1
+          fi
+          python3 private_archive.py decrypt \
+            "$encrypted" "$RUNNER_TEMP/briefing-diagnostics.tar.gz"
+          python3 - <<'PY'
+          import os
+          import tarfile
+          from pathlib import Path
+
+          source = Path(os.environ["RUNNER_TEMP"]) / "briefing-diagnostics.tar.gz"
+          destination = Path(os.environ["RUNNER_TEMP"]) / "extracted-diagnostics"
+          with tarfile.open(source, mode="r:gz") as archive:
+              archive.extractall(destination, filter="data")
+          PY
+          run_dir=$(find "$extracted_dir/runs" -mindepth 1 -maxdepth 1 -type d \
+            -print | sort | tail -n 1)
+          if [[ -z "$run_dir" ]]; then
+            echo "::error::The decrypted archive contains no run directory"
+            exit 1
+          fi
+          echo "TRIAGE_RUN_DIR=$run_dir" >> "$GITHUB_ENV"
+          echo "TRIAGE_RUN_DATE=$(basename "$run_dir")" >> "$GITHUB_ENV"
+
+      - name: Classify run and optionally add model summary
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          USE_MODEL: ${{ inputs.use_model }}
+        run: |
+          python3 triage_run.py "$TRIAGE_RUN_DIR" --no-model --output-dir triage-output
+          if [[ "$USE_MODEL" == "true" ]]; then
+            if [[ -n "$OPENROUTER_API_KEY" ]]; then
+              python3 triage_run.py "$TRIAGE_RUN_DIR" \
+                --output-dir triage-output \
+                --provider openrouter \
+                --model tencent/hy3
+            else
+              echo "::warning::use_model was requested, but OPENROUTER_API_KEY is unavailable"
+            fi
+          fi
+
+      - name: Open triage issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          first_class=$(jq -r '.classes[0].class' triage-output/triage.json)
+          gh label create triage \
+            --description "Operational briefing triage" \
+            --color D93F0B || true
+          gh issue create \
+            --title "Triage: $TRIAGE_RUN_DATE $first_class" \
+            --body-file triage-output/triage.md \
+            --label triage
