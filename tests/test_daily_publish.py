@@ -123,6 +123,24 @@ class RestoreCorpusTests(unittest.TestCase):
 
 
 class WindowTests(unittest.TestCase):
+    def test_cli_honors_an_explicit_zero_snapshot_epoch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            github_env = root / "github-env"
+            with contextlib.chdir(root):
+                status = daily_publish.main([
+                    "capture-window",
+                    "--snapshot-end-epoch", "0",
+                    "--github-env", str(github_env),
+                ])
+            self.assertEqual(status, 0)
+            values = dict(
+                line.split("=", 1)
+                for line in github_env.read_text(encoding="utf-8").splitlines()
+            )
+            self.assertEqual(values["SNAPSHOT_END_EPOCH"], "0")
+            self.assertEqual(values["WINDOW_END"], "1970-01-01T00:00:00+00:00")
+
     def test_capture_window_writes_second_precision_utc_offsets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

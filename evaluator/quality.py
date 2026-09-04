@@ -1,6 +1,6 @@
 """Blinded pairwise LLM-judge comparison of briefing prose across a completed run.
 
-The deterministic checker and the case oracles in runner.py both validate
+The deterministic checker and the case oracles in scoring.py both validate
 *routing*: is a citation grounded, does a topic land in the right section, is
 a story included or excluded correctly. None of that touches whether the
 prose written about a correctly-routed story is any good. `check_claims_supported`

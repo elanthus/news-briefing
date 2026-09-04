@@ -349,7 +349,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "capture-window":
         github_env = args.github_env or Path(os.environ["GITHUB_ENV"])
         return capture_window(
-            snapshot_end_epoch=args.snapshot_end_epoch or int(time.time()),
+            snapshot_end_epoch=(
+                args.snapshot_end_epoch
+                if args.snapshot_end_epoch is not None
+                else int(time.time())
+            ),
             github_env=github_env,
         )
     today = args.today if isinstance(args.today, date) else _date_argument(
