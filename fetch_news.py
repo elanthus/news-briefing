@@ -28,6 +28,7 @@ import re
 import socket
 import ssl
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -565,10 +566,58 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
     try:
         deadline = time.monotonic() + timeout
         connection.request("GET", target, headers=headers)
-        response = connection.getresponse()
+        sock = connection.pinned_socket
+        if sock is None:
+            raise OSError("pinned connection socket is unavailable")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"request exceeded {timeout}s total deadline")
+        sock.settimeout(remaining)
+
+        # A socket timeout applies to each recv, so trickled header bytes can
+        # keep getresponse() alive indefinitely. Shut down the pinned socket at
+        # the absolute deadline and always join the watchdog before continuing.
+        headers_complete = threading.Event()
+        deadline_expired = threading.Event()
+
+        def enforce_header_deadline() -> None:
+            remaining = deadline - time.monotonic()
+            if remaining > 0 and headers_complete.wait(remaining):
+                return
+            if headers_complete.is_set():
+                return
+            deadline_expired.set()
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+        watchdog = threading.Thread(
+            target=enforce_header_deadline,
+            name="news-header-deadline",
+        )
+        watchdog.start()
+        try:
+            try:
+                response = connection.getresponse()
+            except TimeoutError as exc:
+                raise TimeoutError(
+                    f"request exceeded {timeout}s total deadline"
+                ) from exc
+            except OSError as exc:
+                if deadline_expired.is_set() or time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"request exceeded {timeout}s total deadline"
+                    ) from exc
+                raise
+        finally:
+            headers_complete.set()
+            watchdog.join()
+        if deadline_expired.is_set() or time.monotonic() >= deadline:
+            raise TimeoutError(f"request exceeded {timeout}s total deadline")
         data = (b"" if response.status in {301, 302, 303, 307, 308}
                 else _read_response_body(
-                    response, connection.pinned_socket, deadline, timeout
+                    response, sock, deadline, timeout
                 ))
         return HttpResult(response.status, str(response.reason), response.headers, data)
     finally:

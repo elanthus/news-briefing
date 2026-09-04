@@ -110,7 +110,7 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 742 offline tests (519 core, 167 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
+| **Verification** | 743 offline tests (520 core, 167 evaluator, 56 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
 
 ## Architecture
 
@@ -149,7 +149,7 @@ The [parity v1 model card](docs/results/parity-v1.md) has the full comparison an
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 519 core tests
+python3 -S -m unittest -v                              # 520 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 167 evaluator tests
 ```
 
