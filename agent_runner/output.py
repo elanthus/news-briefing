@@ -813,7 +813,7 @@ def _validate_citation_refs(
                 f"{entry_where} uses {ref} from ineligible category {citation.category}",
             ))
         entry_items.add(citation.item_ref)
-    for item_ref in entry_items:
+    for item_ref in sorted(entry_items):
         prior = used_items.get(item_ref)
         if prior is not None:
             findings.append(OutputFinding(

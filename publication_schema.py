@@ -71,7 +71,9 @@ def parse_review_context(raw: object) -> tuple[bool, ReviewContext | None]:
     ):
         return False, None
     raw_path = raw.get("path")
-    path = raw_path if isinstance(raw_path, str) and raw_path.strip() else None
+    if raw_path is not None and (not isinstance(raw_path, str) or not raw_path.strip()):
+        return False, None
+    path = raw_path
     return True, ReviewContext(
         section=raw["section"],
         headline=raw["headline"],

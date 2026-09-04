@@ -330,6 +330,8 @@ def apply_adjudications(manifest: dict[str, Any], artifact_root: Path) -> None:
         final["semantic_reviewed_propositions"] = semantic_reviewed
         final["semantic_conveyed_propositions"] = semantic_conveyed
         final["semantic_unclear_propositions"] = semantic_unclear
+
+
 def _base_result(
     adapter: Adapter,
     prompt_version: str,

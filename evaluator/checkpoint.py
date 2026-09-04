@@ -402,7 +402,7 @@ def _resume_state(
     if (
         not isinstance(saved_observed, (int, float))
         or isinstance(saved_observed, bool)
-        or not math.isclose(float(saved_observed), observed, rel_tol=0.0, abs_tol=1e-12)
+        or not math.isclose(float(saved_observed), observed, rel_tol=1e-9, abs_tol=1e-12)
     ):
         raise ValueError(
             "cannot resume corrupt checkpoint: observed ceiling cost is inconsistent"

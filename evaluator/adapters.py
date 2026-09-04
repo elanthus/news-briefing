@@ -417,7 +417,7 @@ _CORPUS_BANNER = "--- UNTRUSTED CORPUS (JSON) ---\n"
 
 
 def _extract_config_and_corpus(prompt: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Recover the structured config/corpus evaluator.plan.model_request embedded.
+    """Recover the structured config/corpus that evaluator.plan.model_request embedded.
 
     Baseline adapters never call a model — they only see the assembled prompt
     text, not evaluator.plan's structured arguments — so they recover the

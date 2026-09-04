@@ -185,9 +185,10 @@ def _matched_pair_metrics(
             oracle_key: str,
             keys: list[tuple[str, int]],
         ) -> dict[str, Any]:
+            known = [key for key in keys if oracle_key in source[key][stage]["oracle"]]
             return rate(
-                sum(bool(source[key][stage]["oracle"].get(oracle_key, False)) for key in keys),
-                len(keys),
+                sum(bool(source[key][stage]["oracle"][oracle_key]) for key in known),
+                len(known),
             )
 
         metrics.append({
