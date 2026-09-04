@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -102,10 +104,12 @@ jobs:
           python3 triage_run.py "$TRIAGE_RUN_DIR" --no-model --output-dir triage-output
           if [[ "$USE_MODEL" == "true" ]]; then
             if [[ -n "$OPENROUTER_API_KEY" ]]; then
-              python3 triage_run.py "$TRIAGE_RUN_DIR" \
+              if ! python3 triage_run.py "$TRIAGE_RUN_DIR" \
                 --output-dir triage-output \
                 --provider openrouter \
-                --model tencent/hy3
+                --model tencent/hy3; then
+                echo "::warning::Model summary invocation failed; keeping the deterministic triage output"
+              fi
             else
               echo "::warning::use_model was requested, but OPENROUTER_API_KEY is unavailable"
             fi
