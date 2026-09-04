@@ -417,15 +417,15 @@ _CORPUS_BANNER = "--- UNTRUSTED CORPUS (JSON) ---\n"
 
 
 def _extract_config_and_corpus(prompt: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Recover the structured config/corpus evaluator.runner.model_request embedded.
+    """Recover the structured config/corpus that evaluator.plan.model_request embedded.
 
     Baseline adapters never call a model — they only see the assembled prompt
-    text, not evaluator.runner's structured arguments — so they recover the
+    text, not evaluator.plan's structured arguments — so they recover the
     two JSON blocks by splitting on the exact banners model_request emits.
     This is brittle by nature (string markers, not a real API): a banner-text
     change breaks it loudly here rather than silently misreading the corpus.
 
-    `evaluator.runner.correction_request` appends more prose after the corpus
+    `evaluator.plan.correction_request` appends more prose after the corpus
     JSON (the correction instructions and the first output) when a baseline's
     own first pass needed a repair turn, so the corpus block is only a
     *prefix* of the remaining text there — `raw_decode` parses that leading

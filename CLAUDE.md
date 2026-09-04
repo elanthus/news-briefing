@@ -56,7 +56,8 @@ position-scoped evidence to the prose pass. `attach_frozen_selection()` restores
 the validated handles by position, and `render_briefing()` expands them to their
 code-owned article and Hacker News discussion destinations. `agent_runner/runner.py`
 orchestrates these functions. The evaluator's production-parity path in
-`evaluator/runner.py` reuses them; `eval_briefing.py` remains an independent
+`evaluator/parity.py`, driven by the trial loop in `evaluator/execution.py`,
+reuses them; `eval_briefing.py` remains an independent
 checker for complete Markdown.
 
 The model never receives a URL. `project_corpus()` excludes `url` and

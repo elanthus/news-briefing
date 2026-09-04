@@ -10,13 +10,10 @@ import eval_briefing
 from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
     REPAIRABLE_CHECKS,
-    OutputFinding,
     attach_frozen_selection,
-    build_output_schema,
     build_prose_schema,
     build_selection_schema,
     detach_prose,
-    is_repairable_finding,
     project_corpus,
     project_selected_evidence,
     redact_destinations,
@@ -224,52 +221,6 @@ class BriefingOutputTests(unittest.TestCase):
         rendered = json.dumps(preview)
         self.assertNotIn("attacker.invalid", rendered)
         self.assertGreaterEqual(rendered.count("destination omitted"), 2)
-
-    def test_schema_restricts_sections_and_matches_runtime_constraints(self):
-        _corpus, config, projected, _output = fixture_contract()
-        schema = build_output_schema(config, projected.citations)
-        self.assertEqual(
-            schema["properties"]["schema_version"],
-            {"type": "integer", "minimum": 1, "maximum": 1},
-        )
-        self.assertFalse(schema["additionalProperties"])
-        self.assertEqual(
-            schema["properties"]["sections"]["required"],
-            [section.name for section in config.sections],
-        )
-        self.assertNotIn("$schema", schema)
-        first = config.sections[0]
-        topics = schema["properties"]["sections"]["properties"][first.name]["properties"]["topics"]
-        self.assertEqual(topics["minItems"], 0)
-        self.assertEqual(topics["maxItems"], first.target_stories)
-        headline = topics["items"]["properties"]["headline"]
-        self.assertEqual(headline["minLength"], 1)
-        self.assertEqual(headline["maxLength"], 300)
-        refs = topics["items"]["properties"]["citation_refs"]
-        self.assertEqual(refs["minItems"], 1)
-        self.assertTrue(refs["uniqueItems"])
-        self.assertEqual(refs["maxItems"], len(refs["items"]["enum"]))
-        eligible = {
-            ref
-            for ref, citation in projected.citations.items()
-            if citation.category in first.corpus_categories
-        }
-        self.assertEqual(set(refs["items"]["enum"]), eligible)
-        accountable = next(section for section in config.sections if section.excluded_stories)
-        excluded = schema["properties"]["excluded_topics"]["properties"][accountable.name]
-        self.assertEqual(excluded["minItems"], 0)
-        self.assertEqual(excluded["maxItems"], accountable.excluded_stories)
-        excluded_refs = excluded["items"]["properties"]["citation_refs"]
-        self.assertTrue(excluded_refs["uniqueItems"])
-        accountable_eligible = {
-            ref
-            for ref, citation in projected.citations.items()
-            if citation.category in accountable.corpus_categories
-        }
-        self.assertEqual(
-            set(excluded_refs["items"]["enum"]), accountable_eligible
-        )
-        self.assertTrue(projected.citations)
 
     def test_two_pass_contract_freezes_refs_and_removes_them_from_prose_schema(self):
         _corpus, config, projected, output = fixture_contract()
@@ -1251,27 +1202,6 @@ class BriefingOutputTests(unittest.TestCase):
                         lines[anchor_line + 1].startswith("- **"),
                         msg=f"{anchor} must directly precede its excluded entry",
                     )
-
-    def test_repairable_finding_partition(self):
-        for check in (
-            "category_ineligible_ref",
-            "duplicate_item",
-            "duplicate_citation_ref",
-            "structured_item_limit",
-        ):
-            self.assertTrue(
-                is_repairable_finding(OutputFinding("ERROR", check, "x")),
-                msg=check,
-            )
-        for check in (
-            "unknown_citation_ref",
-            "freeform_url",
-            "structured_type",
-        ):
-            self.assertFalse(
-                is_repairable_finding(OutputFinding("ERROR", check, "x")),
-                msg=check,
-            )
 
     def test_render_validation_status_redacts_source_issue_messages(self):
         # Source-fetch error messages come from the same untrusted network

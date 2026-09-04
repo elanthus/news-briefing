@@ -20,16 +20,23 @@ import corpus_schema
 import eval_briefing
 from audit_manifest import build_audit_manifest
 from corpus_storage import write_storage_marker
+from publication_schema import (
+    CONTEXT_FIELDS,
+    FINDING_FIELDS,
+    FINDING_V3_FIELDS,
+    ReviewFinding,
+    finding_has_fields,
+    finding_level_is_valid,
+    finding_strings_are_valid,
+    parse_repair_actions,
+    parse_review_context,
+)
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
-FINDING_FIELDS = {"level", "check", "domain", "message"}
-FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
-CONTEXT_FIELDS = {"section", "headline", "model_authored"}
-CONTEXT_V4_FIELDS = CONTEXT_FIELDS | {"path"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -116,18 +123,6 @@ article { padding: 1rem 0; }
 
 
 @dataclass(frozen=True)
-class ReviewFinding:
-    level: str
-    check: str
-    domain: str
-    message: str
-    section: str | None = None
-    headline: str | None = None
-    model_authored: str | None = None
-    path: str | None = None
-
-
-@dataclass(frozen=True)
 class BriefingEntry:
     day: date
     disposition: str
@@ -164,24 +159,6 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         markdown=markdown,
         repair_actions=entry.repair_actions,
     )
-
-
-REPAIR_ACTION_FIELDS = {"action", "path", "reason"}
-
-
-def _parse_repair_actions(raw: object) -> tuple[dict[str, str], ...]:
-    if not isinstance(raw, list):
-        return ()
-    actions: list[dict[str, str]] = []
-    for item in raw:
-        if (
-            not isinstance(item, dict)
-            or set(item) != REPAIR_ACTION_FIELDS
-            or any(not isinstance(item[k], str) for k in REPAIR_ACTION_FIELDS)
-        ):
-            return ()
-        actions.append(item)
-    return tuple(actions)
 
 
 def _entry_from_payload(
@@ -240,51 +217,38 @@ def _entry_from_payload(
             if schema_version >= 3 and flexible_findings
             else {frozenset(FINDING_V3_FIELDS if schema_version >= 3 else FINDING_FIELDS)}
         )
-        if not isinstance(raw_finding, dict) or frozenset(raw_finding) not in allowed_finding_fields:
+        if not finding_has_fields(raw_finding, allowed_finding_fields):
             expected = sorted(FINDING_V3_FIELDS if schema_version >= 3 else FINDING_FIELDS)
             raise ValueError(f"{finding_source} must contain exactly {expected}")
-        if any(
-            not isinstance(raw_finding[field], str) or not raw_finding[field].strip()
-            for field in FINDING_FIELDS
-        ):
+        assert isinstance(raw_finding, dict)
+        if not finding_strings_are_valid(raw_finding):
             raise ValueError(f"{finding_source} fields must be non-empty strings")
-        if raw_finding["level"] not in {"ERROR", "WARN"}:
+        if not finding_level_is_valid(raw_finding):
             raise ValueError(f"{finding_source} level must be ERROR or WARN")
         raw_context = raw_finding.get("context")
-        if raw_context is not None and (
-            not isinstance(raw_context, dict)
-            or set(raw_context) not in (CONTEXT_FIELDS, CONTEXT_V4_FIELDS)
-            or any(
-                not isinstance(raw_context[field], str) or not raw_context[field].strip()
-                for field in CONTEXT_FIELDS
-            )
-        ):
+        valid_context, context = parse_review_context(raw_context)
+        if not valid_context:
             raise ValueError(
                 f"{finding_source} context must be null or contain exactly "
                 f"{sorted(CONTEXT_FIELDS)} as non-empty strings"
             )
-        raw_path = raw_context.get("path") if isinstance(raw_context, dict) else None
-        if raw_path is not None and (not isinstance(raw_path, str) or not raw_path.strip()):
-            raw_path = None
         findings.append(
             ReviewFinding(
                 level=raw_finding["level"],
                 check=raw_finding["check"],
                 domain=raw_finding["domain"],
                 message=raw_finding["message"],
-                section=raw_context["section"] if isinstance(raw_context, dict) else None,
-                headline=raw_context["headline"] if isinstance(raw_context, dict) else None,
-                model_authored=(
-                    raw_context["model_authored"] if isinstance(raw_context, dict) else None
-                ),
-                path=raw_path,
+                section=context.section if context is not None else None,
+                headline=context.headline if context is not None else None,
+                model_authored=context.model_authored if context is not None else None,
+                path=context.path if context is not None else None,
             )
         )
     if schema_version >= 2 and disposition == "review_required" and len(findings) != findings_count:
         raise ValueError(f"{source} must include every review-required finding")
     if disposition != "review_required" and findings:
         raise ValueError(f"{source} findings details are allowed only for review_required entries")
-    repair_actions = _parse_repair_actions(payload.get("repair_actions"))
+    repair_actions = parse_repair_actions(payload.get("repair_actions"))
     return BriefingEntry(
         day=parsed_date,
         disposition=disposition,

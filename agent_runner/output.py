@@ -6,7 +6,7 @@ import copy
 import html
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, NamedTuple
@@ -297,89 +297,6 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     return schema
 
 
-def build_output_schema(
-    config: briefing_config.BriefingConfig,
-    citations: dict[str, Citation] | None = None,
-) -> dict[str, Any]:
-    """Build a conservative Draft-07-compatible schema for all three providers."""
-    section_properties: dict[str, Any] = {}
-    excluded_properties: dict[str, Any] = {}
-    accountable: list[str] = []
-    for section in config.sections:
-        eligible_refs = (
-            tuple(
-                ref
-                for ref, citation in citations.items()
-                if citation.category in section.corpus_categories
-            )
-            if citations is not None
-            else None
-        )
-        topic = {
-            "type": "object",
-            "properties": {
-                "headline": _text_property(300),
-                "summary": _text_property(1_500),
-                "citation_refs": _citation_refs(eligible_refs),
-            },
-            "required": ["headline", "summary", "citation_refs"],
-            "additionalProperties": False,
-        }
-        section_properties[section.name] = {
-            "type": "object",
-            "properties": {
-                "topics": {
-                    "type": "array",
-                    "description": f"At most {section.target_stories} topics.",
-                    "items": topic,
-                    "minItems": 0,
-                    "maxItems": section.target_stories,
-                }
-            },
-            "required": ["topics"],
-            "additionalProperties": False,
-        }
-        if section.excluded_stories:
-            accountable.append(section.name)
-            excluded = {
-                "type": "object",
-                "properties": {
-                    "headline": _text_property(300),
-                    "reason": _text_property(600),
-                    "citation_refs": _citation_refs(eligible_refs),
-                },
-                "required": ["headline", "reason", "citation_refs"],
-                "additionalProperties": False,
-            }
-            excluded_properties[section.name] = {
-                "type": "array",
-                "description": f"At most {section.excluded_stories} excluded topics.",
-                "items": excluded,
-                "minItems": 0,
-                "maxItems": section.excluded_stories,
-            }
-    return {
-        "type": "object",
-        "properties": {
-            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
-            "sections": {
-                "type": "object",
-                "properties": section_properties,
-                "required": [section.name for section in config.sections],
-                "additionalProperties": False,
-            },
-            "excluded_topics": {
-                "type": "object",
-                "properties": excluded_properties,
-                "required": accountable,
-                "additionalProperties": False,
-            },
-        },
-        "required": ["schema_version", "sections", "excluded_topics"],
-        "additionalProperties": False,
-    }
-
-
 def build_selection_schema(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
@@ -531,24 +448,6 @@ REPAIRABLE_CHECKS = frozenset({
     "duplicate_item",
     "structured_item_limit",
 })
-
-
-def is_repairable_finding(finding: OutputFinding) -> bool:
-    """True when deterministic structural repair fixes this finding by construction.
-
-    These are editorial placement errors: ineligible-category refs, repeated
-    refs, reused items, and over-limit sections. ``repair_structural_output``
-    drops or deduplicates the offending entries, so a repaired output
-    re-validates without any of these checks. ``claim_exceeds_evidence`` is
-    repairable too: the swap replaces the over-long prose with its own cited
-    evidence, so the finding cannot re-fire by construction — except that a
-    URL-bearing excerpt declines the swap, leaving the entry untouched and
-    preserved for review.
-    Everything else (unknown refs, freeform URLs, schema-shape violations) is
-    an evidence-boundary or contract violation that repair deliberately
-    preserves for rejection and review.
-    """
-    return finding.check in REPAIRABLE_CHECKS
 
 
 def repair_structural_output(
@@ -819,6 +718,129 @@ def _text(
     return value
 
 
+_CollectionHook = Callable[
+    [briefing_config.BriefingSection, list[Any], bool, str, list[OutputFinding]],
+    None,
+]
+
+
+def _walk_entries(
+    sections: dict[str, Any],
+    excluded_topics: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    findings: list[OutputFinding],
+    *,
+    section_prefix: str,
+    topics_prefix: str,
+    excluded_prefix: str,
+    collection_hook: _CollectionHook,
+) -> Iterator[tuple[briefing_config.BriefingSection, int, Any, str, bool]]:
+    """Walk included entries first, then exclusions, preserving finding order."""
+    for section in config.sections:
+        parsed_section = _object_fields(
+            sections.get(section.name),
+            required={"topics"},
+            where=f"{section_prefix}.{section.name}",
+            findings=findings,
+        )
+        if parsed_section is None:
+            continue
+        entries = parsed_section.get("topics")
+        where = f"{topics_prefix}.{section.name}"
+        if not isinstance(entries, list):
+            findings.append(OutputFinding(
+                "ERROR", "structured_type", f"{where} must be an array"
+            ))
+            continue
+        collection_hook(section, entries, False, where, findings)
+        for index, entry in enumerate(entries):
+            yield section, index, entry, f"{where}[{index}]", False
+
+    for section in config.sections:
+        if not section.excluded_stories:
+            continue
+        entries = excluded_topics.get(section.name)
+        where = f"{excluded_prefix}.{section.name}"
+        if not isinstance(entries, list):
+            findings.append(OutputFinding(
+                "ERROR", "structured_type", f"{where} must be an array"
+            ))
+            continue
+        collection_hook(section, entries, True, where, findings)
+        for index, entry in enumerate(entries):
+            yield section, index, entry, f"{where}[{index}]", True
+
+
+def _validate_citation_refs(
+    parsed: dict[str, Any],
+    section: briefing_config.BriefingSection,
+    entry_where: str,
+    citations: dict[str, Citation],
+    used_items: dict[str, str],
+    findings: list[OutputFinding],
+) -> None:
+    refs = parsed.get("citation_refs")
+    if not isinstance(refs, list) or not refs:
+        findings.append(OutputFinding(
+            "ERROR",
+            "structured_citations",
+            f"{entry_where}.citation_refs must be a non-empty array",
+        ))
+        return
+    eligible_categories = set(section.corpus_categories)
+    seen_refs: set[str] = set()
+    entry_items: set[str] = set()
+    for ref in refs:
+        if not isinstance(ref, str) or ref not in citations:
+            findings.append(OutputFinding(
+                "ERROR",
+                "unknown_citation_ref",
+                f"{entry_where} contains unknown citation ref {ref!r}",
+            ))
+            continue
+        if ref in seen_refs:
+            findings.append(OutputFinding(
+                "ERROR",
+                "duplicate_citation_ref",
+                f"{entry_where} repeats citation ref {ref}",
+            ))
+        seen_refs.add(ref)
+        citation = citations[ref]
+        if citation.category not in eligible_categories:
+            findings.append(OutputFinding(
+                "ERROR",
+                "category_ineligible_ref",
+                f"{entry_where} uses {ref} from ineligible category {citation.category}",
+            ))
+        entry_items.add(citation.item_ref)
+    for item_ref in sorted(entry_items):
+        prior = used_items.get(item_ref)
+        if prior is not None:
+            findings.append(OutputFinding(
+                "ERROR",
+                "duplicate_item",
+                f"{entry_where} repeats {item_ref}, already used by {prior}",
+            ))
+        else:
+            used_items[item_ref] = entry_where
+
+
+def _limit_collection(
+    section: briefing_config.BriefingSection,
+    entries: list[Any],
+    excluded: bool,
+    where: str,
+    findings: list[OutputFinding],
+) -> None:
+    maximum = section.excluded_stories if excluded else section.target_stories
+    if len(entries) > maximum:
+        findings.append(OutputFinding(
+            "ERROR",
+            "structured_item_limit",
+            f"{where} has {len(entries)} entries; maximum is {maximum}",
+        ))
+
+
 def validate_selection(
     selection: Any,
     config: briefing_config.BriefingConfig,
@@ -855,104 +877,25 @@ def validate_selection(
         return findings
 
     used_items: dict[str, str] = {}
-
-    def validate_entries(
-        entries: Any,
-        *,
-        section: briefing_config.BriefingSection,
-        maximum: int,
-        excluded: bool,
-    ) -> None:
-        label = "excluded_topics" if excluded else "topics"
-        where = f"selection.{label}.{section.name}"
-        if not isinstance(entries, list):
-            findings.append(OutputFinding(
-                "ERROR", "structured_type", f"{where} must be an array"
-            ))
-            return
-        if len(entries) > maximum:
-            findings.append(OutputFinding(
-                "ERROR",
-                "structured_item_limit",
-                f"{where} has {len(entries)} entries; maximum is {maximum}",
-            ))
-        eligible_categories = set(section.corpus_categories)
-        for index, entry in enumerate(entries):
-            entry_where = f"{where}[{index}]"
-            parsed = _object_fields(
-                entry,
-                required={"citation_refs"},
-                where=entry_where,
-                findings=findings,
-            )
-            if parsed is None:
-                continue
-            refs = parsed.get("citation_refs")
-            if not isinstance(refs, list) or not refs:
-                findings.append(OutputFinding(
-                    "ERROR",
-                    "structured_citations",
-                    f"{entry_where}.citation_refs must be a non-empty array",
-                ))
-                continue
-            seen_refs: set[str] = set()
-            entry_items: set[str] = set()
-            for ref in refs:
-                if not isinstance(ref, str) or ref not in citations:
-                    findings.append(OutputFinding(
-                        "ERROR",
-                        "unknown_citation_ref",
-                        f"{entry_where} contains unknown citation ref {ref!r}",
-                    ))
-                    continue
-                if ref in seen_refs:
-                    findings.append(OutputFinding(
-                        "ERROR",
-                        "duplicate_citation_ref",
-                        f"{entry_where} repeats citation ref {ref}",
-                    ))
-                seen_refs.add(ref)
-                citation = citations[ref]
-                if citation.category not in eligible_categories:
-                    findings.append(OutputFinding(
-                        "ERROR",
-                        "category_ineligible_ref",
-                        f"{entry_where} uses {ref} from ineligible category {citation.category}",
-                    ))
-                entry_items.add(citation.item_ref)
-            for item_ref in entry_items:
-                prior = used_items.get(item_ref)
-                if prior is not None:
-                    findings.append(OutputFinding(
-                        "ERROR",
-                        "duplicate_item",
-                        f"{entry_where} repeats {item_ref}, already used by {prior}",
-                    ))
-                else:
-                    used_items[item_ref] = entry_where
-
-    for section in config.sections:
-        section_value = sections.get(section.name)
-        parsed_section = _object_fields(
-            section_value,
-            required={"topics"},
-            where=f"selection.sections.{section.name}",
+    for section, _index, entry, entry_where, _excluded in _walk_entries(
+        sections,
+        excluded_topics,
+        config,
+        findings,
+        section_prefix="selection.sections",
+        topics_prefix="selection.topics",
+        excluded_prefix="selection.excluded_topics",
+        collection_hook=_limit_collection,
+    ):
+        parsed = _object_fields(
+            entry,
+            required={"citation_refs"},
+            where=entry_where,
             findings=findings,
         )
-        if parsed_section is not None:
-            validate_entries(
-                parsed_section.get("topics"),
-                section=section,
-                maximum=section.target_stories,
-                excluded=False,
-            )
-    for section in config.sections:
-        if section.excluded_stories:
-            validate_entries(
-                excluded_topics.get(section.name),
-                section=section,
-                maximum=section.excluded_stories,
-                excluded=True,
+        if parsed is not None:
+            _validate_citation_refs(
+                parsed, section, entry_where, citations, used_items, findings
             )
     return findings
 
@@ -992,72 +935,57 @@ def validate_prose_output(
     if sections is None or excluded_topics is None:
         return findings
 
-    def validate_entries(
-        entries: Any,
-        *,
-        where: str,
-        expected: int,
+    def check_frozen_count(
+        section: briefing_config.BriefingSection,
+        entries: list[Any],
         excluded: bool,
+        where: str,
+        rows_findings: list[OutputFinding],
     ) -> None:
-        if not isinstance(entries, list):
-            findings.append(OutputFinding(
-                "ERROR", "structured_type", f"{where} must be an array"
-            ))
-            return
+        expected = len(
+            selection["excluded_topics"][section.name]
+            if excluded
+            else selection["sections"][section.name]["topics"]
+        )
         if len(entries) != expected:
-            findings.append(OutputFinding(
+            rows_findings.append(OutputFinding(
                 "ERROR",
                 "frozen_selection_count",
                 f"{where} has {len(entries)} entries; frozen selection requires {expected}",
             ))
-        required = {"headline", "reason"} if excluded else {"headline", "summary"}
-        for index, entry in enumerate(entries):
-            entry_where = f"{where}[{index}]"
-            parsed = _object_fields(
-                entry,
-                required=required,
-                where=entry_where,
-                findings=findings,
-            )
-            if parsed is None:
-                continue
-            _text(
-                parsed.get("headline"),
-                where=f"{entry_where}.headline",
-                maximum=300,
-                findings=findings,
-            )
-            prose_key = "reason" if excluded else "summary"
-            _text(
-                parsed.get(prose_key),
-                where=f"{entry_where}.{prose_key}",
-                maximum=600 if excluded else 1_500,
-                findings=findings,
-            )
 
-    for section in config.sections:
-        section_value = sections.get(section.name)
-        parsed_section = _object_fields(
-            section_value,
-            required={"topics"},
-            where=f"prose.sections.{section.name}",
+    for _section, _index, entry, entry_where, excluded in _walk_entries(
+        sections,
+        excluded_topics,
+        config,
+        findings,
+        section_prefix="prose.sections",
+        topics_prefix="prose.topics",
+        excluded_prefix="prose.excluded_topics",
+        collection_hook=check_frozen_count,
+    ):
+        required = {"headline", "reason"} if excluded else {"headline", "summary"}
+        parsed = _object_fields(
+            entry,
+            required=required,
+            where=entry_where,
             findings=findings,
         )
-        if parsed_section is not None:
-            validate_entries(
-                parsed_section.get("topics"),
-                where=f"prose.topics.{section.name}",
-                expected=len(selection["sections"][section.name]["topics"]),
-                excluded=False,
-            )
-    for section in config.sections:
-        if section.excluded_stories:
-            validate_entries(
-                excluded_topics.get(section.name),
-                where=f"prose.excluded_topics.{section.name}",
-                expected=len(selection["excluded_topics"][section.name]),
-                excluded=True,
-            )
+        if parsed is None:
+            continue
+        _text(
+            parsed.get("headline"),
+            where=f"{entry_where}.headline",
+            maximum=300,
+            findings=findings,
+        )
+        prose_key = "reason" if excluded else "summary"
+        _text(
+            parsed.get(prose_key),
+            where=f"{entry_where}.{prose_key}",
+            maximum=600 if excluded else 1_500,
+            findings=findings,
+        )
     return findings
 
 
@@ -1187,101 +1115,42 @@ def validate_output(
         return findings
 
     used_items: dict[str, str] = {}
-
-    def validate_entries(
-        entries: Any,
-        *,
-        section: briefing_config.BriefingSection,
-        maximum: int,
-        excluded: bool,
-    ) -> None:
-        label = "excluded_topics" if excluded else "topics"
-        where = f"{label}.{section.name}"
-        if not isinstance(entries, list):
-            findings.append(OutputFinding("ERROR", "structured_type", f"{where} must be an array"))
-            return
-        if len(entries) > maximum:
-            findings.append(OutputFinding(
-                "ERROR", "structured_item_limit", f"{where} has {len(entries)} entries; maximum is {maximum}"
-            ))
-        eligible_categories = set(section.corpus_categories)
-        for index, entry in enumerate(entries):
-            entry_where = f"{where}[{index}]"
-            required = {"headline", "reason", "citation_refs"} if excluded else {
-                "headline", "summary", "citation_refs"
-            }
-            parsed = _object_fields(entry, required=required, where=entry_where, findings=findings)
-            if parsed is None:
-                continue
-            _text(parsed.get("headline"), where=f"{entry_where}.headline", maximum=300, findings=findings)
-            prose_key = "reason" if excluded else "summary"
-            _text(
-                parsed.get(prose_key),
-                where=f"{entry_where}.{prose_key}",
-                maximum=600 if excluded else 1_500,
-                findings=findings,
-            )
-            refs = parsed.get("citation_refs")
-            if not isinstance(refs, list) or not refs:
-                findings.append(OutputFinding(
-                    "ERROR", "structured_citations", f"{entry_where}.citation_refs must be a non-empty array"
-                ))
-                continue
-            seen_refs: set[str] = set()
-            entry_items: set[str] = set()
-            for ref in refs:
-                if not isinstance(ref, str) or ref not in citations:
-                    findings.append(OutputFinding(
-                        "ERROR", "unknown_citation_ref", f"{entry_where} contains unknown citation ref {ref!r}"
-                    ))
-                    continue
-                if ref in seen_refs:
-                    findings.append(OutputFinding(
-                        "ERROR", "duplicate_citation_ref", f"{entry_where} repeats citation ref {ref}"
-                    ))
-                seen_refs.add(ref)
-                citation = citations[ref]
-                if citation.category not in eligible_categories:
-                    findings.append(OutputFinding(
-                        "ERROR",
-                        "category_ineligible_ref",
-                        f"{entry_where} uses {ref} from ineligible category {citation.category}",
-                    ))
-                entry_items.add(citation.item_ref)
-            for item_ref in entry_items:
-                prior = used_items.get(item_ref)
-                if prior is not None:
-                    findings.append(OutputFinding(
-                        "ERROR", "duplicate_item", f"{entry_where} repeats {item_ref}, already used by {prior}"
-                    ))
-                else:
-                    used_items[item_ref] = entry_where
-
-    # Included stories outrank accountability-log entries globally. This order
-    # also makes correction findings point at the exclusion that should move.
-    for section in config.sections:
-        section_value = sections.get(section.name)
-        parsed_section = _object_fields(
-            section_value,
-            required={"topics"},
-            where=f"sections.{section.name}",
+    # Included stories outrank accountability-log entries globally. The walker
+    # preserves that order so correction findings identify the exclusion to move.
+    for section, _index, entry, entry_where, excluded in _walk_entries(
+        sections,
+        excluded_topics,
+        config,
+        findings,
+        section_prefix="sections",
+        topics_prefix="topics",
+        excluded_prefix="excluded_topics",
+        collection_hook=_limit_collection,
+    ):
+        required = {"headline", "reason", "citation_refs"} if excluded else {
+            "headline", "summary", "citation_refs"
+        }
+        parsed = _object_fields(
+            entry, required=required, where=entry_where, findings=findings
+        )
+        if parsed is None:
+            continue
+        _text(
+            parsed.get("headline"),
+            where=f"{entry_where}.headline",
+            maximum=300,
             findings=findings,
         )
-        if parsed_section is not None:
-            validate_entries(
-                parsed_section.get("topics"),
-                section=section,
-                maximum=section.target_stories,
-                excluded=False,
-            )
-    for section in config.sections:
-        if section.excluded_stories:
-            validate_entries(
-                excluded_topics.get(section.name),
-                section=section,
-                maximum=section.excluded_stories,
-                excluded=True,
-            )
+        prose_key = "reason" if excluded else "summary"
+        _text(
+            parsed.get(prose_key),
+            where=f"{entry_where}.{prose_key}",
+            maximum=600 if excluded else 1_500,
+            findings=findings,
+        )
+        _validate_citation_refs(
+            parsed, section, entry_where, citations, used_items, findings
+        )
     return findings
 
 
