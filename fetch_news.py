@@ -604,7 +604,7 @@ def _request_once(url: str, parts: urllib.parse.SplitResult, hostname: str,
                 raise TimeoutError(
                     f"request exceeded {timeout}s total deadline"
                 ) from exc
-            except OSError as exc:
+            except (OSError, http.client.HTTPException) as exc:
                 if deadline_expired.is_set() or time.monotonic() >= deadline:
                     raise TimeoutError(
                         f"request exceeded {timeout}s total deadline"

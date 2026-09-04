@@ -1694,15 +1694,23 @@ class HttpGetTest(unittest.TestCase):
             thread.join(timeout=2)
         self.assertLess(time.monotonic() - started, 3)
 
-    def test_response_headers_use_total_deadline_against_trickle_server(self) -> None:
+    def test_response_status_and_headers_use_total_deadline_against_trickle_server(
+        self,
+    ) -> None:
         stop = threading.Event()
 
         class TrickleHandler(http.server.BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
 
             def do_GET(self) -> None:
+                self.close_connection = True
                 try:
-                    self.wfile.write(b"HTTP/1.1 200 OK\r\nX-Trickle: ")
+                    prefix = (
+                        b"HTTP/"
+                        if self.path == "/trickle-status"
+                        else b"HTTP/1.1 200 OK\r\nX-Trickle: "
+                    )
+                    self.wfile.write(prefix)
                     self.wfile.flush()
                     for _index in range(100):
                         if stop.wait(0.05):
@@ -1722,27 +1730,31 @@ class HttpGetTest(unittest.TestCase):
         port = server.server_address[1]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        started = time.monotonic()
         try:
             address = fetch_news.ResolvedAddress(
                 socket.AF_INET, ("127.0.0.1", port)
             )
-            with (
-                patch.object(
-                    fetch_news, "_resolve_public_addresses", return_value=(address,)
-                ),
-                self.assertRaisesRegex(TimeoutError, "total deadline"),
-            ):
-                fetch_news.http_get(
-                    f"http://example.com:{port}/trickle-headers", timeout=1
-                )
+            for path in ("trickle-status", "trickle-headers"):
+                started = time.monotonic()
+                with (
+                    self.subTest(path=path),
+                    patch.object(
+                        fetch_news,
+                        "_resolve_public_addresses",
+                        return_value=(address,),
+                    ),
+                    self.assertRaisesRegex(TimeoutError, "total deadline"),
+                ):
+                    fetch_news.http_get(
+                        f"http://example.com:{port}/{path}", timeout=1
+                    )
+                self.assertLess(time.monotonic() - started, 2)
         finally:
             stop.set()
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
         self.assertFalse(thread.is_alive())
-        self.assertLess(time.monotonic() - started, 3)
 
     def test_scrapecreators_key_is_origin_locked_and_redirects_are_refused(self):
         redirect = fetch_news.HttpResult(
