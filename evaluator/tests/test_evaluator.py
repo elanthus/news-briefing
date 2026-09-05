@@ -714,8 +714,11 @@ class PublicRunTest(unittest.TestCase):
                 "config_sha256": {"config.json": "config-sha"},
                 "protocol": str(ROOT / "evaluator/protocols/portfolio-v1.json"),
                 "protocol_sha256": "protocol-sha",
-                "prompt_sha256": {"prompt": "prompt-sha"},
-                "prompt_order": ["prompt"],
+                "prompt_sha256": {
+                    "prompt": "prompt-sha",
+                    "prompt-2": "prompt-2-sha",
+                },
+                "prompt_order": ["prompt", "prompt-2"],
                 "trials_per_case": 1,
                 "matched_pair_case_ids": [],
                 "planned_matched_pair_trials": 0,
@@ -730,12 +733,12 @@ class PublicRunTest(unittest.TestCase):
                 },
             }
 
-            def row(model: str, cost: float) -> dict[str, Any]:
+            def row(model: str, cost: float, prompt: str = "prompt") -> dict[str, Any]:
                 return {
                     "provider": "openrouter",
                     "model": model,
-                    "prompt_version": "prompt",
-                    "prompt_sha256": "prompt-sha",
+                    "prompt_version": prompt,
+                    "prompt_sha256": f"{prompt}-sha",
                     "case_id": "case",
                     "case_family": "utility",
                     "case_kind": "utility",
@@ -791,7 +794,7 @@ class PublicRunTest(unittest.TestCase):
             primary_manifest = {
                 **common,
                 "run_status": "running",
-                "planned_case_trials": 2,
+                "planned_case_trials": 4,
                 "generation_controls": controls,
                 "adapter_timeouts_seconds": [
                     {"provider": "openrouter", "model": "model-a", "timeout_seconds": 300},
@@ -801,7 +804,13 @@ class PublicRunTest(unittest.TestCase):
                 "cost_ceiling_usd": 0.05,
                 "completed_at": None,
                 "checkpointed_at": "2026-01-01T00:00:00+00:00",
-                "results": [row("model-a", 0.01)],
+                "results": [
+                    row("model-a", 0.01),
+                    row("model-a", 0.01, "prompt-2"),
+                    # This interrupted prefix is superseded by supplement's
+                    # exact whole adapter matrix and must not be published.
+                    row("model-b", 0.01),
+                ],
             }
             primary_path = primary / "manifest.json"
             primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
@@ -811,7 +820,7 @@ class PublicRunTest(unittest.TestCase):
             supplement_manifest: dict[str, Any] = {
                 **common,
                 "run_status": "complete",
-                "planned_case_trials": 1,
+                "planned_case_trials": 2,
                 "generation_controls": [controls[1]],
                 "adapter_timeouts_seconds": [
                     {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
@@ -820,7 +829,10 @@ class PublicRunTest(unittest.TestCase):
                 "cost_ceiling_usd": 0.04,
                 "completed_at": "2026-01-01T01:00:00+00:00",
                 "checkpointed_at": "2026-01-01T01:00:00+00:00",
-                "results": [row("model-b", 0.02)],
+                "results": [
+                    row("model-b", 0.02),
+                    row("model-b", 0.02, "prompt-2"),
+                ],
             }
             supplement_path = supplement / "manifest.json"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
@@ -829,15 +841,22 @@ class PublicRunTest(unittest.TestCase):
             export_public_run([primary_path, supplement_path], output)
             published = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(published["run_status"], "complete")
-            self.assertEqual(published["planned_case_trials"], 2)
-            self.assertEqual(len(published["results"]), 2)
+            self.assertEqual(published["planned_case_trials"], 4)
+            self.assertEqual(len(published["results"]), 4)
             self.assertAlmostEqual(published["observed_ceiling_cost_usd"], 0.03)
             self.assertEqual(len(published["split_run_components"]), 2)
+            primary_component = next(
+                component
+                for component in published["split_run_components"]
+                if component["name"] == "primary"
+            )
+            self.assertEqual(primary_component["selected_rows"], 2)
+            self.assertEqual(primary_component["excluded_partial_rows"], 1)
             self.assertEqual(
                 {component["cost_ceiling_usd"] for component in published["split_run_components"]},
                 {0.04, 0.05},
             )
-            self.assertEqual(verify_public_run(output)["rows"], 2)
+            self.assertEqual(verify_public_run(output)["rows"], 4)
 
             # A recorded provider failure is published, not a reason to drop the
             # whole component: the row keeps its place in the adapter matrix,
@@ -849,14 +868,17 @@ class PublicRunTest(unittest.TestCase):
                 "final": None,
                 "error": {"type": "ProviderRequestError", "message": "invalid JSON"},
             }
-            supplement_manifest["results"] = [failed]
+            supplement_manifest["results"] = [
+                failed,
+                row("model-b", 0.02, "prompt-2"),
+            ]
             supplement_manifest["run_status"] = "completed_with_errors"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
             with_error = root / "with-error"
             export_public_run([primary_path, supplement_path], with_error)
             published_error = json.loads((with_error / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(published_error["run_status"], "completed_with_errors")
-            self.assertEqual(len(published_error["results"]), 2)
+            self.assertEqual(len(published_error["results"]), 4)
             self.assertEqual(
                 sum(c["error_rows"] for c in published_error["split_run_components"]), 1
             )
@@ -871,13 +893,19 @@ class PublicRunTest(unittest.TestCase):
             # A run that recorded failures but whose rows do not carry them is
             # rejected, in the single-manifest path as well as the split one.
             malformed = {**failed, "error": None}
-            supplement_manifest["results"] = [malformed]
+            supplement_manifest["results"] = [
+                malformed,
+                row("model-b", 0.02, "prompt-2"),
+            ]
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "recorded provider failure"):
                 export_public_run([supplement_path], root / "malformed-single")
             with self.assertRaisesRegex(ValueError, "recorded provider failure"):
                 export_public_run([primary_path, supplement_path], root / "malformed-split")
-            supplement_manifest["results"] = [row("model-b", 0.02)]
+            supplement_manifest["results"] = [
+                row("model-b", 0.02),
+                row("model-b", 0.02, "prompt-2"),
+            ]
             supplement_manifest["run_status"] = "complete"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
 

@@ -11,8 +11,8 @@ two frozen prompts, five trials, and 60 authored-or-derived case rows per model/
 > a second call wrote prose without citation fields. However, it skipped the deterministic selection and prose
 > repair step that production runs before spending a model correction. The numbers below are therefore a floor
 > for the production path, not a measurement of the complete production path. The evaluator now uses the shared
-> production repair decision, but these numbers have not been rerun. A corrected-path rerun is required; the
-> historical run's reported generation cost was $1.80.
+> production repair decision. [Parity v2](parity-v2.md) is the corrected-path rerun; this card retains the
+> historical pre-repair-path evidence and its reported $1.80 generation cost.
 
 1,200 rows completed with one recorded provider failure: a malformed response from DeepSeek's backend,
 published in the bundle as a `provider_error` row that scores nothing and is disclosed in the component
@@ -55,7 +55,8 @@ the Markdown path, where the checker caught them after the fact instead of the s
 improvement is concentrated in **selection** attacks (17/160 successes on Markdown, 7/160 on parity), and
 parity is slightly worse on prose attacks (3/40, versus 0/40). The correction loop contributed about equally
 on both measured paths (+7.7 and +8.0 points). Because this parity run omitted production's deterministic
-repair step, those figures cannot show how much of the remaining gap production repair removes. First-attempt
+repair step, those figures cannot show how much of the remaining gap production repair removed in the later
+[parity v2 rerun](parity-v2.md). First-attempt
 contract validity was 78.9% on Markdown against 90.5% on this historical parity path.
 
 ## Provider schema support
