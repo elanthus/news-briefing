@@ -45,6 +45,7 @@ jobs:
       - name: Verify committed public evidence bundles
         run: |
           python3 -m evaluator verify-public-run docs/results/parity-v1-evidence
+          python3 -m evaluator verify-public-run docs/results/parity-v2-evidence
           python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
       - name: Enforce declared case counts and history reference
         run: |

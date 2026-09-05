@@ -14,7 +14,7 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
 - **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v2 (current) then v1 (superseded); provenance, not instructions.
 
-> **The committed portfolio runs used different generation paths.** Portfolio v2 used direct Markdown, in which the model authors the whole briefing and its citations. Parity v1 used the two-pass selection/prose contracts, but its evaluator path skipped production's deterministic repair step. Its numbers are therefore a floor for production, not a complete production-path measurement. See [production-parity generation path](#production-parity-generation-path) for the corrected path.
+> **The committed portfolio runs used different generation paths.** Portfolio v2 used direct Markdown, in which the model authors the whole briefing and its citations. Parity v1 used the two-pass selection/prose contracts but skipped production's deterministic repair step, so it remains historical evidence. [Parity v2](../docs/results/parity-v2.md) reran the same matrix through the corrected production-parity path. See [production-parity generation path](#production-parity-generation-path) for the implementation.
 
 Reported numbers follow the [evaluation methodology](../docs/evaluation-methodology.md), which defines the threat model, denominators, and limitations that govern how these results may be cited.
 
@@ -158,9 +158,10 @@ and projects only its position-scoped evidence into a second call whose schema
 accepts prose but no citation fields. Code then reattaches the frozen references
 and evaluates the Markdown produced by the real renderer:
 
-Before spending a model correction, the evaluator now applies the same shared
-deterministic selection and prose repair decision as the scheduled runner. The
-committed parity-v1 run predates that fix and has not been rerun.
+Before spending a model correction, the evaluator applies the same shared
+deterministic selection and prose repair decision as the scheduled runner.
+[Parity v2](../docs/results/parity-v2.md) is the corrected-path rerun; parity v1
+predates the fix and remains historical evidence.
 
 ```bash
 python3 -m evaluator run \
@@ -335,7 +336,9 @@ Git tree, source tag, and SHA-256 of every tracked evaluator/runtime Python sour
 ### Exporting public evidence
 
 After review and adjudication, export reviewer-facing evidence with one complete manifest, or with compatible
-split manifests that each contain whole completed adapter blocks:
+split manifests that supply one exact whole completed block for every adapter. A clean interrupted component
+may also contain a strict partial row set for an adapter supplied in full by another component; the exporter
+excludes that set, records the excluded row count, and still rejects missing or duplicate whole blocks:
 
 ```bash
 python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \

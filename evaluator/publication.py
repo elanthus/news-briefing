@@ -153,11 +153,22 @@ def _error_row_count(source: dict[str, Any]) -> int:
     )
 
 
-def _component_descriptor(path: Path, source: dict[str, Any]) -> dict[str, Any]:
+def _component_descriptor(
+    path: Path,
+    source: dict[str, Any],
+    selected_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    selected = source["results"] if selected_rows is None else selected_rows
     return {
         "name": path.parent.name,
         "manifest_sha256": _sha256(path),
         "rows": len(source["results"]),
+        "selected_rows": len(selected),
+        "excluded_partial_rows": len(source["results"]) - len(selected),
+        "selected_adapters": [
+            {"provider": provider, "model": model}
+            for provider, model in sorted({_adapter_key(row) for row in selected})
+        ],
         "planned_case_trials": source.get("planned_case_trials"),
         "original_run_status": source.get("run_status"),
         "error_rows": _error_row_count(source),
@@ -262,8 +273,12 @@ def _merge_public_sources(
     rows_by_adapter: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
     per_adapter_units: int | None = None
     per_adapter_matched_pairs: int | None = None
-    seen_rows: set[tuple[Any, ...]] = set()
-    component_rows: list[tuple[dict[str, Any], Path]] = []
+    block_candidates: dict[
+        tuple[Any, Any],
+        list[tuple[dict[str, Any], Path, list[dict[str, Any]]]],
+    ] = {}
+    partial_adapters: set[tuple[Any, Any]] = set()
+    adjudicated_sources: list[tuple[dict[str, Any], Path]] = []
     observed_cost = 0.0
     expected_adapter_rows = _expected_adapter_rows(first)
     for source, path in loaded:
@@ -320,8 +335,7 @@ def _merge_public_sources(
             if previous != timeout:
                 raise ValueError(f"split final-run adapter timeouts differ for {key}")
 
-        source_counts: dict[tuple[Any, Any], int] = {}
-        source_row_keys: dict[tuple[Any, Any], set[tuple[Any, Any, Any]]] = {}
+        source_rows: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
         for row in source["results"]:
             if not _is_publishable_row(row):
                 raise ValueError(
@@ -331,30 +345,39 @@ def _merge_public_sources(
             adapter = _adapter_key(row)
             if adapter not in {_adapter_key(control) for control in source_controls}:
                 raise ValueError("split final-run row references an unconfigured adapter")
-            source_counts[adapter] = source_counts.get(adapter, 0) + 1
-            source_row_keys.setdefault(adapter, set()).add((
+            source_rows.setdefault(adapter, []).append(row)
+
+        for adapter, rows in source_rows.items():
+            row_keys = [(
                 row.get("prompt_version"),
                 row.get("case_id"),
                 row.get("trial"),
-            ))
-            row_key = (
-                *adapter,
-                row.get("prompt_version"),
-                row.get("case_id"),
-                row.get("trial"),
-            )
-            if row_key in seen_rows:
-                raise ValueError(f"split final-run manifests contain duplicate row {row_key}")
-            seen_rows.add(row_key)
+            ) for row in rows]
+            if len(row_keys) != len(set(row_keys)):
+                raise ValueError(
+                    f"split final-run manifest contains duplicate rows for {adapter}"
+                )
+            if not set(row_keys) <= expected_adapter_rows:
+                raise ValueError(
+                    "split final-run checkpoints may contain only exact whole adapter "
+                    "matrices or strict prefixes superseded by a whole adapter matrix"
+                )
+            if set(row_keys) == expected_adapter_rows:
+                block_candidates.setdefault(adapter, []).append((source, path, rows))
+            else:
+                partial_adapters.add(adapter)
 
         if source_per_adapter != len(expected_adapter_rows):
             raise ValueError("split final-run planned rows differ from the frozen suite matrix")
-        if any(keys != expected_adapter_rows for keys in source_row_keys.values()):
-            raise ValueError(
-                "split final-run checkpoints may contain only exact whole adapter matrices"
-            )
         if source.get("run_status") in _PUBLISHABLE_RUN_STATUSES:
-            if len(source["results"]) != planned or set(source_counts) != set(source_control_keys):
+            if (
+                len(source["results"]) != planned
+                or set(source_rows) != set(source_control_keys)
+                or any(
+                    len(rows) != source_per_adapter
+                    for rows in source_rows.values()
+                )
+            ):
                 raise ValueError("complete split final-run manifest is missing rows")
         elif source.get("run_status") != "running":
             raise ValueError(
@@ -363,19 +386,50 @@ def _merge_public_sources(
 
         adjudicated = copy.deepcopy(source)
         apply_adjudications(adjudicated, path.parent)
-        component_rows.append((adjudicated, path))
+        adjudicated_sources.append((adjudicated, path))
         cost = source.get("observed_ceiling_cost_usd", 0.0)
         if not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0:
             raise ValueError("split final-run manifest has an invalid observed cost")
         observed_cost += float(cost)
 
     assert per_adapter_units is not None
-    for source, _path in component_rows:
-        for row in source["results"]:
-            rows_by_adapter.setdefault(_adapter_key(row), []).append(row)
-    missing = sorted(set(controls) - set(rows_by_adapter))
+    missing = sorted(set(controls) - set(block_candidates))
     if missing:
         raise ValueError(f"split final-run manifests are missing adapters: {missing}")
+    duplicates = sorted(
+        adapter for adapter, candidates in block_candidates.items() if len(candidates) != 1
+    )
+    if duplicates:
+        raise ValueError(
+            f"split final-run manifests contain duplicate whole adapter matrices: {duplicates}"
+        )
+    if partial_adapters - set(block_candidates):
+        raise ValueError(
+            "split final-run checkpoints contain partial adapter rows without a "
+            "superseding whole adapter matrix"
+        )
+
+    selected_by_path: dict[Path, list[dict[str, Any]]] = {
+        path: [] for _source, path in adjudicated_sources
+    }
+    for adapter, candidates in block_candidates.items():
+        _source, path, _rows = candidates[0]
+        adjudicated = next(
+            source for source, source_path in adjudicated_sources if source_path == path
+        )
+        selected_by_path[path].extend(
+            row for row in adjudicated["results"] if _adapter_key(row) == adapter
+        )
+    component_rows = []
+    for source, path in adjudicated_sources:
+        selected = selected_by_path[path]
+        if not selected:
+            continue
+        component = copy.deepcopy(source)
+        component["results"] = selected
+        component_rows.append((component, path))
+        for row in selected:
+            rows_by_adapter.setdefault(_adapter_key(row), []).append(row)
     if any(len(rows) != per_adapter_units for rows in rows_by_adapter.values()):
         raise ValueError("split final-run manifests do not contain one full row set per adapter")
 
@@ -397,7 +451,7 @@ def _merge_public_sources(
     merged["observed_ceiling_cost_usd"] = observed_cost
     merged["run_status"] = (
         "completed_with_errors"
-        if any(_error_row_count(source) for source, _path in loaded)
+        if any(_error_row_count(source) for source, _path in component_rows)
         else "complete"
     )
     timestamps = [
@@ -406,7 +460,10 @@ def _merge_public_sources(
     ]
     merged["completed_at"] = max(value for value in timestamps if isinstance(value, str))
     merged["checkpointed_at"] = merged["completed_at"]
-    descriptors = [_component_descriptor(path, source) for source, path in loaded]
+    descriptors = [
+        _component_descriptor(path, source, selected_by_path[path])
+        for source, path in loaded
+    ]
     merged["split_run_components"] = descriptors
     return merged, component_rows, descriptors
 

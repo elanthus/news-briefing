@@ -1,0 +1,74 @@
+{
+  "component_manifests": [
+    {
+      "circuit_breaker_threshold": 3,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 5.0,
+      "error_rows": 2,
+      "excluded_partial_rows": 3,
+      "manifest_sha256": "c1d771afc42639b1ae3db301f471c32c7fef1bc609214d5eb853831c8c17ee8c",
+      "name": "parity-v2-final-20260904",
+      "observed_cost_usd": 0.753444066212,
+      "original_run_status": "running",
+      "planned_case_trials": 1200,
+      "rows": 603,
+      "selected_adapters": [
+        {
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "openrouter"
+        }
+      ],
+      "selected_rows": 600
+    },
+    {
+      "circuit_breaker_threshold": 3,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 3.0,
+      "error_rows": 0,
+      "excluded_partial_rows": 0,
+      "manifest_sha256": "f0d0571f6e192cee302d869ad1fbe7076f34e714e0559560a0845ac21515d8d1",
+      "name": "parity-v2-final-20260904-hy3",
+      "observed_cost_usd": 1.11046021,
+      "original_run_status": "complete",
+      "planned_case_trials": 600,
+      "rows": 600,
+      "selected_adapters": [
+        {
+          "model": "tencent/hy3",
+          "provider": "openrouter"
+        }
+      ],
+      "selected_rows": 600
+    }
+  ],
+  "files": {
+    "adjudications.json": {
+      "bytes": 185368,
+      "sha256": "059e8da7b9c43377d2b3d7d617d7d3ba69dd588aaeea1ccca2876d76de3b1ffd"
+    },
+    "ledger.json": {
+      "bytes": 21097566,
+      "sha256": "1b216470e82c5dda8a42b6f9dfb045e932b9faf5c618b16e96ec2bac0aad108a"
+    },
+    "manifest.json": {
+      "bytes": 25711828,
+      "sha256": "d8e883d436ca09c2fa21eeb14d3268ea13152f17c813d1243efcc7d09a1818d2"
+    },
+    "report.json": {
+      "bytes": 235099,
+      "sha256": "eeb6c53132c45e14e4b5b00303d7a5fa1b8842501b8081a7d29da784733a6138"
+    },
+    "report.md": {
+      "bytes": 24789,
+      "sha256": "cf1227036705241285bece45ba5fa3ea6c9e0886164ef2073567945a64e9bcb5"
+    }
+  },
+  "redactions": [
+    "provider_request_id"
+  ],
+  "regeneration_command": "python3 -m evaluator verify-public-run docs/results/parity-v2-evidence",
+  "schema_version": 1,
+  "source_commit": "87db491cdf259d4089a40e27cada340cf1517c84",
+  "source_tag": "parity-v2-source-20260904",
+  "source_tree": "8a2794257cd8d42853c63544bd5a1a6d46fab021"
+}
