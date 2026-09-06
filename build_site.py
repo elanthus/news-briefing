@@ -42,6 +42,16 @@ LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
 SIDECAR_V5_FIELDS = SIDECAR_V4_FIELDS | {"generation_failures"}
+SIDECAR_V6_FIELDS = SIDECAR_V5_FIELDS | {"advisory_findings"}
+# repair_actions, generation_failures, and advisory_findings were each added
+# independently (v4, v5, v6) and every producer of a freestanding sidecar
+# (prepare_publication.py writes all three; bootstrap_history.py and
+# hand-authored fixtures may write none or any subset) is free to omit any of
+# them, so a sidecar's field set is checked as this core plus any subset of
+# these three, not as one of the exact whole-version unions. A single history
+# entry is not affected: `_load_history` always slices to one exact
+# metadata_fields set per declared schema_version before calling here.
+OPTIONAL_SIDECAR_FIELDS = {"repair_actions", "generation_failures", "advisory_findings"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
@@ -114,6 +124,16 @@ article { padding: 1rem 0; }
 .review-action::before { content: " — "; }
 .review-panel details { border-top: 1px solid #d9820066; margin-top: .4rem; padding-top: .3rem; }
 .review-panel summary { cursor: pointer; font-weight: 650; }
+.advisory-panel { background: #2f7bd918; border: 1px solid #2f7bd9; border-radius: .4rem;
+  font-size: .88rem; margin: .6rem 0 1rem; padding: .5rem .7rem; }
+.advisory-story { background: #2f7bd918; border: 1px solid #2f7bd9; border-radius: .4rem;
+  margin: .6rem 0 1rem; padding: .55rem .7rem; }
+.advisory-story .inline-advisory { background: none; border: 0; border-radius: 0;
+  border-top: 2px solid #2f7bd999; margin: .55rem 0 0; padding: .45rem 0 0; }
+.advisory-panel h2 { font-size: 1rem; margin: 0 0 .15rem; }
+.advisory-panel ol { margin: .2rem 0 0; padding-left: 1.25rem; }
+.advisory-panel li { margin: .2rem 0; padding-left: .1rem; }
+.review-story-heading.advisory-heading { margin-top: .5rem; }
 .briefing-content .review-panel pre { background: #8881; border: 1px solid #8884; font-size: .8rem;
   margin: .35rem 0 0; max-height: 16rem; overflow: auto; padding: .5rem; white-space: pre-wrap; }
 .briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
@@ -139,6 +159,7 @@ class BriefingEntry:
     markdown: str | None
     repair_actions: tuple[dict[str, str], ...] = ()
     generation_failures: tuple[GenerationFailure, ...] = ()
+    advisory_findings: tuple[ReviewFinding, ...] = ()
 
     @property
     def slug(self) -> str:
@@ -167,60 +188,21 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         markdown=markdown,
         repair_actions=entry.repair_actions,
         generation_failures=entry.generation_failures,
+        advisory_findings=entry.advisory_findings,
     )
 
 
-def _entry_from_payload(
-    payload: object,
+def _parse_finding_entries(
+    raw_findings: list[object],
     *,
-    source: str,
-    expected_slug: str | None = None,
-    schema_version: int = 3,
-    flexible_findings: bool = True,
-) -> BriefingEntry:
-    expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
-    allowed_fields = (
-        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS)
-        if schema_version >= 2
-        else (expected_fields,)
-    )
-    if not isinstance(payload, dict) or set(payload) not in allowed_fields:
-        raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-
-    raw_date = payload["date"]
-    disposition = payload["disposition"]
-    findings_count = payload["findings_count"]
-    raw_findings = payload["findings"] if schema_version >= 2 else []
-    degraded_sources = payload["degraded_sources"]
-    if not isinstance(raw_date, str):
-        raise ValueError(f"{source} date must be an ISO date string")
-    try:
-        parsed_date = date.fromisoformat(raw_date)
-    except ValueError as exc:
-        raise ValueError(f"{source} date must be an ISO date string") from exc
-    if raw_date != parsed_date.isoformat() or (
-        expected_slug is not None and expected_slug != raw_date
-    ):
-        raise ValueError(f"{source} date must match its filename")
-    if disposition not in DISPOSITIONS:
-        raise ValueError(f"{source} has an invalid disposition")
-    if (
-        not isinstance(findings_count, int)
-        or isinstance(findings_count, bool)
-        or findings_count < 0
-    ):
-        raise ValueError(f"{source} findings_count must be a non-negative integer")
-    if (
-        not isinstance(degraded_sources, list)
-        or any(not isinstance(source, str) or not source.strip() for source in degraded_sources)
-        or len(set(degraded_sources)) != len(degraded_sources)
-    ):
-        raise ValueError(f"{source} degraded_sources must be unique non-empty strings")
+    label: str,
+    schema_version: int,
+    flexible_findings: bool,
+) -> list[ReviewFinding]:
+    """Parse one finding-shaped list, shared by ``findings`` and ``advisory_findings``."""
     findings: list[ReviewFinding] = []
-    if not isinstance(raw_findings, list):
-        raise ValueError(f"{source} findings must be an array")
     for index, raw_finding in enumerate(raw_findings):
-        finding_source = f"{source} finding {index}"
+        finding_source = f"{label} {index}"
         allowed_finding_fields = (
             {frozenset(FINDING_FIELDS), frozenset(FINDING_V3_FIELDS)}
             if schema_version >= 3 and flexible_findings
@@ -253,10 +235,75 @@ def _entry_from_payload(
                 path=context.path if context is not None else None,
             )
         )
+    return findings
+
+
+def _entry_from_payload(
+    payload: object,
+    *,
+    source: str,
+    expected_slug: str | None = None,
+    schema_version: int = 3,
+    flexible_findings: bool = True,
+) -> BriefingEntry:
+    expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
+    allowed_extra = OPTIONAL_SIDECAR_FIELDS if schema_version >= 2 else frozenset[str]()
+    if (
+        not isinstance(payload, dict)
+        or not expected_fields <= set(payload) <= expected_fields | allowed_extra
+    ):
+        raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
+
+    raw_date = payload["date"]
+    disposition = payload["disposition"]
+    findings_count = payload["findings_count"]
+    raw_findings = payload["findings"] if schema_version >= 2 else []
+    degraded_sources = payload["degraded_sources"]
+    if not isinstance(raw_date, str):
+        raise ValueError(f"{source} date must be an ISO date string")
+    try:
+        parsed_date = date.fromisoformat(raw_date)
+    except ValueError as exc:
+        raise ValueError(f"{source} date must be an ISO date string") from exc
+    if raw_date != parsed_date.isoformat() or (
+        expected_slug is not None and expected_slug != raw_date
+    ):
+        raise ValueError(f"{source} date must match its filename")
+    if disposition not in DISPOSITIONS:
+        raise ValueError(f"{source} has an invalid disposition")
+    if (
+        not isinstance(findings_count, int)
+        or isinstance(findings_count, bool)
+        or findings_count < 0
+    ):
+        raise ValueError(f"{source} findings_count must be a non-negative integer")
+    if (
+        not isinstance(degraded_sources, list)
+        or any(not isinstance(source, str) or not source.strip() for source in degraded_sources)
+        or len(set(degraded_sources)) != len(degraded_sources)
+    ):
+        raise ValueError(f"{source} degraded_sources must be unique non-empty strings")
+    if not isinstance(raw_findings, list):
+        raise ValueError(f"{source} findings must be an array")
+    findings = _parse_finding_entries(
+        raw_findings,
+        label=f"{source} finding",
+        schema_version=schema_version,
+        flexible_findings=flexible_findings,
+    )
     if schema_version >= 2 and disposition == "review_required" and len(findings) != findings_count:
         raise ValueError(f"{source} must include every review-required finding")
     if disposition != "review_required" and findings:
         raise ValueError(f"{source} findings details are allowed only for review_required entries")
+    raw_advisory_findings = payload.get("advisory_findings", [])
+    if not isinstance(raw_advisory_findings, list):
+        raise ValueError(f"{source} advisory findings must be an array")
+    advisory_findings = _parse_finding_entries(
+        raw_advisory_findings,
+        label=f"{source} advisory finding",
+        schema_version=schema_version,
+        flexible_findings=flexible_findings,
+    )
     generation_failures = parse_generation_failures(payload.get("generation_failures", []))
     if generation_failures and disposition != "blocked":
         raise ValueError(f"{source} generation failures require a blocked disposition")
@@ -270,6 +317,7 @@ def _entry_from_payload(
         markdown=None,
         repair_actions=repair_actions,
         generation_failures=generation_failures,
+        advisory_findings=tuple(advisory_findings),
     )
 
 
@@ -278,10 +326,10 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3, 4, 5}
+        or payload.get("schema_version") not in {1, 2, 3, 4, 5, 6}
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1 through 5 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 1 through 6 with an entries array")
     schema_version = payload["schema_version"]
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
@@ -292,9 +340,13 @@ def _load_history(path: Path) -> list[BriefingEntry]:
             expected_fields = expected_fields | {"repair_actions"}
         if schema_version >= 5:
             expected_fields = expected_fields | {"generation_failures"}
+        if schema_version >= 6:
+            expected_fields = expected_fields | {"advisory_findings"}
         if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
             raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        if schema_version >= 5:
+        if schema_version >= 6:
+            metadata_fields = SIDECAR_V6_FIELDS
+        elif schema_version >= 5:
             metadata_fields = SIDECAR_V5_FIELDS
         elif schema_version >= 4:
             metadata_fields = SIDECAR_V4_FIELDS
@@ -328,43 +380,48 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 markdown=markdown,
                 repair_actions=entry.repair_actions,
                 generation_failures=entry.generation_failures,
+                advisory_findings=entry.advisory_findings,
             )
         )
     return entries
 
 
+def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
+    return {
+        "level": finding.level,
+        "check": finding.check,
+        "domain": finding.domain,
+        "message": finding.message,
+        "context": (
+            {
+                "section": finding.section,
+                "headline": finding.headline,
+                "model_authored": finding.model_authored,
+                **({"path": finding.path} if finding.path is not None else {}),
+            }
+            if finding.section is not None
+            and finding.headline is not None
+            and finding.model_authored is not None
+            else None
+        ),
+    }
+
+
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "entries": [
             {
                 "date": entry.slug,
                 "disposition": entry.disposition,
                 "findings_count": entry.findings_count,
-                "findings": [
-                    {
-                        "level": finding.level,
-                        "check": finding.check,
-                        "domain": finding.domain,
-                        "message": finding.message,
-                        "context": (
-                            {
-                                "section": finding.section,
-                                "headline": finding.headline,
-                                "model_authored": finding.model_authored,
-                                **({"path": finding.path} if finding.path is not None else {}),
-                            }
-                            if finding.section is not None
-                            and finding.headline is not None
-                            and finding.model_authored is not None
-                            else None
-                        ),
-                    }
-                    for finding in entry.findings
-                ],
+                "findings": [_finding_history_payload(finding) for finding in entry.findings],
                 "degraded_sources": list(entry.degraded_sources),
                 "repair_actions": [dict(action) for action in entry.repair_actions],
                 "generation_failures": [failure.payload() for failure in entry.generation_failures],
+                "advisory_findings": [
+                    _finding_history_payload(finding) for finding in entry.advisory_findings
+                ],
                 "markdown": _strip_legacy_preview_banner(entry.markdown),
             }
             for entry in entries
@@ -787,7 +844,8 @@ def _is_web_link(url: str) -> bool:
 def _render_markdown(
     markdown: str,
     findings: tuple[ReviewFinding, ...] = (),
-) -> tuple[str, frozenset[int]]:
+    advisory_findings: tuple[ReviewFinding, ...] = (),
+) -> tuple[str, frozenset[int], frozenset[int]]:
     """Render untrusted Markdown and place story-specific findings beside the story."""
     markdown_it = importlib.import_module("markdown_it")
     # linkify is deliberately OFF: it would turn any bare domain a model wrote
@@ -805,6 +863,7 @@ def _render_markdown(
     lines: list[str] = []
     replacements: dict[str, str] = {}
     matched: set[int] = set()
+    matched_advisory: set[int] = set()
     section = ""
     excluded_section = False
     current_path: str | None = None
@@ -845,8 +904,14 @@ def _render_markdown(
             if index not in matched
             and _finding_matches(finding, section, headline, current_path)
         ]
+        advisory_indices = [
+            index
+            for index, finding in enumerate(advisory_findings)
+            if index not in matched_advisory
+            and _finding_matches(finding, section, headline, current_path)
+        ]
         current_path = None
-        if not indices:
+        if not indices and not advisory_indices:
             lines.append(line)
             continue
         marker_id = len(replacements)
@@ -865,19 +930,39 @@ def _render_markdown(
         )
         if DESTINATION_REDACTION not in line:
             original = None
-        count = len(indices)
-        box_heading = f"Review required · {count} {'finding' if count == 1 else 'findings'}"
+        box_heading_parts = []
+        if indices:
+            count = len(indices)
+            box_heading_parts.append(f"Review required · {count} {'finding' if count == 1 else 'findings'}")
+        if advisory_indices:
+            acount = len(advisory_indices)
+            box_heading_parts.append(f"Advisory · {acount} {'note' if acount == 1 else 'notes'}")
+        box_heading = " · ".join(box_heading_parts)
+        # A story with only advisory notes gets the calmer advisory-story
+        # styling; any actionable finding keeps the amber review-story frame,
+        # even when an advisory note rides along in the same box.
+        wrapper_class = "review-story" if indices else "advisory-story"
         replacements[start_marker] = (
-            '<section class="review-story">\n'
+            f'<section class="{wrapper_class}">\n'
             f'<h3 class="review-story-heading">{html.escape(box_heading)}</h3>\n'
         )
-        replacements[end_marker] = _render_review_panel(
-            tuple(findings[index] for index in indices),
-            inline=True,
-            original=original,
-            show_heading=False,
-        ) + "</section>\n"
+        panel_html = ""
+        if indices:
+            panel_html += _render_review_panel(
+                tuple(findings[index] for index in indices),
+                inline=True,
+                original=original,
+                show_heading=False,
+            )
+        if advisory_indices:
+            panel_html += _render_advisory_panel(
+                tuple(advisory_findings[index] for index in advisory_indices),
+                inline=True,
+                show_heading=False,
+            )
+        replacements[end_marker] = panel_html + "</section>\n"
         matched.update(indices)
+        matched_advisory.update(advisory_indices)
         lines.extend([start_marker, "", line])
         pending_end_marker = end_marker
     if pending_end_marker is not None:
@@ -885,7 +970,7 @@ def _render_markdown(
     rendered = str(parser.render("\n".join(lines)))
     for marker, panel in replacements.items():
         rendered = rendered.replace(f"<p>{marker}</p>\n", panel, 1)
-    return rendered, frozenset(matched)
+    return rendered, frozenset(matched), frozenset(matched_advisory)
 
 
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
@@ -919,6 +1004,9 @@ def _status_chip(entry: BriefingEntry) -> str:
     else:
         label = "✖ Not published"
     suffixes = []
+    if entry.advisory_findings:
+        n = len(entry.advisory_findings)
+        suffixes.append(f"{n} advisory {'note' if n == 1 else 'notes'}")
     if entry.degraded_sources:
         suffixes.append("sources degraded")
     if suffixes:
@@ -975,7 +1063,7 @@ def _entry_body(entry: BriefingEntry) -> str:
             f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
     elif entry.markdown is not None:
-        rendered_markdown, _matched = _render_markdown(entry.markdown)
+        rendered_markdown, _matched, _matched_advisory = _render_markdown(entry.markdown)
         briefing = _briefing_layout(rendered_markdown, status_chip)
     else:
         briefing = (
@@ -1071,6 +1159,45 @@ def _render_review_panel(
     )
 
 
+def _render_advisory_panel(
+    findings: tuple[ReviewFinding, ...],
+    *,
+    inline: bool = False,
+    show_heading: bool = True,
+) -> str:
+    """Render nonblocking quality notes: visible, but distinct from a review panel.
+
+    No "Action:" line — these are diagnostics for a passed run, not defects
+    that must be resolved before publication.
+    """
+    items = []
+    for finding in findings:
+        label = " · ".join(
+            [finding.level, finding.domain, finding.check.replace("_", " ")]
+        )
+        items.append(
+            "<li>"
+            f'<span class="finding-label">{html.escape(label)}:</span> '
+            f"{html.escape(finding.message)}"
+            "</li>"
+        )
+    count = len(findings)
+    heading = f"Advisory · {count} {'note' if count == 1 else 'notes'}"
+    tag = "aside" if inline else "section"
+    heading_tag = "h3" if inline else "h2"
+    classes = "advisory-panel inline-advisory" if inline else "advisory-panel"
+    heading_html = (
+        f"<{heading_tag}>{html.escape(heading)}</{heading_tag}>" if show_heading else ""
+    )
+    aria_label = ' aria-label="Advisory notes"' if not show_heading else ""
+    return (
+        f'<{tag} class="{classes}"{aria_label}>'
+        f"{heading_html}"
+        f"<ol>{''.join(items)}</ol>"
+        f"</{tag}>\n"
+    )
+
+
 def _render_report(
     entry: BriefingEntry,
     entries: list[BriefingEntry],
@@ -1092,25 +1219,63 @@ def _render_report(
         )
     if entry.generation_failures:
         parts.append(_generation_failure_notice(entry))
-    if entry.findings and entry.markdown is not None:
+    all_clear_note: str | None = None
+    if entry.disposition == "ready":
+        if entry.findings_count == 0:
+            if entry.advisory_findings:
+                n = len(entry.advisory_findings)
+                all_clear_note = (
+                    f"The publication gate passed with {n} advisory {'note' if n == 1 else 'notes'}. "
+                    "Semantic faithfulness was not assessed."
+                )
+            else:
+                all_clear_note = (
+                    "All deterministic contract checks passed. Semantic faithfulness was not assessed."
+                )
+        else:
+            # Reachable only if a future actionable check stays WARN-level
+            # outside review_required; keep the existing wording either way.
+            count = entry.findings_count
+            all_clear_note = (
+                f"{count} actionable {'finding was' if count == 1 else 'findings were'} "
+                "recorded; details are published only for review-required runs."
+            )
+    advisory_shown = False
+    if (entry.findings or entry.advisory_findings) and entry.markdown is not None:
         # The quarantined preview is the evidence a reviewer judges findings
         # against: render it with each finding attached to its story, keeping
         # the redaction disclosures, and surface only unmatched findings in a
-        # run-level panel.
-        rendered_markdown, matched = _render_markdown(entry.markdown, entry.findings)
+        # run-level panel. Advisory notes ride the same mechanism but stay in
+        # their own, less alarming panel.
+        rendered_markdown, matched, matched_advisory = _render_markdown(
+            entry.markdown, entry.findings, entry.advisory_findings
+        )
         unmatched = tuple(
             finding for index, finding in enumerate(entry.findings) if index not in matched
         )
+        unmatched_advisory = tuple(
+            finding
+            for index, finding in enumerate(entry.advisory_findings)
+            if index not in matched_advisory
+        )
+        if all_clear_note is not None:
+            parts.append(f'<p class="muted">{html.escape(all_clear_note)}</p>')
         if unmatched:
             parts.append(_render_review_panel(unmatched))
+        if unmatched_advisory:
+            parts.append(_render_advisory_panel(unmatched_advisory))
+        advisory_shown = True
         parts.append(f'<article class="briefing-content">{rendered_markdown}</article>')
     elif entry.findings:
         parts.append(_render_review_panel(entry.findings))
-    elif entry.disposition == "ready" and entry.findings_count == 0:
-        parts.append(
-            '<p class="muted">All deterministic contract checks passed. '
-            "Semantic faithfulness was not assessed.</p>"
-        )
+        if entry.advisory_findings:
+            parts.append(_render_advisory_panel(entry.advisory_findings))
+        advisory_shown = True
+    elif all_clear_note is not None:
+        parts.append(f'<p class="muted">{html.escape(all_clear_note)}</p>')
+        if entry.advisory_findings:
+            parts.append(_render_advisory_panel(entry.advisory_findings))
+        advisory_shown = True
     elif entry.findings_count:
         count = entry.findings_count
         parts.append(
@@ -1123,6 +1288,8 @@ def _render_report(
             '<p class="muted">No findings details are available for this disposition. '
             "A zero count does not mean the checker accepted a candidate.</p>"
         )
+    if not advisory_shown and entry.advisory_findings:
+        parts.append(_render_advisory_panel(entry.advisory_findings))
     if entry.repair_actions:
         items = []
         for action in entry.repair_actions:

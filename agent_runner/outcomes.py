@@ -48,6 +48,18 @@ QUALITY_CHECKS = {
     "unsupported_figure",
 }
 NONBLOCKING_FINDING_DOMAINS = {"quality"}
+# Deterministic, reader-relevant quality signals worth surfacing as advisory
+# notes on the public integrity report. `unsupported_figure` and
+# `figure_supported_elsewhere` are excerpt-bounded heuristics with a high
+# false-positive rate (a figure's absence from a bounded feed excerpt does not
+# establish its absence from the linked article) and stay report-only; see
+# docs/design.md under "Ranking and checking".
+ADVISORY_QUALITY_CHECKS = {
+    "exclusion_log_missing",
+    "exclusion_log_short",
+    "low_claim_evidence_overlap",
+    "slots_underfilled",
+}
 
 
 @dataclass(frozen=True)
@@ -70,6 +82,20 @@ def _value(finding: Any, key: str) -> Any:
 
 def is_actionable_finding(finding: Any) -> bool:
     return _value(finding, "domain") not in NONBLOCKING_FINDING_DOMAINS
+
+
+def is_advisory_finding(finding: Any) -> bool:
+    """Nonblocking findings worth publishing for visibility, not action.
+
+    Distinct from ``is_actionable_finding``: a finding can be neither
+    actionable nor advisory (e.g. the excerpt-bounded figure heuristics),
+    which keeps ``findings_count`` (actionable only) and the advisory list
+    from overlapping or double-counting the same finding.
+    """
+    return (
+        _value(finding, "domain") in NONBLOCKING_FINDING_DOMAINS
+        and _value(finding, "check") in ADVISORY_QUALITY_CHECKS
+    )
 
 
 def finding_domain(check: str) -> str:
