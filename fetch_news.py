@@ -64,6 +64,12 @@ MAX_URL_BYTES = corpus_schema.ITEM_URL_MAX_BYTES
 DEFAULT_WINDOW_HOURS = 24
 DEFAULT_SOURCE_CAP = 25
 DEFAULT_CATEGORY_CAP = 60
+# dev_community's five subreddits would otherwise each contribute up to
+# DEFAULT_SOURCE_CAP items, and Reddit's higher post volume then crowds out
+# the category's vendor release feeds and Hacker News coverage. A lower cap
+# bounds Reddit's share without removing it as a source; min() with the
+# configured --source-cap in main() so an explicitly stricter cap still wins.
+REDDIT_SOURCE_CAP = 8
 
 FETCH_WORKERS = 8
 SUMMARY_CHARS = corpus_schema.ITEM_SUMMARY_MAX_CHARS
@@ -282,6 +288,7 @@ SOURCE_RELEVANCE_FILTERS = {
     "Ars Technica": AI_RELEVANCE,
     "Wired": AI_RELEVANCE,
     "GitHub Changelog": DEV_TOOL_RELEVANCE,
+    "Simon Willison's Weblog": DEV_TOOL_RELEVANCE,
     "Hacker News": HN_RELEVANCE,
 }
 FEED_NAMESPACES = {
@@ -1469,6 +1476,7 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
                      undated_dropped: int = 0,
                      source_byte_budget: int = SOURCE_CONTEXT_BYTES,
                      source_token_budget: int = SOURCE_CONTEXT_TOKENS,
+                     source_caps: dict[str, int] | None = None,
                      ) -> tuple[list[Item], dict[str, int]]:
     """Filter, deduplicate, diversify, and bound one category for model input.
 
@@ -1479,6 +1487,11 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
     `undated_dropped` is counted by the fetchers, before an item ever reaches
     this function, and is carried through so every reason an item is missing
     from the corpus appears in one place.
+
+    `source_caps` overrides `source_cap` for specific source IDs (for
+    example, a lower cap for Reddit sources so a handful of subreddits cannot
+    fill a shared category cap on their own). A source absent from the map
+    uses `source_cap` unchanged.
     """
     fetched = len(items)
     bounded, field_telemetry = _apply_field_budgets(items)
@@ -1499,7 +1512,8 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
             category_cap_dropped = len(unique) - index
             break
         source = item.get("source", "unknown")
-        if by_source.get(source, 0) >= source_cap:
+        cap = source_caps.get(source, source_cap) if source_caps else source_cap
+        if by_source.get(source, 0) >= cap:
             source_cap_dropped += 1
             continue
         size, tokens = item_context_usage(item)
@@ -1795,12 +1809,18 @@ def main() -> int:
 
     corpus["fetch_duration_ms"] = round((time.perf_counter() - fetch_started) * 1000)
 
+    # An explicitly stricter --source-cap must still win over the Reddit
+    # override, so take the smaller of the two rather than the constant.
+    reddit_source_cap = min(args.source_cap, REDDIT_SOURCE_CAP)
+    source_caps = {f"r/{sub}": reddit_source_cap for sub in sources.subreddits}
+
     for category in corpus["categories"]:
         items, stats = prepare_category(
             corpus["categories"][category],
             source_cap=args.source_cap,
             category_cap=args.category_cap,
             undated_dropped=undated[category],
+            source_caps=source_caps,
         )
         corpus["categories"][category] = items
         corpus["processing"][category] = stats
