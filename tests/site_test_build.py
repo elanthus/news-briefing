@@ -41,6 +41,45 @@ def build_site(*args, **kwargs):
 
 
 class BuildSiteTests(unittest.TestCase):
+    def test_failed_chain_explanation_survives_history_and_appears_on_public_pages(self) -> None:
+        from datetime import date
+
+        from prepare_publication import prepare_publication
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            chain.mkdir()
+            (chain / "fallback-log.json").write_text(json.dumps({
+                "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
+                "attempts": [{"model": "google/gemini-3.7-flash", "status": "failed",
+                              "failure_reason": 'ProviderError: openrouter HTTP 400: <script>private</script>'}],
+            }))
+            prepare_publication(chain, root / "missing.json", root / "briefings", date(2026, 9, 6))
+            build_site(root / "briefings", root / "site")
+            for relative in ("index.html", "reports/2026-09-06.html"):
+                page = (root / "site" / relative).read_text()
+                self.assertIn("Every model in the fallback chain failed", page)
+                self.assertIn("Gemini 3.7 Flash", page)
+                self.assertIn("rejected a request parameter (HTTP 400)", page)
+                self.assertNotIn("<script>private</script>", page)
+            (root / "empty").mkdir()
+            build_site(root / "empty", root / "rebuilt", prior_history=root / "site/history.json")
+            self.assertIn("rejected a request parameter", (root / "rebuilt/index.html").read_text())
+
+    def test_history_failure_metadata_rejects_unknown_text_and_public_prose(self) -> None:
+        from build_site import _entry_from_payload
+
+        base = {"date": "2026-09-06", "disposition": "blocked", "findings_count": 0,
+                "findings": [], "degraded_sources": [], "repair_actions": [],
+                "generation_failures": [{"model": "tencent/hy3", "reason": "generation_failed"}]}
+        for changes in (
+            {"disposition": "ready"},
+            {"generation_failures": [{"model": "tencent/hy3", "reason": "private"}]},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                _entry_from_payload({**base, **changes}, source="test")
+
     def test_exclude_date_parser_requires_canonical_calendar_date(self) -> None:
         self.assertEqual(_parse_canonical_date("2026-08-15").isoformat(), "2026-08-15")
         for value in ("20260815", "2026-W33-6"):
@@ -549,7 +588,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("did not pass automated checks", page_18)
             self.assertNotIn("dogfood preview", page_18)
             history = json.loads((output / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 4)
+            self.assertEqual(history["schema_version"], 5)
             self.assertEqual(len(history["entries"]), 3)
 
     def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
@@ -709,7 +748,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 4)
+            self.assertEqual(history["schema_version"], 5)
             self.assertEqual(history["entries"][0]["repair_actions"], actions)
 
             second = root / "second"

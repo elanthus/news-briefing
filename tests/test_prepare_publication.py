@@ -11,6 +11,22 @@ from prepare_publication import prepare_publication
 
 
 class PreparePublicationTests(unittest.TestCase):
+    def test_exhausted_chain_publishes_only_allowlisted_failure_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            chain.mkdir()
+            (chain / "fallback-log.json").write_text(json.dumps({
+                "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
+                "attempts": [{"model": "google/gemini-3.7-flash", "status": "failed",
+                              "failure_reason": 'ProviderError: openrouter HTTP 400: private-data'}],
+            }))
+            record = prepare_publication(chain, root / "missing.json", root / "history", date(2026, 9, 6))
+            self.assertEqual(record.disposition, "blocked")
+            self.assertEqual(record.generation_failures[0].reason, "invalid_request")
+            self.assertNotIn("private-data", json.dumps(record.payload()))
+            self.assertFalse((root / "history/2026-09-06.md").exists())
+
     def test_resolves_selected_ready_run_from_fallback_log(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.outcomes import is_actionable_finding
+from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     FINDING_FIELDS,
     ReviewContext,
@@ -42,6 +43,7 @@ class PublicationRecord:
     findings: tuple[ReviewFinding, ...]
     degraded_sources: tuple[str, ...]
     repair_actions: tuple[dict[str, str], ...] = ()
+    generation_failures: tuple[GenerationFailure, ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -51,6 +53,7 @@ class PublicationRecord:
             "findings": [finding_payload(finding) for finding in self.findings],
             "degraded_sources": list(self.degraded_sources),
             "repair_actions": list(self.repair_actions),
+            "generation_failures": [failure.payload() for failure in self.generation_failures],
         }
 
 
@@ -385,6 +388,10 @@ def prepare_publication(
         findings=findings,
         degraded_sources=_degraded_sources(corpus_path),
         repair_actions=repair_actions,
+        generation_failures=(
+            summarize_failed_chain(_load_json(run_dir / FALLBACK_LOG_NAME))
+            if disposition == "blocked" else ()
+        ),
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
