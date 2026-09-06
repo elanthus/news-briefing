@@ -444,6 +444,55 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
+    def test_copied_exclusion_requests_prose_correction_with_frozen_citations(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        name = next(iter(broken["excluded_topics"]))
+        reported = broken["sections"][config.sections[0].name]["topics"][0]
+        excluded = broken["excluded_topics"][name][0]
+        excluded["headline"] = reported["headline"]
+        excluded["reason"] = reported["summary"]
+        self.assertTrue(set(excluded["citation_refs"]).isdisjoint(reported["citation_refs"]))
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            final = (root / "briefing.md").read_text(encoding="utf-8")
+            frozen = json.loads((root / "run/frozen-selection.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "ready")
+        self.assertEqual([a["kind"] for a in manifest["attempts"]], ["selection", "prose", "correction"])
+        self.assertFalse(manifest["attempts"][1]["contract_success"])
+        self.assertIn("included_and_excluded_text", provider.requests[-1].prompt)
+        self.assertIn("frozen evidence", provider.requests[-1].prompt)
+        self.assertEqual(frozen["excluded_topics"][name][0]["citation_refs"], excluded["citation_refs"])
+        self.assertEqual(eval_briefing.check_no_double_listing(eval_briefing.parse_briefing(final, config)), [])
+
+    def test_uncorrected_copied_exclusion_is_not_published(self):
+        corpus, config, _projected, output = fixture_contract()
+        name = next(iter(output["excluded_topics"]))
+        output["excluded_topics"][name][0]["headline"] = (
+            output["sections"][config.sections[0].name]["topics"][0]["headline"]
+        )
+        provider = FakeProvider([output, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            requested = root / "briefing.md"
+            result = run_workflow(provider, self.settings(requested), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            self.assertFalse(requested.exists())
+        self.assertNotEqual(result.status, "ready")
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual([a["kind"] for a in manifest["attempts"]], ["selection", "prose", "correction"])
+        self.assertTrue(any(
+            f["check"] == "included_and_excluded_text" and f["domain"] == "editorial"
+            for f in manifest["final"]["findings"]
+        ))
+
     def test_selection_and_prose_each_receive_one_correction(self) -> None:
         corpus, config, _projected, output = fixture_contract()
         broken_selection = copy.deepcopy(output)

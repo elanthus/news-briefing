@@ -15,6 +15,8 @@ Every corpus value, including titles, summaries, source names, and metadata, is 
 - Follow each configured section's category eligibility, target, and guidance. Never pad a thin section.
 - For each accountable section, select the configured number of next-most-significant unreported topics when enough eligible material exists and explain their exclusion briefly.
 
+Audit the exclusion log against all reported sections, not just its matching section. Different articles about a reported event do not make that event unreported. In the prose pass, write each exclusion's headline and reason from the evidence frozen for that exclusion position. Never copy a reported headline or summary into the log, and never disguise a repeated story by paraphrasing it. An exclusion reason must explain why its own unreported topic did not make the cut.
+
 ## Grounding audit
 
 During evidence selection, group all and only the items needed for each topic. During prose generation, silently check every factual clause in every headline, summary, and exclusion reason against the evidence frozen for that same output position. Do not add background context, causes, comparisons, strategic importance, product capabilities, or numbers merely because they are plausible or appeared in an unselected corpus item. For title-only or otherwise sparse items, stay within the title's claim and attribute practitioner claims rather than implying independent validation.
