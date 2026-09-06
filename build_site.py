@@ -20,6 +20,12 @@ import corpus_schema
 import eval_briefing
 from audit_manifest import build_audit_manifest
 from corpus_storage import write_storage_marker
+from publication_failures import (
+    FAILURE_MESSAGES,
+    MODEL_LABELS,
+    GenerationFailure,
+    parse_generation_failures,
+)
 from publication_schema import (
     CONTEXT_FIELDS,
     FINDING_FIELDS,
@@ -35,6 +41,7 @@ from publication_schema import (
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
 SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
+SIDECAR_V5_FIELDS = SIDECAR_V4_FIELDS | {"generation_failures"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
@@ -131,6 +138,7 @@ class BriefingEntry:
     degraded_sources: tuple[str, ...]
     markdown: str | None
     repair_actions: tuple[dict[str, str], ...] = ()
+    generation_failures: tuple[GenerationFailure, ...] = ()
 
     @property
     def slug(self) -> str:
@@ -158,6 +166,7 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         degraded_sources=entry.degraded_sources,
         markdown=markdown,
         repair_actions=entry.repair_actions,
+        generation_failures=entry.generation_failures,
     )
 
 
@@ -171,7 +180,7 @@ def _entry_from_payload(
 ) -> BriefingEntry:
     expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
     allowed_fields = (
-        (expected_fields, SIDECAR_V4_FIELDS)
+        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS)
         if schema_version >= 2
         else (expected_fields,)
     )
@@ -248,6 +257,9 @@ def _entry_from_payload(
         raise ValueError(f"{source} must include every review-required finding")
     if disposition != "review_required" and findings:
         raise ValueError(f"{source} findings details are allowed only for review_required entries")
+    generation_failures = parse_generation_failures(payload.get("generation_failures", []))
+    if generation_failures and disposition != "blocked":
+        raise ValueError(f"{source} generation failures require a blocked disposition")
     repair_actions = parse_repair_actions(payload.get("repair_actions"))
     return BriefingEntry(
         day=parsed_date,
@@ -257,6 +269,7 @@ def _entry_from_payload(
         degraded_sources=tuple(degraded_sources),
         markdown=None,
         repair_actions=repair_actions,
+        generation_failures=generation_failures,
     )
 
 
@@ -265,10 +278,10 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3, 4}
+        or payload.get("schema_version") not in {1, 2, 3, 4, 5}
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1 through 4 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 1 through 5 with an entries array")
     schema_version = payload["schema_version"]
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
@@ -277,9 +290,13 @@ def _load_history(path: Path) -> list[BriefingEntry]:
         expected_fields = HISTORY_FIELDS if schema_version >= 2 else LEGACY_HISTORY_FIELDS
         if schema_version >= 4:
             expected_fields = expected_fields | {"repair_actions"}
+        if schema_version >= 5:
+            expected_fields = expected_fields | {"generation_failures"}
         if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
             raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        if schema_version >= 4:
+        if schema_version >= 5:
+            metadata_fields = SIDECAR_V5_FIELDS
+        elif schema_version >= 4:
             metadata_fields = SIDECAR_V4_FIELDS
         elif schema_version >= 2:
             metadata_fields = SIDECAR_FIELDS
@@ -310,6 +327,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 degraded_sources=entry.degraded_sources,
                 markdown=markdown,
                 repair_actions=entry.repair_actions,
+                generation_failures=entry.generation_failures,
             )
         )
     return entries
@@ -317,7 +335,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "entries": [
             {
                 "date": entry.slug,
@@ -346,6 +364,7 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                 ],
                 "degraded_sources": list(entry.degraded_sources),
                 "repair_actions": [dict(action) for action in entry.repair_actions],
+                "generation_failures": [failure.payload() for failure in entry.generation_failures],
                 "markdown": _strip_legacy_preview_banner(entry.markdown),
             }
             for entry in entries
@@ -927,6 +946,24 @@ def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
     )
 
 
+def _generation_failure_notice(entry: BriefingEntry) -> str:
+    if not entry.generation_failures:
+        return '<p class="muted">No briefing prose is available for this run.</p>'
+    items = "".join(
+        f"<li><strong>{html.escape(MODEL_LABELS[failure.model])}:</strong> "
+        f"{html.escape(FAILURE_MESSAGES[failure.reason])}</li>"
+        for failure in entry.generation_failures
+    )
+    return (
+        '<section class="generation-failure">'
+        '<h2>Briefing unavailable</h2>'
+        '<p>Every model in the fallback chain failed to produce a briefing that passed '
+        'publication checks. No briefing was published for this run.</p>'
+        f'<ul>{items}</ul>'
+        '<p>A future retry may recover this briefing.</p></section>'
+    )
+
+
 def _entry_body(entry: BriefingEntry) -> str:
     status_chip = _status_chip(entry)
     if entry.disposition == "review_required":
@@ -944,7 +981,7 @@ def _entry_body(entry: BriefingEntry) -> str:
         briefing = (
             f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
             f"<hr>{status_chip}<hr>"
-            '<p class="muted">No briefing prose is available for this run.</p>'
+            f"{_generation_failure_notice(entry)}"
         )
     return f'<article class="briefing-content">{briefing}</article>'
 
@@ -1053,6 +1090,8 @@ def _render_report(
             "corpus membership, canonical destinations, provenance, and content hashes; "
             "source-owned titles and excerpts are not included.</p>"
         )
+    if entry.generation_failures:
+        parts.append(_generation_failure_notice(entry))
     if entry.findings and entry.markdown is not None:
         # The quarantined preview is the evidence a reviewer judges findings
         # against: render it with each finding attached to its story, keeping

@@ -54,6 +54,26 @@ class TimeoutResponse(FakeResponse):
 
 
 class ProviderTests(unittest.TestCase):
+    def test_gemini_preserves_contract_without_redundant_citation_maximum(self):
+        refs = {"type": "array", "items": {"type": "string", "enum": ["citation_1", "citation_2"]},
+                "uniqueItems": True, "minItems": 1, "maxItems": 2}
+        schema = {"type": "object", "properties": {
+            "refs": refs,
+            "maxItems": {"type": "integer"},
+            "prose": {"type": "array", "minItems": 2, "maxItems": 2,
+                      "items": {"type": "string"}},
+            "restricted": {**refs, "maxItems": 1},
+            "repeats": {**refs, "uniqueItems": False},
+        }, "const": {"maxItems": 2}}
+        sent = OpenRouterProvider("google/gemini-3.7-flash")._sent_schema(schema)
+        self.assertNotIn("maxItems", sent["properties"]["refs"])
+        self.assertEqual(sent["properties"]["refs"], {k: v for k, v in refs.items() if k != "maxItems"})
+        for name in ("maxItems", "prose", "restricted", "repeats"):
+            self.assertEqual(sent["properties"][name], schema["properties"][name])
+        self.assertEqual(sent["const"], schema["const"])
+        self.assertEqual(refs["maxItems"], 2)
+        self.assertEqual(OpenRouterProvider("deepseek/deepseek-v4-flash-0731")._sent_schema(schema), schema)
+
     def test_grammar_schema_removes_unique_items_without_mutating_source(self):
         schema = {
             "type": "object",

@@ -18,6 +18,7 @@ files = [
     "triage_run.py",
     "prepare_publication.py",
     "publication_schema.py",
+    "publication_failures.py",
     "bootstrap_history.py",
     "build_site.py",
     "agent_runner",

@@ -117,6 +117,43 @@ def _grammar_compatible_schema(value: Any) -> Any:
     return value
 
 
+def _gemini_compatible_schema(value: Any) -> Any:
+    """Omit redundant enum-array maxima that trigger Gemini's schema compiler.
+
+    A unique array with N eligible string values already has at most N members.
+    Keep enum, uniqueItems, minima, all topic counts and exact prose counts; the
+    independent validator still checks the original contract. Walk schema nodes
+    only, so property names and enum data cannot be mistaken for keywords.
+    """
+    if isinstance(value, dict):
+        items = value.get("items")
+        redundant_maximum = (
+            value.get("type") == "array"
+            and value.get("uniqueItems") is True
+            and isinstance(items, dict)
+            and items.get("type") == "string"
+            and isinstance(items.get("enum"), list)
+            and all(isinstance(item, str) for item in items["enum"])
+            and value.get("maxItems") == len(set(items["enum"]))
+        )
+        compatible: dict[str, Any] = {}
+        for key, nested in value.items():
+            if key == "maxItems" and redundant_maximum:
+                continue
+            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
+                compatible[key] = {
+                    name: _gemini_compatible_schema(schema) for name, schema in nested.items()
+                }
+            elif key in _SCHEMA_VALUE_KEYWORDS:
+                compatible[key] = _gemini_compatible_schema(nested)
+            else:
+                compatible[key] = deepcopy(nested)
+        return compatible
+    if isinstance(value, list):
+        return [_gemini_compatible_schema(item) for item in value]
+    return value
+
+
 def _command_version(command: str) -> str | None:
     if shutil.which(command) is None:
         return None
@@ -453,7 +490,9 @@ class OpenRouterProvider(ModelProvider):
         }
 
     def _sent_schema(self, output_schema: dict[str, Any]) -> dict[str, Any]:
-        """Strip ``uniqueItems`` only for models whose backends cannot compile it."""
+        """Apply narrowly scoped compatibility transforms for known backends."""
+        if self.model == "google/gemini-3.7-flash":
+            return _gemini_compatible_schema(output_schema)
         if self.model in _UNIQUE_ITEMS_INCOMPATIBLE_MODELS:
             return _grammar_compatible_schema(output_schema)
         return output_schema

@@ -35,13 +35,15 @@ Repair never trims an entry held for rejection: unknown evidence remains a rejec
 
 [`prepare_publication.py`](../prepare_publication.py) publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule.
 
+Gemini 3.7 Flash receives the same schema except for redundant `maxItems` bounds on unique citation arrays whose string enums already imply that maximum. Section limits, exact prose counts, citation enums, and uniqueness remain unchanged. On September 6, 2026, a short-prompt probe reconstructed the selection schema from that day's [public audit manifest](https://elanthus.github.io/news-briefing/manifests/2026-09-06.json): Google AI Studio returned HTTP 400 with the original schema and completed successfully when only those redundant bounds were omitted. Lowering `max_tokens` or omitting reasoning did not resolve the error in the initial probe. This verifies schema acceptance, not the quality of a complete briefing; the encrypted production prompt was not replayed. Google's [structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output) notes that complex schemas may be rejected.
+
 The static builder renders `review_required` entries as a quarantine stub on the public page — a notice and a status chip linking to the per-run integrity report under `reports/<date>.html`. On that report, story context derived from both headline-based checks and structured paths attaches grouped, ordinary, and excluded affected stories to their actionable findings inline beside the annotated preview; only genuinely run-level findings remain in a separate panel. Every entry's status chip links to its report, and a `ready` page shows clean prose with no inline review panels. Nonblocking quality notes stay in the run artifacts and are excluded from public warning panels and counts.
 
 When a previewed story actually redacts a model-authored destination, its report panel includes a closed disclosure containing the hash-verified original structured entry as escaped, non-clickable text.
 
 The published `repair_actions` describe the final attempt only: a repair superseded by a later model correction is not the published content's provenance and remains in the manifest for audit.
 
-`rejected`, `blocked`, and `no_result` runs remain status-only. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
+`rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
 
 ## Site rendering and retention
 
@@ -61,13 +63,14 @@ The ciphertext artifacts and exact corpora retain fourteen report dates. Because
 
 ## Machine-readable history
 
-The generated `history.json` uses `schema_version: 4` while accepting previously deployed schema-version-1 through -3 histories during migration. Each entry contains `date`, `disposition`, `findings_count`, `findings`, `degraded_sources`, `repair_actions`, and `markdown`.
+The generated `history.json` uses `schema_version: 5` while accepting previously deployed schema-version-1 through -4 histories during migration. Each entry contains `date`, `disposition`, `findings_count`, `findings`, `degraded_sources`, `repair_actions`, `generation_failures`, and `markdown`.
 
 | Field | Contents |
 |---|---|
 | `date` | The Eastern report date the entry was labeled with. |
 | `disposition` | The run's publication disposition. |
 | `findings_count` | Actionable findings only, excluding nonblocking quality notes. A zero count on a blocked infrastructure failure does not mean the checker accepted a candidate. |
+| `generation_failures` | For exhausted fallback chains only, model identifiers and fixed reason codes explaining why no briefing was published. History schema v5 retains this field; the builder still reads v1–v4 archives. |
 | `findings` | Validated detail for `review_required` entries only, plus optional story context from the hash-bound selected structured artifact. Other dispositions retain only `findings_count`, so rejected prose is not leaked through metadata. |
 | `degraded_sources` | Fetch errors reported by the corpus. An empty list means no source failure was reported, not that every possible source was available or complete. |
 | `repair_actions` | The deterministic repair log for the run, empty when nothing was repaired. Published only for entries with a public artifact. |
