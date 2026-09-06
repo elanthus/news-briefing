@@ -98,6 +98,7 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 | Is the citation in the run's evidence? | The validator checks the selected handle and the rendered canonical destination against the frozen corpus. |
 | Is the story eligible for this section? | Per-section schema enums and an independent validator restrict the eligible handles. The model chooses among them. |
 | Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
+| Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied full summaries of at least eight words block publication and trigger correction. Differently worded coverage of the same event still requires model judgment. |
 | **Is the summary faithful to the article?** | **Not checked.** The system sees only the feed title and excerpt. Heuristics warn about claims that excerpt can't support; they cannot establish article-level faithfulness. |
 
 The contract is deliberately narrower than "the model is correct." It proves corpus membership, destination ownership, routing, and output shape. It does not turn a feed excerpt into human review of the underlying article.
@@ -110,7 +111,7 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 750 offline tests (525 core, 167 evaluator, 58 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
+| **Verification** | 758 offline tests (533 core, 167 evaluator, 58 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
 
 ## Architecture
 
@@ -149,7 +150,7 @@ The [parity v1 model card](docs/results/parity-v1.md) has the full comparison an
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 525 core tests
+python3 -S -m unittest -v                              # 533 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 167 evaluator tests
 ```
 
