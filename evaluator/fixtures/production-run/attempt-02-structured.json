@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "sections": {
+    "Top Stories": {
+      "topics": [
+        {
+          "headline": "Regulator opens review of grid reliability standards",
+          "summary": "The regulator opened a public review of grid reliability standards after two utilities reported near-miss outages during last week's heat wave.",
+          "citation_refs": ["citation_0001"]
+        },
+        {
+          "headline": "Two transit agencies pilot shared maintenance depot",
+          "summary": "Two regional transit agencies began piloting a shared maintenance depot intended to cut vehicle downtime, with a first joint report due at year end.",
+          "citation_refs": ["citation_0002", "citation_0003"]
+        }
+      ]
+    }
+  },
+  "excluded_topics": {}
+}

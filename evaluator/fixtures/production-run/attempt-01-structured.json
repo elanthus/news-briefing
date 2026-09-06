@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "sections": {
+    "Top Stories": {
+      "topics": [
+        {"citation_refs": ["citation_0001"]},
+        {"citation_refs": ["citation_0002", "citation_0003"]}
+      ]
+    }
+  },
+  "excluded_topics": {}
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "sections": {
+    "Top Stories": {
+      "topics": [
+        {
+          "evidence": [
+            {
+              "title": "Grid regulator to review reliability standards",
+              "summary": "The regulator said it will open a formal review of grid reliability standards after two utilities reported near-miss outages during last week's heat wave.",
+              "source_type": "rss",
+              "source_id": "example-energy-wire",
+              "published_at": "2026-08-31T18:04:00+00:00",
+              "category": "energy"
+            }
+          ]
+        },
+        {
+          "evidence": [
+            {
+              "title": "Transit agencies to share a maintenance depot",
+              "summary": "Two regional transit agencies confirmed a pilot to share one maintenance depot, saying it should reduce vehicle downtime; a joint report is due in December.",
+              "source_type": "rss",
+              "source_id": "example-transit-daily",
+              "published_at": "2026-08-31T15:40:00+00:00",
+              "category": "transportation"
+            },
+            {
+              "title": "Second agency confirms shared depot pilot",
+              "summary": "A second transit agency confirmed it joined the shared maintenance depot pilot announced earlier this week.",
+              "source_type": "rss",
+              "source_id": "example-metro-wire",
+              "published_at": "2026-08-31T19:12:00+00:00",
+              "category": "transportation"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "excluded_topics": {}
+}

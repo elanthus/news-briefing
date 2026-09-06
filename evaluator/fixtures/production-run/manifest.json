@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "run_id": "production-run",
+  "trace_id": "fixture0000000000000000000000000",
+  "status": "complete",
+  "phase": "finalized",
+  "started_at": "2026-09-01T06:00:00+00:00",
+  "checkpointed_at": "2026-09-01T06:00:05+00:00",
+  "completed_at": "2026-09-01T06:00:05+00:00",
+  "identity": {
+    "config_sha256": "fixture-config-hash",
+    "max_corrections": 1
+  },
+  "provider": {
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash-0731"
+  },
+  "code": {
+    "commit": "fixture0000000000000000000000000000000"
+  },
+  "attempts": [
+    {
+      "index": 1,
+      "kind": "selection",
+      "received_at": "2026-09-01T06:00:01+00:00",
+      "raw_artifact": "attempt-01-raw.txt",
+      "model_output_artifact": "attempt-01-model-output.json",
+      "structured_artifact": "attempt-01-structured.json",
+      "provider_events_artifact": null,
+      "generation": null,
+      "validated": true,
+      "contract_success": true,
+      "briefing_artifact": null,
+      "findings_artifact": "attempt-01-findings.json"
+    },
+    {
+      "index": 2,
+      "kind": "prose",
+      "received_at": "2026-09-01T06:00:04+00:00",
+      "raw_artifact": "attempt-02-raw.txt",
+      "model_output_artifact": "attempt-02-model-output.json",
+      "structured_artifact": "attempt-02-structured.json",
+      "provider_events_artifact": null,
+      "generation": null,
+      "validated": true,
+      "contract_success": true,
+      "briefing_artifact": "attempt-02-briefing.md",
+      "findings_artifact": "attempt-02-findings.json"
+    }
+  ],
+  "outcome": {
+    "disposition": "ready",
+    "protocol": "completed",
+    "contract": "satisfied",
+    "evidence": "grounded",
+    "coverage": "complete"
+  },
+  "final": {
+    "status": "ready",
+    "outcome": {
+      "disposition": "ready",
+      "protocol": "completed",
+      "contract": "satisfied",
+      "evidence": "grounded",
+      "coverage": "complete"
+    },
+    "attempt": 2,
+    "findings": [],
+    "source_issues": 0,
+    "artifact_type": "final",
+    "run_artifact": "final.md",
+    "requested_output_path": "briefing.md",
+    "output_path": "briefing.md",
+    "output_sha256": "fixture-output-hash"
+  }
+}
