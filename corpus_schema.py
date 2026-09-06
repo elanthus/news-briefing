@@ -22,9 +22,12 @@ from typing import Any, TypedDict, TypeGuard
 # Version 5 requires enforced context budgets and their truncation/drop
 # telemetry. Version 6 expands model-visible summaries so ordinary feed
 # sentences, including dates near the former boundary, are not cut in half.
-# Readers with the v5 field ceilings must refuse v6 rather than reject a
-# conforming producer value as overlong.
-SCHEMA_VERSION = 6
+# Version 7 adds the "quiet" source status: `http_success` with parsed and
+# dated entries but nothing left in the window (or a fully filtered result)
+# is a low-cadence feed, not a broken one, so it no longer shares the "empty"
+# status a dead feed reports. Readers with the v6 status enum must refuse v7
+# rather than accept a status they do not recognize.
+SCHEMA_VERSION = 7
 LEGACY_SCHEMA_VERSION = 0  # assigned to versionless corpora
 
 ITEM_TITLE_MAX_BYTES = 512
@@ -451,8 +454,10 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
             problems.append(f"{where}.source_type is not recognized")
         if not isinstance(status.get("source_id"), str) or not status.get("source_id", "").strip():
             problems.append(f"{where}.source_id should be a non-empty string")
-        if status.get("status") not in {"ok", "empty", "error"}:
-            problems.append(f"{where}.status should be 'ok', 'empty', or 'error'")
+        allowed_statuses = {"ok", "empty", "error"} | ({"quiet"} if version >= 7 else set())
+        if status.get("status") not in allowed_statuses:
+            problems.append(
+                f"{where}.status should be one of {sorted(allowed_statuses)}")
         for field in ("parsed_entries", "dated_entries", "retained_entries", "duration_ms"):
             value = status.get(field)
             if _is_integer(value) and value < 0:
@@ -469,7 +474,7 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
             if not 0 <= retained <= dated <= parsed:
                 problems.append(f"{where} entry counts should satisfy retained <= dated <= parsed")
         has_error = "error_type" in status or "message" in status
-        if status.get("status") in {"error", "empty"}:
+        if status.get("status") in {"error", "empty", "quiet"}:
             if not isinstance(status.get("error_type"), str) or not status.get("error_type", "").strip():
                 problems.append(f"{where}.error_type should describe the failure")
             if not isinstance(status.get("message"), str) or not status.get("message", "").strip():
@@ -550,8 +555,12 @@ def _validate_health_consistency(sources: list[Any], errors: list[Any],
         if status == "ok" and (not _is_integer(parsed) or not _is_integer(dated)
                                or parsed == 0 or dated == 0):
             problems.append(f"sources[{index}] cannot be ok with zero parsed or dated entries")
-        if status == "empty" and source.get("http_success") is not True:
-            problems.append(f"sources[{index}] empty status requires HTTP success")
+        if status in {"empty", "quiet"} and source.get("http_success") is not True:
+            problems.append(f"sources[{index}] {status} status requires HTTP success")
+        if status == "quiet" and (not _is_integer(parsed) or not _is_integer(dated)
+                                  or parsed == 0 or dated == 0):
+            problems.append(
+                f"sources[{index}] quiet status requires positive parsed and dated entries")
 
     expected = {
         (source.get("source_type"), source.get("source_id"), source.get("status"),
@@ -616,15 +625,60 @@ def undated_source_records(corpus: dict[str, Any]) -> list[UndatedSourceRecord]:
     return records
 
 
+# A single quiet source is the ordinary shape of a low-cadence feed and does
+# not by itself indicate degraded coverage. When one corpus category collects
+# more quiet sources than this in the same run, that pattern stops looking
+# like cadence and starts looking systemic (a changed query, a raised score
+# floor, an upstream outage), so the excess counts toward degraded coverage.
+# This is a plain module constant rather than briefing-config.json: the
+# config file governs editorial section layout, not fetch-health telemetry.
+QUIET_SOURCE_DEGRADED_THRESHOLD = 3
+
+
+def quiet_source_records(corpus: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project sources[] entries recorded with the audit-only quiet status.
+
+    A quiet source stays out of `errors` and the model-visible failed-source
+    projection: it returned valid, dated entries that were simply outside the
+    window (or fully filtered), which is what a healthy low-cadence feed looks
+    like. It remains in `sources` for audit and for the threshold check in
+    `corpus_health_issue_count`.
+    """
+    return [
+        source for source in corpus.get("sources", [])
+        if isinstance(source, dict) and source.get("status") == "quiet"
+    ]
+
+
 def corpus_health_degraded(corpus: dict[str, Any]) -> bool:
     """Return whether coverage degraded through a failed, empty, or undated source."""
     return corpus_health_issue_count(corpus) > 0
 
 
 def corpus_health_issue_count(corpus: dict[str, Any]) -> int:
-    """Count machine-readable source degradation records across both health channels."""
+    """Count machine-readable source degradation records across health channels.
+
+    Errors and undated drops always count. Quiet sources only count past
+    `QUIET_SOURCE_DEGRADED_THRESHOLD` in one category, and only the excess
+    over that threshold is added -- a handful of low-cadence feeds sharing a
+    category is normal, not degradation.
+    """
     errors = corpus.get("errors", [])
-    return (len(errors) if isinstance(errors, list) else 0) + len(undated_source_records(corpus))
+    quiet_by_category: dict[str, int] = {}
+    for source in quiet_source_records(corpus):
+        category = source.get("category")
+        if isinstance(category, str):
+            quiet_by_category[category] = quiet_by_category.get(category, 0) + 1
+    excess_quiet = sum(
+        count - QUIET_SOURCE_DEGRADED_THRESHOLD
+        for count in quiet_by_category.values()
+        if count > QUIET_SOURCE_DEGRADED_THRESHOLD
+    )
+    return (
+        (len(errors) if isinstance(errors, list) else 0)
+        + len(undated_source_records(corpus))
+        + excess_quiet
+    )
 
 
 def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[str]:

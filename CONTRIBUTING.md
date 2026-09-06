@@ -57,7 +57,7 @@ run artifacts.
 |---|---|
 | [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, deduplication, budgets, SSRF defense, XML defense |
 | [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
-| [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v6) and shared URL canonicalization |
+| [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v7) and shared URL canonicalization |
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
 | [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
 | [`briefing-prompt.md`](briefing-prompt.md) | Evaluator's legacy direct-Markdown prompt |

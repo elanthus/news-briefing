@@ -1528,7 +1528,7 @@ def render_validation_status(
     resolved = outcome or classify_outcome(
         findings,
         source_issues,
-        coverage_degraded=bool(source_issues or undated_sources),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus),
     )
     disposition_label = resolved.disposition.replace("_", " ").upper()
     lines = [

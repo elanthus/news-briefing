@@ -832,6 +832,44 @@ class CorpusHealthTest(unittest.TestCase):
         self.assertNotIn("failed_source_unnamed", findings)
         self.assertNotIn("unexpected_failed_source", findings)
 
+    def test_quiet_source_is_neither_required_nor_permitted_in_failed_sources(self):
+        """Issue #172: a quiet source is audit-only, not a reportable failure."""
+        quiet = {
+            "source_type": "hacker_news", "source_id": "prompt engineering",
+            "category": "ai_tech", "status": "quiet",
+            "requested": True, "http_success": True,
+            "parsed_entries": 5, "dated_entries": 5, "retained_entries": 0,
+            "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 12,
+            "error_type": "NoWindowEntries",
+            "message": "response contained zero usable entries in the requested window",
+        }
+        error = {
+            "source_type": "rss", "source_id": "Feed A", "status": "error",
+            "error_type": "HTTPError", "message": "503", "duration_ms": 12,
+        }
+        degraded = dict(CORPUS, schema_version=eval_briefing.corpus_schema.SCHEMA_VERSION,
+                        errors=[error], sources=[quiet, dict(error, category="ai_tech",
+                                                              requested=True,
+                                                              http_success=False,
+                                                              parsed_entries=0,
+                                                              dated_entries=0,
+                                                              retained_entries=0,
+                                                              retained_bytes=0,
+                                                              estimated_tokens=0)])
+        omitting_quiet = ('```json\n{"failed_sources":[{"source_type":"rss",'
+                          '"source_id":"Feed A","status":"error"}]}\n```')
+        self.assertEqual(
+            checks(evaluate(degraded, briefing(health=omitting_quiet)), ERROR), set())
+
+        listing_quiet = (
+            '```json\n{"failed_sources":[{"source_type":"rss",'
+            '"source_id":"Feed A","status":"error"},'
+            '{"source_type":"hacker_news","source_id":"prompt engineering",'
+            '"status":"quiet"}]}\n```'
+        )
+        findings = checks(evaluate(degraded, briefing(health=listing_quiet)), ERROR)
+        self.assertIn("unexpected_failed_source", findings)
+
     def test_current_schema_rejects_prose_only_health(self):
         error = {
             "source_type": "reddit", "source_id": "ClaudeAI", "status": "empty",
