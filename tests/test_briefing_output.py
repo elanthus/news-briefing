@@ -10,6 +10,7 @@ import eval_briefing
 from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
     REPAIRABLE_CHECKS,
+    Citation,
     attach_frozen_selection,
     build_prose_schema,
     build_selection_schema,
@@ -92,6 +93,29 @@ def used_item_refs(projected, output):
         for rows in output["excluded_topics"].values()
         for topic in rows
         for ref in topic["citation_refs"]
+    }
+
+
+def selection_from_output(output):
+    """Strip prose fields, keeping only the frozen citation-ref selection."""
+    return {
+        "schema_version": output["schema_version"],
+        "sections": {
+            name: {
+                "topics": [
+                    {"citation_refs": copy.deepcopy(entry["citation_refs"])}
+                    for entry in section["topics"]
+                ]
+            }
+            for name, section in output["sections"].items()
+        },
+        "excluded_topics": {
+            name: [
+                {"citation_refs": copy.deepcopy(entry["citation_refs"])}
+                for entry in entries
+            ]
+            for name, entries in output["excluded_topics"].items()
+        },
     }
 
 
@@ -275,6 +299,54 @@ class BriefingOutputTests(unittest.TestCase):
             attached["sections"][first_name]["topics"][0]["citation_refs"],
             selection["sections"][first_name]["topics"][0]["citation_refs"],
         )
+
+    def test_all_empty_exclusion_logs_block_the_selection(self):
+        """A model may satisfy the schema with `[]` for every exclusion array."""
+        _corpus, config, projected, output = fixture_contract()
+        selection = selection_from_output(output)
+        for name in selection["excluded_topics"]:
+            selection["excluded_topics"][name] = []
+        checks = {
+            finding.check
+            for finding in validate_selection(selection, config, projected.citations)
+        }
+        self.assertIn("exclusion_log_empty", checks)
+
+    def test_partially_empty_exclusion_log_does_not_block_the_selection(self):
+        """One accountable section returning nothing is not the all-empty case."""
+        _corpus, config, projected, output = fixture_contract()
+        selection = selection_from_output(output)
+        accountable = [name for name, rows in selection["excluded_topics"].items() if rows]
+        selection["excluded_topics"][accountable[0]] = []
+        findings = validate_selection(selection, config, projected.citations)
+        self.assertNotIn("exclusion_log_empty", {finding.check for finding in findings})
+
+    def test_exhausted_eligible_pool_does_not_block_the_selection(self):
+        """A section with nothing left to exclude passes with no finding."""
+        citations = {
+            "citation_0001": Citation("citation_0001", "item_0001", "cat",
+                                       "https://ex.com/1", None),
+            "citation_0002": Citation("citation_0002", "item_0002", "cat",
+                                       "https://ex.com/2", None),
+        }
+        config = briefing_config.BriefingConfig(1, (
+            briefing_config.BriefingSection(
+                "Only", None, 2, ("cat",), "guidance", 2
+            ),
+        ))
+        selection = {
+            "schema_version": 1,
+            "sections": {
+                "Only": {
+                    "topics": [
+                        {"citation_refs": ["citation_0001"]},
+                        {"citation_refs": ["citation_0002"]},
+                    ]
+                }
+            },
+            "excluded_topics": {"Only": []},
+        }
+        self.assertEqual(validate_selection(selection, config, citations), [])
 
     def test_selected_evidence_redacts_opaque_references_from_corpus_text(self):
         _corpus, _config, projected, _output = fixture_contract()
