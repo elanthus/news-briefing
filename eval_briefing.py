@@ -34,6 +34,7 @@ import html
 import json
 import re
 import sys
+import unicodedata
 from collections.abc import Iterator
 from decimal import Decimal, InvalidOperation
 from typing import Any, NamedTuple
@@ -70,6 +71,9 @@ _SECTION_LINE = re.compile(
 _TOPIC_LINE = re.compile(
     r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?"
     r"(?:\[verbatim\]\s*)?[—-]\s*(?P<prose>\S.*)$")
+_EXCLUDED_TOPIC_LINE = re.compile(
+    r"^\s*[-*]\s+(?P<emphasis>\*{1,2})(?P<title>.+?)(?P=emphasis)"
+    r"\s*[—-]\s*(?P<prose>\S.*)$")
 # High-risk assertions, checkable without a second model: a figure or a
 # quotation that does not appear in the evidence for the item being cited.
 _FIGURE = re.compile(
@@ -579,6 +583,57 @@ def check_no_double_listing(sections: dict[str, Section]) -> list[Finding]:
             findings.append(Finding(
                 ERROR, "included_and_excluded",
                 f"link appears in both the briefing and the exclusion log — {url}"))
+    findings.extend(check_no_copied_exclusions(sections))
+    return findings
+
+
+def _story_text_key(text: str) -> str:
+    """Compare text despite cosmetic typography, without fuzzy topic matching."""
+    normalized = unicodedata.normalize("NFKC", html.unescape(text)).casefold()
+    normalized = normalized.translate(str.maketrans("‘’“”–—", "''\"\"--"))
+    return " ".join(normalized.split()).strip(" .!?")
+
+
+def check_no_copied_exclusions(sections: dict[str, Section]) -> list[Finding]:
+    """Reject copied inclusion text even when code attached different URLs.
+
+    Compare across all sections. Full summaries need at least eight words to
+    avoid treating short boilerplate as story identity. Different wording of
+    the same event remains a model consolidation judgment.
+    """
+    headlines: dict[str, str] = {}
+    summaries: dict[str, str] = {}
+    for name, bucket in sections.items():
+        if name in {EXCLUDED, CORPUS_HEALTH}:
+            continue
+        for index, (headline, summary) in enumerate(zip(
+                bucket["topics"], bucket["topic_texts"], strict=True)):
+            where = f"topics.{name}[{index}]"
+            key = _story_text_key(headline)
+            if key:
+                headlines.setdefault(key, where)
+            key = _story_text_key(summary)
+            if len(key.split()) >= 8:
+                summaries.setdefault(key, where)
+
+    findings = []
+    for name, entries in sections.get(EXCLUDED, {}).get("excluded", {}).items():
+        for index, entry in enumerate(entries):
+            match = _EXCLUDED_TOPIC_LINE.match(entry)
+            if match is None:
+                continue
+            prior = headlines.get(_story_text_key(match.group("title")))
+            field = "headline"
+            if prior is None:
+                reason = _LINK.sub("", match.group("prose")).strip()
+                prior = summaries.get(_story_text_key(reason))
+                field = "summary"
+            if prior is not None:
+                findings.append(Finding(
+                    ERROR, "included_and_excluded_text",
+                    f"excluded_topics.{name}[{index}] repeats the {field} from {prior}. "
+                    "Write an exclusion headline and reason using only this exclusion's "
+                    "frozen evidence; do not copy or paraphrase a reported story."))
     return findings
 
 

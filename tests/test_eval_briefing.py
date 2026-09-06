@@ -545,6 +545,50 @@ class ConfigurationDrivenContractTest(unittest.TestCase):
 
 
 class DoubleListingTest(unittest.TestCase):
+    def test_copied_headline_with_different_citations_is_an_error(self):
+        text = briefing().replace("*Dropped 4*", "*Politics topic 1*", 1)
+        findings = evaluate(CORPUS, text)
+        self.assertIn("included_and_excluded_text", checks(findings, ERROR))
+        self.assertNotIn("included_and_excluded", checks(findings, ERROR))
+        finding = next(f for f in findings if f.check == "included_and_excluded_text")
+        self.assertIn("excluded_topics.US Politics[0]", finding.message)
+        self.assertIn("topics.US Politics[0]", finding.message)
+        self.assertIn("frozen evidence", finding.message)
+
+    def test_copied_headline_is_checked_across_sections(self):
+        text = briefing().replace("*Dropped 4*", "*World topic 1*", 1)
+        self.assertIn("included_and_excluded_text", checks(evaluate(CORPUS, text), ERROR))
+
+    def test_copied_headline_ignores_cosmetic_variations(self):
+        text = briefing().replace("**Politics topic 1**", "**Council’s new plan**", 1)
+        for headline in ("ＣＯＵＮＣＩＬ'S  NEW\tPLAN!", "Council&#39;s new plan."):
+            for emphasis in ("*", "**"):
+                with self.subTest(headline=headline, emphasis=emphasis):
+                    candidate = text.replace("*Dropped 4*", f"{emphasis}{headline}{emphasis}", 1)
+                    self.assertIn("included_and_excluded_text", checks(evaluate(CORPUS, candidate), ERROR))
+
+    def test_copied_summary_is_blocked_even_with_a_different_headline(self):
+        summary = "The council approved a new plan after the public hearing."
+        text = briefing().replace("summary text here.", summary, 1)
+        text = text.replace("lower impact.", summary.upper(), 1)
+        findings = eval_briefing.check_no_double_listing(parse_briefing(text))
+        self.assertIn("included_and_excluded_text", checks(findings, ERROR))
+        self.assertIn("repeats the summary", findings[0].message)
+
+    def test_shared_short_boilerplate_is_not_a_duplicate_story(self):
+        text = briefing().replace("lower impact.", "summary text here.", 1)
+        self.assertEqual(eval_briefing.check_no_double_listing(parse_briefing(text)), [])
+
+    def test_distinct_headlines_with_shared_words_or_meaningful_symbols_are_allowed(self):
+        for included, excluded in (
+            ("Council approves housing plan", "Council rejects transport plan"),
+            ("C compiler released", "C++ compiler released"),
+        ):
+            with self.subTest(included=included, excluded=excluded):
+                text = briefing().replace("**Politics topic 1**", f"**{included}**", 1)
+                text = text.replace("*Dropped 4*", f"*{excluded}*", 1)
+                self.assertEqual(eval_briefing.check_no_double_listing(parse_briefing(text)), [])
+
     def test_story_in_both_briefing_and_exclusion_log_is_an_error(self):
         text = briefing().replace("🔗 https://ex.com/p3", "🔗 https://ex.com/p4")
         self.assertIn("included_and_excluded", checks(evaluate(CORPUS, text), ERROR))
