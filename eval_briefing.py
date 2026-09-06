@@ -590,7 +590,7 @@ def check_no_double_listing(sections: dict[str, Section]) -> list[Finding]:
 def _story_text_key(text: str) -> str:
     """Compare text despite cosmetic typography, without fuzzy topic matching."""
     normalized = unicodedata.normalize("NFKC", html.unescape(text)).casefold()
-    normalized = normalized.translate(str.maketrans("‘’“”–—", "''\"\"--"))
+    normalized = normalized.translate(str.maketrans("‘’“”‐‑‒–—−", "''\"\"------"))
     return " ".join(normalized.split()).strip(" .!?")
 
 

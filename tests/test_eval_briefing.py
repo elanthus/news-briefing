@@ -567,6 +567,24 @@ class DoubleListingTest(unittest.TestCase):
                     candidate = text.replace("*Dropped 4*", f"{emphasis}{headline}{emphasis}", 1)
                     self.assertIn("included_and_excluded_text", checks(evaluate(CORPUS, candidate), ERROR))
 
+    def test_copied_headline_and_summary_normalize_unicode_hyphens(self):
+        for hyphen in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"):
+            for field in ("headline", "summary"):
+                with self.subTest(hyphen=repr(hyphen), field=field):
+                    text = briefing()
+                    if field == "headline":
+                        text = text.replace("**Politics topic 1**", "**COVID-19 update**", 1)
+                        text = text.replace("*Dropped 4*", f"*COVID{hyphen}19 update*", 1)
+                    else:
+                        summary = "The council approved the COVID-19 response plan after the hearing."
+                        text = text.replace("summary text here.", summary, 1)
+                        text = text.replace("lower impact.", summary.replace("-", hyphen), 1)
+                    findings = eval_briefing.check_no_copied_exclusions(parse_briefing(text))
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(findings[0].check, "included_and_excluded_text")
+                    self.assertEqual(findings[0].level, ERROR)
+                    self.assertIn(f"repeats the {field}", findings[0].message)
+
     def test_copied_summary_is_blocked_even_with_a_different_headline(self):
         summary = "The council approved a new plan after the public hearing."
         text = briefing().replace("summary text here.", summary, 1)
