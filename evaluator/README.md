@@ -262,7 +262,10 @@ manifest, keying each packet entry to the run's own finalized structured candida
 the week's already-published, encrypted diagnostics artifacts and hands the packets to
 `evaluator/grounding_machine_review.py` unmodified. This is monitoring, not a gate: see
 [Evaluation methodology](../docs/evaluation-methodology.md#unverified-machine-grounding-monitor) for what
-the published rate can and cannot be used to claim.
+the published rate can and cannot be used to claim. Per-topic verdicts and rationale never reach a
+committed file or a public artifact: the workflow encrypts the whole review output with
+`private_archive.py` before upload, the same way `daily-briefing.yml` protects diagnostics; only the
+aggregate rate and topic count are published, in the committed weekly log.
 
 The `monitor-grounding` subcommand is runnable in a clone against the committed fixture run:
 

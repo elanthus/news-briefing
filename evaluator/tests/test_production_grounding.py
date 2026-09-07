@@ -120,6 +120,36 @@ class ProductionRunTopicsTest(unittest.TestCase):
         self.assertIsNone(_URL_LIKE.search(serialized))
         self.assertIsNone(_OPAQUE_HANDLE.search(serialized))
 
+    def test_redaction_strips_a_planted_destination_and_opaque_handle(self) -> None:
+        # The fixture's own evidence and prose never contain a URL or an
+        # opaque handle, so test_packet_content_carries_no_url_or_opaque_handle
+        # above passes even if the redaction calls were deleted. Plant both
+        # spellings into a copy of the fixture so this test only passes if
+        # the packet builder actually strips them.
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "run"
+            shutil.copytree(FIXTURE_RUN, run_dir)
+
+            evidence_path = run_dir / "selected-evidence.json"
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            planted_url = "https://leaked.example.com/should-not-reach-the-judge"
+            evidence["sections"]["Top Stories"]["topics"][0]["evidence"][0]["summary"] += (
+                f" See {planted_url} for the underlying filing."
+            )
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+            structured_path = run_dir / "attempt-02-structured.json"
+            structured = json.loads(structured_path.read_text(encoding="utf-8"))
+            structured["sections"]["Top Stories"]["topics"][1]["headline"] += " (citation_0001)"
+            structured_path.write_text(json.dumps(structured), encoding="utf-8")
+
+            records = production_run_topics(run_dir, "planted")
+            serialized = _dump([row["public"] for row in records])
+            self.assertNotIn(planted_url, serialized)
+            self.assertNotIn("citation_0001", serialized)
+            self.assertIn("[destination omitted; use citation refs]", serialized)
+            self.assertIn("[opaque reference omitted]", serialized)
+
     def test_non_ready_run_yields_no_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory) / "run"
@@ -192,8 +222,8 @@ class ExportProductionGroundingPacketsTest(unittest.TestCase):
             manifest = json.loads(result["manifest_path"].read_text(encoding="utf-8"))
             self.assertEqual(manifest["results"], [{
                 "artifact_dir": "2026-09-01",
-                "provider": "openrouter",
-                "model": "deepseek/deepseek-v4-flash-0731",
+                "provider": "fake",
+                "model": "deterministic",
                 "prompt_version": "production",
             }])
 

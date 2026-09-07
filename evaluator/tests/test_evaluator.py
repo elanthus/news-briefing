@@ -49,7 +49,7 @@ from evaluator.grounding_machine_review import (
     _parse_reviews as _parse_grounding_machine_reviews,
 )
 from evaluator.grounding_machine_review import _review_batch, run_grounding_machine_review
-from evaluator.grounding_review import _double_sample, export_grounding_review_packets
+from evaluator.grounding_review import double_sample, export_grounding_review_packets
 from evaluator.label_review import (
     LABEL_RUBRIC,
     _parse_reviews,
@@ -1394,7 +1394,7 @@ class GroundingReviewPacketTest(unittest.TestCase):
             {"artifact_dir": f"artifact-{stratum}", "topic_index": 1, "stratum": stratum}
             for stratum in ("alpha", "beta", "gamma")
         ]
-        sampled = _double_sample(records, 1, random.Random(7))
+        sampled = double_sample(records, 1, random.Random(7))
         self.assertEqual(len(sampled), 3)
         self.assertEqual({record["stratum"] for record in sampled}, {"alpha", "beta", "gamma"})
 

@@ -1,76 +1,214 @@
 {
-  "schema_version": 1,
-  "run_id": "production-run",
-  "trace_id": "fixture0000000000000000000000000",
-  "status": "complete",
-  "phase": "finalized",
-  "started_at": "2026-09-01T06:00:00+00:00",
-  "checkpointed_at": "2026-09-01T06:00:05+00:00",
-  "completed_at": "2026-09-01T06:00:05+00:00",
-  "identity": {
-    "config_sha256": "fixture-config-hash",
-    "max_corrections": 1
-  },
-  "provider": {
-    "provider": "openrouter",
-    "model": "deepseek/deepseek-v4-flash-0731"
-  },
-  "code": {
-    "commit": "fixture0000000000000000000000000000000"
+  "artifacts": {
+    "attempt-01-findings.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "attempt-01-model-output.json": "2799f50e88043d9544243bffd6dea16f600f0946bc558ab6425790bde7d6ccc1",
+    "attempt-01-raw.txt": "ea5b74ba80b576ad32afe4920c31590c3cea0a91d7490ca34ebd1f8bd473f5ac",
+    "attempt-01-structured.json": "2799f50e88043d9544243bffd6dea16f600f0946bc558ab6425790bde7d6ccc1",
+    "attempt-02-briefing.md": "9df5c2cbeba55fff44de61a71b436e14c2ece5b613f863f66d5832c48b4d3a41",
+    "attempt-02-findings.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "attempt-02-model-output.json": "28633168e7c47a568f57221675a7a290a09ccf9fc14d94f2e2523ddb381491d5",
+    "attempt-02-raw.txt": "8be75bb1cfe1b79c8b2d2001446a29e9cb02aaec5132b0efd90bebac32f99903",
+    "attempt-02-structured.json": "c429f143ca6a870b80a12e44032a65e0a78f851d10d4299e4406b796a10bbca7",
+    "briefing-config.json": "6c1890b4845c8a32a42913ba4f3aa9815089ca9075ebabb69168c23df0fde12f",
+    "briefing.md": "247ea35a60aca79a9f0a4df72cb1d99af91ee84aeddba24f12ab0bd1f536880a",
+    "citation-map.json": "44098f0ff321e10f3978bacb448ca54f83dc4341e0a28607b3b6575c15467772",
+    "corpus.json": "35c5739fdcd19645b80fc4964600a7c60406917e2c5e504b0c35330b4732b31e",
+    "final.md": "247ea35a60aca79a9f0a4df72cb1d99af91ee84aeddba24f12ab0bd1f536880a",
+    "frozen-selection.json": "2799f50e88043d9544243bffd6dea16f600f0946bc558ab6425790bde7d6ccc1",
+    "model-corpus.json": "e0341e554bde0bb362e7b7c54d41a2e80563c453aae10c5d8a526273fe7aa686",
+    "prose-request.txt": "518e5492d3316be0a4ce9ce8c9b2731b5f7c3676b5e274f2c9b62ddc4302c669",
+    "prose-schema.json": "ccdd52748b6420af206f46bf8b05e1f0d041c0c4431cc37f06092886b7c6fb71",
+    "selected-evidence.json": "307c581cdf250ed104f60dea16ade493fb64ccbd29fa26d9fa8da9f700e05143",
+    "selection-request.txt": "c8ce6859ba80ceed1014da6384fc5099018278475d4683a78b759442942e759b",
+    "selection-schema.json": "243e9ffe3b0d3f02be93eff614c1ccf568273001e96f1c9cc92b32a3ff80accd",
+    "trace.jsonl": "f960ab745274933327ba94a5be8f31bc2bf3dac3c76ddd9b69f4d23f075ad0a9"
   },
   "attempts": [
     {
+      "briefing_artifact": null,
+      "contract_success": true,
+      "findings_artifact": "attempt-01-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 1,
+        "latency_ms": 1.0,
+        "output_tokens": 1,
+        "provider_request_id": null,
+        "usage": null
+      },
       "index": 1,
       "kind": "selection",
-      "received_at": "2026-09-01T06:00:01+00:00",
-      "raw_artifact": "attempt-01-raw.txt",
       "model_output_artifact": "attempt-01-model-output.json",
-      "structured_artifact": "attempt-01-structured.json",
       "provider_events_artifact": null,
-      "generation": null,
-      "validated": true,
-      "contract_success": true,
-      "briefing_artifact": null,
-      "findings_artifact": "attempt-01-findings.json"
+      "raw_artifact": "attempt-01-raw.txt",
+      "received_at": "2026-09-07T00:28:22.939506+00:00",
+      "structured_artifact": "attempt-01-structured.json",
+      "validated": true
     },
     {
+      "briefing_artifact": "attempt-02-briefing.md",
+      "contract_success": true,
+      "findings_artifact": "attempt-02-findings.json",
+      "generation": {
+        "attempts": 1,
+        "cost_usd": null,
+        "input_tokens": 1,
+        "latency_ms": 1.0,
+        "output_tokens": 1,
+        "provider_request_id": null,
+        "usage": null
+      },
       "index": 2,
       "kind": "prose",
-      "received_at": "2026-09-01T06:00:04+00:00",
-      "raw_artifact": "attempt-02-raw.txt",
       "model_output_artifact": "attempt-02-model-output.json",
-      "structured_artifact": "attempt-02-structured.json",
       "provider_events_artifact": null,
-      "generation": null,
-      "validated": true,
-      "contract_success": true,
-      "briefing_artifact": "attempt-02-briefing.md",
-      "findings_artifact": "attempt-02-findings.json"
+      "raw_artifact": "attempt-02-raw.txt",
+      "received_at": "2026-09-07T00:28:22.943589+00:00",
+      "structured_artifact": "attempt-02-structured.json",
+      "validated": true
     }
   ],
-  "outcome": {
-    "disposition": "ready",
-    "protocol": "completed",
-    "contract": "satisfied",
-    "evidence": "grounded",
-    "coverage": "complete"
+  "checkpointed_at": "2026-09-07T00:28:22.947563+00:00",
+  "citation_cardinality": {
+    "model_visible_handles": 3,
+    "retained_items": 3,
+    "selected_items": 3
   },
+  "code": {
+    "commit": "fda391ca06c89b96746ff336db05dcba237109c8",
+    "dirty": false,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "source_sha256": {
+      "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+      "agent_runner/checkpoint.py": "e76f2a3ac5cd2c3611e2ba963678285752713c05f5ea9cc3a10f5131f4cfc4f1",
+      "agent_runner/models.py": "795ac3d429ae9dd3ceb24a1654cdafa6822cd66a00602b2a308bdcf1bbeca345",
+      "agent_runner/outcomes.py": "b4ff52335f993bdd583f3f92617ccca44d6c5255d73f849d6496d566472974b7",
+      "agent_runner/output.py": "43e79285b36ee03e70fd0fccff036eb3662bff3e9f7937adc0a568d9737ad085",
+      "agent_runner/providers.py": "b2bfb0bd214b7626ff920c1d7e4e8173b1923f268937e6e41cdaed77968b55d3",
+      "agent_runner/runner.py": "02b15c159458dc94d2c817f688d242eda86987e52a3e4d81412734d18a34f8a5",
+      "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+      "corpus_schema.py": "a6fc55aca43a7f694cea9b56c08e1a259db75d41b07208044ed283bf9d904138",
+      "eval_briefing.py": "e3f172a174ded2f3aa982fed3ac93b21aa8ed8f9818073f38cef5028d6acfd6b",
+      "fetch_news.py": "f0676532c3c7af0160b7557acafcb0f1edaad64e9d1993c75aa35fa92fda2c83",
+      "run_briefing.py": "4490df9c5263267c47fbb40055e6c0ea66ca1f656adb8957501ef9f7105b8f7e"
+    }
+  },
+  "completed_at": "2026-09-07T00:28:22.947137+00:00",
   "final": {
-    "status": "ready",
-    "outcome": {
-      "disposition": "ready",
-      "protocol": "completed",
-      "contract": "satisfied",
-      "evidence": "grounded",
-      "coverage": "complete"
-    },
+    "artifact_type": "final",
     "attempt": 2,
     "findings": [],
-    "source_issues": 0,
-    "artifact_type": "final",
+    "outcome": {
+      "contract": "accepted",
+      "coverage": "full",
+      "disposition": "ready",
+      "evidence": "corpus_bound",
+      "protocol": "completed"
+    },
+    "output_path": "<external>/briefing.md",
+    "output_sha256": "247ea35a60aca79a9f0a4df72cb1d99af91ee84aeddba24f12ab0bd1f536880a",
+    "requested_output_path": "<external>/briefing.md",
     "run_artifact": "final.md",
-    "requested_output_path": "briefing.md",
-    "output_path": "briefing.md",
-    "output_sha256": "fixture-output-hash"
-  }
+    "source_issues": 0,
+    "status": "ready"
+  },
+  "generation_totals": {
+    "by_stage": {
+      "prose": {
+        "calls": 1,
+        "cost_calls": 0,
+        "cost_usd": 0.0,
+        "input_token_calls": 1,
+        "input_tokens": 1,
+        "latency_ms": 1.0,
+        "output_token_calls": 1,
+        "output_tokens": 1,
+        "transport_attempts": 1
+      },
+      "selection": {
+        "calls": 1,
+        "cost_calls": 0,
+        "cost_usd": 0.0,
+        "input_token_calls": 1,
+        "input_tokens": 1,
+        "latency_ms": 1.0,
+        "output_token_calls": 1,
+        "output_tokens": 1,
+        "transport_attempts": 1
+      }
+    },
+    "calls": 2,
+    "cost_calls": 0,
+    "cost_usd": 0.0,
+    "input_token_calls": 2,
+    "input_tokens": 2,
+    "latency_ms": 2.0,
+    "output_token_calls": 2,
+    "output_tokens": 2,
+    "transport_attempts": 2
+  },
+  "identity": {
+    "category_cap": 60,
+    "code": {
+      "commit": "fda391ca06c89b96746ff336db05dcba237109c8",
+      "python": "3.14.7",
+      "source_sha256": {
+        "agent_runner/__init__.py": "e0e20944fad8da53f4ec60dce33b6bf54db07b093dc1c1e3a64bcc64c0469510",
+        "agent_runner/checkpoint.py": "e76f2a3ac5cd2c3611e2ba963678285752713c05f5ea9cc3a10f5131f4cfc4f1",
+        "agent_runner/models.py": "795ac3d429ae9dd3ceb24a1654cdafa6822cd66a00602b2a308bdcf1bbeca345",
+        "agent_runner/outcomes.py": "b4ff52335f993bdd583f3f92617ccca44d6c5255d73f849d6496d566472974b7",
+        "agent_runner/output.py": "43e79285b36ee03e70fd0fccff036eb3662bff3e9f7937adc0a568d9737ad085",
+        "agent_runner/providers.py": "b2bfb0bd214b7626ff920c1d7e4e8173b1923f268937e6e41cdaed77968b55d3",
+        "agent_runner/runner.py": "02b15c159458dc94d2c817f688d242eda86987e52a3e4d81412734d18a34f8a5",
+        "briefing_config.py": "522c270542d4589fb67dc376f5ff6f26dc92a467f96a1728c56304fa0e0ee47d",
+        "corpus_schema.py": "a6fc55aca43a7f694cea9b56c08e1a259db75d41b07208044ed283bf9d904138",
+        "eval_briefing.py": "e3f172a174ded2f3aa982fed3ac93b21aa8ed8f9818073f38cef5028d6acfd6b",
+        "fetch_news.py": "f0676532c3c7af0160b7557acafcb0f1edaad64e9d1993c75aa35fa92fda2c83",
+        "run_briefing.py": "4490df9c5263267c47fbb40055e6c0ea66ca1f656adb8957501ef9f7105b8f7e"
+      }
+    },
+    "config_path": "<external>/briefing-config.json",
+    "config_sha256": "3a5e88d15865ce4a4f2839383eecbbdfa5ce777b75c5882fc258d2e1700070a4",
+    "hours": 24,
+    "max_corrections": 1,
+    "output_path": "<external>/briefing.md",
+    "prompt_path": "briefing-runner-prompt.md",
+    "prompt_sha256": "d859cd64a313c35322154002edcae5524f4a9309fa7acaa5eced59cea1237fdf",
+    "provider": {
+      "authentication": "none",
+      "model": "deterministic",
+      "provider": "fake",
+      "tool_policy": "no tools"
+    },
+    "source_cap": 25,
+    "sources_path": "sources.json",
+    "sources_sha256": "9f5f8764f90005fc0ee3f697c66a667597bab80c183307600a4f12fd5b0f6568",
+    "strict": false,
+    "timeout_seconds": 30
+  },
+  "outcome": {
+    "contract": "accepted",
+    "coverage": "full",
+    "disposition": "ready",
+    "evidence": "corpus_bound",
+    "protocol": "completed"
+  },
+  "phase": "finalized",
+  "provider": {
+    "authentication": "none",
+    "model": "deterministic",
+    "provider": "fake",
+    "tool_policy": "no tools"
+  },
+  "run_id": "production-run",
+  "schema_version": 1,
+  "started_at": "2026-09-07T00:28:22.933583+00:00",
+  "status": "complete",
+  "trace_commit": {
+    "bytes": 1902,
+    "sha256": "f960ab745274933327ba94a5be8f31bc2bf3dac3c76ddd9b69f4d23f075ad0a9"
+  },
+  "trace_id": "913e912c17884607fe0f0d4bd922ed1d"
 }

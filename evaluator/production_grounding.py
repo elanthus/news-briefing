@@ -37,7 +37,7 @@ from agent_runner.output import redact_destinations, redact_opaque_references
 
 from evaluator.adapters import Adapter
 from evaluator.grounding_machine_review import run_grounding_machine_review
-from evaluator.grounding_review import _double_sample, _packet
+from evaluator.grounding_review import double_sample, packet
 from evaluator.judge_io import portable_path, sha256_bytes, write_json_atomic, write_text_atomic
 from evaluator.metrics import rate
 
@@ -95,7 +95,7 @@ def production_run_topics(run_dir: Path, run_id: str) -> list[dict[str, Any]]:
 
     Returns one record per published topic (never the accountability-log
     exclusions, matching `evaluator.grounding_review`'s human packets), shaped
-    for `evaluator.grounding_review._packet()`. Returns an empty list for a
+    for `evaluator.grounding_review.packet()`. Returns an empty list for a
     run that is not a published `ready` result, or whose artifacts cannot be
     read, or whose finalized candidate's topic counts no longer match its
     frozen evidence.
@@ -217,9 +217,9 @@ def export_production_grounding_packets(
 
     rng = random.Random(seed)
     double_count = max(1, round(len(records) * double_fraction)) if records else 0
-    double_records = _double_sample(records, double_count, rng)
-    primary, primary_map = _packet(records, "prodground", rng)
-    secondary, secondary_map = _packet(double_records, "proddouble", rng)
+    double_records = double_sample(records, double_count, rng)
+    primary, primary_map = packet(records, "prodground", rng)
+    secondary, secondary_map = packet(double_records, "proddouble", rng)
 
     packet_meta = {
         "schema_version": 1,
@@ -264,7 +264,7 @@ WEEKLY_LOG_HEADER = (
     "Automated, non-gating measurement of already-published briefings. It never changes a day's "
     "publication decision. See "
     "[Evaluation methodology](../evaluation-methodology.md#unverified-machine-grounding-monitor) "
-    "for what this rate can and cannot be used to claim; per-topic verdicts stay in the private "
+    "for what this rate can and cannot be used to claim; per-topic verdicts stay in the encrypted "
     "review artifact, not this log.\n\n"
     "| Week | Runs reviewed | Runs skipped | Topics reviewed | Unverified grounding rate (95% CI) | "
     "Audit agreement | Primary judge | Cost (USD) |\n"
