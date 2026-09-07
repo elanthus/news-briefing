@@ -447,6 +447,47 @@ class StructureTest(unittest.TestCase):
         findings = evaluate(CORPUS, briefing(exclusions=3))
         self.assertIn("exclusion_log_short", checks(findings, WARN))
 
+    def test_all_empty_exclusion_logs_are_a_blocking_error(self):
+        """Every accountable section returning nothing is not a heuristic miss."""
+        findings = evaluate(CORPUS, briefing(exclusions=0))
+        self.assertIn("exclusion_log_empty", checks(findings, ERROR))
+        # Each section is still individually reported at WARN.
+        self.assertEqual(
+            len([f for f in findings if f.check == "exclusion_log_missing"]), 5
+        )
+
+    def test_one_populated_exclusion_log_avoids_the_all_empty_error(self):
+        """One accountable section with real entries is a partial miss, not total."""
+        text = briefing(exclusions=5)
+        for n in range(4, 9):
+            text = text.replace(
+                f"\n- *Dropped {n}* — lower impact. 🔗 https://ex.com/t{n}", "")
+        findings = evaluate(CORPUS, text)
+        self.assertNotIn("exclusion_log_empty", checks(findings, ERROR))
+        self.assertIn("exclusion_log_missing", checks(findings, WARN))
+
+    def test_exhausted_pool_with_no_entries_produces_no_finding(self):
+        """A section with nothing left to exclude is correct with an empty log."""
+        corpus = json.loads(json.dumps(CORPUS))
+        corpus["categories"]["dev_community"] = _items("t", 3) + _items("d", 3)
+        corpus["categories"]["dev_community"][0].update(
+            discussion="https://news.ycombinator.com/item?id=1")
+        corpus["categories"]["ai_tech"] = _items("a", 4)
+        text = briefing(exclusions=5)
+        for n in range(4, 9):
+            text = text.replace(
+                f"\n- *Dropped {n}* — lower impact. 🔗 https://ex.com/t{n}", "")
+            text = text.replace(
+                f"\n- *Dropped {n}* — lower impact. 🔗 https://ex.com/d{n}", "")
+        findings = eval_briefing.evaluate(corpus, text, FIXTURE_CONFIG)
+        self.assertNotIn("exclusion_log_empty", checks(findings, ERROR))
+        exhausted_section_findings = [
+            f for f in findings
+            if f.check.startswith("exclusion_log")
+            and ("AI Dev Tools" in f.message or "AI Dev Practices" in f.message)
+        ]
+        self.assertEqual(exhausted_section_findings, [])
+
     def test_section_level_citation_reduces_available_exclusions(self):
         """Every reported citation is unavailable, even outside a topic line."""
         corpus = json.loads(json.dumps(CORPUS))

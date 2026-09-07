@@ -689,6 +689,8 @@ def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
         if name != EXCLUDED
         for url in bucket["links"]
     }
+    accountable_with_expected: list[str] = []
+    empty_sections: list[str] = []
     for section in config.sections:
         target = section.excluded_stories
         if target == 0:
@@ -703,8 +705,10 @@ def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
         expected = min(target, len(eligible_urls - included))
         if expected == 0:
             continue
+        accountable_with_expected.append(name)
         entries = logged.get(name, [])
         if not entries:
+            empty_sections.append(name)
             findings.append(Finding(
                 WARN, "exclusion_log_missing",
                 f"exclusion log has no entries for {name!r}"))
@@ -713,6 +717,11 @@ def check_exclusion_log(sections: dict[str, Section], corpus: dict[str, Any],
                 WARN, "exclusion_log_short",
                 f"exclusion log for {name!r}: {len(entries)} entries, "
                 f"expected {expected}"))
+    if accountable_with_expected and len(empty_sections) == len(accountable_with_expected):
+        findings.append(Finding(
+            ERROR, "exclusion_log_empty",
+            "every accountable section with eligible unreported items has an "
+            f"empty exclusion log: {', '.join(empty_sections)}"))
     return findings
 
 

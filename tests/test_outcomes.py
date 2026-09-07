@@ -99,6 +99,17 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(finding_domain("low_claim_evidence_overlap"), "quality")
         self.assertEqual(finding_domain("failed_source_unnamed"), "coverage")
         self.assertEqual(finding_domain("category_ineligible_ref"), "editorial")
+        self.assertEqual(finding_domain("exclusion_log_empty"), "editorial")
+
+    def test_all_empty_exclusion_log_is_review_required_not_rejected(self):
+        """Deterministic and blocking, but a corpus-bound editorial gap."""
+        finding = OutputFinding(
+            "ERROR", "exclusion_log_empty", "every accountable section is empty")
+        outcome = classify_outcome([finding], [])
+        self.assertTrue(is_actionable_finding({"domain": finding_domain(finding.check)}))
+        self.assertEqual(outcome.disposition, "review_required")
+        self.assertEqual(outcome.contract, "review_required")
+        self.assertEqual(outcome.evidence, "corpus_bound")
 
     def test_quality_findings_are_not_actionable(self):
         self.assertFalse(is_actionable_finding({"domain": "quality"}))

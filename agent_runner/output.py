@@ -297,6 +297,29 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     return schema
 
 
+def _worst_case_pool_demand(
+    section: briefing_config.BriefingSection,
+    config: briefing_config.BriefingConfig,
+) -> int:
+    """Upper bound on the items other selections can take from this section's pool.
+
+    An item belongs to one category, so only sections whose categories overlap
+    this one's can cite it. Each of those can consume up to ``target_stories``
+    items as topics, and each accountable one other than this section may be
+    asked for at least one exclusion of its own. Anything above that bound is
+    guaranteed to remain available for this section's exclusion log.
+    """
+    categories = set(section.corpus_categories)
+    overlapping = [
+        other for other in config.sections
+        if categories & set(other.corpus_categories)
+    ]
+    return sum(other.target_stories for other in overlapping) + sum(
+        1 for other in overlapping
+        if other.name != section.name and other.excluded_stories
+    )
+
+
 def build_selection_schema(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
@@ -339,7 +362,20 @@ def build_selection_schema(
                     f"At most {section.excluded_stories} excluded evidence selections."
                 ),
                 "items": selection,
-                "minItems": 0,
+                # A cooperative-sampler nudge only: the eligible set here is not
+                # narrowed by what the model puts in "topics", so this cannot
+                # guarantee a non-empty log, and it must never demand an
+                # exclusion the pool cannot supply. The schema asks for one
+                # only when this section's pool survives the worst case:
+                # every section sharing a category fills its topics from this
+                # pool and, if accountable, logs one exclusion of its own.
+                # Otherwise a correct, fully reported selection would be
+                # forced into a duplicate_item failure. check_exclusion_log
+                # (mirrored in _check_exclusion_log_selection) remains the
+                # actual guarantee.
+                "minItems": (
+                    1 if len(eligible_refs) > _worst_case_pool_demand(section, config) else 0
+                ),
                 "maxItems": section.excluded_stories,
             }
     return {
@@ -841,6 +877,55 @@ def _limit_collection(
         ))
 
 
+def _check_exclusion_log_selection(
+    sections: dict[str, Any],
+    excluded_topics: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> list[OutputFinding]:
+    """Mirror ``eval_briefing.check_exclusion_log`` before the selection freezes.
+
+    The schema alone cannot forbid an empty exclusion array (a model may
+    legally return ``[]`` for every accountable section), and the Markdown
+    checker only runs after prose is drafted. Raising the same finding here,
+    against the model-visible citation set, spends a selection-stage
+    correction instead of a prose-stage one.
+    """
+    included_item_refs = {
+        citations[ref].item_ref
+        for section_value in sections.values()
+        if isinstance(section_value, dict)
+        for entry in section_value.get("topics", [])
+        if isinstance(entry, dict)
+        for ref in entry.get("citation_refs", [])
+        if isinstance(ref, str) and ref in citations
+    }
+    accountable_with_expected: list[str] = []
+    empty_sections: list[str] = []
+    for section in config.sections:
+        if not section.excluded_stories:
+            continue
+        eligible_item_refs = {
+            citation.item_ref
+            for citation in citations.values()
+            if citation.category in section.corpus_categories
+        }
+        if not (eligible_item_refs - included_item_refs):
+            continue
+        accountable_with_expected.append(section.name)
+        entries = excluded_topics.get(section.name)
+        if not isinstance(entries, list) or not entries:
+            empty_sections.append(section.name)
+    if accountable_with_expected and len(empty_sections) == len(accountable_with_expected):
+        return [OutputFinding(
+            "ERROR",
+            "exclusion_log_empty",
+            "every accountable section with eligible unreported items has an "
+            f"empty exclusion log: {', '.join(empty_sections)}",
+        )]
+    return []
+
+
 def validate_selection(
     selection: Any,
     config: briefing_config.BriefingConfig,
@@ -897,6 +982,10 @@ def validate_selection(
             _validate_citation_refs(
                 parsed, section, entry_where, citations, used_items, findings
             )
+    if not any(finding.level == "ERROR" for finding in findings):
+        findings.extend(
+            _check_exclusion_log_selection(sections, excluded_topics, config, citations)
+        )
     return findings
 
 

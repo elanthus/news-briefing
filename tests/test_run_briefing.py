@@ -444,6 +444,28 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", provider.requests[1].prompt)
         self.assertNotIn("ATTACKER.invalid", provider.requests[1].prompt)
 
+    def test_all_empty_exclusion_log_requests_selection_correction(self):
+        corpus, config, _projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        for name in broken["excluded_topics"]:
+            broken["excluded_topics"][name] = []
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(
+            [row["kind"] for row in manifest["attempts"]],
+            ["selection", "selection_correction", "prose"],
+        )
+        self.assertFalse(manifest["attempts"][0]["contract_success"])
+        self.assertTrue(manifest["attempts"][1]["contract_success"])
+        self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
+        self.assertIn("exclusion_log_empty", provider.requests[1].prompt)
+
     def test_copied_exclusion_requests_prose_correction_with_frozen_citations(self):
         corpus, config, _projected, output = fixture_contract()
         broken = copy.deepcopy(output)
