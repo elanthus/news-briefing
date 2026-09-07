@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import json
 import tempfile
 import unittest
@@ -719,6 +721,164 @@ class PreparePublicationTests(unittest.TestCase):
             sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings"][0]["context"]["path"], "topics.AI News[0]")
 
+    def test_provenance_derived_from_manifest_and_fallback_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            selected = chain / "02-deepseek-deepseek-v4-flash-0731"
+            selected.mkdir(parents=True)
+            content = b"fallback briefing\n"
+            (selected / "final.md").write_bytes(content)
+            self._write_manifest(
+                selected, "ready", "final", "final.md", content, [],
+                provider="openrouter",
+                model="deepseek/deepseek-v4-flash-0731",
+                prompt_sha256="b" * 64,
+                extra_attempts=[
+                    {"kind": "selection"},
+                    {"kind": "selection_correction"},
+                    {"kind": "prose"},
+                    {
+                        "kind": "deterministic_repair",
+                        "repair_actions": [
+                            {"action": "drop_entry", "path": "topics.AI News[1]", "reason": "duplicate"},
+                        ],
+                    },
+                ],
+            )
+            (chain / "fallback-log.json").write_text(
+                json.dumps({
+                    "status": "ready",
+                    "selected_run_dir": selected.name,
+                    "selected_model": "deepseek/deepseek-v4-flash-0731",
+                    "model_chain": ["tencent/hy3", "deepseek/deepseek-v4-flash-0731", "google/gemini-3.7-flash"],
+                    "attempts": [
+                        {
+                            "index": 1, "model": "tencent/hy3",
+                            "status": "failed", "run_dir": "01-tencent-hy3",
+                        },
+                        {
+                            "index": 2, "model": "deepseek/deepseek-v4-flash-0731",
+                            "status": "ready", "run_dir": selected.name,
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+            record = prepare_publication(
+                chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertIsNotNone(record.provenance)
+            assert record.provenance is not None
+            self.assertEqual(record.provenance.provider, "openrouter")
+            self.assertEqual(record.provenance.model, "deepseek/deepseek-v4-flash-0731")
+            self.assertEqual(record.provenance.attempt_index, 2)
+            self.assertEqual(record.provenance.attempt_count, 3)
+            self.assertEqual(record.provenance.selection_corrections, 1)
+            self.assertEqual(record.provenance.prose_corrections, 0)
+            self.assertEqual(record.provenance.repair_action_count, 1)
+            self.assertEqual(record.provenance.prompt_sha256, "b" * 64)
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["provenance"]["attempt_index"], 2)
+            self.assertEqual(sidecar["provenance"]["attempt_count"], 3)
+
+    def test_provenance_defaults_to_single_attempt_without_a_fallback_log(self) -> None:
+        # A manual run_briefing.py run has no fallback-chain log at all.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"manual briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(
+                run, "ready", "final", "final.md", content, [],
+                provider="claude-code-cli",
+                model="claude-opus-4",
+                prompt_sha256="c" * 64,
+            )
+
+            record = prepare_publication(
+                run, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
+            )
+
+            self.assertIsNotNone(record.provenance)
+            assert record.provenance is not None
+            self.assertEqual(record.provenance.provider, "claude-code-cli")
+            self.assertEqual(record.provenance.attempt_index, 1)
+            self.assertEqual(record.provenance.attempt_count, 1)
+            self.assertEqual(record.provenance.selection_corrections, 0)
+            self.assertEqual(record.provenance.prose_corrections, 0)
+            self.assertEqual(record.provenance.repair_action_count, 0)
+
+    def test_provenance_absent_when_manifest_predates_provider_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(run, "ready", "final", "final.md", content, [])
+
+            record = prepare_publication(
+                run, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertIsNone(record.provenance)
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertIsNone(sidecar["provenance"])
+
+    def test_provenance_is_absent_for_non_public_dispositions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            preview = b"rejected preview\n"
+            (run / "preview.md").write_bytes(preview)
+            findings = [
+                {"level": "ERROR", "check": "ungrounded_link", "domain": "evidence", "message": "bad link"}
+            ]
+            self._write_manifest(
+                run, "rejected", "preview", "preview.md", preview, findings,
+                provider="openrouter", model="tencent/hy3", prompt_sha256="d" * 64,
+            )
+
+            record = prepare_publication(
+                run, root / "corpus.json", root / "history", date(2026, 8, 20)
+            )
+
+            self.assertEqual(record.disposition, "rejected")
+            self.assertIsNone(record.provenance)
+
+    def test_provenance_warns_on_stderr_when_prompt_hash_is_malformed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(
+                run, "ready", "final", "final.md", content, [],
+                provider="openrouter", model="tencent/hy3",
+                prompt_sha256="not-a-sha256-digest",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                record = prepare_publication(
+                    run, root / "missing-corpus.json", root / "history", date(2026, 8, 20)
+                )
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertIsNone(record.provenance)
+            self.assertIn(str(run), stderr.getvalue())
+            self.assertIn("provenance", stderr.getvalue())
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertIsNone(sidecar["provenance"])
+
     @staticmethod
     def _write_manifest(
         run: Path,
@@ -733,9 +893,13 @@ class PreparePublicationTests(unittest.TestCase):
         attempt_index: int = 1,
         final_attempt_kind: str | None = None,
         final_repair_actions: list[dict[str, str]] | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        prompt_sha256: str | None = None,
+        extra_attempts: list[dict[str, object]] | None = None,
     ) -> None:
         artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
-        attempts: list[dict[str, object]] = []
+        attempts: list[dict[str, object]] = list(extra_attempts or [])
         final_attempt: dict[str, object] = {}
         if structured is not None:
             structured_content = json.dumps(structured, ensure_ascii=False).encode("utf-8")
@@ -755,23 +919,23 @@ class PreparePublicationTests(unittest.TestCase):
             # final.attempt is pinned to 1: an attempt_index other than 1 makes the
             # final attempt unmatchable, which the malformed-metadata test relies on.
             final_attempt["attempt"] = 1
-        (run / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "status": "complete",
-                    "artifacts": artifacts,
-                    "attempts": attempts,
-                    "final": {
-                        "status": status,
-                        "artifact_type": artifact_type,
-                        "run_artifact": artifact_name,
-                        "findings": findings,
-                        **final_attempt,
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
+        manifest: dict[str, object] = {
+            "status": "complete",
+            "artifacts": artifacts,
+            "attempts": attempts,
+            "final": {
+                "status": status,
+                "artifact_type": artifact_type,
+                "run_artifact": artifact_name,
+                "findings": findings,
+                **final_attempt,
+            },
+        }
+        if provider is not None and model is not None:
+            manifest["provider"] = {"provider": provider, "model": model}
+        if prompt_sha256 is not None:
+            manifest["identity"] = {"prompt_sha256": prompt_sha256}
+        (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 if __name__ == "__main__":

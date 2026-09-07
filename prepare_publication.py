@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -16,13 +17,16 @@ from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     FINDING_FIELDS,
+    Provenance,
     ReviewContext,
     ReviewFinding,
     finding_has_fields,
     finding_level_is_valid,
     finding_payload,
     finding_strings_are_valid,
+    parse_provenance,
     parse_repair_actions,
+    provenance_payload,
 )
 
 FINAL_STATUSES = {"ready", "review_required", "rejected", "no_result"}
@@ -45,6 +49,7 @@ class PublicationRecord:
     repair_actions: tuple[dict[str, str], ...] = ()
     generation_failures: tuple[GenerationFailure, ...] = ()
     advisory_findings: tuple[ReviewFinding, ...] = ()
+    provenance: Provenance | None = None
 
     def payload(self) -> dict[str, object]:
         return {
@@ -56,6 +61,7 @@ class PublicationRecord:
             "repair_actions": list(self.repair_actions),
             "generation_failures": [failure.payload() for failure in self.generation_failures],
             "advisory_findings": [finding_payload(finding) for finding in self.advisory_findings],
+            "provenance": provenance_payload(self.provenance) if self.provenance is not None else None,
         }
 
 
@@ -184,6 +190,107 @@ def _extract_repair_actions(
     if attempt is None or attempt.get("kind") != "deterministic_repair":
         return ()
     return parse_repair_actions(attempt.get("repair_actions"))
+
+
+def _chain_attempt_span(run_dir: Path, selected_dir_name: str) -> tuple[int, int]:
+    """Resolve (attempt_index, attempt_count) from the fallback chain log.
+
+    Falls back to (1, 1) — a single, non-chained provider — when the log is
+    absent (a manual ``run_briefing.py`` run) or does not identify this run.
+    """
+    fallback = _load_json(run_dir / FALLBACK_LOG_NAME)
+    if not isinstance(fallback, dict):
+        return 1, 1
+    model_chain = fallback.get("model_chain")
+    attempt_count = len(model_chain) if isinstance(model_chain, list) and model_chain else 1
+    chain_attempts = fallback.get("attempts")
+    if isinstance(chain_attempts, list):
+        for row in chain_attempts:
+            index = row.get("index") if isinstance(row, dict) else None
+            if (
+                isinstance(row, dict)
+                and row.get("run_dir") == selected_dir_name
+                and isinstance(index, int)
+                and not isinstance(index, bool)
+                and 1 <= index <= attempt_count
+            ):
+                return index, attempt_count
+    return 1, attempt_count
+
+
+def _correction_and_repair_counts(attempts: list[Any]) -> tuple[int, int, int]:
+    """Count selection corrections, prose corrections, and repair actions.
+
+    Sourced entirely from ``attempt["kind"]`` and ``attempt["repair_actions"]``
+    already recorded by the runner (agent_runner/runner.py): model identifiers
+    and counts only, never the prompt, corpus, or model text those attempts
+    carry.
+    """
+    selection_corrections = 0
+    prose_corrections = 0
+    repair_action_count = 0
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        kind = attempt.get("kind")
+        if kind == "selection_correction":
+            selection_corrections += 1
+        elif kind == "correction":
+            prose_corrections += 1
+        elif kind in {"deterministic_repair", "selection_repair"}:
+            actions = attempt.get("repair_actions")
+            if isinstance(actions, list):
+                repair_action_count += len(actions)
+    return selection_corrections, prose_corrections, repair_action_count
+
+
+def _provenance(
+    run_dir: Path,
+    generation_run_dir: Path,
+    manifest: dict[str, Any],
+) -> Provenance | None:
+    """Derive publication provenance from the code-owned manifest and chain log.
+
+    Returns ``None`` when the manifest predates recorded provider identity or
+    the runner prompt hash, so an older run still publishes and renders
+    without a provenance object.
+    """
+    provider_info = manifest.get("provider")
+    identity = manifest.get("identity")
+    attempts = manifest.get("attempts")
+    if not isinstance(provider_info, dict) or not isinstance(identity, dict):
+        return None
+    provider = provider_info.get("provider")
+    model = provider_info.get("model")
+    prompt_sha256 = identity.get("prompt_sha256")
+    if (
+        not isinstance(provider, str)
+        or not isinstance(model, str)
+        or not isinstance(prompt_sha256, str)
+        or not isinstance(attempts, list)
+    ):
+        return None
+    attempt_index, attempt_count = _chain_attempt_span(run_dir, generation_run_dir.name)
+    selection_corrections, prose_corrections, repair_action_count = (
+        _correction_and_repair_counts(attempts)
+    )
+    try:
+        return parse_provenance({
+            "provider": provider,
+            "model": model,
+            "attempt_index": attempt_index,
+            "attempt_count": attempt_count,
+            "selection_corrections": selection_corrections,
+            "prose_corrections": prose_corrections,
+            "repair_action_count": repair_action_count,
+            "prompt_sha256": prompt_sha256,
+        })
+    except ValueError as exc:
+        print(
+            f"warning: {generation_run_dir} provenance not published: {exc}",
+            file=sys.stderr,
+        )
+        return None
 
 
 def _review_context(
@@ -326,6 +433,7 @@ def prepare_publication(
     findings: tuple[ReviewFinding, ...] = ()
     advisory_findings: tuple[ReviewFinding, ...] = ()
     repair_actions: tuple[dict[str, str], ...] = ()
+    provenance: Provenance | None = None
     public_content: bytes | None = None
 
     generation_run_dir = _selected_generation_run(run_dir)
@@ -382,6 +490,7 @@ def prepare_publication(
                     # with a public artifact; non-public dispositions keep the
                     # minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
+                    provenance = _provenance(run_dir, generation_run_dir, manifest)
                     public_content = _bound_artifact(
                         generation_run_dir, manifest, final, disposition
                     )
@@ -391,6 +500,7 @@ def prepare_publication(
                         findings = ()
                         repair_actions = ()
                         advisory_findings = ()
+                        provenance = None
 
     history_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = history_dir / f"{day.isoformat()}.md"
@@ -411,6 +521,7 @@ def prepare_publication(
             if disposition == "blocked" else ()
         ),
         advisory_findings=advisory_findings,
+        provenance=provenance,
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
