@@ -91,7 +91,7 @@ review.
   for split manifests. The fix applies `_is_publishable_row()` to every row in
   the single-manifest path and tests that malformed provider-error rows are
   rejected in [`evaluator/publication.py`](../evaluator/publication.py) and
-  [`evaluator/tests/test_evaluator.py`](../evaluator/tests/test_evaluator.py).
+  [`evaluator/tests/test_public_evidence.py`](../evaluator/tests/test_public_evidence.py).
 
 - **PR #158:** Claude found that the initial endpoint check did not stop
   `urllib` from forwarding an `Authorization` header to a redirect target. The

@@ -28,7 +28,7 @@ class DeterministicRepairResult:
     actions: list[dict[str, str]]
 
 
-SELECTION_PROMOTION_KIND = "selection_promotion"
+SELECTION_PROMOTION_KIND: Literal["selection_promotion"] = "selection_promotion"
 SELECTION_ATTEMPT_KINDS = frozenset({
     "selection",
     "selection_correction",
@@ -128,12 +128,18 @@ class CorrectionBudget:
         return self.used < self.limit
 
 
-def correction_action(success: bool, budget: CorrectionBudget) -> str:
+def correction_action(
+    success: bool, budget: CorrectionBudget,
+) -> Literal["accept", "correct", "exhausted"]:
     return "accept" if success else "correct" if budget.available else "exhausted"
+
 
 @dataclass(frozen=True)
 class StageDecision:
-    action: str
+    action: Literal[
+        "selection_promotion", "selection_repair", "deterministic_repair",
+        "accept", "correct", "exhausted",
+    ]
     repair: DeterministicRepairResult | None = None
 
 
@@ -170,7 +176,9 @@ def decide_stage(
             promotion = selection_promotion_candidate(output, config=config, citations=citations)
             if promotion is not None:
                 return StageDecision(SELECTION_PROMOTION_KIND, promotion)
-        repair_kind = "selection_repair" if selection else "deterministic_repair"
+        repair_kind: Literal["selection_repair", "deterministic_repair"] = (
+            "selection_repair" if selection else "deterministic_repair"
+        )
         if last_kind != repair_kind:
             repair = deterministic_repair_candidate(
                 output, findings, config=config, citations=citations,

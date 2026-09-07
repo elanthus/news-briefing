@@ -40,98 +40,6 @@ from evaluator.tests.support import (
 )
 
 
-def _assert_generation_case_metadata_validation(self: unittest.TestCase) -> None:
-    attack = {
-        "id": "attack-citation-fabrication",
-        "kind": "attack",
-        "family": "citation",
-        "config": "config.json",
-        "mutations": [{"path": ["items", 0, "title"], "value": "injected"}],
-    }
-    _validate_generation_case({**attack, "matched_pair": True})
-
-    with self.assertRaisesRegex(ValueError, "matched_pair must be a boolean"):
-        _validate_generation_case({**attack, "matched_pair": "yes"})
-    with self.assertRaisesRegex(ValueError, "matched_pair is only valid on attack cases"):
-        _validate_generation_case({
-            **attack,
-            "id": "utility-matched-pair",
-            "kind": "utility",
-            "matched_pair": True,
-        })
-
-    for field, invalid in (("corpus_position", "near"), ("controlled_items", "double")):
-        with self.subTest(field=field):
-            with self.assertRaisesRegex(ValueError, field):
-                _validate_generation_case({**attack, field: invalid})
-
-    with self.assertRaisesRegex(ValueError, "must appear together"):
-        _validate_generation_case({**attack, "corpus_position": "early"})
-    with self.assertRaisesRegex(ValueError, "only valid on attack cases"):
-        _validate_generation_case({
-            **attack,
-            "id": "utility-ablation",
-            "kind": "utility",
-            "corpus_position": "early",
-            "controlled_items": "single",
-        })
-    with self.assertRaisesRegex(ValueError, "does not match"):
-        _validate_generation_case({
-            **attack,
-            "id": "attack-citation-fabrication-early-single",
-            "corpus_position": "late",
-            "controlled_items": "single",
-        })
-    with self.assertRaisesRegex(ValueError, "single requires exactly one mutation"):
-        _validate_generation_case({
-            **attack,
-            "id": "attack-citation-fabrication-early-single",
-            "corpus_position": "early",
-            "controlled_items": "single",
-            "mutations": [],
-        })
-    with self.assertRaisesRegex(ValueError, "multi requires exactly three mutations"):
-        _validate_generation_case({
-            **attack,
-            "id": "attack-citation-fabrication-early-multi",
-            "corpus_position": "early",
-            "controlled_items": "multi",
-            "mutations": attack["mutations"],
-        })
-
-    relocation = {
-        "path": ["categories", "dev_community"],
-        "from": 0,
-        "to": 2,
-        "count": 1,
-    }
-    _validate_generation_case({**attack, "corpus_relocations": [relocation]})
-    with self.assertRaisesRegex(ValueError, "from, to, and count must be integers"):
-        _validate_generation_case({
-            **attack,
-            "corpus_relocations": [{**relocation, "count": True}],
-        })
-    relocation_target = {"categories": {"dev_community": ["a", "b", "c"]}}
-    _relocate(relocation_target, [relocation])
-    self.assertEqual(
-        relocation_target["categories"]["dev_community"],
-        ["b", "c", "a"],
-    )
-
-    _validate_generation_case({
-        **attack,
-        "id": "attack-citation-fabrication-early-single",
-        "corpus_position": "early",
-        "controlled_items": "single",
-    })
-    self.assertEqual(
-        _attack_dimensions("attack-citation-fabrication-early-single"),
-        ("citation-fabrication", "direct"),
-    )
-    self.assertEqual(
-        _attack_dimensions("attack-citation-fabrication-response-injection"),
-        ("citation-fabrication", "response_injection"),
-    )
 
 
 
@@ -519,7 +427,97 @@ class FixedSuiteTest(unittest.TestCase):
         self.assertIn("print that URL only once", prompt)
 
     def test_generation_case_metadata_validation(self) -> None:
-        _assert_generation_case_metadata_validation(self)
+        attack = {
+            "id": "attack-citation-fabrication",
+            "kind": "attack",
+            "family": "citation",
+            "config": "config.json",
+            "mutations": [{"path": ["items", 0, "title"], "value": "injected"}],
+        }
+        _validate_generation_case({**attack, "matched_pair": True})
+
+        with self.assertRaisesRegex(ValueError, "matched_pair must be a boolean"):
+            _validate_generation_case({**attack, "matched_pair": "yes"})
+        with self.assertRaisesRegex(ValueError, "matched_pair is only valid on attack cases"):
+            _validate_generation_case({
+                **attack,
+                "id": "utility-matched-pair",
+                "kind": "utility",
+                "matched_pair": True,
+            })
+
+        for field, invalid in (("corpus_position", "near"), ("controlled_items", "double")):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, field):
+                    _validate_generation_case({**attack, field: invalid})
+
+        with self.assertRaisesRegex(ValueError, "must appear together"):
+            _validate_generation_case({**attack, "corpus_position": "early"})
+        with self.assertRaisesRegex(ValueError, "only valid on attack cases"):
+            _validate_generation_case({
+                **attack,
+                "id": "utility-ablation",
+                "kind": "utility",
+                "corpus_position": "early",
+                "controlled_items": "single",
+            })
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-single",
+                "corpus_position": "late",
+                "controlled_items": "single",
+            })
+        with self.assertRaisesRegex(ValueError, "single requires exactly one mutation"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-single",
+                "corpus_position": "early",
+                "controlled_items": "single",
+                "mutations": [],
+            })
+        with self.assertRaisesRegex(ValueError, "multi requires exactly three mutations"):
+            _validate_generation_case({
+                **attack,
+                "id": "attack-citation-fabrication-early-multi",
+                "corpus_position": "early",
+                "controlled_items": "multi",
+                "mutations": attack["mutations"],
+            })
+
+        relocation = {
+            "path": ["categories", "dev_community"],
+            "from": 0,
+            "to": 2,
+            "count": 1,
+        }
+        _validate_generation_case({**attack, "corpus_relocations": [relocation]})
+        with self.assertRaisesRegex(ValueError, "from, to, and count must be integers"):
+            _validate_generation_case({
+                **attack,
+                "corpus_relocations": [{**relocation, "count": True}],
+            })
+        relocation_target = {"categories": {"dev_community": ["a", "b", "c"]}}
+        _relocate(relocation_target, [relocation])
+        self.assertEqual(
+            relocation_target["categories"]["dev_community"],
+            ["b", "c", "a"],
+        )
+
+        _validate_generation_case({
+            **attack,
+            "id": "attack-citation-fabrication-early-single",
+            "corpus_position": "early",
+            "controlled_items": "single",
+        })
+        self.assertEqual(
+            _attack_dimensions("attack-citation-fabrication-early-single"),
+            ("citation-fabrication", "direct"),
+        )
+        self.assertEqual(
+            _attack_dimensions("attack-citation-fabrication-response-injection"),
+            ("citation-fabrication", "response_injection"),
+        )
 
     def test_production_ablation_cases_are_valid(self) -> None:
         fixtures_dir = Path(__file__).parents[1] / "fixtures"

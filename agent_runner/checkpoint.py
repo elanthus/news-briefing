@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.failures import final_failure
+
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
@@ -241,6 +243,8 @@ class RunStore:
         self.checkpoint("failed")
 
     def finalize(self, final: dict[str, Any]) -> None:
+        failure = final_failure(final, self.manifest)
+        final["failure"] = failure.payload() if failure is not None else None
         self.manifest["status"] = "complete"
         self.manifest["final"] = final
         self.manifest["outcome"] = final.get("outcome")

@@ -7,6 +7,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from agent_runner.failures import FailureRecord
 from agent_runner.models import GenerationRequest, ModelResponse, ProviderError
 from triage_run import generate_report, main, render_markdown, write_report
 
@@ -102,7 +103,8 @@ class TriageRunTests(unittest.TestCase):
                 artifacts={"corpus.json": "digest"},
                 error={
                     "type": "OpenRouterProviderError",
-                    "message": "request failed at https://provider.invalid/request",
+                    "failure": FailureRecord("rate_limited", status_code=429, transient=True).payload(),
+                    "message": "secret-provider-body at https://provider.invalid/request",
                     "transient": True,
                     "attempts": 3,
                     "status_code": 429,
@@ -123,14 +125,15 @@ class TriageRunTests(unittest.TestCase):
         self.assertTrue(record["openrouter_model_404"])
         self.assertTrue(record["ambiguous_completion"])
         self.assertNotIn("https://", json.dumps(report.record()))
+        self.assertNotIn("secret-provider-body", json.dumps(report.record()))
 
-    def test_real_failed_run_has_provider_error(self) -> None:
+    def test_historical_error_prose_is_not_reclassified(self) -> None:
         report = generate_report(FAILED_RUN)
 
-        self.assertIn("provider_error", _classes(report))
+        self.assertNotIn("provider_error", _classes(report))
         self.assertNotIn("fetch_failed", _classes(report))
 
-    def test_output_truncated_from_flag_length_event_and_invalid_raw_json(self) -> None:
+    def test_output_truncated_uses_structured_origin_and_evidence_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "truncated"
             run.mkdir()
@@ -162,14 +165,16 @@ class TriageRunTests(unittest.TestCase):
                     "ambiguous_completion": False,
                     "openrouter_model_404": False,
                     "output_truncated": True,
+                    "failure": FailureRecord("output_truncated", output_truncated=True).payload(),
                 },
             )
             report = generate_report(run)
 
         self.assertIn("output_truncated", _classes(report))
         cause = next(cause for cause in report.classes if cause.class_id == "output_truncated")
-        self.assertEqual(cause.details["invalid_raw_artifacts"], ["attempt-01-raw.txt"])
-        self.assertTrue(cause.details["length_reason_artifacts"])
+        self.assertEqual(cause.details["records"][0]["code"], "output_truncated")
+        self.assertEqual(cause.evidence[0].file, "manifest.json")
+        self.assertIn("failure.output_truncated", cause.evidence[0].location)
 
     def test_checker_fingerprint_is_stable_after_url_and_handle_redaction(self) -> None:
         def report_for(root: Path, check: str, handle: str, url: str):
@@ -184,7 +189,10 @@ class TriageRunTests(unittest.TestCase):
             _manifest(
                 root,
                 status="complete",
-                final={"status": "rejected", "findings": [finding], "source_issues": 0},
+                final={"status": "rejected", "findings": [finding], "source_issues": 0,
+                       "failure": FailureRecord("correction_exhausted", checks=("structured_type",),
+                                                stage="prose", corrections_used=1,
+                                                correction_limit=1).payload()},
                 artifacts={"corpus.json": "digest"},
             )
             return generate_report(root, generated_at="2026-09-01T00:00:00+00:00")
@@ -223,7 +231,10 @@ class TriageRunTests(unittest.TestCase):
             _manifest(
                 run,
                 status="complete",
-                final={"status": "rejected", "findings": [finding], "source_issues": 0},
+                final={"status": "rejected", "findings": [finding], "source_issues": 0,
+                       "failure": FailureRecord("correction_exhausted", checks=("structured_type",),
+                                                stage="prose", corrections_used=1,
+                                                correction_limit=1).payload()},
                 attempts=attempts,
                 max_corrections=1,
                 artifacts={"corpus.json": "digest"},
@@ -271,7 +282,8 @@ class TriageRunTests(unittest.TestCase):
                 {"model": "second", "status": "quarantined", "failure_reason": "rejected: checker finding"},
             ]
             _write_json(run / "fallback-log.json", {
-                "schema_version": 1,
+                "schema_version": 2,
+                "failure": FailureRecord("chain_exhausted").payload(),
                 "started_at": "2026-09-01T00:00:00+00:00",
                 "completed_at": "2026-09-01T00:02:00+00:00",
                 "status": "failed",
@@ -286,7 +298,7 @@ class TriageRunTests(unittest.TestCase):
         self.assertEqual(_classes(report), ["fallback_chain_exhausted"])
         cause = report.classes[0]
         self.assertEqual([row["model"] for row in cause.details["candidates"]], ["first", "second"])
-        self.assertTrue(all(row["failure_reason"] != "unrecorded" for row in cause.details["candidates"]))
+        self.assertTrue(all(row["failure_code"] == "generation_failed" for row in cause.details["candidates"]))
 
     def test_class_order_puts_fetch_and_provider_before_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -299,6 +311,7 @@ class TriageRunTests(unittest.TestCase):
                     "message": "fetch provider failed",
                     "transient": False,
                     "output_truncated": True,
+                    "failure": FailureRecord("output_truncated", output_truncated=True).payload(),
                 },
             )
             report = generate_report(run)

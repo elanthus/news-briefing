@@ -25,18 +25,6 @@ from evaluator.tests.support import (
 
 
 class CliTest(unittest.TestCase):
-    def test_retired_generation_path_is_rejected_before_execution(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "run"
-            adapter = FakeAdapter("unused")
-            with self.assertRaisesRegex(TypeError, "generation_path"):
-                run_evaluation(
-                    [adapter], {"production": ROOT / "briefing-runner-prompt.md"},
-                    output, generation_path="markdown",  # type: ignore[call-arg]
-                )
-            self.assertFalse(output.exists())
-
-
     def test_retired_generation_cli_option_is_rejected(self) -> None:
         stderr = io.StringIO()
         with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:

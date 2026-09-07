@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from agent_runner.failures import parse_failure
+
 MODEL_LABELS = {
     "tencent/hy3": "Tencent HY3",
     "deepseek/deepseek-v4-flash-0731": "DeepSeek V4 Flash",
@@ -13,9 +15,11 @@ FAILURE_MESSAGES = {
     "duplicate_story": "The generated briefing repeated a story and did not pass validation.",
     "validation_failed": "The generated briefing did not pass publication checks.",
     "empty_response": "The model provider returned no text.",
-    "invalid_request": "The model provider rejected a request parameter (HTTP 400).",
+    "invalid_request": "The model provider rejected the request.",
     "rate_limited": "The model provider rate-limited the request.",
     "provider_unavailable": "The model provider was unavailable.",
+    "output_truncated": "The model provider stopped before completing its response.",
+    "correction_exhausted": "The generated briefing still failed checks after its correction budget was exhausted.",
     "generation_failed": "The model did not produce an accepted briefing.",
 }
 
@@ -50,8 +54,8 @@ def parse_generation_failures(raw: object) -> tuple[GenerationFailure, ...]:
 
 
 def summarize_failed_chain(raw: object) -> tuple[GenerationFailure, ...]:
-    """Project a fully exhausted fallback log, including logs from older runs."""
-    if not isinstance(raw, dict) or raw.get("status") != "failed":
+    """Project a fully exhausted fallback log, using only structured originating records."""
+    if not isinstance(raw, dict) or raw.get("status") != "failed" or raw.get("schema_version") != 2:
         return ()
     chain, attempts = raw.get("model_chain"), raw.get("attempts")
     if (
@@ -70,18 +74,12 @@ def summarize_failed_chain(raw: object) -> tuple[GenerationFailure, ...]:
             or row.get("status") not in ("failed", "quarantined")
         ):
             return ()
-        reason = row.get("failure_reason")
+        failure = parse_failure(row.get("failure"))
         code = "generation_failed"
-        if isinstance(reason, str):
-            if reason.startswith(("review_required:", "rejected:")):
-                code = "duplicate_story" if "repeated_topic:" in reason else "validation_failed"
-            elif reason.startswith("ProviderError: openrouter returned no text content"):
-                code = "empty_response"
-            elif reason.startswith("ProviderError: openrouter HTTP 400:"):
-                code = "invalid_request"
-            elif reason.startswith("ProviderError: openrouter HTTP 429:"):
-                code = "rate_limited"
-            elif reason.startswith(tuple(f"ProviderError: openrouter HTTP {n}:" for n in (500, 502, 503, 504))):
-                code = "provider_unavailable"
+        if failure is not None:
+            if "repeated_topic" in failure.checks:
+                code = "duplicate_story"
+            elif failure.code in FAILURE_MESSAGES:
+                code = failure.code
         failures.append(GenerationFailure(model, code))
     return tuple(failures)
