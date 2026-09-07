@@ -2,7 +2,7 @@
 base_ref = "main"
 
 [diff]
-max_bytes = 400000
+max_bytes = 650000
 exclude = [
   "*.lock",
   "*-lock.json",
