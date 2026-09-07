@@ -150,7 +150,7 @@ The [parity v1 model card](docs/results/parity-v1.md) has the full comparison an
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 565 core tests
+python3 -S -m unittest -v                              # 566 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 184 evaluator tests
 ```
 

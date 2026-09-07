@@ -254,12 +254,13 @@ def prune_corpora(directory: Path, newest: date, keep_days: int = 14) -> tuple[P
             payload = stream.read(MAX_CORPUS_BYTES + 1)
         if len(payload) > MAX_CORPUS_BYTES:
             raise ValueError(f"private corpus is too large: {path.name}")
-        retained_bytes += len(payload)
-        if retained_bytes > MAX_RESTORED_BYTES:
-            raise ValueError("retained private corpora exceed the restored-size limit")
         if not _validate_corpus_payload(payload, path.stem, path.name):
             path.unlink()
             removed.append(path)
+            continue
+        retained_bytes += len(payload)
+        if retained_bytes > MAX_RESTORED_BYTES:
+            raise ValueError("retained private corpora exceed the restored-size limit")
     return tuple(removed)
 
 

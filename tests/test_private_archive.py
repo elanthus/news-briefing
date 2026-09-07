@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from private_archive import (
     create_encrypted_archive,
@@ -165,6 +166,18 @@ class PrivateArchiveTests(unittest.TestCase):
             )
             self.assertTrue((corpora / "2026-08-20.json").is_file())
             self.assertTrue((corpora / "2026-08-07.json").is_file())
+
+    def test_prune_counts_only_current_corpora_against_retained_size_limit(self) -> None:
+        current = self._corpus_bytes("2026-08-20")
+        obsolete = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            corpora = Path(directory)
+            (corpora / "2026-08-19.json").write_bytes(obsolete)
+            (corpora / "2026-08-20.json").write_bytes(current)
+            with patch("private_archive.MAX_RESTORED_BYTES", len(current)):
+                removed = prune_corpora(corpora, date(2026, 8, 20))
+            self.assertEqual([path.name for path in removed], ["2026-08-19.json"])
+            self.assertEqual((corpora / "2026-08-20.json").read_bytes(), current)
 
     def test_prune_refuses_invalid_retained_corpus_before_archiving(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
