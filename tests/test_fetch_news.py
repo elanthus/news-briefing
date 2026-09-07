@@ -222,6 +222,132 @@ class FeedSummaryFallbackTest(unittest.TestCase):
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
 
 
+class DevCommunityFeedFixturesTest(unittest.TestCase):
+    """Recorded fixtures proving each dev_community primary-source feed added
+    for issue #173 parses with the existing RSS/Atom subset.
+
+    Each fixture is trimmed to two or three entries from the live feed
+    (fetched with curl on 2026-09-06), keeping only the elements
+    ``fetch_rss`` reads and dropping everything else (no DOCTYPE, dated
+    entries), following the inline-fixture convention already used above.
+    """
+
+    def test_claude_code_releases_feed_parses(self):
+        feed = (b'<?xml version="1.0" encoding="UTF-8"?>'
+                b'<feed xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry><title>v2.1.263</title>'
+                b'<link rel="alternate" type="text/html" '
+                b'href="https://github.com/anthropics/claude-code/releases/tag/v2.1.263"/>'
+                b'<updated>2026-09-06T02:54:20Z</updated>'
+                b'<content type="html">Bug fixes and reliability improvements</content>'
+                b'</entry>'
+                b'<entry><title>v2.1.262</title>'
+                b'<link rel="alternate" type="text/html" '
+                b'href="https://github.com/anthropics/claude-code/releases/tag/v2.1.262"/>'
+                b'<updated>2026-09-04T19:12:03Z</updated>'
+                b'<content type="html">Adds background task support</content>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "Claude Code Releases",
+                "https://github.com/anthropics/claude-code/releases.atom",
+                utc(2026, 9, 1), utc(2026, 9, 7),
+            )
+        self.assertEqual([item["title"] for item in result.items], ["v2.1.263", "v2.1.262"])
+        self.assertEqual(
+            result.items[0]["url"],
+            "https://github.com/anthropics/claude-code/releases/tag/v2.1.263")
+        self.assertTrue(all(item["source"] == "Claude Code Releases" for item in result.items))
+
+    def test_codex_releases_feed_parses(self):
+        feed = (b'<?xml version="1.0" encoding="UTF-8"?>'
+                b'<feed xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry><title>rust-v0.154.0-alpha.4</title>'
+                b'<link rel="alternate" type="text/html" '
+                b'href="https://github.com/openai/codex/releases/tag/rust-v0.154.0-alpha.4"/>'
+                b'<updated>2026-09-05T00:59:27Z</updated>'
+                b'<content type="html">Release 0.154.0-alpha.4</content>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "Codex Releases", "https://github.com/openai/codex/releases.atom",
+                utc(2026, 9, 1), utc(2026, 9, 7),
+            )
+        self.assertEqual(len(result.items), 1)
+        self.assertEqual(result.items[0]["title"], "rust-v0.154.0-alpha.4")
+        self.assertEqual(result.items[0]["source"], "Codex Releases")
+
+    def test_mcp_servers_releases_feed_parses(self):
+        feed = (b'<?xml version="1.0" encoding="UTF-8"?>'
+                b'<feed xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry><title>Release 2026.8.31</title>'
+                b'<link rel="alternate" type="text/html" '
+                b'href="https://github.com/modelcontextprotocol/servers/releases/tag/2026.8.31"/>'
+                b'<updated>2026-08-31T20:34:32Z</updated>'
+                b'<content type="html">Updated packages: server-filesystem, server-memory</content>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "MCP Servers Releases",
+                "https://github.com/modelcontextprotocol/servers/releases.atom",
+                utc(2026, 8, 25), utc(2026, 9, 1),
+            )
+        self.assertEqual(len(result.items), 1)
+        self.assertEqual(result.items[0]["title"], "Release 2026.8.31")
+        self.assertEqual(result.items[0]["source"], "MCP Servers Releases")
+
+    def test_cursor_changelog_feed_parses(self):
+        feed = (b'<?xml version="1.0" encoding="UTF-8"?>'
+                b'<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">'
+                b'<channel><title>Cursor Changelog</title>'
+                b'<item><title>Self-hosted machines</title>'
+                b'<link>https://cursor.com/changelog/self-hosted-machines</link>'
+                b'<pubDate>Wed, 02 Sep 2026 00:00:00 GMT</pubDate>'
+                b'<description>Cursor supports self-hosted machines, which let you keep tool '
+                b'execution entirely in your own network.</description>'
+                b'</item>'
+                b'<item><title>Faster indexing</title>'
+                b'<link>https://cursor.com/changelog/faster-indexing</link>'
+                b'<pubDate>Mon, 31 Aug 2026 00:00:00 GMT</pubDate>'
+                b'<description>Codebase indexing is now significantly faster.</description>'
+                b'</item></channel></rss>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "Cursor Changelog", "https://cursor.com/changelog/rss.xml",
+                utc(2026, 8, 30), utc(2026, 9, 3),
+            )
+        self.assertEqual(
+            [item["title"] for item in result.items],
+            ["Self-hosted machines", "Faster indexing"])
+        self.assertTrue(all(item["source"] == "Cursor Changelog" for item in result.items))
+
+    def test_simon_willison_weblog_feed_parses(self):
+        feed = (b'<?xml version="1.0" encoding="utf-8"?>'
+                b'<feed xml:lang="en-us" xmlns="http://www.w3.org/2005/Atom">'
+                b'<entry>'
+                b'<title>Notes on an MCP server for Claude Code</title>'
+                b'<link href="https://simonwillison.net/2026/Sep/6/mcp-notes/" rel="alternate"/>'
+                b'<published>2026-09-06T14:40:07+00:00</published>'
+                b'<updated>2026-09-06T14:40:07+00:00</updated>'
+                b'<summary type="html">A look at wiring an MCP server into an agent.</summary>'
+                b'</entry>'
+                b'<entry>'
+                b'<title>The purpose of DNS is to spread scams</title>'
+                b'<link href="https://simonwillison.net/2026/Sep/6/dns-scams/" rel="alternate"/>'
+                b'<published>2026-09-05T09:12:00+00:00</published>'
+                b'<updated>2026-09-05T09:12:00+00:00</updated>'
+                b'<summary type="html">A look at how spammers abuse domain registration.</summary>'
+                b'</entry></feed>')
+        with patch.object(fetch_news, "http_get", return_value=feed):
+            result = fetch_news.fetch_rss(
+                "Simon Willison's Weblog", "https://simonwillison.net/atom/everything/",
+                utc(2026, 9, 1), utc(2026, 9, 7),
+            )
+        self.assertEqual(len(result.items), 2)
+        self.assertTrue(is_relevant_item(result.items[0]))
+        self.assertFalse(is_relevant_item(result.items[1]))
+
+
 class RedditMdTextTest(unittest.TestCase):
     def test_extracts_post_body(self):
         content = '<table><tr><td><div class="md">hello <b>world</b></div></td></tr></table>'
@@ -322,6 +448,16 @@ class RelevanceTest(unittest.TestCase):
         self.assertFalse(is_relevant_item({
             "source": "GitHub Changelog", "title": "Repository sidebar redesign", "summary": ""}))
 
+    def test_simon_willison_weblog_keeps_only_ai_and_dev_tool_posts(self):
+        self.assertTrue(is_relevant_item({
+            "source": "Simon Willison's Weblog",
+            "title": "Notes on running an MCP server for Claude Code",
+            "summary": ""}))
+        self.assertFalse(is_relevant_item({
+            "source": "Simon Willison's Weblog",
+            "title": "The purpose of DNS is to spread scams",
+            "summary": ""}))
+
     def test_hacker_news_query_match_must_still_be_topically_relevant(self):
         self.assertFalse(is_relevant_item({
             "source": "Hacker News", "title": "Dithered QR Codes", "summary": ""}))
@@ -401,6 +537,23 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(stats["fetched"], 10)
         self.assertEqual(stats["kept"], 3)
         self.assertGreater(stats["source_cap_dropped"] + stats["category_cap_dropped"], 0)
+
+    def test_source_caps_override_the_default_for_named_sources(self):
+        """A lower per-source cap (Reddit's) must not affect other sources."""
+        items = [self.item(n, "r/ClaudeAI") for n in range(1, 6)]
+        items += [self.item(n, "VendorFeed") for n in range(1, 6)]
+        kept, stats = prepare_category(
+            items, source_cap=25, category_cap=60,
+            source_caps={"r/ClaudeAI": 2})
+        self.assertEqual(sum(i["source"] == "r/ClaudeAI" for i in kept), 2)
+        self.assertEqual(sum(i["source"] == "VendorFeed" for i in kept), 5)
+        self.assertEqual(stats["source_cap_dropped"], 3)
+
+    def test_source_caps_missing_a_source_falls_back_to_source_cap(self):
+        items = [self.item(n, "VendorFeed") for n in range(1, 4)]
+        kept, _stats = prepare_category(
+            items, source_cap=2, source_caps={"r/ClaudeAI": 1})
+        self.assertEqual(len(kept), 2)
 
     def test_reports_relevance_and_duplicate_drops(self):
         items = [
@@ -1505,6 +1658,49 @@ class MainFailureModeTest(unittest.TestCase):
             self.assertLessEqual(
                 corpus["context_budget"]["used_bytes"],
                 corpus["context_budget"]["global_max_bytes"])
+
+    def test_reddit_source_cap_is_lower_than_other_sources_in_the_same_category(self):
+        """A handful of subreddits must not fill the category cap alone."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["dev_community"],
+                "rss_feeds": {"dev_community": [["Vendor Feed", "https://example.com/f.xml"]]},
+                "hn_category": "dev_community",
+                "hn_queries": [],
+                "reddit_category": "dev_community",
+                "subreddits": ["ClaudeAI"],
+            }), encoding="utf-8")
+            published = datetime.now(timezone.utc).isoformat()
+            reddit_result = fetch_news.FetchResult([
+                {
+                    "title": f"Reddit post {n}",
+                    "url": f"https://example.com/reddit/{n}",
+                    "published": published,
+                    "source": "r/ClaudeAI",
+                }
+                for n in range(fetch_news.REDDIT_SOURCE_CAP + 5)
+            ], 0)
+            rss_result = fetch_news.FetchResult([{
+                "title": "Vendor release",
+                "url": "https://example.com/vendor",
+                "published": published,
+                "source": "Vendor Feed",
+            }], 0)
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_rss", return_value=rss_result),
+                  patch.object(fetch_news, "fetch_reddit", return_value=reddit_result),
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                result = fetch_news.main()
+            self.assertEqual(result, 0)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+            kept = corpus["categories"]["dev_community"]
+            self.assertEqual(
+                sum(item["source"] == "r/ClaudeAI" for item in kept),
+                fetch_news.REDDIT_SOURCE_CAP)
+            self.assertEqual(sum(item["source"] == "Vendor Feed" for item in kept), 1)
 
     def test_quiet_source_is_excluded_from_errors_and_failed_sources(self):
         """A feed with valid, dated entries all outside the window is quiet,

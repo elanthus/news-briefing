@@ -37,7 +37,12 @@
       ]
     ],
     "dev_community": [
-      ["GitHub Changelog", "https://github.blog/changelog/feed/"]
+      ["GitHub Changelog", "https://github.blog/changelog/feed/"],
+      ["Claude Code Releases", "https://github.com/anthropics/claude-code/releases.atom"],
+      ["Cursor Changelog", "https://cursor.com/changelog/rss.xml"],
+      ["Codex Releases", "https://github.com/openai/codex/releases.atom"],
+      ["MCP Servers Releases", "https://github.com/modelcontextprotocol/servers/releases.atom"],
+      ["Simon Willison's Weblog", "https://simonwillison.net/atom/everything/"]
     ]
   },
   "hn_category": "dev_community",
