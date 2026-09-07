@@ -392,26 +392,75 @@ def selection_promotion_candidate(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
 ) -> DeterministicRepairResult | None:
-    """Offer the slot-filling move for a selection that is about to freeze."""
+    """Offer the slot-filling move for a selection that is about to freeze.
+
+    Withheld when the move would fail the selection contract. A promotion
+    empties part of an accountability log, and `_check_exclusion_log_selection`
+    is corpus-bound: when the promoted entries were the last logged ones across
+    every accountable section that still has eligible unreported items, filling
+    the slot raises `exclusion_log_empty`. No deterministic repair covers that
+    finding, so the run would spend a model correction on a state code created,
+    and the corrected selection could not be promoted again. Code cannot write
+    an exclusion reason to restock the log, so the honest outcome is to leave
+    the slot short and let the residual `slots_underfilled` warning say so.
+    """
     promoted, actions = promote_excluded_to_underfilled(selection, config, citations)
     if not actions or not isinstance(promoted, dict):
+        return None
+    if any(
+        finding.level == "ERROR"
+        for finding in validate_selection(promoted, config, citations)
+    ):
         return None
     return DeterministicRepairResult(promoted, actions)
 
 
+def _underfill_is_the_only_blocker(
+    findings: Sequence[Mapping[str, str]],
+) -> bool:
+    """Whether promotion is the remaining candidate fix for this selection.
+
+    True for a clean selection and for one whose only blocking findings are
+    ``slots_underfilled``, which promotion is what repairs. Any other blocking
+    finding means the selection is structurally wrong, and repair or a model
+    correction has to run before a slot fill would mean anything.
+    """
+    return all(
+        finding.get("check") == "slots_underfilled"
+        for finding in findings
+        if finding.get("level") == "ERROR"
+    )
+
+
 def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
-    """Every slot fill this run recorded, read back from the manifest.
+    """The slot fills that produced the selection now in force.
 
     Promotion happens in the selection stage but is tagged on the rendered
     topic in the prose stage, two different attempts. Reading the manifest
     rather than threading the actions through keeps a resumed run identical to
     an unresumed one: the attempt that recorded them is already durable.
+
+    Only the newest selection-stage attempt counts. Actions name output
+    positions, and the renderer tags by position, so actions from a superseded
+    selection would label whichever topic a later model correction happened to
+    put in that slot — a story the briefing would then claim was promoted when
+    it never was. A superseded promotion is therefore no promotion at all.
+    This doubles as the once-per-run guard in ``_select_evidence``: a run can
+    hold at most one live promotion, and a correction that discards it also
+    reopens promotion for the selection that replaces it.
     """
+    selection_attempts = [
+        attempt for attempt in store.manifest["attempts"]
+        if attempt.get("kind") in SELECTION_ATTEMPT_KINDS
+    ]
+    if not selection_attempts:
+        return []
+    current = selection_attempts[-1]
+    if current.get("kind") != SELECTION_PROMOTION_KIND:
+        return []
     return [
         action
-        for attempt in store.manifest["attempts"]
-        if attempt.get("kind") == SELECTION_PROMOTION_KIND
-        for action in attempt.get("repair_actions") or ()
+        for action in current.get("repair_actions") or ()
         if action.get("action") == PROMOTION_ACTION
     ]
 
@@ -1053,12 +1102,24 @@ def _select_evidence(
                 config=config,
                 citations=citations,
             )
-        if selection_attempt["contract_success"]:
-            # A contract-clean selection can still leave a reserved slot empty
-            # while its own accountability log holds eligible, unreported
-            # evidence. Fill from the log before freezing, so the prose pass
-            # writes the promoted entry up as a topic instead of the run
-            # publishing a gap it could have closed.
+        # A selection can leave a reserved slot short — or a whole section
+        # empty — while its own accountability log holds eligible, unreported
+        # evidence. Fill from the log before freezing, so the prose pass writes
+        # the promoted entry up as a topic instead of the run publishing a gap
+        # it could have closed. An empty section makes `slots_underfilled`
+        # blocking, so promotion has to be reachable while that finding stands:
+        # gating it on a clean contract would spend a model correction on the
+        # one case code can already fix, and would treat a section at zero
+        # topics worse than the same section at one. Every other blocking
+        # finding still goes to repair or correction first, and structural
+        # validity is unaffected — allocation findings are only computed once
+        # `validate_selection` is clean, so an underfill-only blocker means the
+        # selection is otherwise sound.
+        if _underfill_is_the_only_blocker(selection_findings):
+            # `_promotion_actions` is empty unless the newest selection-stage
+            # attempt is itself a promotion, so this both stops the loop from
+            # promoting the same attempt twice and lets a selection a model
+            # correction replaced be promoted on its own merits.
             promotion = (
                 None if _promotion_actions(store)
                 else selection_promotion_candidate(
@@ -1076,6 +1137,7 @@ def _select_evidence(
                 )
                 if promotion_attempt is not selection_attempt:
                     continue
+        if selection_attempt["contract_success"]:
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)

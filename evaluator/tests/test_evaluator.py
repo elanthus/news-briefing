@@ -1880,6 +1880,84 @@ class DeterministicallyRepairableStructuredFakeAdapter(StructuredFakeAdapter):
         )
 
 
+class UnderfillingStructuredFakeAdapter(StructuredFakeAdapter):
+    """Reports one topic of two while logging an eligible unreported item.
+
+    Sized from the schema rather than hardcoded, because promotion changes how
+    many prose entries the second pass is asked for: the section gains a topic
+    and its accountability log loses the entry that filled it.
+    """
+
+    def generate_structured(
+        self, prompt: str, output_schema: dict[str, Any], trace_id: str
+    ) -> Generation:
+        self.requests.append(prompt)
+        self.schemas.append(output_schema)
+        section = output_schema["properties"]["sections"]["properties"]["AI Dev Tools"]
+        topic_schema = section["properties"]["topics"]["items"]
+        excluded = output_schema["properties"]["excluded_topics"]["properties"]
+        required = set(topic_schema["required"])
+        if required == {"citation_refs"}:
+            self.assert_selection_contract(prompt, topic_schema)
+            output = {
+                "schema_version": 1,
+                "sections": {
+                    "AI Dev Tools": {
+                        "topics": [{"citation_refs": ["citation_0001"]}]
+                    }
+                },
+                # Two logged entries so promoting one still leaves the section
+                # accountable; emptying the last one would fail the contract.
+                "excluded_topics": {
+                    "AI Dev Tools": [
+                        {"citation_refs": ["citation_0002"]},
+                        {"citation_refs": ["citation_0003"]},
+                    ]
+                },
+            }
+        elif required == {"headline", "summary"}:
+            self.assert_prose_contract(prompt, topic_schema)
+            output = {
+                "schema_version": 1,
+                "sections": {
+                    "AI Dev Tools": {
+                        "topics": [
+                            {
+                                "headline": f"Local notes MCP server {index}",
+                                "summary": (
+                                    "A small MCP server stores local notes and "
+                                    "exposes search and retrieval tools."
+                                ),
+                            }
+                            for index in range(
+                                section["properties"]["topics"]["minItems"]
+                            )
+                        ]
+                    }
+                },
+                "excluded_topics": {
+                    "AI Dev Tools": [
+                        {
+                            "headline": f"Passed over item {index}",
+                            "reason": "Lower immediate impact than the reported tools.",
+                        }
+                        for index in range(
+                            excluded["AI Dev Tools"]["minItems"]
+                        )
+                    ]
+                },
+            }
+        else:
+            raise AssertionError(f"unexpected structured contract: {sorted(required)}")
+        return Generation(
+            text=json.dumps(output),
+            structured_output=output,
+            latency_ms=5.0,
+            input_tokens=50,
+            output_tokens=20,
+        )
+
+
 class StructuredAdapterProvider:
     name = "structured-fixture"
     model = "fixture"
@@ -2323,11 +2401,14 @@ class RunnerTest(unittest.TestCase):
         }
 
     def _resume_fixture(
-        self, temporary: Path, case_count: int = 3
+        self,
+        temporary: Path,
+        case_count: int = 3,
+        config_name: str = "generation-config-1.json",
     ) -> tuple[Path, Path, Path]:
         config = temporary / "config.json"
         config.write_text(
-            (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_text(),
+            (Path(__file__).parents[1] / "fixtures" / config_name).read_text(),
             encoding="utf-8",
         )
         suite = temporary / "suite.json"
@@ -2406,6 +2487,70 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((artifact / "first-prose-schema.json").exists())
             self.assertTrue((artifact / "first-selected-evidence.json").exists())
             self.assertTrue((artifact / "first-structured.json").exists())
+
+    def test_production_parity_promotes_and_tags_like_production(self) -> None:
+        """Parity fills the same slot from the log, and labels it the same way."""
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            suite, prompt, evaluation_output = self._resume_fixture(
+                temporary,
+                case_count=1,
+                config_name="generation-config-promotion.json",
+            )
+            evaluator_adapter = UnderfillingStructuredFakeAdapter("fixture")
+            run_evaluation(
+                [evaluator_adapter],
+                {"production": prompt},
+                evaluation_output,
+                suite_path=suite,
+                corpus_path=DEFAULT_CORPUS,
+                generation_path="production-parity",
+            )
+            evaluator_manifest = json.loads(
+                (evaluation_output / "manifest.json").read_text(encoding="utf-8")
+            )
+            evaluator_row = evaluator_manifest["results"][0]
+
+            production_adapter = UnderfillingStructuredFakeAdapter("fixture")
+            production_run = temporary / "production-run"
+            run_workflow(
+                StructuredAdapterProvider(production_adapter),
+                RunnerSettings(
+                    config_path=temporary / "config.json",
+                    sources_path=ROOT / "sources.json",
+                    prompt_path=prompt,
+                    output_path=temporary / "briefing.md",
+                    corpus_path=DEFAULT_CORPUS,
+                    timeout_seconds=30,
+                ),
+                production_run,
+            )
+            production_manifest = json.loads(
+                (production_run / "manifest.json").read_text(encoding="utf-8")
+            )
+            production_text = (temporary / "briefing.md").read_text(encoding="utf-8")
+            evaluator_text = (
+                evaluation_output / evaluator_row["artifact_dir"] / "final.md"
+            ).read_text(encoding="utf-8")
+
+        promotions = [
+            repair for repair in evaluator_row["first"]["deterministic_repairs"]
+            if repair["stage"] == "selection_promotion"
+        ]
+        self.assertEqual(len(promotions), 1)
+        self.assertEqual(
+            [action["action"] for action in promotions[0]["actions"]],
+            ["promote_excluded_entry"],
+        )
+        self.assertEqual(
+            [
+                attempt["kind"] for attempt in production_manifest["attempts"]
+                if attempt["kind"] == "selection_promotion"
+            ],
+            ["selection_promotion"],
+        )
+        self.assertIn("[promoted from the accountability log]", evaluator_text)
+        self.assertIn("[promoted from the accountability log]", production_text)
 
     def test_production_parity_matches_production_deterministic_repairs(self) -> None:
         def finding_set(rows: list[dict[str, Any]]) -> set[tuple[str, str, str]]:

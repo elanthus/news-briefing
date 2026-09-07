@@ -59,8 +59,6 @@ For Hacker News items whose article (`url`) and HN discussion (`discussion`) res
 ### Excluded Topics (accountability log)
 For every configured section whose `excluded_stories` is greater than zero, list that many next-most-significant topics that did not make the cut. Sections configured with `0` are exempt.
 
-Order each section's log by significance, most significant first, on the same standard used to rank the reported topics. The log continues the section's ranking rather than starting a separate one: its first entry is the story that would have taken the next slot. When a section reports fewer topics than `target_stories`, code promotes from the front of that section's log to fill the remaining slots, so put the strongest candidate first.
-
 Only unreported topics belong here. A topic reported in another section is not an exclusion, and neither is an item whose URL is already cited in a reported topic — if its facts were folded into a consolidated summary, it has been reported, not excluded.
 
 Use a bold sub-header per section, then one `- ` row per topic, each carrying a one-sentence reason and the 🔗 URL from the corpus item, same as for included topics:

@@ -688,33 +688,9 @@ class BriefingOutputTests(unittest.TestCase):
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("category_ineligible_ref", checks)
 
-    @staticmethod
-    def selection_view(output, config):
-        """The first-pass shape: evidence choices with no prose attached."""
-        return {
-            "schema_version": output["schema_version"],
-            "sections": {
-                section.name: {
-                    "topics": [
-                        {"citation_refs": list(entry["citation_refs"])}
-                        for entry in output["sections"][section.name]["topics"]
-                    ]
-                }
-                for section in config.sections
-            },
-            "excluded_topics": {
-                section.name: [
-                    {"citation_refs": list(entry["citation_refs"])}
-                    for entry in output["excluded_topics"][section.name]
-                ]
-                for section in config.sections
-                if section.excluded_stories
-            },
-        }
-
     def test_promotion_fills_a_short_section_from_the_front_of_its_log(self):
         _corpus, config, projected, output = fixture_contract()
-        short = self.selection_view(output, config)
+        short = selection_from_output(output)
         section = config.sections[0]
         dropped = short["sections"][section.name]["topics"].pop()
         head = short["excluded_topics"][section.name][0]
@@ -745,7 +721,7 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_promotion_leaves_a_full_selection_untouched(self):
         _corpus, config, projected, output = fixture_contract()
-        selection = self.selection_view(output, config)
+        selection = selection_from_output(output)
         promoted, actions = promote_excluded_to_underfilled(
             selection, config, projected.citations
         )
@@ -755,7 +731,7 @@ class BriefingOutputTests(unittest.TestCase):
     def test_promotion_stops_when_the_log_runs_out(self):
         """A genuinely thin section keeps the gap rather than inventing one."""
         _corpus, config, projected, output = fixture_contract()
-        short = self.selection_view(output, config)
+        short = selection_from_output(output)
         section = config.sections[0]
         short["sections"][section.name]["topics"] = []
         short["excluded_topics"][section.name] = short["excluded_topics"][section.name][:1]
@@ -770,7 +746,7 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_promotion_skips_an_entry_ineligible_for_the_section(self):
         _corpus, config, projected, output = fixture_contract()
-        short = self.selection_view(output, config)
+        short = selection_from_output(output)
         section = config.sections[0]
         short["sections"][section.name]["topics"].pop()
         ineligible_ref = next(

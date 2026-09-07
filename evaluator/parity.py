@@ -497,6 +497,16 @@ def _production_parity_correction_attempt(
     combined = _combine_structured_calls(
         [("prose_correction", prose_generation)], complete_output
     )
+    # The correction re-renders the same frozen, already-promoted selection, so
+    # the promotion belongs in this attempt's provenance too. Production keeps
+    # its `selection_promotion` attempt in the manifest for the whole run;
+    # dropping the record here would leave the evaluator's final row claiming a
+    # selection was never promoted while rendering the tag that says it was.
+    promotion_records = [
+        record
+        for record in prior.deterministic_repairs
+        if record.get("stage") == "selection_promotion"
+    ]
     promotion_actions = _recorded_promotion_actions(prior.deterministic_repairs)
     if any(finding.level == eval_briefing.ERROR for finding in prose_findings):
         text, sections = _empty_structured_result(config)
@@ -506,7 +516,7 @@ def _production_parity_correction_attempt(
             combined, corpus, config, projected.citations,
             repair_actions=promotion_actions,
         )
-    deterministic_repairs: list[dict[str, Any]] = []
+    deterministic_repairs: list[dict[str, Any]] = list(promotion_records)
     repair = deterministic_repair_candidate(
         complete_output,
         _finding_dicts(findings),
