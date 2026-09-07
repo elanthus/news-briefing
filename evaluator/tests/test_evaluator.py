@@ -2395,10 +2395,14 @@ class RunnerTest(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_retired_generation_cli_option_is_rejected(self) -> None:
-        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
-            with patch.object(sys, "argv", ["evaluator", "run", "--generation-path", "markdown"]):
+        stderr = io.StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            with patch.object(sys, "argv", [
+                "evaluator", "run", "--provider", "openrouter=fixture", "--generation-path", "markdown"
+            ]):
                 evaluator_cli.main()
         self.assertEqual(raised.exception.code, 2)
+        self.assertIn("unrecognized arguments: --generation-path", stderr.getvalue())
 
     def test_markdown_checkpoint_is_rejected_before_provider_calls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
