@@ -386,6 +386,36 @@ class BriefingOutputTests(unittest.TestCase):
         excluded_schema = schema["properties"]["excluded_topics"]["properties"]["Only"]
         self.assertEqual(excluded_schema["minItems"], 1)
 
+    def test_exclusion_schema_minitems_accounts_for_overlapping_sections(self):
+        """Two sections sharing a category can jointly exhaust it. The schema
+        may demand an exclusion only when the pool survives the worst case:
+        every overlapping section fills its topics and logs one exclusion."""
+        def citations(count):
+            return {
+                f"citation_{n:04d}": Citation(f"citation_{n:04d}", f"item_{n:04d}", "cat",
+                                              f"https://ex.com/{n}", None)
+                for n in range(1, count + 1)
+            }
+
+        def config(second_excluded):
+            return briefing_config.BriefingConfig(1, (
+                briefing_config.BriefingSection("A", None, 2, ("cat",), "guidance", 2),
+                briefing_config.BriefingSection("B", None, 2, ("cat",), "guidance", second_excluded),
+            ))
+
+        def min_items(schema, name):
+            return schema["properties"]["excluded_topics"]["properties"][name]["minItems"]
+
+        # Four topics plus one exclusion each need six items; five is not enough.
+        schema = build_selection_schema(config(2), citations(5))
+        self.assertEqual((min_items(schema, "A"), min_items(schema, "B")), (0, 0))
+        schema = build_selection_schema(config(2), citations(6))
+        self.assertEqual((min_items(schema, "A"), min_items(schema, "B")), (1, 1))
+        # A non-accountable sibling only consumes topics, so five suffice for A.
+        schema = build_selection_schema(config(0), citations(5))
+        self.assertEqual(min_items(schema, "A"), 1)
+        self.assertNotIn("B", schema["properties"]["excluded_topics"]["properties"])
+
     def test_selected_evidence_redacts_opaque_references_from_corpus_text(self):
         _corpus, _config, projected, _output = fixture_contract()
         selected_ref = next(iter(projected.citations))

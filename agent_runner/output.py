@@ -297,6 +297,29 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     return schema
 
 
+def _worst_case_pool_demand(
+    section: briefing_config.BriefingSection,
+    config: briefing_config.BriefingConfig,
+) -> int:
+    """Upper bound on the items other selections can take from this section's pool.
+
+    An item belongs to one category, so only sections whose categories overlap
+    this one's can cite it. Each of those can consume up to ``target_stories``
+    items as topics, and each accountable one other than this section may be
+    asked for at least one exclusion of its own. Anything above that bound is
+    guaranteed to remain available for this section's exclusion log.
+    """
+    categories = set(section.corpus_categories)
+    overlapping = [
+        other for other in config.sections
+        if categories & set(other.corpus_categories)
+    ]
+    return sum(other.target_stories for other in overlapping) + sum(
+        1 for other in overlapping
+        if other.name != section.name and other.excluded_stories
+    )
+
+
 def build_selection_schema(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
@@ -341,15 +364,18 @@ def build_selection_schema(
                 "items": selection,
                 # A cooperative-sampler nudge only: the eligible set here is not
                 # narrowed by what the model puts in "topics", so this cannot
-                # guarantee a non-empty log. When eligible_refs is no larger
-                # than target_stories, a correct selection can report every
-                # eligible item and legitimately have nothing left to
-                # exclude, so minItems must stay 0 in that case — once
-                # "topics" is full there is always at least one eligible item
-                # left over to exclude. check_exclusion_log (mirrored in
-                # _check_exclusion_log_selection) remains the actual
-                # guarantee.
-                "minItems": 1 if len(eligible_refs) > section.target_stories else 0,
+                # guarantee a non-empty log, and it must never demand an
+                # exclusion the pool cannot supply. The schema asks for one
+                # only when this section's pool survives the worst case:
+                # every section sharing a category fills its topics from this
+                # pool and, if accountable, logs one exclusion of its own.
+                # Otherwise a correct, fully reported selection would be
+                # forced into a duplicate_item failure. check_exclusion_log
+                # (mirrored in _check_exclusion_log_selection) remains the
+                # actual guarantee.
+                "minItems": (
+                    1 if len(eligible_refs) > _worst_case_pool_demand(section, config) else 0
+                ),
                 "maxItems": section.excluded_stories,
             }
     return {
