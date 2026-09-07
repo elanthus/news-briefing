@@ -1953,10 +1953,6 @@ class UnderfillingStructuredFakeAdapter(StructuredFakeAdapter):
         else:
             raise AssertionError(f"unexpected structured contract: {sorted(required)}")
         if required == {"citation_refs"} and self.empty_initial_section:
-            topics = output["sections"]["AI Dev Tools"]["topics"]
-            output["excluded_topics"]["AI Dev Tools"] = [
-                *topics, *output["excluded_topics"]["AI Dev Tools"]
-            ]
             output["sections"]["AI Dev Tools"]["topics"] = []
         return Generation(
             text=json.dumps(output),
@@ -2413,6 +2409,8 @@ class RunnerTest(unittest.TestCase):
             path = output / "manifest.json"
             manifest = json.loads(path.read_text())
             manifest["generation_path"] = "markdown"
+            manifest["run_status"] = "running"
+            manifest.pop("completed_at", None)
             path.write_text(json.dumps(manifest))
             adapter = FakeAdapter("fixture")
             with patch.object(adapter, "generate_structured") as generate:
@@ -2533,6 +2531,11 @@ class RunnerTest(unittest.TestCase):
                 case_count=1,
                 config_name="generation-config-promotion.json",
             )
+            if empty:
+                config_path = temporary / "config.json"
+                config_data = json.loads(config_path.read_text())
+                config_data["sections"][0]["target_stories"] = 1
+                config_path.write_text(json.dumps(config_data))
             evaluator_adapter = UnderfillingStructuredFakeAdapter("fixture")
             evaluator_adapter.empty_initial_section = empty
             run_evaluation(
@@ -2577,7 +2580,7 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(len(promotions), 1)
         self.assertEqual(
             [action["action"] for action in promotions[0]["actions"]],
-            ["promote_excluded_entry"] * (2 if empty else 1),
+            ["promote_excluded_entry"],
         )
         self.assertEqual(
             [
