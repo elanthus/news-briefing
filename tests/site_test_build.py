@@ -432,6 +432,32 @@ class BuildSiteTests(unittest.TestCase):
             self.assertFalse((output / "2026-08-20.html").exists())
             self.assertNotIn("REJECTED CONTENT", (output / "history.json").read_text(encoding="utf-8"))
 
+    def test_rejected_sidecar_with_advisory_findings_is_refused(self) -> None:
+        # advisory_findings only makes sense on a published entry (ready or
+        # review_required); a rejected run has no public record to attach
+        # them to, so a non-empty advisory list there is a producer bug.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("REJECTED CONTENT", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="rejected",
+                findings_count=1,
+                advisory_findings=[
+                    self._finding(
+                        "slots_underfilled",
+                        "World Events: 2 topics, expected 5",
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            with self.assertRaisesRegex(ValueError, "advisory findings require a published disposition"):
+                build_site(briefings, root / "site")
+
     def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -588,7 +614,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("did not pass automated checks", page_18)
             self.assertNotIn("dogfood preview", page_18)
             history = json.loads((output / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 5)
+            self.assertEqual(history["schema_version"], 6)
             self.assertEqual(len(history["entries"]), 3)
 
     def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
@@ -748,7 +774,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 5)
+            self.assertEqual(history["schema_version"], 6)
             self.assertEqual(history["entries"][0]["repair_actions"], actions)
 
             second = root / "second"
@@ -788,7 +814,7 @@ class BuildSiteTests(unittest.TestCase):
                 path="topics.AI News[0]",
             ),
         )
-        rendered, matched = _render_markdown(markdown, findings)
+        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
         self.assertIn("AI story", rendered)
@@ -810,7 +836,7 @@ class BuildSiteTests(unittest.TestCase):
                 path="topics.Section B[0]",
             ),
         )
-        rendered, matched = _render_markdown(markdown, findings)
+        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
         second_headline_pos = rendered.index("Summary B")
@@ -829,7 +855,7 @@ class BuildSiteTests(unittest.TestCase):
                 path="topics.AI News[0]",
             ),
         )
-        rendered, matched = _render_markdown(markdown, findings)
+        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
         self.assertEqual(matched, frozenset())
         self.assertNotIn("review-story", rendered)
 
@@ -846,7 +872,7 @@ class BuildSiteTests(unittest.TestCase):
                 section="US News", headline="Legacy story",
             ),
         )
-        rendered, matched = _render_markdown(markdown, findings)
+        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
         self.assertEqual(matched, frozenset({0}))
         self.assertIn("review-story", rendered)
 
@@ -867,6 +893,31 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("reports/2026-08-20.html", index)
             self.assertNotIn("Checker verdict:", index)
             self.assertNotIn("Corpus health:", index)
+
+    def test_status_chip_shows_advisory_note_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("clean briefing", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                advisory_findings=[
+                    self._finding(
+                        "slots_underfilled",
+                        "World Events: 2 topics, expected 5; 3 unused eligible corpus item(s) remain",
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            index = (root / "site/index.html").read_text(encoding="utf-8")
+            self.assertIn("Contract checks passed", index)
+            self.assertIn("1 advisory note", index)
 
     def test_status_chip_repair_count_for_repaired_ready_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1011,7 +1062,7 @@ class BuildSiteTests(unittest.TestCase):
             "## AI/Tech\n\nAI.\n"
         )
 
-        rendered, _matched = _render_markdown(markdown)
+        rendered, _matched, _matched_advisory = _render_markdown(markdown)
 
         self.assertLess(rendered.index("<h2>AI/Tech</h2>"), rendered.index("<h2>US Politics</h2>"))
         self.assertIn("## AI/Tech", rendered)
@@ -1203,6 +1254,79 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("Semantic faithfulness was not assessed", report)
             self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
 
+    def test_ready_report_with_advisory_findings_states_gate_passed_with_notes(self) -> None:
+        # Issue #171: a `ready` run with only nonblocking quality findings must
+        # not read as "nothing flagged" — the all-clear text names the count
+        # and the findings appear in a distinct, clearly labelled panel.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## World Events\n\n**A story** — Summary.\n", encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                advisory_findings=[
+                    self._finding(
+                        "slots_underfilled",
+                        "World Events: 2 topics, expected 5; 3 unused eligible corpus item(s) remain",
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertNotIn("All deterministic contract checks passed", report)
+            self.assertIn("The publication gate passed with 1 advisory note", report)
+            self.assertIn("Semantic faithfulness was not assessed", report)
+            self.assertIn('<section class="advisory-panel"', report)
+            self.assertIn("World Events: 2 topics, expected 5", report)
+            self.assertNotIn("Action:", report)
+
+    def test_advisory_finding_with_story_context_renders_inline(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text(
+                "## AI News\n\n"
+                "<!-- story: topics.AI News[0] -->\n"
+                "**AI story** — Summary.\n",
+                encoding="utf-8",
+            )
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                advisory_findings=[
+                    self._finding(
+                        "low_claim_evidence_overlap",
+                        "AI News: 'AI story' shares only 1 of 6 claim terms with its cited evidence",
+                        context={
+                            "section": "AI News",
+                            "headline": "AI story",
+                            "model_authored": "entry json",
+                            "path": "topics.AI News[0]",
+                        },
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn('<section class="advisory-story">', report)
+            self.assertIn('<aside class="advisory-panel inline-advisory"', report)
+            story_pos = report.index("AI story")
+            advisory_pos = report.index('<section class="advisory-story">')
+            self.assertLess(advisory_pos, story_pos)
+
     def test_blocked_report_does_not_claim_checks_passed(self) -> None:
         # A blocked run means the checker never accepted a candidate; its
         # zero findings_count must not read as an all-clear.
@@ -1260,7 +1384,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
         self.assertNotIn("failed_sources", rendered)
         self.assertNotIn("<pre", rendered)
         self.assertNotIn("<code", rendered)
@@ -1290,13 +1414,13 @@ class BuildSiteTests(unittest.TestCase):
             "source failures or empty responses",
             "source failures, empty responses, or undated drops",
         )
-        rendered, _ = _render_markdown(markdown)
+        rendered, _, _ = _render_markdown(markdown)
         self.assertNotIn("undated_sources", rendered)
         self.assertIn("1 source dropped 2 items without parseable dates.", rendered)
         self.assertIn("NPR Politics (2)", rendered)
 
     def test_malformed_corpus_health_json_is_left_verbatim(self) -> None:
-        rendered, _ = _render_markdown(
+        rendered, _, _ = _render_markdown(
             self._corpus_health_markdown('{"failed_sources":[{"source_type":')
         )
         self.assertIn("<code", rendered)
@@ -1314,14 +1438,14 @@ class BuildSiteTests(unittest.TestCase):
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
             '["not","an","object"]',
         ):
-            rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+            rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
             self.assertIn("<code", rendered, payload)
             self.assertNotIn("this day's window", rendered, payload)
 
     def test_empty_source_type_is_left_verbatim(self) -> None:
         # A degenerate-but-well-typed payload must not crash the site build.
         payload = '{"failed_sources":[{"source_type":"","source_id":"x","status":"empty"}]}'
-        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
 
@@ -1342,7 +1466,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
         self.assertNotIn("<h3>Injected heading</h3>", rendered)
@@ -1360,7 +1484,7 @@ class BuildSiteTests(unittest.TestCase):
             "```\n"
             "````\n"
         )
-        rendered, _ = _render_markdown(markdown)
+        rendered, _, _ = _render_markdown(markdown)
         self.assertIn("failed_sources", rendered)
         self.assertNotIn("⚠", rendered)
 
@@ -1388,7 +1512,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
         self.assertNotIn("failed_sources", rendered)
         self.assertIn("1 mastodon returned no items in this day's window.", rendered)
         self.assertIn("1 RSS feed timeout.", rendered)
@@ -1403,7 +1527,7 @@ class BuildSiteTests(unittest.TestCase):
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
             "```\n"
         )
-        rendered, _ = _render_markdown(markdown)
+        rendered, _, _ = _render_markdown(markdown)
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
@@ -1447,6 +1571,61 @@ class BuildSiteTests(unittest.TestCase):
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("states &#x27;42&#x27;", report)
             self.assertIn("drop_entry", report)
+
+    def test_history_json_is_schema_v6_and_round_trips_advisory_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("clean briefing", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="ready",
+                advisory_findings=[
+                    self._finding(
+                        "exclusion_log_missing",
+                        "exclusion log has no entries for 'World Events'",
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            build_site(briefings, root / "site")
+
+            history = json.loads((root / "site/history.json").read_text(encoding="utf-8"))
+            self.assertEqual(history["schema_version"], 6)
+            entry = history["entries"][0]
+            self.assertEqual(len(entry["advisory_findings"]), 1)
+            self.assertEqual(entry["advisory_findings"][0]["check"], "exclusion_log_missing")
+
+            # An older schema-5 history without advisory_findings must still load.
+            legacy_history = root / "legacy-history.json"
+            legacy_history.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 5,
+                        "entries": [
+                            {
+                                "date": "2026-08-19",
+                                "disposition": "ready",
+                                "findings_count": 0,
+                                "findings": [],
+                                "degraded_sources": [],
+                                "repair_actions": [],
+                                "generation_failures": [],
+                                "markdown": "prior ready briefing",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            other_briefings = root / "briefings2"
+            other_briefings.mkdir()
+            build_site(other_briefings, root / "site2", prior_history=legacy_history)
+            other_history = json.loads((root / "site2/history.json").read_text(encoding="utf-8"))
+            self.assertEqual(other_history["entries"][0]["advisory_findings"], [])
 
     def test_publishes_text_free_manifests_with_first_dir_precedence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1623,11 +1802,12 @@ class BuildSiteTests(unittest.TestCase):
         message: str,
         *,
         context: dict[str, str] | None = None,
+        domain: str = "evidence",
     ) -> dict[str, object]:
         finding: dict[str, object] = {
             "level": "WARN",
             "check": check,
-            "domain": "evidence",
+            "domain": domain,
             "message": message,
         }
         if context is not None:
@@ -1644,6 +1824,7 @@ class BuildSiteTests(unittest.TestCase):
         findings_count: int | None = None,
         degraded_sources: list[str] | None = None,
         repair_actions: list[dict[str, str]] | None = None,
+        advisory_findings: list[dict[str, object]] | None = None,
     ) -> None:
         details = findings or []
         count = len(details) if findings_count is None else findings_count
@@ -1654,8 +1835,14 @@ class BuildSiteTests(unittest.TestCase):
             "findings": details,
             "degraded_sources": degraded_sources or [],
         }
-        if repair_actions is not None:
-            payload["repair_actions"] = repair_actions
+        # A real sidecar's field set is one of the exact whole-version unions
+        # (build_site._entry_from_payload checks this precisely), so once any
+        # optional field is requested, fill in the rest of the v6 set rather
+        # than writing a partial shape no real producer emits.
+        if repair_actions is not None or advisory_findings is not None:
+            payload["repair_actions"] = repair_actions or []
+            payload["generation_failures"] = []
+            payload["advisory_findings"] = advisory_findings or []
         (directory / f"{date}.json").write_text(
             json.dumps(payload),
             encoding="utf-8",

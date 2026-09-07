@@ -229,10 +229,15 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertIn("https://model.example/claim", record.findings[0].context.model_authored)
             self.assertEqual(record.degraded_sources, ("reddit:cursor",))
             self.assertEqual((history / "2026-08-20.md").read_bytes(), preview)
+            # low_claim_evidence_overlap is one of the four advisory checks
+            # (issue #171): it is visible, but never counted as actionable.
+            self.assertEqual(len(record.advisory_findings), 1)
+            self.assertEqual(record.advisory_findings[0].check, "low_claim_evidence_overlap")
             sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["findings"][0]["message"], findings[0]["message"])
+            self.assertEqual(len(sidecar["findings"]), 1)
             self.assertNotIn("unsupported_figure", json.dumps(sidecar))
-            self.assertNotIn("low_claim_evidence_overlap", json.dumps(sidecar))
+            self.assertEqual(sidecar["advisory_findings"][0]["check"], "low_claim_evidence_overlap")
             self.assertEqual(
                 sidecar["findings"][0]["context"]["headline"],
                 "Fuel restrictions end early",
@@ -262,7 +267,96 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.disposition, "ready")
             self.assertEqual(record.findings_count, 1)
             self.assertEqual(record.findings, ())
+            # unsupported_figure is a quality finding, but not one of the four
+            # advisory checks (issue #171); it stays out of the public entry.
+            self.assertEqual(record.advisory_findings, ())
             self.assertEqual((history / "2026-08-20.md").read_bytes(), content)
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["advisory_findings"], [])
+
+    def test_ready_run_with_only_quality_findings_has_zero_count_and_advisory_list(self) -> None:
+        # Issue #171: a `ready` run whose only findings are nonblocking quality
+        # notes must not read as "0 findings" with nothing to show for it.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            raw_findings = [
+                {
+                    "level": "WARN",
+                    "check": "slots_underfilled",
+                    "domain": "quality",
+                    "message": (
+                        "World Events: 2 topics, expected 5 (thin corpus is a legitimate cause)"
+                    ),
+                },
+            ]
+            self._write_manifest(run, "ready", "final", "final.md", content, raw_findings)
+
+            history = root / "history"
+            record = prepare_publication(run, root / "missing-corpus.json", history, date(2026, 8, 20))
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(record.findings_count, 0)
+            self.assertEqual(record.findings, ())
+            self.assertEqual(len(record.advisory_findings), 1)
+            self.assertEqual(record.advisory_findings[0].check, "slots_underfilled")
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["findings_count"], 0)
+            self.assertEqual(len(sidecar["advisory_findings"]), 1)
+            self.assertEqual(sidecar["advisory_findings"][0]["check"], "slots_underfilled")
+
+    def test_ready_run_with_no_findings_has_empty_advisory_list(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(run, "ready", "final", "final.md", content, [])
+
+            history = root / "history"
+            record = prepare_publication(run, root / "missing-corpus.json", history, date(2026, 8, 20))
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(record.findings_count, 0)
+            self.assertEqual(record.advisory_findings, ())
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["advisory_findings"], [])
+
+    def test_ready_run_with_malformed_raw_finding_fails_soft_to_empty_advisory_list(self) -> None:
+        # A malformed raw finding must not touch the `ready` disposition or the
+        # actionable count; it only drops the (already-nonblocking) advisory
+        # list for that run, the same fail-soft behavior _review_findings
+        # already gives review_required.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            raw_findings = [
+                {
+                    "level": "WARN",
+                    "check": "slots_underfilled",
+                    "domain": "quality",
+                    "message": "World Events: 2 topics, expected 5",
+                },
+                {"level": "WARN", "check": "exclusion_log_missing", "domain": "quality"},
+            ]
+            self._write_manifest(run, "ready", "final", "final.md", content, raw_findings)
+
+            history = root / "history"
+            record = prepare_publication(run, root / "missing-corpus.json", history, date(2026, 8, 20))
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(record.findings_count, 0)
+            self.assertEqual(record.advisory_findings, ())
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["findings_count"], 0)
+            self.assertEqual(sidecar["advisory_findings"], [])
 
     def test_structured_paths_attach_included_and_excluded_story_context(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

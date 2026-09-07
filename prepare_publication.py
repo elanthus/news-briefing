@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from agent_runner.outcomes import is_actionable_finding
+from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     FINDING_FIELDS,
@@ -44,6 +44,7 @@ class PublicationRecord:
     degraded_sources: tuple[str, ...]
     repair_actions: tuple[dict[str, str], ...] = ()
     generation_failures: tuple[GenerationFailure, ...] = ()
+    advisory_findings: tuple[ReviewFinding, ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -54,6 +55,7 @@ class PublicationRecord:
             "degraded_sources": list(self.degraded_sources),
             "repair_actions": list(self.repair_actions),
             "generation_failures": [failure.payload() for failure in self.generation_failures],
+            "advisory_findings": [finding_payload(finding) for finding in self.advisory_findings],
         }
 
 
@@ -116,12 +118,6 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
             )
         )
     return tuple(findings)
-
-
-def _actionable_findings(
-    findings: tuple[ReviewFinding, ...],
-) -> tuple[ReviewFinding, ...]:
-    return tuple(finding for finding in findings if is_actionable_finding(finding))
 
 
 def _actionable_finding_count(raw_findings: list[object]) -> int:
@@ -328,6 +324,7 @@ def prepare_publication(
     disposition = "blocked"
     findings_count = 0
     findings: tuple[ReviewFinding, ...] = ()
+    advisory_findings: tuple[ReviewFinding, ...] = ()
     repair_actions: tuple[dict[str, str], ...] = ()
     public_content: bytes | None = None
 
@@ -355,15 +352,35 @@ def prepare_publication(
                         disposition = "blocked"
                         findings_count = 0
                     else:
-                        normalized = _actionable_findings(normalized)
-                        findings_count = len(normalized)
-                        findings = _attach_review_context(
+                        contextualized = _attach_review_context(
                             normalized,
                             _final_structured_output(generation_run_dir, manifest, final),
                         )
+                        findings = tuple(
+                            finding for finding in contextualized if is_actionable_finding(finding)
+                        )
+                        findings_count = len(findings)
+                        advisory_findings = tuple(
+                            finding for finding in contextualized if is_advisory_finding(finding)
+                        )
+                elif status == "ready":
+                    # Nonblocking quality findings are visible for a published
+                    # `ready` run too (issue #171): a malformed raw finding
+                    # fails soft to an empty advisory list rather than
+                    # touching the disposition or the actionable count.
+                    normalized = _review_findings(raw_findings)
+                    if normalized is not None:
+                        contextualized = _attach_review_context(
+                            normalized,
+                            _final_structured_output(generation_run_dir, manifest, final),
+                        )
+                        advisory_findings = tuple(
+                            finding for finding in contextualized if is_advisory_finding(finding)
+                        )
                 if disposition in PUBLIC_ARTIFACTS:
-                    # Repair provenance is published only with a public artifact;
-                    # non-public dispositions keep the minimal-metadata contract.
+                    # Repair provenance and advisory notes are published only
+                    # with a public artifact; non-public dispositions keep the
+                    # minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
                     public_content = _bound_artifact(
                         generation_run_dir, manifest, final, disposition
@@ -373,6 +390,7 @@ def prepare_publication(
                         findings_count = 0
                         findings = ()
                         repair_actions = ()
+                        advisory_findings = ()
 
     history_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = history_dir / f"{day.isoformat()}.md"
@@ -392,6 +410,7 @@ def prepare_publication(
             summarize_failed_chain(_load_json(run_dir / FALLBACK_LOG_NAME))
             if disposition == "blocked" else ()
         ),
+        advisory_findings=advisory_findings,
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
