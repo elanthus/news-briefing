@@ -592,6 +592,24 @@ class HackerNewsTest(unittest.TestCase):
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(result.items[0]["summary"], "Measured details")
 
+    def test_points_floor_drop_is_counted_as_filtered(self):
+        """A hit below the points floor is retrieval, not silence (issue #172).
+
+        Without this count, a narrow query that found stories none of which
+        reached the floor is indistinguishable from one that found nothing in
+        the window at all, and both would be reported identically.
+        """
+        payload = {"hits": [{
+            "objectID": "1", "title": "Below the floor", "url": None,
+            "story_text": "", "created_at_i": int(utc(2026, 8, 8, 12).timestamp()),
+            "points": fetch_news.HN_MIN_POINTS - 1, "num_comments": 1,
+        }]}
+        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+            result = fetch_hn("prompt", utc(2026, 8, 8), utc(2026, 8, 9))
+        self.assertEqual(result.items, [])
+        self.assertEqual(result.dated_entries, 1)
+        self.assertEqual(result.filtered_entries, 1)
+
     def test_counts_hits_with_no_usable_timestamp(self):
         """A hit without created_at_i is counted as undated without raising."""
         payload = {"hits": [
@@ -1284,7 +1302,10 @@ class MainFailureModeTest(unittest.TestCase):
                 utc(2026, 11, 2, 5),
             )
 
-    def test_historical_source_without_window_entries_is_degraded(self):
+    def test_historical_source_without_window_entries_is_quiet(self):
+        # Valid, dated entries exist; they are simply all outside the window.
+        # That is a low-cadence source, not a broken one, so it is `quiet`
+        # rather than `empty` and stays out of the failed-source contract.
         outcome = fetch_news.TimedFetchResult(
             fetch_news.FetchResult([], 0, parsed_entries=25, dated_entries=25),
             None,
@@ -1293,10 +1314,10 @@ class MainFailureModeTest(unittest.TestCase):
             True,
         )
         status = fetch_news.source_status("rss", "Example", "news", outcome)
-        self.assertEqual(status["status"], "empty")
+        self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "NoWindowEntries")
 
-    def test_fully_filtered_source_reports_a_distinct_empty_reason(self):
+    def test_fully_filtered_source_reports_a_distinct_quiet_reason(self):
         outcome = fetch_news.TimedFetchResult(
             fetch_news.FetchResult(
                 [], 0, parsed_entries=25, dated_entries=25, filtered_entries=25
@@ -1307,7 +1328,7 @@ class MainFailureModeTest(unittest.TestCase):
             True,
         )
         status = fetch_news.source_status("reddit", "ClaudeCode", "news", outcome)
-        self.assertEqual(status["status"], "empty")
+        self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "EntriesFiltered")
         self.assertIn("25 filtered as removed or low-score", status["message"])
 
@@ -1484,6 +1505,35 @@ class MainFailureModeTest(unittest.TestCase):
             self.assertLessEqual(
                 corpus["context_budget"]["used_bytes"],
                 corpus["context_budget"]["global_max_bytes"])
+
+    def test_quiet_source_is_excluded_from_errors_and_failed_sources(self):
+        """A feed with valid, dated entries all outside the window is quiet,
+        not failed (issue #172): it must not appear in `errors`."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {"news": [["Quiet Feed", "https://example.com/feed"]]},
+                "hn_category": "news",
+                "hn_queries": [],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
+            quiet_result = fetch_news.FetchResult([], 0, parsed_entries=5, dated_entries=5)
+            with (patch.object(fetch_news.sys, "argv", argv),
+                  patch.object(fetch_news, "fetch_rss", return_value=quiet_result),
+                  redirect_stdout(io.StringIO()) as stdout,
+                  redirect_stderr(io.StringIO()) as stderr):
+                result = fetch_news.main()
+            self.assertEqual(result, 1)
+            self.assertIn("no usable items", stderr.getvalue())
+            self.assertFalse(output.exists())
+            corpus = json.loads(stdout.getvalue())
+            self.assertEqual(corpus["errors"], [])
+            self.assertEqual(corpus["sources"][0]["status"], "quiet")
+            self.assertEqual(corpus["sources"][0]["error_type"], "NoWindowEntries")
 
     def test_successful_but_unrecognized_feed_is_a_structured_failure(self):
         with tempfile.TemporaryDirectory() as directory:

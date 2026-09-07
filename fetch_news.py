@@ -946,6 +946,11 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
 
     The request applies both `created_at_i` bounds; this function repeats the
     exact half-open check and applies the points threshold to returned hits.
+    Hits that arrive in-window but below the points floor are counted as
+    `filtered_entries` rather than silently dropped, so a narrow query that
+    retrieved stories none of which reached the floor is reported as quiet
+    (retrieval succeeded, popularity did not) rather than indistinguishable
+    from a query that found nothing in the window at all.
     """
     numeric_filters = (
         f"created_at_i>={int(cutoff.timestamp())},"
@@ -967,6 +972,7 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
     items: list[Item] = []
     undated = 0
     dated_entries = 0
+    filtered = 0
     hits = data["hits"]
     for hit in hits:
         if not isinstance(hit, dict):
@@ -980,6 +986,7 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
             continue
         points = hit.get("points") or 0
         if points < HN_MIN_POINTS:
+            filtered += 1
             continue
         items.append({
             "title": hit.get("title", ""),
@@ -992,7 +999,7 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
             "source": "Hacker News",
             "query": query,
         })
-    return FetchResult(items, undated, len(hits), dated_entries)
+    return FetchResult(items, undated, len(hits), dated_entries, filtered)
 
 
 def _reddit_md_text(atom_content: str) -> str:
@@ -1623,7 +1630,11 @@ def source_status(source_type: str, source_id: str, category: str,
         status["error_type"] = "NoDatedEntries"
         status["message"] = "response contained zero entries with parseable dates"
     elif not result.items:
-        status["status"] = "empty"
+        # Valid, dated entries exist; there are simply none in the window (or
+        # all of them were filtered). That is a quiet source, not a broken
+        # one, so it is kept out of `errors` and the failed-source contract
+        # unless too many pile up in one category (see corpus_schema).
+        status["status"] = "quiet"
         if result.filtered_entries:
             status["error_type"] = "EntriesFiltered"
             status["message"] = (
@@ -1807,7 +1818,7 @@ def main() -> int:
         status["retained_bytes"] = sum(size for size, _tokens in retained_usage)
         status["estimated_tokens"] = sum(tokens for _size, tokens in retained_usage)
     corpus["errors"] = [error_record(status) for status in corpus["sources"]
-                        if status["status"] != "ok"]
+                        if status["status"] not in ("ok", "quiet")]
     corpus["context_budget"] = {
         "field_limits": {
             "title_bytes": TITLE_BYTES,

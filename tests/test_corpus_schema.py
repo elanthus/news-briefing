@@ -26,11 +26,15 @@ from corpus_schema import (
     ITEM_URL_MAX_BYTES,
     ITEM_URL_MAX_TOKENS,
     LEGACY_SCHEMA_VERSION,
+    QUIET_SOURCE_DEGRADED_THRESHOLD,
     SCHEMA_VERSION,
     SOURCE_CONTEXT_MAX_BYTES,
     SOURCE_CONTEXT_MAX_TOKENS,
+    corpus_health_degraded,
+    corpus_health_issue_count,
     corpus_version,
     is_readable,
+    quiet_source_records,
     validate_corpus,
 )
 
@@ -511,6 +515,85 @@ class VersionTest(unittest.TestCase):
     def test_writing_a_version_this_code_does_not_own_is_reported(self):
         c = corpus(schema_version=SCHEMA_VERSION + 1)
         self.assertTrue(only(validate_corpus(c), "schema_version"))
+
+
+def quiet_source(**overrides):
+    source = {
+        "source_type": "hacker_news", "source_id": "prompt engineering",
+        "category": "us_politics", "status": "quiet",
+        "requested": True, "http_success": True,
+        "parsed_entries": 5, "dated_entries": 5, "retained_entries": 0,
+        "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 42,
+        "error_type": "NoWindowEntries",
+        "message": "response contained zero usable entries in the requested window",
+    }
+    source.update(overrides)
+    return source
+
+
+class QuietSourceTest(unittest.TestCase):
+    """A low-cadence source is audit-only, not a failure (issue #172)."""
+
+    def test_quiet_source_validates_and_stays_out_of_errors(self):
+        c = corpus(sources=[quiet_source()])
+        self.assertEqual(validate_corpus(c), [])
+        self.assertEqual(c["errors"], [])
+
+    def test_quiet_status_is_rejected_before_schema_v7(self):
+        c = corpus(sources=[quiet_source()], schema_version=6)
+        self.assertTrue(only(validate_corpus(c), "status should be one of"))
+
+    def test_quiet_source_requires_http_success(self):
+        c = corpus(sources=[quiet_source(http_success=False)])
+        self.assertTrue(only(validate_corpus(c), "quiet status requires HTTP success"))
+
+    def test_quiet_source_requires_positive_parsed_and_dated_entries(self):
+        c = corpus(sources=[quiet_source(parsed_entries=0, dated_entries=0)])
+        self.assertTrue(
+            only(validate_corpus(c), "quiet status requires positive parsed and dated"))
+
+    def test_quiet_source_reported_as_failed_is_rejected(self):
+        source = quiet_source()
+        c = corpus(sources=[source], errors=[{
+            "source_type": source["source_type"], "source_id": source["source_id"],
+            "status": "quiet", "error_type": source["error_type"],
+            "message": source["message"], "duration_ms": source["duration_ms"],
+        }])
+        problems = validate_corpus(c)
+        self.assertTrue(only(problems, "should be 'empty' or 'error'"))
+        self.assertTrue(only(problems, "exactly project every empty or failed source"))
+
+    def test_quiet_source_records_projects_only_quiet_status(self):
+        c = corpus(sources=[quiet_source(), quiet_source(source_id="ok", status="ok")])
+        self.assertEqual(len(quiet_source_records(c)), 1)
+
+    def test_quiet_sources_at_or_below_threshold_do_not_degrade_coverage(self):
+        c = corpus()
+        c["sources"] = [
+            quiet_source(source_id=f"q{n}", category="us_politics")
+            for n in range(QUIET_SOURCE_DEGRADED_THRESHOLD)
+        ]
+        self.assertEqual(corpus_health_issue_count(c), 0)
+        self.assertFalse(corpus_health_degraded(c))
+
+    def test_quiet_sources_over_threshold_in_one_category_degrade_coverage(self):
+        c = corpus()
+        c["sources"] = [
+            quiet_source(source_id=f"q{n}", category="us_politics")
+            for n in range(QUIET_SOURCE_DEGRADED_THRESHOLD + 2)
+        ]
+        self.assertEqual(corpus_health_issue_count(c), 2)
+        self.assertTrue(corpus_health_degraded(c))
+
+    def test_quiet_sources_spread_across_categories_do_not_degrade_coverage(self):
+        c = corpus()
+        categories = DEFAULT_CATEGORIES[:QUIET_SOURCE_DEGRADED_THRESHOLD + 2]
+        c["sources"] = [
+            quiet_source(source_id=f"q{n}", category=category)
+            for n, category in enumerate(categories)
+        ]
+        self.assertEqual(corpus_health_issue_count(c), 0)
+        self.assertFalse(corpus_health_degraded(c))
 
 
 class FetcherOutputTest(unittest.TestCase):
