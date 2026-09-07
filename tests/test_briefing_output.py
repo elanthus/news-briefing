@@ -348,6 +348,44 @@ class BriefingOutputTests(unittest.TestCase):
         }
         self.assertEqual(validate_selection(selection, config, citations), [])
 
+    def test_exclusion_schema_minitems_at_the_target_stories_boundary(self):
+        """Eligible count equal to target_stories: a full report leaves nothing
+        to exclude, so the schema must not demand a non-empty log."""
+        citations = {
+            "citation_0001": Citation("citation_0001", "item_0001", "cat",
+                                       "https://ex.com/1", None),
+            "citation_0002": Citation("citation_0002", "item_0002", "cat",
+                                       "https://ex.com/2", None),
+        }
+        config = briefing_config.BriefingConfig(1, (
+            briefing_config.BriefingSection(
+                "Only", None, 2, ("cat",), "guidance", 2
+            ),
+        ))
+        schema = build_selection_schema(config, citations)
+        excluded_schema = schema["properties"]["excluded_topics"]["properties"]["Only"]
+        self.assertEqual(excluded_schema["minItems"], 0)
+
+    def test_exclusion_schema_minitems_past_the_target_stories_boundary(self):
+        """One more eligible item than target_stories: a full report always
+        leaves at least one item to exclude, so the schema may require it."""
+        citations = {
+            "citation_0001": Citation("citation_0001", "item_0001", "cat",
+                                       "https://ex.com/1", None),
+            "citation_0002": Citation("citation_0002", "item_0002", "cat",
+                                       "https://ex.com/2", None),
+            "citation_0003": Citation("citation_0003", "item_0003", "cat",
+                                       "https://ex.com/3", None),
+        }
+        config = briefing_config.BriefingConfig(1, (
+            briefing_config.BriefingSection(
+                "Only", None, 2, ("cat",), "guidance", 2
+            ),
+        ))
+        schema = build_selection_schema(config, citations)
+        excluded_schema = schema["properties"]["excluded_topics"]["properties"]["Only"]
+        self.assertEqual(excluded_schema["minItems"], 1)
+
     def test_selected_evidence_redacts_opaque_references_from_corpus_text(self):
         _corpus, _config, projected, _output = fixture_contract()
         selected_ref = next(iter(projected.citations))

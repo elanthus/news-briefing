@@ -341,9 +341,15 @@ def build_selection_schema(
                 "items": selection,
                 # A cooperative-sampler nudge only: the eligible set here is not
                 # narrowed by what the model puts in "topics", so this cannot
-                # guarantee a non-empty log. check_exclusion_log (mirrored in
-                # _check_exclusion_log_selection) remains the actual guarantee.
-                "minItems": 1 if eligible_refs else 0,
+                # guarantee a non-empty log. When eligible_refs is no larger
+                # than target_stories, a correct selection can report every
+                # eligible item and legitimately have nothing left to
+                # exclude, so minItems must stay 0 in that case — once
+                # "topics" is full there is always at least one eligible item
+                # left over to exclude. check_exclusion_log (mirrored in
+                # _check_exclusion_log_selection) remains the actual
+                # guarantee.
+                "minItems": 1 if len(eligible_refs) > section.target_stories else 0,
                 "maxItems": section.excluded_stories,
             }
     return {
