@@ -47,6 +47,12 @@ class CliTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("unrecognized arguments: --generation-path", stderr.getvalue())
 
+    @patch.dict(os.environ, {
+        "CODEX_MODEL": "gpt-5.6-terra, gpt-5.6-sol",
+        "CLAUDE_CODE_MODEL": "claude-sonnet-5,claude-opus-5",
+        "OPENROUTER_MODEL": "openai/gpt-5.6-terra, anthropic/claude-sonnet-5",
+        "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b,openai/gpt-oss-120b",
+    })
     def test_all_providers_expands_comma_delimited_model_lists(self) -> None:
         self.assertEqual(_provider_values([], True), [
             ("codex-cli", "gpt-5.6-terra"),
