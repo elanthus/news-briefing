@@ -1371,6 +1371,37 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn("source_type=[missing]", rendered)
         self.assertIn("status=[missing]", rendered)
 
+    def test_quiet_threshold_degradation_never_demands_a_health_section(self):
+        # Issue #172 R1: threshold-exceeding quiet sources in one category
+        # flip the outcome's coverage axis to degraded (this call site) but
+        # never enter `errors`, so the briefing's corpus-health section is
+        # legitimately absent -- eval_briefing must not contradict that by
+        # demanding one.
+        quiet_count = corpus_schema.QUIET_SOURCE_DEGRADED_THRESHOLD + 2
+        corpus = {
+            "schema_version": corpus_schema.SCHEMA_VERSION,
+            "errors": [],
+            "processing": {"ai_tech": {"undated_dropped": 0}},
+            "sources": [
+                {
+                    "source_type": "hacker_news", "source_id": f"prompt {n}",
+                    "category": "ai_tech", "status": "quiet",
+                    "requested": True, "http_success": True,
+                    "parsed_entries": 5, "dated_entries": 5, "retained_entries": 0,
+                    "retained_bytes": 0, "estimated_tokens": 0, "duration_ms": 12,
+                    "error_type": "NoWindowEntries",
+                    "message": "response contained zero usable entries in the requested window",
+                }
+                for n in range(quiet_count)
+            ],
+        }
+        self.assertTrue(corpus_schema.corpus_health_degraded(corpus))
+
+        rendered = render_validation_status([], corpus)
+        self.assertIn("Coverage: `degraded`", rendered)
+
+        self.assertEqual(eval_briefing.check_corpus_health_reported({}, corpus), [])
+
 
 if __name__ == "__main__":
     unittest.main()
