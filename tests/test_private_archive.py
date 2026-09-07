@@ -134,6 +134,22 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(restore_corpora_from_bytes(payload, Path(directory)), ())
 
+    def test_restore_labels_impossible_calendar_dates_before_writing(self) -> None:
+        for version in (6, 7):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                content = json.dumps({
+                    "schema_version": version, "report_date": "2026-02-30",
+                }).encode()
+                payload = self._tar_members([
+                    ("corpora/2026-02-28.json", self._corpus_bytes("2026-02-28")),
+                    ("corpora/2026-02-30.json", content),
+                ])
+                with self.assertRaisesRegex(
+                    ValueError, r"invalid calendar date: corpora/2026-02-30\.json"
+                ):
+                    restore_corpora_from_bytes(payload, Path(directory))
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
     def test_obsolete_members_still_require_unique_matching_dates(self) -> None:
         old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
         for rows in ([('corpora/2026-08-20.json', old)],

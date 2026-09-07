@@ -976,6 +976,10 @@ class RunnerTests(unittest.TestCase):
             manifest = dict(store.manifest)
             del manifest["trace_commit"]
             (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing trace commit"):
+                RunStore.resume(root, identity={})
+            manifest["trace_commit"] = None
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid trace commit"):
                 RunStore.resume(root, identity={})
 

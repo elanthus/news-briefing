@@ -177,7 +177,7 @@ def _validate_corpus_payload(payload: bytes, day: str, label: str) -> bool:
             raise ValueError(
                 f"private corpus violates its schema: {label}: " + "; ".join(problems)
             )
-    if date.fromisoformat(day).isoformat() != day or corpus.get("report_date") != day:
+    if corpus.get("report_date") != day:
         raise ValueError(
             f"private corpus report_date does not match its filename: {label}"
         )
@@ -199,6 +199,12 @@ def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path
             if match is None or not member.isfile():
                 raise ValueError(f"unexpected private corpus archive member: {member.name}")
             day = match.group(1)
+            try:
+                date.fromisoformat(day)
+            except ValueError as exc:
+                raise ValueError(
+                    f"private corpus member has invalid calendar date: {member.name}"
+                ) from exc
             if day in seen:
                 raise ValueError(f"duplicate private corpus archive member: {member.name}")
             payload = _read_member(archive, member)

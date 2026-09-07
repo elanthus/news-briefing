@@ -421,7 +421,7 @@ def _blocking_findings(manifest: _Manifest) -> list[tuple[dict[str, str], Eviden
         source = value
         location = "items"
         file = _relative_file(manifest, artifact_name)
-    publishable = final_status in {"ready"}
+    publishable = final_status == "ready"
     withheld = final_status is not None and not publishable
     findings: list[tuple[dict[str, str], Evidence]] = []
     for index, row in enumerate(source):
@@ -707,7 +707,7 @@ def _analyze_run(run_dir: Path, generated_at: str | None) -> _Analysis:
         manifest for manifest in manifests
         if manifest.data.get("status") == "complete"
         and isinstance(manifest.data.get("final"), dict)
-        and manifest.data["final"].get("status") in {"ready"}
+        and manifest.data["final"].get("status") == "ready"
     ]
     if complete_ready:
         causes.append(ClassifiedCause(
