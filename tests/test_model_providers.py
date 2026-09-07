@@ -586,6 +586,15 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("--disallowedTools", command)
         self.assertEqual(result.structured_output, {"schema_version": 1})
 
+    def test_claude_empty_result_originates_empty_response(self):
+        for wrapper in ({}, {"result": None}, {"result": ""}, {"result": "  "}):
+            completed = subprocess.CompletedProcess([], 0, json.dumps(wrapper), "")
+            with self.subTest(wrapper=wrapper), patch("shutil.which", return_value="/bin/claude"), patch(
+                "agent_runner.providers._run_cli", return_value=(completed, 12.0, 1)
+            ), self.assertRaises(ProviderError) as raised:
+                ClaudeCodeProvider("sonnet").generate(REQUEST)
+            self.assertEqual(raised.exception.record()["failure"]["code"], "empty_response")
+
     def test_claude_ignores_malformed_optional_cost(self):
         wrapper = {
             "result": '{"schema_version":1}',

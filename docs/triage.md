@@ -21,7 +21,7 @@ artifact key, or trace line, and blocking checker failures receive a stable shor
 after destinations and opaque citation handles are removed.
 
 Reports contain no web destinations. The classifier does not copy corpus articles or briefing
-prose into either output. It reads only operational metadata, provider errors, checker finding
+prose into either output. It reads only operational metadata, provider failure codes, checker finding
 messages, source-health records, and bounded trace or provider-event data.
 
 Current records carry stable failure codes, HTTP status, transience, truncation,
@@ -48,7 +48,7 @@ python3 triage_run.py runs/2026-09-03 \
 The provider is selected through the same `ModelProvider` factory as briefing generation. If
 the flags are absent, the command first checks `NEWS_BRIEFING_PROVIDER` and
 `NEWS_BRIEFING_MODEL`, then the run manifest. The model receives only the deterministic class
-records, redacted finding messages, redacted provider-error records, and the final 40 trace
+records, redacted finding messages, allowlisted provider failure records, and the final 40 trace
 event names and timestamps. It receives no corpus text, briefing prose, or URLs. No tools are
 offered, and a returned tool call is rejected. The report labels accepted text as “model
 summary (unverified).” A provider or policy failure is recorded as `model_summary_error` and

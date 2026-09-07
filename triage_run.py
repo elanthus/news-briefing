@@ -220,16 +220,14 @@ def _provider_error_record(value: Any, *, file: str, location: str) -> dict[str,
     failure = parse_failure(value.get("failure"))
     if failure is None or failure.code not in PROVIDER_CODES:
         return None
-    error_type = value.get("type", "ProviderError")
     status_code = failure.status_code
     status_band = f"{status_code // 100}xx" if status_code is not None else "none"
-    message = value.get("message")
     return {
         "file": file,
         "location": location,
-        "type": _redact_text(error_type) if isinstance(error_type, str) else "ProviderError",
+        "type": "ProviderError",
         "code": failure.code,
-        "message": _redact_text(message) if isinstance(message, str) else "",
+        "message": failure.code.replace("_", " "),
         "status_code": status_code,
         "status_band": status_band,
         "transient": failure.transient,
@@ -725,6 +723,10 @@ def generate_report(
             timeout_seconds=MODEL_TIMEOUT_SECONDS,
             trace_id=f"triage-{analysis.report.run_dir}",
         ))
+    except Exception as exc:
+        code = exc.failure.code if isinstance(exc, ProviderError) else "generation_failed"
+        return replace(analysis.report, model_summary_error=f"ProviderError: {code}")
+    try:
         return replace(analysis.report, model_summary=_accepted_model_summary(response))
     except Exception as exc:
         return replace(

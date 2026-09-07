@@ -104,7 +104,7 @@ class TriageRunTests(unittest.TestCase):
                 error={
                     "type": "OpenRouterProviderError",
                     "failure": FailureRecord("rate_limited", status_code=429, transient=True).payload(),
-                    "message": "request failed at https://provider.invalid/request",
+                    "message": "secret-provider-body at https://provider.invalid/request",
                     "transient": True,
                     "attempts": 3,
                     "status_code": 429,
@@ -125,6 +125,7 @@ class TriageRunTests(unittest.TestCase):
         self.assertTrue(record["openrouter_model_404"])
         self.assertTrue(record["ambiguous_completion"])
         self.assertNotIn("https://", json.dumps(report.record()))
+        self.assertNotIn("secret-provider-body", json.dumps(report.record()))
 
     def test_historical_error_prose_is_not_reclassified(self) -> None:
         report = generate_report(FAILED_RUN)

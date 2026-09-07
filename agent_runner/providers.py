@@ -842,7 +842,7 @@ class ClaudeCodeProvider(ModelProvider):
         structured = payload.get("structured_output")
         raw = payload.get("result", "")
         if not isinstance(structured, dict):
-            if not isinstance(raw, str):
+            if not isinstance(raw, str) or not raw.strip():
                 raise ProviderError(
                     "claude-code-cli returned no structured output", transient=False, empty_response=True
                 )
