@@ -37,7 +37,7 @@ step is `continue-on-error`, so a reviewer failure does not fail the workflow.
 ## Agentic preflight
 
 [`.agentic-preflight.toml`](../.agentic-preflight.toml) compares the proposed
-change with `main` (`base_ref = "main"`) and caps the inspected diff at 400,000
+change with `main` (`base_ref = "main"`) and caps the inspected diff at 650,000
 bytes. It excludes lock files; vendored or minified assets; generated snapshots
 and protobuf files; `docs/runs/**`; `docs/results/data/**`;
 `docs/results/portfolio-v2-evidence/**`; and the committed embedding cache.

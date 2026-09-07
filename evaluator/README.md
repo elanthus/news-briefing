@@ -603,3 +603,16 @@ The separately authorized final run used the amended reasoning-disabled DeepSeek
 came from a dirty source tree whose diff was not preserved. Its narrative result and model card are therefore
 not retained as evaluation evidence. The [machine-readable aggregates](../docs/results/portfolio-v1.json)
 remain for provenance only and must not be cited as a reproducible result.
+
+### Finding regression tests
+
+Run all evaluator tests with `python3 -S -m unittest discover -s evaluator/tests`.
+Tests are grouped by behavior: `test_execution.py`, `test_parity.py`,
+`test_checkpoint.py`, `test_public_evidence.py`, `test_reporting.py`,
+`test_comparison.py`, and separate judge modules. `test_cases.py` covers case
+validation and oracles, and `test_adapters.py` covers transports. Shared offline
+builders live in `support.py`; fixtures used by one module stay in that module.
+The completed-checkpoint refusal is a separate test from interrupted-checkpoint
+corruption, increasing the evaluator count from 188 to 189 without retiring coverage.
+Export/tamper/verification scenarios remain integrated because they check the same
+saved evidence through successive trust boundaries.
