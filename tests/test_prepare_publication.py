@@ -291,7 +291,8 @@ class PreparePublicationTests(unittest.TestCase):
                     "check": "slots_underfilled",
                     "domain": "quality",
                     "message": (
-                        "World Events: 2 topics, expected 5 (thin corpus is a legitimate cause)"
+                        "World Events: 2 topics, expected 5; "
+                        "26 unused eligible corpus item(s) remain"
                     ),
                 },
             ]

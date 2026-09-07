@@ -359,7 +359,9 @@ def build_selection_schema(
             excluded_properties[section.name] = {
                 "type": "array",
                 "description": (
-                    f"At most {section.excluded_stories} excluded evidence selections."
+                    f"At most {section.excluded_stories} excluded evidence "
+                    "selections, most significant first; entry 0 is promoted "
+                    "into topics if this section is under its target."
                 ),
                 "items": selection,
                 # A cooperative-sampler nudge only: the eligible set here is not
@@ -700,6 +702,137 @@ def repair_structural_output(
     if evidence:
         _swap_oversized_summaries(evidence)
     return repaired, actions
+
+
+PROMOTION_ACTION = "promote_excluded_entry"
+PROMOTION_TAG = "promoted from the accountability log"
+
+
+def empty_section_findings(
+    selection: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> list[OutputFinding]:
+    """Reject a section left empty while eligible evidence went unreported.
+
+    Only reported topics consume an item. An accountability-log entry is
+    evidence that coverage was available and passed over, so counting it as
+    used would let a model empty a section and escape this finding by logging
+    everything it declined to report.
+
+    Production (``agent_runner.runner``) and the evaluator's production-parity
+    path both call this. Keeping one implementation is the point: the two had
+    drifted copies of it, and a fix applied to either alone would have left the
+    other scoring a selection production would have rejected.
+    """
+    used_items = {
+        citations[ref].item_ref
+        for section_value in selection["sections"].values()
+        for entry in section_value["topics"]
+        for ref in entry["citation_refs"]
+    }
+    findings: list[OutputFinding] = []
+    for section in config.sections:
+        if selection["sections"][section.name]["topics"]:
+            continue
+        unused_eligible = {
+            citation.item_ref
+            for citation in citations.values()
+            if citation.category in section.corpus_categories
+            and citation.item_ref not in used_items
+        }
+        if unused_eligible:
+            findings.append(OutputFinding(
+                "ERROR",
+                "slots_underfilled",
+                f"{section.name}: 0 topics, expected {section.target_stories}; "
+                f"{len(unused_eligible)} unused eligible corpus item(s) remain",
+            ))
+    return findings
+
+
+def promote_excluded_to_underfilled(
+    selection: Any,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> tuple[Any, list[dict[str, str]]]:
+    """Fill reserved slots from the accountability log before evidence freezes.
+
+    ``target_stories`` is a slot the corpus is expected to fill. When a section
+    reports fewer topics than that while its own exclusion log still holds
+    eligible, unreported items, the shortfall is not a thin corpus: it is
+    material the model ranked and then left on the floor. Deterministic code
+    cannot judge significance, so it does not reorder anything; it takes the
+    model's own ordering at face value and promotes from the front of the log
+    until the section is full or the log is exhausted.
+
+    Promotion runs before the prose pass, so a promoted entry is written up as
+    an ordinary topic rather than carrying its rejection reason forward. It also
+    runs only on a selection that already passed ``validate_selection``, which
+    guarantees every entry cites known, category-eligible refs and that no item
+    appears twice. Moving an entry between two arrays of one validated selection
+    therefore cannot create a duplicate or an ineligible citation; the
+    per-entry check below is a defence against a caller that skips validation,
+    not a repair of one that ran.
+    """
+    promoted = copy.deepcopy(selection)
+    actions: list[dict[str, str]] = []
+    if not isinstance(promoted, dict):
+        return promoted, actions
+
+    sections_value = promoted.get("sections")
+    excluded_value = promoted.get("excluded_topics")
+    if not isinstance(sections_value, dict) or not isinstance(excluded_value, dict):
+        return promoted, actions
+
+    def promotable(entry: Any, eligible_categories: set[str]) -> bool:
+        """Whether an entry's evidence can stand as a reported topic."""
+        if not isinstance(entry, dict):
+            return False
+        refs = entry.get("citation_refs")
+        if not isinstance(refs, list) or not refs:
+            return False
+        return all(
+            isinstance(ref, str)
+            and ref in citations
+            and citations[ref].category in eligible_categories
+            for ref in refs
+        )
+
+    for section in config.sections:
+        section_value = sections_value.get(section.name)
+        if not isinstance(section_value, dict):
+            continue
+        topics = section_value.get("topics")
+        log = excluded_value.get(section.name)
+        if not isinstance(topics, list) or not isinstance(log, list):
+            continue
+        eligible_categories = set(section.corpus_categories)
+        reported = len(topics)
+        index = 0
+        while len(topics) < section.target_stories and index < len(log):
+            entry = log[index]
+            if not promotable(entry, eligible_categories):
+                index += 1
+                continue
+            # ``path`` names the destination, matching
+            # ``replace_summary_with_excerpt``: it is the output position the
+            # action changed, and the position the renderer tags. The origin
+            # belongs in the reason, which is where the audit trail reads it.
+            actions.append({
+                "action": PROMOTION_ACTION,
+                "path": f"topics.{section.name}[{len(topics)}]",
+                "reason": (
+                    f"promoted from excluded_topics.{section.name}[{index}]; "
+                    f"{section.name} reported {reported} of "
+                    f"{section.target_stories} topics while eligible unreported "
+                    "evidence remained in its accountability log"
+                ),
+            })
+            topics.append(log.pop(index))
+    if not actions:
+        return selection, []
+    return promoted, actions
 
 
 def _object_fields(
@@ -1280,18 +1413,23 @@ def _topic_lines(
     citations: dict[str, Citation],
     *,
     excerpt: bool = False,
+    promoted: bool = False,
 ) -> list[str]:
     refs = entry["citation_refs"]
     item_refs = {citations[ref].item_ref for ref in refs}
     # The checker's topic grammar tolerates exactly one *(...)* group between
     # the headline and the em dash, so consolidation keeps that marker group.
-    # Evidence substitutions use a separate literal tag requested by readers.
+    # Evidence substitutions and log promotions use separate literal tags.
     labels = []
     if len(item_refs) > 1:
         labels.append("consolidated")
     marker = f" *({' · '.join(labels)})*" if labels else ""
-    verbatim = " [verbatim]" if excerpt else ""
-    lines = [f"**{entry['headline']}**{marker}{verbatim} — {entry['summary']}"]
+    tags = "".join(
+        f" [{tag}]"
+        for tag, present in ((PROMOTION_TAG, promoted), ("verbatim", excerpt))
+        if present
+    )
+    lines = [f"**{entry['headline']}**{marker}{tags} — {entry['summary']}"]
     for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
@@ -1307,14 +1445,24 @@ def render_briefing(
 ) -> str:
     """Render validated structured output into the existing Markdown contract.
 
-    ``repair_actions`` (from ``repair_structural_output``) labels every entry
-    whose summary was swapped for its cited excerpt with a [verbatim] tag,
-    so readers can tell producer-substituted prose from model prose.
+    ``repair_actions`` labels two kinds of code-owned change on the entry it
+    affected. A summary swapped for its cited excerpt
+    (``repair_structural_output``) gets a [verbatim] tag, so readers can tell
+    producer-substituted prose from model prose. A topic moved up from its
+    section's accountability log (``promote_excluded_to_underfilled``) gets a
+    [promoted from the accountability log] tag: the story is reported on the
+    model's own ranking but did not occupy a slot by the model's own choice,
+    and the tag is also what explains a log one entry shorter than its target.
     """
     swapped = {
         action["path"]
         for action in repair_actions
         if action["action"] == "replace_summary_with_excerpt"
+    }
+    promoted_paths = {
+        action["path"]
+        for action in repair_actions
+        if action["action"] == PROMOTION_ACTION
     }
     lines = [
         f"# Daily Briefing — {_corpus_date_label(corpus)}",
@@ -1329,10 +1477,12 @@ def render_briefing(
         if section.group is None:
             lines.extend([f"## {section.name}", ""])
             for topic_index, entry in enumerate(sections[section.name]["topics"]):
-                lines.append(f"<!-- story: topics.{section.name}[{topic_index}] -->")
+                path = f"topics.{section.name}[{topic_index}]"
+                lines.append(f"<!-- story: {path} -->")
                 lines.extend(_topic_lines(
                     entry, citations,
-                    excerpt=f"topics.{section.name}[{topic_index}]" in swapped,
+                    excerpt=path in swapped,
+                    promoted=path in promoted_paths,
                 ))
             index += 1
             continue
@@ -1342,10 +1492,12 @@ def render_briefing(
             grouped = config.sections[index]
             lines.extend([f"**{grouped.name} ({grouped.target_stories} slots)**", ""])
             for topic_index, entry in enumerate(sections[grouped.name]["topics"]):
-                lines.append(f"<!-- story: topics.{grouped.name}[{topic_index}] -->")
+                path = f"topics.{grouped.name}[{topic_index}]"
+                lines.append(f"<!-- story: {path} -->")
                 lines.extend(_topic_lines(
                     entry, citations,
-                    excerpt=f"topics.{grouped.name}[{topic_index}]" in swapped,
+                    excerpt=path in swapped,
+                    promoted=path in promoted_paths,
                 ))
             index += 1
 

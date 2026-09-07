@@ -418,7 +418,7 @@
         {
           "check": "slots_underfilled",
           "level": "WARN",
-          "message": "AI Dev Tools: 1 topics, expected 2 (thin corpus is a legitimate cause)"
+          "message": "AI Dev Tools: 1 topics, expected 2; 3 unused eligible corpus item(s) remain"
         }
       ],
       "human_labels": [

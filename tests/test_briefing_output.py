@@ -17,6 +17,7 @@ from agent_runner.output import (
     detach_prose,
     project_corpus,
     project_selected_evidence,
+    promote_excluded_to_underfilled,
     redact_destinations,
     redact_opaque_references,
     redact_preview_value,
@@ -687,6 +688,86 @@ class BriefingOutputTests(unittest.TestCase):
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("category_ineligible_ref", checks)
 
+    def test_promotion_fills_a_short_section_from_the_front_of_its_log(self):
+        _corpus, config, projected, output = fixture_contract()
+        short = selection_from_output(output)
+        section = config.sections[0]
+        dropped = short["sections"][section.name]["topics"].pop()
+        head = short["excluded_topics"][section.name][0]
+        tail = short["excluded_topics"][section.name][1:]
+
+        promoted, actions = promote_excluded_to_underfilled(
+            short, config, projected.citations
+        )
+
+        self.assertEqual(
+            len(promoted["sections"][section.name]["topics"]), section.target_stories
+        )
+        self.assertEqual(promoted["sections"][section.name]["topics"][-1], head)
+        self.assertEqual(promoted["excluded_topics"][section.name], tail)
+        self.assertEqual(
+            [action["action"] for action in actions], ["promote_excluded_entry"]
+        )
+        # The action names the destination it tags; the origin is in the reason.
+        self.assertEqual(
+            actions[0]["path"],
+            f"topics.{section.name}[{section.target_stories - 1}]",
+        )
+        self.assertIn(f"excluded_topics.{section.name}[0]", actions[0]["reason"])
+        self.assertNotIn(dropped, promoted["sections"][section.name]["topics"])
+        self.assertEqual(
+            validate_selection(promoted, config, projected.citations), []
+        )
+
+    def test_promotion_leaves_a_full_selection_untouched(self):
+        _corpus, config, projected, output = fixture_contract()
+        selection = selection_from_output(output)
+        promoted, actions = promote_excluded_to_underfilled(
+            selection, config, projected.citations
+        )
+        self.assertEqual(actions, [])
+        self.assertIs(promoted, selection)
+
+    def test_promotion_stops_when_the_log_runs_out(self):
+        """A genuinely thin section keeps the gap rather than inventing one."""
+        _corpus, config, projected, output = fixture_contract()
+        short = selection_from_output(output)
+        section = config.sections[0]
+        short["sections"][section.name]["topics"] = []
+        short["excluded_topics"][section.name] = short["excluded_topics"][section.name][:1]
+
+        promoted, actions = promote_excluded_to_underfilled(
+            short, config, projected.citations
+        )
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(len(promoted["sections"][section.name]["topics"]), 1)
+        self.assertEqual(promoted["excluded_topics"][section.name], [])
+
+    def test_promotion_skips_an_entry_ineligible_for_the_section(self):
+        _corpus, config, projected, output = fixture_contract()
+        short = selection_from_output(output)
+        section = config.sections[0]
+        short["sections"][section.name]["topics"].pop()
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        short["excluded_topics"][section.name][0]["citation_refs"] = [ineligible_ref]
+        runner_up = short["excluded_topics"][section.name][1]
+
+        promoted, actions = promote_excluded_to_underfilled(
+            short, config, projected.citations
+        )
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(promoted["sections"][section.name]["topics"][-1], runner_up)
+        self.assertEqual(
+            promoted["excluded_topics"][section.name][0]["citation_refs"],
+            [ineligible_ref],
+        )
+
     def test_structural_repair_drops_ineligible_and_repeated_entries(self):
         _corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
@@ -1191,6 +1272,62 @@ class BriefingOutputTests(unittest.TestCase):
             dict.fromkeys(entry["citation_refs"] + donor["citation_refs"])
         )
         return entry
+
+    def test_render_marks_promoted_entries_and_the_checker_accepts_them(self):
+        corpus, config, projected, output = fixture_contract()
+        ungrouped = config.sections[0]
+        grouped = next(s for s in config.sections if s.group is not None)
+        promoted_entry = output["sections"][ungrouped.name]["topics"][0]
+        also_swapped = output["sections"][grouped.name]["topics"][0]
+        actions = [
+            {
+                "action": "promote_excluded_entry",
+                "path": f"topics.{ungrouped.name}[0]",
+                "reason": f"promoted from excluded_topics.{ungrouped.name}[0]",
+            },
+            {
+                "action": "promote_excluded_entry",
+                "path": f"topics.{grouped.name}[0]",
+                "reason": f"promoted from excluded_topics.{grouped.name}[0]",
+            },
+            {
+                "action": "replace_summary_with_excerpt",
+                "path": f"topics.{grouped.name}[0]",
+                "reason": "oversized summary",
+            },
+        ]
+
+        markdown = render_briefing(
+            output, corpus, config, projected.citations, repair_actions=actions
+        )
+
+        lines = markdown.splitlines()
+        promoted_line = next(
+            line for line in lines if promoted_entry["headline"] in line
+        )
+        self.assertIn(
+            f"**{promoted_entry['headline']}** "
+            "[promoted from the accountability log] — ",
+            promoted_line,
+        )
+        # Both producer tags can land on one topic, in a fixed order.
+        both_line = next(line for line in lines if also_swapped["headline"] in line)
+        self.assertIn(
+            "[promoted from the accountability log] [verbatim] — ", both_line
+        )
+        # The tags are producer-owned, so the checker's grammar must still
+        # parse the topic rather than reading the line as a sub-header.
+        sections = eval_briefing.parse_briefing(markdown, config)
+        self.assertEqual(
+            len(sections[ungrouped.name]["topics"]), ungrouped.target_stories
+        )
+        self.assertEqual(
+            [
+                finding for finding in eval_briefing.evaluate(corpus, markdown, config)
+                if finding.level == eval_briefing.ERROR
+            ],
+            [],
+        )
 
     def test_render_marks_swapped_entries_as_verbatim(self):
         corpus, config, projected, output = fixture_contract()

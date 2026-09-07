@@ -237,6 +237,10 @@ def _correction_and_repair_counts(attempts: list[Any]) -> tuple[int, int, int]:
             selection_corrections += 1
         elif kind == "correction":
             prose_corrections += 1
+        # ``selection_promotion`` is deliberately absent: filling a reserved
+        # slot from the accountability log is routine editorial bookkeeping,
+        # not evidence the run had to be patched, and counting it here would
+        # tell a reader the opposite.
         elif kind in {"deterministic_repair", "selection_repair"}:
             actions = attempt.get("repair_actions")
             if isinstance(actions, list):

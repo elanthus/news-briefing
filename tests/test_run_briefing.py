@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import corpus_schema
@@ -14,7 +15,16 @@ import eval_briefing
 import run_briefing as briefing_cli
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
-from agent_runner.runner import RunnerSettings, RunResult, _fetch_corpus, build_request, run_workflow
+from agent_runner.output import promote_excluded_to_underfilled
+from agent_runner.runner import (
+    RunnerSettings,
+    RunResult,
+    _fetch_corpus,
+    _promotion_actions,
+    build_request,
+    run_workflow,
+    selection_promotion_candidate,
+)
 from tests.test_briefing_output import ROOT, fixture_contract
 
 
@@ -628,7 +638,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["selection", "selection_repair", "prose"],
+            ["selection", "selection_repair", "selection_promotion", "prose"],
         )
         self.assertNotIn(projected.citations[ineligible_ref].article_url, final)
         self.assertEqual(
@@ -658,11 +668,20 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(len(provider.requests), 2)
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
-        self.assertEqual(kinds, ["selection", "selection_repair", "prose"])
+        self.assertEqual(
+            kinds, ["selection", "selection_repair", "selection_promotion", "prose"]
+        )
         self.assertNotIn("selection_correction", kinds)
         self.assertTrue(manifest["attempts"][1]["repair_actions"])
 
-    def test_repair_underfill_stays_ready_with_nonblocking_warn(self):
+    def test_repair_underfill_is_refilled_from_the_accountability_log(self):
+        """A repair-induced gap closes from the log instead of publishing short.
+
+        Dropping the entry leaves the section under ``target_stories`` while
+        its own log still holds eligible, unreported evidence. Promotion takes
+        the log's highest-ranked entry, so the run publishes a full section and
+        no ``slots_underfilled`` finding survives to the reader.
+        """
         corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         section = config.sections[0]
@@ -673,21 +692,57 @@ class RunnerTests(unittest.TestCase):
         )
         # Drops one included entry, leaving the section below target_stories.
         broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        promoted_ref = broken["excluded_topics"][section.name][0]["citation_refs"][0]
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
         ):
             root = Path(directory)
-            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            requested_output = root / "briefing.md"
+            result = run_workflow(provider, self.settings(requested_output), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            frozen = json.loads(
+                (root / "run/frozen-selection.json").read_text(encoding="utf-8")
+            )
         self.assertEqual(result.status, "ready")
         final_findings = manifest["final"]["findings"]
-        underfilled = [row for row in final_findings if row["check"] == "slots_underfilled"]
-        self.assertTrue(underfilled, msg=final_findings)
-        self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
-        self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
+        self.assertEqual(
+            [row for row in final_findings if row["check"] == "slots_underfilled"],
+            [],
+            msg=final_findings,
+        )
+        self.assertEqual(
+            len(frozen["sections"][section.name]["topics"]), section.target_stories
+        )
+        promotion = next(
+            attempt for attempt in manifest["attempts"]
+            if attempt["kind"] == "selection_promotion"
+        )
+        self.assertEqual(
+            [action["action"] for action in promotion["repair_actions"]],
+            ["promote_excluded_entry"],
+        )
+        # The log's first entry is the one that moved, and it moved whole.
+        self.assertIn(
+            promoted_ref,
+            frozen["sections"][section.name]["topics"][-1]["citation_refs"],
+        )
+        self.assertNotIn(
+            promoted_ref,
+            [
+                ref
+                for entry in frozen["excluded_topics"][section.name]
+                for ref in entry["citation_refs"]
+            ],
+        )
 
-    def test_repair_that_empties_section_forces_model_correction(self):
+    def test_repair_that_empties_section_refills_it_from_the_log(self):
+        """An emptied section is filled by code before a correction is spent.
+
+        A blocking ``slots_underfilled`` is exactly what promotion repairs, so
+        it must not divert the run to the model first: an empty section would
+        otherwise be handled worse than the same section one topic short.
+        """
         corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         section = config.sections[0]
@@ -712,18 +767,135 @@ class RunnerTests(unittest.TestCase):
                     / manifest["attempts"][1]["findings_artifact"]
                 ).read_text(encoding="utf-8")
             )
+            frozen = json.loads(
+                (root / "run/frozen-selection.json").read_text(encoding="utf-8")
+            )
 
         self.assertEqual(result.status, "ready")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["selection", "selection_repair", "selection_correction", "prose"],
+            ["selection", "selection_repair", "selection_promotion", "prose"],
         )
+        # The repair leaves the blocking finding; promotion answers it without
+        # spending a provider call.
         empty = [
             row for row in repair_findings
             if row["check"] == "slots_underfilled" and section.name in row["message"]
         ]
         self.assertEqual(len(empty), 1)
         self.assertEqual(empty[0]["level"], "ERROR")
+        self.assertEqual(len(provider.requests), 2)
+        self.assertNotIn("CORRECTION PASS", provider.requests[1].prompt)
+        self.assertTrue(frozen["sections"][section.name]["topics"])
+        self.assertEqual(
+            [row for row in manifest["final"]["findings"]
+             if row["check"] == "slots_underfilled"],
+            [],
+        )
+
+    def test_promotion_is_withheld_when_it_would_empty_every_log(self):
+        """Code must not create a contract failure it cannot then repair.
+
+        Promotion empties part of an accountability log, and
+        ``exclusion_log_empty`` is blocking with no deterministic repair. If
+        the entries promoted were the last logged ones across every accountable
+        section, filling the slot would spend a model correction on a state
+        code produced. The slot stays short instead, and the residual warning
+        reports it honestly.
+        """
+        corpus, config, projected, output = fixture_contract()
+        short = copy.deepcopy(output)
+        for section in config.sections:
+            if not section.excluded_stories:
+                continue
+            # One short, with exactly one logged entry left to take.
+            short["sections"][section.name]["topics"].pop()
+            short["excluded_topics"][section.name] = (
+                short["excluded_topics"][section.name][:1]
+            )
+
+        candidate = selection_promotion_candidate(
+            short, config=config, citations=projected.citations
+        )
+
+        self.assertIsNone(candidate)
+        # The move itself is available; it is the contract check that vetoes it.
+        _promoted, actions = promote_excluded_to_underfilled(
+            short, config, projected.citations
+        )
+        self.assertTrue(actions)
+
+    def test_superseded_promotion_stops_tagging_the_replacement_selection(self):
+        """A discarded promotion must not label a later model's topics.
+
+        Actions name output positions and the renderer tags by position, so
+        actions left over from a selection a correction replaced would mark
+        whichever story the model put in that slot as promoted.
+        """
+        store = SimpleNamespace(manifest={"attempts": [
+            {"kind": "selection", "repair_actions": None},
+            {
+                "kind": "selection_promotion",
+                "repair_actions": [{
+                    "action": "promote_excluded_entry",
+                    "path": "topics.US Politics[2]",
+                    "reason": "promoted from excluded_topics.US Politics[0]",
+                }],
+            },
+        ]})
+
+        self.assertEqual(
+            [action["path"] for action in _promotion_actions(store)],
+            ["topics.US Politics[2]"],
+        )
+
+        store.manifest["attempts"].append(
+            {"kind": "selection_correction", "repair_actions": None}
+        )
+        self.assertEqual(_promotion_actions(store), [])
+
+        # A prose attempt does not supersede it; the frozen selection stands.
+        store.manifest["attempts"][-1] = {
+            "kind": "selection_promotion",
+            "repair_actions": [{
+                "action": "promote_excluded_entry",
+                "path": "topics.US Politics[2]",
+                "reason": "promoted from excluded_topics.US Politics[0]",
+            }],
+        }
+        store.manifest["attempts"].append({"kind": "prose", "repair_actions": None})
+        self.assertEqual(len(_promotion_actions(store)), 1)
+
+    def test_empty_section_with_no_usable_log_forces_model_correction(self):
+        """Promotion never invents coverage, so the blocker still blocks.
+
+        With the section's log empty there is nothing to promote, and eligible
+        evidence remains unreported elsewhere in the corpus. Publishing that
+        would claim no coverage existed, so the run spends its correction.
+        """
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        for topic in broken["sections"][section.name]["topics"]:
+            topic["citation_refs"] = [ineligible_ref]
+        broken["excluded_topics"][section.name] = []
+        provider = FakeProvider([broken, output])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ready")
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertIn("selection_correction", kinds)
+        self.assertNotIn("selection_promotion", kinds)
         self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
         self.assertIn("unused eligible corpus item", provider.requests[1].prompt)
 

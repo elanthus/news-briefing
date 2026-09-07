@@ -396,7 +396,15 @@ class SlotAllocationTest(unittest.TestCase):
         self.assertEqual(len(empty), 1)
         self.assertEqual(empty[0].level, WARN)
 
-    def test_empty_section_with_only_excluded_eligible_material_is_a_warning(self):
+    def test_empty_section_whose_material_is_only_logged_is_an_error(self):
+        """Logging a story is not a licence to publish the section empty.
+
+        An accountability-log entry is proof the briefing saw eligible
+        coverage and passed over it, so it cannot also be the reason the
+        section had nothing to report. The runner promotes from the log before
+        freezing; an empty section that still has logged material means that
+        did not happen, which is the bookkeeping failure this level exists for.
+        """
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["world"] = [corpus["categories"]["world"][5]]
         corpus["categories"]["us_news"] = []
@@ -407,9 +415,10 @@ class SlotAllocationTest(unittest.TestCase):
             if finding.check == "slots_underfilled" and "World Events" in finding.message
         ]
         self.assertEqual(len(empty), 1)
-        self.assertEqual(empty[0].level, WARN)
+        self.assertEqual(empty[0].level, ERROR)
+        self.assertIn("1 unused eligible corpus item(s) remain", empty[0].message)
 
-    def test_discussion_only_exclusion_counts_as_used_eligible_material(self):
+    def test_discussion_only_exclusion_does_not_consume_eligible_material(self):
         corpus = json.loads(json.dumps(CORPUS))
         corpus["categories"]["dev_community"] = [
             corpus["categories"]["dev_community"][0]
@@ -424,7 +433,17 @@ class SlotAllocationTest(unittest.TestCase):
             if finding.check == "slots_underfilled" and "AI Dev Tools" in finding.message
         ]
         self.assertEqual(len(empty), 1)
-        self.assertEqual(empty[0].level, WARN)
+        self.assertEqual(empty[0].level, ERROR)
+
+    def test_underfilled_message_reports_the_unused_eligible_count(self):
+        """The reader gets the count, never an unverified claim of thinness."""
+        findings = evaluate(CORPUS, briefing(world=4))
+        message = next(
+            finding.message for finding in findings
+            if finding.check == "slots_underfilled" and "World Events" in finding.message
+        )
+        self.assertNotIn("thin corpus", message)
+        self.assertRegex(message, r"\d+ unused eligible corpus item\(s\) remain")
 
     def test_each_section_is_counted_independently(self):
         findings = evaluate(CORPUS, briefing(ai_news=3, tools=3))
