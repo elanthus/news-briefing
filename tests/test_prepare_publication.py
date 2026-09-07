@@ -326,6 +326,38 @@ class PreparePublicationTests(unittest.TestCase):
             sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
             self.assertEqual(sidecar["advisory_findings"], [])
 
+    def test_ready_run_with_malformed_raw_finding_fails_soft_to_empty_advisory_list(self) -> None:
+        # A malformed raw finding must not touch the `ready` disposition or the
+        # actionable count; it only drops the (already-nonblocking) advisory
+        # list for that run, the same fail-soft behavior _review_findings
+        # already gives review_required.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"ready briefing\n"
+            (run / "final.md").write_bytes(content)
+            raw_findings = [
+                {
+                    "level": "WARN",
+                    "check": "slots_underfilled",
+                    "domain": "quality",
+                    "message": "World Events: 2 topics, expected 5",
+                },
+                {"level": "WARN", "check": "exclusion_log_missing", "domain": "quality"},
+            ]
+            self._write_manifest(run, "ready", "final", "final.md", content, raw_findings)
+
+            history = root / "history"
+            record = prepare_publication(run, root / "missing-corpus.json", history, date(2026, 8, 20))
+
+            self.assertEqual(record.disposition, "ready")
+            self.assertEqual(record.findings_count, 0)
+            self.assertEqual(record.advisory_findings, ())
+            sidecar = json.loads((history / "2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["findings_count"], 0)
+            self.assertEqual(sidecar["advisory_findings"], [])
+
     def test_structured_paths_attach_included_and_excluded_story_context(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

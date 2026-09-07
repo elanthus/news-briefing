@@ -432,6 +432,32 @@ class BuildSiteTests(unittest.TestCase):
             self.assertFalse((output / "2026-08-20.html").exists())
             self.assertNotIn("REJECTED CONTENT", (output / "history.json").read_text(encoding="utf-8"))
 
+    def test_rejected_sidecar_with_advisory_findings_is_refused(self) -> None:
+        # advisory_findings only makes sense on a published entry (ready or
+        # review_required); a rejected run has no public record to attach
+        # them to, so a non-empty advisory list there is a producer bug.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("REJECTED CONTENT", encoding="utf-8")
+            self._write_sidecar(
+                briefings,
+                date="2026-08-20",
+                disposition="rejected",
+                findings_count=1,
+                advisory_findings=[
+                    self._finding(
+                        "slots_underfilled",
+                        "World Events: 2 topics, expected 5",
+                        domain="quality",
+                    ),
+                ],
+            )
+
+            with self.assertRaisesRegex(ValueError, "advisory findings require a published disposition"):
+                build_site(briefings, root / "site")
+
     def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1809,10 +1835,14 @@ class BuildSiteTests(unittest.TestCase):
             "findings": details,
             "degraded_sources": degraded_sources or [],
         }
-        if repair_actions is not None:
-            payload["repair_actions"] = repair_actions
-        if advisory_findings is not None:
-            payload["advisory_findings"] = advisory_findings
+        # A real sidecar's field set is one of the exact whole-version unions
+        # (build_site._entry_from_payload checks this precisely), so once any
+        # optional field is requested, fill in the rest of the v6 set rather
+        # than writing a partial shape no real producer emits.
+        if repair_actions is not None or advisory_findings is not None:
+            payload["repair_actions"] = repair_actions or []
+            payload["generation_failures"] = []
+            payload["advisory_findings"] = advisory_findings or []
         (directory / f"{date}.json").write_text(
             json.dumps(payload),
             encoding="utf-8",

@@ -43,15 +43,6 @@ SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
 SIDECAR_V5_FIELDS = SIDECAR_V4_FIELDS | {"generation_failures"}
 SIDECAR_V6_FIELDS = SIDECAR_V5_FIELDS | {"advisory_findings"}
-# repair_actions, generation_failures, and advisory_findings were each added
-# independently (v4, v5, v6) and every producer of a freestanding sidecar
-# (prepare_publication.py writes all three; bootstrap_history.py and
-# hand-authored fixtures may write none or any subset) is free to omit any of
-# them, so a sidecar's field set is checked as this core plus any subset of
-# these three, not as one of the exact whole-version unions. A single history
-# entry is not affected: `_load_history` always slices to one exact
-# metadata_fields set per declared schema_version before calling here.
-OPTIONAL_SIDECAR_FIELDS = {"repair_actions", "generation_failures", "advisory_findings"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
@@ -247,11 +238,12 @@ def _entry_from_payload(
     flexible_findings: bool = True,
 ) -> BriefingEntry:
     expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
-    allowed_extra = OPTIONAL_SIDECAR_FIELDS if schema_version >= 2 else frozenset[str]()
-    if (
-        not isinstance(payload, dict)
-        or not expected_fields <= set(payload) <= expected_fields | allowed_extra
-    ):
+    allowed_fields = (
+        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS, SIDECAR_V6_FIELDS)
+        if schema_version >= 2
+        else (expected_fields,)
+    )
+    if not isinstance(payload, dict) or set(payload) not in allowed_fields:
         raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
 
     raw_date = payload["date"]
@@ -304,6 +296,8 @@ def _entry_from_payload(
         schema_version=schema_version,
         flexible_findings=flexible_findings,
     )
+    if advisory_findings and disposition not in PAGE_DISPOSITIONS:
+        raise ValueError(f"{source} advisory findings require a published disposition")
     generation_failures = parse_generation_failures(payload.get("generation_failures", []))
     if generation_failures and disposition != "blocked":
         raise ValueError(f"{source} generation failures require a blocked disposition")
