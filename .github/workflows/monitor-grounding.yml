@@ -1,0 +1,191 @@
+name: Weekly grounding monitor
+
+# Non-gating: this workflow only measures already-published briefings. It
+# never touches a corpus, a run directory, or a publication decision, and it
+# writes exactly one committed file: docs/results/grounding-monitor.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      week_label:
+        description: Optional week label for the published row (blank derives the current ISO week)
+        required: false
+        type: string
+  schedule:
+    - cron: "0 14 * * 0"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: weekly-grounding-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Machine-review last week's published runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Derive week label
+        env:
+          WEEK_LABEL_INPUT: ${{ inputs.week_label }}
+        run: |
+          label="$WEEK_LABEL_INPUT"
+          if [[ -z "$label" ]]; then
+            label=$(date -u +"%G-W%V")
+          fi
+          if [[ ! "$label" =~ ^[0-9]{4}-W[0-9]{2}$ ]]; then
+            echo "::error::week_label must match ^[0-9]{4}-W[0-9]{2}\$, got: $label"
+            exit 1
+          fi
+          echo "WEEK_LABEL=$label" >> "$GITHUB_ENV"
+
+      - name: Download this week's diagnostics artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics-zips"
+          pages="$RUNNER_TEMP/artifact-pages.json"
+          gh api --paginate --slurp \
+            "repos/${{ github.repository }}/actions/artifacts?per_page=100" > "$pages"
+          jq -r '
+            [.[].artifacts[]
+              | select(.expired == false and (.name | startswith("briefing-diagnostics-")))]
+            | sort_by(.created_at) | reverse | .[0:7][]
+            | [.id, .name] | @tsv
+          ' "$pages" > "$RUNNER_TEMP/selected-artifacts.tsv"
+          if [[ ! -s "$RUNNER_TEMP/selected-artifacts.tsv" ]]; then
+            echo "::error::No unexpired diagnostics artifacts were found"
+            exit 1
+          fi
+          while IFS=$'\t' read -r artifact_id artifact_name; do
+            echo "Selected $artifact_name"
+            gh api "repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip" \
+              > "$RUNNER_TEMP/diagnostics-zips/$artifact_id.zip"
+          done < "$RUNNER_TEMP/selected-artifacts.tsv"
+
+      - name: Decrypt and extract each day's run directory
+        env:
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import tarfile
+          import tempfile
+          import zipfile
+          from pathlib import Path
+
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          extracted_root = runner_temp / "extracted-runs"
+          extracted_root.mkdir(parents=True, exist_ok=True)
+          run_args: list[str] = []
+
+          # Artifact ids sort ascending by creation, so a plain sorted() glob
+          # would visit the oldest zip first; a retried day's newest
+          # diagnostics would then lose the "if destination.exists(): skip"
+          # race below to its own stale earlier attempt. Iterate newest id
+          # first so a retried day keeps its latest diagnostics.
+          for zip_path in sorted(
+              (runner_temp / "diagnostics-zips").glob("*.zip"),
+              key=lambda path: int(path.stem),
+              reverse=True,
+          ):
+              work_dir = Path(tempfile.mkdtemp(dir=runner_temp))
+              encrypted_dir = work_dir / "encrypted"
+              with zipfile.ZipFile(zip_path) as archive:
+                  archive.extractall(encrypted_dir)
+              candidates = list(encrypted_dir.rglob("briefing-diagnostics.tar.gz.enc"))
+              if not candidates:
+                  print(f"::warning::{zip_path.name} has no briefing-diagnostics.tar.gz.enc; skipping")
+                  continue
+              decrypted = work_dir / "diagnostics.tar.gz"
+              subprocess.run(
+                  [sys.executable, "private_archive.py", "decrypt", str(candidates[0]), str(decrypted)],
+                  check=True,
+              )
+              extracted = work_dir / "extracted"
+              with tarfile.open(decrypted, mode="r:gz") as archive:
+                  archive.extractall(extracted, filter="data")
+              runs_dir = extracted / "runs"
+              if not runs_dir.is_dir():
+                  continue
+              for day_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
+                  destination = extracted_root / day_dir.name
+                  if destination.exists():
+                      continue
+                  shutil.copytree(day_dir, destination)
+                  run_args.append("--run")
+                  run_args.append(f"{day_dir.name}={destination}")
+
+          if not run_args:
+              print("::error::No run directories were extracted from this week's diagnostics")
+              sys.exit(1)
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write("MONITOR_RUN_ARGS<<MONITOR_RUN_ARGS_EOF\n")
+              handle.write("\n".join(run_args) + "\n")
+              handle.write("MONITOR_RUN_ARGS_EOF\n")
+          PY
+
+      - name: Machine-review the week and publish the aggregate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          mapfile -t run_args <<< "$MONITOR_RUN_ARGS"
+          python3 -m evaluator monitor-grounding \
+            "${run_args[@]}" \
+            --week-label "$WEEK_LABEL" \
+            --primary-provider openrouter \
+            --primary-model tencent/hy3 \
+            --audit-provider openrouter \
+            --audit-model deepseek/deepseek-v4-flash-0731 \
+            --cost-ceiling-usd 3.0 \
+            --output-dir "$RUNNER_TEMP/monitor-output"
+
+      - name: Encrypt the review artifact
+        if: always()
+        env:
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          mkdir -p private-artifacts
+          if [[ -d "$RUNNER_TEMP/monitor-output" ]]; then
+            python3 private_archive.py create \
+              --output private-artifacts/grounding-monitor-review.tar.gz.enc \
+              "$RUNNER_TEMP/monitor-output"
+          else
+            echo "::warning::No monitor-output directory was produced; nothing to encrypt"
+          fi
+
+      - name: Upload the encrypted review artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grounding-monitor-review-${{ github.run_id }}
+          path: private-artifacts/grounding-monitor-review.tar.gz.enc
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit the updated weekly log
+        run: |
+          if git diff --quiet -- docs/results/grounding-monitor.md; then
+            echo "No change to the weekly grounding monitor log"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/results/grounding-monitor.md
+          git commit -m "Record week $WEEK_LABEL unverified grounding rate"
+          git push origin HEAD:main

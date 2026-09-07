@@ -253,6 +253,33 @@ sample. Calls are batched, validated, and checkpointed for safe resume. The cost
 next call while preserving the configured headroom. Results explicitly identify both judges and state that
 the labels are automated rather than human approval.
 
+### Weekly production grounding monitor
+
+[`evaluator/production_grounding.py`](production_grounding.py) is a small adapter that builds the same
+kind of blinded grounding packet from a completed `agent_runner` run directory instead of an evaluator
+manifest, keying each packet entry to the run's own finalized structured candidate and its frozen
+`selected-evidence.json`. `.github/workflows/monitor-grounding.yml` runs it weekly (and on demand) over
+the week's already-published, encrypted diagnostics artifacts and hands the packets to
+`evaluator/grounding_machine_review.py` unmodified. This is monitoring, not a gate: see
+[Evaluation methodology](../docs/evaluation-methodology.md#unverified-machine-grounding-monitor) for what
+the published rate can and cannot be used to claim. Per-topic verdicts and rationale never reach a
+committed file or a public artifact: the workflow encrypts the whole review output with
+`private_archive.py` before upload, the same way `daily-briefing.yml` protects diagnostics; only the
+aggregate rate and topic count are published, in the committed weekly log.
+
+The `monitor-grounding` subcommand is runnable in a clone against the committed fixture run:
+
+```bash
+python3 -m evaluator monitor-grounding \
+  --run 2026-09-01=evaluator/fixtures/production-run \
+  --week-label 2026-W99 \
+  --primary-model deepseek/deepseek-v4-pro-0813 \
+  --audit-model minimax/minimax-m3 \
+  --cost-ceiling-usd 1 \
+  --output-dir /tmp/grounding-monitor-output \
+  --log-path /tmp/grounding-monitor.md
+```
+
 ### What is retained and where
 
 Raw generations and review mappings stay local and ignored. Versioned aggregates for the superseded

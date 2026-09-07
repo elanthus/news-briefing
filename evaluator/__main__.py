@@ -18,6 +18,7 @@ from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
+from evaluator.production_grounding import ProductionRun, run_weekly_monitor
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
 from evaluator.retrieval import (
@@ -276,6 +277,37 @@ def main() -> int:
     machine_grounding.add_argument("--cost-headroom-usd", type=float, default=0.10)
     machine_grounding.add_argument("--output-dir", type=Path, required=True)
     machine_grounding.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
+
+    monitor_grounding = subparsers.add_parser(
+        "monitor-grounding",
+        help=(
+            "non-gating: machine-review one week of already-published production runs and "
+            "publish an unverified grounding rate"
+        ),
+    )
+    monitor_grounding.add_argument(
+        "--run",
+        action="append",
+        default=[],
+        required=True,
+        help="RUN_ID=RUN_DIR; repeatable, one entry per day's captured run directory",
+    )
+    monitor_grounding.add_argument("--week-label", required=True)
+    monitor_grounding.add_argument("--primary-provider", default="openrouter")
+    monitor_grounding.add_argument("--primary-model", required=True)
+    monitor_grounding.add_argument("--audit-provider", default="openrouter")
+    monitor_grounding.add_argument("--audit-model", required=True)
+    monitor_grounding.add_argument("--batch-size", type=int, default=25)
+    monitor_grounding.add_argument("--timeout", type=int, default=300)
+    monitor_grounding.add_argument("--cost-ceiling-usd", type=float, default=7.0)
+    monitor_grounding.add_argument("--cost-headroom-usd", type=float, default=0.10)
+    monitor_grounding.add_argument("--seed", type=int, default=8142026)
+    monitor_grounding.add_argument("--double-fraction", type=float, default=0.20)
+    monitor_grounding.add_argument("--output-dir", type=Path, required=True)
+    monitor_grounding.add_argument(
+        "--log-path", type=Path, default=ROOT / "docs" / "results" / "grounding-monitor.md"
+    )
+    monitor_grounding.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
 
     run = subparsers.add_parser("run", help="run the generation suite against live models")
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
@@ -575,6 +607,47 @@ def main() -> int:
                 "observed_cost_usd": result["observed_cost_usd"],
                 "report": str(args.output_dir / "machine-grounding-review.json"),
             }, indent=2, sort_keys=True))
+            return 0
+        if args.command == "monitor-grounding":
+            load_dotenv(args.env_file)
+            runs = []
+            for raw in args.run:
+                run_id, separator, run_dir = raw.partition("=")
+                if not separator or not run_id or not run_dir:
+                    raise ValueError("--run must be RUN_ID=RUN_DIR")
+                runs.append(ProductionRun(run_id, Path(run_dir)))
+            selected = [(args.primary_provider, args.primary_model), (args.audit_provider, args.audit_model)]
+            _preflight(selected)
+            primary_judge = adapter_for(
+                args.primary_provider, args.primary_model, args.timeout,
+                temperature=0, reasoning_enabled=False,
+            )
+            audit_judge = adapter_for(
+                args.audit_provider, args.audit_model, args.timeout,
+                temperature=0, reasoning_enabled=False,
+            )
+            progress = ProgressBar()
+            try:
+                result = run_weekly_monitor(
+                    runs,
+                    week_label=args.week_label,
+                    packet_dir=args.output_dir / "packets",
+                    review_output_dir=args.output_dir / "review",
+                    log_path=args.log_path,
+                    primary_judge=primary_judge,
+                    audit_judge=audit_judge,
+                    seed=args.seed,
+                    double_fraction=args.double_fraction,
+                    batch_size=args.batch_size,
+                    cost_ceiling_usd=args.cost_ceiling_usd,
+                    cost_headroom_usd=args.cost_headroom_usd,
+                    progress=progress,
+                )
+            finally:
+                progress.finish()
+            # Per-topic verdicts and rationale stay in --output-dir, a private
+            # artifact this command never prints; only the aggregate is public.
+            print(json.dumps(result, indent=2, sort_keys=True, default=str))
             return 0
         if args.command == "run":
             if args.resume and args.output_dir is None:

@@ -75,7 +75,7 @@ def _review_topics(manifest_path: Path, manifest: dict[str, Any]) -> list[dict[s
     return records
 
 
-def _double_sample(records: list[dict[str, Any]], count: int, rng: random.Random) -> list[dict[str, Any]]:
+def double_sample(records: list[dict[str, Any]], count: int, rng: random.Random) -> list[dict[str, Any]]:
     by_stratum: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         by_stratum[record["stratum"]].append(record)
@@ -94,7 +94,7 @@ def _double_sample(records: list[dict[str, Any]], count: int, rng: random.Random
     return chosen + remaining[: target - len(chosen)]
 
 
-def _packet(
+def packet(
     records: list[dict[str, Any]], prefix: str, rng: random.Random
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     shuffled = list(records)
@@ -129,9 +129,9 @@ def export_grounding_review_packets(
     records = _review_topics(manifest_path, manifest)
     rng = random.Random(seed)
     double_count = max(1, round(len(records) * double_fraction)) if records else 0
-    double_records = _double_sample(records, double_count, rng)
-    primary, primary_map = _packet(records, "ground", rng)
-    secondary, secondary_map = _packet(double_records, "double", rng)
+    double_records = double_sample(records, double_count, rng)
+    primary, primary_map = packet(records, "ground", rng)
+    secondary, secondary_map = packet(double_records, "double", rng)
     rubric = {
         "grounding_error_true": (
             "The topic lacks a citation, cites evidence that does not support a material claim, "
