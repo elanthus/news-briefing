@@ -1888,6 +1888,8 @@ class UnderfillingStructuredFakeAdapter(StructuredFakeAdapter):
     and its accountability log loses the entry that filled it.
     """
 
+    empty_initial_section = False
+
     def generate_structured(
         self, prompt: str, output_schema: dict[str, Any], trace_id: str
     ) -> Generation:
@@ -1897,6 +1899,7 @@ class UnderfillingStructuredFakeAdapter(StructuredFakeAdapter):
         topic_schema = section["properties"]["topics"]["items"]
         excluded = output_schema["properties"]["excluded_topics"]["properties"]
         required = set(topic_schema["required"])
+        output: dict[str, Any]
         if required == {"citation_refs"}:
             self.assert_selection_contract(prompt, topic_schema)
             output = {
@@ -1949,6 +1952,8 @@ class UnderfillingStructuredFakeAdapter(StructuredFakeAdapter):
             }
         else:
             raise AssertionError(f"unexpected structured contract: {sorted(required)}")
+        if required == {"citation_refs"} and self.empty_initial_section:
+            output["sections"]["AI Dev Tools"]["topics"] = []
         return Generation(
             text=json.dumps(output),
             structured_output=output,
@@ -2378,16 +2383,34 @@ class AdapterRetryTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
-    def test_retired_generation_path_is_rejected_before_execution(self) -> None:
+    def test_retired_generation_cli_option_is_rejected(self) -> None:
+        stderr = io.StringIO()
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            with patch.object(sys, "argv", [
+                "evaluator", "run", "--provider", "openrouter=fixture", "--generation-path", "markdown"
+            ]):
+                evaluator_cli.main()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("unrecognized arguments: --generation-path", stderr.getvalue())
+
+    def test_markdown_checkpoint_is_rejected_before_provider_calls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "run"
-            adapter = FakeAdapter("unused")
-            with self.assertRaisesRegex(ValueError, "only production-parity"):
-                run_evaluation(
-                    [adapter], {"production": ROOT / "briefing-runner-prompt.md"},
-                    output, generation_path="markdown",
-                )
-            self.assertFalse(output.exists())
+            temporary = Path(directory)
+            suite, prompt, output = self._resume_fixture(temporary, case_count=1)
+            run_evaluation([FakeAdapter("fixture")], {"production": prompt}, output,
+                           suite_path=suite, corpus_path=DEFAULT_CORPUS)
+            path = output / "manifest.json"
+            manifest = json.loads(path.read_text())
+            manifest["generation_path"] = "markdown"
+            manifest["run_status"] = "running"
+            manifest.pop("completed_at", None)
+            path.write_text(json.dumps(manifest))
+            adapter = FakeAdapter("fixture")
+            with patch.object(adapter, "generate_structured") as generate:
+                with self.assertRaisesRegex(ValueError, "generation_path"):
+                    run_evaluation([adapter], {"production": prompt}, output,
+                                   suite_path=suite, corpus_path=DEFAULT_CORPUS, resume=True)
+                generate.assert_not_called()
 
     @staticmethod
     def _final_provenance(tags: list[str] | None = None) -> dict[str, Any]:
@@ -2442,7 +2465,6 @@ class RunnerTest(unittest.TestCase):
                 output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
             )
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
@@ -2489,7 +2511,12 @@ class RunnerTest(unittest.TestCase):
             self.assertTrue((artifact / "first-structured.json").exists())
 
     def test_production_parity_promotes_and_tags_like_production(self) -> None:
-        """Parity fills the same slot from the log, and labels it the same way."""
+        self._assert_promotion_parity(empty=False)
+
+    def test_production_parity_promotes_empty_section_before_correction(self) -> None:
+        self._assert_promotion_parity(empty=True)
+
+    def _assert_promotion_parity(self, *, empty: bool) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             suite, prompt, evaluation_output = self._resume_fixture(
@@ -2497,14 +2524,19 @@ class RunnerTest(unittest.TestCase):
                 case_count=1,
                 config_name="generation-config-promotion.json",
             )
+            if empty:
+                config_path = temporary / "config.json"
+                config_data = json.loads(config_path.read_text())
+                config_data["sections"][0]["target_stories"] = 1
+                config_path.write_text(json.dumps(config_data))
             evaluator_adapter = UnderfillingStructuredFakeAdapter("fixture")
+            evaluator_adapter.empty_initial_section = empty
             run_evaluation(
                 [evaluator_adapter],
                 {"production": prompt},
                 evaluation_output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
             )
             evaluator_manifest = json.loads(
                 (evaluation_output / "manifest.json").read_text(encoding="utf-8")
@@ -2512,6 +2544,7 @@ class RunnerTest(unittest.TestCase):
             evaluator_row = evaluator_manifest["results"][0]
 
             production_adapter = UnderfillingStructuredFakeAdapter("fixture")
+            production_adapter.empty_initial_section = empty
             production_run = temporary / "production-run"
             run_workflow(
                 StructuredAdapterProvider(production_adapter),
@@ -2549,6 +2582,9 @@ class RunnerTest(unittest.TestCase):
             ],
             ["selection_promotion"],
         )
+        self.assertEqual(len(evaluator_adapter.requests), 2)
+        self.assertEqual(len(production_adapter.requests), 2)
+        self.assertFalse(evaluator_row["correction_attempted"])
         self.assertIn("[promoted from the accountability log]", evaluator_text)
         self.assertIn("[promoted from the accountability log]", production_text)
 
@@ -2573,7 +2609,6 @@ class RunnerTest(unittest.TestCase):
                 evaluation_output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
             )
             evaluator_manifest = json.loads(
                 (evaluation_output / "manifest.json").read_text(encoding="utf-8")
@@ -2663,7 +2698,6 @@ class RunnerTest(unittest.TestCase):
                 output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
             )
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
@@ -2695,7 +2729,6 @@ class RunnerTest(unittest.TestCase):
                 output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
             )
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
@@ -2726,7 +2759,6 @@ class RunnerTest(unittest.TestCase):
                 output,
                 suite_path=suite,
                 corpus_path=DEFAULT_CORPUS,
-                generation_path="production-parity",
                 cost_ceiling_usd=1.0,
                 cost_ceiling_provider=adapter.provider,
             )
@@ -2792,8 +2824,7 @@ class RunnerTest(unittest.TestCase):
                     output,
                     suite_path=suite,
                     corpus_path=DEFAULT_CORPUS,
-                    generation_path="production-parity",
-                )
+                    )
 
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             first_artifact = output / manifest["results"][0]["artifact_dir"]
@@ -2806,8 +2837,7 @@ class RunnerTest(unittest.TestCase):
                     output,
                     suite_path=suite,
                     corpus_path=DEFAULT_CORPUS,
-                    generation_path="production-parity",
-                    resume=True,
+                        resume=True,
                 )
             self.assertEqual(resumed.requests, [])
 

@@ -141,7 +141,6 @@ def run_evaluation(
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
-    generation_path: str = "production-parity",
     source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one evaluation through the split planning and execution modules."""
@@ -159,6 +158,5 @@ def run_evaluation(
         cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
         resume=resume,
-        generation_path=generation_path,
         source_provenance=source_provenance,
     )

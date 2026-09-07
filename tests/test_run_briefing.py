@@ -23,8 +23,8 @@ from agent_runner.runner import (
     _promotion_actions,
     build_request,
     run_workflow,
-    selection_promotion_candidate,
 )
+from agent_runner.stages import selection_promotion_candidate
 from tests.test_briefing_output import ROOT, fixture_contract
 
 
@@ -332,7 +332,9 @@ class RunnerTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
-        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
+            "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
+        ):
             root = Path(directory)
             requested_output = root / "briefing.md"
             result = run_workflow(
@@ -357,7 +359,9 @@ class RunnerTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
-        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
+            "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
+        ):
             root = Path(directory)
             requested_output = root / "briefing.md"
             settings = replace(self.settings(requested_output), max_corrections=0)
@@ -382,8 +386,10 @@ class RunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
         ), patch(
-            "agent_runner.runner.render_briefing", return_value=unsafe_render
-        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+            "agent_runner.stages.render_briefing", return_value=unsafe_render
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
+            "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
+        ):
             root = Path(directory)
             result = run_workflow(
                 FakeProvider([output]),
@@ -404,7 +410,9 @@ class RunnerTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
-        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
+        ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
+            "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
+        ):
             root = Path(directory)
             result = run_workflow(
                 provider,
@@ -1050,14 +1058,14 @@ class RunnerTests(unittest.TestCase):
             0, copy.deepcopy(broken["sections"][first.name]["topics"][0])
         )
 
-        real_evaluate = eval_briefing.evaluate
+        real_evaluate = eval_briefing.evaluate_parsed
         calls = {"count": 0}
 
-        def evaluate_with_injected_error(corpus_arg, briefing, config_arg):
+        def evaluate_with_injected_error(corpus_arg, briefing, sections, config_arg):
             # The first evaluate call is the repaired attempt's render; inject a
             # checker error only repair cannot fix, only there.
             calls["count"] += 1
-            findings = real_evaluate(corpus_arg, briefing, config_arg)
+            findings = real_evaluate(corpus_arg, briefing, sections, config_arg)
             if calls["count"] == 1:
                 findings = [
                     eval_briefing.Finding(
@@ -1072,7 +1080,7 @@ class RunnerTests(unittest.TestCase):
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
-        ), patch.object(eval_briefing, "evaluate", side_effect=evaluate_with_injected_error):
+        ), patch.object(eval_briefing, "evaluate_parsed", side_effect=evaluate_with_injected_error):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
