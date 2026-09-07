@@ -37,12 +37,12 @@ def _evaluate_structured_generation(
     repair_actions: list[dict[str, str]] | None = None,
 ) -> tuple[str, dict[str, eval_briefing.Section], list[eval_briefing.Finding]]:
     """Validate and render one production-shaped structured response."""
-    rendered, findings = evaluate_candidate(
+    rendered, sections, findings = evaluate_candidate(
         generation.structured_output, corpus, config, citations,
         repair_actions=repair_actions or (),
     )
     text = rendered or ""
-    return text, eval_briefing.parse_briefing(text, config), _output_findings(findings)
+    return text, sections, _output_findings(findings)
 
 
 @dataclass(frozen=True)

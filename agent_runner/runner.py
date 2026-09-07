@@ -650,7 +650,7 @@ def _validate_attempt(
     repair_actions: Sequence[dict[str, str]] = (),
     pre_findings: Sequence[OutputFinding] = (),
 ) -> list[dict[str, str]]:
-    rendered, findings = evaluate_candidate(
+    rendered, _sections, findings = evaluate_candidate(
         output, corpus, config, citations,
         repair_actions=[*_promotion_actions(store), *repair_actions],
         pre_findings=pre_findings,

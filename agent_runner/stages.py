@@ -187,13 +187,14 @@ def evaluate_candidate(
     citations: dict[str, Citation], *,
     repair_actions: Sequence[dict[str, str]] = (),
     pre_findings: Sequence[OutputFinding] = (),
-) -> tuple[str | None, list[OutputFinding | eval_briefing.Finding]]:
+) -> tuple[str | None, dict[str, eval_briefing.Section], list[OutputFinding | eval_briefing.Finding]]:
     """Check the structured contract, then the independently rendered Markdown."""
     findings: list[OutputFinding | eval_briefing.Finding] = list(pre_findings)
     if not any(f.level == "ERROR" for f in findings):
         findings.extend(validate_output(output, config, citations))
     if any(f.level == "ERROR" for f in findings):
-        return None, findings
+        return None, eval_briefing.parse_briefing("", config), findings
     rendered = render_briefing(output, corpus, config, citations, repair_actions=repair_actions)
-    findings.extend(eval_briefing.evaluate(corpus, rendered, config))
-    return rendered, findings
+    sections = eval_briefing.parse_briefing(rendered, config)
+    findings.extend(eval_briefing.evaluate_parsed(corpus, rendered, sections, config))
+    return rendered, sections, findings
