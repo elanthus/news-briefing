@@ -24,6 +24,7 @@ from agent_runner.checkpoint import (
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
 from agent_runner.outcomes import classify_outcome, finding_domain
 from agent_runner.output import (
+    PROMOTION_ACTION,
     REPAIRABLE_CHECKS,
     Citation,
     ModelCorpus,
@@ -32,8 +33,10 @@ from agent_runner.output import (
     build_prose_schema,
     build_selection_schema,
     detach_prose,
+    empty_section_findings,
     project_corpus,
     project_selected_evidence,
+    promote_excluded_to_underfilled,
     redact_destinations,
     redact_opaque_references,
     redact_preview_value,
@@ -374,6 +377,45 @@ class DeterministicRepairResult:
     actions: list[dict[str, str]]
 
 
+SELECTION_PROMOTION_KIND = "selection_promotion"
+SELECTION_ATTEMPT_KINDS = frozenset({
+    "selection",
+    "selection_correction",
+    "selection_repair",
+    SELECTION_PROMOTION_KIND,
+})
+
+
+def selection_promotion_candidate(
+    selection: dict[str, Any],
+    *,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+) -> DeterministicRepairResult | None:
+    """Offer the slot-filling move for a selection that is about to freeze."""
+    promoted, actions = promote_excluded_to_underfilled(selection, config, citations)
+    if not actions or not isinstance(promoted, dict):
+        return None
+    return DeterministicRepairResult(promoted, actions)
+
+
+def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
+    """Every slot fill this run recorded, read back from the manifest.
+
+    Promotion happens in the selection stage but is tagged on the rendered
+    topic in the prose stage, two different attempts. Reading the manifest
+    rather than threading the actions through keeps a resumed run identical to
+    an unresumed one: the attempt that recorded them is already durable.
+    """
+    return [
+        action
+        for attempt in store.manifest["attempts"]
+        if attempt.get("kind") == SELECTION_PROMOTION_KIND
+        for action in attempt.get("repair_actions") or ()
+        if action.get("action") == PROMOTION_ACTION
+    ]
+
+
 def deterministic_repair_candidate(
     output: dict[str, Any],
     findings: Sequence[Mapping[str, str]],
@@ -484,7 +526,16 @@ def _deterministic_selection_repair_attempt(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
     repair: DeterministicRepairResult | None = None,
+    kind: str = "selection_repair",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Record a code-owned change to the selection as its own attempt.
+
+    ``kind`` separates the two code-owned moves that share this machinery.
+    ``selection_repair`` removes evidence that failed the contract;
+    ``selection_promotion`` fills a reserved slot the model left empty. Only
+    the first is a repair, so only the first belongs in the repair-action count
+    a reader sees on the published entry.
+    """
     if repair is None:
         repaired, actions = repair_structural_output(selection, config, citations)
     else:
@@ -498,7 +549,7 @@ def _deterministic_selection_repair_attempt(
     store.write_json(structured_name, repaired)
     attempt = {
         "index": index,
-        "kind": "selection_repair",
+        "kind": kind,
         "received_at": utc_now(),
         "raw_artifact": None,
         "model_output_artifact": None,
@@ -513,12 +564,12 @@ def _deterministic_selection_repair_attempt(
     }
     store.manifest["attempts"].append(attempt)
     store.trace(
-        "selection_repair_completed",
+        f"{kind}_completed",
         attempt=index,
         source_attempt=current["index"],
         actions=len(actions),
     )
-    store.checkpoint("selection_repair_received")
+    store.checkpoint(f"{kind}_received")
     _validate_selection_attempt(
         store,
         attempt,
@@ -651,7 +702,10 @@ def _validate_attempt(
     checker_findings: list[eval_briefing.Finding] = []
     if not any(finding.level == "ERROR" for finding in structured_findings):
         rendered = render_briefing(
-            output, corpus, config, citations, repair_actions=repair_actions
+            output, corpus, config, citations,
+            # Selection-stage promotions tag topics rendered in the prose
+            # stage, so they join this attempt's own repair actions here.
+            repair_actions=[*_promotion_actions(store), *repair_actions],
         )
         checker_findings = eval_briefing.evaluate(corpus, rendered, config)
     records = _finding_records([*structured_findings, *checker_findings])
@@ -685,34 +739,7 @@ def _validate_selection_attempt(
     selection_findings = validate_selection(selection, config, citations)
     allocation_findings: list[OutputFinding] = []
     if not any(finding.level == "ERROR" for finding in selection_findings):
-        used_items = {
-            citations[ref].item_ref
-            for section_value in selection["sections"].values()
-            for entry in section_value["topics"]
-            for ref in entry["citation_refs"]
-        } | {
-            citations[ref].item_ref
-            for entries in selection["excluded_topics"].values()
-            for entry in entries
-            for ref in entry["citation_refs"]
-        }
-        for section in config.sections:
-            actual = len(selection["sections"][section.name]["topics"])
-            if actual:
-                continue
-            unused_eligible = {
-                citation.item_ref
-                for citation in citations.values()
-                if citation.category in section.corpus_categories
-                and citation.item_ref not in used_items
-            }
-            if unused_eligible:
-                allocation_findings.append(OutputFinding(
-                    "ERROR",
-                    "slots_underfilled",
-                    f"{section.name}: 0 topics, expected {section.target_stories}; "
-                    f"{len(unused_eligible)} unused eligible corpus item(s) remain",
-                ))
+        allocation_findings = empty_section_findings(selection, config, citations)
     records = _finding_records([*selection_findings, *allocation_findings])
     index = attempt["index"]
     _raw_name, _structured_name, _events_name, _briefing_name, findings_name = _attempt_paths(index)
@@ -989,9 +1016,7 @@ def _select_evidence(
 
     selection_attempts = [
         attempt for attempt in store.manifest["attempts"]
-        if attempt.get("kind") in {
-            "selection", "selection_correction", "selection_repair"
-        }
+        if attempt.get("kind") in SELECTION_ATTEMPT_KINDS
     ]
     if not selection_attempts:
         selection = _call_provider(
@@ -1012,9 +1037,7 @@ def _select_evidence(
 
     while True:
         selection_attempt = store.manifest["attempts"][-1]
-        if selection_attempt.get("kind") not in {
-            "selection", "selection_correction", "selection_repair"
-        }:
+        if selection_attempt.get("kind") not in SELECTION_ATTEMPT_KINDS:
             raise RuntimeError("prose generation started before evidence was frozen")
         if selection_attempt["validated"]:
             selection_findings = json.loads(
@@ -1031,6 +1054,28 @@ def _select_evidence(
                 citations=citations,
             )
         if selection_attempt["contract_success"]:
+            # A contract-clean selection can still leave a reserved slot empty
+            # while its own accountability log holds eligible, unreported
+            # evidence. Fill from the log before freezing, so the prose pass
+            # writes the promoted entry up as a topic instead of the run
+            # publishing a gap it could have closed.
+            promotion = (
+                None if _promotion_actions(store)
+                else selection_promotion_candidate(
+                    selection, config=config, citations=citations
+                )
+            )
+            if promotion is not None:
+                promotion_attempt, selection = _deterministic_selection_repair_attempt(
+                    store,
+                    selection,
+                    config=config,
+                    citations=citations,
+                    repair=promotion,
+                    kind=SELECTION_PROMOTION_KIND,
+                )
+                if promotion_attempt is not selection_attempt:
+                    continue
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
@@ -1121,9 +1166,7 @@ def _write_prose(
 ) -> RunResult:
     prose_attempts = [
         attempt for attempt in store.manifest["attempts"]
-        if attempt.get("kind") not in {
-            "selection", "selection_correction", "selection_repair"
-        }
+        if attempt.get("kind") not in SELECTION_ATTEMPT_KINDS
     ]
     if not prose_attempts:
         output = _call_provider(

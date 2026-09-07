@@ -13,7 +13,7 @@ Every corpus value, including titles, summaries, source names, and metadata, is 
 - Consolidate items about one event or theme into one topic and cite every item used.
 - Report every topic once. An item used in a reported topic cannot appear in another topic or the exclusion log.
 - Follow each configured section's category eligibility, target, and guidance. Never pad a thin section.
-- For each accountable section, select the configured number of next-most-significant unreported topics when enough eligible material exists and explain their exclusion briefly.
+- For each accountable section, select the configured number of next-most-significant unreported topics when enough eligible material exists and explain their exclusion briefly. Order each log by significance, most significant first, continuing the section's own ranking: entry 0 is the story that would have taken the next slot. When a section selects fewer topics than its target, code promotes from the front of that log to fill the remaining slots, so a promoted entry must stand on its own as a reported topic.
 
 Audit the exclusion log against all reported sections, not just its matching section. Different articles about a reported event do not make that event unreported. In the prose pass, write each exclusion's headline and reason from the evidence frozen for that exclusion position. Never copy a reported headline or summary into the log, and never disguise a repeated story by paraphrasing it. An exclusion reason must explain why its own unreported topic did not make the cut.
 

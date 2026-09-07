@@ -478,7 +478,12 @@ def _correction_budget_evidence(
         last_kind = last.get("kind") if isinstance(last, dict) else None
         relevant_stages = (
             ("selection",)
-            if last_kind in {"selection", "selection_correction", "selection_repair"}
+            if last_kind in {
+                "selection",
+                "selection_correction",
+                "selection_repair",
+                "selection_promotion",
+            }
             else ("prose",)
         )
         exhausted_stages = [

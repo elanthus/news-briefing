@@ -628,7 +628,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(manifest["final"]["outcome"]["evidence"], "corpus_bound")
         self.assertEqual(
             [attempt["kind"] for attempt in manifest["attempts"]],
-            ["selection", "selection_repair", "prose"],
+            ["selection", "selection_repair", "selection_promotion", "prose"],
         )
         self.assertNotIn(projected.citations[ineligible_ref].article_url, final)
         self.assertEqual(
@@ -658,11 +658,20 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(len(provider.requests), 2)
         kinds = [attempt["kind"] for attempt in manifest["attempts"]]
-        self.assertEqual(kinds, ["selection", "selection_repair", "prose"])
+        self.assertEqual(
+            kinds, ["selection", "selection_repair", "selection_promotion", "prose"]
+        )
         self.assertNotIn("selection_correction", kinds)
         self.assertTrue(manifest["attempts"][1]["repair_actions"])
 
-    def test_repair_underfill_stays_ready_with_nonblocking_warn(self):
+    def test_repair_underfill_is_refilled_from_the_accountability_log(self):
+        """A repair-induced gap closes from the log instead of publishing short.
+
+        Dropping the entry leaves the section under ``target_stories`` while
+        its own log still holds eligible, unreported evidence. Promotion takes
+        the log's highest-ranked entry, so the run publishes a full section and
+        no ``slots_underfilled`` finding survives to the reader.
+        """
         corpus, config, projected, output = fixture_contract()
         broken = copy.deepcopy(output)
         section = config.sections[0]
@@ -673,19 +682,49 @@ class RunnerTests(unittest.TestCase):
         )
         # Drops one included entry, leaving the section below target_stories.
         broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        promoted_ref = broken["excluded_topics"][section.name][0]["citation_refs"][0]
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
         ):
             root = Path(directory)
-            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            requested_output = root / "briefing.md"
+            result = run_workflow(provider, self.settings(requested_output), root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            frozen = json.loads(
+                (root / "run/frozen-selection.json").read_text(encoding="utf-8")
+            )
         self.assertEqual(result.status, "ready")
         final_findings = manifest["final"]["findings"]
-        underfilled = [row for row in final_findings if row["check"] == "slots_underfilled"]
-        self.assertTrue(underfilled, msg=final_findings)
-        self.assertTrue(all(row["level"] == "WARN" for row in underfilled))
-        self.assertTrue(all(row["domain"] == "quality" for row in underfilled))
+        self.assertEqual(
+            [row for row in final_findings if row["check"] == "slots_underfilled"],
+            [],
+            msg=final_findings,
+        )
+        self.assertEqual(
+            len(frozen["sections"][section.name]["topics"]), section.target_stories
+        )
+        promotion = next(
+            attempt for attempt in manifest["attempts"]
+            if attempt["kind"] == "selection_promotion"
+        )
+        self.assertEqual(
+            [action["action"] for action in promotion["repair_actions"]],
+            ["promote_excluded_entry"],
+        )
+        # The log's first entry is the one that moved, and it moved whole.
+        self.assertIn(
+            promoted_ref,
+            frozen["sections"][section.name]["topics"][-1]["citation_refs"],
+        )
+        self.assertNotIn(
+            promoted_ref,
+            [
+                ref
+                for entry in frozen["excluded_topics"][section.name]
+                for ref in entry["citation_refs"]
+            ],
+        )
 
     def test_repair_that_empties_section_forces_model_correction(self):
         corpus, config, projected, output = fixture_contract()

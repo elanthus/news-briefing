@@ -68,9 +68,14 @@ _SECTION_LINE = re.compile(
     r"^\s*(?:#{2,4}\s*(?P<heading>.+?)\s*$|\*\*(?P<bold>[^*]+?)\*\*\s*$)")
 # A topic entry: **Headline** — summary. The em dash is what separates a topic
 # from a bold sub-header like **AI News (4 slots)**.
+# Producer tags the renderer may attach after the marker group: an evidence
+# substitution and a slot filled from the section's accountability log. They
+# are code-owned literals, so the grammar enumerates them rather than
+# accepting any bracketed text, which a model headline could otherwise supply.
+_PRODUCER_TAGS = r"(?:\[(?:verbatim|promoted from the accountability log)\]\s*)*"
 _TOPIC_LINE = re.compile(
     r"^\s*\*\*(?P<title>.+?)\*\*\s*(?:\*\([^)]*\)\*\s*)?"
-    r"(?:\[verbatim\]\s*)?[—-]\s*(?P<prose>\S.*)$")
+    + _PRODUCER_TAGS + r"[—-]\s*(?P<prose>\S.*)$")
 _EXCLUDED_TOPIC_LINE = re.compile(
     r"^\s*[-*]\s+(?P<emphasis>\*{1,2})(?P<title>.+?)(?P=emphasis)"
     r"\s*[—-]\s*(?P<prose>\S.*)$")
@@ -526,15 +531,27 @@ def check_slot_allocation(sections: dict[str, Section],
     briefing, publishing it would turn a repair/drop bookkeeping failure into a
     misleading claim that no coverage existed. Make that case blocking so the
     runner spends its correction budget instead of finalizing the empty section.
+
+    The message reports the unused-eligible count whenever there is one, at
+    either level. This checker cannot see why a story was passed over, so it
+    must not assert a cause: a bare "thin corpus" parenthetical on a section
+    that left eligible items unreported tells the reader the opposite of what
+    the corpus shows, and the accountability log below it lists the very items
+    the claim denies existed.
     """
     findings: list[Finding] = []
     discussion_articles = {
         discussion: article
         for article, discussion in hacker_news_links(corpus).items()
     }
+    # Only reported topics consume an item, exactly as in
+    # ``check_exclusion_log``. An accountability-log entry is a story the
+    # briefing says it saw and passed over, so it is evidence that coverage
+    # existed rather than proof the corpus was exhausted.
     used_urls = {
         discussion_articles.get(url, url)
-        for bucket in sections.values()
+        for name, bucket in sections.items()
+        if name != EXCLUDED
         for url in bucket["links"]
     }
     for section in config.sections:
@@ -554,8 +571,8 @@ def check_slot_allocation(sections: dict[str, Section],
             level = ERROR if actual == 0 and unused_eligible else WARN
             suffix = (
                 f"; {len(unused_eligible)} unused eligible corpus item(s) remain"
-                if level == ERROR
-                else " (thin corpus is a legitimate cause)"
+                if unused_eligible
+                else " (no eligible corpus item was left unreported)"
             )
             findings.append(Finding(
                 level, "slots_underfilled",

@@ -14,6 +14,7 @@ from agent_runner.output import (
     attach_frozen_selection,
     build_prose_schema,
     detach_prose,
+    empty_section_findings,
     project_selected_evidence,
     render_briefing,
     validate_output,
@@ -26,7 +27,7 @@ from agent_runner.runner import (
 from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
-from agent_runner.runner import deterministic_repair_candidate
+from agent_runner.runner import deterministic_repair_candidate, selection_promotion_candidate
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.checkpoint import _write_json_atomic, _write_text_atomic
@@ -124,34 +125,9 @@ def _production_selection_findings(
         return findings
     if not isinstance(selection, dict):
         return findings
-
-    used_items = {
-        citations[ref].item_ref
-        for section_value in selection["sections"].values()
-        for entry in section_value["topics"]
-        for ref in entry["citation_refs"]
-    } | {
-        citations[ref].item_ref
-        for entries in selection["excluded_topics"].values()
-        for entry in entries
-        for ref in entry["citation_refs"]
-    }
-    for section in config.sections:
-        if selection["sections"][section.name]["topics"]:
-            continue
-        unused_eligible = {
-            citation.item_ref
-            for citation in citations.values()
-            if citation.category in section.corpus_categories
-            and citation.item_ref not in used_items
-        }
-        if unused_eligible:
-            findings.append(eval_briefing.Finding(
-                eval_briefing.ERROR,
-                "slots_underfilled",
-                f"{section.name}: 0 topics, expected {section.target_stories}; "
-                f"{len(unused_eligible)} unused eligible corpus item(s) remain",
-            ))
+    findings.extend(
+        _output_findings(empty_section_findings(selection, config, citations))
+    )
     return findings
 
 
@@ -244,6 +220,23 @@ def _finding_dicts(
     return [finding._asdict() for finding in findings]
 
 
+def _recorded_promotion_actions(
+    deterministic_repairs: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Slot fills recorded on a prior attempt, for a correction's rendering.
+
+    The selection stage promoted; a prose correction re-renders the same
+    frozen selection and must reproduce the same producer tags. Reading them
+    back mirrors how the runner recovers them from its manifest.
+    """
+    return [
+        action
+        for record in deterministic_repairs
+        if record.get("stage") == "selection_promotion"
+        for action in record.get("actions") or ()
+    ]
+
+
 def _repair_record(
     stage: str,
     before: list[eval_briefing.Finding],
@@ -315,6 +308,27 @@ def _production_parity_after_selection(
     if not isinstance(selection, dict):
         raise AssertionError("valid selection must be an object")
 
+    # Mirrors the runner's pre-freeze slot fill (agent_runner/runner.py): a
+    # contract-clean selection that leaves a reserved slot empty takes its
+    # section's highest-ranked logged entry before prose is drafted.
+    promotion = selection_promotion_candidate(
+        selection, config=config, citations=projected.citations
+    )
+    promotion_actions: list[dict[str, str]] = []
+    if promotion is not None:
+        promotion_actions = promotion.actions
+        before_promotion = selection_findings
+        selection = promotion.output
+        selection_findings = _production_selection_findings(
+            selection, config, projected.citations
+        )
+        deterministic_repairs.append(_repair_record(
+            "selection_promotion",
+            before_promotion,
+            selection_findings,
+            promotion.actions,
+        ))
+
     selected_evidence = project_selected_evidence(selection, projected)
     prose_request = structured_prose_request(policy, config_data, selected_evidence)
     prose_schema = build_prose_schema(config, selection)
@@ -350,7 +364,8 @@ def _production_parity_after_selection(
         findings = prose_findings
     else:
         text, sections, findings = _evaluate_structured_generation(
-            combined, corpus, config, projected.citations
+            combined, corpus, config, projected.citations,
+            repair_actions=promotion_actions,
         )
     repair = deterministic_repair_candidate(
         complete_output,
@@ -369,7 +384,7 @@ def _production_parity_after_selection(
             corpus,
             config,
             projected.citations,
-            repair_actions=repair.actions,
+            repair_actions=[*promotion_actions, *repair.actions],
         )
         deterministic_repairs.append(_repair_record(
             "prose",
@@ -482,12 +497,14 @@ def _production_parity_correction_attempt(
     combined = _combine_structured_calls(
         [("prose_correction", prose_generation)], complete_output
     )
+    promotion_actions = _recorded_promotion_actions(prior.deterministic_repairs)
     if any(finding.level == eval_briefing.ERROR for finding in prose_findings):
         text, sections = _empty_structured_result(config)
         findings = prose_findings
     else:
         text, sections, findings = _evaluate_structured_generation(
-            combined, corpus, config, projected.citations
+            combined, corpus, config, projected.citations,
+            repair_actions=promotion_actions,
         )
     deterministic_repairs: list[dict[str, Any]] = []
     repair = deterministic_repair_candidate(
@@ -509,7 +526,7 @@ def _production_parity_correction_attempt(
             corpus,
             config,
             projected.citations,
-            repair_actions=repair.actions,
+            repair_actions=[*promotion_actions, *repair.actions],
         )
         deterministic_repairs.append(_repair_record(
             "prose",
