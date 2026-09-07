@@ -30,12 +30,15 @@ from publication_schema import (
     CONTEXT_FIELDS,
     FINDING_FIELDS,
     FINDING_V3_FIELDS,
+    Provenance,
     ReviewFinding,
     finding_has_fields,
     finding_level_is_valid,
     finding_strings_are_valid,
+    parse_provenance,
     parse_repair_actions,
     parse_review_context,
+    provenance_payload,
 )
 
 LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
@@ -43,6 +46,7 @@ SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
 SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
 SIDECAR_V5_FIELDS = SIDECAR_V4_FIELDS | {"generation_failures"}
 SIDECAR_V6_FIELDS = SIDECAR_V5_FIELDS | {"advisory_findings"}
+SIDECAR_V7_FIELDS = SIDECAR_V6_FIELDS | {"provenance"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
@@ -151,6 +155,7 @@ class BriefingEntry:
     repair_actions: tuple[dict[str, str], ...] = ()
     generation_failures: tuple[GenerationFailure, ...] = ()
     advisory_findings: tuple[ReviewFinding, ...] = ()
+    provenance: Provenance | None = None
 
     @property
     def slug(self) -> str:
@@ -180,6 +185,7 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         repair_actions=entry.repair_actions,
         generation_failures=entry.generation_failures,
         advisory_findings=entry.advisory_findings,
+        provenance=entry.provenance,
     )
 
 
@@ -239,7 +245,7 @@ def _entry_from_payload(
 ) -> BriefingEntry:
     expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
     allowed_fields = (
-        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS, SIDECAR_V6_FIELDS)
+        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS, SIDECAR_V6_FIELDS, SIDECAR_V7_FIELDS)
         if schema_version >= 2
         else (expected_fields,)
     )
@@ -302,6 +308,9 @@ def _entry_from_payload(
     if generation_failures and disposition != "blocked":
         raise ValueError(f"{source} generation failures require a blocked disposition")
     repair_actions = parse_repair_actions(payload.get("repair_actions"))
+    provenance = parse_provenance(payload.get("provenance"))
+    if provenance is not None and disposition not in PAGE_DISPOSITIONS:
+        raise ValueError(f"{source} provenance requires a public artifact")
     return BriefingEntry(
         day=parsed_date,
         disposition=disposition,
@@ -312,6 +321,7 @@ def _entry_from_payload(
         repair_actions=repair_actions,
         generation_failures=generation_failures,
         advisory_findings=tuple(advisory_findings),
+        provenance=provenance,
     )
 
 
@@ -320,10 +330,10 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3, 4, 5, 6}
+        or payload.get("schema_version") not in {1, 2, 3, 4, 5, 6, 7}
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1 through 6 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 1 through 7 with an entries array")
     schema_version = payload["schema_version"]
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
@@ -336,9 +346,13 @@ def _load_history(path: Path) -> list[BriefingEntry]:
             expected_fields = expected_fields | {"generation_failures"}
         if schema_version >= 6:
             expected_fields = expected_fields | {"advisory_findings"}
+        if schema_version >= 7:
+            expected_fields = expected_fields | {"provenance"}
         if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
             raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        if schema_version >= 6:
+        if schema_version >= 7:
+            metadata_fields = SIDECAR_V7_FIELDS
+        elif schema_version >= 6:
             metadata_fields = SIDECAR_V6_FIELDS
         elif schema_version >= 5:
             metadata_fields = SIDECAR_V5_FIELDS
@@ -375,6 +389,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 repair_actions=entry.repair_actions,
                 generation_failures=entry.generation_failures,
                 advisory_findings=entry.advisory_findings,
+                provenance=entry.provenance,
             )
         )
     return entries
@@ -403,7 +418,7 @@ def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "entries": [
             {
                 "date": entry.slug,
@@ -416,6 +431,9 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                 "advisory_findings": [
                     _finding_history_payload(finding) for finding in entry.advisory_findings
                 ],
+                "provenance": (
+                    provenance_payload(entry.provenance) if entry.provenance is not None else None
+                ),
                 "markdown": _strip_legacy_preview_banner(entry.markdown),
             }
             for entry in entries
@@ -1192,6 +1210,26 @@ def _render_advisory_panel(
     )
 
 
+def _count_label(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _provenance_line(provenance: Provenance) -> str:
+    """Compact per-run generation summary for the integrity report only.
+
+    Model identifiers and counts only — the same public-facing content the
+    provenance object carries, never prompt text, corpus text, or a URL. The
+    reader-facing page never calls this.
+    """
+    segments = [f"Generated by {provenance.model}"]
+    if provenance.attempt_count > 1:
+        segments.append(f"attempt {provenance.attempt_index} of {provenance.attempt_count}")
+    segments.append(_count_label(provenance.selection_corrections, "selection correction"))
+    segments.append(_count_label(provenance.prose_corrections, "prose correction"))
+    segments.append(_count_label(provenance.repair_action_count, "total repair action"))
+    return f'<p class="muted provenance">{html.escape(", ".join(segments))}.</p>'
+
+
 def _render_report(
     entry: BriefingEntry,
     entries: list[BriefingEntry],
@@ -1204,6 +1242,8 @@ def _render_report(
         f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
         f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
     ]
+    if entry.provenance is not None:
+        parts.append(_provenance_line(entry.provenance))
     if entry.slug in manifest_dates:
         parts.append(
             '<p class="audit-artifact"><a href="../manifests/'
