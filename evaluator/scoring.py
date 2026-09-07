@@ -372,14 +372,9 @@ def score_attempt(
     attempt: GenerationAttempt,
 ) -> ScoredAttempt:
     """Apply checker, benchmark oracle, and grounding axes to one attempt."""
-    if attempt.parity is not None:
-        text = attempt.parity.text
-        sections = attempt.parity.sections
-        findings = attempt.parity.findings
-    else:
-        text = attempt.generation.text
-        sections = eval_briefing.parse_briefing(text, config)
-        findings = eval_briefing.evaluate_parsed(corpus, text, sections, config)
+    text = attempt.parity.text
+    sections = attempt.parity.sections
+    findings = attempt.parity.findings
     oracle = _oracle(
         case, text, findings, sections, corpus=corpus, config=config
     )
@@ -403,9 +398,7 @@ def _attempt_record(
         **attempt.generation.record(),
         "contract_success": scored.contract_success,
         "findings": [finding._asdict() for finding in scored.findings],
-        "deterministic_repairs": (
-            attempt.parity.deterministic_repairs if attempt.parity is not None else []
-        ),
+        "deterministic_repairs": attempt.parity.deterministic_repairs,
         "oracle": scored.oracle,
         "generated_topics": scored.generated_topics,
         "grounding_error_topics": scored.grounding_error_topics,
@@ -443,11 +436,7 @@ def build_completed_result(
         "final": {
             "contract_success": final.contract_success,
             "findings": [finding._asdict() for finding in final.findings],
-            "deterministic_repairs": (
-                final_attempt.parity.deterministic_repairs
-                if final_attempt.parity is not None
-                else []
-            ),
+            "deterministic_repairs": final_attempt.parity.deterministic_repairs,
             "oracle": final.oracle,
             "generated_topics": final.generated_topics,
             "grounding_error_topics": final.grounding_error_topics,

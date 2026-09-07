@@ -162,22 +162,28 @@ def _read_member(archive: tarfile.TarFile, member: tarfile.TarInfo) -> bytes:
     return payload
 
 
-def _validate_corpus_payload(payload: bytes, day: str, label: str) -> None:
+def _validate_corpus_payload(payload: bytes, day: str, label: str) -> bool:
     try:
         corpus = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"private corpus is invalid JSON: {label}") from exc
     if not isinstance(corpus, dict):
         raise ValueError(f"private corpus is not a JSON object: {label}")
-    problems = corpus_schema.validate_corpus(corpus)
-    if problems:
-        raise ValueError(
-            f"private corpus violates its schema: {label}: " + "; ".join(problems)
-        )
-    if corpus.get("report_date") != day:
+    version = corpus_schema.corpus_version(corpus)
+    obsolete = version is not None and 1 <= version < corpus_schema.SCHEMA_VERSION
+    if not obsolete:
+        problems = corpus_schema.validate_corpus(corpus)
+        if problems:
+            raise ValueError(
+                f"private corpus violates its schema: {label}: " + "; ".join(problems)
+            )
+    if date.fromisoformat(day).isoformat() != day or corpus.get("report_date") != day:
         raise ValueError(
             f"private corpus report_date does not match its filename: {label}"
         )
+    if obsolete:
+        print(f"Skipping obsolete corpus schema v{version}: {label}")
+    return not obsolete
 
 
 def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path, ...]:
@@ -199,11 +205,11 @@ def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path
             total_bytes += len(payload)
             if total_bytes > MAX_RESTORED_BYTES:
                 raise ValueError("private corpus archive exceeds the restored-size limit")
-            _validate_corpus_payload(payload, day, member.name)
             seen.add(day)
-            restored.append((day, payload))
+            if _validate_corpus_payload(payload, day, member.name):
+                restored.append((day, payload))
 
-    if not restored:
+    if not seen:
         raise ValueError("private corpus archive contains no corpus files")
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = []
@@ -251,7 +257,9 @@ def prune_corpora(directory: Path, newest: date, keep_days: int = 14) -> tuple[P
         retained_bytes += len(payload)
         if retained_bytes > MAX_RESTORED_BYTES:
             raise ValueError("retained private corpora exceed the restored-size limit")
-        _validate_corpus_payload(payload, path.stem, path.name)
+        if not _validate_corpus_payload(payload, path.stem, path.name):
+            path.unlink()
+            removed.append(path)
     return tuple(removed)
 
 

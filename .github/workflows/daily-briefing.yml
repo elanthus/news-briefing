@@ -71,12 +71,6 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: python3 daily_publish.py generate-reports
 
-      - name: Bootstrap history from dogfood runs
-        id: bootstrap
-        if: always()
-        continue-on-error: true
-        run: python bootstrap_history.py briefing-bootstrap
-
       - name: Download prior live history
         if: always()
         continue-on-error: true
@@ -100,13 +94,9 @@ jobs:
       - name: Build static archive
         if: always()
         env:
-          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
           ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}
         run: |
           args=(briefing-history site)
-          if [[ "$BOOTSTRAP_OUTCOME" == "success" ]]; then
-            args+=(--bootstrap-dir briefing-bootstrap)
-          fi
           if [[ -f prior-history.json ]]; then
             args+=(--prior-history prior-history.json)
           elif [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then
@@ -115,8 +105,6 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             args+=(--replace-existing)
           fi
-          args+=(--exclude-date 2026-08-15)
-          args+=(--exclude-date 2026-08-16)
           args+=(--corpora-dir corpora)
           python build_site.py "${args[@]}"
 

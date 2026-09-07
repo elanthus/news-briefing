@@ -7,9 +7,9 @@ module defines the field names, types, limits, URL identity rules, and health
 telemetry those components share. The fetcher validates the complete value
 before writing it, so an incompatible producer change fails at its source.
 
-`SCHEMA_VERSION` is bumped when a change would break a reader. A versionless
-corpus is interpreted as generation 0. A generation above `SCHEMA_VERSION` is
-refused instead of guessed at.
+`SCHEMA_VERSION` is bumped when a change would break a reader.
+Only `SCHEMA_VERSION` is readable; missing, older, and newer declarations
+are refused instead of guessed at.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from typing import Any, TypedDict, TypeGuard
 # status a dead feed reports. Readers with the v6 status enum must refuse v7
 # rather than accept a status they do not recognize.
 SCHEMA_VERSION = 7
-LEGACY_SCHEMA_VERSION = 0  # assigned to versionless corpora
 
 ITEM_TITLE_MAX_BYTES = 512
 ITEM_TITLE_MAX_TOKENS = 128
@@ -121,29 +120,16 @@ def _has_declared_type(value: Any, expected: type | tuple[type, ...]) -> bool:
 
 
 def corpus_version(corpus: dict[str, Any]) -> int | None:
-    """Return the declared generation, or ``None`` for a malformed declaration.
-
-    Only an absent field denotes legacy generation 0. A present declaration must
-    be a positive JSON integer; callers must not interpret malformed values using
-    any generation's contract.
-    """
-    if "schema_version" not in corpus:
-        return LEGACY_SCHEMA_VERSION
-    version = corpus["schema_version"]
+    """Return a positive declared version, or None for a missing/malformed declaration."""
+    version = corpus.get("schema_version")
     if not _is_integer(version) or version < 1:
         return None
     return version
 
 
 def is_readable(corpus: dict[str, Any]) -> bool:
-    """Whether the declared schema generation is supported by this code.
-
-    Versionless corpora are generation 0. All generations through
-    `SCHEMA_VERSION` preserve the fields read here. A higher generation may
-    have changed them, so it is refused rather than interpreted speculatively.
-    """
-    version = corpus_version(corpus)
-    return version is not None and version <= SCHEMA_VERSION
+    """Accept only the current corpus contract."""
+    return corpus_version(corpus) == SCHEMA_VERSION
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -232,48 +218,17 @@ def validate_corpus(corpus: Any) -> list[str]:
     if not isinstance(corpus, dict):
         return ["corpus is not a JSON object"]
 
-    for field, expected in TOP_LEVEL_TYPES.items():
+    version = corpus_version(corpus)
+    if version != SCHEMA_VERSION:
+        return [f"schema_version must be {SCHEMA_VERSION}, got {corpus.get('schema_version')!r}"]
+    required_types = TOP_LEVEL_TYPES | V4_TOP_LEVEL_TYPES | V5_TOP_LEVEL_TYPES
+    for field, expected in required_types.items():
         if field not in corpus:
             problems.append(f"missing top-level field {field!r}")
         elif not _has_declared_type(corpus[field], expected):
             problems.append(
                 f"{field!r} should be {getattr(expected, '__name__', expected)}, "
                 f"got {type(corpus[field]).__name__}")
-
-    if "schema_version" in corpus:
-        declared_version = corpus["schema_version"]
-        if not _has_declared_type(declared_version, int):
-            problems.append(
-                f"'schema_version' should be int, got "
-                f"{type(declared_version).__name__}")
-        elif declared_version < 1:
-            problems.append(
-                f"'schema_version' should be a positive integer, got "
-                f"{declared_version}")
-
-    version = corpus_version(corpus)
-    if version is None:
-        return problems
-    if version >= 4:
-        for field, expected in V4_TOP_LEVEL_TYPES.items():
-            if field not in corpus:
-                problems.append(f"missing top-level field {field!r}")
-            elif not _has_declared_type(corpus[field], expected):
-                problems.append(f"{field!r} should be {expected.__name__}, "
-                                f"got {type(corpus[field]).__name__}")
-    if version >= 5:
-        for field, expected in V5_TOP_LEVEL_TYPES.items():
-            if field not in corpus:
-                problems.append(f"missing top-level field {field!r}")
-            elif not _has_declared_type(corpus[field], expected):
-                problems.append(f"{field!r} should be {expected.__name__}, "
-                                f"got {type(corpus[field]).__name__}")
-
-    if _is_integer(corpus.get("schema_version")):
-        if corpus["schema_version"] > SCHEMA_VERSION:
-            problems.append(
-                f"schema_version is {corpus['schema_version']}, "
-                f"this code understands through {SCHEMA_VERSION}")
 
     for field in ("generated_at", "cutoff"):
         if field in corpus and not _timestamp(corpus[field]):
@@ -322,19 +277,15 @@ def validate_corpus(corpus: Any) -> list[str]:
                 "categories contains invalid name(s): "
                 + ", ".join(sorted(repr(name) for name in invalid)))
         for name, items in categories.items():
-            problems += _validate_items(name, items, cutoff, generated_at, version)
+            problems += _validate_items(name, items, cutoff, generated_at)
 
     processing = corpus.get("processing")
     if isinstance(processing, dict) and isinstance(categories, dict):
-        problems += _validate_processing(processing, categories, version)
+        problems += _validate_processing(processing, categories)
 
     errors = corpus.get("errors")
     if isinstance(errors, list):
-        if version >= 4:
-            problems += _validate_errors(errors)
-        else:
-            problems += [f"errors[{i}] is not a string" for i, e in enumerate(errors)
-                         if not isinstance(e, str)]
+        problems += _validate_errors(errors)
 
     if "fetch_duration_ms" in corpus and (
             not _is_integer(corpus["fetch_duration_ms"])
@@ -343,20 +294,19 @@ def validate_corpus(corpus: Any) -> list[str]:
 
     sources = corpus.get("sources")
     if sources is not None:
-        problems += (_validate_sources(sources, version) if version >= 4
-                     else _validate_legacy_sources(sources))
-    if (version >= 4 and isinstance(sources, list) and isinstance(errors, list)
+        problems += _validate_sources(sources)
+    if (isinstance(sources, list) and isinstance(errors, list)
             and isinstance(categories, dict)):
         problems += _validate_health_consistency(
             sources, errors, set(categories), processing)
-    if version >= 5 and isinstance(corpus.get("context_budget"), dict):
+    if isinstance(corpus.get("context_budget"), dict):
         problems += _validate_context_budget(corpus["context_budget"], processing)
 
     return problems
 
 
 def _validate_items(category: str, items: Any, cutoff: datetime | None,
-                    generated_at: datetime | None, version: int) -> list[str]:
+                    generated_at: datetime | None) -> list[str]:
     problems: list[str] = []
     if not isinstance(items, list):
         return [f"categories[{category!r}] is not a list"]
@@ -394,28 +344,27 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
             value = item.get(field)
             if field in item and (not _is_integer(value) or value < 0):
                 problems.append(f"{where}.{field} should be a non-negative integer")
-        if version >= 5:
-            byte_limits = {
-                "title": ITEM_TITLE_MAX_BYTES,
-                "url": ITEM_URL_MAX_BYTES,
-                "summary": ITEM_SUMMARY_MAX_BYTES,
-                "source": ITEM_SOURCE_MAX_BYTES,
-                "discussion": ITEM_URL_MAX_BYTES,
-                "query": ITEM_QUERY_MAX_BYTES,
-            }
-            for field, byte_limit in byte_limits.items():
-                value = item.get(field)
-                if isinstance(value, str) and len(value.encode("utf-8")) > byte_limit:
-                    problems.append(
-                        f"{where}.{field} exceeds {byte_limit} UTF-8 bytes")
-            summary = item.get("summary")
-            if isinstance(summary, str) and len(summary) > ITEM_SUMMARY_MAX_CHARS:
+        byte_limits = {
+            "title": ITEM_TITLE_MAX_BYTES,
+            "url": ITEM_URL_MAX_BYTES,
+            "summary": ITEM_SUMMARY_MAX_BYTES,
+            "source": ITEM_SOURCE_MAX_BYTES,
+            "discussion": ITEM_URL_MAX_BYTES,
+            "query": ITEM_QUERY_MAX_BYTES,
+        }
+        for field, byte_limit in byte_limits.items():
+            value = item.get(field)
+            if isinstance(value, str) and len(value.encode("utf-8")) > byte_limit:
                 problems.append(
-                    f"{where}.summary exceeds {ITEM_SUMMARY_MAX_CHARS} characters")
+                    f"{where}.{field} exceeds {byte_limit} UTF-8 bytes")
+        summary = item.get("summary")
+        if isinstance(summary, str) and len(summary) > ITEM_SUMMARY_MAX_CHARS:
+            problems.append(
+                f"{where}.summary exceeds {ITEM_SUMMARY_MAX_CHARS} characters")
     return problems
 
 
-def _validate_sources(sources: Any, version: int) -> list[str]:
+def _validate_sources(sources: Any) -> list[str]:
     """Validate optional per-source fetch observability records."""
     if not isinstance(sources, list):
         return ["'sources' should be a list"]
@@ -430,11 +379,10 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
         "dated_entries": int,
         "retained_entries": int,
         "duration_ms": int,
+        "retained_bytes": int,
+        "estimated_tokens": int,
     }
     allowed = set(required) | {"error_type", "message"}
-    if version >= 5:
-        required.update({"retained_bytes": int, "estimated_tokens": int})
-        allowed = set(required) | {"error_type", "message"}
     problems: list[str] = []
     for index, status in enumerate(sources):
         where = f"sources[{index}]"
@@ -454,7 +402,7 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
             problems.append(f"{where}.source_type is not recognized")
         if not isinstance(status.get("source_id"), str) or not status.get("source_id", "").strip():
             problems.append(f"{where}.source_id should be a non-empty string")
-        allowed_statuses = {"ok", "empty", "error"} | ({"quiet"} if version >= 7 else set())
+        allowed_statuses = {"ok", "empty", "error", "quiet"}
         if status.get("status") not in allowed_statuses:
             problems.append(
                 f"{where}.status should be one of {sorted(allowed_statuses)}")
@@ -465,7 +413,7 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
         for field, limit in (("retained_bytes", SOURCE_CONTEXT_MAX_BYTES),
                              ("estimated_tokens", SOURCE_CONTEXT_MAX_TOKENS)):
             value = status.get(field)
-            if version >= 5 and (not _is_integer(value) or value < 0 or value > limit):
+            if (not _is_integer(value) or value < 0 or value > limit):
                 problems.append(f"{where}.{field} should be between 0 and {limit}")
         parsed = status.get("parsed_entries")
         dated = status.get("dated_entries")
@@ -481,37 +429,6 @@ def _validate_sources(sources: Any, version: int) -> list[str]:
                 problems.append(f"{where}.message should describe the failure")
         elif has_error:
             problems.append(f"{where} error fields are only valid for non-ok sources")
-    return problems
-
-
-def _validate_legacy_sources(sources: Any) -> list[str]:
-    """Validate the pre-v4 source-health shape used by readable v0–v3 corpora."""
-    if not isinstance(sources, list):
-        return ["'sources' should be a list"]
-    required = {
-        "source": str,
-        "category": str,
-        "status": str,
-        "item_count": int,
-        "undated_dropped": int,
-        "duration_ms": int,
-    }
-    allowed = set(required) | {"error"}
-    problems: list[str] = []
-    for index, status in enumerate(sources):
-        where = f"sources[{index}]"
-        if not isinstance(status, dict):
-            problems.append(f"{where} is not an object")
-            continue
-        if missing := set(required) - set(status):
-            problems.append(f"{where} is missing {sorted(missing)}")
-        if unknown := set(status) - allowed:
-            problems.append(f"{where} has unknown field(s) {sorted(unknown)}")
-        for field, expected in required.items():
-            if field in status and not _has_declared_type(status[field], expected):
-                problems.append(f"{where}.{field} has the wrong type")
-        if status.get("status") not in {"ok", "error"}:
-            problems.append(f"{where}.status should be 'ok' or 'error'")
     return problems
 
 
@@ -770,7 +687,7 @@ def _validate_context_budget(context: dict[str, Any], processing: Any) -> list[s
 
 
 def _validate_processing(processing: dict[str, Any],
-                         categories: dict[str, Any], version: int) -> list[str]:
+                         categories: dict[str, Any]) -> list[str]:
     problems: list[str] = []
     if set(processing) != set(categories):
         problems.append("processing should have one entry per category")
@@ -778,7 +695,7 @@ def _validate_processing(processing: dict[str, Any],
         if not isinstance(stats, dict):
             problems.append(f"processing[{name!r}] is not an object")
             continue
-        fields = PROCESSING_FIELDS + (V5_PROCESSING_FIELDS if version >= 5 else ())
+        fields = PROCESSING_FIELDS + V5_PROCESSING_FIELDS
         missing = [f for f in fields if f not in stats]
         if missing:
             problems.append(f"processing[{name!r}] is missing {missing}")
@@ -795,7 +712,7 @@ def _validate_processing(processing: dict[str, Any],
                      + stats["duplicates_dropped"] + stats["source_cap_dropped"]
                      + stats["category_cap_dropped"]
                      + (stats["field_budget_dropped"] + stats["source_budget_dropped"]
-                        + stats["global_budget_dropped"] if version >= 5 else 0))
+                        + stats["global_budget_dropped"]))
         if accounted != stats["fetched"]:
             problems.append(
                 f"processing[{name!r}] does not reconcile: kept plus drops is "

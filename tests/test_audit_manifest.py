@@ -83,7 +83,7 @@ class AuditManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "corpus violates its schema"):
             build_audit_manifest(corpus, b"{}")
 
-    def test_versionless_generation_zero_corpus_is_manifested(self) -> None:
+    def test_versionless_corpus_is_rejected(self) -> None:
         corpus = {
             "generated_at": "2026-08-08T12:00:00+00:00",
             "cutoff": "2026-08-07T12:00:00+00:00",
@@ -123,13 +123,9 @@ class AuditManifestTests(unittest.TestCase):
                 }
             ],
         }
-        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
-
-        manifest = build_audit_manifest(corpus, json.dumps(corpus).encode("utf-8"))
-
-        self.assertEqual(manifest["corpus_schema_version"], 0)
-        self.assertEqual(manifest["items"][0]["item_id"], "item_0001")
-        self.assertNotIn("schema_version", corpus)
+        self.assertTrue(corpus_schema.validate_corpus(corpus))
+        with self.assertRaisesRegex(ValueError, "schema_version"):
+            build_audit_manifest(corpus, json.dumps(corpus).encode("utf-8"))
 
 
 if __name__ == "__main__":

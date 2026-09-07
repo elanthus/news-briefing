@@ -1,0 +1,117 @@
+{
+  "schema_version": 7,
+  "generated_at": "2026-08-11T12:00:00+00:00",
+  "cutoff": "2026-08-10T12:00:00+00:00",
+  "window_hours": 24,
+  "limits": {
+    "source_cap": 25,
+    "category_cap": 60
+  },
+  "categories": {
+    "dev_community": [
+      {
+        "title": "Tool one reaches version 2",
+        "url": "https://example.test/tool-one",
+        "published": "2026-08-11T10:00:00+00:00",
+        "summary": "Tool one released version 2 with safer local execution.",
+        "source": "Hacker News",
+        "discussion": "https://news.ycombinator.com/item?id=101",
+        "points": 45,
+        "comments": 12
+      },
+      {
+        "title": "Tool two adds review mode",
+        "url": "https://publisher.test/story?id=2&output=1",
+        "published": "2026-08-11T10:00:00+00:00",
+        "summary": "Tool two added a review mode for proposed patches.",
+        "source": "Test Wire"
+      },
+      {
+        "title": "Tool three updates its extension",
+        "url": "https://example.test/tool-three",
+        "published": "2026-08-11T10:00:00+00:00",
+        "summary": "Tool three updated its editor extension.",
+        "source": "Test Wire"
+      },
+      {
+        "title": "One in two users enabled the feature",
+        "url": "https://example.test/half-users",
+        "published": "2026-08-11T10:00:00+00:00",
+        "summary": "One in two users enabled the optional feature.",
+        "source": "Test Wire"
+      }
+    ],
+    "other_news": [
+      {
+        "title": "Unrelated market story",
+        "url": "https://example.test/market",
+        "published": "2026-08-11T10:00:00+00:00",
+        "summary": "A market story unrelated to developer tools.",
+        "source": "Test Wire"
+      }
+    ]
+  },
+  "processing": {
+    "dev_community": {
+      "fetched": 4,
+      "undated_dropped": 0,
+      "relevance_dropped": 0,
+      "duplicates_dropped": 0,
+      "source_cap_dropped": 0,
+      "category_cap_dropped": 0,
+      "kept": 4,
+      "field_budget_dropped": 0,
+      "source_budget_dropped": 0,
+      "global_budget_dropped": 0,
+      "title_truncated": 0,
+      "summary_truncated": 0,
+      "context_bytes": 907,
+      "estimated_tokens": 228
+    },
+    "other_news": {
+      "fetched": 1,
+      "undated_dropped": 0,
+      "relevance_dropped": 0,
+      "duplicates_dropped": 0,
+      "source_cap_dropped": 0,
+      "category_cap_dropped": 0,
+      "kept": 1,
+      "field_budget_dropped": 0,
+      "source_budget_dropped": 0,
+      "global_budget_dropped": 0,
+      "title_truncated": 0,
+      "summary_truncated": 0,
+      "context_bytes": 188,
+      "estimated_tokens": 47
+    }
+  },
+  "errors": [],
+  "sources": [],
+  "fetch_duration_ms": 0,
+  "context_budget": {
+    "field_limits": {
+      "title_bytes": 512,
+      "title_tokens": 128,
+      "url_bytes": 2048,
+      "url_tokens": 512,
+      "summary_chars": 400,
+      "summary_bytes": 1600,
+      "summary_tokens": 400,
+      "source_bytes": 256,
+      "source_tokens": 64,
+      "query_bytes": 256,
+      "query_tokens": 64
+    },
+    "source_max_bytes": 98304,
+    "source_max_tokens": 24000,
+    "global_max_bytes": 524288,
+    "global_max_tokens": 128000,
+    "used_bytes": 1095,
+    "estimated_tokens": 275,
+    "title_truncated": 0,
+    "summary_truncated": 0,
+    "field_budget_dropped": 0,
+    "source_budget_dropped": 0,
+    "global_budget_dropped": 0
+  }
+}

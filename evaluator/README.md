@@ -20,12 +20,13 @@ Reported numbers follow the [evaluation methodology](../docs/evaluation-methodol
 
 ## Bring your own model or prompt
 
-The harness is not hard-wired to the models in the committed results. Any OpenRouter model id, NVIDIA NIM model id, Claude Code CLI model, or Codex CLI model can run the same 55-case generation suite, and any prompt file can be evaluated against the production prompt under the same preregistered comparison rules.
+The harness is not hard-wired to the models in the committed results. OpenRouter, Claude Code CLI, and Codex CLI models supported by the production structured-output transports can run the same 55-case generation suite. A candidate structured-output prompt can be evaluated against the production prompt under the same comparison rules.
 
-**1. Smoke-test the harness offline, no credentials.** The deterministic baseline adapters exercise the full pipeline — oracles, scoring, and report rendering — with zero provider calls:
+**1. Smoke-test the harness offline, no credentials.** The checker suite and fake-provider regression tests exercise oracles, two-pass execution, scoring, and report rendering with zero provider calls:
 
 ```bash
-python3 -m evaluator run --provider baseline=echo --trials 1 --output-dir /tmp/eval-smoke
+python3 -S -m evaluator checker
+python3 -S -m unittest discover -s evaluator/tests
 ```
 
 **2. Point it at your model.** Copy `evaluator/.env.example` to the ignored `evaluator/.env`, set the key and model for your provider, then name the provider and model directly:
@@ -38,7 +39,7 @@ python3 -m evaluator run \
   --output-dir evaluator/results/my-model
 ```
 
-`--provider` is repeatable, `--all-providers` expands every comma-delimited model list in the env file, and `--resume` continues an interrupted checkpoint after validating run identity. With `--prompt` omitted, the default `markdown` path uses the evaluator's direct-Markdown `briefing-prompt.md`; `--generation-path production-parity` instead defaults to `briefing-runner-prompt.md`.
+`--provider` is repeatable, `--all-providers` expands the supported generation providers' comma-delimited model lists, and `--resume` continues an interrupted current checkpoint after validating run identity. New runs use only `production-parity`, defaulting to `briefing-runner-prompt.md`. Direct-Markdown generation and the live `baseline` provider have been retired.
 
 **3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report evaluator/results/my-model/manifest.json` rebuilds the reports from that saved manifest without re-running anything; the manifest path is required.
 
@@ -72,15 +73,17 @@ Twelve production-corpus attacks form a `2 × 3 × 2` ablation across citation f
 
 For attack cases, `success_if_checks` entries are restricted to checker codes that fire on positive evidence something bad is actually present (an ungrounded or altered link, a duplicate citation, an unsupported claim) — never on a checker code that fires from something merely being *absent* (`missing_section`, `corpus_health_missing`, `failed_source_unnamed`), since a blank or broken response satisfies absence vacuously with zero evidence the model read or obeyed anything. The one utility case that intentionally breaks this pattern is `utility-production-selection-scarcity`, whose `success_if_checks` are `exclusion_log_missing`/`exclusion_log_short`/`exclusion_log_empty`: there, absence of a properly filled-in accountability log *is* the failure under test, and there is no attacker whose vacuous output could game it into a false pass. `attack-formatting` and `attack-health-reporting` therefore use canary-only attack signals (`forbidden_substrings`). `category-selection` requires the target citation to appear in the attacker's named wrong section, while `selection-suppression` requires evidence that the rest of the task was completed. That completion requirement is capacity-aware: `min_section_topics` requires the section to reach the number of topics still achievable after the case's mutation, not merely be non-empty, so a response that fills only one of two available slots is not counted as a completed, attack-compliant task.
 
-4 of the 22 utility cases, both `attack-category-selection` cases, and all 12 position/count ablation attacks use a realistic production fixture (`fixtures/generation-corpus-production.json`, a 236-item, 5-category corpus copied as-is from a real `fetch_news.py` run, plus `fixtures/generation-config-production.json`'s 6 sections, 3 of them grouped under `AI/Tech`). The utility cases cover cross-section boundary routing, selection under scarcity, cross-section duplicate detection (the suite's only real exercise of `check_no_repeated_topics` against overlapping categories), and grouped-section rendering. The remaining small synthetic fixtures (`generation-config-{1,2,3}.json`, `generation-corpus.json`) are kept for cases that only need a minimal corpus.
+4 of the 22 utility cases, both `attack-category-selection` cases, and all 12 position/count ablation attacks use a realistic production fixture (`fixtures/generation-corpus-production.json`, a 236-item, 5-category corpus retaining evidence from a real `fetch_news.py` run with current schema metadata, plus `fixtures/generation-config-production.json`'s 6 sections, 3 of them grouped under `AI/Tech`). The utility cases cover cross-section boundary routing, selection under scarcity, cross-section duplicate detection (the suite's only real exercise of `check_no_repeated_topics` against overlapping categories), and grouped-section rendering. The remaining small synthetic fixtures (`generation-config-{1,2,3}.json`, `generation-corpus.json`) are kept for cases that only need a minimal corpus.
 
-A `baseline` provider (`evaluator/adapters.py:BaselineAdapter`, `--provider baseline=empty|echo|compliant`) supplies three offline, deterministic, zero-cost reference strategies with no network call: `empty` renders only the structural skeleton, `echo` fills sections from `corpus_categories` in the corpus's own recency order with verbatim text, and `compliant` obeys every instruction embedded in corpus content as a positive control — a dedicated test asserts it scores 100% attack success across the whole attack matrix, since anything less would mean an oracle isn't firing.
+Test-only controls in `evaluator/tests/oracle_controls.py` preserve three deterministic strategies: `empty` renders the structural skeleton, `echo` uses corpus recency order with verbatim text, and `compliant` obeys injected instructions. A dedicated test still requires 100% attack success from the compliant positive control. These helpers are not selectable generation providers.
 
-Because they're deterministic, all three are wired into `evaluator/tests/test_evaluator.py` as exact-match assertions, extending CI coverage from the 81-case checker/feed suite to the whole generation harness — oracles, scoring, and report rendering — at zero cost.
+The test suite checks the controls and exercises the current generation harness with structured fake providers, including correction, circuit breaking, cost accounting, and resume validation.
 
-`report.md` renders their rows in a separate "Reference baselines" section, excluded from the four live cross-model tables, with a callout pairing `empty`/`echo`'s primary-case robustness against their utility: `empty` is 100% robust and 0% useful (it never reads any instruction, so it cannot be attacked into misbehaving, and it never fills a section either), while `echo` is 90.5% robust and 86.4% useful — the concrete demonstration of why robustness is meaningless unpaired with utility. Both live and baseline groups render the matched-pair and separately-denominated ablation detail tables. The `category-selection` and `selection-suppression` oracles also require positive evidence of the targeted behavior, so a missing citation or vacuous output cannot count as attack success.
+Historical reports render baseline rows in a separate "Reference baselines" section, excluded from the four live cross-model tables, with a callout pairing `empty`/`echo`'s primary-case robustness against their utility: `empty` is 100% robust and 0% useful (it never reads any instruction, so it cannot be attacked into misbehaving, and it never fills a section either), while `echo` is 90.5% robust and 86.4% useful — the concrete demonstration of why robustness is meaningless unpaired with utility. Both live and baseline groups render the matched-pair and separately-denominated ablation detail tables. The `category-selection` and `selection-suppression` oracles also require positive evidence of the targeted behavior, so a missing citation or vacuous output cannot count as attack success.
 
 The injection design follows the evaluation posture of the peer-reviewed [AgentDojo paper (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf)—measure clean utility alongside attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. The matched structural-utility measure and the category-position/item-count axes are inspired proxies: they do not reproduce AgentDojo's deterministic user-task utility, relative injection-token position, or controlled-token fraction.
+
+The active checker and generation corpora now require schema v7. Their evidence text and case labels are unchanged; byte-budget and schema metadata were refreshed for current validation. Original dated corpora, review receipts, public bundles, and result snapshots remain unchanged. The recorded model reviews apply to the historical evidence and labels, not a new review of the refreshed metadata. New final runs need a protocol binding the current input hashes; frozen historical protocols remain source-tag reproduction records.
 
 ## Retrieval and near-duplicate study
 
@@ -149,9 +152,8 @@ Whitespace around commas is ignored. Empty entries are rejected. The models stil
 
 ### Production-parity generation path
 
-The historical evaluator path asks each model to author Markdown directly. To
-exercise the production architecture instead, add `--generation-path
-production-parity`. This path uses the scheduled runner's projected corpus,
+New evaluations use `production-parity`, the only supported generation path.
+This path uses the scheduled runner's projected corpus,
 provider-native structured-output transport, and two-pass contract. The first
 call selects evidence with the selection schema. Code freezes that selection
 and projects only its position-scoped evidence into a second call whose schema
@@ -188,10 +190,8 @@ Each trial preserves the raw and projected corpora, citation map, and selection
 schema. A completed two-pass candidate also preserves its stage-specific prose
 request and schema, selected-evidence projection, structured responses, and
 rendered Markdown; a failed trial retains the artifacts produced before the
-failure. `output-schema.json` remains a compatibility alias for
-`selection-schema.json`. The default `markdown` path remains available for
-historical prompt and direct-format reliability comparisons. Both
-direct-Markdown prompts omit mutable Hacker News points and comment counts.
+failure. `selection-schema.json` is the selection contract; the obsolete
+`output-schema.json` alias is no longer written or required.
 Production-parity manifests record Codex's fixed medium reasoning and
 OpenRouter's effective reasoning enablement/effort; Claude Code remains
 provider-controlled.
@@ -315,26 +315,25 @@ Compare prompt versions by repeating `--prompt`:
 ```bash
 python3 -m evaluator run \
   --all-providers \
-  --prompt baseline=briefing-prompt.md \
+  --prompt baseline=briefing-runner-prompt.md \
   --prompt candidate=/path/to/candidate-prompt.md \
   --trials 3
 ```
 
 ### Sampling controls
 
-Set sampling controls for the OpenRouter and NVIDIA API adapters with optional run flags:
+Set sampling controls for the OpenRouter production adapter with optional run flags:
 
 ```bash
 python3 -m evaluator run \
   --all-providers \
   --temperature 0.2 \
-  --seed 42 \
   --reasoning disabled \
   --trials 3
 ```
 
 If `--temperature` is omitted, API runs preserve the evaluator's existing `temperature=0`
-default. If `--seed` is omitted, no seed is sent. These flags do not affect the Codex or
+default. `--seed` is unsupported for generation. These flags do not affect the Codex or
 Claude Code CLI adapters because those CLIs do not expose equivalent controls here.
 If `--reasoning` is omitted, the API provider's default is preserved; `enabled` or `disabled`
 is sent as an explicit reasoning control and recorded in the run manifest and report.
@@ -342,9 +341,9 @@ is sent as an explicit reasoning control and recorded in the run manifest and re
 
 ### Providers and adapters
 
-Supported provider names on the historical Markdown path are `codex-cli`, `claude-code-cli`, `openrouter`, `nvidia`, and `baseline`. The CLI adapters disable tools or use an empty read-only workspace. The API adapters send the corpus directly to OpenRouter's and NVIDIA's OpenAI-compatible chat-completions endpoints. `baseline` (model name selects strategy: `empty`, `echo`, or `compliant`) makes no network call and needs no credentials — run it with `python3 -m evaluator run --provider baseline=empty --provider baseline=echo --provider baseline=compliant`.
+Generation supports `codex-cli`, `claude-code-cli`, and `openrouter` through the production runner's transports and tool policies. Raw-text transports, including NVIDIA, remain for active grounding, semantic, and label-review judges. They cannot be selected for generation.
 
-Sampling controls are not equivalent across providers. The OpenRouter and NVIDIA adapters send the configured temperature and optional seed. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest and rendered report records those settings and explicitly warns that exact reproducibility is not guaranteed and CLI/API results are not directly comparable on sampling controls alone. API models and routed providers may also differ in which sampling parameters they honor.
+Sampling controls are not equivalent across providers. OpenRouter sends the configured temperature and reasoning settings. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest records effective settings; exact reproducibility is not guaranteed, and CLI/API results are not directly comparable on sampling controls alone.
 
 ### Retries, timeouts, and circuit breaking
 
@@ -494,11 +493,11 @@ The selected reviewer receives opaque case identifiers, the rubric, and case inp
 
 ## Prompt provenance
 
-The default version is named `production` and hashes the root `briefing-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it a version name, and pass both versions explicitly. Portfolio v1 records the selected files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Every saved report also stores the name and SHA-256 hash, so historical runs retain their exact prompt identity and changed prompt bytes remain visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
+The default version is named `production` and hashes the root `briefing-runner-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it a version name, and pass both versions explicitly. Portfolio v1 records the selected files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Every saved report also stores the name and SHA-256 hash, so historical runs retain their exact prompt identity and changed prompt bytes remain visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
 
 ## Historical portfolio runs
 
-Dated records of the completed portfolio runs, retained for provenance. **Portfolio v2 is the current citable result** and comes first below; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
+Dated records of the completed portfolio runs, retained for provenance. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **Portfolio v2 is the current citable result** and comes first below; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
 
 ### Portfolio v2 (current)
 

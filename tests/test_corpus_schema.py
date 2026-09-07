@@ -25,7 +25,6 @@ from corpus_schema import (
     ITEM_TITLE_MAX_TOKENS,
     ITEM_URL_MAX_BYTES,
     ITEM_URL_MAX_TOKENS,
-    LEGACY_SCHEMA_VERSION,
     QUIET_SOURCE_DEGRADED_THRESHOLD,
     SCHEMA_VERSION,
     SOURCE_CONTEXT_MAX_BYTES,
@@ -304,22 +303,6 @@ class IntegerBooleanTest(unittest.TestCase):
                         validate_corpus(changed), f"context_budget.field_limits.{field}"
                     ))
 
-    def test_legacy_source_counters_reject_booleans(self):
-        legacy_source = {
-            "source": "NPR Politics", "category": "us_politics", "status": "ok",
-            "item_count": 1, "undated_dropped": 0, "duration_ms": 4,
-        }
-        for value in (True, False):
-            for field in ("item_count", "undated_dropped", "duration_ms"):
-                with self.subTest(field=field, value=value):
-                    c = corpus()
-                    del c["schema_version"]
-                    changed = dict(legacy_source, **{field: value})
-                    c["sources"] = [changed]
-                    self.assertTrue(only(
-                        validate_corpus(c), f"sources[0].{field}"
-                    ))
-
 
 class CategoryTest(unittest.TestCase):
     def test_arbitrary_valid_category_is_allowed(self):
@@ -458,32 +441,13 @@ class ProcessingTest(unittest.TestCase):
 
 
 class VersionTest(unittest.TestCase):
-    def test_absent_version_is_treated_as_legacy(self):
+    def test_absent_version_is_rejected(self):
         c = corpus()
         del c["schema_version"]
-        self.assertEqual(corpus_version(c), LEGACY_SCHEMA_VERSION)
+        self.assertIsNone(corpus_version(c))
+        self.assertFalse(is_readable(c))
+        self.assertTrue(only(validate_corpus(c), "schema_version"))
 
-    def test_versionless_legacy_corpus_validates(self):
-        legacy = {
-            "generated_at": "2026-08-08T12:00:00+00:00",
-            "cutoff": "2026-08-07T12:00:00+00:00",
-            "window_hours": 24,
-            "limits": {"source_cap": 25, "category_cap": 60},
-            "categories": {"us_politics": [item()]},
-            "processing": {"us_politics": {
-                "fetched": 1, "undated_dropped": 0, "relevance_dropped": 0,
-                "duplicates_dropped": 0, "source_cap_dropped": 0,
-                "category_cap_dropped": 0, "kept": 1,
-            }},
-            "errors": [],
-            "sources": [{
-                "source": "NPR Politics", "category": "us_politics", "status": "ok",
-                "item_count": 1, "undated_dropped": 0, "duration_ms": 4,
-            }],
-        }
-
-        self.assertTrue(is_readable(legacy))
-        self.assertEqual(validate_corpus(legacy), [])
 
     def test_present_malformed_version_is_neither_legacy_nor_readable(self):
         for value in ("1", True, False, None, 1.5, 0, -1):
@@ -503,11 +467,14 @@ class VersionTest(unittest.TestCase):
                 self.assertEqual(problems, only(problems, "schema_version"))
                 self.assertEqual(len(problems), 1)
 
-    def test_legacy_and_current_corpora_are_readable(self):
-        legacy = corpus()
-        del legacy["schema_version"]
-        self.assertTrue(is_readable(legacy))
+
+    def test_only_current_version_is_readable(self):
         self.assertTrue(is_readable(corpus()))
+        for version in range(1, SCHEMA_VERSION):
+            with self.subTest(version=version):
+                candidate = corpus(schema_version=version)
+                self.assertFalse(is_readable(candidate))
+                self.assertTrue(only(validate_corpus(candidate), "schema_version"))
 
     def test_a_newer_corpus_is_refused_rather_than_guessed_at(self):
         self.assertFalse(is_readable(corpus(schema_version=SCHEMA_VERSION + 1)))
@@ -541,7 +508,7 @@ class QuietSourceTest(unittest.TestCase):
 
     def test_quiet_status_is_rejected_before_schema_v7(self):
         c = corpus(sources=[quiet_source()], schema_version=6)
-        self.assertTrue(only(validate_corpus(c), "status should be one of"))
+        self.assertTrue(only(validate_corpus(c), "schema_version"))
 
     def test_quiet_source_requires_http_success(self):
         c = corpus(sources=[quiet_source(http_success=False)])

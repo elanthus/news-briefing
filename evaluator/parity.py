@@ -30,7 +30,6 @@ from agent_runner.runner import deterministic_repair_candidate
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.checkpoint import _write_json_atomic, _write_text_atomic
-from evaluator.plan import correction_request
 
 
 def _evaluate_structured_generation(
@@ -101,10 +100,10 @@ class _ProductionParityProviderError(RuntimeError):
 
 @dataclass(frozen=True)
 class GenerationAttempt:
-    """A provider generation and optional production-parity evaluation."""
+    """A provider generation and its production-parity evaluation."""
 
     generation: Generation
-    parity: _ProductionParityAttempt | None
+    parity: _ProductionParityAttempt
 
 
 def _output_findings(findings: list[Any]) -> list[eval_briefing.Finding]:
@@ -546,9 +545,7 @@ def run_first_attempt(
     projected: ModelCorpus | None,
     trace_id: str,
 ) -> GenerationAttempt:
-    """Run the first provider attempt for either supported generation path."""
-    if generation_path == "markdown":
-        return GenerationAttempt(adapter.generate(request), None)
+    """Run the first provider attempt through the production contract."""
     if projected is None or selection_schema is None:
         raise AssertionError(
             "production-parity projection and selection schema were not built"
@@ -582,13 +579,8 @@ def run_correction_attempt(
     projected: ModelCorpus | None,
     trace_id: str,
 ) -> GenerationAttempt:
-    """Run a checker-driven correction for either generation path."""
-    if generation_path == "markdown":
-        generation = adapter.generate(
-            correction_request(request, prior.generation.text, findings)
-        )
-        return GenerationAttempt(generation, None)
-    if prior.parity is None or projected is None or selection_schema is None:
+    """Run a checker-driven correction through the production contract."""
+    if projected is None or selection_schema is None:
         raise AssertionError(
             "production-parity projection and selection schema were not built"
         )

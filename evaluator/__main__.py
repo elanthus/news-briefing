@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
-from evaluator.adapters import adapter_for, load_dotenv, production_adapter_for
+from evaluator.adapters import Adapter, adapter_for, load_dotenv, production_adapter_for
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
@@ -93,24 +93,16 @@ def _models_from_env(name: str, default: str) -> list[str]:
     return models
 
 
-def _provider_values(
-    values: list[str], all_providers: bool, generation_path: str = "markdown"
-) -> list[tuple[str, str]]:
+def _provider_values(values: list[str], all_providers: bool) -> list[tuple[str, str]]:
     env_models = {
         "codex-cli": ("CODEX_MODEL", "gpt-5.6-terra"),
         "claude-code-cli": ("CLAUDE_CODE_MODEL", "claude-sonnet-5"),
         "openrouter": ("OPENROUTER_MODEL", "openai/gpt-5.6-terra"),
-        "nvidia": ("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b"),
     }
     if all_providers:
-        selected = (
-            {key: value for key, value in env_models.items() if key != "nvidia"}
-            if generation_path == "production-parity"
-            else env_models
-        )
         return [
             (provider, model)
-            for provider, (name, default) in selected.items()
+            for provider, (name, default) in env_models.items()
             for model in _models_from_env(name, default)
         ]
     parsed = []
@@ -126,13 +118,9 @@ def _provider_values(
     return parsed
 
 
-def _prompt_values(values: list[str], generation_path: str = "markdown") -> dict[str, Path]:
+def _prompt_values(values: list[str]) -> dict[str, Path]:
     if not values:
-        default = (
-            ROOT / "briefing-runner-prompt.md"
-            if generation_path == "production-parity"
-            else ROOT / "briefing-prompt.md"
-        )
+        default = ROOT / "briefing-runner-prompt.md"
         return {"production": default}
     prompts = {}
     for value in values:
@@ -150,7 +138,6 @@ def _preflight(providers: list[tuple[str, str]]) -> None:
         "claude-code-cli": ("command", "claude"),
         "openrouter": ("environment variable", "OPENROUTER_API_KEY"),
         "nvidia": ("environment variable", "NVIDIA_API_KEY"),
-        "baseline": ("none", ""),
     }
     for provider, _model in providers:
         kind, value = requirements.get(provider, ("unknown provider", provider))
@@ -324,10 +311,9 @@ def main() -> int:
     )
     run.add_argument(
         "--generation-path",
-        choices=("markdown", "production-parity"),
-        default="markdown",
+        choices=("production-parity",),
+        default="production-parity",
         help=(
-            "markdown asks the model for the historical direct-Markdown contract; "
             "production-parity uses the real two-pass selection/prose transport, "
             "corpus projections, validators, and renderer"
         ),
@@ -661,15 +647,11 @@ def main() -> int:
             )
             load_dotenv(args.env_file)
             providers = _provider_values(
-                args.provider, args.all_providers, args.generation_path
+                args.provider, args.all_providers
             )
             _preflight(providers)
-            adapter_factory = (
-                production_adapter_for
-                if args.generation_path == "production-parity"
-                else adapter_for
-            )
-            adapters = [
+            adapter_factory = production_adapter_for
+            adapters: list[Adapter] = [
                 adapter_factory(
                     provider,
                     model,
@@ -683,7 +665,7 @@ def main() -> int:
                 )
                 for provider, model in providers
             ]
-            prompts = _prompt_values(args.prompt, args.generation_path)
+            prompts = _prompt_values(args.prompt)
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             output_dir = args.output_dir or EVALUATOR_DIR / "results" / stamp
             progress = ProgressBar()

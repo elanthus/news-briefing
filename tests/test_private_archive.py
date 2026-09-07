@@ -104,6 +104,53 @@ class PrivateArchiveTests(unittest.TestCase):
         ):
             restore_corpora_from_bytes(payload.getvalue(), Path(directory))
 
+    @staticmethod
+    def _tar_members(rows: list[tuple[str, bytes]]) -> bytes:
+        payload = io.BytesIO()
+        with tarfile.open(fileobj=payload, mode="w:gz") as archive:
+            for name, content in rows:
+                info = tarfile.TarInfo(name)
+                info.size = len(content)
+                archive.addfile(info, io.BytesIO(content))
+        return payload.getvalue()
+
+    def test_restore_skips_obsolete_dates_but_preserves_current_bytes(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        current = self._corpus_bytes("2026-08-20")
+        payload = self._tar_members([
+            ("corpora/2026-08-19.json", old), ("corpora/2026-08-20.json", current),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = restore_corpora_from_bytes(payload, root)
+            self.assertEqual([path.name for path in paths], ["2026-08-20.json"])
+            self.assertEqual(paths[0].read_bytes(), current)
+            self.assertFalse((root / "2026-08-19.json").exists())
+
+    def test_all_obsolete_archive_restores_an_empty_window(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        payload = self._tar_members([("corpora/2026-08-19.json", old)])
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(restore_corpora_from_bytes(payload, Path(directory)), ())
+
+    def test_obsolete_members_still_require_unique_matching_dates(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        for rows in ([('corpora/2026-08-20.json', old)],
+                     [('corpora/2026-08-19.json', old)] * 2):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(ValueError):
+                    restore_corpora_from_bytes(self._tar_members(rows), Path(directory))
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_invalid_or_future_versions_are_not_skipped(self) -> None:
+        for version in (None, True, 0, -1, 8):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                content = json.dumps({"schema_version": version, "report_date": "2026-08-19"}).encode()
+                with self.assertRaisesRegex(ValueError, "violates its schema"):
+                    restore_corpora_from_bytes(
+                        self._tar_members([("corpora/2026-08-19.json", content)]), Path(directory)
+                    )
+
     def test_prune_keeps_only_fourteen_days_ending_at_anchor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             corpora = Path(directory)

@@ -15,7 +15,7 @@ so triage never changes the evidence it is inspecting.
 
 The classifier checks fetch completion, provider error records, provider length signals and
 invalid raw JSON, exhausted correction budgets, blocking checker findings, degraded source
-coverage, and exhausted fallback chains. A completed ready or historical `WARN` run receives
+coverage, and exhausted fallback chains. A completed `ready` run receives
 `no_failure_detected`. One run can receive several classes. Every class cites a manifest key,
 artifact key, or trace line, and blocking checker failures receive a stable short fingerprint
 after destinations and opaque citation handles are removed.

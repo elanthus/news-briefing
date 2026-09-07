@@ -142,10 +142,7 @@ def run_semantic_judging(
                 continue
 
             raw_topics = item.get("topics")
-            if raw_topics is None:
-                legacy_topic = item.get("topic")
-                topics = [legacy_topic] if isinstance(legacy_topic, dict) else []
-            elif isinstance(raw_topics, list) and all(
+            if isinstance(raw_topics, list) and all(
                 isinstance(topic, dict) for topic in raw_topics
             ):
                 topics = raw_topics

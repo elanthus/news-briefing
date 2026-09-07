@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -20,7 +19,6 @@ from pathlib import Path
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
-PUBLIC_ROOT = "https://elanthus.github.io/news-briefing"
 NEW_YORK = ZoneInfo("America/New_York")
 
 
@@ -96,43 +94,6 @@ def capture_window(
     return 0
 
 
-def download_public_file(
-    url: str,
-    output: Path,
-    *,
-    runner: CommandRunner = _run,
-) -> int:
-    result = runner([
-        "curl",
-        "--location",
-        "--max-time", "30",
-        "--max-filesize", "50000000",
-        "--remove-on-error",
-        "--silent",
-        "--show-error",
-        "--write-out", "%{http_code}",
-        url,
-        "--output", str(output),
-    ])
-    if result.returncode != 0:
-        if result.stderr:
-            print(
-                result.stderr,
-                end="" if result.stderr.endswith("\n") else "\n",
-                file=sys.stderr,
-            )
-        print(f"::error::Could not download {url}")
-        return 2
-    status = result.stdout.strip()
-    if status == "200":
-        return 0
-    output.unlink(missing_ok=True)
-    if status == "404":
-        return 1
-    print(f"::error::Unexpected HTTP {status} from {url}")
-    return 2
-
-
 def _targeted_report_date(
     *, event_name: str, manual_mode: str, manual_report_date: str, today: date
 ) -> tuple[bool, str]:
@@ -153,7 +114,7 @@ def restore_corpus(
     root: Path = Path("."),
     runner: CommandRunner = _run,
 ) -> int:
-    valid, targeted_report_date = _targeted_report_date(
+    valid, _target = _targeted_report_date(
         event_name=event_name,
         manual_mode=manual_mode,
         manual_report_date=manual_report_date,
@@ -168,68 +129,7 @@ def restore_corpus(
         runner,
     )
     if restore.returncode == 4:
-        marker = root / "published-corpus-storage.json"
-        marker_status = download_public_file(
-            f"{PUBLIC_ROOT}/corpus-storage.json", marker, runner=runner
-        )
-        if marker_status == 0:
-            validation = _invoke([
-                "python", "corpus_storage.py", "validate", str(marker)
-            ], runner)
-            if validation.returncode != 0:
-                return validation.returncode
-            print("No unexpired private archive remains; starting a fresh corpus window")
-        elif marker_status == 2:
-            return 1
-        else:
-            history = root / "existing-history.json"
-            history_status = download_public_file(
-                f"{PUBLIC_ROOT}/history.json", history, runner=runner
-            )
-            if history_status == 0:
-                print(
-                    "No private corpus archive exists yet; migrating all retained "
-                    "corpora from Pages"
-                )
-                legacy = root / "legacy-corpora"
-                legacy.mkdir(parents=True, exist_ok=True)
-                downloaded = 0
-                for days_ago in range(1, 14):
-                    report_date = (today - timedelta(days=days_ago)).isoformat()
-                    status = download_public_file(
-                        f"{PUBLIC_ROOT}/corpora/{report_date}.json",
-                        legacy / f"{report_date}.json",
-                        runner=runner,
-                    )
-                    downloaded += status == 0
-                targeted_available = bool(targeted_report_date) and (
-                    targeted_report_date == today.isoformat()
-                    or (legacy / f"{targeted_report_date}.json").is_file()
-                )
-                if downloaded != 13 and not targeted_available:
-                    print(
-                        f"::error::Downloaded only {downloaded} of 13 retained public "
-                        "corpora; leaving Pages unchanged for a complete retry"
-                    )
-                    return 1
-                if downloaded != 13:
-                    print(
-                        f"::warning::Downloaded {downloaded} of 13 retained public "
-                        f"corpora; continuing targeted repair for {targeted_report_date} "
-                        "without regenerating other dates"
-                    )
-                pruned = _invoke([
-                    "python", "private_archive.py", "prune-corpora", str(legacy),
-                    "--newest", today.isoformat(),
-                ], runner)
-                if pruned.returncode != 0:
-                    return pruned.returncode
-                for source in legacy.glob("*.json"):
-                    shutil.copy2(source, corpora / source.name)
-            elif history_status == 1:
-                print("No published history exists; starting the first corpus window")
-            else:
-                return 1
+        print("No unexpired private archive remains; starting a fresh corpus window")
     elif restore.returncode != 0:
         print("::error::Private corpus restoration failed")
         return restore.returncode

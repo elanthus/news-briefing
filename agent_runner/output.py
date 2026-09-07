@@ -149,8 +149,8 @@ def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
     become briefing claims.
     """
     corpus_version = corpus_schema.corpus_version(corpus)
-    if corpus_version is None:
-        raise ValueError("corpus has no readable schema version")
+    if not corpus_schema.is_readable(corpus):
+        raise ValueError("corpus has no readable current schema version")
     projected_categories: dict[str, list[dict[str, Any]]] = {}
     citations: dict[str, Citation] = {}
     item_number = 0

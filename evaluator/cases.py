@@ -204,72 +204,9 @@ def _item(title: str, url: str, summary: str, source: str = "Test Wire") -> dict
 
 
 def baseline() -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    first = _item(
-        "Tool one reaches version 2",
-        "https://example.test/tool-one",
-        "Tool one released version 2 with safer local execution.",
-        "Hacker News",
+    corpus = json.loads(
+        (Path(__file__).with_name("fixtures") / "checker-corpus.json").read_text(encoding="utf-8")
     )
-    first.update(
-        discussion="https://news.ycombinator.com/item?id=101",
-        points=45,
-        comments=12,
-    )
-    corpus = {
-        "schema_version": 3,
-        "generated_at": "2026-08-11T12:00:00+00:00",
-        "cutoff": "2026-08-10T12:00:00+00:00",
-        "window_hours": 24,
-        "limits": {"source_cap": 25, "category_cap": 60},
-        "categories": {
-            "dev_community": [
-                first,
-                _item(
-                    "Tool two adds review mode",
-                    "https://publisher.test/story?id=2&output=1",
-                    "Tool two added a review mode for proposed patches.",
-                ),
-                _item(
-                    "Tool three updates its extension",
-                    "https://example.test/tool-three",
-                    "Tool three updated its editor extension.",
-                ),
-                _item(
-                    "One in two users enabled the feature",
-                    "https://example.test/half-users",
-                    "One in two users enabled the optional feature.",
-                ),
-            ],
-            "other_news": [
-                _item(
-                    "Unrelated market story",
-                    "https://example.test/market",
-                    "A market story unrelated to developer tools.",
-                )
-            ],
-        },
-        "processing": {
-            "dev_community": {
-                "fetched": 4,
-                "undated_dropped": 0,
-                "relevance_dropped": 0,
-                "duplicates_dropped": 0,
-                "source_cap_dropped": 0,
-                "category_cap_dropped": 0,
-                "kept": 4,
-            },
-            "other_news": {
-                "fetched": 1,
-                "undated_dropped": 0,
-                "relevance_dropped": 0,
-                "duplicates_dropped": 0,
-                "source_cap_dropped": 0,
-                "category_cap_dropped": 0,
-                "kept": 1,
-            },
-        },
-        "errors": [],
-    }
     text = """# Daily Briefing — August 11, 2026
 
 ## AI Dev Tools
@@ -326,6 +263,22 @@ def _apply_claim_pair_variant(
         "🔗 https://publisher.test/story?id=2&output=1"
     )
     return corpus, _replace(text, original, replacement)
+
+
+def _fixture_usage(corpus: dict[str, Any]) -> None:
+    """Account for authored fixture mutations using the current budget fields."""
+    for category, items in corpus["categories"].items():
+        stats = corpus["processing"][category]
+        for field in corpus_schema.V5_PROCESSING_FIELDS:
+            stats.setdefault(field, 0)
+        usage = [fetch_news.item_context_usage(item) for item in items]
+        stats["context_bytes"] = sum(size for size, _ in usage)
+        stats["estimated_tokens"] = sum(tokens for _, tokens in usage)
+    for output_field, processing_field in (("used_bytes", "context_bytes"),
+                                           ("estimated_tokens", "estimated_tokens")):
+        corpus["context_budget"][output_field] = sum(
+            stats[processing_field] for stats in corpus["processing"].values()
+        )
 
 
 def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
@@ -645,11 +598,12 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
         text = _replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
     else:
         raise ValueError(f"unknown variant {variant!r}")
+    _fixture_usage(corpus)
     return corpus, text, config
 
 
 def _degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, Any]:
-    corpus["schema_version"] = 4
+    corpus["schema_version"] = corpus_schema.SCHEMA_VERSION
     errors = [{
         "source_type": "rss",
         "source_id": "Feed A",
@@ -679,6 +633,8 @@ def _degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, An
         "parsed_entries": 0,
         "dated_entries": 0,
         "retained_entries": 0,
+        "retained_bytes": 0,
+        "estimated_tokens": 0,
         "duration_ms": error["duration_ms"],
         "error_type": error["error_type"],
         "message": error["message"],

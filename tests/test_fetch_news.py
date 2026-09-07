@@ -715,6 +715,9 @@ class HackerNewsTest(unittest.TestCase):
             emitted = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(emitted.items[0]["points"], 0)
         self.assertEqual(emitted.items[0]["comments"], 0)
+        from tests.test_corpus_schema import corpus as current_corpus
+        from tests.test_corpus_schema import stats
+
         corpus = {
             "schema_version": 1,
             "generated_at": utc(2026, 8, 9).isoformat(),
@@ -733,6 +736,11 @@ class HackerNewsTest(unittest.TestCase):
             }},
             "errors": [],
         }
+        corpus = current_corpus(
+            categories=corpus["categories"],
+            processing={"hn": stats()},
+            generated_at=corpus["generated_at"], cutoff=corpus["cutoff"],
+        )
         self.assertEqual(corpus_schema.validate_corpus(corpus), [])
 
     def test_carries_story_text_as_grounding_context(self):
