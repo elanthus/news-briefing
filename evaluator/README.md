@@ -48,7 +48,7 @@ python3 -m evaluator run \
 ```bash
 python3 -m evaluator run \
   --provider openrouter=YOUR_MODEL_ID \
-  --prompt production=briefing-prompt.md \
+  --prompt production=briefing-runner-prompt.md \
   --prompt candidate=my-prompt.md \
   --trials 5 --output-dir evaluator/results/prompt-test
 
@@ -299,7 +299,7 @@ python3 -m evaluator run \
   --trials 3
 ```
 
-Run all four configured providers:
+Run all three configured generation providers:
 
 ```bash
 python3 -m evaluator run --all-providers --trials 3
