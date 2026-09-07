@@ -14,12 +14,8 @@ from agent_runner.output import (
     attach_frozen_selection,
     build_prose_schema,
     detach_prose,
-    empty_section_findings,
     project_selected_evidence,
-    render_briefing,
-    validate_output,
     validate_prose_output,
-    validate_selection,
 )
 from agent_runner.runner import (
     build_prose_request as structured_prose_request,
@@ -27,7 +23,7 @@ from agent_runner.runner import (
 from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
-from agent_runner.runner import deterministic_repair_candidate, selection_promotion_candidate
+from agent_runner.stages import CorrectionBudget, decide_stage, evaluate_candidate, selection_findings
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.checkpoint import _write_json_atomic, _write_text_atomic
@@ -41,30 +37,12 @@ def _evaluate_structured_generation(
     repair_actions: list[dict[str, str]] | None = None,
 ) -> tuple[str, dict[str, eval_briefing.Section], list[eval_briefing.Finding]]:
     """Validate and render one production-shaped structured response."""
-    output = generation.structured_output
-    if not isinstance(output, dict):
-        findings = [
-            eval_briefing.Finding(
-                "ERROR", "structured_type", "provider returned no structured object"
-            )
-        ]
-        return "", eval_briefing.parse_briefing("", config), findings
-    findings = [
-        eval_briefing.Finding(finding.level, finding.check, finding.message)
-        for finding in validate_output(output, config, citations)
-    ]
-    if any(finding.level == eval_briefing.ERROR for finding in findings):
-        return "", eval_briefing.parse_briefing("", config), findings
-    rendered = render_briefing(
-        output,
-        corpus,
-        config,
-        citations,
+    rendered, sections, findings = evaluate_candidate(
+        generation.structured_output, corpus, config, citations,
         repair_actions=repair_actions or (),
     )
-    sections = eval_briefing.parse_briefing(rendered, config)
-    findings.extend(eval_briefing.evaluate_parsed(corpus, rendered, sections, config))
-    return rendered, sections, findings
+    text = rendered or ""
+    return text, sections, _output_findings(findings)
 
 
 @dataclass(frozen=True)
@@ -120,15 +98,7 @@ def _production_selection_findings(
     citations: dict[str, Citation],
 ) -> list[eval_briefing.Finding]:
     """Apply the selection checks used by the scheduled production runner."""
-    findings = _output_findings(validate_selection(selection, config, citations))
-    if any(finding.level == eval_briefing.ERROR for finding in findings):
-        return findings
-    if not isinstance(selection, dict):
-        return findings
-    findings.extend(
-        _output_findings(empty_section_findings(selection, config, citations))
-    )
-    return findings
+    return _output_findings(selection_findings(selection, config, citations))
 
 
 def _sum_reported_int(values: list[int | None]) -> int | None:
@@ -268,26 +238,26 @@ def _production_parity_after_selection(
         selection, config, projected.citations
     )
     deterministic_repairs: list[dict[str, Any]] = []
-    if isinstance(selection, dict):
-        repair = deterministic_repair_candidate(
-            selection,
-            _finding_dicts(selection_findings),
-            config=config,
-            citations=projected.citations,
-            selection_only=True,
+    last_kind = "selection"
+    promotion_actions: list[dict[str, str]] = []
+    while True:
+        decision = decide_stage(
+            "selection", selection, _finding_dicts(selection_findings),
+            config=config, citations=projected.citations,
+            budget=CorrectionBudget(0), last_kind=last_kind,
         )
-        if repair is not None:
-            before_repair = selection_findings
-            selection = repair.output
-            selection_findings = _production_selection_findings(
-                selection, config, projected.citations
-            )
-            deterministic_repairs.append(_repair_record(
-                "selection",
-                before_repair,
-                selection_findings,
-                repair.actions,
-            ))
+        if decision.repair is None:
+            break
+        before = selection_findings
+        selection = decision.repair.output
+        selection_findings = _production_selection_findings(selection, config, projected.citations)
+        last_kind = decision.action
+        if last_kind == "selection_promotion":
+            promotion_actions = decision.repair.actions
+        deterministic_repairs.append(_repair_record(
+            "selection" if last_kind == "selection_repair" else last_kind,
+            before, selection_findings, decision.repair.actions,
+        ))
     if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
         text, sections = _empty_structured_result(config)
         return _ProductionParityAttempt(
@@ -307,27 +277,6 @@ def _production_parity_after_selection(
         )
     if not isinstance(selection, dict):
         raise AssertionError("valid selection must be an object")
-
-    # Mirrors the runner's pre-freeze slot fill (agent_runner/runner.py): a
-    # contract-clean selection that leaves a reserved slot empty takes its
-    # section's highest-ranked logged entry before prose is drafted.
-    promotion = selection_promotion_candidate(
-        selection, config=config, citations=projected.citations
-    )
-    promotion_actions: list[dict[str, str]] = []
-    if promotion is not None:
-        promotion_actions = promotion.actions
-        before_promotion = selection_findings
-        selection = promotion.output
-        selection_findings = _production_selection_findings(
-            selection, config, projected.citations
-        )
-        deterministic_repairs.append(_repair_record(
-            "selection_promotion",
-            before_promotion,
-            selection_findings,
-            promotion.actions,
-        ))
 
     selected_evidence = project_selected_evidence(selection, projected)
     prose_request = structured_prose_request(policy, config_data, selected_evidence)
@@ -367,13 +316,11 @@ def _production_parity_after_selection(
             combined, corpus, config, projected.citations,
             repair_actions=promotion_actions,
         )
-    repair = deterministic_repair_candidate(
-        complete_output,
-        _finding_dicts(findings),
-        corpus=corpus,
-        config=config,
-        citations=projected.citations,
-    )
+    repair = decide_stage(
+        "prose", complete_output, _finding_dicts(findings),
+        corpus=corpus, config=config, citations=projected.citations,
+        budget=CorrectionBudget(0), last_kind="prose",
+    ).repair
     if repair is not None:
         before_repair = findings
         complete_output = repair.output
@@ -517,13 +464,11 @@ def _production_parity_correction_attempt(
             repair_actions=promotion_actions,
         )
     deterministic_repairs: list[dict[str, Any]] = list(promotion_records)
-    repair = deterministic_repair_candidate(
-        complete_output,
-        _finding_dicts(findings),
-        corpus=corpus,
-        config=config,
-        citations=projected.citations,
-    )
+    repair = decide_stage(
+        "prose", complete_output, _finding_dicts(findings),
+        corpus=corpus, config=config, citations=projected.citations,
+        budget=CorrectionBudget(0), last_kind="prose",
+    ).repair
     if repair is not None:
         before_repair = findings
         complete_output = repair.output
@@ -562,7 +507,6 @@ def _production_parity_correction_attempt(
 def run_first_attempt(
     *,
     adapter: Adapter,
-    generation_path: str,
     request: str,
     selection_schema: dict[str, Any] | None,
     policy: str,
@@ -594,7 +538,6 @@ def run_first_attempt(
 def run_correction_attempt(
     *,
     adapter: Adapter,
-    generation_path: str,
     prior: GenerationAttempt,
     request: str,
     findings: list[dict[str, str]],

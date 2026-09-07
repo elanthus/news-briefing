@@ -419,7 +419,6 @@ def _validate_run_inputs(
     prompt_versions: dict[str, Path],
     trials: int,
     run_kind: str,
-    generation_path: str,
     execution_seed: int | None,
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
@@ -428,8 +427,6 @@ def _validate_run_inputs(
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
-    if generation_path != "production-parity":
-        raise ValueError("only production-parity generation is supported")
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
     if execution_seed is not None and (
@@ -556,7 +553,6 @@ def _validate_source_provenance(
 def _identity(
     *,
     code: dict[str, Any],
-    generation_path: str,
     run_kind: str,
     execution_seed: int | None,
     cost_ceiling_usd: float | None,
@@ -576,7 +572,7 @@ def _identity(
 ) -> dict[str, Any]:
     return {
         "schema_version": 9,
-        "generation_path": generation_path,
+        "generation_path": "production-parity",
         "run_kind": run_kind,
         "execution_order": (
             "prompt_interleaved_randomized"
@@ -625,7 +621,6 @@ def resolve_evaluation_plan(
     corpus_path: Path,
     protocol_path: Path,
     run_kind: str,
-    generation_path: str,
     execution_seed: int | None,
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
@@ -636,7 +631,7 @@ def resolve_evaluation_plan(
 ) -> EvaluationPlan:
     execution_seed = _resolve_execution_seed(run_kind, execution_seed, resume_manifest)
     _validate_run_inputs(
-        adapters, prompt_versions, trials, run_kind, generation_path,
+        adapters, prompt_versions, trials, run_kind,
         execution_seed, cost_ceiling_usd, cost_ceiling_provider,
     )
     suite = _load_generation_suite(suite_path)
@@ -662,7 +657,7 @@ def resolve_evaluation_plan(
     _validate_source_provenance(run_kind, source_provenance)
     code = provenance() if source_provenance is None else source_provenance
     identity = _identity(
-        code=code, generation_path=generation_path, run_kind=run_kind,
+        code=code, run_kind=run_kind,
         execution_seed=execution_seed, cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
         circuit_breaker_threshold=circuit_breaker_threshold,

@@ -6,7 +6,7 @@ import json
 import platform
 import subprocess
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,7 +25,6 @@ from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
 from agent_runner.outcomes import classify_outcome, finding_domain
 from agent_runner.output import (
     PROMOTION_ACTION,
-    REPAIRABLE_CHECKS,
     Citation,
     ModelCorpus,
     OutputFinding,
@@ -33,20 +32,29 @@ from agent_runner.output import (
     build_prose_schema,
     build_selection_schema,
     detach_prose,
-    empty_section_findings,
     project_corpus,
     project_selected_evidence,
-    promote_excluded_to_underfilled,
     redact_destinations,
     redact_opaque_references,
     redact_preview_value,
-    render_briefing,
     render_candidate_preview,
     render_validation_status,
     repair_structural_output,
-    validate_output,
     validate_prose_output,
-    validate_selection,
+)
+from agent_runner.stages import (
+    SELECTION_ATTEMPT_KINDS,
+    SELECTION_PROMOTION_KIND,
+    CorrectionBudget,
+    DeterministicRepairResult,
+    decide_stage,
+    evaluate_candidate,
+)
+from agent_runner.stages import (
+    deterministic_repair_candidate as deterministic_repair_candidate,
+)
+from agent_runner.stages import (
+    selection_findings as check_selection,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -369,69 +377,6 @@ def _finding_records(
     ]
 
 
-@dataclass(frozen=True)
-class DeterministicRepairResult:
-    """A candidate repaired by the shared production/evaluator policy."""
-
-    output: dict[str, Any]
-    actions: list[dict[str, str]]
-
-
-SELECTION_PROMOTION_KIND = "selection_promotion"
-SELECTION_ATTEMPT_KINDS = frozenset({
-    "selection",
-    "selection_correction",
-    "selection_repair",
-    SELECTION_PROMOTION_KIND,
-})
-
-
-def selection_promotion_candidate(
-    selection: dict[str, Any],
-    *,
-    config: briefing_config.BriefingConfig,
-    citations: dict[str, Citation],
-) -> DeterministicRepairResult | None:
-    """Offer the slot-filling move for a selection that is about to freeze.
-
-    Withheld when the move would fail the selection contract. A promotion
-    empties part of an accountability log, and `_check_exclusion_log_selection`
-    is corpus-bound: when the promoted entries were the last logged ones across
-    every accountable section that still has eligible unreported items, filling
-    the slot raises `exclusion_log_empty`. No deterministic repair covers that
-    finding, so the run would spend a model correction on a state code created,
-    and the corrected selection could not be promoted again. Code cannot write
-    an exclusion reason to restock the log, so the honest outcome is to leave
-    the slot short and let the residual `slots_underfilled` warning say so.
-    """
-    promoted, actions = promote_excluded_to_underfilled(selection, config, citations)
-    if not actions or not isinstance(promoted, dict):
-        return None
-    if any(
-        finding.level == "ERROR"
-        for finding in validate_selection(promoted, config, citations)
-    ):
-        return None
-    return DeterministicRepairResult(promoted, actions)
-
-
-def _underfill_is_the_only_blocker(
-    findings: Sequence[Mapping[str, str]],
-) -> bool:
-    """Whether promotion is the remaining candidate fix for this selection.
-
-    True for a clean selection and for one whose only blocking findings are
-    ``slots_underfilled``, which promotion is what repairs. Any other blocking
-    finding means the selection is structurally wrong, and repair or a model
-    correction has to run before a slot fill would mean anything.
-    """
-    return all(
-        finding.get("check") == "slots_underfilled"
-        for finding in findings
-        if finding.get("level") == "ERROR"
-    )
-
-
 def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
     """The slot fills that produced the selection now in force.
 
@@ -463,41 +408,6 @@ def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
         for action in current.get("repair_actions") or ()
         if action.get("action") == PROMOTION_ACTION
     ]
-
-
-def deterministic_repair_candidate(
-    output: dict[str, Any],
-    findings: Sequence[Mapping[str, str]],
-    *,
-    config: briefing_config.BriefingConfig,
-    citations: dict[str, Citation],
-    corpus: dict[str, Any] | None = None,
-    selection_only: bool = False,
-) -> DeterministicRepairResult | None:
-    """Apply the repair decision production makes before a model correction."""
-    blocking = [finding for finding in findings if finding.get("level") == "ERROR"]
-    repairable_blocking = bool(blocking) and all(
-        finding.get("check") in REPAIRABLE_CHECKS for finding in blocking
-    )
-    claim_repair = not blocking and not selection_only and any(
-        finding.get("check") == "claim_exceeds_evidence" for finding in findings
-    )
-    if not repairable_blocking and not claim_repair:
-        return None
-    evidence = (
-        eval_briefing.corpus_evidence(corpus)
-        if corpus is not None and not selection_only
-        else None
-    )
-    repaired, actions = repair_structural_output(
-        output,
-        config,
-        citations,
-        evidence=evidence,
-    )
-    if not actions or not isinstance(repaired, dict):
-        return None
-    return DeterministicRepairResult(repaired, actions)
 
 
 def _attempt_paths(index: int) -> tuple[str, str, str, str, str]:
@@ -740,24 +650,12 @@ def _validate_attempt(
     repair_actions: Sequence[dict[str, str]] = (),
     pre_findings: Sequence[OutputFinding] = (),
 ) -> list[dict[str, str]]:
-    # When prose-stage validation fails, persist those findings once instead
-    # of checking the same fields again after attachment. This matches the
-    # production-parity evaluator. Complete-output validation remains the
-    # independent backstop after the prose-only contract passes.
-    structured_findings = list(pre_findings)
-    if not any(finding.level == "ERROR" for finding in structured_findings):
-        structured_findings.extend(validate_output(output, config, citations))
-    rendered: str | None = None
-    checker_findings: list[eval_briefing.Finding] = []
-    if not any(finding.level == "ERROR" for finding in structured_findings):
-        rendered = render_briefing(
-            output, corpus, config, citations,
-            # Selection-stage promotions tag topics rendered in the prose
-            # stage, so they join this attempt's own repair actions here.
-            repair_actions=[*_promotion_actions(store), *repair_actions],
-        )
-        checker_findings = eval_briefing.evaluate(corpus, rendered, config)
-    records = _finding_records([*structured_findings, *checker_findings])
+    rendered, _sections, findings = evaluate_candidate(
+        output, corpus, config, citations,
+        repair_actions=[*_promotion_actions(store), *repair_actions],
+        pre_findings=pre_findings,
+    )
+    records = _finding_records(findings)
     index = attempt["index"]
     _raw_name, _structured_name, _events_name, briefing_name, findings_name = _attempt_paths(index)
     if rendered is not None:
@@ -785,11 +683,7 @@ def _validate_selection_attempt(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
 ) -> list[dict[str, str]]:
-    selection_findings = validate_selection(selection, config, citations)
-    allocation_findings: list[OutputFinding] = []
-    if not any(finding.level == "ERROR" for finding in selection_findings):
-        allocation_findings = empty_section_findings(selection, config, citations)
-    records = _finding_records([*selection_findings, *allocation_findings])
+    records = _finding_records(check_selection(selection, config, citations))
     index = attempt["index"]
     _raw_name, _structured_name, _events_name, _briefing_name, findings_name = _attempt_paths(index)
     store.write_json(findings_name, records)
@@ -1102,42 +996,20 @@ def _select_evidence(
                 config=config,
                 citations=citations,
             )
-        # A selection can leave a reserved slot short — or a whole section
-        # empty — while its own accountability log holds eligible, unreported
-        # evidence. Fill from the log before freezing, so the prose pass writes
-        # the promoted entry up as a topic instead of the run publishing a gap
-        # it could have closed. An empty section makes `slots_underfilled`
-        # blocking, so promotion has to be reachable while that finding stands:
-        # gating it on a clean contract would spend a model correction on the
-        # one case code can already fix, and would treat a section at zero
-        # topics worse than the same section at one. Every other blocking
-        # finding still goes to repair or correction first, and structural
-        # validity is unaffected — allocation findings are only computed once
-        # `validate_selection` is clean, so an underfill-only blocker means the
-        # selection is otherwise sound.
-        if _underfill_is_the_only_blocker(selection_findings):
-            # `_promotion_actions` is empty unless the newest selection-stage
-            # attempt is itself a promotion, so this both stops the loop from
-            # promoting the same attempt twice and lets a selection a model
-            # correction replaced be promoted on its own merits.
-            promotion = (
-                None if _promotion_actions(store)
-                else selection_promotion_candidate(
-                    selection, config=config, citations=citations
-                )
+        decision = decide_stage(
+            "selection", selection, selection_findings,
+            config=config, citations=citations,
+            budget=CorrectionBudget(settings.max_corrections,
+                                    _corrections_used(store, "selection_correction")),
+            last_kind=selection_attempt["kind"],
+        )
+        if decision.repair is not None:
+            _, selection = _deterministic_selection_repair_attempt(
+                store, selection, config=config, citations=citations,
+                repair=decision.repair, kind=decision.action,
             )
-            if promotion is not None:
-                promotion_attempt, selection = _deterministic_selection_repair_attempt(
-                    store,
-                    selection,
-                    config=config,
-                    citations=citations,
-                    repair=promotion,
-                    kind=SELECTION_PROMOTION_KIND,
-                )
-                if promotion_attempt is not selection_attempt:
-                    continue
-        if selection_attempt["contract_success"]:
+            continue
+        if decision.action == "accept":
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
@@ -1150,30 +1022,7 @@ def _select_evidence(
             )
             store.checkpoint("selection_frozen")
             return _SelectionResult(selection)
-        selection_repair = deterministic_repair_candidate(
-            selection,
-            selection_findings,
-            config=config,
-            citations=citations,
-            selection_only=True,
-        )
-        if (
-            selection_repair is not None
-            and selection_attempt.get("kind") != "selection_repair"
-        ):
-            repair_attempt, selection = _deterministic_selection_repair_attempt(
-                store,
-                selection,
-                config=config,
-                citations=citations,
-                repair=selection_repair,
-            )
-            if repair_attempt is not selection_attempt:
-                continue
-        if (
-            _corrections_used(store, "selection_correction")
-            >= settings.max_corrections
-        ):
+        if decision.action == "exhausted":
             return _SelectionResult(
                 selection,
                 _finalize_selection_preview(
@@ -1273,28 +1122,20 @@ def _write_prose(
                 repair_actions=attempt.get("repair_actions") or (),
                 pre_findings=prose_findings,
             )
-        if attempt["contract_success"]:
-            deterministic_repair = deterministic_repair_candidate(
-                output,
-                findings,
-                corpus=corpus,
-                config=config,
-                citations=citations,
+        decision = decide_stage(
+            "prose", output, findings, corpus=corpus,
+            config=config, citations=citations,
+            budget=CorrectionBudget(settings.max_corrections,
+                                    _corrections_used(store, "correction")),
+            last_kind=attempt["kind"],
+        )
+        if decision.repair is not None:
+            _, output = _deterministic_repair_attempt(
+                store, output, corpus=corpus, config=config, citations=citations,
+                repair=decision.repair,
             )
-            if (
-                deterministic_repair is not None
-                and attempt.get("kind") != "deterministic_repair"
-            ):
-                repair_attempt, output = _deterministic_repair_attempt(
-                    store,
-                    output,
-                    corpus=corpus,
-                    config=config,
-                    citations=citations,
-                    repair=deterministic_repair,
-                )
-                if repair_attempt is not attempt:
-                    continue
+            continue
+        if decision.action == "accept":
             return _finalize_candidate(
                 store,
                 attempt,
@@ -1303,28 +1144,7 @@ def _write_prose(
                 citations=citations,
                 settings=settings,
             )
-        deterministic_repair = deterministic_repair_candidate(
-            output,
-            findings,
-            corpus=corpus,
-            config=config,
-            citations=citations,
-        )
-        if (
-            deterministic_repair is not None
-            and attempt.get("kind") != "deterministic_repair"
-        ):
-            repair_attempt, output = _deterministic_repair_attempt(
-                store,
-                output,
-                corpus=corpus,
-                config=config,
-                citations=citations,
-                repair=deterministic_repair,
-            )
-            if repair_attempt is not attempt:
-                continue
-        if _corrections_used(store, "correction") >= settings.max_corrections:
+        if decision.action == "exhausted":
             return _finalize_after_deterministic_repair(
                 store,
                 attempt,
