@@ -4,7 +4,6 @@ from __future__ import annotations
 import io
 import os
 import sys
-import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -17,10 +16,6 @@ from evaluator.adapters import (
 )
 from evaluator.runner import (
     ROOT,
-    run_evaluation,
-)
-from evaluator.tests.support import (
-    FakeAdapter,
 )
 
 

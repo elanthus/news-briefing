@@ -40,9 +40,6 @@ from evaluator.tests.support import (
 )
 
 
-
-
-
 class FixedSuiteTest(unittest.TestCase):
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
