@@ -13,8 +13,8 @@ so triage never changes the evidence it is inspecting.
 
 ## Deterministic classification
 
-The classifier checks fetch completion, provider error records, provider length signals and
-invalid raw JSON, exhausted correction budgets, blocking checker findings, degraded source
+The classifier checks fetch completion, structured provider failure records, recorded output truncation,
+exhausted correction budgets, blocking checker findings, degraded source
 coverage, and exhausted fallback chains. A completed `ready` run receives
 `no_failure_detected`. One run can receive several classes. Every class cites a manifest key,
 artifact key, or trace line, and blocking checker failures receive a stable short fingerprint
@@ -24,7 +24,18 @@ Reports contain no web destinations. The classifier does not copy corpus article
 prose into either output. It reads only operational metadata, provider errors, checker finding
 messages, source-health records, and bounded trace or provider-event data.
 
+Current records carry stable failure codes, HTTP status, transience, truncation,
+checker identities, and correction stage/budget fields. Triage uses those fields
+and cites their manifest locations. It does not infer truncation from malformed
+JSON or recursively search provider events for length markers. Historical logs
+without these records are not reclassified from exception wording; preserved
+historical evidence remains unchanged.
+
 ## Optional model summary
+
+The optional paragraph is retained to help an operator read several simultaneous
+causes as one explanation. It adds no classification evidence and remains labeled
+unverified; `--no-model` is the cost-free deterministic workflow.
 
 Omit `--no-model` to add a model-generated paragraph:
 

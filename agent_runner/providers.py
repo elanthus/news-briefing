@@ -416,13 +416,6 @@ def _parse_chat_completion(
             attempts=attempt,
             provider_request_id=payload.get("id") or request_id,
         )
-    if not isinstance(content, str):
-        raise ProviderError(
-            f"{provider} returned no text content",
-            transient=False,
-            attempts=attempt,
-            provider_request_id=payload.get("id") or request_id,
-        )
     if isinstance(choice, dict) and choice.get("finish_reason") == "length":
         # The body is a prefix of the intended output, so it would fail as
         # invalid JSON with a misleading cause. Name the real one: the output
@@ -433,6 +426,14 @@ def _parse_chat_completion(
             attempts=attempt,
             provider_request_id=payload.get("id") or request_id,
             output_truncated=True,
+        )
+    if not isinstance(content, str) or not content.strip():
+        raise ProviderError(
+            f"{provider} returned no text content",
+            transient=False,
+            empty_response=True,
+            attempts=attempt,
+            provider_request_id=payload.get("id") or request_id,
         )
     structured = _parse_json_object(normalize(content) if normalize else content, provider)
     raw_usage = payload.get("usage")
@@ -842,7 +843,9 @@ class ClaudeCodeProvider(ModelProvider):
         raw = payload.get("result", "")
         if not isinstance(structured, dict):
             if not isinstance(raw, str):
-                raise ProviderError("claude-code-cli returned no structured output", transient=False)
+                raise ProviderError(
+                    "claude-code-cli returned no structured output", transient=False, empty_response=True
+                )
             structured = _parse_json_object(raw, self.name)
         raw_usage = payload.get("usage")
         usage = raw_usage if isinstance(raw_usage, dict) else {}
@@ -982,7 +985,7 @@ class CodexCliProvider(ModelProvider):
                 provider_request_id=request_id,
             )
         if not text:
-            raise ProviderError("codex-cli returned no final agent message", transient=False)
+            raise ProviderError("codex-cli returned no final agent message", transient=False, empty_response=True)
         return ModelResponse(
             raw_output=text,
             structured_output=_parse_json_object(text, self.name),

@@ -17,6 +17,7 @@ from typing import Any
 
 import corpus_schema
 from agent_runner.checkpoint import write_json_atomic, write_text_atomic
+from agent_runner.failures import PROVIDER_CODES, parse_failure
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 from agent_runner.outcomes import finding_domain
 from agent_runner.output import redact_destinations, redact_opaque_references
@@ -30,14 +31,6 @@ MAX_JSONL_LINES = 10_000
 MODEL_TIMEOUT_SECONDS = 120
 FINGERPRINT_LENGTH = 12
 
-_PROVIDER_ERROR_TYPES = {
-    "providererror",
-    "openroutererror",
-    "openaicompatibleerror",
-    "claudecodeerror",
-    "codexclierror",
-}
-_LENGTH_REASONS = {"length", "max_tokens", "max_output_tokens", "token_limit"}
 _OPAQUE_HANDLE = re.compile(r"\b(?:citation|item)_\d+\b", re.IGNORECASE)
 _SOURCE_FIELD = re.compile(r"\bsource(?:_id)?\s*[=:]\s*([^,;]+)", re.IGNORECASE)
 _TOOL_KEYS = {"tool_calls", "tool_call", "function_call", "function_calls"}
@@ -224,26 +217,24 @@ def _load_manifests(run_dir: Path) -> tuple[list[_Manifest], dict[str, Any] | No
 def _provider_error_record(value: Any, *, file: str, location: str) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
-    error_type = value.get("type")
-    if not isinstance(error_type, str):
+    failure = parse_failure(value.get("failure"))
+    if failure is None or failure.code not in PROVIDER_CODES:
         return None
-    normalized = error_type.casefold().replace("_", "")
-    if normalized not in _PROVIDER_ERROR_TYPES and not normalized.endswith("providererror"):
-        return None
-    status = value.get("status_code")
-    status_code = status if isinstance(status, int) and not isinstance(status, bool) else None
+    error_type = value.get("type", "ProviderError")
+    status_code = failure.status_code
     status_band = f"{status_code // 100}xx" if status_code is not None else "none"
     message = value.get("message")
     return {
         "file": file,
         "location": location,
-        "type": _redact_text(error_type),
+        "type": _redact_text(error_type) if isinstance(error_type, str) else "ProviderError",
+        "code": failure.code,
         "message": _redact_text(message) if isinstance(message, str) else "",
         "status_code": status_code,
         "status_band": status_band,
-        "transient": value.get("transient") is True,
+        "transient": failure.transient,
         "openrouter_model_404": value.get("openrouter_model_404") is True,
-        "output_truncated": value.get("output_truncated") is True,
+        "output_truncated": failure.output_truncated,
         "ambiguous_completion": value.get("ambiguous_completion") is True,
     }
 
@@ -294,20 +285,6 @@ def _collect_provider_errors(
                     )
                     if record is not None:
                         records.append(record)
-                reason = attempt.get("failure_reason")
-                if isinstance(reason, str) and "ProviderError:" in reason:
-                    records.append({
-                        "file": LOG_NAME,
-                        "location": f"attempts[{index}].failure_reason",
-                        "type": _redact_text(reason.split(":", 1)[0].rsplit(" ", 1)[-1]),
-                        "message": _redact_text(reason.split(":", 1)[1]),
-                        "status_code": None,
-                        "status_band": "none",
-                        "transient": False,
-                        "openrouter_model_404": False,
-                        "output_truncated": False,
-                        "ambiguous_completion": False,
-                    })
     unique: dict[tuple[str, str, str], dict[str, Any]] = {}
     for record in records:
         unique_key = (str(record["file"]), str(record["location"]), str(record["message"]))
@@ -315,85 +292,15 @@ def _collect_provider_errors(
     return list(unique.values())
 
 
-def _reason_indicates_length(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    normalized = value.casefold().replace("-", "_").replace(" ", "_")
-    return normalized in _LENGTH_REASONS or "max_token" in normalized
-
-
-def _find_length_reason(value: Any, path: str = "$") -> str | None:
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            child = f"{path}.{key}"
-            if key.casefold() in {"finish_reason", "finishreason", "stop_reason", "stopreason"}:
-                if _reason_indicates_length(nested):
-                    return child
-            found = _find_length_reason(nested, child)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for index, nested in enumerate(value):
-            found = _find_length_reason(nested, f"{path}[{index}]")
-            if found is not None:
-                return found
-    return None
-
-
 def _output_truncation_evidence(
-    manifests: list[_Manifest], provider_errors: list[dict[str, Any]]
+    provider_errors: list[dict[str, Any]]
 ) -> tuple[list[Evidence], dict[str, Any]]:
     evidence = [
-        Evidence(str(record["file"]), f"{record['location']}.output_truncated")
-        for record in provider_errors
-        if record["output_truncated"] is True
+        Evidence(str(record["file"]), f"{record['location']}.failure.output_truncated")
+        for record in provider_errors if record["output_truncated"] is True
     ]
-    reasons: list[str] = []
-    invalid_raw: list[str] = []
-    for manifest in manifests:
-        attempts = manifest.data.get("attempts")
-        if not isinstance(attempts, list):
-            continue
-        for index, attempt in enumerate(attempts):
-            if not isinstance(attempt, dict):
-                continue
-            if attempt.get("output_truncated") is True:
-                evidence.append(Evidence(
-                    _relative_file(manifest, "manifest.json"),
-                    f"attempts[{index}].output_truncated",
-                ))
-            events_name = attempt.get("provider_events_artifact")
-            events_path = _safe_artifact(manifest.root, events_name)
-            if events_path is not None and isinstance(events_name, str):
-                for line_number, line in enumerate(_read_text(events_path).splitlines(), start=1):
-                    if line_number > MAX_JSONL_LINES:
-                        break
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    reason_path = _find_length_reason(event)
-                    if reason_path is not None:
-                        file = _relative_file(manifest, events_name)
-                        evidence.append(Evidence(file, f"line {line_number} {reason_path}"))
-                        reasons.append(f"{file}:{line_number}")
-            raw_name = attempt.get("raw_artifact")
-            raw_path = _safe_artifact(manifest.root, raw_name)
-            if raw_path is not None and isinstance(raw_name, str):
-                try:
-                    json.loads(_read_bytes(raw_path, MAX_JSON_BYTES))
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    file = _relative_file(manifest, raw_name)
-                    evidence.append(Evidence(file, "line 1 (invalid JSON)"))
-                    invalid_raw.append(file)
-            generation_reason = _find_length_reason(attempt.get("generation"), f"attempts[{index}].generation")
-            if generation_reason is not None:
-                evidence.append(Evidence(_relative_file(manifest, "manifest.json"), generation_reason))
-                reasons.append(generation_reason)
-    return evidence, {
-        "length_reason_artifacts": sorted(set(reasons)),
-        "invalid_raw_artifacts": sorted(set(invalid_raw)),
-    }
+    return evidence, {"records": [record for record in provider_errors
+                                  if record["output_truncated"] is True]}
 
 
 def _blocking_findings(manifest: _Manifest) -> list[tuple[dict[str, str], Evidence]]:
@@ -458,49 +365,21 @@ def _finding_fingerprint(findings: list[dict[str, str]]) -> str | None:
 
 
 def _correction_budget_evidence(
-    manifests: list[_Manifest], manifests_with_blockers: set[str]
+    manifests: list[_Manifest]
 ) -> tuple[list[Evidence], list[dict[str, Any]]]:
     evidence: list[Evidence] = []
     details: list[dict[str, Any]] = []
     for manifest in manifests:
-        if manifest.relative_root not in manifests_with_blockers:
+        final = manifest.data.get("final")
+        failure = parse_failure(final.get("failure")) if isinstance(final, dict) else None
+        if failure is None or failure.code != "correction_exhausted":
             continue
-        identity = manifest.data.get("identity")
-        maximum = identity.get("max_corrections") if isinstance(identity, dict) else None
-        attempts = manifest.data.get("attempts")
-        if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 0 or not isinstance(attempts, list):
-            continue
-        selection = sum(
-            isinstance(row, dict) and row.get("kind") == "selection_correction" for row in attempts
-        )
-        prose = sum(isinstance(row, dict) and row.get("kind") == "correction" for row in attempts)
-        last = attempts[-1] if attempts else None
-        last_kind = last.get("kind") if isinstance(last, dict) else None
-        relevant_stages = (
-            ("selection",)
-            if last_kind in {
-                "selection",
-                "selection_correction",
-                "selection_repair",
-                "selection_promotion",
-            }
-            else ("prose",)
-        )
-        exhausted_stages = [
-            stage
-            for stage, count in (("selection", selection), ("prose", prose))
-            if stage in relevant_stages and count >= maximum
-        ]
-        if not exhausted_stages:
-            continue
-        file = _relative_file(manifest, "manifest.json")
-        evidence.extend((Evidence(file, "identity.max_corrections"), Evidence(file, "attempts")))
+        evidence.append(Evidence(_relative_file(manifest, "manifest.json"), "final.failure"))
         details.append({
             "run": manifest.relative_root or ".",
-            "configured": maximum,
-            "selection_corrections": selection,
-            "prose_corrections": prose,
-            "exhausted_stages": exhausted_stages,
+            "configured": failure.correction_limit,
+            "corrections_used": failure.corrections_used,
+            "exhausted_stages": [failure.stage],
         })
     return evidence, details
 
@@ -608,24 +487,25 @@ def _fetch_failure(manifests: list[_Manifest]) -> tuple[list[Evidence], list[str
 
 
 def _chain_failure(chain: dict[str, Any] | None) -> tuple[list[Evidence], list[dict[str, str]]]:
-    if chain is None or chain.get("status") != "failed":
+    failure = parse_failure(chain.get("failure")) if chain is not None else None
+    if chain is None or failure is None or failure.code != "chain_exhausted":
         return [], []
     attempts = chain.get("attempts")
     candidates: list[dict[str, str]] = []
-    evidence = [Evidence(LOG_NAME, "status")]
+    evidence = [Evidence(LOG_NAME, "failure.code")]
     if isinstance(attempts, list):
         for index, row in enumerate(attempts):
             if not isinstance(row, dict):
                 continue
             model = row.get("model")
             status = row.get("status")
-            reason = row.get("failure_reason")
+            failure = parse_failure(row.get("failure"))
             candidates.append({
                 "model": _redact_text(model) if isinstance(model, str) else "unknown",
                 "status": _redact_text(status) if isinstance(status, str) else "unknown",
-                "failure_reason": _redact_text(reason) if isinstance(reason, str) else "unrecorded",
+                "failure_code": failure.code if failure is not None else "generation_failed",
             })
-            evidence.append(Evidence(LOG_NAME, f"attempts[{index}].failure_reason"))
+            evidence.append(Evidence(LOG_NAME, f"attempts[{index}].failure"))
     return evidence, candidates
 
 
@@ -650,7 +530,6 @@ def _analyze_run(run_dir: Path, generated_at: str | None) -> _Analysis:
             findings_with_evidence.append((finding, evidence, manifest.relative_root))
     findings = [row[0] for row in findings_with_evidence]
     fingerprint = _finding_fingerprint(findings)
-    blocker_runs = {row[2] for row in findings_with_evidence}
 
     causes: list[ClassifiedCause] = []
     fetch_evidence, fetch_reasons = _fetch_failure(manifests)
@@ -676,15 +555,15 @@ def _analyze_run(run_dir: Path, generated_at: str | None) -> _Analysis:
             tuple(chain_evidence),
             {"candidates": candidates},
         ))
-    truncation_evidence, truncation_details = _output_truncation_evidence(manifests, provider_errors)
+    truncation_evidence, truncation_details = _output_truncation_evidence(provider_errors)
     if truncation_evidence:
         causes.append(ClassifiedCause(
             "output_truncated",
-            "A provider length signal or non-JSON raw response indicates truncated output.",
+            "The provider recorded an output truncation failure.",
             tuple(truncation_evidence),
             truncation_details,
         ))
-    budget_evidence, budget_details = _correction_budget_evidence(manifests, blocker_runs)
+    budget_evidence, budget_details = _correction_budget_evidence(manifests)
     if budget_evidence:
         causes.append(ClassifiedCause(
             "correction_budget_exhausted",
