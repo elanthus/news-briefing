@@ -37,14 +37,14 @@ step is `continue-on-error`, so a reviewer failure does not fail the workflow.
 ## Agentic preflight
 
 [`.agentic-preflight.toml`](../.agentic-preflight.toml) compares the proposed
-change with `main` (`base_ref = "main"`) and caps the inspected diff at 250,000
+change with `main` (`base_ref = "main"`) and caps the inspected diff at 400,000
 bytes. It excludes lock files; vendored or minified assets; generated snapshots
 and protobuf files; `docs/runs/**`; `docs/results/data/**`;
 `docs/results/portfolio-v2-evidence/**`; and the committed embedding cache.
 Those exclusions keep named generated or high-volume data out of the review
 diff; they do not change the test commands.
 
-The `test` command runs the standard-library suite under Python 3.11 with `-S`,
+The `test` command runs the core and evaluator suites under Python 3.11 with `-S`,
 then installs only `requirements-site.txt` into an isolated `uv` invocation for
 the opt-in site-build tests. The `lint` command runs Ruff 0.14.2 and mypy 1.14.1
 for both the main configuration and the evaluator configuration. As

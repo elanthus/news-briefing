@@ -13,9 +13,8 @@ import daily_publish
 
 
 class FakeRunner:
-    def __init__(self, restore_status: int, curl_statuses: list[str] | None = None) -> None:
+    def __init__(self, restore_status: int) -> None:
         self.restore_status = restore_status
-        self.curl_statuses = list(curl_statuses or [])
         self.commands: list[list[str]] = []
 
     def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -23,13 +22,6 @@ class FakeRunner:
         self.commands.append(row)
         if row[:2] == ["python", "restore_private_corpora.py"]:
             return subprocess.CompletedProcess(row, self.restore_status, "", "")
-        if row[0] == "curl":
-            status = self.curl_statuses.pop(0)
-            if status == "200":
-                output = Path(row[row.index("--output") + 1])
-                output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_text("{}", encoding="utf-8")
-            return subprocess.CompletedProcess(row, 0, status, "")
         return subprocess.CompletedProcess(row, 0, "", "")
 
 
@@ -50,76 +42,18 @@ class RestoreCorpusTests(unittest.TestCase):
             self.assertEqual(self.run_restore(runner, Path(directory)), 0)
             self.assertEqual(runner.commands[-1][1:3], ["private_archive.py", "prune-corpora"])
 
-    def test_exit_four_with_valid_marker_starts_fresh_window(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            runner = FakeRunner(4, ["200"])
-            self.assertEqual(self.run_restore(runner, Path(directory)), 0)
-            self.assertTrue(any("corpus_storage.py" in command for command in runner.commands))
 
-    def test_exit_four_with_missing_marker_and_history_starts_first_window(self) -> None:
+    def test_missing_archive_starts_fresh_without_public_downloads(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            runner = FakeRunner(4, ["404", "404"])
+            runner = FakeRunner(4)
             self.assertEqual(self.run_restore(runner, Path(directory)), 0)
-            self.assertEqual(sum(command[0] == "curl" for command in runner.commands), 2)
-
-    def test_exit_four_with_marker_download_error_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            runner = FakeRunner(4, ["500"])
-            self.assertEqual(self.run_restore(runner, Path(directory)), 1)
-            self.assertFalse(any("prune-corpora" in command for command in runner.commands))
+            self.assertEqual([command[1] for command in runner.commands],
+                             ["restore_private_corpora.py", "private_archive.py"])
 
     def test_exit_two_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner(2)
             self.assertEqual(self.run_restore(runner, Path(directory)), 2)
-
-    def test_legacy_migration_downloads_prunes_and_copies_all_thirteen(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            runner = FakeRunner(4, ["404", "200", *(["200"] * 13)])
-            self.assertEqual(self.run_restore(runner, root), 0)
-            restored = sorted((root / "corpora").glob("*.json"))
-            self.assertEqual(len(restored), 13)
-            prune_commands = [
-                command for command in runner.commands
-                if command[:3] == ["python", "private_archive.py", "prune-corpora"]
-            ]
-            self.assertEqual(
-                [Path(command[3]).name for command in prune_commands],
-                ["legacy-corpora", "corpora"],
-            )
-
-    def test_incomplete_legacy_migration_without_target_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            runner = FakeRunner(4, ["404", "200", *(["200"] * 5), *(["404"] * 8)])
-            output = io.StringIO()
-            with contextlib.redirect_stdout(output):
-                status = self.run_restore(runner, root)
-            self.assertEqual(status, 1)
-            self.assertIn("::error::Downloaded only 5 of 13", output.getvalue())
-            self.assertFalse(any("prune-corpora" in command for command in runner.commands))
-
-    def test_incomplete_legacy_migration_with_available_target_continues(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            statuses = ["404"] * 13
-            statuses[2] = "200"
-            runner = FakeRunner(4, ["404", "200", *statuses])
-            output = io.StringIO()
-            with contextlib.redirect_stdout(output):
-                status = daily_publish.restore_corpus(
-                    today=date(2026, 9, 3),
-                    event_name="workflow_dispatch",
-                    manual_mode="single-day",
-                    manual_report_date="2026-08-31",
-                    root=root,
-                    runner=runner,
-                )
-            self.assertEqual(status, 0)
-            self.assertIn("::warning::Downloaded 1 of 13", output.getvalue())
-            self.assertIn("continuing targeted repair for 2026-08-31", output.getvalue())
-            self.assertTrue((root / "corpora" / "2026-08-31.json").is_file())
 
 
 class WindowTests(unittest.TestCase):

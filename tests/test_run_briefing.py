@@ -969,6 +969,20 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "in-flight"):
                 RunStore.resume(root, identity=identity)
 
+    def test_resume_rejects_a_manifest_without_trace_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "run"
+            store = RunStore.create(root, identity={}, provider={}, code={})
+            manifest = dict(store.manifest)
+            del manifest["trace_commit"]
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing trace commit"):
+                RunStore.resume(root, identity={})
+            manifest["trace_commit"] = None
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid trace commit"):
+                RunStore.resume(root, identity={})
+
     def test_resume_discards_trace_suffix_left_before_manifest_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "run"

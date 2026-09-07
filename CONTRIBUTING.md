@@ -45,7 +45,8 @@ Smoke-test the evaluation harness (case loading, oracles, scoring, report
 rendering) with zero provider calls:
 
 ```bash
-python3 -S -m evaluator run --provider baseline=echo --trials 1 --output-dir "$(mktemp -d)/eval-smoke"
+python3 -S -m evaluator checker
+python3 -S -m unittest discover -s evaluator/tests
 ```
 
 Never commit API keys, `.env` files, generated corpora, briefings, or evaluator
@@ -60,15 +61,13 @@ run artifacts.
 | [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v7) and shared URL canonicalization |
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
 | [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
-| [`briefing-prompt.md`](briefing-prompt.md) | Evaluator's legacy direct-Markdown prompt |
+| [`briefing-prompt.md`](briefing-prompt.md) | Historical direct-Markdown prompt retained with its published evidence |
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
 | [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
 | [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, content hashes |
-| [`corpus_storage.py`](corpus_storage.py) | Public private-storage marker for migration and archive-gap recovery |
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
-| [`bootstrap_history.py`](bootstrap_history.py) | Seeds site history from selected, hash-verified committed run artifacts; used by the daily workflow |
 | [`build_site.py`](build_site.py) | Static archive: briefings, integrity reports, public audit manifests |
 | [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
 | [`fixtures/`](fixtures) | Frozen corpus, briefing, configuration, and injection fixtures |

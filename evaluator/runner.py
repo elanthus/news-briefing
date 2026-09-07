@@ -34,12 +34,6 @@ from evaluator.plan import (
 from evaluator.plan import (
     _validate_generation_case as _validate_generation_case,
 )
-from evaluator.plan import (
-    correction_request as correction_request,
-)
-from evaluator.plan import (
-    model_request as model_request,
-)
 from evaluator.report import (
     _OPERATIONS_HEADER as _OPERATIONS_HEADER,
 )
@@ -147,7 +141,7 @@ def run_evaluation(
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
-    generation_path: str = "markdown",
+    generation_path: str = "production-parity",
     source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one evaluation through the split planning and execution modules."""

@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def fixture_contract():
-    corpus = json.loads((ROOT / "fixtures/corpus-2026-08-11.json").read_text(encoding="utf-8"))
+    corpus = json.loads((ROOT / "fixtures/current-corpus.json").read_text(encoding="utf-8"))
     config = briefing_config.load_config(ROOT / "fixtures/briefing-config-2026-08-11.json")
     projected = project_corpus(corpus)
     items = {}
@@ -191,7 +191,7 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_hn_companion_url_does_not_shift_following_item_handles(self):
         corpus = {
-            "schema_version": 1,
+            "schema_version": 7,
             "generated_at": "2026-08-27T12:00:00+00:00",
             "cutoff": "2026-08-26T12:00:00+00:00",
             "window_hours": 24,
@@ -556,7 +556,7 @@ class BriefingOutputTests(unittest.TestCase):
 
     def test_opaque_references_wider_than_four_digits_are_blocking(self):
         corpus = {
-            "schema_version": 1,
+            "schema_version": 7,
             "generated_at": "2026-08-27T12:00:00+00:00",
             "cutoff": "2026-08-26T12:00:00+00:00",
             "window_hours": 24,

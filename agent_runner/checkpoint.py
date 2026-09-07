@@ -125,11 +125,9 @@ class RunStore:
 
     def _recover_trace(self) -> None:
         """Discard a suffix appended after the last committed trace hash."""
+        if "trace_commit" not in self.manifest:
+            raise ValueError("cannot resume corrupt checkpoint: missing trace commit")
         commit = self.manifest.get("trace_commit")
-        if commit is None:
-            # Older manifests record only the full-file artifact hash and remain
-            # subject to strict validation in _validate_artifacts().
-            return
         if not isinstance(commit, dict):
             raise ValueError("cannot resume corrupt checkpoint: invalid trace commit")
         committed_bytes = commit.get("bytes")

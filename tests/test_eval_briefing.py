@@ -49,6 +49,7 @@ def _items(prefix, count):
 # Large enough to cover both the topic slots and the exclusion log that
 # follows them, so a clean briefing really is clean.
 CORPUS = {
+    "schema_version": 7,
     "generated_at": "2026-08-08T00:00:00+00:00",
     "errors": [],
     "categories": {
@@ -227,6 +228,7 @@ class CitationIdentityTest(unittest.TestCase):
     """
 
     TRACKED = {
+        "schema_version": 7,
         "generated_at": "2026-08-08T00:00:00+00:00",
         "errors": [],
         "categories": {
@@ -274,6 +276,7 @@ class CitationIdentityTest(unittest.TestCase):
         self.assertIn("at_medium=RSS", message)
 
     QUERY_ROUTED = {
+        "schema_version": 7,
         "generated_at": "2026-08-08T00:00:00+00:00",
         "errors": [],
         "categories": {
@@ -688,8 +691,11 @@ class CorpusHealthTest(unittest.TestCase):
     """A degraded run must look degraded rather than merely short."""
 
     def setUp(self):
-        self.degraded = dict(CORPUS, errors=["r/ClaudeAI: HTTP Error 429",
-                                             "r/ClaudeCode: HTTP Error 429"])
+        self.degraded = dict(CORPUS, errors=[
+            {"source_type": "reddit", "source_id": name, "status": "error",
+             "error_type": "HTTPError", "message": "HTTP 429", "duration_ms": 1}
+            for name in ("ClaudeAI", "ClaudeCode")
+        ])
 
     def test_missing_health_section_on_degraded_run_is_an_error(self):
         findings = evaluate(self.degraded, briefing())
@@ -709,57 +715,27 @@ class CorpusHealthTest(unittest.TestCase):
         )
 
     def test_unnamed_failed_source_is_an_error(self):
-        text = briefing(health="`r/ClaudeAI` failed.")
+        text = briefing(health=(
+            '```json\n{"failed_sources": [{"source_type":"reddit",'
+            '"source_id":"ClaudeAI","status":"error"}]}\n```'
+        ))
         findings = evaluate(self.degraded, text)
         self.assertIn("failed_source_unnamed", checks(findings, ERROR))
 
-    def test_hn_query_name_is_not_truncated_at_its_colon(self):
-        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
-        text = briefing(health="All sources healthy.")
-        findings = evaluate(degraded, text)
-        self.assertIn("failed_source_unnamed", checks(findings, ERROR))
-        self.assertTrue(any("HN:agentic coding" in finding.message
-                            for finding in findings))
-
-    def test_named_hn_query_source_satisfies_the_check(self):
-        degraded = dict(CORPUS, errors=["HN:agentic coding: HTTP Error 503"])
-        text = briefing(health="`HN:agentic coding` failed with HTTP 503.")
-        self.assertEqual(checks(evaluate(degraded, text), ERROR), set())
-
-    def test_cosmetic_source_variants_satisfy_the_check(self):
-        cases = (
-            ("subreddit slash", "r/ClaudeAI: HTTP Error 429", "/r/ClaudeAI failed."),
-            ("HN colon space", "HN:agentic coding: HTTP Error 503",
-             "HN: agentic coding failed."),
-            ("wrapped source", "Ars Technica: timed out", "Ars\n  Technica failed."),
-        )
-        for label, error, health in cases:
-            with self.subTest(label=label):
-                degraded = dict(CORPUS, errors=[error])
-                self.assertEqual(checks(evaluate(degraded, briefing(health=health)), ERROR), set())
-
-    def test_failed_sources_may_be_named_in_health_heading(self):
-        text = briefing(health="Failures are listed above.").replace(
-            "### Corpus health",
-            "### Corpus health — r/ClaudeAI and r/ClaudeCode failed")
-        self.assertEqual(checks(evaluate(self.degraded, text), ERROR), set())
 
     def test_source_named_outside_health_section_does_not_count(self):
-        text = briefing(health="All sources healthy.").replace(
+        text = briefing(health='```json\n{"failed_sources": []}\n```').replace(
             "summary text here.", "r/ClaudeAI reports summary text here.", 1)
         findings = evaluate(self.degraded, text)
         self.assertIn("failed_source_unnamed", checks(findings, ERROR))
 
-    def test_fully_reported_degradation_is_clean(self):
-        text = briefing(health="`r/ClaudeAI` and `r/ClaudeCode` failed with HTTP 429.")
-        self.assertEqual(evaluate(self.degraded, text), [])
 
     def test_healthy_run_needs_no_health_section(self):
         self.assertNotIn("corpus_health_missing", checks(evaluate(CORPUS, briefing())))
 
     def test_undated_drops_require_exact_machine_readable_reporting(self):
         corpus = json.loads(
-            (ROOT / "fixtures/corpus-2026-08-11.json").read_text(encoding="utf-8")
+            (ROOT / "fixtures/current-corpus.json").read_text(encoding="utf-8")
         )
         source = corpus["sources"][0]
         source["parsed_entries"] += 2
@@ -1190,11 +1166,11 @@ class ClaimGroundingTest(unittest.TestCase):
 class CommittedFixtureTest(unittest.TestCase):
     """The shipped reference corpus, briefing, prompt, and sample stay consistent."""
 
-    def test_reference_briefing_satisfies_its_corpus(self):
-        corpus = load_corpus(str(ROOT / "fixtures/corpus-2026-08-09.json"))
+    def test_historical_corpus_is_rejected_by_current_evaluation(self):
+        corpus = json.loads((ROOT / "fixtures/corpus-2026-08-09.json").read_text(encoding="utf-8"))
         with open(ROOT / "fixtures/briefing-2026-08-09.md", encoding="utf-8") as f:
             findings = evaluate(corpus, f.read())
-        self.assertEqual(findings, [], f"reference briefing regressed: {findings}")
+        self.assertEqual(checks(findings, ERROR), {"unsupported_corpus_schema_version"})
 
     def test_low_overlap_on_retained_historical_clean_briefings(self):
         run = ROOT / "docs/runs/2026-08-18/structured-output-enabled"
@@ -1224,7 +1200,9 @@ class CommittedFixtureTest(unittest.TestCase):
             )
             overlap.extend(
                 finding
-                for finding in eval_briefing.evaluate(corpus, briefing_text, config)
+                for finding in eval_briefing.check_claims_supported(
+                    parsed, eval_briefing.corpus_evidence(corpus)
+                )
                 if finding.check == "low_claim_evidence_overlap"
             )
         self.assertEqual(topic_count, 44)
@@ -1250,12 +1228,12 @@ class CommittedFixtureTest(unittest.TestCase):
         ).strip()
         self.assertEqual(sample, expected, "sample briefing does not contain the full reference result")
 
-        corpus = load_corpus(str(ROOT / "fixtures/corpus-2026-08-09.json"))
+        corpus = json.loads((ROOT / "fixtures/corpus-2026-08-09.json").read_text(encoding="utf-8"))
         errors = [
             finding for finding in evaluate(corpus, sample)
             if finding.level == ERROR
         ]
-        self.assertEqual(errors, [], f"sample briefing regressed: {errors}")
+        self.assertEqual(checks(errors, ERROR), {"unsupported_corpus_schema_version"})
 
 
 class PromptSafetyContractTest(unittest.TestCase):
@@ -1320,7 +1298,7 @@ class PromptInjectionContainmentTest(unittest.TestCase):
     within corpus URLs.
     """
 
-    CORPUS = load_corpus(str(ROOT / "fixtures/injection-corpus.json"))
+    CORPUS = load_corpus(str(ROOT / "fixtures/current-injection-corpus.json"))
     CONFIG = load_config(ROOT / "fixtures/injection-config.json")
 
     def _evaluate(self, text):
@@ -1384,7 +1362,7 @@ class TextEncodingContractTest(unittest.TestCase):
 
 
 class CorpusLoadingTest(unittest.TestCase):
-    def test_loads_a_structurally_valid_versionless_legacy_corpus(self):
+    def test_rejects_a_versionless_legacy_corpus(self):
         legacy = {
             "generated_at": "2026-08-08T12:00:00+00:00",
             "cutoff": "2026-08-07T12:00:00+00:00",
@@ -1411,10 +1389,8 @@ class CorpusLoadingTest(unittest.TestCase):
             path = Path(directory) / "legacy-corpus.json"
             path.write_text(json.dumps(legacy), encoding="utf-8")
 
-            loaded = load_corpus(str(path))
-
-        self.assertEqual(eval_briefing.corpus_schema.corpus_version(loaded), 0)
-        self.assertEqual(loaded, legacy)
+            with self.assertRaisesRegex(ValueError, "invalid schema_version"):
+                load_corpus(str(path))
 
     def test_rejects_a_malformed_schema_version_without_calling_it_v0(self):
         for value in ("5", True, None, 1.5, 0, -1):
@@ -1489,7 +1465,7 @@ class CommandLineFailureTest(unittest.TestCase):
                 self.assertNotIn("Traceback", stderr)
 
     def test_unreadable_briefing_path_is_reported(self):
-        code, stderr = self._run("fixtures/corpus-2026-08-09.json",
+        code, stderr = self._run("fixtures/current-corpus.json",
                                  briefing_path="no-such-briefing.md")
         self.assertEqual(code, 2)
         self.assertIn("cannot read briefing", stderr)
@@ -1502,8 +1478,8 @@ class CommandLineFailureTest(unittest.TestCase):
                              encoding="utf-8")
             code, stderr = self._run(str(newer))
         self.assertEqual(code, 2)
-        self.assertIn("newer than", stderr)
-        self.assertIn("upgrade eval_briefing.py", stderr)
+        self.assertIn("unsupported corpus schema", stderr)
+        self.assertIn("expected v7", stderr)
 
     def test_malformed_current_version_corpus_is_refused_before_evaluation(self):
         with tempfile.TemporaryDirectory() as directory:

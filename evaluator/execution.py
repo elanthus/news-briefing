@@ -47,7 +47,6 @@ from evaluator.plan import (
     _result_key,
     _safe_artifact_key,
     _set_source_failures,
-    model_request,
     resolve_evaluation_plan,
 )
 from evaluator.report import finalize_run_report
@@ -97,8 +96,8 @@ class TrialContext:
     corpus: dict[str, Any]
     config_data: dict[str, Any]
     config: briefing_config.BriefingConfig
-    projected: ModelCorpus | None
-    selection_schema: dict[str, Any] | None
+    projected: ModelCorpus
+    selection_schema: dict[str, Any]
     request: str
     safe_key: str
     case_dir: Path
@@ -116,19 +115,16 @@ def _write_trial_inputs(
     case_dir: Path,
     corpus: dict[str, Any],
     request: str,
-    projected: ModelCorpus | None,
-    selection_schema: dict[str, Any] | None,
+    projected: ModelCorpus,
+    selection_schema: dict[str, Any],
 ) -> None:
     _write_json_atomic(case_dir / "corpus.json", corpus)
     _write_text_atomic(case_dir / "request.txt", request)
-    if projected is None or selection_schema is None:
-        return
     _write_json_atomic(case_dir / "model-corpus.json", projected.document)
     _write_json_atomic(
         case_dir / "citation-map.json",
         {ref: citation.__dict__ for ref, citation in projected.citations.items()},
     )
-    _write_json_atomic(case_dir / "output-schema.json", selection_schema)
     _write_json_atomic(case_dir / "selection-schema.json", selection_schema)
 
 
@@ -166,14 +162,9 @@ def _prepare_trial(
     config_path = options.suite_path.parent / case["config"]
     config_data = _json(config_path)
     config = briefing_config.load_config(config_path)
-    projected: ModelCorpus | None = None
-    selection_schema: dict[str, Any] | None = None
-    if options.generation_path == "production-parity":
-        projected = project_corpus(corpus)
-        selection_schema = build_selection_schema(config, projected.citations)
-        request = structured_model_request(prompt, config_data, projected)
-    else:
-        request = model_request(prompt, config_data, corpus)
+    projected = project_corpus(corpus)
+    selection_schema = build_selection_schema(config, projected.citations)
+    request = structured_model_request(prompt, config_data, projected)
     safe_key = _safe_artifact_key(result_key)
     case_dir = options.output_dir / safe_key
     _prepare_artifact_dir(case_dir, resume=options.resumed)
@@ -336,20 +327,17 @@ def _write_completed_artifacts(
 ) -> tuple[dict[str, Any], str | None]:
     _write_text_atomic(context.case_dir / "first.md", first.text)
     _write_text_atomic(context.case_dir / "final.md", final.text)
-    if options.generation_path == "production-parity":
-        if first_attempt.parity is None or final_attempt.parity is None:
-            raise AssertionError("production-parity attempt was not evaluated")
-        _write_production_attempt_artifacts(
-            context.case_dir, "final", final_attempt.parity
-        )
-        _write_json_atomic(
-            context.case_dir / "first-structured.json",
-            first_attempt.generation.structured_output,
-        )
-        _write_json_atomic(
-            context.case_dir / "final-structured.json",
-            final_attempt.generation.structured_output,
-        )
+    _write_production_attempt_artifacts(
+        context.case_dir, "final", final_attempt.parity
+    )
+    _write_json_atomic(
+        context.case_dir / "first-structured.json",
+        first_attempt.generation.structured_output,
+    )
+    _write_json_atomic(
+        context.case_dir / "final-structured.json",
+        final_attempt.generation.structured_output,
+    )
     _write_json_atomic(
         context.case_dir / "grounding-adjudication.json",
         _adjudication_template(final.sections),
@@ -434,10 +422,9 @@ def _run_case_trial(
             state.observed_ceiling_cost_usd
             + _reported_generation_cost(first_attempt.generation),
         )
-    if first_attempt.parity is not None:
-        _write_production_attempt_artifacts(
-            context.case_dir, "first", first_attempt.parity
-        )
+    _write_production_attempt_artifacts(
+        context.case_dir, "first", first_attempt.parity
+    )
     first = score_attempt(context.case, context.corpus, context.config, first_attempt)
     corrected_attempt, correction_error = _run_correction(
         context, state, options, first_attempt, first
@@ -569,7 +556,7 @@ def execute_evaluation(
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
-    generation_path: str = "markdown",
+    generation_path: str = "production-parity",
     source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from evaluator import runner as runner_module
@@ -578,8 +565,8 @@ def execute_evaluation(
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
-    if generation_path not in {"markdown", "production-parity"}:
-        raise ValueError("generation_path must be markdown or production-parity")
+    if generation_path != "production-parity":
+        raise ValueError("only production-parity generation is supported")
     resume_manifest = _load_resume_manifest(output_dir) if resume else None
     plan = resolve_evaluation_plan(
         adapters=adapters,

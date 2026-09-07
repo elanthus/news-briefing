@@ -201,9 +201,8 @@ def output_urls(text: str) -> list[tuple[str, str]]:
 def load_corpus(path: str) -> dict[str, Any]:
     """Load a corpus, refusing one this checker cannot read correctly.
 
-    An older corpus is fine — the fields read here have only been added to.
-    A newer one may have moved something, and misreading it would produce
-    confident findings about the wrong fields, which is worse than stopping.
+    Only the current schema is supported. Historical runs can be reproduced
+    using their recorded source revision.
     """
     with open(path, encoding="utf-8") as f:
         corpus = json.load(f)
@@ -216,9 +215,7 @@ def load_corpus(path: str) -> dict[str, Any]:
         raise ValueError(f"corpus has invalid schema_version: {detail}")
     if not corpus_schema.is_readable(corpus):
         raise ValueError(
-            f"corpus schema v{version} is newer than "
-            f"v{corpus_schema.SCHEMA_VERSION}, which is the newest this checker "
-            f"understands — upgrade eval_briefing.py")
+            f"unsupported corpus schema v{version}; expected v{corpus_schema.SCHEMA_VERSION}")
     problems = corpus_schema.validate_corpus(corpus)
     if problems:
         detail = "; ".join(problems)
@@ -743,15 +740,6 @@ def check_hn_discussion_links(sections: dict[str, Section],
     return findings
 
 
-def _failed_source(error: str) -> str:
-    """Return the exact source ID from the fetcher's human-readable error.
-
-    Source configuration rejects the ``": "`` delimiter, while the ``HN:``
-    namespace deliberately uses a colon without a following space.
-    """
-    return error.split(": ", 1)[0].strip()
-
-
 def _corpus_version_findings(corpus: dict[str, Any]) -> list[Finding]:
     """Reject a version no evaluator path can interpret safely."""
     version = corpus_schema.corpus_version(corpus)
@@ -763,17 +751,11 @@ def _corpus_version_findings(corpus: dict[str, Any]) -> list[Finding]:
         return [Finding(
             ERROR, "invalid_corpus_schema_version",
             f"corpus has invalid schema_version: {detail}")]
-    if version > corpus_schema.SCHEMA_VERSION:
+    if version != corpus_schema.SCHEMA_VERSION:
         return [Finding(
             ERROR, "unsupported_corpus_schema_version",
-            f"corpus schema v{version} is newer than v{corpus_schema.SCHEMA_VERSION}")]
+            f"unsupported corpus schema v{version}; expected v{corpus_schema.SCHEMA_VERSION}")]
     return []
-
-
-def _normalize_source_mention(value: str) -> str:
-    """Ignore harmless case, wrapping, and HN colon-spacing differences."""
-    normalized = re.sub(r"\s+", " ", value.casefold()).strip()
-    return re.sub(r"\bhn:\s+", "hn:", normalized)
 
 
 def check_corpus_health_reported(sections: dict[str, Section],
@@ -790,7 +772,6 @@ def check_corpus_health_reported(sections: dict[str, Section],
     )
     if not errors and not undated_total:
         return []
-    version = corpus_schema.corpus_version(corpus)
     if CORPUS_HEALTH not in sections:
         degradation = f"{len(errors)} fetch error(s)"
         if undated_total:
@@ -799,35 +780,20 @@ def check_corpus_health_reported(sections: dict[str, Section],
             ERROR, "corpus_health_missing",
             f"corpus recorded {degradation} but the "
             f"briefing has no {CORPUS_HEALTH!r} section")]
-        if version is not None and version >= 4:
-            for error in errors:
-                missing_findings.append(Finding(
-                    ERROR, "failed_source_unnamed",
-                    f"failed source {error['source_type']}:{error['source_id']} "
-                    f"({error['status']}) is absent because the health manifest is missing"))
-            for undated_source in undated_sources:
-                missing_findings.append(Finding(
-                    ERROR, "undated_source_unnamed",
-                    f"source {undated_source['source_type']}:{undated_source['source_id']} dropped "
-                    f"{undated_source['count']} undated item(s) and is absent because the health "
-                    "manifest is missing"))
-        return missing_findings
-    if version is not None and version >= 4:
-        return _check_structured_corpus_health(
-            sections[CORPUS_HEALTH], errors, undated_sources)
-
-    findings: list[Finding] = []
-    health_text = _normalize_source_mention(
-        "\n".join(sections[CORPUS_HEALTH]["lines"]))
-    for error in errors:
-        source = _failed_source(error)
-        normalized_source = _normalize_source_mention(source)
-        if source and not re.search(
-                rf"(?<!\w){re.escape(normalized_source)}(?![\w/])", health_text):
-            findings.append(Finding(
+        for error in errors:
+            missing_findings.append(Finding(
                 ERROR, "failed_source_unnamed",
-                f"failed source {source!r} is not named in the briefing"))
-    return findings
+                f"failed source {error['source_type']}:{error['source_id']} "
+                f"({error['status']}) is absent because the health manifest is missing"))
+        for undated_source in undated_sources:
+            missing_findings.append(Finding(
+                ERROR, "undated_source_unnamed",
+                f"source {undated_source['source_type']}:{undated_source['source_id']} dropped "
+                f"{undated_source['count']} undated item(s) and is absent because the health "
+                "manifest is missing"))
+        return missing_findings
+    return _check_structured_corpus_health(
+        sections[CORPUS_HEALTH], errors, undated_sources)
 
 
 def _check_structured_corpus_health(section: Section,

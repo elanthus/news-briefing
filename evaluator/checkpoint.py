@@ -79,7 +79,6 @@ _RUNNER_ARTIFACT_FILES = (
     "request.txt",
     "model-corpus.json",
     "citation-map.json",
-    "output-schema.json",
     "selection-schema.json",
     "error.json",
     "correction-error.json",
@@ -150,13 +149,11 @@ def _validate_checkpoint_artifacts(
         raise ValueError("cannot resume corrupt checkpoint: result artifact_dir is inconsistent")
     case_dir = output_dir / expected_artifact_dir
     required = [case_dir / "corpus.json", case_dir / "request.txt"]
-    if generation_path == "production-parity":
-        required.extend([
-            case_dir / "model-corpus.json",
-            case_dir / "citation-map.json",
-            case_dir / "output-schema.json",
-            case_dir / "selection-schema.json",
-        ])
+    required.extend([
+        case_dir / "model-corpus.json",
+        case_dir / "citation-map.json",
+        case_dir / "selection-schema.json",
+    ])
     status = row.get("status")
     if status in {"provider_error", "skipped_circuit_open"}:
         required.append(case_dir / "error.json")
@@ -165,7 +162,7 @@ def _validate_checkpoint_artifacts(
             if isinstance(row.get("error"), dict)
             else None
         )
-        if generation_path == "production-parity" and completed_calls:
+        if completed_calls:
             required.extend([
                 case_dir / "first-selection.json",
                 case_dir / "first-prose.json",
@@ -185,17 +182,16 @@ def _validate_checkpoint_artifacts(
             case_dir / "final.md",
             case_dir / "grounding-adjudication.json",
         ])
-        if generation_path == "production-parity":
-            required.extend([
-                case_dir / "first-structured.json",
-                case_dir / "final-structured.json",
-            ])
+        required.extend([
+            case_dir / "first-structured.json",
+            case_dir / "final-structured.json",
+        ])
         if status == "completed_with_correction_error":
             required.append(case_dir / "correction-error.json")
             correction_calls = row.get("correction_error", {}).get(
                 "completed_stage_calls"
             )
-            if generation_path == "production-parity" and correction_calls:
+            if correction_calls:
                 required.extend([
                     case_dir / "correction-selection.json",
                     case_dir / "correction-prose.json",

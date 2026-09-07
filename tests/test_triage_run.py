@@ -11,7 +11,6 @@ from agent_runner.models import GenerationRequest, ModelResponse, ProviderError
 from triage_run import generate_report, main, render_markdown, write_report
 
 ROOT = Path(__file__).resolve().parents[1]
-WARN_RUN = ROOT / "docs/runs/2026-08-17"
 FAILED_RUN = ROOT / "docs/runs/2026-08-18"
 WORKFLOW = (ROOT / ".github/workflows/triage-run.yml").read_text(encoding="utf-8")
 
@@ -80,6 +79,19 @@ class FakeProvider:
 
 
 class TriageRunTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from tests.test_briefing_output import fixture_contract
+
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.ready_run = Path(directory.name) / "ready"
+        self.ready_run.mkdir()
+        corpus, _, _, _ = fixture_contract()
+        _write_json(self.ready_run / "corpus.json", corpus)
+        _manifest(self.ready_run, status="complete",
+                  final={"status": "ready", "findings": [], "source_issues": len(corpus["errors"])},
+                  artifacts={"corpus.json": "digest"})
+
     def test_provider_error_subclassifies_status_and_retry_flags(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "2026-09-01"
@@ -222,8 +234,8 @@ class TriageRunTests(unittest.TestCase):
         self.assertIn("correction_budget_exhausted", classes)
         self.assertLess(classes.index("correction_budget_exhausted"), classes.index("checker_finding"))
 
-    def test_real_warn_run_reports_degraded_sources_and_no_failure(self) -> None:
-        report = generate_report(WARN_RUN)
+    def test_current_ready_run_reports_degraded_sources_and_no_failure(self) -> None:
+        report = generate_report(self.ready_run)
 
         self.assertEqual(_classes(report), ["degraded_sources", "no_failure_detected"])
         degraded = report.classes[0]
@@ -341,7 +353,7 @@ class TriageRunTests(unittest.TestCase):
             "failed at https://provider.invalid/request",
             transient=False,
         ))
-        report = generate_report(WARN_RUN, provider=provider)
+        report = generate_report(self.ready_run, provider=provider)
 
         self.assertIn("no_failure_detected", _classes(report))
         self.assertIsNone(report.model_summary)
@@ -355,7 +367,7 @@ class TriageRunTests(unittest.TestCase):
             latency_ms=1.0,
             provider_events=({"type": "tool_call", "name": "shell"},),
         ))
-        report = generate_report(WARN_RUN, provider=provider)
+        report = generate_report(self.ready_run, provider=provider)
 
         self.assertIsNone(report.model_summary)
         self.assertIn("empty tool policy", report.model_summary_error)
@@ -371,16 +383,16 @@ class TriageRunTests(unittest.TestCase):
                     structured_output={"summary": summary},
                     latency_ms=1.0,
                 ))
-                invalid_report = generate_report(WARN_RUN, provider=invalid_provider)
+                invalid_report = generate_report(self.ready_run, provider=invalid_provider)
                 self.assertIsNone(invalid_report.model_summary)
                 self.assertIn(expected_error, invalid_report.model_summary_error)
 
     def test_write_report_refuses_run_directory_and_cli_returns_two_for_bad_input(self) -> None:
-        report = generate_report(WARN_RUN)
+        report = generate_report(self.ready_run)
         with self.assertRaisesRegex(ValueError, "must not be inside the run directory"):
-            write_report(report, WARN_RUN, WARN_RUN)
+            write_report(report, self.ready_run, self.ready_run)
         with self.assertRaisesRegex(ValueError, "must not be inside the run directory"):
-            write_report(report, WARN_RUN / "triage-output", WARN_RUN)
+            write_report(report, self.ready_run / "triage-output", self.ready_run)
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):

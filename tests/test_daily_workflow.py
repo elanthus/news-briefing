@@ -170,9 +170,9 @@ class DailyWorkflowTests(unittest.TestCase):
 
         self.assertIn("run: python3 daily_publish.py restore-corpus", restore_step)
 
-    def test_removes_known_bad_historical_pages(self) -> None:
-        self.assertIn("--exclude-date 2026-08-15", WORKFLOW)
-        self.assertIn("--exclude-date 2026-08-16", WORKFLOW)
+    def test_no_longer_carries_historical_date_exclusions(self) -> None:
+        self.assertNotIn("--exclude-date 2026-08-15", WORKFLOW)
+        self.assertNotIn("--exclude-date 2026-08-16", WORKFLOW)
 
     def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
         self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)

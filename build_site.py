@@ -19,7 +19,6 @@ from typing import Any
 import corpus_schema
 import eval_briefing
 from audit_manifest import build_audit_manifest
-from corpus_storage import write_storage_marker
 from publication_failures import (
     FAILURE_MESSAGES,
     MODEL_LABELS,
@@ -28,7 +27,6 @@ from publication_failures import (
 )
 from publication_schema import (
     CONTEXT_FIELDS,
-    FINDING_FIELDS,
     FINDING_V3_FIELDS,
     Provenance,
     ReviewFinding,
@@ -41,14 +39,11 @@ from publication_schema import (
     provenance_payload,
 )
 
-LEGACY_FIELDS = {"date", "disposition", "findings_count", "degraded_sources"}
-SIDECAR_FIELDS = LEGACY_FIELDS | {"findings"}
-SIDECAR_V4_FIELDS = SIDECAR_FIELDS | {"repair_actions"}
-SIDECAR_V5_FIELDS = SIDECAR_V4_FIELDS | {"generation_failures"}
-SIDECAR_V6_FIELDS = SIDECAR_V5_FIELDS | {"advisory_findings"}
-SIDECAR_V7_FIELDS = SIDECAR_V6_FIELDS | {"provenance"}
+SIDECAR_FIELDS = {
+    "date", "disposition", "findings_count", "degraded_sources", "findings",
+    "repair_actions", "generation_failures", "advisory_findings", "provenance",
+}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
-LEGACY_HISTORY_FIELDS = LEGACY_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -193,20 +188,14 @@ def _parse_finding_entries(
     raw_findings: list[object],
     *,
     label: str,
-    schema_version: int,
-    flexible_findings: bool,
 ) -> list[ReviewFinding]:
     """Parse one finding-shaped list, shared by ``findings`` and ``advisory_findings``."""
     findings: list[ReviewFinding] = []
     for index, raw_finding in enumerate(raw_findings):
         finding_source = f"{label} {index}"
-        allowed_finding_fields = (
-            {frozenset(FINDING_FIELDS), frozenset(FINDING_V3_FIELDS)}
-            if schema_version >= 3 and flexible_findings
-            else {frozenset(FINDING_V3_FIELDS if schema_version >= 3 else FINDING_FIELDS)}
-        )
+        allowed_finding_fields = {frozenset(FINDING_V3_FIELDS)}
         if not finding_has_fields(raw_finding, allowed_finding_fields):
-            expected = sorted(FINDING_V3_FIELDS if schema_version >= 3 else FINDING_FIELDS)
+            expected = sorted(FINDING_V3_FIELDS)
             raise ValueError(f"{finding_source} must contain exactly {expected}")
         assert isinstance(raw_finding, dict)
         if not finding_strings_are_valid(raw_finding):
@@ -240,22 +229,14 @@ def _entry_from_payload(
     *,
     source: str,
     expected_slug: str | None = None,
-    schema_version: int = 3,
-    flexible_findings: bool = True,
 ) -> BriefingEntry:
-    expected_fields = SIDECAR_FIELDS if schema_version >= 2 else LEGACY_FIELDS
-    allowed_fields = (
-        (expected_fields, SIDECAR_V4_FIELDS, SIDECAR_V5_FIELDS, SIDECAR_V6_FIELDS, SIDECAR_V7_FIELDS)
-        if schema_version >= 2
-        else (expected_fields,)
-    )
-    if not isinstance(payload, dict) or set(payload) not in allowed_fields:
-        raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
+    if not isinstance(payload, dict) or set(payload) != SIDECAR_FIELDS:
+        raise ValueError(f"{source} must contain exactly {sorted(SIDECAR_FIELDS)}")
 
     raw_date = payload["date"]
     disposition = payload["disposition"]
     findings_count = payload["findings_count"]
-    raw_findings = payload["findings"] if schema_version >= 2 else []
+    raw_findings = payload["findings"]
     degraded_sources = payload["degraded_sources"]
     if not isinstance(raw_date, str):
         raise ValueError(f"{source} date must be an ISO date string")
@@ -286,10 +267,8 @@ def _entry_from_payload(
     findings = _parse_finding_entries(
         raw_findings,
         label=f"{source} finding",
-        schema_version=schema_version,
-        flexible_findings=flexible_findings,
     )
-    if schema_version >= 2 and disposition == "review_required" and len(findings) != findings_count:
+    if disposition == "review_required" and len(findings) != findings_count:
         raise ValueError(f"{source} must include every review-required finding")
     if disposition != "review_required" and findings:
         raise ValueError(f"{source} findings details are allowed only for review_required entries")
@@ -299,8 +278,6 @@ def _entry_from_payload(
     advisory_findings = _parse_finding_entries(
         raw_advisory_findings,
         label=f"{source} advisory finding",
-        schema_version=schema_version,
-        flexible_findings=flexible_findings,
     )
     if advisory_findings and disposition not in PAGE_DISPOSITIONS:
         raise ValueError(f"{source} advisory findings require a published disposition")
@@ -330,49 +307,25 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
-        or payload.get("schema_version") not in {1, 2, 3, 4, 5, 6, 7}
+        or type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != 7
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 1 through 7 with an entries array")
-    schema_version = payload["schema_version"]
+        raise ValueError(f"history {path} must use schema_version 7 with an entries array")
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
         source = f"history {path} entry {index}"
-        expected_fields = HISTORY_FIELDS if schema_version >= 2 else LEGACY_HISTORY_FIELDS
-        if schema_version >= 4:
-            expected_fields = expected_fields | {"repair_actions"}
-        if schema_version >= 5:
-            expected_fields = expected_fields | {"generation_failures"}
-        if schema_version >= 6:
-            expected_fields = expected_fields | {"advisory_findings"}
-        if schema_version >= 7:
-            expected_fields = expected_fields | {"provenance"}
-        if not isinstance(raw_entry, dict) or set(raw_entry) != expected_fields:
-            raise ValueError(f"{source} must contain exactly {sorted(expected_fields)}")
-        if schema_version >= 7:
-            metadata_fields = SIDECAR_V7_FIELDS
-        elif schema_version >= 6:
-            metadata_fields = SIDECAR_V6_FIELDS
-        elif schema_version >= 5:
-            metadata_fields = SIDECAR_V5_FIELDS
-        elif schema_version >= 4:
-            metadata_fields = SIDECAR_V4_FIELDS
-        elif schema_version >= 2:
-            metadata_fields = SIDECAR_FIELDS
-        else:
-            metadata_fields = LEGACY_FIELDS
-        metadata = {key: raw_entry[key] for key in metadata_fields}
+        if not isinstance(raw_entry, dict) or set(raw_entry) != HISTORY_FIELDS:
+            raise ValueError(f"{source} must contain exactly {sorted(HISTORY_FIELDS)}")
+        metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS}
         entry = _entry_from_payload(
             metadata,
             source=source,
-            schema_version=schema_version,
-            flexible_findings=False,
         )
         markdown = raw_entry["markdown"]
-        page_dispositions = PAGE_DISPOSITIONS if schema_version >= 2 else {"ready"}
-        if (entry.disposition in page_dispositions and not isinstance(markdown, str)) or (
-            entry.disposition not in page_dispositions and markdown is not None
+        if (entry.disposition in PAGE_DISPOSITIONS and not isinstance(markdown, str)) or (
+            entry.disposition not in PAGE_DISPOSITIONS and markdown is not None
         ):
             raise ValueError(f"{source} markdown does not match its disposition")
         if entry.slug in seen:
@@ -434,7 +387,7 @@ def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
                 "provenance": (
                     provenance_payload(entry.provenance) if entry.provenance is not None else None
                 ),
-                "markdown": _strip_legacy_preview_banner(entry.markdown),
+                "markdown": entry.markdown,
             }
             for entry in entries
         ],
@@ -487,25 +440,8 @@ def _corpus_health(entry: BriefingEntry) -> str:
     return f"Degraded sources: {sources}"
 
 
-LEGACY_PREVIEW_BANNER = (
-    "# UNPUBLISHED BRIEFING CANDIDATE\n\n"
-    "This candidate requires review and was not written to the configured output path.\n"
-    "Unknown citations are omitted and model-authored web destinations are redacted.\n\n"
-)
 DESTINATION_REDACTION = "[destination omitted; use citation refs]"
 EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
-
-
-def _strip_legacy_preview_banner(markdown: str | None) -> str | None:
-    if markdown is None:
-        return None
-    normalized = markdown.replace("\r\n", "\n")
-    if normalized.startswith(LEGACY_PREVIEW_BANNER):
-        normalized = normalized.removeprefix(LEGACY_PREVIEW_BANNER)
-    outcome_marker = "\n### Run outcome\n"
-    if outcome_marker in normalized:
-        normalized = normalized.split(outcome_marker, 1)[0].rstrip() + "\n"
-    return normalized
 
 
 def _topic_headline(line: str) -> str | None:
@@ -517,7 +453,7 @@ def _topic_headline(line: str) -> str | None:
 
 
 def _section_subheading(line: str) -> str | None:
-    """Legacy section attribution for findings that predate story anchors."""
+    """Section attribution for findings without a structured story path."""
     if not line.startswith("**") or not line.endswith("**") or " — " in line:
         return None
     label = line[2:-2].strip()
@@ -868,7 +804,7 @@ def _render_markdown(
     # checker's destination grammar does not detect.
     parser = markdown_it.MarkdownIt("commonmark", {"html": False})
     parser.validateLink = _is_web_link
-    public_markdown = _strip_legacy_preview_banner(markdown) or ""
+    public_markdown = markdown or ""
     public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
@@ -1430,7 +1366,6 @@ def build_site(
     briefings_dir: Path,
     output_dir: Path,
     prior_history: Path | None = None,
-    bootstrap_dir: Path | None = None,
     replace_existing: bool = False,
     corpora_dirs: Sequence[Path] = (),
     exclude_dates: Sequence[str] = (),
@@ -1449,12 +1384,6 @@ def build_site(
     if not briefings_dir.is_dir():
         raise ValueError(f"briefings directory does not exist: {briefings_dir}")
     by_date: dict[str, BriefingEntry] = {}
-    if bootstrap_dir is not None:
-        if not bootstrap_dir.is_dir():
-            raise ValueError(f"bootstrap directory does not exist: {bootstrap_dir}")
-        for sidecar in bootstrap_dir.glob("*.json"):
-            entry = _entry_from_sidecar(sidecar)
-            by_date[entry.slug] = entry
     for entry in _load_history(prior_history) if prior_history is not None else []:
         prior = by_date.get(entry.slug)
         prior_rank = PUBLICATION_RANK.get(prior.disposition, 0) if prior is not None else -1
@@ -1494,7 +1423,6 @@ def build_site(
         json.dumps(_history_payload(entries), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    write_storage_marker(output_dir)
     for entry in entries[1:]:
         (output_dir / f"{entry.slug}.html").write_text(
             _render_briefing(entry, entries),
@@ -1527,11 +1455,6 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--bootstrap-dir",
-        type=Path,
-        help="validated sidecars and Markdown used to seed an initially empty deployment",
-    )
-    parser.add_argument(
         "--replace-existing",
         action="store_true",
         help="replace prior-history pages for publishable dates present in briefings_dir",
@@ -1562,7 +1485,6 @@ def main() -> int:
             args.briefings_dir,
             args.output_dir,
             args.prior_history,
-            args.bootstrap_dir,
             args.replace_existing,
             args.corpora_dirs,
             [excluded_date.isoformat() for excluded_date in args.exclude_dates],
