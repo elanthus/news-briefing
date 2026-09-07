@@ -239,8 +239,9 @@ def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]
     payload = {
         "schema_version": 2,
         "failure": (
-            FailureRecord("chain_exhausted").payload()
-            if selected is None and len(attempts) == len(PRODUCTION_MODEL_CHAIN) else None
+            FailureRecord(
+                "chain_exhausted" if len(attempts) == len(PRODUCTION_MODEL_CHAIN) else "chain_incomplete"
+            ).payload() if selected is None else None
         ),
         "started_at": started_at,
         "completed_at": utc_now(),

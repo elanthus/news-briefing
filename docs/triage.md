@@ -15,7 +15,7 @@ so triage never changes the evidence it is inspecting.
 
 The classifier checks fetch completion, structured provider failure records, recorded output truncation,
 exhausted correction budgets, blocking checker findings, degraded source
-coverage, and exhausted fallback chains. A completed `ready` run receives
+coverage, and failed fallback chains. A completed `ready` run receives
 `no_failure_detected`. One run can receive several classes. Every class cites a manifest key,
 artifact key, or trace line, and blocking checker failures receive a stable short fingerprint
 after destinations and opaque citation handles are removed.
@@ -24,12 +24,25 @@ Reports contain no web destinations. The classifier does not copy corpus article
 prose into either output. It reads only operational metadata, provider failure codes, checker finding
 messages, source-health records, and bounded trace or provider-event data.
 
-Current records carry stable failure codes, HTTP status, transience, truncation,
+Current records carry schema version 1 and stable failure codes, HTTP status, transience, truncation,
 checker identities, and correction stage/budget fields. Triage uses those fields
 and cites their manifest locations. It does not infer truncation from malformed
 JSON or recursively search provider events for length markers. Historical logs
 without these records are not reclassified from exception wording; preserved
-historical evidence remains unchanged.
+historical evidence remains unchanged. The original unversioned structured shape remains readable;
+unknown versions or fields fail closed. Future record changes require an explicit
+versioned read contract, independent of dataclass defaults.
+
+Finalized checker outcomes take precedence over earlier recoverable provider errors
+when the fallback chain selects its failure reason. Triage still lists those provider
+errors separately. A zero correction limit means corrections were disabled, so failed
+checks are classified as validation failure rather than budget exhaustion.
+
+Chains with no selected result and untried candidates emit `chain_incomplete`; triage
+reports `fallback_chain_incomplete`. Older failed logs without a valid chain code still
+report `fallback_chain_failed` from their status, without claiming every model ran.
+Provider diagnostic flags remain strict boolean projections from private metadata;
+they do not change the validated failure code or public explanation.
 
 ## Optional model summary
 

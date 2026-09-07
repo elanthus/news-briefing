@@ -1,12 +1,15 @@
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 from agent_runner.checkpoint import RunStore
-from agent_runner.failures import FailureRecord, parse_failure, run_failure
+from agent_runner.failures import FailureRecord, final_failure, parse_failure, run_failure
 from agent_runner.models import ProviderError
 from publication_failures import summarize_failed_chain
+from run_daily_briefing import PRODUCTION_MODEL_CHAIN, _write_chain_logs
 from triage_run import generate_report
 
 
@@ -94,3 +97,95 @@ class FailureRecordTests(unittest.TestCase):
         changed["attempts"][0]["failure_reason"] = "rejected: repeated_topic: private"
         self.assertEqual(summarize_failed_chain(raw), summarize_failed_chain(changed))
         self.assertEqual(summarize_failed_chain(raw)[0].reason, "rate_limited")
+
+    def test_versioned_and_original_records_have_an_explicit_read_contract(self):
+        current = FailureRecord("rate_limited", status_code=429).payload()
+        original = {key: value for key, value in current.items() if key != "schema_version"}
+        self.assertEqual(parse_failure(original), parse_failure(current))
+        for version in (0, 2, True, "1", None):
+            with self.subTest(version=version):
+                self.assertIsNone(parse_failure({**current, "schema_version": version}))
+
+    def test_finalized_checker_result_precedes_recoverable_provider_error(self):
+        error = ProviderError("private", transient=True, status_code=429).record()
+        for code in ("validation_failed", "correction_exhausted"):
+            with self.subTest(code=code):
+                final = FailureRecord(code, checks=("invalid_shape",), stage="prose",
+                                      corrections_used=1, correction_limit=1)
+                record = run_failure({"error": error, "correction_error": error,
+                                      "final": {"status": "rejected", "failure": final.payload()}})
+                self.assertEqual(record, final)
+                public = summarize_failed_chain({
+                    "schema_version": 2, "status": "failed", "model_chain": ["tencent/hy3"],
+                    "attempts": [{"model": "tencent/hy3", "status": "quarantined",
+                                  "failure": record.payload()}],
+                })
+                self.assertEqual(public[0].reason, code)
+        self.assertEqual(run_failure({"final": {"failure": None}, "correction_error": error}).code,
+                         "rate_limited")
+
+    def test_damaged_resume_metadata_does_not_break_finalization(self):
+        for attempts in (None, "bad", {}, [], [None], [{"kind": "correction"}, None],
+                         [None, {"kind": "correction"}], [{"kind": []}]):
+            for identity in (None, [], "bad", {"max_corrections": 1}):
+                with self.subTest(attempts=attempts, identity=identity), tempfile.TemporaryDirectory() as directory:
+                    store = RunStore.create(Path(directory) / "run", identity={}, provider={}, code={})
+                    store.manifest.update(attempts=attempts, identity=identity)
+                    store.finalize({"status": "rejected", "findings": [
+                        {"level": "ERROR", "check": "invalid_shape"}, None,
+                    ]})
+                    record = parse_failure(store.manifest["final"]["failure"])
+                    self.assertIsNotNone(record)
+                    self.assertEqual(record.code, "validation_failed")
+                    self.assertIsNone(record.stage)
+                    self.assertIsNone(record.corrections_used)
+                    self.assertEqual(store.manifest["status"], "complete")
+        for identity in (None, [], "bad"):
+            record = final_failure({"status": "rejected", "findings": [
+                {"level": "ERROR", "check": "invalid_shape"},
+            ]}, {"attempts": [{"kind": "correction"}], "identity": identity})
+            self.assertEqual(record.code, "validation_failed")
+            self.assertIsNone(record.correction_limit)
+            self.assertEqual(record.corrections_used, 1)
+
+    def test_disabled_corrections_are_validation_failure_not_exhaustion(self):
+        record = final_failure({"status": "rejected", "findings": [
+            {"level": "ERROR", "check": "invalid_shape"},
+        ]}, {"attempts": [{"kind": "prose"}], "identity": {"max_corrections": 0}})
+        self.assertEqual(record.code, "validation_failed")
+        self.assertEqual(record.corrections_used, 0)
+        self.assertEqual(record.correction_limit, 0)
+        self.assertEqual(parse_failure(record.payload()), record)
+        self.assertIsNone(parse_failure({**record.payload(), "code": "correction_exhausted"}))
+
+    def test_incomplete_chain_and_legacy_failed_chain_remain_visible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rows = [{"model": candidate.model, "status": "failed", "run_dir": f"candidate-{index}",
+                     "completed_at": "2026-09-07T00:00:00Z", "failure_reason": None,
+                     "failure": FailureRecord("provider_error").payload()}
+                    for index, candidate in enumerate(PRODUCTION_MODEL_CHAIN[:2])]
+            _write_chain_logs(root, "2026-09-07T00:00:00Z", rows)
+            path = root / "fallback-log.json"
+            chain = json.loads(path.read_text())
+            self.assertEqual(parse_failure(chain["failure"]).code, "chain_incomplete")
+            self.assertEqual(summarize_failed_chain(chain), ())
+            for failure, expected in ((chain["failure"], "fallback_chain_incomplete"),
+                                      (None, "fallback_chain_failed")):
+                chain["failure"] = failure
+                path.write_text(json.dumps(chain))
+                report = generate_report(root)
+                cause = next(cause for cause in report.classes if cause.class_id == expected)
+                self.assertEqual(len(cause.details["candidates"]), 2)
+                self.assertNotIn("fallback_chain_exhausted", [cause.class_id for cause in report.classes])
+
+    def test_unexpected_model_summary_error_uses_a_neutral_private_label(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "manifest.json").write_text(json.dumps({"status": "complete",
+                                                           "final": {"status": "ready"}}))
+            provider = Mock()
+            provider.generate.side_effect = TypeError("private sensitive error")
+            report = generate_report(root, provider=provider)
+            self.assertEqual(report.model_summary_error, "model_summary_failed")
+            self.assertIsNone(report.model_summary)

@@ -486,11 +486,11 @@ def _fetch_failure(manifests: list[_Manifest]) -> tuple[list[Evidence], list[str
 
 def _chain_failure(chain: dict[str, Any] | None) -> tuple[list[Evidence], list[dict[str, str]]]:
     failure = parse_failure(chain.get("failure")) if chain is not None else None
-    if chain is None or failure is None or failure.code != "chain_exhausted":
+    if chain is None or chain.get("status") != "failed":
         return [], []
     attempts = chain.get("attempts")
     candidates: list[dict[str, str]] = []
-    evidence = [Evidence(LOG_NAME, "failure.code")]
+    evidence = [Evidence(LOG_NAME, "failure.code" if failure is not None else "status")]
     if isinstance(attempts, list):
         for index, row in enumerate(attempts):
             if not isinstance(row, dict):
@@ -547,9 +547,15 @@ def _analyze_run(run_dir: Path, generated_at: str | None) -> _Analysis:
         ))
     chain_evidence, candidates = _chain_failure(chain)
     if chain_evidence:
+        chain_record = parse_failure(chain.get("failure")) if chain is not None else None
+        chain_code = chain_record.code if chain_record is not None else None
+        exhausted = chain_code == "chain_exhausted"
+        incomplete = chain_code == "chain_incomplete"
         causes.append(ClassifiedCause(
-            "fallback_chain_exhausted",
-            f"The fallback chain failed after {len(candidates)} candidate(s).",
+            "fallback_chain_exhausted" if exhausted else
+            "fallback_chain_incomplete" if incomplete else "fallback_chain_failed",
+            f"The fallback chain {'exhausted all candidates' if exhausted else 'has no selected result'} "
+            f"after {len(candidates)} recorded candidate(s).",
             tuple(chain_evidence),
             {"candidates": candidates},
         ))
@@ -724,8 +730,9 @@ def generate_report(
             trace_id=f"triage-{analysis.report.run_dir}",
         ))
     except Exception as exc:
-        code = exc.failure.code if isinstance(exc, ProviderError) else "generation_failed"
-        return replace(analysis.report, model_summary_error=f"ProviderError: {code}")
+        error = (f"ProviderError: {exc.failure.code}" if isinstance(exc, ProviderError)
+                 else "model_summary_failed")
+        return replace(analysis.report, model_summary_error=error)
     try:
         return replace(analysis.report, model_summary=_accepted_model_summary(response))
     except Exception as exc:
