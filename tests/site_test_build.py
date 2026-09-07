@@ -13,6 +13,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_runner.failures import FailureRecord
 from agent_runner.output import render_briefing
 from build_site import (
     STYLE,
@@ -51,8 +52,9 @@ class BuildSiteTests(unittest.TestCase):
             chain = root / "run"
             chain.mkdir()
             (chain / "fallback-log.json").write_text(json.dumps({
-                "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
+                "schema_version": 2, "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
                 "attempts": [{"model": "google/gemini-3.7-flash", "status": "failed",
+                              "failure": FailureRecord("invalid_request", status_code=400).payload(),
                               "failure_reason": 'ProviderError: openrouter HTTP 400: <script>private</script>'}],
             }))
             prepare_publication(chain, root / "missing.json", root / "briefings", date(2026, 9, 6))
@@ -61,11 +63,11 @@ class BuildSiteTests(unittest.TestCase):
                 page = (root / "site" / relative).read_text()
                 self.assertIn("Every model in the fallback chain failed", page)
                 self.assertIn("Gemini 3.7 Flash", page)
-                self.assertIn("rejected a request parameter (HTTP 400)", page)
+                self.assertIn("rejected the request", page)
                 self.assertNotIn("<script>private</script>", page)
             (root / "empty").mkdir()
             build_site(root / "empty", root / "rebuilt", prior_history=root / "site/history.json")
-            self.assertIn("rejected a request parameter", (root / "rebuilt/index.html").read_text())
+            self.assertIn("rejected the request", (root / "rebuilt/index.html").read_text())
 
     def test_history_failure_metadata_rejects_unknown_text_and_public_prose(self) -> None:
         from build_site import _entry_from_payload

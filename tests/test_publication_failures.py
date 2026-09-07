@@ -1,18 +1,20 @@
 import unittest
 
+from agent_runner.failures import FailureRecord
 from publication_failures import MODEL_LABELS, parse_generation_failures, summarize_failed_chain
 
 
 class PublicationFailureTests(unittest.TestCase):
-    def test_raw_errors_become_fixed_codes(self):
+    def test_structured_codes_ignore_private_error_wording(self):
         reasons = [
-            'review_required: repeated_topic: private headline https://private.example',
-            'ProviderError: openrouter returned no text content',
-            'ProviderError: openrouter HTTP 400: {"secret":"private"}',
+            FailureRecord("validation_failed", checks=("repeated_topic",)),
+            FailureRecord("empty_response"),
+            FailureRecord("invalid_request", status_code=400),
         ]
         models = list(MODEL_LABELS)
-        log = {"status": "failed", "model_chain": models, "attempts": [
-            {"model": model, "status": "failed", "failure_reason": reason}
+        log = {"schema_version": 2, "status": "failed", "model_chain": models, "attempts": [
+            {"model": model, "status": "failed", "failure": reason.payload(),
+             "failure_reason": "private arbitrary message"}
             for model, reason in zip(models, reasons, strict=True)
         ]}
         failures = summarize_failed_chain(log)

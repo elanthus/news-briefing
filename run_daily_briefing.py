@@ -15,6 +15,7 @@ from typing import Any
 import briefing_config
 import fetch_news
 from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic, write_text_atomic
+from agent_runner.failures import FailureRecord, run_failure
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow
@@ -236,7 +237,12 @@ def _quarantined_report(
 def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]]) -> None:
     selected = next((row for row in attempts if row["status"] == "ready"), None)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "failure": (
+            FailureRecord(
+                "chain_exhausted" if len(attempts) == len(PRODUCTION_MODEL_CHAIN) else "chain_incomplete"
+            ).payload() if selected is None else None
+        ),
         "started_at": started_at,
         "completed_at": utc_now(),
         "status": "ready" if selected is not None else "failed",
@@ -302,6 +308,7 @@ def run_fallback_chain(
                 "status": "ready",
                 "run_dir": candidate_name,
                 "failure_reason": None,
+                "failure": None,
                 "model_removed_from_openrouter": False,
                 "quarantined_report": None,
                 **_run_telemetry(manifest),
@@ -324,6 +331,9 @@ def run_fallback_chain(
             "status": "quarantined" if result is not None else "failed",
             "run_dir": candidate_name,
             "failure_reason": reason,
+            "failure": run_failure(
+                manifest, failure.record() if isinstance(failure, ProviderError) else None
+            ).payload(),
             "model_removed_from_openrouter": removed,
             "quarantined_report": quarantined_report,
             **_run_telemetry(manifest),

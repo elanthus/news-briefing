@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
+from agent_runner.failures import provider_failure
+
 
 @dataclass(frozen=True)
 class GenerationRequest:
@@ -50,6 +52,7 @@ class ProviderError(RuntimeError):
         ambiguous_completion: bool = False,
         openrouter_model_404: bool = False,
         output_truncated: bool = False,
+        empty_response: bool = False,
     ):
         super().__init__(message)
         self.transient = transient
@@ -60,9 +63,12 @@ class ProviderError(RuntimeError):
         self.ambiguous_completion = ambiguous_completion
         self.openrouter_model_404 = openrouter_model_404
         self.output_truncated = output_truncated
+        self.failure = provider_failure(status_code=status_code, transient=transient,
+                                        output_truncated=output_truncated, empty_response=empty_response)
 
     def record(self) -> dict[str, Any]:
         return {
+            "failure": self.failure.payload(),
             "type": type(self).__name__,
             "message": str(self),
             "transient": self.transient,
