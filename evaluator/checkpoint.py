@@ -143,7 +143,6 @@ def _validate_checkpoint_artifacts(
     row: dict[str, Any],
     output_dir: Path,
     expected_artifact_dir: str,
-    generation_path: str,
 ) -> None:
     if row.get("artifact_dir") != expected_artifact_dir:
         raise ValueError("cannot resume corrupt checkpoint: result artifact_dir is inconsistent")
@@ -301,7 +300,6 @@ def _validate_resume_row(
     index: int,
     plan: EvaluationPlan,
     output_dir: Path,
-    generation_path: str,
 ) -> None:
     from evaluator.scoring import _base_result
 
@@ -363,7 +361,7 @@ def _validate_resume_row(
                 "cannot resume corrupt checkpoint: semantic adjudication presence is inconsistent"
             )
     _validate_checkpoint_artifacts(
-        row, output_dir, plan.planned_artifact_dirs[index], generation_path
+        row, output_dir, plan.planned_artifact_dirs[index]
     )
 
 
@@ -373,7 +371,6 @@ def _resume_state(
     adapters: list[Adapter],
     output_dir: Path,
     run_kind: str,
-    generation_path: str,
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
     checkpoint: Callable[[dict[str, Any], Path], dict[str, Any]],
@@ -388,7 +385,7 @@ def _resume_state(
     if len(results) > len(plan.planned_units):
         raise ValueError("cannot resume corrupt checkpoint: more results than planned")
     for index, row in enumerate(results):
-        _validate_resume_row(row, index, plan, output_dir, generation_path)
+        _validate_resume_row(row, index, plan, output_dir)
     observed = (
         _reconstruct_observed_cost(results, cost_ceiling_provider)
         if cost_ceiling_usd is not None
@@ -429,7 +426,6 @@ def initialize_run(
     suite_path: Path,
     protocol_path: Path,
     run_kind: str,
-    generation_path: str,
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
     checkpoint: Callable[[dict[str, Any], Path], dict[str, Any]],
@@ -443,7 +439,6 @@ def initialize_run(
             adapters,
             output_dir,
             run_kind,
-            generation_path,
             cost_ceiling_usd,
             cost_ceiling_provider,
             checkpoint,

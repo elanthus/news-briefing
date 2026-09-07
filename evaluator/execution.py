@@ -13,6 +13,7 @@ import briefing_config
 import corpus_schema
 from agent_runner.output import ModelCorpus, build_selection_schema, project_corpus
 from agent_runner.runner import build_request as structured_model_request
+from agent_runner.stages import CorrectionBudget, correction_action
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
@@ -72,7 +73,6 @@ class ExecutionOptions:
     output_dir: Path
     suite_path: Path
     corpus_path: Path
-    generation_path: str
     cost_ceiling_usd: float | None
     cost_ceiling_provider: str | None
     resumed: bool
@@ -272,7 +272,7 @@ def _run_correction(
     first_attempt: GenerationAttempt,
     first: ScoredAttempt,
 ) -> tuple[GenerationAttempt | None, dict[str, Any] | None]:
-    if first.contract_success:
+    if correction_action(first.contract_success, CorrectionBudget(1)) != "correct":
         return None, None
     if (
         context.ceiling_limit is not None
@@ -292,7 +292,6 @@ def _run_correction(
     try:
         corrected = run_correction_attempt(
             adapter=context.adapter,
-            generation_path=options.generation_path,
             prior=first_attempt,
             request=context.request,
             findings=[finding._asdict() for finding in first.findings],
@@ -390,7 +389,6 @@ def _run_case_trial(
     try:
         first_attempt = run_first_attempt(
             adapter=context.adapter,
-            generation_path=options.generation_path,
             request=context.request,
             selection_schema=context.selection_schema,
             policy=context.prompt,
@@ -556,7 +554,6 @@ def execute_evaluation(
     cost_ceiling_usd: float | None = None,
     cost_ceiling_provider: str | None = None,
     resume: bool = False,
-    generation_path: str = "production-parity",
     source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from evaluator import runner as runner_module
@@ -565,8 +562,6 @@ def execute_evaluation(
         raise ValueError("trials must be positive")
     if run_kind not in {"development", "pilot", "final"}:
         raise ValueError("run_kind must be development, pilot, or final")
-    if generation_path != "production-parity":
-        raise ValueError("only production-parity generation is supported")
     resume_manifest = _load_resume_manifest(output_dir) if resume else None
     plan = resolve_evaluation_plan(
         adapters=adapters,
@@ -576,7 +571,6 @@ def execute_evaluation(
         corpus_path=corpus_path,
         protocol_path=protocol_path,
         run_kind=run_kind,
-        generation_path=generation_path,
         execution_seed=execution_seed,
         cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
@@ -593,7 +587,6 @@ def execute_evaluation(
         suite_path=suite_path,
         protocol_path=protocol_path,
         run_kind=run_kind,
-        generation_path=generation_path,
         cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
         checkpoint=runner_module._checkpoint,
@@ -605,7 +598,6 @@ def execute_evaluation(
         output_dir,
         suite_path,
         corpus_path,
-        generation_path,
         cost_ceiling_usd,
         cost_ceiling_provider,
         resume_manifest is not None,

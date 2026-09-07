@@ -23,8 +23,8 @@ from agent_runner.runner import (
     _promotion_actions,
     build_request,
     run_workflow,
-    selection_promotion_candidate,
 )
+from agent_runner.stages import selection_promotion_candidate
 from tests.test_briefing_output import ROOT, fixture_contract
 
 
@@ -382,7 +382,7 @@ class RunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch(
             "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
         ), patch(
-            "agent_runner.runner.render_briefing", return_value=unsafe_render
+            "agent_runner.stages.render_briefing", return_value=unsafe_render
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]):
             root = Path(directory)
             result = run_workflow(

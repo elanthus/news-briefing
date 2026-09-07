@@ -169,7 +169,6 @@ predates the fix and remains historical evidence.
 python3 -m evaluator run \
   --provider codex-cli=gpt-5.6-terra \
   --provider openrouter=deepseek/deepseek-v4-flash \
-  --generation-path production-parity \
   --prompt production=briefing-runner-prompt.md \
   --reasoning enabled \
   --trials 1 \
@@ -177,7 +176,7 @@ python3 -m evaluator run \
   --output-dir evaluator/results/production-parity-smoke
 ```
 
-If `--prompt` is omitted in this mode, `briefing-runner-prompt.md` is selected
+If `--prompt` is omitted, `briefing-runner-prompt.md` is selected
 automatically. Production parity supports the same three transports as the
 scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
 the evaluator-only NVIDIA and baseline adapters, as well as `--seed`, rather
@@ -185,6 +184,20 @@ than silently evaluating a different transport. Corrections use the schema for
 the failed stage: selection failures receive a replacement selection request,
 while prose or rendered-contract failures receive a prose-only request against
 the frozen evidence.
+
+Production and evaluation share validation and stage decisions in
+`agent_runner/stages.py`: promotion, deterministic repair, acceptance, correction,
+and budget exhaustion. Production persists each transition and permits
+`max_corrections` independently for selection and prose. Evaluation records a
+first candidate and at most one corrected candidate across both stages; it does
+not grant a fresh correction after a corrected selection's prose fails. Its cost
+ceiling may also suppress that correction. These are deliberate benchmark policies.
+Provider failures retain completed-stage telemetry and costs in the caller.
+The complete Markdown checker remains independent of the structured validators.
+New runs always use this contract; there is no `--generation-path` option.
+Artifacts still record `production-parity`, and resumes reject historical
+`markdown` identities before any provider call. NVIDIA preflight remains available
+for judge commands only.
 
 Each trial preserves the raw and projected corpora, citation map, and selection
 schema. A completed two-pass candidate also preserves its stage-specific prose
