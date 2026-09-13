@@ -153,7 +153,7 @@ Rates show successes/trials and 95% Wilson intervals. Provider errors are retain
 
 **"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums. No independent human semantic or grounding review was completed. HY3 received a schema without `uniqueItems`, so its provider-enforced contract was weaker than DeepSeek's; the deterministic validator still checked duplicates. The model card reports these limits and the comparison with parity v1, which was descriptive and not eligible for the promotion gate.
 
-**The benchmark settings differ from the daily service.** Parity v2 used a frozen source revision, temperature 0, disabled reasoning, and one model correction per stage. The [daily runner](run_daily_briefing.py) uses temperature 0.2, enables reasoning, and tries an ordered model fallback chain; the [scheduled workflow](daily_publish.py) allows up to three corrections per stage. These benchmark rates measure the recorded experiment, not current daily-service reliability.
+**The benchmark settings differ from the daily service.** Parity v2 used a frozen source revision, temperature 0, disabled reasoning, and up to one model correction per trial. The [daily runner](run_daily_briefing.py) uses temperature 0.2, enables reasoning, and tries an ordered model fallback chain; the [scheduled workflow](daily_publish.py) allows up to three corrections per stage. These benchmark rates measure the recorded experiment, not current daily-service reliability.
 
 The [evaluation methodology](docs/evaluation-methodology.md) explains the labels, denominators, and offline checker results. The [parity v2 evidence bundle](docs/results/parity-v2-evidence/) can be verified without credentials or provider calls:
 
