@@ -7,12 +7,18 @@
   news briefing
 </h1>
 
-**A daily AI, US, and world news briefing written by an LLM, where code, not the prompt, owns every link that can get printed.**
+**Exploring deterministic controls for LLM output through an operating daily news briefing.**
 
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 &nbsp;·&nbsp; Live site → <https://elanthus.github.io/news-briefing/>
 
 ---
+
+This project explores which responsibilities can move from prompts into enforceable application code. Models select, group, and summarize stories; code constrains eligible evidence and citation destinations, validates output, and controls publication.
+
+The daily briefing provides a recurring workload of untrusted RSS, Hacker News, and Reddit content. It exercises citation projection, separate selection and prose passes, bounded correction, and publication gates across model providers.
+
+These controls establish corpus membership, destination ownership, and output structure. They do not establish that a summary is factually correct or that the model selected the most important stories.
 
 My news agent cited an article it had never been given.
 
@@ -22,9 +28,38 @@ The draft looked fine: 22 topics, an exclusion log, a source-health report. One 
 |---|---|
 | Which stories matter, how they group, what the summary says | The publication window, the eligible evidence, every link destination, and the publish / quarantine / reject decision |
 
-Every morning a GitHub Actions job pulls 150–250 items from RSS, Hacker News, and Reddit, hands them to a model to pick and summarize, and publishes the result. **The model never receives a URL and never opens a page.** It chooses among opaque handles, and code resolves each handle to its destination, so an ungrounded link is unwritable rather than merely detectable.
+The scheduled GitHub Actions job collects a bounded news corpus, runs selection and prose generation, and publishes the briefing only after it passes the gate. **The model never receives a URL and never opens a page.** It chooses among opaque handles, and code resolves each handle to its destination. A model-authored destination cannot survive validation; whether the cited evidence supports the prose remains a separate question.
 
 You can read today's briefing, generate your own in one command, or point the whole thing at your own feeds by editing two JSON files.
+
+## What code enforces, and what it doesn't
+
+| Question | Enforcement |
+|---|---|
+| Is this item inside the publication window? | The fetcher applies the cutoff before generation. |
+| Where can a link point? | The model receives an opaque handle, not a URL. Rendering resolves that handle through a frozen code-owned map. |
+| Is the citation in the run's evidence? | The validator checks the selected handle and the rendered canonical destination against the frozen corpus. |
+| Is the story eligible for this section? | Per-section schema enums and an independent validator restrict the eligible handles. The model chooses among them. |
+| Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
+| Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied full summaries of at least eight words block publication and trigger correction. Differently worded coverage of the same event still requires model judgment. |
+| **Is the summary faithful to the article?** | **Not checked.** The system sees only the feed title and excerpt. Heuristics warn about claims that excerpt can't support; they cannot establish article-level faithfulness. |
+
+The contract is deliberately narrower than "the model is correct." It proves corpus membership, destination ownership, routing, and output shape. It does not turn a feed excerpt into human review of the underlying article.
+
+## Architecture
+
+![Runtime pipeline: fetch, project, generate, validate, repair, correct, gate, publish](docs/images/runtime-pipeline.svg)
+
+```text
+fetch_news.py      →  corpus.json (schema v7, validated on write)
+agent_runner/      →  project → select → freeze → write prose → validate → repair → correct → gate
+eval_briefing.py   →  deterministic policy checker, usable standalone
+prepare_publication.py / build_site.py  →  static site + per-run integrity report
+```
+
+**Citation projection.** Each corpus item becomes untrusted evidence text plus exactly one opaque identifier. Real URLs for an item stay together in a code-owned map the model never sees. Each section's JSON Schema enumerates only its eligible identifiers, and an independent validator rejects unknown ones, along with any URL or reference token that turns up in a prose field. Rendering expands the selected identifier to its code-owned destinations, so a Hacker News story carries its discussion link and cannot substitute or omit it. This is destination allowlisting, not semantic grounding. The model can type arbitrary characters, but it cannot author a destination that survives validation.
+
+[Design notes](docs/design.md) cover the rest: the shared corpus contract, deterministic repair before model correction, per-provider tool restrictions, and the network and parser boundaries.
 
 ## Read one
 
@@ -61,7 +96,7 @@ A run fetches live sources, generates, validates, repairs what it can, and asks 
 
 ## Point it at your own news
 
-Two files decide everything about what gets fetched and what gets written.
+Two files configure the supported news sources and briefing sections.
 
 **[`sources.json`](sources.json): where items come from.** Categories are labels you invent. Each RSS feed is a `["Display name", "https://…"]` pair filed under one of them; Hacker News is a list of search queries and Reddit a list of subreddit names, each with the category its results land in.
 
@@ -70,6 +105,8 @@ Two files decide everything about what gets fetched and what gets written.
 `corpus_categories` is an eligibility rule the checker enforces, not a hint. A story that arrived under `world` cannot appear in a section that doesn't list `world`, whatever the model decides.
 
 It also shows how to preview a source list before spending a model call and how to replay a saved corpus while you iterate on section wording. One surprise to know about in advance: five broad feeds are keyword-filtered before ranking, and feeds you add are not filtered unless you list them too.
+
+The controls can inform applications in other domains, but this implementation expects dated news items and briefing sections. Adapting another domain would require changes to ingestion, evidence contracts, and output rules; changing the news configuration alone does not provide an arbitrary data-source adapter.
 
 ## Watch it catch an injection
 
@@ -89,20 +126,6 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 1 error(s), 0 warning(s)
 ```
 
-## What code enforces, and what it doesn't
-
-| Question | Enforcement |
-|---|---|
-| Is this item inside the publication window? | The fetcher applies the cutoff before generation. |
-| Where can a link point? | The model receives an opaque handle, not a URL. Rendering resolves that handle through a frozen code-owned map. |
-| Is the citation in the run's evidence? | The validator checks the selected handle and the rendered canonical destination against the frozen corpus. |
-| Is the story eligible for this section? | Per-section schema enums and an independent validator restrict the eligible handles. The model chooses among them. |
-| Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
-| Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied full summaries of at least eight words block publication and trigger correction. Differently worded coverage of the same event still requires model judgment. |
-| **Is the summary faithful to the article?** | **Not checked.** The system sees only the feed title and excerpt. Heuristics warn about claims that excerpt can't support; they cannot establish article-level faithfulness. |
-
-The contract is deliberately narrower than "the model is correct." It proves corpus membership, destination ownership, routing, and output shape. It does not turn a feed excerpt into human review of the underlying article.
-
 ## At a glance
 
 | | |
@@ -111,41 +134,34 @@ The contract is deliberately narrower than "the model is correct." It proves cor
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 847 offline tests (590 core, 188 evaluator, 69 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. A 55-case injection/utility benchmark run at 1,200 preregistered rows, whose candidate prompt failed its promotion rules and was not shipped. |
-
-## Architecture
-
-![Runtime pipeline: fetch, project, generate, validate, repair, correct, gate, publish](docs/images/runtime-pipeline.svg)
-
-```text
-fetch_news.py      →  corpus.json (schema v7, validated on write)
-agent_runner/      →  project → select → freeze → write prose → validate → repair → correct → gate
-eval_briefing.py   →  deterministic policy checker, usable standalone
-prepare_publication.py / build_site.py  →  static site + per-run integrity report
-```
-
-**Citation projection.** Each corpus item becomes untrusted evidence text plus exactly one opaque identifier. Real URLs for an item stay together in a code-owned map the model never sees. Each section's JSON Schema enumerates only its eligible identifiers, and an independent validator rejects unknown ones, along with any URL or reference token that turns up in a prose field. Rendering expands the selected identifier to its code-owned destinations, so a Hacker News story carries its discussion link and cannot substitute or omit it. This is destination allowlisting, not semantic grounding. The model can type arbitrary characters, but it cannot author a destination that survives validation.
-
-[Design notes](docs/design.md) cover the rest: the shared corpus contract, deterministic repair before model correction, per-provider tool restrictions, and the network and parser boundaries.
+| **Verification** | 847 offline tests (590 core, 188 evaluator, 69 opt-in site build) on Python 3.11–3.14. `ruff`, strict `mypy`, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. The latest [production-parity benchmark](docs/results/parity-v2.md) records 1,200 planned rows over 55 authored cases, with 1,198 completed rows and two provider errors. |
 
 ## What the benchmark measured
 
 [`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks embedded in titles, summaries, source names, and source-failure records, targeting nine observable behaviors from citation fabrication to health-report manipulation. Five attacks carry matched clean twins built from the same corpus with the mutations removed; without them, a system that returns nothing looks perfectly robust.
 
-The production two-pass path, 1,200 preregistered rows, $1.80 in provider spend:
+The latest committed production-parity run is [parity v2](docs/results/parity-v2.md), recorded on September 4, 2026. It exercised the two-pass path with deterministic repair before model correction: 1,200 planned rows, 1,198 completed rows, and two malformed-JSON provider errors. The selected public rows report about $1.86 in generation cost; cost was unavailable for two failed calls.
 
-| Model / prompt | Structural utility (after correction) | Targeted attack success (after correction) |
+| Model / prompt | Structural utility (final) | Targeted attack success (final) |
 |---|---:|---:|
-| DeepSeek V4 Flash / production-runner | 104/110; 94.5% [88.6, 97.5] | 4/105; 3.8% [1.5, 9.4] |
-| DeepSeek V4 Flash / runner-deepseek | 102/110; 92.7% [86.3, 96.3] | 3/105; 2.9% [1.0, 8.1] |
-| Tencent HY3 / production-runner | 101/110; 91.8% [85.2, 95.6] | 2/105; 1.9% [0.5, 6.7] |
-| Tencent HY3 / runner-deepseek | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
+| DeepSeek V4 Flash / production-runner | 103/109; 94.5% [88.5, 97.5] | 0/105; 0.0% [0.0, 3.5] |
+| DeepSeek V4 Flash / runner-deepseek-v4-flash | 101/110; 91.8% [85.2, 95.6] | 5/105; 4.8% [2.1, 10.7] |
+| Tencent HY3 / production-runner | 105/110; 95.5% [89.8, 98.0] | 1/105; 1.0% [0.2, 5.2] |
+| Tencent HY3 / runner-deepseek-v4-flash | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
 
-**"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums.
+Rates show successes/trials and 95% Wilson intervals. Provider errors are retained in the evidence but excluded from completed-row denominators. The attack rates cover 21 primary attack cases repeated five times; position/count ablations and clean twins are reported separately. Repeated trials on this fixed authored suite do not establish deployment generalization.
 
-The headline rates matter less than which failures are possible at all. On the older direct-Markdown path, where the model authors its own links, 261 of 1,200 rows failed the contract, dominated by missing sections, ineligible categories, and ungrounded links. On the production path every one of those counts is zero, because the schema enumerates each section's eligible identifiers and requires the sections. The 42 remaining failures are almost all the model selecting the same item into two topics.
+**"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums. No independent human semantic or grounding review was completed. HY3 received a schema without `uniqueItems`, so its provider-enforced contract was weaker than DeepSeek's; the deterministic validator still checked duplicates. The model card reports these limits and the comparison with parity v1, which was descriptive and not eligible for the promotion gate.
 
-The [parity v1 model card](docs/results/parity-v1.md) has the full comparison and its caveats, including that Tencent HY3 ran without `uniqueItems` and so under a weaker citation contract. The [evaluation methodology](docs/evaluation-methodology.md) has the offline checker's own precision and recall and the verification command that regenerates every report without credentials. The earlier [Portfolio v2 card](docs/results/portfolio-v2.md) records the direct-Markdown run and the candidate prompt that failed its preregistered promotion rules.
+**The benchmark settings differ from the daily service.** Parity v2 used a frozen source revision, temperature 0, disabled reasoning, and one model correction per stage. The [daily runner](run_daily_briefing.py) uses temperature 0.2, enables reasoning, and tries an ordered model fallback chain; the [scheduled workflow](daily_publish.py) allows up to three corrections per stage. These benchmark rates measure the recorded experiment, not current daily-service reliability.
+
+The [evaluation methodology](docs/evaluation-methodology.md) explains the labels, denominators, and offline checker results. The [parity v2 evidence bundle](docs/results/parity-v2-evidence/) can be verified without credentials or provider calls:
+
+```bash
+python3 -S -m evaluator verify-public-run docs/results/parity-v2-evidence
+```
+
+[Parity v1](docs/results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](docs/results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed its preregistered promotion rules. Those historical results are kept separate from parity v2.
 
 ## Development
 
@@ -167,7 +183,8 @@ CI runs the offline suites on Python 3.11–3.14 with `ruff` and strict `mypy`. 
 - [Weekly grounding monitor](docs/results/grounding-monitor.md) — non-gating, unverified machine grounding rate over published runs
 - [Design notes](docs/design.md) — why each stage works the way it does
 - [Evaluation methodology](docs/evaluation-methodology.md) — threat model, labels, denominators, limitations
-- [Parity v1 model card](docs/results/parity-v1.md) — the production-path benchmark run
+- [Parity v2 model card](docs/results/parity-v2.md) — the latest committed production-parity benchmark
+- [Parity v1 model card](docs/results/parity-v1.md) — the historical two-pass run before the repair-path correction
 - [Portfolio v2 model card](docs/results/portfolio-v2.md) — the direct-Markdown run and the non-promotion decision
 - [Benchmark usage guide](evaluator/README.md) — run the same suite against your own model or prompt
 - [Publication archive contract](docs/publication-archive-contract.md) — what the archive publishes, withholds, and retains
