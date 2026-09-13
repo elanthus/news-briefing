@@ -104,7 +104,7 @@ Two files configure the supported news sources and briefing sections.
 
 `corpus_categories` is an eligibility rule the checker enforces, not a hint. A story that arrived under `world` cannot appear in a section that doesn't list `world`, whatever the model decides.
 
-It also shows how to preview a source list before spending a model call and how to replay a saved corpus while you iterate on section wording. One surprise to know about in advance: five broad feeds are keyword-filtered before ranking, and feeds you add are not filtered unless you list them too.
+It also shows how to preview a source list before spending a model call and how to replay a saved corpus while you iterate on section wording. One surprise to know about in advance: six broad feeds are keyword-filtered before ranking, and feeds you add are not filtered unless you list them too.
 
 The controls can inform applications in other domains, but this implementation expects dated news items and briefing sections. Adapting another domain would require changes to ingestion, evidence contracts, and output rules; changing the news configuration alone does not provide an arbitrary data-source adapter.
 
