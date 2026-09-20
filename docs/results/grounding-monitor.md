@@ -5,3 +5,4 @@ Automated, non-gating measurement of already-published briefings. It never chang
 | Week | Runs reviewed | Runs skipped | Topics reviewed | Unverified grounding rate (95% CI) | Audit agreement | Primary judge | Cost (USD) |
 |---|---:|---:|---:|---:|---:|---|---:|
 | 2026-W37 | 5 | 0 | 110 | 110/110; 100.0% [96.6, 100.0] | 100.0% | openrouter/tencent/hy3 | 0.0103 |
+| 2026-W38 | 7 | 0 | 154 | 153/154; 99.4% [96.4, 99.9] | 96.8% | openrouter/tencent/hy3 | 0.0157 |
