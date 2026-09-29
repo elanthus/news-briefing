@@ -96,7 +96,7 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 | **Runs** | Daily on GitHub Actions, 150–250 items, three-model fallback chain. |
 | **Trade-offs** | Opaque handles cost the model any ability to judge a source by its URL.<br>Two schema-constrained passes cost a second model call per run.<br>Deterministic repair before correction can drop a topic the model selected instead of asking it to fix the output. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; an unexpected provider tool call is a hard failure. |
-| **Verification** | 847 offline tests (590 core, 188 evaluator, 69 opt-in site build) on Python 3.11–3.14. `ruff`, configured `mypy` checks, Actions pinned to commit SHAs. |
+| **Verification** | Three offline test suites (core, evaluator, opt-in site build) on Python 3.11–3.14, plus `ruff`, configured `mypy` checks, and Actions pinned to commit SHAs. |
 
 ## What the benchmark measured
 

@@ -75,5 +75,4 @@ validation, `render_briefing()` re-attaches the code-owned destinations.
 - Do not weaken validation, typed failures, bounds, or corpus-health reporting to
   make a run pass.
 - Do not add network-dependent tests.
-- Keep README test counts current when tests are added, removed, or moved between
-  the core, evaluator, and opt-in site suites.
+- Do not state test counts in prose; they drift. Name the suites and the commands instead.
