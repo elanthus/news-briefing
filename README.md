@@ -168,7 +168,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evid
 
 ```bash
 python3 -S -m unittest -v                              # 590 core tests
-python3 -S -m unittest discover -s evaluator/tests -v  # 197 evaluator tests
+python3 -S -m unittest discover -s evaluator/tests -v  # 188 evaluator tests
 ```
 
 CI runs the offline suites on Python 3.11–3.14 with `ruff` and `mypy`. The type checks use [`pyproject.toml`](pyproject.toml) and [`evaluator/pyproject.toml`](evaluator/pyproject.toml): both reject untyped and incompletely typed function definitions, and the core configuration also warns about unused type-ignore comments. The opt-in site-build tests, the evaluator smoke test, and a repository map are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
