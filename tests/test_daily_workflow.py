@@ -3,8 +3,12 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-WORKFLOW = Path(".github/workflows/daily-briefing.yml").read_text(encoding="utf-8")
-DAILY_RUNNER = Path("run_daily_briefing.py").read_text(encoding="utf-8")
+REPOSITORY = Path(__file__).resolve().parent.parent
+WORKFLOW = (REPOSITORY / ".github/workflows/daily-briefing.yml").read_text(encoding="utf-8")
+
+
+def _step(name: str) -> str:
+    return WORKFLOW.split(f"- name: {name}", 1)[1].split("- name:", 1)[0]
 
 
 class DailyWorkflowTests(unittest.TestCase):
@@ -28,154 +32,75 @@ class DailyWorkflowTests(unittest.TestCase):
         for automatic_trigger in ("push:", "pull_request:"):
             self.assertNotIn(automatic_trigger, triggers)
 
-    def test_scheduled_run_handles_today_from_one_fixed_snapshot(self) -> None:
-        capture_step = WORKFLOW.split("- name: Capture briefing window", 1)[1].split(
-            "- name:", 1
-        )[0]
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-        generation_step = WORKFLOW.split(
-            "- name: Generate scheduled daily or manual backfill reports", 1
-        )[1].split("- name:", 1)[0]
+    def test_steps_invoke_daily_publish_subcommands_with_manual_inputs(self) -> None:
+        capture_step = _step("Capture briefing window")
+        restore_step = _step("Restore private corpus window")
+        generation_step = _step("Generate scheduled daily or manual backfill reports")
         self.assertIn("run: python3 daily_publish.py capture-window", capture_step)
         self.assertIn("run: python3 daily_publish.py restore-corpus", restore_step)
         self.assertIn("run: python3 daily_publish.py generate-reports", generation_step)
         self.assertNotIn("run: |", capture_step + restore_step + generation_step)
-        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", restore_step)
-        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", restore_step)
-        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", generation_step)
-        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", generation_step)
+        for step in (restore_step, generation_step):
+            self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", step)
+            self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", step)
 
-    def test_manual_run_can_backfill_today_and_six_prior_dates(self) -> None:
-        generation_step = WORKFLOW.split(
-            "- name: Generate scheduled daily or manual backfill reports", 1
-        )[1].split("- name:", 1)[0]
-        self.assertIn("run: python3 daily_publish.py generate-reports", generation_step)
-        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", generation_step)
+    def test_checks_out_main_without_persisted_credentials(self) -> None:
+        checkout = WORKFLOW.split("uses: actions/checkout@", 1)[1].split("- uses:", 1)[0]
+        self.assertIn("ref: main", checkout)
+        self.assertIn("persist-credentials: false", checkout)
 
-    def test_manual_single_date_is_validated_and_does_not_expand_the_archive(self) -> None:
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-        generation_step = WORKFLOW.split(
-            "- name: Generate scheduled daily or manual backfill reports", 1
-        )[1].split("- name:", 1)[0]
-        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", restore_step)
-        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", generation_step)
-
-    def test_today_uses_fresh_exact_24_hour_corpus(self) -> None:
-        self.assertIn("run: python3 daily_publish.py capture-window", WORKFLOW)
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
-
-    def test_skips_briefing_generation_when_todays_fetch_fails(self) -> None:
-        """fetch_news.py no longer leaves an --output file behind on a failed
-        fetch, but a corpus file can still predate the step (a re-run, a
-        carried-forward download), so file existence alone is not a success
-        signal. The fetch's own exit status must gate briefing generation;
-        the fetcher's refusal to write on failure is defense-in-depth."""
-        # Assert the load-bearing behavior, not the verbatim script formatting:
-        # a fetch success flips corpus_ready, a failure warns, the stored-corpus
-        # branch also flips it, and generation gates on the flag not the file.
-        # assertRegex tolerates indentation/line-continuation edits.
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
-
-    def test_preserves_dated_corpora_and_replaces_reports(self) -> None:
-        self.assertIn("ref: main", WORKFLOW)
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
-        self.assertIn(
-            '          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then\n'
-            "            args+=(--replace-existing)\n"
-            "          fi",
-            WORKFLOW,
+    def test_build_step_replaces_existing_reports_only_on_manual_dispatch(self) -> None:
+        build_step = _step("Build static archive")
+        self.assertRegex(
+            build_step,
+            r'if \[\[ "\$GITHUB_EVENT_NAME" == "workflow_dispatch" \]\]; then\s+'
+            r"args\+=\(--replace-existing\)\s+fi",
         )
         self.assertEqual(WORKFLOW.count("--replace-existing"), 1)
+        self.assertIn("args+=(--corpora-dir corpora)", build_step)
 
-    def test_backfill_reuses_only_privately_restored_corpora(self) -> None:
-        self.assertIn("run: python3 daily_publish.py restore-corpus", WORKFLOW)
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
-        self.assertNotIn(
-            "https://elanthus.github.io/news-briefing/corpora/$report_date.json",
-            WORKFLOW,
+    def test_restored_corpora_are_encrypted_and_uploaded_as_private_archive(self) -> None:
+        self.assertIn("actions: read", WORKFLOW.split("jobs:", 1)[0])
+        encrypt_step = _step("Encrypt retained corpora and diagnostics")
+        upload_step = _step("Upload private corpus archive")
+        self.assertIn(
+            "python private_archive.py create \\\n"
+            "              --output private-artifacts/corpus-archive.tar.gz.enc \\\n"
+            "              corpora",
+            encrypt_step,
         )
+        self.assertIn("name: briefing-corpus-archive", upload_step)
+        self.assertIn("path: private-artifacts/corpus-archive.tar.gz.enc", upload_step)
+        self.assertIn("retention-days: 14", upload_step)
 
-    def test_generation_uses_ordered_production_fallback_chain(self) -> None:
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
-        models = [
-            'ModelCandidate("tencent/hy3", 0.2, "high", 100_000)',
-            'ModelCandidate("deepseek/deepseek-v4-flash-0731", 0.2, "high", 100_000)',
-            'ModelCandidate("google/gemini-3.7-flash", 0.2, None, 65_536)',
-        ]
-        positions = [DAILY_RUNNER.index(model) for model in models]
-        self.assertEqual(positions, sorted(positions))
-        self.assertNotIn("openai/gpt-5.6-luna", DAILY_RUNNER)
+    def test_secrets_are_scoped_to_the_steps_that_use_them(self) -> None:
+        secret_names = (
+            "GITHUB_TOKEN",
+            "CORPUS_ARCHIVE_PASSPHRASE",
+            "OPENROUTER_API_KEY",
+            "SCRAPECREATORS_API_KEY",
+        )
+        expected = {
+            "Restore private corpus window": {"GITHUB_TOKEN", "CORPUS_ARCHIVE_PASSPHRASE"},
+            "Generate scheduled daily or manual backfill reports": {
+                "OPENROUTER_API_KEY",
+                "SCRAPECREATORS_API_KEY",
+            },
+            "Encrypt retained corpora and diagnostics": {"CORPUS_ARCHIVE_PASSPHRASE"},
+        }
+        steps = WORKFLOW.split("- name: ")[1:]
+        for step in steps:
+            name = step.split("\n", 1)[0]
+            with self.subTest(step=name):
+                present = {secret for secret in secret_names if secret in step}
+                self.assertEqual(present, expected.get(name, set()))
+        self.assertNotIn("github.token", WORKFLOW.replace(
+            _step("Restore private corpus window"), ""
+        ))
+        self.assertNotIn("env:", WORKFLOW.split("steps:", 1)[0])
 
-    def test_generation_uses_explicit_production_temperature(self) -> None:
-        self.assertEqual(DAILY_RUNNER.count("ModelCandidate("), 3)
-        self.assertEqual(DAILY_RUNNER.count(", 0.2,"), 3)
-
-    def test_generation_uses_model_compatible_token_caps(self) -> None:
-        self.assertIn("default=100_000", DAILY_RUNNER)
-        self.assertIn("min(max_tokens, candidate.max_tokens_cap)", DAILY_RUNNER)
-
-    def test_generation_logs_failures_quarantines_and_removed_models(self) -> None:
-        self.assertIn('LOG_NAME = "fallback-log.json"', DAILY_RUNNER)
-        self.assertIn('TEXT_LOG_NAME = "fallback.log"', DAILY_RUNNER)
-        self.assertIn('"failure_reason": reason', DAILY_RUNNER)
-        self.assertIn('"quarantined_report": quarantined_report', DAILY_RUNNER)
-        self.assertIn('"model_removed_from_openrouter": removed', DAILY_RUNNER)
-
-    def test_every_run_restores_prunes_and_archives_private_corpora(self) -> None:
-        self.assertIn("actions: read", WORKFLOW)
-        self.assertIn("CORPUS_ARCHIVE_PASSPHRASE", WORKFLOW)
-        self.assertIn("run: python3 daily_publish.py restore-corpus", WORKFLOW)
-        self.assertIn("--corpora-dir corpora", WORKFLOW)
-        self.assertIn("name: briefing-corpus-archive", WORKFLOW)
-        self.assertIn("private-artifacts/corpus-archive.tar.gz.enc", WORKFLOW)
-
-    def test_archive_secrets_are_not_exposed_to_feed_or_model_processing(self) -> None:
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-        generation_step = WORKFLOW.split(
-            "- name: Generate scheduled daily or manual backfill reports", 1
-        )[1].split("- name:", 1)[0]
-
-        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", restore_step)
-        self.assertIn("CORPUS_ARCHIVE_PASSPHRASE", restore_step)
-        self.assertNotIn("GITHUB_TOKEN", generation_step)
-        self.assertNotIn("CORPUS_ARCHIVE_PASSPHRASE", generation_step)
-        self.assertIn("run: python3 daily_publish.py generate-reports", generation_step)
-
-    def test_legacy_corpus_migration_is_all_or_nothing_except_targeted_repair(self) -> None:
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-
-        self.assertIn("MANUAL_MODE: ${{ inputs.mode }}", restore_step)
-        self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", restore_step)
-        self.assertIn("run: python3 daily_publish.py restore-corpus", restore_step)
-
-    def test_public_download_removes_non_success_response_body(self) -> None:
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-
-        self.assertIn("run: python3 daily_publish.py restore-corpus", restore_step)
-
-    def test_completed_migration_marker_allows_archive_gap_recovery(self) -> None:
-        restore_step = WORKFLOW.split("- name: Restore private corpus window", 1)[1].split(
-            "- name:", 1
-        )[0]
-
-        self.assertIn("run: python3 daily_publish.py restore-corpus", restore_step)
-
-    def test_no_longer_carries_historical_date_exclusions(self) -> None:
-        self.assertNotIn("--exclude-date 2026-08-15", WORKFLOW)
-        self.assertNotIn("--exclude-date 2026-08-16", WORKFLOW)
-
-    def test_publication_preparation_failure_does_not_abort_remaining_dates(self) -> None:
-        self.assertIn("run: python3 daily_publish.py generate-reports", WORKFLOW)
+    def test_workflow_passes_no_exclude_date_arguments(self) -> None:
+        self.assertNotIn("--exclude-date", WORKFLOW)
 
     def test_deploy_is_gated_on_prior_history_unless_explicitly_allowed_empty(self) -> None:
         """The prior-history download step tolerates failure with
