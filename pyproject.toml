@@ -10,6 +10,7 @@ python_version = "3.11"
 files = [
     "briefing_config.py",
     "fetch_news.py",
+    "news_fetch",
     "eval_briefing.py",
     "corpus_schema.py",
     "run_briefing.py",

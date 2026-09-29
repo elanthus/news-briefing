@@ -1,0 +1,368 @@
+"""Reddit adapter: anonymous RSS, then Arctic Shift, then ScrapeCreators."""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+import time
+import urllib.error
+import urllib.parse
+import xml.etree.ElementTree as ET
+from collections.abc import Callable
+from datetime import datetime, timezone
+from typing import Any
+
+from news_fetch import transport
+from news_fetch.feed_xml import parse_feed_xml
+from news_fetch.model import FetchResult, Item, _raise_data_error
+from news_fetch.sources.common import parse_feed_date, publication_in_window, strip_html
+from news_fetch.transport import REDDIT_TIMEOUT
+
+REDDIT_MAX_ATTEMPTS = 2
+REDDIT_FALLBACK_LIMIT = 100
+REDDIT_MIN_SCORE = 2
+ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
+SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
+REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
+REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
+
+# Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
+# window, so it can't express arbitrary hour ranges directly. Over-fetch the
+# smallest bucket that fully covers the requested window and let the exact
+# fixed publication-window filter in fetch_reddit_rss() do the real work — the
+# same lower and upper bounds used for every other source.
+REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
+                      (720, "month"), (8760, "year"))
+REDDIT_BASE_LIMIT = 25
+REDDIT_MAX_LIMIT = 100  # cap applied to scaled anonymous RSS requests
+
+
+def _reddit_md_text(atom_content: str) -> str:
+    """Extract post body from Reddit's atom:content HTML (the <div class="md"> block)."""
+    m = re.search(r'class="md">(.*?)</div>', atom_content, re.DOTALL | re.IGNORECASE)
+    return strip_html(m.group(1)).strip() if m else ""
+
+
+def reddit_top_bucket(hours: int) -> str:
+    """Smallest Reddit `t=` bucket that fully covers `hours`."""
+    for span, name in REDDIT_TOP_BUCKETS:
+        if hours <= span:
+            return name
+    return "all"
+
+
+def reddit_limit(hours: int) -> int:
+    """Ask for proportionally more posts when the bucket over-covers the window.
+
+    Reddit ranks across the whole bucket, so a 48h window served by
+    t=week returns only the few weekly-top posts that happen to land in range. Scale
+    the request by how much the bucket overshoots so in-window coverage stays
+    roughly constant as --hours grows.
+    """
+    spans = {name: span for span, name in REDDIT_TOP_BUCKETS}
+    span = spans.get(reddit_top_bucket(hours))
+    if span is None or hours <= 0:
+        return REDDIT_MAX_LIMIT
+    return min(REDDIT_MAX_LIMIT, math.ceil(REDDIT_BASE_LIMIT * span / hours))
+
+
+def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
+    """Seconds to wait after a 429, preferring the server's own instruction.
+
+    Reddit sends Retry-After on rate limits. Backing off on our own guess
+    either wastes time or retries too early and earns another 429, so use the
+    server's number when it gives one — clamped, because the header is
+    attacker-influenced and an hour-long sleep would hang the run.
+    """
+    header = ""
+    try:
+        header = (exc.headers.get("Retry-After") or "").strip()
+    except AttributeError:
+        pass
+    if header.isdigit():
+        return max(0, min(int(header), REDDIT_RETRY_MAX_SLEEP))
+    return fallback
+
+
+def fetch_reddit_rss(
+    subreddit: str, cutoff: datetime, window_end: datetime, hours: int
+) -> FetchResult:
+    """Fetch top posts via anonymous RSS.
+
+    The RSS response does not expose vote counts, so these items carry no
+    engagement score.
+    """
+    url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
+           f"?t={reddit_top_bucket(hours)}&limit={reddit_limit(hours)}")
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+    for attempt in range(REDDIT_MAX_ATTEMPTS):
+        try:
+            payload = transport.http_get(url, timeout=REDDIT_TIMEOUT)
+            try:
+                root = parse_feed_xml(payload)
+            except (ET.ParseError, ValueError) as exc:
+                _raise_data_error(exc)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429 or attempt == REDDIT_MAX_ATTEMPTS - 1:
+                raise
+            time.sleep(retry_after_seconds(exc, 5 * (attempt + 1)))
+
+    items: list[Item] = []
+    undated = 0
+    entries = root.findall("atom:entry", ns)
+    dated_entries = 0
+    filtered = 0
+    for entry in entries:
+        published = parse_feed_date(
+            entry.findtext("atom:updated", namespaces=ns)
+            or entry.findtext("atom:published", namespaces=ns))
+        if published is None:
+            undated += 1
+            continue
+        dated_entries += 1
+        if not publication_in_window(published, cutoff, window_end):
+            continue
+        link = entry.find("atom:link", ns)
+        raw_content = entry.findtext("atom:content", namespaces=ns) or ""
+        title = strip_html(entry.findtext("atom:title", namespaces=ns) or "")
+        # atom:content has the post HTML; extract just the body text
+        summary = _reddit_md_text(raw_content)
+        if _reddit_post_was_removed({"title": title, "selftext": summary}):
+            filtered += 1
+            continue
+        items.append({
+            "title": title,
+            "url": link.get("href", "") if link is not None else "",
+            "published": published.isoformat(),
+            "summary": summary,
+            "source": f"r/{subreddit}",
+        })
+    return FetchResult(items, undated, len(entries), dated_entries, filtered)
+
+
+def _reddit_json_datetime(post: dict[str, Any]) -> datetime | None:
+    """Read either Reddit's epoch timestamp or a provider ISO timestamp."""
+    epoch = post.get("created_utc")
+    if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
+        try:
+            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(epoch, str):
+        try:
+            return datetime.fromtimestamp(float(epoch), tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            pass
+    for field in ("created_at_iso", "created_at"):
+        value = post.get(field)
+        if isinstance(value, str) and (published := parse_feed_date(value)) is not None:
+            return published
+    return None
+
+
+def _reddit_post_id(post: dict[str, Any]) -> str:
+    raw_id = str(post.get("id") or post.get("post_id") or "").removeprefix("t3_")
+    if not raw_id:
+        permalink = str(post.get("permalink") or "")
+        match = re.search(r"/comments/([0-9a-z]+)/", permalink, re.IGNORECASE)
+        raw_id = match.group(1) if match else ""
+    return raw_id.lower() if re.fullmatch(r"[0-9a-z]+", raw_id, re.IGNORECASE) else ""
+
+
+def _reddit_post_was_removed(post: dict[str, Any]) -> bool:
+    """Whether a JSON provider exposes a definite removal or deletion signal."""
+    markers = {"[deleted]", "[removed]"}
+    # author is deliberately not checked: "[deleted]" there means the account
+    # is gone, not that the post was removed.
+    for field in ("title", "selftext"):
+        if str(post.get(field) or "").strip().casefold() in markers:
+            return True
+    return any(
+        post.get(field) not in (None, "", False)
+        for field in (
+            "banned_at_utc",
+            "banned_by",
+            "removal_reason",
+            "removed_by",
+            "removed_by_category",
+        )
+    )
+
+
+def _reddit_post_has_low_score(post: dict[str, Any]) -> bool:
+    """Apply the score floor only when a provider supplies a numeric score."""
+    score = post.get("score")
+    if isinstance(score, bool):
+        return False
+    if isinstance(score, int):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, float) and math.isfinite(score):
+        return score < REDDIT_MIN_SCORE
+    if isinstance(score, str) and re.fullmatch(r"[+-]?\d+", score.strip()):
+        try:
+            return int(score) < REDDIT_MIN_SCORE
+        except ValueError:
+            return False
+    return False
+
+
+def _reddit_json_result(
+    posts: list[Any], subreddit: str, cutoff: datetime, window_end: datetime,
+    apply_score_floor: bool = True,
+) -> FetchResult:
+    """Normalize one JSON provider without trusting its outbound destinations."""
+    items: list[Item] = []
+    parsed_entries = 0
+    dated_entries = 0
+    undated = 0
+    filtered = 0
+    encoded_subreddit = urllib.parse.quote(subreddit, safe="")
+    for raw_post in posts:
+        if not isinstance(raw_post, dict):
+            continue
+        title = strip_html(str(raw_post.get("title") or ""))
+        post_id = _reddit_post_id(raw_post)
+        if not title or not post_id:
+            continue
+        parsed_entries += 1
+        published = _reddit_json_datetime(raw_post)
+        if published is None:
+            undated += 1
+            continue
+        dated_entries += 1
+        if not publication_in_window(published, cutoff, window_end):
+            continue
+        if _reddit_post_was_removed(raw_post) or (
+            apply_score_floor and _reddit_post_has_low_score(raw_post)
+        ):
+            filtered += 1
+            continue
+        item: Item = {
+            "title": title,
+            "url": f"https://www.reddit.com/r/{encoded_subreddit}/comments/{post_id}/",
+            "published": published.isoformat(),
+            "source": f"r/{subreddit}",
+        }
+        selftext = str(raw_post.get("selftext") or "").strip()
+        if selftext:
+            item["summary"] = selftext
+        items.append(item)
+    return FetchResult(items, undated, parsed_entries, dated_entries, filtered)
+
+
+def _json_object(payload: bytes, provider: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _raise_data_error(exc)
+    if not isinstance(parsed, dict):
+        _raise_data_error(ValueError(f"{provider} response was not a JSON object"))
+    return parsed
+
+
+def fetch_reddit_arctic_shift(
+    subreddit: str, cutoff: datetime, window_end: datetime
+) -> FetchResult:
+    """Fetch an exact subreddit window from the free Arctic Shift archive."""
+    params = urllib.parse.urlencode({
+        "subreddit": subreddit,
+        # Arctic Shift documents ISO 8601 with ``Z`` but rejects Python's
+        # equivalent ``+00:00`` spelling, so use its unambiguous epoch form.
+        "after": int(cutoff.timestamp()),
+        "before": math.ceil(window_end.timestamp()),
+        "limit": REDDIT_FALLBACK_LIMIT,
+        "sort": "desc",
+        # Arctic Shift rejects unknown field names with HTTP 400, and Reddit's
+        # removal metadata (banned_by, removed_by_category, ...) is not among
+        # the names it accepts, so request only fields it serves.
+        "fields": "id,title,selftext,created_utc,subreddit,score,num_comments",
+    })
+    payload = transport.http_get(f"{ARCTIC_SHIFT_POSTS_URL}?{params}", timeout=REDDIT_TIMEOUT)
+    response = _json_object(payload, "Arctic Shift")
+    posts = response.get("data")
+    if not isinstance(posts, list):
+        _raise_data_error(ValueError("Arctic Shift response did not contain a data list"))
+    # Arctic Shift archives the score captured at ingest, which is ~1 for
+    # every post this window is young enough to contain, so a live-score
+    # floor would empty the backend.
+    return _reddit_json_result(posts, subreddit, cutoff, window_end,
+                               apply_score_floor=False)
+
+
+def fetch_reddit_scrapecreators(
+    subreddit: str,
+    cutoff: datetime,
+    window_end: datetime,
+    hours: int,
+    api_key: str,
+) -> FetchResult:
+    """Fetch recent subreddit posts through the authenticated final fallback."""
+    params = urllib.parse.urlencode({
+        "subreddit": subreddit,
+        "timeframe": reddit_top_bucket(hours),
+        # ScrapeCreators rejects a timeframe unless sorting by top, which
+        # also mirrors the RSS backend's top-of-bucket semantics.
+        "sort": "top",
+        "trim": "true",
+    })
+    payload = transport.scrapecreators_get(
+        f"{SCRAPECREATORS_SUBREDDIT_URL}?{params}", api_key, timeout=REDDIT_TIMEOUT
+    )
+    response = _json_object(payload, "ScrapeCreators")
+    if response.get("success") is False:
+        _raise_data_error(ValueError("ScrapeCreators reported an unsuccessful request"))
+    posts = response.get("posts")
+    if not isinstance(posts, list):
+        _raise_data_error(ValueError("ScrapeCreators response did not contain a posts list"))
+    return _reddit_json_result(posts, subreddit, cutoff, window_end)
+
+
+def fetch_reddit(
+    subreddit: str,
+    cutoff: datetime,
+    window_end: datetime,
+    hours: int,
+    scrapecreators_api_key: str | None = None,
+) -> FetchResult:
+    """Fetch one subreddit through RSS, Arctic Shift, then ScrapeCreators."""
+    errors: list[str] = []
+    empty_result: FetchResult | None = None
+    free_backends: tuple[tuple[str, Callable[..., FetchResult], tuple[Any, ...]], ...] = (
+        ("RSS", fetch_reddit_rss, (subreddit, cutoff, window_end, hours)),
+        ("Arctic Shift", fetch_reddit_arctic_shift, (subreddit, cutoff, window_end)),
+    )
+    for backend, fetcher, arguments in free_backends:
+        try:
+            result = fetcher(*arguments)
+        except Exception as exc:
+            errors.append(f"{backend}: {type(exc).__name__}: {exc}")
+            continue
+        if result.items:
+            return result
+        empty_result = result
+
+    if scrapecreators_api_key:
+        try:
+            return fetch_reddit_scrapecreators(
+                subreddit,
+                cutoff,
+                window_end,
+                hours,
+                scrapecreators_api_key,
+            )
+        except Exception as exc:
+            errors.append(f"ScrapeCreators: {type(exc).__name__}: {exc}")
+            if empty_result is not None:
+                return empty_result
+            raise RuntimeError(
+                f"all Reddit backends failed or returned no usable posts for r/{subreddit}: "
+                + "; ".join(errors)
+            ) from exc
+
+    if empty_result is not None:
+        return empty_result
+    raise RuntimeError(
+        f"all free Reddit backends failed for r/{subreddit}: " + "; ".join(errors)
+    )

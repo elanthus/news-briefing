@@ -1345,7 +1345,9 @@ class TextEncodingContractTest(unittest.TestCase):
     """
 
     PIPELINE_MODULES = ("briefing_config.py", "fetch_news.py",
-                        "eval_briefing.py", "corpus_schema.py")
+                        "eval_briefing.py", "corpus_schema.py",
+                        *sorted(str(path.relative_to(ROOT))
+                                for path in (ROOT / "news_fetch").rglob("*.py")))
 
     def test_pipeline_never_relies_on_the_locale_encoding(self):
         for module in self.PIPELINE_MODULES:

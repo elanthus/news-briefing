@@ -24,9 +24,11 @@ Please allow time to investigate and coordinate a fix before public disclosure.
 Useful reports include vulnerabilities in the repository's code or default
 configuration, such as:
 
-- bypasses of public-destination validation, DNS pinning, or redirect checks;
+- bypasses of public-destination validation, DNS pinning, or redirect checks
+  (`news_fetch/destinations.py` and `news_fetch/transport.py`);
 - ways to introduce a briefing URL that is absent from the fetched corpus;
-- parser or resource-exhaustion flaws that violate the documented input bounds;
+- parser or resource-exhaustion flaws that violate the documented input bounds
+  (feed XML parsing is in `news_fetch/feed_xml.py`);
 - credential exposure from the runner, the fetcher, or the optional evaluator,
   including `OPENROUTER_API_KEY`, `CORPUS_ARCHIVE_PASSPHRASE`, and the optional
   `SCRAPECREATORS_API_KEY` (sent only to the ScrapeCreators HTTPS API origin,

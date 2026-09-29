@@ -12,7 +12,7 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
-import fetch_news
+from news_fetch import curation, feed_xml
 
 from evaluator.judge_io import portable_path
 from evaluator.metrics import classification_metrics, rate
@@ -271,7 +271,7 @@ def _fixture_usage(corpus: dict[str, Any]) -> None:
         stats = corpus["processing"][category]
         for field in corpus_schema.V5_PROCESSING_FIELDS:
             stats.setdefault(field, 0)
-        usage = [fetch_news.item_context_usage(item) for item in items]
+        usage = [curation.item_context_usage(item) for item in items]
         stats["context_bytes"] = sum(size for size, _ in usage)
         stats["estimated_tokens"] = sum(tokens for _, tokens in usage)
     for output_field, processing_field in (("used_bytes", "context_bytes"),
@@ -689,7 +689,7 @@ def _xml_case(variant: str) -> bytes:
 
 def _feed_prediction(variant: str) -> set[str]:
     try:
-        root = fetch_news.parse_feed_xml(_xml_case(variant))
+        root = feed_xml.parse_feed_xml(_xml_case(variant))
     except (ET.ParseError, ValueError, UnicodeError):
         return {"feed_rejected"}
     local_name = re.sub(r"^\{[^}]+\}", "", root.tag)

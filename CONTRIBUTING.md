@@ -56,7 +56,8 @@ run artifacts.
 
 | Path | What it is |
 |---|---|
-| [`fetch_news.py`](fetch_news.py) | Corpus fetcher: sources, windowing, relevance, deduplication, budgets, SSRF defense, XML defense |
+| [`fetch_news.py`](fetch_news.py) | Corpus fetcher CLI: arguments, window resolution, output and exit status |
+| [`news_fetch/`](news_fetch) | Fetcher modules: `config` (source loading), `destinations` (public-destination and DNS validation), `transport` (DNS-pinned HTTP client and header-deadline watchdog), `feed_xml` (XML defense), `sources/` (RSS, Hacker News, Reddit adapters), `relevance`, `curation` (deduplication, caps, budgets), `limits`, `telemetry` (source health), `collect` (fetch orchestration), `render` |
 | [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
 | [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v7) and shared URL canonicalization |
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |

@@ -1,6 +1,6 @@
 # News briefing evaluator
 
-This directory is a development-only benchmark. Nothing under `evaluator/` is imported by `fetch_news.py`, `briefing_config.py`, `corpus_schema.py`, or `eval_briefing.py`, and the main news-briefing workflow still runs with Python 3.11+ and no install step.
+This directory is a development-only benchmark. Nothing under `evaluator/` is imported by `fetch_news.py`, `news_fetch/`, `briefing_config.py`, `corpus_schema.py`, or `eval_briefing.py`, and the main news-briefing workflow still runs with Python 3.11+ and no install step.
 
 This README covers both how to run the benchmark and how its numbers are defined.
 
