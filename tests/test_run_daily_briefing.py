@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,6 +25,57 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             output_path=root / "briefing.md",
             corpus_path=root / "corpus.json",
         )
+
+    def _degraded_ready_chain(self, strict: bool) -> tuple[str, list[str], dict]:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = replace(self._settings(root), strict=strict)
+            seen: list[str] = []
+
+            def fake_run(provider, run_settings, run_dir):
+                seen.append(provider.model)
+                run_dir.mkdir(parents=True)
+                final = run_dir / "final.md"
+                content = b"ready report with warnings\n"
+                final.write_bytes(content)
+                run_settings.output_path.write_bytes(content)
+                digest = hashlib.sha256(content).hexdigest()
+                (run_dir / "manifest.json").write_text(
+                    json.dumps({
+                        "status": "complete",
+                        "artifacts": {"final.md": digest},
+                        "final": {
+                            "status": "ready",
+                            "artifact_type": "final",
+                            "run_artifact": "final.md",
+                            "output_sha256": digest,
+                            "findings": [{"check": "source_health", "message": "one feed failed"}],
+                        },
+                    }),
+                    encoding="utf-8",
+                )
+                # The runner reports a strict rejection through its exit code.
+                return RunResult(1 if run_settings.strict else 0, run_dir, run_settings.output_path, "ready")
+
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = run_fallback_chain(settings, root / "run", max_tokens=100_000)
+            log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
+        return result.status, seen, log
+
+    def test_strict_rejects_a_ready_but_degraded_attempt(self) -> None:
+        status, seen, log = self._degraded_ready_chain(strict=True)
+        self.assertEqual(status, "failed")
+        self.assertEqual(seen, [candidate.model for candidate in PRODUCTION_MODEL_CHAIN])
+        self.assertIn("--strict", log["attempts"][0]["failure_reason"])
+        self.assertIn("source_health: one feed failed", log["attempts"][0]["failure_reason"])
+
+        status, seen, _ = self._degraded_ready_chain(strict=False)
+        self.assertEqual(status, "ready")
+        self.assertEqual(seen, [PRODUCTION_MODEL_CHAIN[0].model])
 
     def test_falls_back_in_order_and_preserves_failure_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

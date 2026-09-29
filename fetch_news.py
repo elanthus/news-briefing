@@ -400,6 +400,18 @@ def _raise_data_error(exc: Exception) -> Never:
     raise SourceDataError(exc) from exc
 
 
+def _hn_engagement(hit: dict[str, Any], field: str) -> int:
+    """Return a Hacker News engagement count; a missing or null count is zero."""
+    value = hit.get(field)
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise SourceDataError(ValueError(
+            f"Hacker News hit has a non-integer or negative {field}"
+        ))
+    return value
+
+
 # Several IPv6 forms embed an IPv4 address in an IPv6 wrapper: IPv4-mapped
 # (::ffff:0:0/96), IPv4-compatible (::/96, RFC 4291), IPv4-translated
 # (::ffff:0:0:0/96, RFC 2765), 6to4 (2002::/16, RFC 3056) and the NAT64
@@ -991,7 +1003,8 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
         published = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc)
         if not publication_in_window(published, cutoff, window_end):
             continue
-        points = hit.get("points") or 0
+        points = _hn_engagement(hit, "points")
+        comments = _hn_engagement(hit, "num_comments")
         if points < HN_MIN_POINTS:
             filtered += 1
             continue
@@ -1002,7 +1015,7 @@ def fetch_hn(query: str, cutoff: datetime, window_end: datetime) -> FetchResult:
             "published": published.isoformat(),
             "summary": strip_html(hit.get("story_text") or ""),
             "points": points,
-            "comments": hit.get("num_comments") or 0,
+            "comments": comments,
             "source": "Hacker News",
             "query": query,
         })
