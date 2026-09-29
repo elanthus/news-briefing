@@ -3,11 +3,12 @@
 
 The fetcher's rules are deterministic for fixed inputs, so they can be unit
 tested even though live source responses are not. The ranking and summarizing
-step is not deterministic either — but most of the ways it goes wrong are
-structural, not editorial, and structural failures can be checked exactly:
+step is not deterministic, but many of the ways a briefing goes wrong are
+structural rather than editorial, and structural failures can be checked
+exactly against complete rendered Markdown, whichever process produced it:
 
-    * a link that isn't in the corpus (the model invented or recalled it)
-    * a link altered from the corpus URL it was supposed to reproduce
+    * a link that isn't in the corpus
+    * a link altered from a corpus URL
     * an included or excluded topic with no source citation
     * a story quietly present in both the briefing and the exclusion log
     * a sub-category crowded out of its reserved slots

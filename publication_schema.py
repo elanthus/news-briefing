@@ -131,7 +131,12 @@ def provenance_payload(provenance: Provenance) -> dict[str, object]:
 
 
 def parse_provenance(raw: object) -> Provenance | None:
-    """Parse a provenance object; ``None`` only for an absent (pre-#174) field.
+    """Parse a provenance object; ``None`` for a missing value.
+
+    ``build_site.py`` passes ``payload.get("provenance")``, so an absent
+    field and an explicit ``null`` both return ``None``. Archives written before
+    provenance was recorded omit the field, and ``prepare_publication.py``
+    writes ``null`` for a disposition without generation provenance.
 
     A present-but-malformed value raises, matching the rest of this module's
     treatment of a field once it is declared: fail closed rather than publish
