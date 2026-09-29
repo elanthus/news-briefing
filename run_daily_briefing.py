@@ -116,6 +116,10 @@ def _failure_reason(result: RunResult | None, manifest: dict[str, Any] | None, e
             if isinstance(check, str) and isinstance(message, str):
                 details.append(f"{check}: {message}")
     status = result.status if result is not None else "failed"
+    if status == "ready" and result is not None and result.exit_code != 0:
+        return "ready result rejected by --strict: " + (
+            "; ".join(details) if details else "corpus coverage was degraded"
+        )
     if status == "ready":
         return "ready result failed final artifact integrity checks"
     return f"{status}: " + ("; ".join(details) if details else "no ready report was produced")
@@ -172,7 +176,9 @@ def _is_publishable_ready_result(
     candidate_dir: Path,
     output_path: Path,
 ) -> bool:
-    if result is None or result.status != "ready" or manifest is None:
+    # A nonzero exit code on a ready result means --strict rejected findings
+    # or degraded corpus coverage, so the chain must try the next model.
+    if result is None or result.status != "ready" or result.exit_code != 0 or manifest is None:
         return False
     final = manifest.get("final")
     artifacts = manifest.get("artifacts")
