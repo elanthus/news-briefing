@@ -79,7 +79,7 @@ At owner request, the latest successful August 18 corpus was replayed through Co
 
 - Controlled input: [`structured-output-enabled/corpus-2026-08-18.json`](runs/2026-08-18/structured-output-enabled/corpus-2026-08-18.json), SHA-256 `6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5`. All four completed comparisons archived byte-identical `corpus.json` artifacts and the same projected model corpus, SHA-256 `09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301`.
 - Prompt and controls: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `50373c30bf4471dc056b3eb97c3d5eeb3f7ae1e9464c6c0c782493360e1d022b`; temperature 0 for OpenRouter; one checker-guided correction allowed; 600-second per-call deadline. Codex used its fixed medium reasoning. OpenRouter sent reasoning enabled and used each model's provider-default effort: Hy3 high, DeepSeek high, and Gemini mandatory medium.
-- Schema compatibility: Terra, Hy3, and DeepSeek used output-schema SHA-256 `a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016`. Gemini's first production request was rejected before generation because Google AI Studio treated a required integer property constrained by numeric `enum` as unspecified. Minimal probes isolated numeric `enum` as the trigger. The semantically equivalent Draft-07 constraint `minimum: 1, maximum: 1`, also independently enforced by runtime validation, produced schema SHA-256 `91f760c6ddb0df4b8b80522bc308d92fcbc37e176f314a18216fdb3afe34c2f2` and allowed the preserved follow-up to complete. The failed run is archived under [`replay-gemini-3.7-flash/`](runs/2026-08-18/replay-gemini-3.7-flash/); the completed follow-up is under [`replay-gemini-3.7-flash-schema-fixed/`](runs/2026-08-18/replay-gemini-3.7-flash-schema-fixed/).
+- Schema compatibility: Terra, Hy3, and DeepSeek used output-schema SHA-256 `a4413cb55fc963ac317e16be111a4df86a9bf0a0bc2d34e2d71eb7b971c75016`. Gemini's first production request was rejected before generation because Google AI Studio treated a required integer property constrained by numeric `enum` as unspecified. Minimal probes isolated numeric `enum` as the trigger. The semantically equivalent Draft-07 constraint `minimum: 1, maximum: 1`, also independently enforced by runtime validation, produced schema SHA-256 `91f760c6ddb0df4b8b80522bc308d92fcbc37e176f314a18216fdb3afe34c2f2` and allowed the preserved follow-up to complete. The failed run is archived under [`replay-gemini-3.7-flash/`](runs/README.md#removed-run-directories); the completed follow-up is under [`replay-gemini-3.7-flash-schema-fixed/`](runs/README.md#removed-run-directories).
 
 | Model | Calls | First check | Final check | Model latency | Reasoning tokens | Reported cost |
 |---|---:|---|---|---:|---:|---:|
@@ -96,7 +96,7 @@ Relative to previous records, Terra again needed one correction and was slightly
 
 ### 2026-08-17 — Codex GPT-5.6 Terra dogfood run
 
-The complete fetch → rank and summarize → check → single correction → final check loop, run at the requested Terra Medium setting. The corpus, both model attempts, corrected briefing, configuration snapshot, and machine-readable manifest are archived at [`docs/runs/2026-08-17/`](runs/2026-08-17/). The Codex CLI manifest records the exact generation model as `gpt-5.6-terra`; its adapter does not expose a separate reasoning-effort field.
+The complete fetch → rank and summarize → check → single correction → final check loop, run at the requested Terra Medium setting. The corpus, both model attempts, corrected briefing, configuration snapshot, and machine-readable manifest are archived at [`docs/runs/2026-08-17/`](runs/README.md#removed-run-directories). The Codex CLI manifest records the exact generation model as `gpt-5.6-terra`; its adapter does not expose a separate reasoning-effort field.
 
 - Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Codex CLI 0.147.0 and `gpt-5.6-terra`. The generation process ran in the runner's empty read-only sandbox and rejected non-message/non-reasoning trace items.
 - Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; repository commit `748f4a9`.
@@ -111,6 +111,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 - PR review amendment: removed the unsupported vaccine-exemption figure from the structured output and regenerated the rendered briefings, findings, schema, and manifest while preserving the raw model response. The current final result is **0 errors and 2 warnings** (`WARN`), both for missing Hacker News discussion links. Reproduce it with:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-17 | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-17/corpus-2026-08-17.json --briefing docs/runs/2026-08-17/briefing.md --config docs/runs/2026-08-17/briefing-config.json
   ```
 
@@ -135,7 +136,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 
 ### 2026-08-15 — OpenRouter Tencent Hy3 dogfood run
 
-The complete fetch → rank and summarize → check → single correction → final check loop run with OpenRouter `tencent/hy3`. The corpus, first draft, final `ERROR` briefing, configuration snapshot, and token/cost manifest are archived at [`docs/runs/2026-08-15/`](runs/2026-08-15/). This entry preserves the unhealthy result rather than replacing it with an unrecorded cleaner rerun.
+The complete fetch → rank and summarize → check → single correction → final check loop run with OpenRouter `tencent/hy3`. The corpus, first draft, final `ERROR` briefing, configuration snapshot, and token/cost manifest are archived at [`docs/runs/2026-08-15/`](runs/README.md#removed-run-directories). This entry preserves the unhealthy result rather than replacing it with an unrecorded cleaner rerun.
 
 - Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Generation used OpenRouter `tencent/hy3` with temperature 0, no seed, reasoning disabled, an 8,192-token output ceiling, and a 300-second per-call timeout. The model received only the trusted prompt/configuration and the closed corpus; it had no tools or browsing capability.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
@@ -148,16 +149,17 @@ The complete fetch → rank and summarize → check → single correction → fi
 - Checker, first result: 13 errors and 2 warnings. The draft used literal square brackets around the three AI subsection labels, so the checker reported all three subsections missing; it removed required query strings from nine BBC/Al Jazeera URLs; and its World Events Iran topic cited one ineligible `us_politics` item. The checker also warned about an unsupported figure parsed from the ICE headline and an unsupported quotation in the Lebanon topic.
 - Correction made after checking: one checker-guided Hy3 correction turn removed the literal headline brackets, restored the required query strings, and paraphrased the unsupported Lebanon quotation. It did not remove the ineligible Iran citation; once the AI subsections became recognizable, the checker also exposed two ineligible `us_politics` Axios citations in AI News. Per the one-correction workflow, no additional model turn was taken.
 - Checker, final result: **3 errors and 6 warnings**. The errors are the three `category_ineligible` findings just described. The warnings are one `unsupported_figure` on the ICE topic, four `unsupported_figure` findings on the two Hacker News topics' engagement figures, and one `claim_exceeds_evidence` finding on the Codex auto-research topic. Adding the required `### Validation status` section did not change the findings, so the final status stabilized at `ERROR`.
-- Usage and cost: the first draft used 33,234 prompt and 4,238 completion tokens; the correction used 37,758 prompt and 4,299 completion tokens. Total usage was 70,992 prompt + 8,537 completion = 79,529 tokens, with zero reasoning or cached tokens. At the OpenRouter catalog rates retrieved after the run ($0.132/M input and $0.528/M output), the token-based estimate is **$0.01387848**. OpenRouter reported **$0.014364728** across the two calls; the first call's cost details used slightly higher effective rates, so the provider-reported value is retained as authoritative. Full per-call details are in [`generation-usage.json`](runs/2026-08-15/generation-usage.json).
+- Usage and cost: the first draft used 33,234 prompt and 4,238 completion tokens; the correction used 37,758 prompt and 4,299 completion tokens. Total usage was 70,992 prompt + 8,537 completion = 79,529 tokens, with zero reasoning or cached tokens. At the OpenRouter catalog rates retrieved after the run ($0.132/M input and $0.528/M output), the token-based estimate is **$0.01387848**. OpenRouter reported **$0.014364728** across the two calls; the first call's cost details used slightly higher effective rates, so the provider-reported value is retained as authoritative. Full per-call details are in [`generation-usage.json`](runs/README.md#removed-run-directories).
 - Reproduce the stabilized final checker result with:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-15 | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-15/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/briefing.md --config docs/runs/2026-08-15/briefing-config.json
   ```
 
 #### Reasoning-enabled follow-up on the same corpus
 
-At owner request, Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/2026-08-15/hy3-reasoning-enabled/).
+At owner request, Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/README.md#removed-run-directories).
 
 - Inferred prompt version (not recorded at run time): the same `briefing-prompt.md` version as the initial run, `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
 - Original-ceiling attempt: with the original 8,192-token completion budget and 300-second call timeout, Hy3 consumed the completion budget in reasoning and returned no text (`finish_reason='length'`). Because the one-off invocation did not persist the exception's usage envelope, its exact billed cost is unavailable. Using the identical retry's 33,260-token prompt count and the exhausted 8,192-token budget, the catalog-rate estimate is $0.008715696.
@@ -171,12 +173,13 @@ At owner request, Hy3 was run again against the exact archived corpus and config
 - Reproduce the stabilized final checker result with:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-15/hy3-reasoning-enabled | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-15/hy3-reasoning-enabled/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/hy3-reasoning-enabled/briefing-config.json
   ```
 
 ### 2026-08-13 — Claude Code CLI dogfood run
 
-The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/2026-08-13/).
+The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/README.md#removed-run-directories).
 
 - Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`). The CLI also loaded unarchived startup-hook context, so this identifies only the repository prompt, not the complete model input.
@@ -191,6 +194,7 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
 - Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-13 | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-13/corpus-2026-08-13.json --briefing docs/runs/2026-08-13/briefing.md --config docs/runs/2026-08-13/briefing-config.json
   ```
 
@@ -198,7 +202,7 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
 
 ### 2026-08-12 — Codex daily dogfood run
 
-The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/2026-08-12/).
+The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/README.md#removed-run-directories).
 
 - Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `5e31cfa` (SHA-256 `e115aeb706bc87c3a9df87b349672d6f858e7ddf6a6b346dd6da0602b97fcf3a`).
@@ -212,6 +216,7 @@ The complete fetch → rank and summarize → check loop run in Codex. The corpu
 - Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-12 | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
   ```
 
@@ -236,7 +241,7 @@ The complete fetch → rank and summarize → check loop requested as a dated sa
 
 ### 2026-08-10 — scheduled daily-news-briefing task
 
-The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/2026-08-10/), so this entry can be re-derived instead of taken on trust.
+The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/README.md#removed-run-directories), so this entry can be re-derived instead of taken on trust.
 
 - Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `c47973a` (SHA-256 `c83082cbeaa8df013a8de6251b8e26011aceccf9728b49fee5a955894daf49b2`). This is the latest prompt change before corpus generation and the version in the parent of the contemporaneous log commit; the artifacts were archived later, after another prompt change.
@@ -250,6 +255,7 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
 - Checker, final result: 0 errors, 0 warnings — reproducible today:
 
   ```bash
+  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-10 | tar -x
   python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
   ```
 

@@ -104,18 +104,24 @@ def _selected_generation_run(run_dir: Path) -> Path | None:
     return resolved_selected
 
 
+def _is_valid_review_finding(raw: object) -> bool:
+    """Apply the per-row checks that ``_review_findings`` requires of every row."""
+    return (
+        finding_has_fields(raw, {frozenset(FINDING_FIELDS)})
+        and isinstance(raw, dict)
+        and finding_strings_are_valid(raw)
+        and finding_level_is_valid(raw)
+    )
+
+
 def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
     if not isinstance(raw_findings, list) or not raw_findings:
         return None
     findings: list[ReviewFinding] = []
     for raw in raw_findings:
-        if not finding_has_fields(raw, {frozenset(FINDING_FIELDS)}):
+        if not _is_valid_review_finding(raw):
             return None
         assert isinstance(raw, dict)
-        if not finding_strings_are_valid(raw):
-            return None
-        if not finding_level_is_valid(raw):
-            return None
         findings.append(
             ReviewFinding(
                 level=raw["level"],
@@ -128,7 +134,16 @@ def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
 
 
 def _actionable_finding_count(raw_findings: list[object]) -> int:
-    return sum(1 for finding in raw_findings if is_actionable_finding(finding))
+    """Count actionable findings among rows that pass review-finding validation.
+
+    A malformed row is skipped rather than counted: ``is_actionable_finding``
+    alone would treat a row without ``domain`` as actionable.
+    """
+    return sum(
+        1
+        for finding in raw_findings
+        if _is_valid_review_finding(finding) and is_actionable_finding(finding)
+    )
 
 
 def _bound_json_artifact(
@@ -479,9 +494,10 @@ def prepare_publication(
                         )
                 elif status == "ready":
                     # Nonblocking quality findings are visible for a published
-                    # `ready` run too (issue #171): a malformed raw finding
-                    # fails soft to an empty advisory list rather than
-                    # touching the disposition or the actionable count.
+                    # `ready` run too. The actionable count above already
+                    # skips malformed rows; any malformed raw finding empties
+                    # the advisory list here rather than changing the
+                    # disposition.
                     normalized = _review_findings(raw_findings)
                     if normalized is not None:
                         contextualized = _attach_review_context(

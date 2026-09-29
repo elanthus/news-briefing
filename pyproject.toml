@@ -3,8 +3,8 @@
 
 [tool.mypy]
 python_version = "3.11"
-# The modules that make up the dependency-free pipeline and runner are fully
-# annotated and checked. The isolated evaluator has its own pyproject.toml.
+# The modules listed in `files` (the dependency-free pipeline and runner, plus
+# the site builder) are fully annotated and checked. The isolated evaluator has its own pyproject.toml.
 # The test modules are not: annotating assertions adds noise without catching
 # anything the tests themselves wouldn't.
 files = [
@@ -19,6 +19,9 @@ files = [
     "prepare_publication.py",
     "publication_schema.py",
     "publication_failures.py",
+    "private_archive.py",
+    "restore_private_corpora.py",
+    "audit_manifest.py",
     "build_site.py",
     "agent_runner",
 ]

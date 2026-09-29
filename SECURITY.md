@@ -27,7 +27,11 @@ configuration, such as:
 - bypasses of public-destination validation, DNS pinning, or redirect checks;
 - ways to introduce a briefing URL that is absent from the fetched corpus;
 - parser or resource-exhaustion flaws that violate the documented input bounds;
-- credential exposure from the runner or optional evaluator;
+- credential exposure from the runner, the fetcher, or the optional evaluator,
+  including `OPENROUTER_API_KEY`, `CORPUS_ARCHIVE_PASSPHRASE`, and the optional
+  `SCRAPECREATORS_API_KEY` (sent only to the ScrapeCreators HTTPS API origin,
+  without following redirects, when the fetcher's final Reddit fallback runs;
+  see [Reddit falls back through three backends](docs/design.md#fetching));
 - bypasses of the runner's OpenRouter or Claude Code action-tool policy, citation
   projection, checkpoint integrity, or fail-closed provider-event validation; and
 - prompt-injection paths that cross a boundary the project claims to enforce.

@@ -758,9 +758,9 @@ def _baseline_summary_callout(
 ) -> list[str]:
     """A sentence pairing empty/echo's robustness against their utility, sourced from real numbers.
 
-    This is the concrete artifact for the AgentDojo-derived posture
-    evaluator/README.md already cites: robustness is meaningless unpaired
-    with utility. Only speaks about models actually present in this run.
+    Returns one Markdown bullet per ``empty`` or ``echo`` baseline present in
+    both baselines, stating its robustness, end-to-end utility, and utility
+    under attack side by side.
     Keyed by the full (provider, model, prompt_version) identity, not model
     name alone — a bare-model key would silently collide across prompt
     versions when more than one is compared in the same run.
@@ -776,10 +776,8 @@ def _baseline_summary_callout(
         security = security_by_identity.get(key)
         if security is None:
             continue
-        # Report the numbers rather than asserting a fixed characterization
-        # ("far more robust than useful") that does not hold for every
-        # baseline — echo's robustness and utility can land close together
-        # with overlapping confidence intervals; let the reader compare.
+        # State the numbers without a fixed characterization; the gap between
+        # robustness and utility differs by baseline.
         lines.append(
             f"- `{model}` ({prompt_version}): {_pct(security['robustness_final'])} robustness, "
             f"{_pct(utility['end_to_end_success_final'])} end-to-end utility, "
