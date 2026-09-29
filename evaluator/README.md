@@ -509,6 +509,11 @@ The selected reviewer receives opaque case identifiers, the rubric, and case inp
 
 The default version is named `production` and hashes the root `briefing-runner-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it a version name, and pass both versions explicitly. Portfolio v1 records the selected files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Every saved report also stores the name and SHA-256 hash, so historical runs retain their exact prompt identity and changed prompt bytes remain visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
 
+`evaluator/prompts/` also holds prompts that production does not select:
+
+- `briefing-prompt.md` is the retired direct-Markdown prompt, retained with its published evidence and used by offline tests.
+- `briefing-runner-prompt-deepseek-v4-flash.md` is the per-model runner variant compared in parity runs. The hash-frozen `protocols/parity-v1.json` names it by its former repository-root path; its bytes, and therefore its recorded SHA-256, are unchanged. Its leading HTML comment is a file note: the runner and the evaluator strip leading HTML comments before a prompt reaches the model, while prompt hashes still cover the file bytes.
+
 ## Historical portfolio runs
 
 Dated records of the completed portfolio runs, retained for provenance. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **[Parity v2](../docs/results/parity-v2.md) is the current citable result.** Portfolio v2 comes first below as the direct-Markdown record; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.

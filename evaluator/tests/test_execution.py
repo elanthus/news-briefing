@@ -17,13 +17,9 @@ from evaluator.adapters import (
     ProviderRequestError,
 )
 from evaluator.cases import run_deterministic_suite
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    _oracle,
-    apply_adjudications,
-    run_evaluation,
-    summarize,
-)
+from evaluator.report import summarize
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
+from evaluator.scoring import _oracle, apply_adjudications
 from evaluator.tests.oracle_controls import correction_request
 from evaluator.tests.support import (
     AlwaysFailAdapter,
@@ -548,9 +544,9 @@ class ExecutionTest(unittest.TestCase):
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
             with (
-                patch("evaluator.runner.run_deterministic_suite", return_value=deterministic),
+                patch("evaluator.cases.run_deterministic_suite", return_value=deterministic),
                 patch(
-                    "evaluator.runner.eval_briefing.parse_briefing",
+                    "eval_briefing.parse_briefing",
                     wraps=eval_briefing.parse_briefing,
                 ) as parse_briefing,
             ):

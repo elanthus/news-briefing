@@ -542,24 +542,6 @@ def _pairwise_overall(group: dict[str, Any]) -> str:
     return "n/a"
 
 
-def _is_baseline(group: dict[str, Any]) -> bool:
-    """Whether a report group is an offline reference strategy, not a live model.
-
-    Baseline rows are real trial data (see evaluator/adapters.py's
-    BaselineAdapter), so they belong in score_families/summarize's output.
-    This predicate only controls how markdown_report presents them: separated
-    from cross-model tables so a reader cannot mistake a zero-cost floor or
-    positive control for a live-model result.
-    """
-    return group["provider"] == "baseline"
-
-
-def _partition_baseline(groups: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    live = [group for group in groups if not _is_baseline(group)]
-    baseline = [group for group in groups if _is_baseline(group)]
-    return live, baseline
-
-
 def _utility_row(group: dict[str, Any]) -> str:
     return (
         f"| {_render_group_label(group)} | "
@@ -753,40 +735,6 @@ _OPERATIONS_HEADER = [
 ]
 
 
-def _baseline_summary_callout(
-    utility_baseline: list[dict[str, Any]], security_baseline: list[dict[str, Any]]
-) -> list[str]:
-    """A sentence pairing empty/echo's robustness against their utility, sourced from real numbers.
-
-    Returns one Markdown bullet per ``empty`` or ``echo`` baseline present in
-    both baselines, stating its robustness, end-to-end utility, and utility
-    under attack side by side.
-    Keyed by the full (provider, model, prompt_version) identity, not model
-    name alone — a bare-model key would silently collide across prompt
-    versions when more than one is compared in the same run.
-    """
-    identity_key = lambda group: (group["provider"], group["model"], group["prompt_version"])  # noqa: E731
-    security_by_identity = {identity_key(group): group for group in security_baseline}
-    utility_by_identity = {identity_key(group): group for group in utility_baseline}
-    lines: list[str] = []
-    for key, utility in sorted(utility_by_identity.items()):
-        _provider, model, prompt_version = key
-        if model not in {"empty", "echo"}:
-            continue
-        security = security_by_identity.get(key)
-        if security is None:
-            continue
-        # State the numbers without a fixed characterization; the gap between
-        # robustness and utility differs by baseline.
-        lines.append(
-            f"- `{model}` ({prompt_version}): {_pct(security['robustness_final'])} robustness, "
-            f"{_pct(utility['end_to_end_success_final'])} end-to-end utility, "
-            f"{_pct(security['utility_under_attack_final'])} utility preserved under attack — "
-            "robustness alone does not show whether the system is worth deploying."
-        )
-    return lines
-
-
 def _generation_controls_lines(controls: list[dict[str, Any]]) -> list[str]:
     if not controls:
         return []
@@ -856,6 +804,8 @@ def _checker_capability_lines(checker_family: dict[str, Any] | None) -> list[str
     return lines
 
 
+# The section wording below is part of the published evidence report.md bytes that
+# verify-public-run regenerates and compares; changing it fails that verification.
 def _utility_section_lines(family: dict[str, Any], groups: list[dict[str, Any]]) -> list[str]:
     return [
         "## Score family 2: Application utility",
@@ -917,66 +867,6 @@ def _operations_section_lines(groups: list[dict[str, Any]]) -> list[str]:
     ]
 
 
-def _reference_baseline_lines(
-    utility: list[dict[str, Any]],
-    security: list[dict[str, Any]],
-    editorial: list[dict[str, Any]],
-    operations: list[dict[str, Any]],
-) -> list[str]:
-    if not any((utility, security, editorial, operations)):
-        return []
-    lines = [
-        "",
-        "## Reference baselines (offline, zero-cost — excluded from cross-model tables above)",
-        "",
-        "Deterministic, no-network strategies from the `baseline` provider "
-        "(evaluator/adapters.py:BaselineAdapter): `empty` renders only the structural "
-        "skeleton, `echo` fills sections in corpus recency order with verbatim text, "
-        "and `compliant` obeys every embedded instruction as a positive control. They "
-        "anchor every rate above against known floors rather than leaving it unanchored.",
-        "",
-    ]
-    callout = _baseline_summary_callout(utility, security)
-    if callout:
-        lines += callout + [""]
-    if utility:
-        lines += [
-            "### Application utility (baseline)",
-            "",
-            *_UTILITY_HEADER,
-            *(_utility_row(group) for group in utility),
-            "",
-        ]
-    if security:
-        lines += [
-            "### Security robustness (baseline)",
-            "",
-            *_SECURITY_HEADER,
-            *(_security_row(group) for group in security),
-            "",
-        ]
-        for group in security:
-            lines += _security_detail_lines(group)
-        lines.append("")
-    if editorial:
-        lines += [
-            "### Editorial quality (baseline)",
-            "",
-            *_EDITORIAL_HEADER,
-            *(_editorial_row(group) for group in editorial),
-            "",
-        ]
-    if operations:
-        lines += [
-            "### Operations (baseline)",
-            "",
-            *_OPERATIONS_HEADER,
-            *(_operations_row(group) for group in operations),
-            "",
-        ]
-    return lines
-
-
 def markdown_report(report: dict[str, Any]) -> str:
     families = report["score_families"]
     operations = report["operations"]
@@ -994,16 +884,15 @@ def markdown_report(report: dict[str, Any]) -> str:
     controls = report.get("generation_controls", [])
     lines += _generation_controls_lines(controls)
     lines += _checker_capability_lines(families["checker_capability"])
-    utility_live, utility_baseline = _partition_baseline(families["application_utility"]["groups"])
-    security_live, security_baseline = _partition_baseline(families["security_robustness"]["groups"])
-    editorial_live, editorial_baseline = _partition_baseline(families["editorial_quality"]["groups"])
-    operations_live, operations_baseline = _partition_baseline(operations["groups"])
-    lines += _utility_section_lines(families["application_utility"], utility_live)
-    lines += _security_section_lines(families["security_robustness"], security_live)
-    lines += _editorial_section_lines(families["editorial_quality"], editorial_live)
-    lines += _operations_section_lines(operations_live)
-    lines += _reference_baseline_lines(
-        utility_baseline, security_baseline, editorial_baseline, operations_baseline
+    lines += _utility_section_lines(
+        families["application_utility"], families["application_utility"]["groups"]
     )
+    lines += _security_section_lines(
+        families["security_robustness"], families["security_robustness"]["groups"]
+    )
+    lines += _editorial_section_lines(
+        families["editorial_quality"], families["editorial_quality"]["groups"]
+    )
+    lines += _operations_section_lines(operations["groups"])
     lines.append("")
     return "\n".join(lines)

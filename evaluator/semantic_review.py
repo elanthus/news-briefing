@@ -24,7 +24,8 @@ from evaluator.judge_io import (
     write_json_atomic,
     write_text_atomic,
 )
-from evaluator.runner import apply_adjudications, markdown_report, summarize
+from evaluator.report import markdown_report, summarize
+from evaluator.scoring import apply_adjudications
 
 JUDGMENTS = {"conveyed", "not_conveyed", "unclear"}
 

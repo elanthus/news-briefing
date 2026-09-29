@@ -13,8 +13,11 @@ import briefing_config
 import corpus_schema
 from agent_runner.output import ModelCorpus, build_selection_schema, project_corpus
 from agent_runner.runner import build_request as structured_model_request
+from agent_runner.runner import prompt_policy
 from agent_runner.stages import CorrectionBudget, correction_action
 
+from evaluator import cases as cases_module
+from evaluator import checkpoint as checkpoint_module
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
     CIRCUIT_BREAKER_THRESHOLD,
@@ -138,7 +141,7 @@ def _prepare_trial(
     plan: EvaluationPlan,
     options: ExecutionOptions,
 ) -> TrialContext:
-    prompt = prompt_path.read_bytes().decode("utf-8")
+    prompt = prompt_policy(prompt_path.read_bytes().decode("utf-8"))
     trial, result_case_id, mutations, source_failures, _is_clean_pair = variant
     result_key = (
         adapter.provider,
@@ -556,6 +559,7 @@ def execute_evaluation(
     resume: bool = False,
     source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    # evaluator.runner imports this module, so it is imported here to avoid a cycle.
     from evaluator import runner as runner_module
 
     if trials <= 0:
@@ -589,8 +593,8 @@ def execute_evaluation(
         run_kind=run_kind,
         cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
-        checkpoint=runner_module._checkpoint,
-        deterministic_suite=runner_module.run_deterministic_suite,
+        checkpoint=checkpoint_module._checkpoint,
+        deterministic_suite=cases_module.run_deterministic_suite,
     )
     if state.completed_report is not None:
         return state.completed_report
@@ -601,7 +605,7 @@ def execute_evaluation(
         cost_ceiling_usd,
         cost_ceiling_provider,
         resume_manifest is not None,
-        runner_module._checkpoint,
+        checkpoint_module._checkpoint,
     )
     model_total = len(prompt_versions) * plan.case_trial_units * trials
     for adapter, adapter_plan in plan.execution_plans:
@@ -619,6 +623,6 @@ def execute_evaluation(
     return finalize_run_report(
         state.manifest,
         output_dir,
-        runner_module._checkpoint,
+        checkpoint_module._checkpoint,
         has_errors=_has_execution_errors(state.results),
     )

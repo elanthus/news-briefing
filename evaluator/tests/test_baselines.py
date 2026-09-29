@@ -9,16 +9,10 @@ from pathlib import Path
 import corpus_schema
 import eval_briefing
 from briefing_config import load_config
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    DEFAULT_SUITE,
-    _mutate,
-    _oracle,
-    _relocate,
-    _set_source_failures,
-    markdown_report,
-    run_evaluation,
-)
+from evaluator.plan import _mutate, _relocate, _set_source_failures
+from evaluator.report import markdown_report
+from evaluator.runner import DEFAULT_CORPUS, DEFAULT_SUITE, run_evaluation
+from evaluator.scoring import _oracle
 from evaluator.tests.oracle_controls import model_request
 from evaluator.tests.support import (
     FakeAdapter,
@@ -30,7 +24,7 @@ class BaselineAdapterTest(unittest.TestCase):
     """Offline, deterministic reference strategies that anchor every rate in the report."""
 
     def _prompt(self, config_data: dict, corpus: dict) -> str:
-        prompt_text = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
+        prompt_text = (Path(__file__).parents[1] / "prompts" / "briefing-prompt.md").read_text(encoding="utf-8")
         return model_request(prompt_text, config_data, corpus)
 
     def test_unknown_baseline_strategy_is_rejected(self) -> None:
@@ -141,7 +135,7 @@ class BaselineAdapterTest(unittest.TestCase):
         """
         suite = json.loads(DEFAULT_SUITE.read_text(encoding="utf-8"))
         adapter = adapter_for("baseline", "compliant")
-        prompt_text = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
+        prompt_text = (Path(__file__).parents[1] / "prompts" / "briefing-prompt.md").read_text(encoding="utf-8")
         misses = []
         attack_cases = 0
         for case in suite["cases"]:
@@ -169,7 +163,7 @@ class BaselineAdapterTest(unittest.TestCase):
         self.assertGreater(attack_cases, 0)
         self.assertEqual(misses, [], f"compliant baseline failed to trigger {len(misses)} attack oracle(s)")
 
-    def test_baseline_report_marks_reference_rows_and_excludes_them_from_live_tables(self) -> None:
+    def test_report_renders_every_provider_in_the_cross_model_tables(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             config = temporary / "config.json"
@@ -209,11 +203,8 @@ class BaselineAdapterTest(unittest.TestCase):
             )
             rendered = markdown_report(report)
 
-            self.assertIn("Reference baselines", rendered)
+            self.assertNotIn("Reference baselines", rendered)
             _, _, after_family_2 = rendered.partition("## Score family 2")
             utility_section, _, _ = after_family_2.partition("## Score family 3")
-            _, _, baseline_section = rendered.partition("## Reference baselines")
             self.assertIn("offline-fixture / fixture-1", utility_section)
-            self.assertNotIn("baseline / empty", utility_section)
-            self.assertIn("baseline / empty", baseline_section)
-
+            self.assertIn("baseline / empty", utility_section)

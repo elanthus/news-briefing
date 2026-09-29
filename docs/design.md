@@ -155,7 +155,7 @@ A promoted topic is labelled where the reader meets it. `render_briefing()` tags
 
 ## Regression-testing a prompt change
 
-[`briefing-runner-prompt.md`](../briefing-runner-prompt.md) is the structured-output prompt used by `run_briefing.py` and the production daily chain; [`briefing-prompt.md`](../briefing-prompt.md) is retained only with historical direct-Markdown evidence. New evaluator runs use the production two-pass contract. To regression-test a change to the production prompt, replay the frozen corpus and configuration in [`fixtures/`](../fixtures), substituting the candidate prompt path and holding the provider and model fixed across comparisons:
+[`briefing-runner-prompt.md`](../briefing-runner-prompt.md) is the structured-output prompt used by `run_briefing.py` and the production daily chain; [`evaluator/prompts/briefing-prompt.md`](../evaluator/prompts/briefing-prompt.md) is retained only with historical direct-Markdown evidence. New evaluator runs use the production two-pass contract. To regression-test a change to the production prompt, replay the frozen corpus and configuration in [`fixtures/`](../fixtures), substituting the candidate prompt path and holding the provider and model fixed across comparisons:
 
 ```bash
 python3 -S run_briefing.py \

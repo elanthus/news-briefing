@@ -14,9 +14,7 @@ from evaluator.__main__ import ProgressBar, _prompt_values, _provider_values
 from evaluator.adapters import (
     production_adapter_for,
 )
-from evaluator.runner import (
-    ROOT,
-)
+from evaluator.runner import ROOT
 
 
 class CliTest(unittest.TestCase):

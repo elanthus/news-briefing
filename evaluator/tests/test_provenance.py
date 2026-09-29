@@ -5,10 +5,7 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
-from evaluator.runner import (
-    _git_provenance,
-    final_source_provenance,
-)
+from evaluator.runner import _git_provenance, final_source_provenance
 
 
 class FinalSourceProvenanceTest(unittest.TestCase):

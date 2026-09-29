@@ -292,6 +292,19 @@ def _load_corpus(store: RunStore) -> dict[str, Any]:
     return corpus
 
 
+def prompt_policy(text: str) -> str:
+    """Return prompt text without leading HTML comments, which are file notes, not policy."""
+    if not text.lstrip().startswith("<!--"):
+        return text
+    remaining = text.lstrip()
+    while remaining.startswith("<!--"):
+        end = remaining.find("-->")
+        if end < 0:
+            break
+        remaining = remaining[end + 3 :].lstrip()
+    return remaining
+
+
 def build_request(
     policy: str,
     config_data: dict[str, Any],
@@ -1271,7 +1284,7 @@ def run_workflow(
             )
             store.write_json("selection-schema.json", selection_schema)
             store.checkpoint("request_ready")
-        policy = settings.prompt_path.read_text(encoding="utf-8")
+        policy = prompt_policy(settings.prompt_path.read_text(encoding="utf-8"))
         selection_request = build_request(policy, config_data, projected)
         if not (store.root / "selection-request.txt").exists():
             store.write_text("selection-request.txt", selection_request)
