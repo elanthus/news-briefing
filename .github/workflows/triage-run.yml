@@ -115,15 +115,44 @@ jobs:
             fi
           fi
 
+      - name: Encrypt triage report
+        env:
+          CORPUS_ARCHIVE_PASSPHRASE: ${{ secrets.CORPUS_ARCHIVE_PASSPHRASE }}
+        run: |
+          mkdir -p private-triage
+          python3 private_archive.py create \
+            --output private-triage/triage-report.tar.gz.enc \
+            triage-output
+
+      - name: Upload encrypted triage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: triage-report-${{ github.run_id }}
+          path: private-triage/triage-report.tar.gz.enc
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Open triage issue
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT_ARTIFACT: triage-report-${{ github.run_id }}
         run: |
-          first_class=$(jq -r '.classes[0].class' triage-output/triage.json)
+          first_class=$(jq -r '.classes[0].class // "none"' triage-output/triage.json)
+          if [[ ! "$first_class" =~ ^[a-z0-9_]+$ ]]; then
+            first_class="unrecognized"
+          fi
           gh label create triage \
             --description "Operational briefing triage" \
             --color D93F0B || true
+          body=$(printf '%s\n' \
+            "Run date: $TRIAGE_RUN_DATE" \
+            "First failure class: $first_class" \
+            "Workflow run: $RUN_URL" \
+            "Report artifact: $REPORT_ARTIFACT (encrypted with CORPUS_ARCHIVE_PASSPHRASE; decrypt with private_archive.py)" \
+            "" \
+            "The full triage report, including checker findings and any model summary, is kept only in the encrypted artifact.")
           gh issue create \
             --title "Triage: $TRIAGE_RUN_DATE $first_class" \
-            --body-file triage-output/triage.md \
+            --body "$body" \
             --label triage
