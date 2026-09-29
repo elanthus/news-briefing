@@ -128,7 +128,7 @@ def restore_corpus(
     corpora = root / "corpora"
     corpora.mkdir(parents=True, exist_ok=True)
     restore = _invoke(
-        ["python", "restore_private_corpora.py", "--output-dir", str(corpora)],
+        [sys.executable, "restore_private_corpora.py", "--output-dir", str(corpora)],
         runner,
     )
     if restore.returncode == 4:
@@ -137,7 +137,7 @@ def restore_corpus(
         print("::error::Private corpus restoration failed")
         return restore.returncode
     prune = _invoke([
-        "python", "private_archive.py", "prune-corpora", str(corpora),
+        sys.executable, "private_archive.py", "prune-corpora", str(corpora),
         "--newest", today.isoformat(),
     ], runner)
     return prune.returncode
@@ -181,7 +181,7 @@ def generate_reports(
         corpus_ready = False
         if value == today:
             fetched = _invoke([
-                "python", "fetch_news.py",
+                sys.executable, "fetch_news.py",
                 "--window-start", window_start,
                 "--window-end", window_end,
                 "--report-date", report_date,
@@ -201,7 +201,7 @@ def generate_reports(
             continue
         if corpus_ready:
             generated = _invoke([
-                "python", "run_daily_briefing.py",
+                sys.executable, "run_daily_briefing.py",
                 "--corpus", str(corpus),
                 "--run-dir", str(run_dir),
                 "--output", str(report),
@@ -221,7 +221,7 @@ def generate_reports(
                 "no corpus is available"
             )
         prepared = _invoke([
-            "python", "prepare_publication.py",
+            sys.executable, "prepare_publication.py",
             "--run-dir", str(run_dir),
             "--corpus", str(corpus),
             "--history-dir", str(root / "briefing-history"),
