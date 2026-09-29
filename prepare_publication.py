@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+import corpus_schema
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
@@ -405,21 +406,38 @@ def _bound_artifact(run_dir: Path, manifest: dict[str, Any], final: dict[str, An
     return content
 
 
+def _source_label(record: Any) -> str:
+    if isinstance(record, dict):
+        return f"{record.get('source_type', 'source')}:{record.get('source_id', 'unknown')}"
+    if isinstance(record, str):
+        return record
+    return "source:unknown"
+
+
 def _degraded_sources(corpus_path: Path) -> tuple[str, ...]:
+    """Name every source behind `corpus_schema.corpus_health_degraded`.
+
+    The records are the ones `corpus_health_issue_count` counts: failed or
+    empty sources, undated drops, and the quiet sources of any category whose
+    quiet count exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`.
+    """
     corpus = _load_json(corpus_path)
-    errors = corpus.get("errors", []) if isinstance(corpus, dict) else []
-    if not isinstance(errors, list):
+    if not isinstance(corpus, dict) or not corpus_schema.corpus_health_degraded(corpus):
         return ()
+    errors = corpus.get("errors", [])
+    records: list[Any] = list(errors) if isinstance(errors, list) else []
+    records.extend(corpus_schema.undated_source_records(corpus))
+    quiet_by_category: dict[str, list[dict[str, Any]]] = {}
+    for source in corpus_schema.quiet_source_records(corpus):
+        category = source.get("category")
+        if isinstance(category, str):
+            quiet_by_category.setdefault(category, []).append(source)
+    for quiet in quiet_by_category.values():
+        if len(quiet) > corpus_schema.QUIET_SOURCE_DEGRADED_THRESHOLD:
+            records.extend(quiet)
     labels: list[str] = []
-    for error in errors:
-        if isinstance(error, dict):
-            source_type = error.get("source_type", "source")
-            source_id = error.get("source_id", "unknown")
-            label = f"{source_type}:{source_id}"
-        elif isinstance(error, str):
-            label = error
-        else:
-            label = "source:unknown"
+    for record in records:
+        label = _source_label(record)
         if label not in labels:
             labels.append(label)
     return tuple(labels)
