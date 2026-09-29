@@ -1,5 +1,53 @@
-# Tool configuration only. The project runs on Python 3.11+ without a package
-# build; the static site renderer dependency is pinned in requirements-site.txt.
+# The project runs on Python 3.11+ from a checkout without installation. The
+# package metadata below exists only to expose optional console scripts through
+# an editable install (`pip install -e .`); the scripts call the same `main()`
+# functions as `python3 -S <module>.py`. The modules read prompts, sources, and
+# evaluator protocols relative to the checkout, so a non-editable install is not
+# supported. No runtime dependency is declared: the static site renderer
+# dependency is pinned separately in requirements-site.txt.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "news-briefing"
+version = "0"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+news-briefing-fetch = "fetch_news:main"
+news-briefing-run = "run_briefing:main"
+news-briefing-daily = "run_daily_briefing:main"
+news-briefing-eval = "eval_briefing:main"
+news-briefing-publish = "daily_publish:main"
+news-briefing-prepare-publication = "prepare_publication:main"
+news-briefing-restore-corpora = "restore_private_corpora:main"
+news-briefing-private-archive = "private_archive:main"
+news-briefing-triage = "triage_run:main"
+news-briefing-build-site = "build_site:main"
+news-briefing-evaluator = "evaluator.__main__:main"
+
+[tool.setuptools]
+py-modules = [
+    "audit_manifest",
+    "briefing_config",
+    "build_site",
+    "corpus_schema",
+    "daily_publish",
+    "eval_briefing",
+    "fetch_news",
+    "prepare_publication",
+    "private_archive",
+    "publication_failures",
+    "publication_schema",
+    "restore_private_corpora",
+    "run_briefing",
+    "run_daily_briefing",
+    "triage_run",
+]
+packages = ["agent_runner", "evaluator"]
 
 [tool.mypy]
 python_version = "3.11"
