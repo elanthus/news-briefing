@@ -13,8 +13,9 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
+import eval_briefing
 from agent_runner.failures import FailureRecord
-from agent_runner.output import render_briefing
+from agent_runner.output import render_briefing, render_validation_status
 from build_site import (
     STYLE,
     ReviewFinding,
@@ -1020,6 +1021,40 @@ class BuildSiteTests(unittest.TestCase):
         self.assertLess(rendered.index("<h2>AI/Tech</h2>"), rendered.index("<h2>US Politics</h2>"))
         self.assertIn("## AI/Tech", rendered)
         self.assertIn("### Excluded Topics (fake)", rendered)
+
+    def test_run_outcome_without_corpus_health_keeps_its_labels_and_order(self) -> None:
+        corpus, config, projected, output = fixture_contract()
+        corpus["errors"] = []
+        corpus["sources"] = []
+        findings = [
+            {"level": eval_briefing.WARN, "check": "unsupported_figure",
+             "message": "states '152', which is not supported"},
+            {"level": eval_briefing.WARN, "check": "figure_supported_elsewhere",
+             "message": "figure appears in another story"},
+        ]
+        markdown = (
+            render_briefing(output, corpus, config, projected.citations).rstrip()
+            + "\n"
+            + render_validation_status(findings, corpus)
+        )
+        self.assertNotIn("### Corpus health", markdown)
+        self.assertIn("unsupported_figure", markdown)
+
+        rendered, _matched, _matched_advisory = _render_markdown(markdown)
+
+        excluded = rendered.index("<h3>Excluded Topics (accountability log)</h3>")
+        outcome = rendered.index("<h3>Run outcome</h3>")
+        self.assertLess(excluded, outcome)
+        run_outcome = rendered[outcome:]
+        for label in ("Disposition: ", "Errors", "Warnings", "Source issues",
+                      "Undated source drops"):
+            with self.subTest(label=label):
+                self.assertIn(f"<strong>{label}", run_outcome)
+                self.assertNotIn(f"<strong>{label}", rendered[excluded:outcome])
+        self.assertNotIn("unsupported_figure", rendered)
+        self.assertNotIn("figure_supported_elsewhere", rendered)
+        warnings = run_outcome.index("<strong>Warnings</strong>")
+        self.assertIn("None</p>", run_outcome[warnings:run_outcome.index("Source issues")])
 
     def test_status_chip_shows_degraded_sources_suffix(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

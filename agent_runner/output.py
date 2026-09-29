@@ -858,6 +858,16 @@ def _object_fields(
     return value
 
 
+# The rendered topic and log lines are single-line Markdown; the checker reads
+# only the first line, so prose that spans lines would hide text from it.
+_VERTICAL_WHITESPACE = re.compile(r"[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+
+
+def _single_line(value: str) -> str:
+    """Collapse all whitespace runs, including line breaks, to single spaces."""
+    return " ".join(value.split())
+
+
 def _text(
     value: Any,
     *,
@@ -868,6 +878,10 @@ def _text(
     if not isinstance(value, str) or not value.strip():
         findings.append(OutputFinding("ERROR", "structured_text", f"{where} must be a non-empty string"))
         return None
+    if _VERTICAL_WHITESPACE.search(value):
+        findings.append(OutputFinding(
+            "ERROR", "structured_text", f"{where} must be a single line with no line breaks"
+        ))
     if len(value) > maximum:
         findings.append(OutputFinding(
             "ERROR", "structured_text_length", f"{where} exceeds {maximum} characters"
@@ -1429,7 +1443,9 @@ def _topic_lines(
         for tag, present in ((PROMOTION_TAG, promoted), ("verbatim", excerpt))
         if present
     )
-    lines = [f"**{entry['headline']}**{marker}{tags} — {entry['summary']}"]
+    headline = _single_line(entry["headline"])
+    summary = _single_line(entry["summary"])
+    lines = [f"**{headline}**{marker}{tags} — {summary}"]
     for citation in _complete_item_citations(refs, citations):
         prefix = "HN: " if citation.kind == "discussion" else ""
         lines.append(f"🔗 {prefix}{citation.url}")
@@ -1519,7 +1535,8 @@ def render_briefing(
                     f"<!-- story: excluded_topics.{section.name}[{exc_index}] -->"
                 )
                 lines.append(
-                    f"- *{entry['headline']}* — {entry['reason']} " + " ".join(rendered_refs)
+                    f"- *{_single_line(entry['headline'])}* — {_single_line(entry['reason'])} "
+                    + " ".join(rendered_refs)
                 )
             lines.append("")
 

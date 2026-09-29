@@ -9,8 +9,9 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+import corpus_schema
 from agent_runner.failures import FailureRecord
-from prepare_publication import prepare_publication
+from prepare_publication import _degraded_sources, prepare_publication
 
 
 class PreparePublicationTests(unittest.TestCase):
@@ -30,6 +31,41 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(record.generation_failures[0].reason, "invalid_request")
             self.assertNotIn("private-data", json.dumps(record.payload()))
             self.assertFalse((root / "history/2026-09-06.md").exists())
+
+    def test_degraded_sources_follow_the_runner_corpus_health_predicate(self) -> None:
+        threshold = corpus_schema.QUIET_SOURCE_DEGRADED_THRESHOLD
+        crowded = [
+            {"source_type": "rss", "source_id": f"feed-{n}", "category": "science",
+             "status": "quiet"}
+            for n in range(threshold + 1)
+        ]
+        cases = {
+            "single quiet source": (
+                {"errors": [], "sources": [crowded[0]]},
+                (),
+            ),
+            "quiet sources past the threshold": (
+                {"errors": [], "sources": crowded},
+                tuple(f"rss:feed-{n}" for n in range(threshold + 1)),
+            ),
+            "undated drop": (
+                {"errors": [], "sources": [{
+                    "source_type": "reddit", "source_id": "cursor", "status": "ok",
+                    "parsed_entries": 4, "dated_entries": 3,
+                }]},
+                ("reddit:cursor",),
+            ),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, (corpus, expected) in cases.items():
+                with self.subTest(name):
+                    path = Path(tmp) / "corpus.json"
+                    path.write_text(json.dumps(corpus), encoding="utf-8")
+                    labels = _degraded_sources(path)
+                    self.assertEqual(labels, expected)
+                    self.assertEqual(
+                        bool(labels), corpus_schema.corpus_health_degraded(corpus)
+                    )
 
     def test_resolves_selected_ready_run_from_fallback_log(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

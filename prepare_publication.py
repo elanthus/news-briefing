@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+import corpus_schema
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
@@ -420,21 +421,22 @@ def _bound_artifact(run_dir: Path, manifest: dict[str, Any], final: dict[str, An
     return content
 
 
+def _source_label(record: Any) -> str:
+    if isinstance(record, dict):
+        return f"{record.get('source_type', 'source')}:{record.get('source_id', 'unknown')}"
+    if isinstance(record, str):
+        return record
+    return "source:unknown"
+
+
 def _degraded_sources(corpus_path: Path) -> tuple[str, ...]:
+    """Label the records `corpus_schema.degraded_source_records` enumerates."""
     corpus = _load_json(corpus_path)
-    errors = corpus.get("errors", []) if isinstance(corpus, dict) else []
-    if not isinstance(errors, list):
+    if not isinstance(corpus, dict):
         return ()
     labels: list[str] = []
-    for error in errors:
-        if isinstance(error, dict):
-            source_type = error.get("source_type", "source")
-            source_id = error.get("source_id", "unknown")
-            label = f"{source_type}:{source_id}"
-        elif isinstance(error, str):
-            label = error
-        else:
-            label = "source:unknown"
+    for record in corpus_schema.degraded_source_records(corpus):
+        label = _source_label(record)
         if label not in labels:
             labels.append(label)
     return tuple(labels)
