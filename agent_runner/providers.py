@@ -33,6 +33,7 @@ _TRANSIENT_CLI_MARKERS = (
     "timed out",
     "timeout",
 )
+#: Keywords whose value is a map from user-chosen names to subschemas.
 _SCHEMA_MAP_KEYWORDS = frozenset(
     {
         "$defs",
@@ -542,8 +543,6 @@ class OpenRouterProvider(ModelProvider):
 
 
 _LEAN_STRIPPED_KEYWORDS = frozenset({"minItems", "maxItems", "minLength", "maxLength"})
-#: Keywords whose value is a map from user-chosen names to subschemas.
-_SCHEMA_MAP_KEYWORDS = frozenset({"properties", "$defs", "definitions"})
 
 
 def _lean_local_schema(value: Any) -> Any:

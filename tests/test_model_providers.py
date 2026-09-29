@@ -103,6 +103,22 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(compatible["const"], {"uniqueItems": True})
         self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
+    def test_grammar_compatible_schema_recurses_into_pattern_properties(self):
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^x-": {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+            },
+            "dependentSchemas": {
+                "a": {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+            },
+        }
+
+        compatible = _grammar_compatible_schema(schema)
+
+        self.assertNotIn("uniqueItems", compatible["patternProperties"]["^x-"])
+        self.assertNotIn("uniqueItems", compatible["dependentSchemas"]["a"])
+
     def test_openrouter_sends_schema_and_parses_usage(self):
         payload = {
             "id": "gen-1",

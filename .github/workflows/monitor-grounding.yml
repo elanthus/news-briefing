@@ -31,6 +31,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          # main is protected; the default GITHUB_TOKEN cannot bypass the
+          # ruleset, so the push below authenticates with a deploy key.
+          persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -179,6 +182,8 @@ jobs:
           retention-days: 14
 
       - name: Commit the updated weekly log
+        env:
+          MONITOR_DEPLOY_KEY: ${{ secrets.MONITOR_DEPLOY_KEY }}
         run: |
           if git diff --quiet -- docs/results/grounding-monitor.md; then
             echo "No change to the weekly grounding monitor log"
@@ -188,4 +193,20 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/results/grounding-monitor.md
           git commit -m "Record week $WEEK_LABEL unverified grounding rate"
-          git push origin HEAD:main
+          # main is protected by a ruleset whose bypass actor is the write
+          # deploy key stored in MONITOR_DEPLOY_KEY (docs/adr/0005). Never fall
+          # back to github.token: the ruleset rejects that push.
+          if [[ -z "$MONITOR_DEPLOY_KEY" ]]; then
+            echo "::error::MONITOR_DEPLOY_KEY is not set; cannot push to protected main (see docs/adr/0005-protect-main-with-monitor-bypass.md)"
+            exit 1
+          fi
+          ssh_dir="$RUNNER_TEMP/monitor-ssh"
+          mkdir -m 700 "$ssh_dir"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          ( umask 077; printf '%s\n' "$MONITOR_DEPLOY_KEY" > "$ssh_dir/key" )
+          # GitHub's published ed25519 host key, pinned so the push cannot be
+          # redirected to another host.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" \
+            > "$ssh_dir/known_hosts"
+          GIT_SSH_COMMAND="ssh -i $ssh_dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes" \
+            git push "git@github.com:${GITHUB_REPOSITORY}.git" HEAD:main
