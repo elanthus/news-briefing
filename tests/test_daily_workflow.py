@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,32 @@ WORKFLOW = (REPOSITORY / ".github/workflows/daily-briefing.yml").read_text(encod
 
 def _step(name: str) -> str:
     return WORKFLOW.split(f"- name: {name}", 1)[1].split("- name:", 1)[0]
+
+
+def _steps() -> list[tuple[str, str]]:
+    """Return every job step as (label, text); unnamed steps use their ``uses:`` value."""
+    body = WORKFLOW.split("\n    steps:\n", 1)[1]
+    chunks = re.split(r"^      - ", body, flags=re.M)[1:]
+    steps = []
+    for chunk in chunks:
+        text = "- " + chunk
+        name = re.search(r"^[- ] name: (.+)$", text, re.M)
+        uses = re.search(r"uses: (\S+)", text)
+        label = name.group(1) if name else uses.group(1) if uses else text
+        steps.append((label, text))
+    return steps
+
+
+def _with_inputs(step: str) -> dict[str, str]:
+    """Parse the active ``key: value`` lines of a step's ``with:`` block."""
+    block = step.split("\n        with:\n", 1)[1]
+    inputs = {}
+    for line in block.splitlines():
+        match = re.fullmatch(r"          ([\w-]+):\s*(\S.*?)\s*", line)
+        if match is None:
+            break
+        inputs[match.group(1)] = match.group(2)
+    return inputs
 
 
 class DailyWorkflowTests(unittest.TestCase):
@@ -45,9 +72,11 @@ class DailyWorkflowTests(unittest.TestCase):
             self.assertIn("MANUAL_REPORT_DATE: ${{ inputs.report_date }}", step)
 
     def test_checks_out_main_without_persisted_credentials(self) -> None:
-        checkout = WORKFLOW.split("uses: actions/checkout@", 1)[1].split("- uses:", 1)[0]
-        self.assertIn("ref: main", checkout)
-        self.assertIn("persist-credentials: false", checkout)
+        checkout = next(step for step in _steps() if step[0].startswith("actions/checkout@"))
+        self.assertEqual(
+            _with_inputs(checkout[1]),
+            {"ref": "main", "persist-credentials": "false"},
+        )
 
     def test_build_step_replaces_existing_reports_only_on_manual_dispatch(self) -> None:
         build_step = _step("Build static archive")
@@ -76,27 +105,27 @@ class DailyWorkflowTests(unittest.TestCase):
     def test_secrets_are_scoped_to_the_steps_that_use_them(self) -> None:
         secret_names = (
             "GITHUB_TOKEN",
+            "github.token",
             "CORPUS_ARCHIVE_PASSPHRASE",
             "OPENROUTER_API_KEY",
             "SCRAPECREATORS_API_KEY",
         )
         expected = {
-            "Restore private corpus window": {"GITHUB_TOKEN", "CORPUS_ARCHIVE_PASSPHRASE"},
+            "Restore private corpus window": {
+                "GITHUB_TOKEN", "github.token", "CORPUS_ARCHIVE_PASSPHRASE",
+            },
             "Generate scheduled daily or manual backfill reports": {
                 "OPENROUTER_API_KEY",
                 "SCRAPECREATORS_API_KEY",
             },
             "Encrypt retained corpora and diagnostics": {"CORPUS_ARCHIVE_PASSPHRASE"},
         }
-        steps = WORKFLOW.split("- name: ")[1:]
-        for step in steps:
-            name = step.split("\n", 1)[0]
-            with self.subTest(step=name):
-                present = {secret for secret in secret_names if secret in step}
-                self.assertEqual(present, expected.get(name, set()))
-        self.assertNotIn("github.token", WORKFLOW.replace(
-            _step("Restore private corpus window"), ""
-        ))
+        steps = _steps()
+        self.assertEqual(len(steps), 13)
+        for label, body in steps:
+            with self.subTest(step=label):
+                present = {secret for secret in secret_names if secret in body}
+                self.assertEqual(present, expected.get(label, set()))
         self.assertNotIn("env:", WORKFLOW.split("steps:", 1)[0])
 
     def test_workflow_passes_no_exclude_date_arguments(self) -> None:
