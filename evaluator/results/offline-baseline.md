@@ -75,9 +75,10 @@ This distinction is intentional: deterministic offline results are committed, wh
 
 ## Offline generation-harness baselines (empty/echo/compliant)
 
-Produced with no credentials, no network call, and $0.0000 recorded cost by:
+Produced with no credentials, no network call, and $0.0000 recorded cost by the command below. The `baseline` provider was retired in #188 and current preflight rejects it, so the command is historical; it runs at commit `85892a7`:
 
 ```bash
+git checkout 85892a7
 python3 -m evaluator run --provider baseline=empty --provider baseline=echo --provider baseline=compliant
 ```
 

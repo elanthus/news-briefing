@@ -4,9 +4,10 @@ On an early dogfood run, 2026-08-09, a 158-item corpus, the briefing came back l
 
 One of its links pointed at a story called "Cowork Projects keep CLAUDE.md outside the project folder." Nothing by that name had been fetched. The string `Cowork` does not appear anywhere in the corpus file, which is still committed to the repository.
 
-That is what this codebase calls an **ungrounded link**: a destination that shows up in the output without ever having shown up in the input. In looser language, the model made one up. The checker caught it before anything published, the item was swapped for one the corpus actually contained, and the corrected draft came back clean — 0 errors, 0 warnings, still reproducible today:
+That is what this codebase calls an **ungrounded link**: a destination that shows up in the output without ever having shown up in the input. In looser language, the model made one up. The checker caught it before anything published, the item was swapped for one the corpus actually contained, and the corrected draft came back clean — 0 errors, 0 warnings. The fixture corpus predates corpus schema v7, so current code rejects it; the command reproduces at commit `85892a7`, the last revision before the historical loaders were retired in #188:
 
 ```bash
+git checkout 85892a7
 python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
 ```
 
@@ -56,7 +57,7 @@ The suite is 55 hand-authored cases, 22 utility and 33 attacks. Multiplied acros
 
 ## What $3.80 bought
 
-Read the table with the constraint from the top of this post attached. This run used `"generation_path": "markdown"`, the path where the model writes everything and authors its own links. It is not the two-pass production runner, where the prose schema has no citation field at all and runtime validation rejects HTTP(S) URLs before rendering. So this measures model behavior under the weaker contract. I have since put 1,200 rows through the production path (`--generation-path production-parity`) as well, and the interesting part is not that the scores went up: it is that `missing_section`, `category_ineligible`, and `ungrounded_link` all went to zero, because the schema enumerates each section's eligible identifiers and requires the sections. Contract failures fell from 261 rows to 42, and what is left is almost entirely the model selecting the same item into two topics, which the schema does not forbid. Those numbers and their caveats are in the [repository README](https://github.com/elanthus/news-briefing#production-parity-1200-rows-180).
+Read the table with the constraint from the top of this post attached. This run used `"generation_path": "markdown"`, the path where the model writes everything and authors its own links. It is not the two-pass production runner, where the prose schema has no citation field at all and runtime validation rejects HTTP(S) URLs before rendering. So this measures model behavior under the weaker contract. I have since put 1,200 rows through the production path as well, and the interesting part is not that the scores went up: it is that `missing_section`, `category_ineligible`, and `ungrounded_link` all went to zero, because the schema enumerates each section's eligible identifiers and requires the sections. Contract failures fell from 261 rows to 42, and what is left is almost entirely the model selecting the same item into two topics, which the schema does not forbid. Those numbers and their caveats are in the [parity v1 model card](../results/parity-v1.md).
 
 Results are after at most one checker-guided correction:
 

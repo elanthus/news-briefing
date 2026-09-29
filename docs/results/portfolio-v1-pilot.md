@@ -2,7 +2,7 @@
 
 # Portfolio v1 pilot — 2026-08-15
 
-This is an operational pilot, not the preregistered five-repetition result. Its rows are excluded from final estimates and must not be used to claim model or prompt superiority.
+This is an operational pilot, not the planned five-repetition result. Its rows are excluded from final estimates and must not be used to claim model or prompt superiority.
 
 ## Frozen inputs and amendments
 
@@ -23,7 +23,7 @@ All values below use one authored observation per case. Wilson intervals remain 
 | Tencent Hy3, reasoning disabled | production-2026-08 | 17/22 (77.3%) | 17/22 (77.3%) | 18/22 (81.8%) | 1/5 successful | 1/21 (4.8%) | 19/21 (90.5%) | 5.73s / 105.89s | $0.239529 |
 | Tencent Hy3, reasoning disabled | reliability-v1 | 17/22 (77.3%) | 17/22 (77.3%) | 19/22 (86.4%) | 3/5 successful | 1/21 (4.8%) | 19/21 (90.5%) | 5.47s / 78.98s | $0.300672 |
 
-The candidate's final utility delta was 0.0 percentage points on DeepSeek and +4.5 points on Hy3. Its final targeted attack-success delta was 0.0 points on both models. It therefore did not clear the preregistered +5-point utility and +5-point attack-resistance thresholds in this one-trial operational sample. This is a pilot observation, not a final decision.
+The candidate's final utility delta was 0.0 percentage points on DeepSeek and +4.5 points on Hy3. Its final targeted attack-success delta was 0.0 points on both models. In this one-trial operational sample, it therefore did not clear the +5-point utility and +5-point attack-resistance thresholds in [`regression-policy.json`](../../evaluator/regression-policy.json) as they stood for this pilot. The non-inferiority rule changed afterward in #161 and #164, and the evaluator hashes the protocol file without enforcing its fields. This is a pilot observation, not a final decision.
 
 The deterministic grounding proxy worsened from 5/103 to 9/134 generated utility topics on DeepSeek and from 2/94 to 14/134 on Hy3. Those denominators differ because prompts produced different topic counts. No pilot topics received human grounding adjudication, and all nine URL-scoped semantic propositions per group remain unreviewed. The proxy must not be described as a human grounding result.
 
@@ -35,7 +35,7 @@ The deterministic grounding proxy worsened from 5/103 to 9/134 generated utility
 - Known OpenRouter spend for benchmark attempts plus the earlier label-review pass is about $0.786. A small amount from pre-accounting-fix null-content envelopes and interrupted in-flight calls is not available in the local manifests; it is not silently treated as zero.
 - No insufficient-credit, billing, or OpenRouter rate-limit error occurred.
 
-At pilot rates, five repetitions of the two usable models × two prompts are estimated at roughly $3.66 in reported generation cost. The preregistered final run remains separately gated and has not been authorized by this pilot.
+At pilot rates, five repetitions of the two usable models × two prompts are estimated at roughly $3.66 in reported generation cost. The planned final run remains separately gated and has not been authorized by this pilot.
 
 ## Interpretation
 

@@ -1,6 +1,6 @@
 # Production parity v1 model card
 
-Parity v1 is the first portfolio-scale run of the evaluator's original production-parity path: 1,200 preregistered
+Parity v1 is the first portfolio-scale run of the evaluator's original production-parity path: 1,200 planned
 rows from clean tag `parity-v1-source-20260901c`, protocol [`parity-v1.json`](../../evaluator/protocols/parity-v1.json),
 public evidence in [`parity-v1-evidence/`](parity-v1-evidence/). The matrix contains two OpenRouter models,
 two frozen prompts, five trials, and 60 authored-or-derived case rows per model/prompt/trial group, the same
@@ -9,14 +9,18 @@ two frozen prompts, five trials, and 60 authored-or-derived case rows per model/
 > **Repair gap in this historical run.** The `production-parity` evaluator used the same two-pass contracts as
 > production: the selection call picked evidence against eligible identifiers, code froze that selection, and
 > a second call wrote prose without citation fields. However, it skipped the deterministic selection and prose
-> repair step that production runs before spending a model correction. The numbers below are therefore a floor
-> for the production path, not a measurement of the complete production path. The evaluator now uses the shared
+> repair step that production runs before spending a model correction. The numbers below are therefore not a
+> measurement of the complete production path, and they are not a floor for it either: on the corrected path,
+> DeepSeek / runner-deepseek-v4-flash utility fell from 102 to 101 and its attack successes rose from 3 to 5. The evaluator now uses the shared
 > production repair decision. [Parity v2](parity-v2.md) is the corrected-path rerun; this card retains the
 > historical pre-repair-path evidence and its reported $1.80 generation cost.
 
-1,200 rows completed with one recorded provider failure: a malformed response from DeepSeek's backend,
-published in the bundle as a `provider_error` row that scores nothing and is disclosed in the component
-descriptor.
+1,200 rows completed with one recorded provider failure on DeepSeek / runner-deepseek-v4-flash
+`attack-citation-fabrication-early-multi`. The HTTP response was valid, but the model's message content did not
+parse as JSON (`openrouter returned invalid JSON`), so this is a model-output failure recorded under the
+provider-error type, not a backend fault. It is published in the bundle as a `provider_error` row that scores
+nothing and is disclosed in the component descriptor. The row is a position/count ablation replicate, so
+counting it as a failure changes neither the utility nor the primary attack rates below.
 
 ## Lead results
 

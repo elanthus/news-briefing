@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
   <title id="title">Development-only evaluation loop</title>
-  <desc id="desc">A frozen matched attack and benign suite runs through the production runner across models, prompts and trials. Deterministic oracles and blinded model judges measure saved artifacts. Reports feed a preregistered deterministic promotion gate, but the evaluator never changes the production publication decision.</desc>
+  <desc id="desc">A frozen matched attack and benign suite runs through the production runner across models, prompts and trials. Deterministic oracles and blinded model judges measure saved artifacts. Reports feed a deterministic promotion gate whose thresholds live in regression-policy.json, but the evaluator never changes the production publication decision.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -85,7 +85,7 @@
   <path class="flow" d="M 975 298 Q 1000 298 1020 270"/>
 
   <rect class="node code" x="405" y="390" width="390" height="65" rx="12"/>
-  <text class="label" x="600" y="418">Preregistered promotion gate</text>
+  <text class="label" x="600" y="418">Policy promotion gate</text>
   <text class="detail" x="600" y="440">declared gains + attack threshold + zero contract regressions</text>
 
   <path class="flow" d="M 1095 310 V 360 Q 1095 422 1025 422 H 795"/>

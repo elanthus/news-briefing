@@ -272,9 +272,10 @@ The complete fetch → rank and summarize → check loop that produced [`fixture
 - Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming all three failed sources.
 - Checker, first result: 1 error, 1 warning — `ungrounded_link` for the AI Dev Practices item “Cowork Projects keep CLAUDE.md outside the project folder,” plus the expected transitional `slots_underfilled` warning because the checker still required 5 US Politics topics while the new prompt required 3.
 - Correction made after checking: replaced the ungrounded “Cowork Projects” item and URL with the corpus-supported “A developer uses Claude to build tools around their own ADHD needs” item. The following checker-contract task changed the US Politics target from 5 to 3, removing the transitional warning without changing the briefing.
-- Checker, final result: 0 errors, 0 warnings — still reproducible today:
+- Checker, final result: 0 errors, 0 warnings. The fixture corpus predates corpus schema v7, so current code rejects it; the result reproduces at commit `85892a7`, before #188 retired the historical loaders:
 
   ```bash
+  git checkout 85892a7
   python3 eval_briefing.py --corpus fixtures/corpus-2026-08-09.json --briefing fixtures/briefing-2026-08-09.md --config fixtures/briefing-config-2026-08-09.json
   ```
 
