@@ -475,7 +475,7 @@ The 10 cases disputed by the initial blinded model review were adjudicated by th
 
 Nemotron Ultra completed a randomized opaque-ID model review of the original 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. GLM 5.2 model-reviewed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. GLM 5.2 later reviewed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`.
 
-These LLM reviews helped get the repository and benchmark running; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
+These LLM reviews supported initial fixture and benchmark development; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
 
 ```bash
 python3 -m evaluator review-labels \
@@ -596,12 +596,12 @@ python3 -m evaluator run \
 The 2026-08-15 operational pilot found the original Sonnet path incompatible with
 the production corpus at the frozen timeout and found that reasoning-enabled
 DeepSeek could consume the completion budget without returning text. The dated
-protocol amendments use reasoning-disabled DeepSeek and the owner-selected
+protocol amendments use reasoning-disabled DeepSeek and the selected
 OpenRouter `tencent/hy3` replacement; both amended 120-row groups completed without
 execution errors. See [`docs/results/portfolio-v1-pilot.md`](../docs/results/portfolio-v1-pilot.md).
 
-The separately authorized final run used the amended reasoning-disabled DeepSeek and HY3 conditions, but it
-came from a dirty source tree whose diff was not preserved. Its narrative result and model card are therefore
+The final run used the amended reasoning-disabled DeepSeek and HY3 conditions. Its manifests record a
+dirty source tree, and the diff was not preserved. Its narrative result and model card are therefore
 not retained as evaluation evidence. The [machine-readable aggregates](../docs/results/portfolio-v1.json)
 remain for provenance only and must not be cited as a reproducible result.
 

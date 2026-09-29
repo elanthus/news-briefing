@@ -45,7 +45,7 @@ forms and all grounding forms remain unjudged in this rerun; no semantic or huma
 ## Operational record
 
 OpenRouter reported $3.80048085562 across 1,676 successful calls: 1,200 first calls and 476 correction calls.
-The user-authorized ceiling was $5. DeepSeek accounted for $1.04481926162 and HY3 for $2.755661594. Median
+The run used a $5 cost ceiling. DeepSeek accounted for $1.04481926162 and HY3 for $2.755661594. Median
 first-call latency was 3.08s and 2.75s for the two DeepSeek prompts, and 5.66s and 5.47s for the two HY3
 prompts. Full p95 latency, cost, behavior, technique, matched-pair, ablation, and confidence-interval tables
 are in the generated report.

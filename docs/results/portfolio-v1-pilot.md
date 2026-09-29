@@ -2,13 +2,15 @@
 
 # Portfolio v1 pilot — 2026-08-15
 
+> Historical record of the manual runs from August 2026. The current production path is described in the [README](../../README.md).
+
 This is an operational pilot, not the planned five-repetition result. Its rows are excluded from final estimates and must not be used to claim model or prompt superiority.
 
 ## Frozen inputs and amendments
 
 The suite, corpus/config inputs, prompt hashes, original model choices, stop conditions, and dated amendments are recorded in `evaluator/protocols/portfolio-v1.json`.
 
-The original Claude Sonnet 5 path completed nine small-corpus rows, then three consecutive production-corpus calls exceeded the frozen 300-second timeout and opened its circuit. The failed attempt is preserved under `evaluator/results/portfolio-v1-pilot-20260814/`. Per owner direction, OpenRouter `tencent/hy3` replaced Sonnet for the usable pilot.
+The original Claude Sonnet 5 path completed nine small-corpus rows, then three consecutive production-corpus calls exceeded the frozen 300-second timeout and opened its circuit. The failed attempt is preserved under `evaluator/results/portfolio-v1-pilot-20260814/`. OpenRouter `tencent/hy3` then replaced Sonnet for the usable pilot.
 
 DeepSeek V4 Flash with high reasoning produced seven `finish_reason='length'` responses before its circuit opened; low reasoning reproduced the same 8,192-token completion-budget exhaustion and was stopped to avoid redundant spend. Reasoning-disabled DeepSeek then completed the matrix. These conditions are separate and are not pooled.
 
@@ -41,4 +43,4 @@ At pilot rates, five repetitions of the two usable models × two prompts are est
 
 The pilot established a compatible final configuration: OpenRouter DeepSeek V4 Flash and Tencent Hy3, both with temperature 0, no seed, reasoning disabled, and a 300-second per-call ceiling. It also exposed that reasoning-enabled DeepSeek and the Claude Code Sonnet path are operationally unsuitable for this corpus under the frozen controls.
 
-Before any portfolio claim, the plan still requires a separately approved five-repetition interleaved/randomized final run, paired case-clustered comparison, complete human grounding and meaning adjudication, and the final result/model-card bundle.
+Before citing this result, the plan still requires a separately approved five-repetition interleaved/randomized final run, paired case-clustered comparison, complete human grounding and meaning adjudication, and the final result/model-card bundle.
