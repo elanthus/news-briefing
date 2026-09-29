@@ -297,7 +297,8 @@ python3 -m evaluator monitor-grounding \
 
 Raw generations and review mappings stay local and ignored. Versioned aggregates for the superseded
 portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the current v2 aggregates
-are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/).
+are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/), with the large files
+in a [release asset](../docs/results/EVIDENCE-ASSETS.md).
 [`regression-policy.json`](regression-policy.json) defines compatibility, completeness, review-trigger, and
 promotion rules. Incomplete or incompatible runs cannot pass.
 
@@ -382,7 +383,7 @@ excludes that set, records the excluded row count, and still rejects missing or 
 ```bash
 python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \
   --output-dir /tmp/<run>-public \
-  --ledger-output docs/results/data/<run>-ledger.json
+  --ledger-output /tmp/<run>-ledger.json
 python3 -m evaluator verify-public-run /tmp/<run>-public
 ```
 
@@ -564,8 +565,8 @@ Export the compatible whole-adapter components and verify the result with:
 python3 -m evaluator export-public-run \
   evaluator/results/portfolio-v2-final-20260819/manifest.json \
   evaluator/results/portfolio-v2-final-20260819-hy3/manifest.json \
-  --output-dir docs/results/portfolio-v2-evidence
-python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
+  --output-dir /tmp/portfolio-v2-evidence
+python3 -m evaluator verify-public-run /tmp/portfolio-v2-evidence
 ```
 
 ### Portfolio v1 (superseded)

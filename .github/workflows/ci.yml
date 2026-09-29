@@ -42,11 +42,16 @@ jobs:
           python-version: "3.13"
       - name: Run the credential-free checker gate
         run: python3 -m evaluator checker
-      - name: Verify committed public evidence bundles
+      # The large bundle files are release assets pinned in
+      # evaluator/evidence-assets.json; fetch checks them against the in-tree
+      # SHA256SUMS before assembling the bundles under .news-briefing/evidence.
+      - name: Fetch public evidence release assets
+        run: python3 -m evaluator.evidence_assets fetch
+      - name: Verify public evidence bundles
         run: |
-          python3 -m evaluator verify-public-run docs/results/parity-v1-evidence
-          python3 -m evaluator verify-public-run docs/results/parity-v2-evidence
-          python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
+          python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
+          python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
+          python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
       - name: Enforce declared case counts and history reference
         run: |
           python - <<'PY'

@@ -155,10 +155,11 @@ Rates show successes/trials and 95% Wilson intervals. Provider errors are retain
 
 **The benchmark settings differ from the daily service.** Parity v2 used a frozen source revision, temperature 0, disabled reasoning, and up to one model correction per trial. The [daily runner](run_daily_briefing.py) uses temperature 0.2, enables reasoning, and tries an ordered model fallback chain; the [scheduled workflow](daily_publish.py) allows up to three corrections per stage. These benchmark rates measure the recorded experiment, not current daily-service reliability.
 
-The [evaluation methodology](docs/evaluation-methodology.md) explains the labels, denominators, and offline checker results. The [parity v2 evidence bundle](docs/results/parity-v2-evidence/) can be verified without credentials or provider calls:
+The [evaluation methodology](docs/evaluation-methodology.md) explains the labels, denominators, and offline checker results. The [parity v2 evidence bundle](docs/results/parity-v2-evidence/) can be verified without credentials or provider calls after fetching its [release asset](docs/results/EVIDENCE-ASSETS.md):
 
 ```bash
-python3 -S -m evaluator verify-public-run docs/results/parity-v2-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
 [Parity v1](docs/results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](docs/results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed its preregistered promotion rules. Those historical results are kept separate from parity v2.

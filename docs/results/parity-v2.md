@@ -88,11 +88,12 @@ DeepSeek. Their rates are therefore not cell-for-cell comparable.
 The exporter selected the complete 600-row DeepSeek block from the interrupted 603-row primary manifest and
 the complete 600-row HY3 block from the dedicated manifest. It excluded the primary manifest's three partial,
 duplicate HY3 rows without rewriting either raw checkpoint. The bundle contains only the supported redacted
-manifest, score ledger, adjudications, generated reports, metadata, and checksums. Verify and regenerate it
-without credentials or provider calls:
+manifest, score ledger, adjudications, generated reports, metadata, and checksums; its large files are a
+[release asset](EVIDENCE-ASSETS.md). Verify and regenerate it without credentials or provider calls:
 
 ```bash
-python3 -S -m evaluator verify-public-run docs/results/parity-v2-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
 The 55 authored cases are deliberately enriched for known boundaries, not sampled deployment traffic. Wilson

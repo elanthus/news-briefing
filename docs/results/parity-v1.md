@@ -69,11 +69,13 @@ implements every keyword the production schema uses, and three of five models tr
 
 ## Public evidence and verification
 
-The committed evidence bundle contains every generated output and score primitive needed to recalculate the
-aggregate report. Reviewers can verify it and regenerate the report with no credentials and no provider calls:
+The evidence bundle contains every generated output and score primitive needed to recalculate the
+aggregate report; its large files are a [release asset](EVIDENCE-ASSETS.md). Reviewers can verify it and
+regenerate the report with no credentials and no provider calls:
 
 ```bash
-python3 -m evaluator verify-public-run docs/results/parity-v1-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 ```
 
 **"Structural utility" is not news quality.** Like Portfolio v2, this run publishes no human-reviewed

@@ -67,22 +67,24 @@ local absolute paths in the bundle.
 
 The bundle's Score family 1 (checker capability) is the checker state frozen at the 2026-08-19 run and predates the 2026-08-25 repair of the structure-overfilled and selection-category-ambiguity fixtures, so the report it regenerates shows 42/49 precision, 42/56 recall, and 7/12 heuristic false positives; the current checker numbers live in `evaluator/snapshots/offline-checker.json`.
 
-The committed bundle is about 24 MiB, below Git LFS territory. The two local raw directories total 155 MiB,
+The bundle is about 24 MiB; its large files are a [release asset](EVIDENCE-ASSETS.md). The two local raw directories total 155 MiB,
 but add only redundant copies of committed corpora, requests reproducible from committed prompts/configs,
 and outputs already present in the public manifest; they are therefore not publication inputs.
 
-Verify all published hashes and regenerate the aggregate report without credentials or provider calls:
+Fetch the release asset, verify all published hashes, and regenerate the aggregate report without
+credentials or provider calls:
 
 ```bash
-python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
 ```
 
 Regenerate the published comparison from the evidence manifest:
 
 ```bash
 python3 -m evaluator compare \
-  docs/results/portfolio-v2-evidence/manifest.json \
-  docs/results/portfolio-v2-evidence/manifest.json \
+  .news-briefing/evidence/portfolio-v2-evidence/manifest.json \
+  .news-briefing/evidence/portfolio-v2-evidence/manifest.json \
   --baseline-prompt production-2026-08 \
   --candidate-prompt reliability-v1 \
   --output docs/results/portfolio-v2-comparison.json

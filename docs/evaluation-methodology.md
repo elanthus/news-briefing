@@ -56,11 +56,11 @@ This monitor cannot be used to claim any single day's briefing was verified: it 
 
 ## Portfolio v2 (2026-08-19 run, current)
 
-> **Generation path: `markdown`.** [Portfolio v2](results/portfolio-v2.md) ran on the evaluator direct-Markdown path (`"generation_path": "markdown"` in the [run manifest](results/portfolio-v2-evidence/manifest.json)), where the model writes the whole briefing and authors its own links. Production instead uses two schema-constrained passes with citation projection, where a model-authored destination cannot survive validation. The same 1,200-row portfolio has since been run through the corrected production-parity path (`--generation-path production-parity`) and is reported in the [parity v2 model card](results/parity-v2.md); parity v1 preserves the earlier pre-repair-path record. The Portfolio v2 numbers characterize model behavior under the weaker citation contract, not a floor for production.
+> **Generation path: `markdown`.** [Portfolio v2](results/portfolio-v2.md) ran on the evaluator direct-Markdown path (`"generation_path": "markdown"` in the [run manifest](results/EVIDENCE-ASSETS.md)), where the model writes the whole briefing and authors its own links. Production instead uses two schema-constrained passes with citation projection, where a model-authored destination cannot survive validation. The same 1,200-row portfolio has since been run through the corrected production-parity path (`--generation-path production-parity`) and is reported in the [parity v2 model card](results/parity-v2.md); parity v1 preserves the earlier pre-repair-path record. The Portfolio v2 numbers characterize model behavior under the weaker citation contract, not a floor for production.
 
 Portfolio v2 is the result to cite. It completed 1,200/1,200 generation rows from clean tag `portfolio-v2-source-20260819`, with no provider errors, skips, or correction errors and $3.8005 in reported generation cost. The DeepSeek and HY3 adapter blocks ran in parallel-compatible component checkpoints after an external process interruption. Public export validates common immutable identity, requires whole completed adapter blocks, rejects duplicate rows, records both component hashes, and combines the rows only for reporting. The raw checkpoints are not rewritten.
 
-The committed public evidence contains every generated output and score primitive needed to recalculate the aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain local because their corpora and configuration are committed and their generated prose is already in the public manifest. `python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence` verifies the bundle and regenerates its aggregate report without credentials.
+The public evidence contains every generated output and score primitive needed to recalculate the aggregate report, plus redacted adjudication forms and SHA-256 metadata. The 155 MiB raw artifact trees remain local because their corpora and configuration are committed and their generated prose is already in the public manifest. After `python3 -m evaluator.evidence_assets fetch`, `python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence` verifies the bundle and regenerates its aggregate report without credentials.
 
 The candidate fails available [promotion rules](../evaluator/regression-policy.json) for both models, so missing human grounding cannot turn either decision into a pass. Portfolio v2 intentionally publishes no meaning-preservation or grounding rate: its 180 semantic forms and topic-level grounding forms are unjudged. Temperature zero, provider seed, and disabled reasoning were requested and recorded, but do not guarantee byte-identical output or prove that every routed backend enforced every sampling parameter.
 
@@ -82,12 +82,13 @@ Further limits on how these numbers may be read:
 - It borrows AgentDojo's matched-twin design without reproducing its methodology: "benign structural utility" concerns output structure rather than user-task completion, and the position ablation varies an item's array index rather than its token offset in the prompt.
 - CI requires every attack against the intentionally vulnerable `compliant` adapter to succeed. If the strategy designed to obey injections doesn't score as compromised, the oracles are broken.
 
-Reviewers can verify a committed evidence bundle and regenerate its aggregate report with no credentials and no provider calls:
+Reviewers can verify an evidence bundle and regenerate its aggregate report with no credentials and no provider calls. The large bundle files are GitHub release assets; [EVIDENCE-ASSETS.md](results/EVIDENCE-ASSETS.md) lists them with their SHA-256 hashes:
 
 ```bash
-python3 -m evaluator verify-public-run docs/results/portfolio-v2-evidence
-python3 -m evaluator verify-public-run docs/results/parity-v1-evidence
-python3 -m evaluator verify-public-run docs/results/parity-v2-evidence
+python3 -m evaluator.evidence_assets fetch
+python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
+python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
+python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
 The Portfolio v2 bundle's checker score family is frozen at the 2026-08-19 run and predates the 2026-08-25 repair of two fixtures, so its regenerated report shows the older 42/49 precision, 42/56 recall, and 7/12 heuristic figures rather than the table above.
