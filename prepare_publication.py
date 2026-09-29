@@ -415,28 +415,12 @@ def _source_label(record: Any) -> str:
 
 
 def _degraded_sources(corpus_path: Path) -> tuple[str, ...]:
-    """Name every source behind `corpus_schema.corpus_health_degraded`.
-
-    The records are the ones `corpus_health_issue_count` counts: failed or
-    empty sources, undated drops, and the quiet sources of any category whose
-    quiet count exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`.
-    """
+    """Label the records `corpus_schema.degraded_source_records` enumerates."""
     corpus = _load_json(corpus_path)
-    if not isinstance(corpus, dict) or not corpus_schema.corpus_health_degraded(corpus):
+    if not isinstance(corpus, dict):
         return ()
-    errors = corpus.get("errors", [])
-    records: list[Any] = list(errors) if isinstance(errors, list) else []
-    records.extend(corpus_schema.undated_source_records(corpus))
-    quiet_by_category: dict[str, list[dict[str, Any]]] = {}
-    for source in corpus_schema.quiet_source_records(corpus):
-        category = source.get("category")
-        if isinstance(category, str):
-            quiet_by_category.setdefault(category, []).append(source)
-    for quiet in quiet_by_category.values():
-        if len(quiet) > corpus_schema.QUIET_SOURCE_DEGRADED_THRESHOLD:
-            records.extend(quiet)
     labels: list[str] = []
-    for record in records:
+    for record in corpus_schema.degraded_source_records(corpus):
         label = _source_label(record)
         if label not in labels:
             labels.append(label)
