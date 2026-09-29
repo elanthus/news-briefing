@@ -71,7 +71,9 @@ does not discard the deterministic diagnosis.
 
 The **Triage briefing run** workflow is manual-only. It downloads the requested unexpired
 encrypted diagnostics artifact, or the newest artifact whose name starts with
-`briefing-diagnostics-`, decrypts it with `CORPUS_ARCHIVE_PASSPHRASE`, and opens a labeled
-issue from the deterministic report. Its token can read repository contents and Actions
+`briefing-diagnostics-`, decrypts it with `CORPUS_ARCHIVE_PASSPHRASE`, uploads `triage.md`
+and `triage.json` as the encrypted 14-day artifact `triage-report-<run id>`, and opens a
+labeled issue. The issue body is built from fixed text plus the run date, the first failure
+class, the workflow run link, and the artifact name; no report text reaches it. Its token can read repository contents and Actions
 artifacts and can write issues; it has no other repository permissions. The optional
 `use_model` input adds an OpenRouter summary only when `OPENROUTER_API_KEY` is available.
