@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import email.message
 import ipaddress
 import json
 import math
@@ -18,7 +19,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 
@@ -291,7 +292,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     intermediary either way; it surfaces as a non-transient HTTP 3xx error.
     """
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: email.message.Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
         return None
 
 
