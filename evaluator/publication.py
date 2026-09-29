@@ -9,7 +9,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from evaluator.runner import ROOT, apply_adjudications, markdown_report, summarize
+from evaluator.report import markdown_report, summarize
+from evaluator.runner import ROOT
+from evaluator.scoring import apply_adjudications
 
 PRIVATE_KEYS = {"provider_request_id"}
 

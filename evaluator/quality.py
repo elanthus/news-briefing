@@ -35,7 +35,8 @@ from evaluator.judge_io import (
     write_text_atomic,
 )
 from evaluator.metrics import rate
-from evaluator.runner import apply_adjudications, markdown_report, summarize
+from evaluator.report import markdown_report, summarize
+from evaluator.scoring import apply_adjudications
 
 QUALITY_AXES = ("faithfulness", "salience", "concision", "coherence")
 

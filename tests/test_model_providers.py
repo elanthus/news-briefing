@@ -687,7 +687,7 @@ class ProviderTests(unittest.TestCase):
         self.assertIn(["-c", 'model_reasoning_effort="medium"'], pairs)
 
     def test_briefing_prompt_does_not_tell_model_to_fetch_corpus(self):
-        prompt = (ROOT / "briefing-prompt.md").read_text(encoding="utf-8")
+        prompt = (ROOT / "evaluator/prompts/briefing-prompt.md").read_text(encoding="utf-8")
         self.assertNotIn("python3 fetch_news.py", prompt)
         self.assertIn("runner has already fetched", prompt)
 
