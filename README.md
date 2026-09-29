@@ -29,7 +29,7 @@ Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS,
 | Is the citation in the run's evidence? | The validator checks the handle and rendered destination against the frozen corpus. |
 | Is the story eligible for this section? | Per-section schema enums and the validator restrict eligible handles. |
 | Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
-| Is a reported story also listed as excluded? | Shared URLs, matching headlines, and copied summaries block publication. Reworded duplicates still need model judgment. |
+| Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied summaries of at least eight words block publication. Reworded duplicates still need model judgment. |
 | **Is the summary faithful to the article?** | **Not checked.** The system sees only the feed title and excerpt. Heuristics warn about claims the excerpt can't support. |
 
 ## Architecture
@@ -47,7 +47,7 @@ The validator rejects any URL or reference token in prose, and rendering expands
 
 ## Read one
 
-The [live site](https://elanthus.github.io/news-briefing/) publishes daily, and each date links to that run's integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 28, 2026, copied byte for byte from the site's `history.json`.
+The [live site](https://elanthus.github.io/news-briefing/) publishes daily, and each date links to that run's integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 27, 2026, copied byte for byte from the site's `history.json`.
 
 | Reader view | Auditor view |
 |---|---|
