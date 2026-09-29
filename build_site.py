@@ -18,6 +18,7 @@ from typing import Any
 
 import corpus_schema
 import eval_briefing
+from agent_runner.outcomes import ADVISORY_QUALITY_CHECKS, QUALITY_CHECKS
 from audit_manifest import build_audit_manifest
 from publication_failures import (
     FAILURE_MESSAGES,
@@ -675,6 +676,51 @@ def _markdown_structure_mask(lines: list[str]) -> list[bool]:
     return outside
 
 
+# Excerpt-bounded quality heuristics stay in run artifacts and manifests; the
+# reader page omits their rows from the Run outcome warning list.
+_REPORT_ONLY_QUALITY_CHECKS = frozenset(QUALITY_CHECKS - ADVISORY_QUALITY_CHECKS)
+_RUN_OUTCOME_HEADING = "### Run outcome"
+_WARNING_ROW = re.compile(r"^- WARN \[[a-z_]+/([a-z_]+)\] — ")
+
+
+def _omit_report_only_warnings(markdown: str) -> str:
+    """Drop report-only heuristic rows from the Run outcome warning list.
+
+    A list left empty reads "None", matching the renderer's empty-list form.
+    """
+    lines = markdown.split("\n")
+    structural = _markdown_structure_mask(lines)
+    output: list[str] = []
+    in_run_outcome = False
+    warnings_start: int | None = None
+    dropped = False
+
+    def close_warnings() -> None:
+        nonlocal warnings_start, dropped
+        if warnings_start is not None and dropped and not any(
+            line.startswith("- ") for line in output[warnings_start:]
+        ):
+            output.insert(warnings_start, "None")
+        warnings_start = None
+        dropped = False
+
+    for index, line in enumerate(lines):
+        if structural[index] and (line.startswith("### ") or (in_run_outcome and line.startswith("**"))):
+            close_warnings()
+            if line.startswith("### "):
+                in_run_outcome = line == _RUN_OUTCOME_HEADING
+            elif line == "**Warnings**":
+                warnings_start = len(output) + 1
+        elif warnings_start is not None and structural[index]:
+            match = _WARNING_ROW.match(line)
+            if match is not None and match.group(1) in _REPORT_ONLY_QUALITY_CHECKS:
+                dropped = True
+                continue
+        output.append(line)
+    close_warnings()
+    return "\n".join(output)
+
+
 def _reorder_briefing_sections(markdown: str) -> str:
     """Apply the public presentation order to current and archived Markdown."""
     lines = markdown.split("\n")
@@ -690,11 +736,7 @@ def _reorder_briefing_sections(markdown: str) -> str:
             (
                 index
                 for index, line in enumerate(lines[first:], start=first)
-                if structural[index]
-                and (
-                    line.startswith("### Excluded Topics")
-                    or line == _CORPUS_HEALTH_HEADING
-                )
+                if structural[index] and line.startswith("### ")
             ),
             len(lines),
         )
@@ -724,15 +766,18 @@ def _reorder_briefing_sections(markdown: str) -> str:
     if excluded_heading is None:
         return "\n".join(lines)
 
-    health_heading = next(
+    # The accountability log ends at the next structural subsection (Corpus
+    # health, Run outcome, or any later block); labels past it belong to that
+    # block and never join the excluded-topic ordering.
+    next_heading = next(
         (
             index
             for index, line in enumerate(lines[excluded_heading + 1 :], excluded_heading + 1)
-            if structural[index] and line == _CORPUS_HEALTH_HEADING
+            if structural[index] and line.startswith("### ")
         ),
         len(lines),
     )
-    end = _separator_before(lines, health_heading, excluded_heading + 1)
+    end = _separator_before(lines, next_heading, excluded_heading + 1)
     label_pattern = re.compile(r"^\*\*(.+)\*\*$")
     labels = [
         (index, match.group(1).strip())
@@ -806,6 +851,7 @@ def _render_markdown(
     parser.validateLink = _is_web_link
     public_markdown = markdown or ""
     public_markdown = _reorder_briefing_sections(public_markdown)
+    public_markdown = _omit_report_only_warnings(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
     lines: list[str] = []
@@ -934,8 +980,8 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
             label = f'<a href="{escaped_date}.html">{escaped_date}</a>'
         links.append(f"<li>{label}</li>")
     return (
-        '<nav class="history-nav" aria-label="Briefings from the past seven days">'
-        "<strong>Past 7 days</strong>"
+        '<nav class="history-nav" aria-label="The seven most recent briefings">'
+        "<strong>Latest 7 briefings</strong>"
         f"<ul>{''.join(links)}</ul>"
         "</nav>"
     )

@@ -27,6 +27,12 @@ class FakeRunner:
 
 class RestoreCorpusTests(unittest.TestCase):
     def run_restore(self, runner: FakeRunner, root: Path) -> int:
+        self.stdout = io.StringIO()
+        with contextlib.redirect_stdout(self.stdout):
+            return self._restore(runner, root)
+
+    @staticmethod
+    def _restore(runner: FakeRunner, root: Path) -> int:
         return daily_publish.restore_corpus(
             today=date(2026, 9, 3),
             event_name="schedule",
@@ -47,6 +53,7 @@ class RestoreCorpusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner(4)
             self.assertEqual(self.run_restore(runner, Path(directory)), 0)
+            self.assertIn("No unexpired private archive remains", self.stdout.getvalue())
             self.assertEqual([command[1] for command in runner.commands],
                              ["restore_private_corpora.py", "private_archive.py"])
 
@@ -54,6 +61,9 @@ class RestoreCorpusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner(2)
             self.assertEqual(self.run_restore(runner, Path(directory)), 2)
+            self.assertEqual(
+                self.stdout.getvalue(), "::error::Private corpus restoration failed\n"
+            )
 
 
 class WindowTests(unittest.TestCase):
@@ -156,8 +166,8 @@ class GenerateReportsTests(unittest.TestCase):
                 value = today - timedelta(days=days_ago)
                 (root / "corpora" / f"{value.isoformat()}.json").write_text("{}")
             runner = FakeRunner(0)
-            self.assertEqual(
-                daily_publish.generate_reports(
+            with contextlib.redirect_stdout(io.StringIO()):
+                status = daily_publish.generate_reports(
                     today=today,
                     window_start="2026-09-02T13:30:00+00:00",
                     window_end="2026-09-03T13:30:00+00:00",
@@ -166,9 +176,8 @@ class GenerateReportsTests(unittest.TestCase):
                     manual_report_date="",
                     root=root,
                     runner=runner,
-                ),
-                0,
-            )
+                )
+            self.assertEqual(status, 0)
             scripts = [command[1] for command in runner.commands if command[0] == "python"]
             self.assertEqual(scripts.count("fetch_news.py"), 1)
             self.assertEqual(scripts.count("run_daily_briefing.py"), 7)
@@ -189,6 +198,103 @@ class GenerateReportsTests(unittest.TestCase):
             self.assertEqual(fetch[fetch.index("--window-start") + 1], "2026-09-02T13:30:00+00:00")
             self.assertEqual(fetch[fetch.index("--window-end") + 1], "2026-09-03T13:30:00+00:00")
             self.assertEqual(fetch[fetch.index("--report-date") + 1], "2026-09-03")
+
+
+class ScriptedRunner:
+    """Returns a scripted exit status per script name and records every command."""
+
+    def __init__(self, statuses: dict[str, int]) -> None:
+        self.statuses = statuses
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        row = list(command)
+        self.commands.append(row)
+        return subprocess.CompletedProcess(row, self.statuses.get(row[1], 0), "", "")
+
+    def scripts(self) -> list[str]:
+        return [command[1] for command in self.commands]
+
+
+class GenerateReportsFailureTests(unittest.TestCase):
+    today = date(2026, 9, 3)
+
+    def generate(
+        self, root: Path, runner: ScriptedRunner, *, manual_mode: str = ""
+    ) -> tuple[int, str]:
+        for name in ("corpora", "runs", "reports", "briefing-history"):
+            (root / name).mkdir(exist_ok=True)
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            status = daily_publish.generate_reports(
+                today=self.today,
+                window_start="2026-09-02T13:30:00+00:00",
+                window_end="2026-09-03T13:30:00+00:00",
+                event_name="workflow_dispatch" if manual_mode else "schedule",
+                manual_mode=manual_mode,
+                manual_report_date="",
+                root=root,
+                runner=runner,
+            )
+        return status, stdout.getvalue()
+
+    def test_failed_fetch_skips_generation_even_when_a_stale_corpus_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = ScriptedRunner({"fetch_news.py": 1})
+            (root / "corpora").mkdir()
+            (root / "corpora" / "2026-09-03.json").write_text("{}", encoding="utf-8")
+            status, stdout = self.generate(root, runner)
+        self.assertEqual(status, 0)
+        self.assertEqual(runner.scripts(), ["fetch_news.py", "prepare_publication.py"])
+        self.assertIn("::warning::Corpus fetch failed for 2026-09-03", stdout)
+        self.assertIn(
+            "::warning::Skipping briefing generation for 2026-09-03: no corpus is available",
+            stdout,
+        )
+
+    def test_backfill_uses_only_restored_private_corpora_for_prior_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = ScriptedRunner({})
+            (root / "corpora").mkdir()
+            (root / "corpora" / "2026-09-01.json").write_text("{}", encoding="utf-8")
+            status, stdout = self.generate(root, runner, manual_mode="backfill-7-days")
+        self.assertEqual(status, 0)
+        corpora = [
+            command[command.index("--corpus") + 1]
+            for command in runner.commands
+            if command[1] == "run_daily_briefing.py"
+        ]
+        self.assertEqual(
+            [Path(value).name for value in corpora], ["2026-09-01.json", "2026-09-03.json"]
+        )
+        self.assertEqual(runner.scripts().count("fetch_news.py"), 1)
+        self.assertEqual(stdout.count("no private stored corpus is available"), 5)
+
+    def test_publication_preparation_failure_continues_with_remaining_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = ScriptedRunner({"prepare_publication.py": 1})
+            (root / "corpora").mkdir()
+            for day in ("2026-09-01", "2026-09-02"):
+                (root / "corpora" / f"{day}.json").write_text("{}", encoding="utf-8")
+            status, stdout = self.generate(root, runner, manual_mode="backfill-7-days")
+        self.assertEqual(status, 0)
+        self.assertEqual(runner.scripts().count("prepare_publication.py"), 3)
+        self.assertEqual(stdout.count("::warning::Publication preparation failed"), 3)
+
+    def test_generation_failure_warns_and_still_prepares_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = ScriptedRunner({"run_daily_briefing.py": 1})
+            status, stdout = self.generate(root, runner)
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            runner.scripts(),
+            ["fetch_news.py", "run_daily_briefing.py", "prepare_publication.py"],
+        )
+        self.assertIn("::warning::All briefing models failed for 2026-09-03", stdout)
 
 
 if __name__ == "__main__":
