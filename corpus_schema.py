@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The shared contract for `corpus.json`.
 
-`fetch_news.py` writes the corpus, `briefing-prompt.md` names fields a model may
-read, and `eval_briefing.py` checks a briefing against the same data. This
+`fetch_news.py` writes the corpus, `agent_runner/output.py` projects the fields
+a model may read (the production prompt is `briefing-runner-prompt.md`), and
+`eval_briefing.py` checks a briefing against the same data. This
 module defines the field names, types, limits, URL identity rules, and health
 telemetry those components share. The fetcher validates the complete value
 before writing it, so an incompatible producer change fails at its source.
@@ -365,7 +366,7 @@ def _validate_items(category: str, items: Any, cutoff: datetime | None,
 
 
 def _validate_sources(sources: Any) -> list[str]:
-    """Validate optional per-source fetch observability records."""
+    """Validate the required per-source fetch observability records."""
     if not isinstance(sources, list):
         return ["'sources' should be a list"]
     required = {

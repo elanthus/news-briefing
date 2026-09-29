@@ -244,10 +244,9 @@ def _merge_public_sources(
     if len(loaded) == 1:
         if first.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
             raise ValueError("public evidence requires a complete final run")
-        # Before completed_with_errors was publishable, "complete" alone implied
-        # every row was scored, so no row-shape check was needed here. It is now:
-        # accepting a run that recorded failures means accepting rows whose shape
-        # the aggregates depend on, and the split path checks exactly this.
+        # A completed_with_errors run is publishable, so every row must be
+        # either completed or a recorded provider failure; the aggregates
+        # depend on that shape, and the split path checks the same rule.
         for row in first["results"]:
             if not _is_publishable_row(row):
                 raise ValueError(

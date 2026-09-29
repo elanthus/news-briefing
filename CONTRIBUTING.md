@@ -60,11 +60,18 @@ run artifacts.
 | [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
 | [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v7) and shared URL canonicalization |
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
+| [`briefing_config.py`](briefing_config.py) | Loads and validates the trusted editorial configuration used for generation and checking |
 | [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
 | [`briefing-prompt.md`](briefing-prompt.md) | Historical direct-Markdown prompt retained with its published evidence |
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
+| [`run_briefing.py`](run_briefing.py) | Code-owned runner entry point: fetch, project, generate, validate, repair, correct, finalize |
 | [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
+| [`daily_publish.py`](daily_publish.py) | Daily workflow steps: capture the window, restore corpora, generate and prepare scheduled or backfill reports |
+| [`prepare_publication.py`](prepare_publication.py) | Validates a completed run and prepares its public archive input |
+| [`publication_schema.py`](publication_schema.py) | Shared schema for publication review metadata and generation provenance |
+| [`publication_failures.py`](publication_failures.py) | Allowlisted public failure explanations; raw provider and model text stays private |
+| [`triage_run.py`](triage_run.py) | Classifies a briefing run and optionally asks a model to summarize the diagnosis |
 | [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, content hashes |
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |

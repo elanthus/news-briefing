@@ -19,10 +19,11 @@ judgments code cannot prove.
 
 ## Required checks
 
-Run the repository gate:
+Run the repository gate. Its last step is the credential-free evaluator
+checker gate that CI also runs:
 
 ```bash
-uvx ruff@0.14.2 check . && uvx mypy@1.14.1 && uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator && python3 -S -m unittest && python3 -S -m unittest discover -s evaluator/tests
+uvx ruff@0.14.2 check . && uvx mypy@1.14.1 && uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator && python3 -S -m unittest && python3 -S -m unittest discover -s evaluator/tests && python3 -S -m evaluator checker
 ```
 
 When `build_site.py` or `prepare_publication.py` changes, install

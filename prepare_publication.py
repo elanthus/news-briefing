@@ -477,7 +477,7 @@ def prepare_publication(
                         )
                 elif status == "ready":
                     # Nonblocking quality findings are visible for a published
-                    # `ready` run too (issue #171): a malformed raw finding
+                    # `ready` run too: a malformed raw finding
                     # fails soft to an empty advisory list rather than
                     # touching the disposition or the actionable count.
                     normalized = _review_findings(raw_findings)
