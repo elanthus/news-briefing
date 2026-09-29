@@ -15,11 +15,8 @@ import evaluator.__main__ as evaluator_cli
 from evaluator.adapters import (
     Generation,
 )
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    _checkpoint,
-    run_evaluation,
-)
+from evaluator.checkpoint import _checkpoint
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     AlwaysFailAdapter,
     CostedFakeAdapter,
@@ -287,7 +284,7 @@ class CheckpointTest(unittest.TestCase):
             temporary = Path(directory)
             suite, prompt, output = _resume_fixture(temporary, case_count=1)
             with (
-                patch("evaluator.runner._checkpoint", side_effect=interrupt_after_final_row),
+                patch("evaluator.checkpoint._checkpoint", side_effect=interrupt_after_final_row),
                 self.assertRaises(KeyboardInterrupt),
             ):
                 run_evaluation(

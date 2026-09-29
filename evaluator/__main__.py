@@ -15,12 +15,14 @@ from evaluator.adapters import Adapter, adapter_for, load_dotenv, production_ada
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
+from evaluator.execution import DEFAULT_PROTOCOL
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.production_grounding import ProductionRun, run_weekly_monitor
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
+from evaluator.report import markdown_report, summarize
 from evaluator.retrieval import (
     DEFAULT_EMBEDDING_CACHE,
     DEFAULT_EMBEDDING_MODEL,
@@ -35,15 +37,12 @@ from evaluator.retrieval import (
 )
 from evaluator.runner import (
     DEFAULT_CORPUS,
-    DEFAULT_PROTOCOL,
     DEFAULT_SUITE,
     ROOT,
-    apply_adjudications,
     final_source_provenance,
-    markdown_report,
     run_evaluation,
-    summarize,
 )
+from evaluator.scoring import apply_adjudications
 from evaluator.semantic_review import run_semantic_judging
 
 EVALUATOR_DIR = Path(__file__).resolve().parent

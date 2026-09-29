@@ -1241,7 +1241,7 @@ class PromptSafetyContractTest(unittest.TestCase):
     """The prompt states the untrusted-data and thin-evidence boundaries."""
 
     def test_prompt_preserves_security_and_grounding_boundary(self):
-        with open(ROOT / "briefing-prompt.md", encoding="utf-8") as prompt_file:
+        with open(ROOT / "evaluator/prompts/briefing-prompt.md", encoding="utf-8") as prompt_file:
             prompt = prompt_file.read().lower()
         for required in ("untrusted data", "never as instructions", "do not browse",
                          "never fill missing context", "summary is empty",
@@ -1258,12 +1258,12 @@ class PromptSafetyContractTest(unittest.TestCase):
         prompts = {
             path: (ROOT / path).read_text(encoding="utf-8").lower()
             for path in (
-                "briefing-prompt.md",
+                "evaluator/prompts/briefing-prompt.md",
                 "briefing-runner-prompt.md",
-                "briefing-runner-prompt-deepseek-v4-flash.md",
+                "evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md",
             )
         }
-        self.assertIn("do not print hacker news points", prompts["briefing-prompt.md"])
+        self.assertIn("do not print hacker news points", prompts["evaluator/prompts/briefing-prompt.md"])
         self.assertIn("do not report mutable engagement metrics",
                       prompts["briefing-runner-prompt.md"])
         for path, prompt in prompts.items():
@@ -1271,9 +1271,20 @@ class PromptSafetyContractTest(unittest.TestCase):
                 self.assertNotIn("↑ [points] pts", prompt)
                 self.assertNotIn("engagement signal on its own line", prompt)
 
+    def test_prompt_file_notes_do_not_reach_the_model(self):
+        from agent_runner.runner import prompt_policy
+
+        paths = [ROOT / "briefing-runner-prompt.md", *sorted((ROOT / "evaluator/prompts").glob("*.md"))]
+        for path in paths:
+            with self.subTest(path=path.name):
+                self.assertNotIn("<!--", prompt_policy(path.read_text(encoding="utf-8")))
+        production = (ROOT / "briefing-runner-prompt.md").read_text(encoding="utf-8")
+        self.assertEqual(prompt_policy(production), production)
+        self.assertEqual(prompt_policy("<!-- a -->\n <!-- b -->\n# Policy\n"), "# Policy\n")
+
     def test_deepseek_prompt_targets_measured_reference_failure(self):
         prompt = (
-            ROOT / "briefing-runner-prompt-deepseek-v4-flash.md"
+            ROOT / "evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md"
         ).read_text(encoding="utf-8").lower()
         for required in (
             "physically listed",

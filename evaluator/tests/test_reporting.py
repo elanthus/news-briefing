@@ -8,15 +8,14 @@ from pathlib import Path
 
 from evaluator.cases import run_deterministic_suite
 from evaluator.metrics import rate
-from evaluator.runner import (
+from evaluator.report import (
     _OPERATIONS_HEADER,
-    DEFAULT_CORPUS,
     _attack_breakdown,
     _operations_row,
     markdown_report,
-    run_evaluation,
     summarize,
 )
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     FakeAdapter,
 )
