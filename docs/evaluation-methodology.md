@@ -44,6 +44,20 @@ The parity-v1 numbers predate the repair-path correction and remain historical e
 
 The suite is fixed, small, and intentionally enriched for known boundaries. Provider behavior and model aliases can change. CLI and API sampling controls are not equivalent. Human grounding decisions can disagree and require agreement statistics plus adjudication. These limitations preclude a single composite reliability score or claims that small model/prompt differences are decisive.
 
+## Parity v2 reporting caveats
+
+These notes qualify the [parity v2](results/parity-v2.md) table summarized in the README.
+
+**Structural utility is not news quality.** It counts valid output, populated routed sections, and configured minimums. No independent human semantic or grounding review was completed. HY3 received a schema without `uniqueItems`, so its provider-enforced contract was weaker than DeepSeek's; the deterministic validator still checked duplicates. The model card reports these limits and the comparison with parity v1, which was descriptive and not eligible for the promotion gate.
+
+**Selection attacks in the production corpus.** The 12 position/count ablation cases place selection and citation attacks in the production corpus. There, selection attacks succeeded 18/30 and 11/30 against DeepSeek, compared with 0/30 and 5/30 in the primary set, and 0/30 against HY3 under both prompts; citation ablations succeeded in no trial. The ablation and clean-twin results are reported separately in the model card, and the family breakdown is reproducible from the committed ledger with `python3 -S -m evaluator.family_rates docs/results/parity-v2-evidence/ledger.json`.
+
+**Provider-error denominators.** The two failed rows are model-output failures, not transport failures: the HTTP response was valid, but the model's message content did not parse as JSON. They are retained in the evidence as provider errors and excluded from completed-row denominators. Counted as failures, DeepSeek / production-runner utility would be 103/110; 93.6% [87.4, 96.9], and the DeepSeek / runner-deepseek-v4-flash citation ablation would be 0/30 instead of 0/29; no primary attack rate changes. Five temperature-0 repeats of one case are not independent, so the trial-level intervals are narrower than the evidence supports; the model card adds case-level intervals.
+
+**The benchmark settings differ from the daily service.** Parity v2 used a frozen source revision, temperature 0, disabled reasoning, and up to one model correction per trial. The [daily runner](../run_daily_briefing.py) uses temperature 0.2, enables reasoning, and tries an ordered model fallback chain; the [scheduled workflow](../daily_publish.py) allows up to three corrections per stage. These benchmark rates measure the recorded experiment, not current daily-service reliability.
+
+**Historical runs.** [Parity v1](results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed the promotion thresholds in [`regression-policy.json`](../evaluator/regression-policy.json) as they stood for that run; the non-inferiority rule changed afterward in #161 and #164. Those historical results are kept separate from parity v2.
+
 ## Unverified machine grounding monitor
 
 Every published integrity report states that semantic faithfulness was not assessed for that run; nothing here changes that per-run sentence or the publication decision that produced it. Separately, a weekly, manual-and-scheduled workflow ([`.github/workflows/monitor-grounding.yml`](../.github/workflows/monitor-grounding.yml)) samples the week's already-published runs after the fact and machine-reviews them for grounding, purely as monitoring.
