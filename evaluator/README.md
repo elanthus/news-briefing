@@ -12,7 +12,7 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
 - **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge and human-review layers.
 - **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
-- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, v2 (current) then v1 (superseded); provenance, not instructions.
+- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, portfolio v2 then portfolio v1, both superseded by [parity v2](../docs/results/parity-v2.md); provenance, not instructions.
 
 > **The committed portfolio runs used different generation paths.** Portfolio v2 used direct Markdown, in which the model authors the whole briefing and its citations. Parity v1 used the two-pass selection/prose contracts but skipped production's deterministic repair step, so it remains historical evidence. [Parity v2](../docs/results/parity-v2.md) reran the same matrix through the corrected production-parity path. See [production-parity generation path](#production-parity-generation-path) for the implementation.
 
@@ -212,9 +212,8 @@ provider-controlled.
 ### Cost ceilings
 
 The provider-scoped ceiling accumulates costs reported by OpenRouter. The
-direct-Markdown path checks it before each request. Production parity checks it
-before each candidate or correction; a selection call and its dependent prose
-call form one staged candidate. One direct request or staged candidate can
+evaluator checks it before each candidate or correction; a selection call and
+its dependent prose call form one staged candidate. One staged candidate can
 therefore take the observed total above the limit. A stopped ceiling, provider
 failure, or billing/credit error leaves checkpointed artifacts and
 causes a nonzero command exit.
@@ -296,9 +295,10 @@ python3 -m evaluator monitor-grounding \
 ### What is retained and where
 
 Raw generations and review mappings stay local and ignored. Versioned aggregates for the superseded
-portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the current v2 aggregates
-are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/), with the large files
-in a [release asset](../docs/results/EVIDENCE-ASSETS.md).
+portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the historical portfolio-v2
+aggregates are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/). The current
+production-parity aggregates are in [`docs/results/parity-v2-evidence/`](../docs/results/parity-v2-evidence/).
+The large files of both bundles are a [release asset](../docs/results/EVIDENCE-ASSETS.md).
 [`regression-policy.json`](regression-policy.json) defines compatibility, completeness, review-trigger, and
 promotion rules. Incomplete or incompatible runs cannot pass.
 
@@ -309,7 +309,7 @@ Run one model and one prompt version:
 ```bash
 python3 -m evaluator run \
   --provider codex-cli=gpt-5.6-terra \
-  --prompt production=briefing-prompt.md \
+  --prompt production=briefing-runner-prompt.md \
   --trials 3
 ```
 
@@ -511,9 +511,9 @@ The default version is named `production` and hashes the root `briefing-runner-p
 
 ## Historical portfolio runs
 
-Dated records of the completed portfolio runs, retained for provenance. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **Portfolio v2 is the current citable result** and comes first below; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
+Dated records of the completed portfolio runs, retained for provenance. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **[Parity v2](../docs/results/parity-v2.md) is the current citable result.** Portfolio v2 comes first below as the direct-Markdown record; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
 
-### Portfolio v2 (current)
+### Portfolio v2 (historical, direct-Markdown)
 
 Portfolio v2 supersedes the dirty-source portfolio-v1 model metrics. Its clean-tagged rerun completed all
 1,200 rows with no execution errors and $3.8005 in reported generation cost, on the **direct-Markdown

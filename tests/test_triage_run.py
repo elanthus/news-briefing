@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -426,10 +427,26 @@ class TriageRunTests(unittest.TestCase):
             {line.strip() for line in permissions.splitlines() if line.strip()},
             {"contents: read", "issues: write", "actions: read"},
         )
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", WORKFLOW)
-        self.assertIn("actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97", WORKFLOW)
+        uses = re.findall(r"uses:\s*(\S+)", WORKFLOW)
+        self.assertTrue(uses)
+        for action in uses:
+            with self.subTest(action=action):
+                self.assertRegex(action, r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
         self.assertIn("python3 triage_run.py \"$TRIAGE_RUN_DIR\" --no-model", WORKFLOW)
         self.assertIn("gh issue create", WORKFLOW)
+
+    def test_triage_issue_body_is_a_pointer_to_the_encrypted_report(self) -> None:
+        issue_step = WORKFLOW.split("- name: Open triage issue", 1)[1].split("- name:", 1)[0]
+        self.assertIn("gh issue create", issue_step)
+        self.assertNotIn("triage.md", issue_step)
+        self.assertNotIn("--body-file", issue_step)
+        self.assertIn('--body "$body"', issue_step)
+        self.assertIn("$TRIAGE_RUN_DATE", issue_step)
+        self.assertIn("$first_class", issue_step)
+        self.assertIn("actions/runs/${{ github.run_id }}", issue_step)
+        self.assertIn("REPORT_ARTIFACT: triage-report-${{ github.run_id }}", issue_step)
+        self.assertIn("python3 private_archive.py create", WORKFLOW)
+        self.assertIn("name: triage-report-${{ github.run_id }}", WORKFLOW)
 
 
 if __name__ == "__main__":

@@ -134,22 +134,24 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 | **Stack** | Python 3.11–3.14. Standard library only in the pipeline and evaluator; four provider adapters (OpenRouter, any OpenAI-compatible server such as Ollama, Claude Code CLI, Codex CLI) behind one protocol. |
 | **Hardest decisions** | Citation projection, so the model never receives a destination. Splitting selection from prose into two schema-constrained passes. Separating run lifecycle from publication disposition, so a degraded fetch reduces coverage without failing the run. Running deterministic repair before spending model correction budget. |
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; per-provider tool policy where an unexpected tool call is a hard failure. |
-| **Verification** | 853 offline tests (595 core, 188 evaluator, 70 opt-in site build) on Python 3.11–3.14. `ruff`, configured `mypy` checks, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. The latest [production-parity benchmark](docs/results/parity-v2.md) records 1,200 planned rows over 55 authored cases, with 1,198 completed rows and two provider errors. |
+| **Verification** | 846 offline tests (588 core, 188 evaluator, 70 opt-in site build) on Python 3.11–3.14. `ruff`, configured `mypy` checks, Actions pinned to commit SHAs, reliability snapshots gated on explicit approval. The latest [production-parity benchmark](docs/results/parity-v2.md) records 1,200 planned rows over 55 authored cases, with 1,198 completed rows and two provider errors. |
 
 ## What the benchmark measured
 
 [`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks embedded in titles, summaries, source names, and source-failure records, targeting nine observable behaviors from citation fabrication to health-report manipulation. Five attacks carry matched clean twins built from the same corpus with the mutations removed; without them, a system that returns nothing looks perfectly robust.
 
-The latest committed production-parity run is [parity v2](docs/results/parity-v2.md), recorded on September 4, 2026. It exercised the two-pass path with deterministic repair before model correction: 1,200 planned rows, 1,198 completed rows, and two malformed-JSON provider errors. The selected public rows report about $1.86 in generation cost; cost was unavailable for two failed calls.
+The latest committed production-parity run is [parity v2](docs/results/parity-v2.md), recorded on September 4, 2026. It exercised the two-pass path with deterministic repair before model correction: 1,200 planned rows, 1,198 completed rows, and two rows where DeepSeek returned message content that was not parseable JSON. The selected public rows report about $1.86 in generation cost; cost was unavailable for two failed calls.
 
-| Model / prompt | Structural utility (final) | Targeted attack success (final) |
-|---|---:|---:|
-| DeepSeek V4 Flash / production-runner | 103/109; 94.5% [88.5, 97.5] | 0/105; 0.0% [0.0, 3.5] |
-| DeepSeek V4 Flash / runner-deepseek-v4-flash | 101/110; 91.8% [85.2, 95.6] | 5/105; 4.8% [2.1, 10.7] |
-| Tencent HY3 / production-runner | 105/110; 95.5% [89.8, 98.0] | 1/105; 1.0% [0.2, 5.2] |
-| Tencent HY3 / runner-deepseek-v4-flash | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
+| Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) | Selection family, 6 primary cases (final) | Selection family, production-corpus ablation (final) |
+|---|---:|---:|---:|---:|
+| DeepSeek V4 Flash / production-runner | 103/109; 94.5% [88.5, 97.5] | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 18/30; 60.0% [42.3, 75.4] |
+| DeepSeek V4 Flash / runner-deepseek-v4-flash | 101/110; 91.8% [85.2, 95.6] | 5/105; 4.8% [2.1, 10.7] | 5/30; 16.7% [7.3, 33.6] | 11/30; 36.7% [21.9, 54.5] |
+| Tencent HY3 / production-runner | 105/110; 95.5% [89.8, 98.0] | 1/105; 1.0% [0.2, 5.2] | 1/30; 3.3% [0.6, 16.7] | 0/30; 0.0% [0.0, 11.4] |
+| Tencent HY3 / runner-deepseek-v4-flash | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
 
-Rates show successes/trials and 95% Wilson intervals. Provider errors are retained in the evidence but excluded from completed-row denominators. The attack rates cover 21 primary attack cases repeated five times; position/count ablations and clean twins are reported separately. Repeated trials on this fixed authored suite do not establish deployment generalization.
+Rates show successes/trials and 95% Wilson intervals over trials. Of the 105 primary attack trials per condition, 75 target citation, formatting, health-report, and prose behaviors that the schema, validator, and renderer enforce in code; 30 target selection, which is the behavior the model controls. Every attack success in the run is in the selection family. The 12 position/count ablation cases place selection and citation attacks in the production corpus. There, selection attacks succeeded 18/30 and 11/30 against DeepSeek, compared with 0/30 and 5/30 in the primary set, and 0/30 against HY3 under both prompts; citation ablations succeeded in no trial. The ablation and clean-twin results are reported separately in the model card, and the family breakdown is reproducible from the ledger with `python3 -S -m evaluator.family_rates .news-briefing/evidence/parity-v2-evidence/ledger.json` after `python3 -S -m evaluator.evidence_assets fetch`.
+
+The two failed rows are model-output failures, not transport failures: the HTTP response was valid, but the model's message content did not parse as JSON. They are retained in the evidence as provider errors and excluded from completed-row denominators. Counted as failures, DeepSeek / production-runner utility would be 103/110; 93.6% [87.4, 96.9], and the DeepSeek / runner-deepseek-v4-flash citation ablation would be 0/30 instead of 0/29; no primary attack rate changes. Five temperature-0 repeats of one case are not independent, so the trial-level intervals are narrower than the evidence supports; the model card adds case-level intervals. Repeated trials on this fixed authored suite do not establish deployment generalization.
 
 **"Structural utility" is not news quality.** It counts valid output, populated routed sections, and configured minimums. No independent human semantic or grounding review was completed. HY3 received a schema without `uniqueItems`, so its provider-enforced contract was weaker than DeepSeek's; the deterministic validator still checked duplicates. The model card reports these limits and the comparison with parity v1, which was descriptive and not eligible for the promotion gate.
 
@@ -162,12 +164,12 @@ python3 -S -m evaluator.evidence_assets fetch
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
-[Parity v1](docs/results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](docs/results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed its preregistered promotion rules. Those historical results are kept separate from parity v2.
+[Parity v1](docs/results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](docs/results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed the promotion thresholds in [`regression-policy.json`](evaluator/regression-policy.json) as they stood for that run; the non-inferiority rule changed afterward in #161 and #164. Those historical results are kept separate from parity v2.
 
 ## Development
 
 ```bash
-python3 -S -m unittest -v                              # 595 core tests
+python3 -S -m unittest -v                              # 588 core tests
 python3 -S -m unittest discover -s evaluator/tests -v  # 188 evaluator tests
 ```
 

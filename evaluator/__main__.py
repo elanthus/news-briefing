@@ -207,7 +207,7 @@ def main() -> int:
         choices=("max", "xhigh", "high", "medium", "low", "minimal"),
         help="optional API reviewer reasoning effort; implies reasoning enabled",
     )
-    label_review.add_argument("--adjudicator-model", default="claude-opus-4-6")
+    label_review.add_argument("--adjudicator-model", default="claude-opus-5")
     label_review.add_argument("--adjudicator-provider", default="claude-code-cli")
     label_review.add_argument(
         "--review-only",
@@ -315,7 +315,12 @@ def main() -> int:
         type=float,
         help="sampling temperature for API providers (default: 0)",
     )
-    run.add_argument("--seed", type=int, help="optional sampling seed for API providers")
+    run.add_argument(
+        "--seed",
+        type=int,
+        help="unsupported: runs use the production transports, which send no seed, "
+        "so any value is rejected",
+    )
     run.add_argument(
         "--execution-seed",
         type=int,
@@ -377,7 +382,7 @@ def main() -> int:
     )
     quality.add_argument("manifest", type=Path)
     quality.add_argument("--judge-provider", default="claude-code-cli")
-    quality.add_argument("--judge-model", default="claude-opus-4-6")
+    quality.add_argument("--judge-model", default="claude-opus-5")
     quality.add_argument("--sample", type=int, help="cap the number of judged pairs; default judges all")
     quality.add_argument("--seed", type=int, default=0, help="sampling seed, for reproducible --sample subsets")
     quality.add_argument("--timeout", type=int, default=300)
@@ -391,7 +396,7 @@ def main() -> int:
     )
     semantic.add_argument("manifest", type=Path)
     semantic.add_argument("--judge-provider", default="claude-code-cli")
-    semantic.add_argument("--judge-model", default="claude-opus-4-6")
+    semantic.add_argument("--judge-model", default="claude-opus-5")
     semantic.add_argument("--timeout", type=int, default=300)
     semantic.add_argument("--output-dir", type=Path)
     semantic.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")

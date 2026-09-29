@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Code-enforced news corpus fetcher for the daily briefing.
 
-Pulls RSS feeds, the Hacker News Algolia API, and Reddit RSS endpoints,
-drops everything older than the cutoff (default 24h) IN CODE, and emits a
-JSON corpus grouped by category. The LLM only ranks and summarizes what
-this script outputs — it never decides what counts as "recent."
+Pulls RSS feeds, the Hacker News Algolia API, and Reddit (anonymous RSS,
+falling back to the Arctic Shift archive and then, when
+``SCRAPECREATORS_API_KEY`` is set, the ScrapeCreators API), drops everything
+older than the cutoff (default 24h) IN CODE, and emits a JSON corpus grouped
+by category. The LLM only ranks and summarizes what this script outputs — it
+never decides what counts as "recent."
 
 Usage:
     python3 fetch_news.py                 # JSON to stdout, 24h window
@@ -236,17 +238,18 @@ def load_sources(path: str | Path) -> Sources:
 # Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
 # window, so it can't express arbitrary hour ranges directly. Over-fetch the
 # smallest bucket that fully covers the requested window and let the exact
-# fixed publication-window filter in fetch_reddit_rss() does the real work — the
+# fixed publication-window filter in fetch_reddit_rss() do the real work — the
 # same lower and upper bounds used for every other source.
 REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
                       (720, "month"), (8760, "year"))
 REDDIT_BASE_LIMIT = 25
 REDDIT_MAX_LIMIT = 100  # cap applied to scaled anonymous RSS requests
 
-# The Verge, Ars, and Wired feeds cover all of technology (and sometimes
-# shopping/entertainment), the GitHub Changelog covers the whole product, and
-# Hacker News covers everything voted up — each gets its own relevance filter
-# below. Category-specific feeds and subreddits pass through unchanged. This
+# The Verge, Ars Technica, and Wired feeds cover all of technology (and
+# sometimes shopping/entertainment), the GitHub Changelog covers the whole
+# product, Simon Willison's Weblog covers more than developer tooling, and
+# Hacker News covers everything voted up — each gets a relevance filter in
+# SOURCE_RELEVANCE_FILTERS below. Category-specific feeds and subreddits pass through unchanged. This
 # cuts obvious corpus noise before it consumes model context without
 # pretending that a keyword filter can rank importance.
 AI_RELEVANCE = re.compile(
@@ -1373,8 +1376,9 @@ def sort_items(items: list[Item]) -> list[Item]:
     """Order a category newest first.
 
     Recency is the only ordering that means the same thing across RSS, HN and
-    Reddit. Engagement stays on the item for the model to weigh but does not
-    determine corpus order or override the prompt's impact-based ranking.
+    Reddit. Engagement (``points``, ``comments``) stays on the corpus item but
+    does not determine corpus order, and the runner's model projection omits
+    it, so the model never sees it.
     """
     def timestamp(item: Item) -> datetime:
         try:

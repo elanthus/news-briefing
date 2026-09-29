@@ -3,7 +3,10 @@
 
 The GitHub Actions environment supplies ``GITHUB_ENV``, ``GITHUB_EVENT_NAME``,
 ``MANUAL_MODE``, ``MANUAL_REPORT_DATE``, ``REPORT_TODAY``, ``WINDOW_START``, and
-``WINDOW_END``. Equivalent command-line flags are available for local testing.
+``WINDOW_END``. For local testing, ``capture-window`` accepts
+``--snapshot-end-epoch`` and ``--github-env``, and ``restore-corpus`` and
+``generate-reports`` accept ``--today`` in place of ``REPORT_TODAY``. The other
+values are read only from the environment.
 """
 
 from __future__ import annotations
@@ -209,7 +212,8 @@ def generate_reports(
             if generated.returncode != 0:
                 print(
                     f"::warning::All briefing models failed for {report_date}; "
-                    f"see {run_dir}/fallback.log"
+                    f"see {run_dir}/fallback.log in the encrypted "
+                    "briefing-diagnostics workflow artifact"
                 )
         else:
             print(

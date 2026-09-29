@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import email.message
 import ipaddress
 import json
 import math
@@ -18,7 +19,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 
@@ -91,8 +92,9 @@ _UNIQUE_ITEMS_INCOMPATIBLE_MODELS = frozenset({"tencent/hy3"})
 def _grammar_compatible_schema(value: Any) -> Any:
     """Return a copy without ``uniqueItems``, for backends that reject it.
 
-    Codex structured outputs reject the keyword outright, and the OpenRouter
-    models in ``_UNIQUE_ITEMS_INCOMPATIBLE_MODELS`` cannot compile it. The
+    Codex structured outputs reject the keyword outright, the OpenRouter
+    models in ``_UNIQUE_ITEMS_INCOMPATIBLE_MODELS`` cannot compile it, and
+    ``OpenAICompatibleProvider`` strips it for every local server. The
     code-owned validator still rejects a duplicate citation after the response
     is returned, but removing the keyword is not free: paired with the ``enum``,
     distinctness also bounded the array's length, so a stripped schema depends
@@ -291,7 +293,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     intermediary either way; it surfaces as a non-transient HTTP 3xx error.
     """
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: email.message.Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
         return None
 
 
@@ -554,18 +564,13 @@ def _lean_local_schema(value: Any) -> Any:
     many entries as its frozen selection, in order, so that code can attach
     the frozen citations positionally. Dropping that bound turns a short
     answer into a ``frozen_selection_count`` error that no deterministic
-    repair can fix. The expensive case in the measurements below is the
-    ranged bound, above all the citation arrays sized to their eligible set.
+    repair can fix. Ranged bounds are the expensive case, above all the
+    citation arrays sized to their eligible set.
 
     Constrained-decoding engines that expand bounded repetition into explicit
-    states (LM Studio's MLX engine is the observed case) take minutes to
-    compile the selection schema. Measured on Qwen3 30B-A3B with a 235-item
-    corpus: citation arrays bounded at their eligible-set size did not
-    compile in 25 minutes; capped at 10 they took about 10 minutes; with the
-    citation bounds removed but the five-topic section bounds kept, 106
-    seconds; with no array bounds at all, 20 seconds. The prose schema's
-    ``maxLength`` of up to 1,500 characters per string hangs the same engine
-    the same way. Enums are kept intact, so the grammar still limits every
+    states (such as LM Studio's MLX engine) can take many minutes to compile
+    ranged array bounds and long ``maxLength`` bounds; docs/design.md records
+    the measured compile times. Enums are kept intact, so the grammar still limits every
     citation to an eligible handle. Sizes and lengths are then bounded only
     by the provider's ``max_tokens``, and section sizes, text lengths,
     duplicate references, and ineligible references are all still rejected by

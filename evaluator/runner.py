@@ -12,6 +12,7 @@ import eval_briefing as eval_briefing
 from evaluator.adapters import Adapter
 from evaluator.cases import run_deterministic_suite as run_deterministic_suite
 from evaluator.checkpoint import _checkpoint as _checkpoint
+from evaluator.execution import DEFAULT_PROTOCOL as DEFAULT_PROTOCOL
 from evaluator.execution import execute_evaluation
 from evaluator.plan import (
     _attack_dimensions as _attack_dimensions,
@@ -63,7 +64,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EVALUATOR_DIR = Path(__file__).resolve().parent
 DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases.json"
 DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
-DEFAULT_PROTOCOL = EVALUATOR_DIR / "protocols" / "portfolio-v1.json"
 ProgressCallback = Callable[[str, str, int, int, str], None]
 
 def _git_provenance() -> dict[str, Any]:

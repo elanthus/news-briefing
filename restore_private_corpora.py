@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import email.message
 import io
 import json
 import os
@@ -14,7 +15,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import IO, Any, NamedTuple
 
 from private_archive import decrypt_archive, restore_corpora_from_tar
 
@@ -36,7 +37,15 @@ class ArtifactCandidate(NamedTuple):
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: email.message.Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
         return None
 
 
