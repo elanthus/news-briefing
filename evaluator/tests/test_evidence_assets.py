@@ -1,8 +1,8 @@
 """Evidence release-asset packing and fail-closed fetch coverage (offline)."""
 from __future__ import annotations
 
-import email.message
 import hashlib
+import http.client
 import io
 import tarfile
 import tempfile
@@ -95,7 +95,7 @@ class RedirectPolicyTest(unittest.TestCase):
     def _redirect(self, newurl: str) -> urllib.request.Request | None:
         request = urllib.request.Request("https://github.com/o/r/releases/download/t/a.tar.gz")
         return HttpsOnlyRedirect().redirect_request(
-            request, io.BytesIO(), 302, "Found", email.message.Message(), newurl
+            request, io.BytesIO(), 302, "Found", http.client.HTTPMessage(), newurl
         )
 
     def test_refuses_redirect_to_http(self) -> None:

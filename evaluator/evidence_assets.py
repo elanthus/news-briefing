@@ -11,9 +11,9 @@ output root, where `python3 -m evaluator verify-public-run` can read them.
 from __future__ import annotations
 
 import argparse
-import email.message
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import shutil
@@ -189,7 +189,7 @@ class HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
         fp: IO[bytes],
         code: int,
         msg: str,
-        headers: email.message.Message,
+        headers: http.client.HTTPMessage,
         newurl: str,
     ) -> urllib.request.Request | None:
         if not newurl.startswith("https://"):
