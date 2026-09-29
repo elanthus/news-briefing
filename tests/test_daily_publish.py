@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import subprocess
+import sys
 import tempfile
 import unittest
 from collections.abc import Sequence
@@ -20,7 +21,7 @@ class FakeRunner:
     def __call__(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
         row = list(command)
         self.commands.append(row)
-        if row[:2] == ["python", "restore_private_corpora.py"]:
+        if row[:2] == [sys.executable, "restore_private_corpora.py"]:
             return subprocess.CompletedProcess(row, self.restore_status, "", "")
         return subprocess.CompletedProcess(row, 0, "", "")
 
@@ -178,14 +179,14 @@ class GenerateReportsTests(unittest.TestCase):
                     runner=runner,
                 )
             self.assertEqual(status, 0)
-            scripts = [command[1] for command in runner.commands if command[0] == "python"]
+            scripts = [command[1] for command in runner.commands if command[0] == sys.executable]
             self.assertEqual(scripts.count("fetch_news.py"), 1)
             self.assertEqual(scripts.count("run_daily_briefing.py"), 7)
             self.assertEqual(scripts.count("prepare_publication.py"), 7)
             run_dates = [
                 command[command.index("--date") + 1]
                 for command in runner.commands
-                if command[:2] == ["python", "prepare_publication.py"]
+                if command[:2] == [sys.executable, "prepare_publication.py"]
             ]
             self.assertEqual(
                 run_dates,
@@ -193,7 +194,7 @@ class GenerateReportsTests(unittest.TestCase):
             )
             fetch = next(
                 command for command in runner.commands
-                if command[:2] == ["python", "fetch_news.py"]
+                if command[:2] == [sys.executable, "fetch_news.py"]
             )
             self.assertEqual(fetch[fetch.index("--window-start") + 1], "2026-09-02T13:30:00+00:00")
             self.assertEqual(fetch[fetch.index("--window-end") + 1], "2026-09-03T13:30:00+00:00")
@@ -295,6 +296,34 @@ class GenerateReportsFailureTests(unittest.TestCase):
             ["fetch_news.py", "run_daily_briefing.py", "prepare_publication.py"],
         )
         self.assertIn("::warning::All briefing models failed for 2026-09-03", stdout)
+
+
+class InterpreterTests(unittest.TestCase):
+    def test_every_child_runs_on_the_parent_interpreter_without_flags(self) -> None:
+        runner = FakeRunner(0)
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            daily_publish.restore_corpus(
+                today=date(2026, 9, 3), event_name="schedule", manual_mode="",
+                manual_report_date="", root=root, runner=runner,
+            )
+            daily_publish.generate_reports(
+                today=date(2026, 9, 3),
+                window_start="2026-09-02T13:30:00+00:00",
+                window_end="2026-09-03T13:30:00+00:00",
+                event_name="schedule", manual_mode="", manual_report_date="",
+                root=root, runner=runner,
+            )
+        self.assertEqual(
+            [command[:2] for command in runner.commands],
+            [
+                [sys.executable, "restore_private_corpora.py"],
+                [sys.executable, "private_archive.py"],
+                [sys.executable, "fetch_news.py"],
+                [sys.executable, "run_daily_briefing.py"],
+                [sys.executable, "prepare_publication.py"],
+            ],
+        )
 
 
 if __name__ == "__main__":
