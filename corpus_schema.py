@@ -567,6 +567,41 @@ def quiet_source_records(corpus: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def quiet_sources_over_threshold(corpus: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Group quiet sources by category, keeping only categories past the threshold.
+
+    This is the single place the quiet-source degradation rule lives. Every
+    quiet source in a returned category is degraded coverage when enumerated;
+    `corpus_health_issue_count` counts only the excess over
+    `QUIET_SOURCE_DEGRADED_THRESHOLD`.
+    """
+    by_category: dict[str, list[dict[str, Any]]] = {}
+    for source in quiet_source_records(corpus):
+        category = source.get("category")
+        if isinstance(category, str):
+            by_category.setdefault(category, []).append(source)
+    return {
+        category: sources
+        for category, sources in by_category.items()
+        if len(sources) > QUIET_SOURCE_DEGRADED_THRESHOLD
+    }
+
+
+def degraded_source_records(corpus: dict[str, Any]) -> list[Any]:
+    """Enumerate the records behind degraded coverage.
+
+    Failed or empty sources (`errors`), undated drops, and every quiet source
+    of a category returned by `quiet_sources_over_threshold`. Error records
+    are passed through as stored.
+    """
+    errors = corpus.get("errors", [])
+    records: list[Any] = list(errors) if isinstance(errors, list) else []
+    records.extend(undated_source_records(corpus))
+    for sources in quiet_sources_over_threshold(corpus).values():
+        records.extend(sources)
+    return records
+
+
 def corpus_health_degraded(corpus: dict[str, Any]) -> bool:
     """Return whether coverage degraded through a failed, empty, or undated source."""
     return corpus_health_issue_count(corpus) > 0
@@ -581,15 +616,9 @@ def corpus_health_issue_count(corpus: dict[str, Any]) -> int:
     category is normal, not degradation.
     """
     errors = corpus.get("errors", [])
-    quiet_by_category: dict[str, int] = {}
-    for source in quiet_source_records(corpus):
-        category = source.get("category")
-        if isinstance(category, str):
-            quiet_by_category[category] = quiet_by_category.get(category, 0) + 1
     excess_quiet = sum(
-        count - QUIET_SOURCE_DEGRADED_THRESHOLD
-        for count in quiet_by_category.values()
-        if count > QUIET_SOURCE_DEGRADED_THRESHOLD
+        len(sources) - QUIET_SOURCE_DEGRADED_THRESHOLD
+        for sources in quiet_sources_over_threshold(corpus).values()
     )
     return (
         (len(errors) if isinstance(errors, list) else 0)
