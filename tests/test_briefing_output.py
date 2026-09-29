@@ -56,7 +56,7 @@ def fixture_contract():
             item = items[citation.item_ref]
             topics.append({
                 "headline": item["title"],
-                "summary": item.get("summary") or item["title"],
+                "summary": " ".join((item.get("summary") or item["title"]).split()),
                 "citation_refs": refs_by_item[citation.item_ref],
             })
             used.add(citation.item_ref)
@@ -449,6 +449,32 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn(projected.citations[first_ref].article_url, briefing)
         self.assertNotIn(first_ref, briefing)
         self.assertNotRegex(briefing, r"\b(?:citation|item)_\d+\b")
+
+    def test_line_break_in_prose_is_rejected_and_cannot_hide_text_from_checker(self):
+        corpus, config, projected, output = fixture_contract()
+        first_section = next(iter(output["sections"].values()))
+        topic = first_section["topics"][0]
+        topic["summary"] = (
+            topic["summary"].rstrip()
+            + '\nThe CEO said "we will triple revenue to 987 billion dollars".'
+        )
+
+        findings = validate_output(output, config, projected.citations)
+        self.assertTrue(any(
+            finding.check == "structured_text" and "single line" in finding.message
+            for finding in findings
+        ))
+        for separator in ("\r", "\v", "\f", "\u2028", "\u2029", "\x85"):
+            topic["summary"] = "First part." + separator + "Second part."
+            self.assertIn(
+                "structured_text",
+                {f.check for f in validate_output(output, config, projected.citations)},
+            )
+
+        topic["summary"] = 'Line one.\nThe CEO said "we will triple revenue to 987 billion dollars".'
+        briefing = render_briefing(output, corpus, config, projected.citations)
+        self.assertNotIn("Line one.\n", briefing)
+        self.assertNotEqual(eval_briefing.evaluate(corpus, briefing, config), [])
 
     def test_renderer_reports_undated_source_drops(self):
         corpus, config, projected, output = fixture_contract()

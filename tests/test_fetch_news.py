@@ -687,6 +687,76 @@ class HackerNewsTest(unittest.TestCase):
             ],
         )
 
+    def test_malformed_engagement_degrades_only_that_query(self):
+        def hit(object_id, points, comments):
+            return {
+                "objectID": object_id, "title": f"Agent tools story {object_id}",
+                "url": f"https://example.com/{object_id}", "story_text": "",
+                "created_at_i": int(utc(2026, 8, 8, 12).timestamp()),
+                "points": points, "num_comments": comments,
+            }
+
+        for bad in (25.5, "25", True, -1):
+            with self.subTest(points=bad):
+                payload = json.dumps({"hits": [hit("1", bad, 1)]}).encode()
+                with (
+                    patch.object(fetch_news, "http_get", return_value=payload),
+                    self.assertRaises(fetch_news.SourceDataError),
+                ):
+                    fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        payload = json.dumps({"hits": [hit("1", 30, 2.5)]}).encode()
+        with (
+            patch.object(fetch_news, "http_get", return_value=payload),
+            self.assertRaises(fetch_news.SourceDataError),
+        ):
+            fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+
+        responses = {
+            "agent tools": {"hits": [hit("10", 30, 4)]},
+            "agent models": {"hits": [hit("11", 25.5, 4)]},
+        }
+
+        def fake_get(url, *args, **kwargs):
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["query"][0]
+            return json.dumps(responses[query]).encode()
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "corpus.json"
+            sources = Path(directory) / "sources.json"
+            sources.write_text(json.dumps({
+                "categories": ["news"],
+                "rss_feeds": {},
+                "hn_category": "news",
+                "hn_queries": ["agent tools", "agent models"],
+                "reddit_category": "news",
+                "subreddits": [],
+            }), encoding="utf-8")
+            argv = [
+                "fetch_news.py",
+                "--sources", str(sources),
+                "--window-end", "2026-08-09T00:00:00+00:00",
+                "-o", str(output),
+            ]
+            with (
+                patch.object(fetch_news.sys, "argv", argv),
+                patch.object(fetch_news, "http_get", side_effect=fake_get),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = fetch_news.main()
+
+            self.assertEqual(result, 0)
+            corpus = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
+        self.assertEqual(
+            [item["title"] for item in corpus["categories"]["news"]],
+            ["Agent tools story 10"],
+        )
+        self.assertEqual(
+            [(error["source_type"], error["source_id"]) for error in corpus["errors"]],
+            [("hacker_news", "agent models")],
+        )
+
     def test_minimum_point_threshold_is_inclusive(self):
         payload = {"hits": [{
             "objectID": "20", "title": "At the threshold", "url": None,
