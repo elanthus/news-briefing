@@ -11,6 +11,7 @@ output root, where `python3 -m evaluator verify-public-run` can read them.
 from __future__ import annotations
 
 import argparse
+import email.message
 import gzip
 import hashlib
 import io
@@ -23,7 +24,7 @@ import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "evaluator" / "evidence-assets.json"
@@ -179,11 +180,30 @@ def extract_verified(asset: Asset, archive_bytes: bytes, sums: dict[str, str]) -
     return contents
 
 
+class HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse any redirect hop whose target is not HTTPS, before it is requested."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: email.message.Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if not newurl.startswith("https://"):
+            raise EvidenceAssetError(f"refusing non-HTTPS redirect to {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def download(url: str) -> bytes:
+    """Download `url` over HTTPS; every redirect hop and the final URL must be HTTPS."""
     if not url.startswith("https://"):
         raise EvidenceAssetError(f"refusing non-HTTPS asset URL: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "news-briefing-evidence-assets"})
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
+    opener = urllib.request.build_opener(HttpsOnlyRedirect)
+    with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
         if not response.geturl().startswith("https://"):
             raise EvidenceAssetError(f"refusing non-HTTPS redirect for {url}")
         data: bytes = response.read(MAX_ASSET_BYTES + 1)

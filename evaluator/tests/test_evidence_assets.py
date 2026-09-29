@@ -1,17 +1,20 @@
 """Evidence release-asset packing and fail-closed fetch coverage (offline)."""
 from __future__ import annotations
 
+import email.message
 import hashlib
 import io
 import tarfile
 import tempfile
 import unittest
+import urllib.request
 from pathlib import Path
 
 from evaluator.evidence_assets import (
     Asset,
     Config,
     EvidenceAssetError,
+    HttpsOnlyRedirect,
     extract_verified,
     fetch,
     load_config,
@@ -86,6 +89,24 @@ class PackTest(unittest.TestCase):
         self.assertTrue(config.assets)
         for asset in config.assets:
             self.assertTrue((config.source_root / asset.bundle / "SHA256SUMS").is_file())
+
+
+class RedirectPolicyTest(unittest.TestCase):
+    def _redirect(self, newurl: str) -> urllib.request.Request | None:
+        request = urllib.request.Request("https://github.com/o/r/releases/download/t/a.tar.gz")
+        return HttpsOnlyRedirect().redirect_request(
+            request, io.BytesIO(), 302, "Found", email.message.Message(), newurl
+        )
+
+    def test_refuses_redirect_to_http(self) -> None:
+        with self.assertRaisesRegex(EvidenceAssetError, "non-HTTPS redirect"):
+            self._redirect("http://objects.example/a.tar.gz")
+
+    def test_allows_redirect_to_https(self) -> None:
+        followed = self._redirect("https://objects.example/a.tar.gz")
+        self.assertIsNotNone(followed)
+        assert followed is not None
+        self.assertEqual(followed.full_url, "https://objects.example/a.tar.gz")
 
 
 class ExtractValidationTest(unittest.TestCase):

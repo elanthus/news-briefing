@@ -30,7 +30,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evid
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
 ```
 
-`fetch` downloads each asset over HTTPS and rejects it unless its SHA-256 matches
+`fetch` downloads each asset over HTTPS, refusing any redirect hop to a non-HTTPS URL before it is requested, and rejects it unless its SHA-256 matches
 `evaluator/evidence-assets.json`. It accepts only regular tar members with the
 expected names, and each member must match the bundle's in-tree `SHA256SUMS`.
 Files are written only after every asset passes. The assembled bundles, including
