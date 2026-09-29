@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import tarfile
@@ -123,7 +124,12 @@ class PrivateArchiveTests(unittest.TestCase):
         ])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            paths = restore_corpora_from_bytes(payload, root)
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                paths = restore_corpora_from_bytes(payload, root)
+            self.assertEqual(
+                stdout.getvalue(),
+                "Skipping obsolete corpus schema v6: corpora/2026-08-19.json\n",
+            )
             self.assertEqual([path.name for path in paths], ["2026-08-20.json"])
             self.assertEqual(paths[0].read_bytes(), current)
             self.assertFalse((root / "2026-08-19.json").exists())
@@ -131,8 +137,12 @@ class PrivateArchiveTests(unittest.TestCase):
     def test_all_obsolete_archive_restores_an_empty_window(self) -> None:
         old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
         payload = self._tar_members([("corpora/2026-08-19.json", old)])
-        with tempfile.TemporaryDirectory() as directory:
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            contextlib.redirect_stdout(io.StringIO()) as stdout,
+        ):
             self.assertEqual(restore_corpora_from_bytes(payload, Path(directory)), ())
+        self.assertIn("Skipping obsolete corpus schema v6", stdout.getvalue())
 
     def test_restore_labels_impossible_calendar_dates_before_writing(self) -> None:
         for version in (6, 7):
@@ -155,7 +165,10 @@ class PrivateArchiveTests(unittest.TestCase):
         for rows in ([('corpora/2026-08-20.json', old)],
                      [('corpora/2026-08-19.json', old)] * 2):
             with self.subTest(rows=rows), tempfile.TemporaryDirectory() as directory:
-                with self.assertRaises(ValueError):
+                with (
+                    self.assertRaises(ValueError),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
                     restore_corpora_from_bytes(self._tar_members(rows), Path(directory))
                 self.assertEqual(list(Path(directory).iterdir()), [])
 
@@ -190,8 +203,12 @@ class PrivateArchiveTests(unittest.TestCase):
             corpora = Path(directory)
             (corpora / "2026-08-19.json").write_bytes(obsolete)
             (corpora / "2026-08-20.json").write_bytes(current)
-            with patch("private_archive.MAX_RESTORED_BYTES", len(current)):
+            with (
+                patch("private_archive.MAX_RESTORED_BYTES", len(current)),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
                 removed = prune_corpora(corpora, date(2026, 8, 20))
+            self.assertIn("Skipping obsolete corpus schema v6: 2026-08-19.json", stdout.getvalue())
             self.assertEqual([path.name for path in removed], ["2026-08-19.json"])
             self.assertEqual((corpora / "2026-08-20.json").read_bytes(), current)
 
