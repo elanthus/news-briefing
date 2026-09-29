@@ -1,6 +1,6 @@
 # Portfolio v2 model card (clean rerun)
 
-Portfolio v2 is the current reproducible generation result: 1,200 preregistered rows from clean tag
+Portfolio v2 is a historical direct-Markdown generation result, superseded by [parity v2](parity-v2.md): 1,200 planned rows from clean tag
 `portfolio-v2-source-20260819` at commit `29d7e3dac9b6c7f6042b9341fb4375dc5fae160c`. The matrix contains two
 OpenRouter models, two frozen prompts, five trials, and 60 authored-or-derived case rows per
 model/prompt/trial group. All rows completed; none failed, were skipped, or had a correction error.
@@ -9,11 +9,11 @@ model/prompt/trial group. All rows completed; none failed, were skipped, or had 
 > model authors the entire briefing including its own citations. It is **not** the production two-pass
 > selection/prose path with citation projection, where the model never receives a destination. These results
 > characterize model behavior under the weaker contract; they are not a measurement of the production runner.
-> The same portfolio has since been run on the production-parity path; see the [parity v1 model card](parity-v1.md).
+> The same portfolio has since been run on the production-parity path; the current result is the [parity v2 model card](parity-v2.md), and [parity v1](parity-v1.md) preserves the earlier pre-repair-path run.
 
 The candidate prompt is **not approved** for either model. DeepSeek loses final utility and introduces eight
 contract regressions. HY3 gains only 1.8 percentage points of final utility and 1.0 point of attack resistance,
-below both preregistered five-point thresholds. Human grounding remains unreviewed, but cannot change either
+below both five-point promotion thresholds in [`regression-policy.json`](../../evaluator/regression-policy.json) as they stood for this run; the non-inferiority rule changed afterward in #161 and #164, and the evaluator hashes the protocol file without enforcing its fields. Human grounding remains unreviewed, but cannot change either
 failed structural decision into a pass.
 
 ## Lead results
@@ -31,7 +31,7 @@ summary is faithful to the linked article.
 
 ## Paired prompt decision
 
-Prompt deltas use the preregistered 10,000-resample authored-case-cluster bootstrap.
+Prompt deltas use the policy's 10,000-resample authored-case-cluster bootstrap.
 
 | Model | Final utility delta | Final attack-success delta | Contract regressions | Decision |
 |---|---:|---:|---:|---|

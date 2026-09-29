@@ -2,6 +2,17 @@
 
 Automated, non-gating measurement of already-published briefings. It never changes a day's publication decision. See [Evaluation methodology](../evaluation-methodology.md#unverified-machine-grounding-monitor) for what this rate can and cannot be used to claim; per-topic verdicts stay in the encrypted review artifact, not this log.
 
+**Judge independence.** The primary judge, `tencent/hy3`, is also the first model in the production fallback
+chain (`PRODUCTION_MODEL_CHAIN` in `run_daily_briefing.py`), so on most days it grades briefings it generated.
+The audit judge, `deepseek/deepseek-v4-flash-0731`, is the second model in the same chain. A model judging its
+own output can share its blind spots, so these rates should be read as self-consistency checks, not independent
+verification.
+
+**Audit agreement has no public denominator.** The agreement column is the share of topics in the stratified
+double-review sample on which the audit judge's grounding verdict matched the primary judge's. The size of that
+sample is recorded only in the encrypted review artifact, so a 100.0% cell may rest on few topics and should not
+be read as strong evidence of judge reliability.
+
 | Week | Runs reviewed | Runs skipped | Topics reviewed | Unverified grounding rate (95% CI) | Audit agreement | Primary judge | Cost (USD) |
 |---|---:|---:|---:|---:|---:|---|---:|
 | 2026-W37 | 5 | 0 | 110 | 110/110; 100.0% [96.6, 100.0] | 100.0% | openrouter/tencent/hy3 | 0.0103 |
