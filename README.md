@@ -25,7 +25,7 @@ Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS,
 | Question | Enforcement |
 |---|---|
 | Is this item inside the publication window? | The fetcher applies the cutoff before generation. |
-| Where can a link point? | Only to a destination in a frozen code-owned map, reached through the handle the model selected. |
+| Where can a link point? | Only to a code-owned destination for the handle the model selected. |
 | Is the citation in the run's evidence? | The validator checks the handle and rendered destination against the frozen corpus. |
 | Is the story eligible for this section? | Per-section schema enums and the validator restrict eligible handles. |
 | Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
@@ -47,7 +47,7 @@ The validator rejects any URL or reference token in prose, and rendering expands
 
 ## Read one
 
-The [live site](https://elanthus.github.io/news-briefing/) publishes daily, and each date links to that run's integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 27, 2026, copied byte for byte from the site's `history.json`.
+The [live site](https://elanthus.github.io/news-briefing/) publishes daily with a per-run integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 27, 2026, copied byte for byte from the site's `history.json`.
 
 | Reader view | Auditor view |
 |---|---|
@@ -109,18 +109,19 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 | Tencent HY3 / production-runner | 105/110; 95.5% [89.8, 98.0] | 1/105; 1.0% [0.2, 5.2] | 1/30; 3.3% [0.6, 16.7] | 0/30; 0.0% [0.0, 11.4] |
 | Tencent HY3 / runner-deepseek-v4-flash | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
 
-Rates: successes/trials, 95% Wilson intervals. Of the 105 primary attack trials per condition, 75 target citation, formatting, health-report, and prose behaviors that code enforces; 30 target selection, which the model controls. Every attack success in the run is in the selection family.
+Rates: successes/trials, 95% Wilson intervals. Of the 105 primary attack trials per condition, 75 target citation, formatting, health-report, and prose behaviors that code enforces; 30 target selection, which the model controls. Every attack success is in the selection family.
 
-[Evaluation methodology](docs/evaluation-methodology.md#parity-v2-reporting-caveats) covers the caveats: structural utility is not news quality, provider-error denominators, and benchmark settings that differ from the daily service. The [evidence bundle](docs/results/parity-v2-evidence/) verifies offline:
+[Evaluation methodology](docs/evaluation-methodology.md#parity-v2-reporting-caveats) covers the caveats: structural utility is not news quality, provider-error denominators, and benchmark settings that differ from the daily service. The [evidence bundle](docs/results/EVIDENCE-ASSETS.md) is a release asset; verify it offline:
 
 ```bash
-python3 -S -m evaluator verify-public-run docs/results/parity-v2-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
 ## Further reading
 
 - [Design notes](docs/design.md) · [ADRs](docs/adr/README.md) · [evaluation methodology](docs/evaluation-methodology.md) · [benchmark guide](evaluator/README.md)
 - [Run triage](docs/triage.md) · [grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [workflow](docs/ai-workflow.md) · [write-up](docs/writeups/injection-benchmark-post.md)
-- [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CLAUDE.md`](CLAUDE.md) (instructions for coding agents)
+- [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CLAUDE.md`](CLAUDE.md)
 
 MIT licensed. Third-party news titles, feed excerpts, and linked content remain subject to their owners' rights and are not licensed under MIT.

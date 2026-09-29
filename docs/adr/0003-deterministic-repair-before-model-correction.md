@@ -24,9 +24,11 @@ publication disposition gate.
 
 Repairable findings do not consume a model correction. Repair can drop an
 ineligible, repeated, or over-limit entry, but it does not remove unknown
-evidence or other non-repairable failures to make a candidate pass. Repair
-actions are retained in the run manifest, and public provenance contains only
-actions that produced the final candidate.
+evidence or other non-repairable failures to make a candidate pass. Every
+attempt's repair actions are retained in the run manifest. Publication copies
+only the final attempt's `repair_actions` list; the public
+`provenance.repair_action_count` totals repair actions across every attempt,
+superseded attempts included.
 
 ## References
 

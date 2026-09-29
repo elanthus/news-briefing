@@ -1202,7 +1202,7 @@ class CommittedFixtureTest(unittest.TestCase):
             (
                 run / "corpus-2026-08-18.json",
                 run / "final.md",
-                run / "briefing-config.json",
+                run.parent / "briefing-config.json",
             ),
         )
         topic_count = 0

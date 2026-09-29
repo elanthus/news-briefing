@@ -271,13 +271,11 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     eligible set. Providers whose grammar backends cannot compile
     ``uniqueItems`` receive the schema with that keyword removed
     (``_grammar_compatible_schema``), and without an explicit maximum the
-    grammar then admits an unbounded run of repeated references. A stripped
-    schema was observed emitting one reference repeatedly until the response
-    truncated mid-token at 283KB. ``maxItems`` is implemented by every backend,
+    grammar then admits an unbounded run of repeated references, which can run
+    until the response truncates. ``maxItems`` is implemented by every backend,
     so the bound survives the strip and the array still cannot outrun its
     eligible set. Note this bounds length only: models emit long ref arrays on
-    this path regardless of the keyword (95 entries observed with ``uniqueItems``
-    intact), and cross-topic item reuse is caught separately by
+    this path regardless of the keyword, and cross-topic item reuse is caught separately by
     ``duplicate_item``, which ``uniqueItems`` never governed.
     """
     schema: dict[str, Any] = {
@@ -494,7 +492,10 @@ def repair_structural_output(
     citations: dict[str, Citation],
     evidence: dict[str, str] | None = None,
 ) -> tuple[Any, list[dict[str, str]]]:
-    """Remove unsafe structural selections after model corrections are exhausted.
+    """Remove unsafe structural selections from a model's selection output.
+
+    The stages run this before correction, so a correction is requested only
+    for findings it cannot repair, and again after corrections are exhausted.
 
     Included stories have priority over every accountability-log entry. An entry
     with any ineligible or already-used item is dropped as a whole so its prose
@@ -721,9 +722,8 @@ def empty_section_findings(
     everything it declined to report.
 
     Production (``agent_runner.runner``) and the evaluator's production-parity
-    path both call this. Keeping one implementation is the point: the two had
-    drifted copies of it, and a fix applied to either alone would have left the
-    other scoring a selection production would have rejected.
+    path both call this, so the evaluator scores a selection exactly as
+    production would accept or reject it.
     """
     used_items = {
         citations[ref].item_ref

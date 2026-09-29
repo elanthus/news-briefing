@@ -1,8 +1,9 @@
-"""Report final attack success by case family from a committed evidence ledger.
+"""Report final attack success by case family from a public evidence ledger.
 
 Usage::
 
-    python3 -S -m evaluator.family_rates docs/results/parity-v2-evidence/ledger.json
+    python3 -S -m evaluator.evidence_assets fetch
+    python3 -S -m evaluator.family_rates .news-briefing/evidence/parity-v2-evidence/ledger.json
 
 The script reads only the ledger. It classifies attack rows the same way
 ``evaluator.report`` does: a row with ``corpus_position`` set is a
@@ -43,15 +44,21 @@ def _subset(row: dict[str, Any]) -> str | None:
     return "ablation" if row.get("corpus_position") is not None else "primary"
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) != 1:
-        print(__doc__, file=sys.stderr)
-        return 2
-    ledger = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
-    trials: dict[tuple[str, str, str, str], list[int]] = defaultdict(lambda: [0, 0])
-    cases: dict[tuple[str, str, str, str], dict[str, bool]] = defaultdict(dict)
-    errors: dict[tuple[str, str, str, str], int] = defaultdict(int)
-    for row in ledger["results"]:
+Key = tuple[str, str, str, str]
+
+
+def family_rates(
+    results: list[dict[str, Any]],
+) -> tuple[dict[Key, list[int]], dict[Key, dict[str, bool]], dict[Key, int]]:
+    """Return trial counts, per-case success flags, and provider errors per key.
+
+    Keys are ``(model, prompt_version, subset, family)`` where ``family`` also
+    takes the value ``"all"``. Trial counts are ``[successes, completed]``.
+    """
+    trials: dict[Key, list[int]] = defaultdict(lambda: [0, 0])
+    cases: dict[Key, dict[str, bool]] = defaultdict(dict)
+    errors: dict[Key, int] = defaultdict(int)
+    for row in results:
         subset = _subset(row)
         if subset is None:
             continue
@@ -65,6 +72,15 @@ def main(argv: list[str]) -> int:
             trials[key][0] += success
             trials[key][1] += 1
             cases[key][row["case_id"]] = cases[key].get(row["case_id"], False) or success
+    return dict(trials), dict(cases), dict(errors)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1:
+        print(__doc__, file=sys.stderr)
+        return 2
+    ledger = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
+    trials, cases, errors = family_rates(ledger["results"])
     print("| Model | Prompt | Subset | Family | Trial-level | Case-level (>=1 success) | Provider errors |")
     print("|---|---|---|---|---:|---:|---:|")
     for key in sorted(trials):

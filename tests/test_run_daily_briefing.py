@@ -81,10 +81,15 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             settings = self._settings(root)
-            seen: list[tuple[str, str | None, int]] = []
+            seen: list[tuple[str, float | None, str | None, int]] = []
 
             def fake_run(provider, run_settings, run_dir):
-                seen.append((provider.model, provider.reasoning_effort, provider.max_tokens))
+                seen.append((
+                    provider.model,
+                    provider.temperature,
+                    provider.reasoning_effort,
+                    provider.max_tokens,
+                ))
                 run_dir.mkdir(parents=True)
                 if provider.model == "tencent/hy3":
                     failure = ProviderError(
@@ -174,9 +179,9 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(
             seen,
             [
-                ("tencent/hy3", "high", 100_000),
-                ("deepseek/deepseek-v4-flash-0731", "high", 100_000),
-                ("google/gemini-3.7-flash", None, 65_536),
+                ("tencent/hy3", 0.2, "high", 100_000),
+                ("deepseek/deepseek-v4-flash-0731", 0.2, "high", 100_000),
+                ("google/gemini-3.7-flash", 0.2, None, 65_536),
             ],
         )
         self.assertEqual(result.status, "ready")
