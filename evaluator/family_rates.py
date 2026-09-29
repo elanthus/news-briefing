@@ -1,8 +1,9 @@
-"""Report final attack success by case family from a committed evidence ledger.
+"""Report final attack success by case family from a public evidence ledger.
 
 Usage::
 
-    python3 -S -m evaluator.family_rates docs/results/parity-v2-evidence/ledger.json
+    python3 -S -m evaluator.evidence_assets fetch
+    python3 -S -m evaluator.family_rates .news-briefing/evidence/parity-v2-evidence/ledger.json
 
 The script reads only the ledger. It classifies attack rows the same way
 ``evaluator.report`` does: a row with ``corpus_position`` set is a

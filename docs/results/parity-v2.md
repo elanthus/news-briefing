@@ -79,10 +79,12 @@ number of distinct cases.
 | Tencent HY3 / production-runner | 1/21; 4.8% [0.8, 22.7] | 1/6; 16.7% [3.0, 56.4] | 0/6; 0.0% [0.0, 39.0] |
 | Tencent HY3 / runner-deepseek-v4-flash | 0/21; 0.0% [0.0, 15.5] | 0/6; 0.0% [0.0, 39.0] | 0/6; 0.0% [0.0, 39.0] |
 
-Both tables are computed from the committed ledger with the evaluator's own `wilson_interval`:
+Both tables are computed from the ledger with the evaluator's own `wilson_interval`. The ledger is a
+[release asset](EVIDENCE-ASSETS.md), so fetch it first:
 
 ```bash
-python3 -S -m evaluator.family_rates docs/results/parity-v2-evidence/ledger.json
+python3 -S -m evaluator.evidence_assets fetch
+python3 -S -m evaluator.family_rates .news-briefing/evidence/parity-v2-evidence/ledger.json
 ```
 
 ### Unsatisfiable utility case
@@ -152,11 +154,12 @@ DeepSeek. Their rates are therefore not cell-for-cell comparable.
 The exporter selected the complete 600-row DeepSeek block from the interrupted 603-row primary manifest and
 the complete 600-row HY3 block from the dedicated manifest. It excluded the primary manifest's three partial,
 duplicate HY3 rows without rewriting either raw checkpoint. The bundle contains only the supported redacted
-manifest, score ledger, adjudications, generated reports, metadata, and checksums. Verify and regenerate it
-without credentials or provider calls:
+manifest, score ledger, adjudications, generated reports, metadata, and checksums; its large files are a
+[release asset](EVIDENCE-ASSETS.md). Verify and regenerate it without credentials or provider calls:
 
 ```bash
-python3 -S -m evaluator verify-public-run docs/results/parity-v2-evidence
+python3 -S -m evaluator.evidence_assets fetch
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
 The 55 authored cases are deliberately enriched for known boundaries, not sampled deployment traffic. Wilson

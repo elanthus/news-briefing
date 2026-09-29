@@ -1,0 +1,26 @@
+{
+  "repository": "elanthus/news-briefing",
+  "tag": "evidence-bundles-2026-09-28",
+  "source_root": "docs/results",
+  "output_root": ".news-briefing/evidence",
+  "assets": [
+    {
+      "bundle": "parity-v1-evidence",
+      "name": "parity-v1-evidence.tar.gz",
+      "sha256": "ce95660dddfcf3862cb506c3a84d830b924b98ff6f4e294cf4482cd711aa7000",
+      "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
+    },
+    {
+      "bundle": "parity-v2-evidence",
+      "name": "parity-v2-evidence.tar.gz",
+      "sha256": "c219cac45494c7d582de12143c8da491c842fc3229ca77f4ab7863051ca63b2f",
+      "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
+    },
+    {
+      "bundle": "portfolio-v2-evidence",
+      "name": "portfolio-v2-evidence.tar.gz",
+      "sha256": "1688d1fe830020a86a2b3e96a0e5f771c10e8f9583a2dd88663869a72b412bd8",
+      "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
+    }
+  ]
+}
