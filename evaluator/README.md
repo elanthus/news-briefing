@@ -614,6 +614,6 @@ Tests are grouped by behavior: `test_execution.py`, `test_parity.py`,
 validation and oracles, and `test_adapters.py` covers transports. Shared offline
 builders live in `support.py`; fixtures used by one module stay in that module.
 The completed-checkpoint refusal is a separate test from interrupted-checkpoint
-corruption, increasing the evaluator count from 187 to 188 without retiring coverage.
+corruption, so splitting them retired no coverage.
 Export/tamper/verification scenarios remain integrated because they check the same
 saved evidence through successive trust boundaries.

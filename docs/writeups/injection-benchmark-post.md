@@ -4,7 +4,7 @@ On an early dogfood run, 2026-08-09, a 158-item corpus, the briefing came back l
 
 One of its links pointed at a story called "Cowork Projects keep CLAUDE.md outside the project folder." Nothing by that name had been fetched. The string `Cowork` does not appear anywhere in the corpus file, which is still committed to the repository.
 
-That is what this codebase calls an **ungrounded link**: a destination that shows up in the output without ever having shown up in the input. In looser language, the model made one up. The checker caught it before anything published, the item was swapped for one the corpus actually contained, and the corrected draft came back clean — 0 errors, 0 warnings. The fixture corpus predates corpus schema v7, so current code rejects it; the command reproduces at commit `85892a7`, the last revision before the historical loaders were retired in #188:
+That is what this codebase calls an **ungrounded link**: a destination that shows up in the output without ever having shown up in the input. In looser language, the model made one up. This was a manual run, and there was no publishing pipeline yet. The checker rejected the draft, I replaced the item by hand with one the corpus actually contained, and the corrected draft came back clean: 0 errors, 0 warnings. The fixture corpus predates corpus schema v7, so current code rejects it; the command reproduces at commit `85892a7`, the last revision before the historical loaders were retired in #188:
 
 ```bash
 git checkout 85892a7

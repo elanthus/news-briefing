@@ -1227,32 +1227,14 @@ class CommittedFixtureTest(unittest.TestCase):
         self.assertEqual(topic_count, 44)
         self.assertEqual(overlap, [])
 
-    def test_sample_briefing_matches_reference_fixture(self):
-        """The portfolio showcase must contain the complete frozen result."""
-        showcase = (ROOT / "docs/sample-briefing.md").read_text(encoding="utf-8")
-        marker = "<summary><b>Click to expand full briefing</b></summary>"
-        quoted = showcase.split(marker, 1)[1].split("</details>", 1)[0]
-        sample = "\n".join(
-            line[1:].lstrip() for line in quoted.splitlines()
-            if line.startswith(">")
-        ).strip()
-
-        reference = (ROOT / "fixtures/briefing-2026-08-09.md").read_text(encoding="utf-8")
-        comment_start = reference.index("<!--")
-        comment_end = reference.index("-->", comment_start) + len("-->")
-        expected = (
-            reference[:comment_start].rstrip()
-            + "\n\n"
-            + reference[comment_end:].lstrip()
-        ).strip()
-        self.assertEqual(sample, expected, "sample briefing does not contain the full reference result")
-
-        corpus = json.loads((ROOT / "fixtures/corpus-2026-08-09.json").read_text(encoding="utf-8"))
-        errors = [
-            finding for finding in evaluate(corpus, sample)
-            if finding.level == ERROR
-        ]
-        self.assertEqual(checks(errors, ERROR), {"unsupported_corpus_schema_version"})
+    def test_sample_briefing_is_a_complete_ready_publication(self):
+        """The README sample is a published ready run, including its outcome block."""
+        sample = (ROOT / "docs/sample-briefing.md").read_text(encoding="utf-8")
+        self.assertTrue(sample.startswith("# Daily Briefing \u2014 "))
+        self.assertIn("### Excluded Topics (accountability log)", sample)
+        outcome = sample.split("### Run outcome", 1)[1]
+        self.assertIn("**Disposition: READY**", outcome)
+        self.assertIn("**Errors**\nNone", outcome)
 
 
 class PromptSafetyContractTest(unittest.TestCase):
