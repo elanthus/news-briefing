@@ -431,6 +431,19 @@ class TriageRunTests(unittest.TestCase):
         self.assertIn("python3 triage_run.py \"$TRIAGE_RUN_DIR\" --no-model", WORKFLOW)
         self.assertIn("gh issue create", WORKFLOW)
 
+    def test_triage_issue_body_is_a_pointer_to_the_encrypted_report(self) -> None:
+        issue_step = WORKFLOW.split("- name: Open triage issue", 1)[1].split("- name:", 1)[0]
+        self.assertIn("gh issue create", issue_step)
+        self.assertNotIn("triage.md", issue_step)
+        self.assertNotIn("--body-file", issue_step)
+        self.assertIn('--body "$body"', issue_step)
+        self.assertIn("$TRIAGE_RUN_DATE", issue_step)
+        self.assertIn("$first_class", issue_step)
+        self.assertIn("actions/runs/${{ github.run_id }}", issue_step)
+        self.assertIn("REPORT_ARTIFACT: triage-report-${{ github.run_id }}", issue_step)
+        self.assertIn("python3 private_archive.py create", WORKFLOW)
+        self.assertIn("name: triage-report-${{ github.run_id }}", WORKFLOW)
+
 
 if __name__ == "__main__":
     unittest.main()
