@@ -16,6 +16,7 @@ import briefing_config
 import fetch_news
 from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic, write_text_atomic
 from agent_runner.failures import FailureRecord, run_failure
+from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow
@@ -360,6 +361,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", "-o", type=Path, required=True, help="final Markdown path")
     parser.add_argument("--run-dir", type=Path, required=True, help="fallback-chain artifact directory")
+    parser.add_argument("--jev-review-dir", type=Path,
+                        help="write Jev advisory findings for the selected ready candidate")
     parser.add_argument("--corpus", type=Path, required=True, help="existing corpus to replay")
     parser.add_argument("--config", type=Path, default=briefing_config.DEFAULT_CONFIG_PATH)
     parser.add_argument("--sources", type=Path, default=fetch_news.DEFAULT_SOURCES_PATH)
@@ -400,6 +403,8 @@ def main() -> int:
             f"READY: final output at {settings.output_path} using {result.selected_model} "
             f"(artifacts: {result.run_dir})"
         )
+        if args.jev_review_dir is not None and result.selected_run_dir is not None:
+            print_advisory_review(result.selected_run_dir, args.jev_review_dir)
         return 0
     print(f"NO RESULT: all production models failed (artifacts: {result.run_dir})", file=sys.stderr)
     return 1
