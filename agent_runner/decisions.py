@@ -21,7 +21,7 @@ MAX_RESPONSE_BYTES = 128_000
 
 
 def probability(value: Any) -> float:
-    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+    if type(value) not in (int, float) or not 0 <= value <= 1:
         raise ProviderError("Jev returned an invalid probability", transient=False)
     return float(value)
 
@@ -62,7 +62,7 @@ class JevClient:
             raise ProviderError("Jev response exceeds the bounded output budget", transient=False)
         try:
             payload = json.loads(raw)
-        except (ValueError, UnicodeError) as exc:
+        except (ValueError, UnicodeError, RecursionError) as exc:
             raise ProviderError("Jev returned invalid JSON", transient=False) from exc
         if not isinstance(payload, dict) or set(payload) - {"model", "answers", "usage", "id", "provider"}:
             raise ProviderError("Jev returned an unexpected response envelope", transient=False)
@@ -78,8 +78,15 @@ class JevClient:
         if not isinstance(usage, dict):
             raise ProviderError("Jev returned missing usage", transient=False)
         cost = usage.get("cost")
-        if cost is not None and (type(cost) not in (int, float) or not math.isfinite(cost) or cost < 0):
-            raise ProviderError("Jev returned invalid cost", transient=False)
+        if cost is not None:
+            if type(cost) not in (int, float):
+                raise ProviderError("Jev returned invalid cost", transient=False)
+            try:
+                cost = float(cost)
+            except OverflowError as exc:
+                raise ProviderError("Jev returned invalid cost", transient=False) from exc
+            if not math.isfinite(cost) or cost < 0:
+                raise ProviderError("Jev returned invalid cost", transient=False)
         tokens = {}
         for field in ("input_tokens", "output_tokens"):
             value = usage.get(field)

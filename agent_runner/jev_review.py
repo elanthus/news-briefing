@@ -258,7 +258,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
         report["status"] = "complete" if (
             index == len(tasks) and not omitted and not report["skipped_oversized_checks"]
         ) else "partial"
-    except (ValueError, OSError, ProviderError, KeyError, TypeError) as exc:
+    except (ValueError, OSError, ProviderError, KeyError, TypeError, RecursionError, OverflowError) as exc:
         report["status"] = "failed" if not report["results"] else "partial"
         # Static errors only: remote bodies are never included by JevClient.
         report["stop_reason"] = type(exc).__name__
