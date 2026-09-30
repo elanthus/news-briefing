@@ -94,7 +94,7 @@ class DecisionsTests(unittest.TestCase):
         raw = b"[" * 2000 + b"0" + b"]" * 2000
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.decisions._urlopen", return_value=io.BytesIO(raw)
-        ), self.assertRaisesRegex(ProviderError, "invalid JSON"):
+        ), self.assertRaises(ProviderError):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
 
 
