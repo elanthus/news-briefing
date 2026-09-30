@@ -204,6 +204,7 @@ def generate_reports(
                 sys.executable, "run_daily_briefing.py",
                 "--corpus", str(corpus),
                 "--run-dir", str(run_dir),
+                "--jev-review-dir", str(run_dir / "jev-review"),
                 "--output", str(report),
                 "--force",
                 "--max-corrections", "3",

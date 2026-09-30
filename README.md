@@ -45,6 +45,13 @@ prepare_publication.py / build_site.py  →  static site + per-run integrity rep
 
 The validator rejects any URL or reference token in prose, and rendering expands a Hacker News handle to both article and discussion links. This is destination allowlisting, not semantic grounding.
 
+Daily runs also record an **advisory Jev semantic review** through OpenRouter: reworded
+duplicates, distinct events grouped into one topic, and unsupported, strengthened, or
+reversed claims against frozen feed excerpts. These model judgments never change the
+publication decision and are not grounding verification. Reports stay in the encrypted
+diagnostics archive. See [Jev advisory review](docs/jev-review.md) for replay commands,
+coverage limits, and billing controls.
+
 ## Read one
 
 The [live site](https://elanthus.github.io/news-briefing/) publishes daily with a per-run integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 27, 2026, copied byte for byte from the site's `history.json`.
