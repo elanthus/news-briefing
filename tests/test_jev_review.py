@@ -49,7 +49,7 @@ class DecisionsTests(unittest.TestCase):
 
     def test_malformed_answers_and_tool_events_are_rejected(self):
         variants = []
-        for value in (True, float("nan"), float("inf"), -0.01, 1.01, "0.9"):
+        for value in (True, float("nan"), float("inf"), -0.01, 1.01, "0.9", 10 ** 400):
             payload = self.payload()
             payload["answers"]["question"]["noul"] = value
             variants.append(payload)
@@ -67,7 +67,7 @@ class DecisionsTests(unittest.TestCase):
                 self.evaluate(payload)
 
     def test_bad_usage_is_rejected_and_unknown_cost_preserved(self):
-        for cost in (True, -1, float("nan"), "0.01"):
+        for cost in (True, -1, float("nan"), "0.01", 10 ** 400):
             payload = self.payload()
             payload["usage"]["cost"] = cost
             with self.subTest(cost=cost), self.assertRaises(ProviderError):
@@ -89,6 +89,13 @@ class DecisionsTests(unittest.TestCase):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         opened.assert_called_once()
         self.assertNotIn("secret", str(caught.exception))
+
+    def test_deeply_nested_json_is_a_typed_provider_failure(self):
+        raw = b"[" * 2000 + b"0" + b"]" * 2000
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "agent_runner.decisions._urlopen", return_value=io.BytesIO(raw)
+        ), self.assertRaisesRegex(ProviderError, "invalid JSON"):
+            JevClient().evaluate({}, {"q": {"type": "noul"}})
 
 
 class FakeJudge(JevClient):
