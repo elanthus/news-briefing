@@ -47,7 +47,7 @@ py-modules = [
     "run_daily_briefing",
     "triage_run",
 ]
-packages = ["agent_runner", "evaluator"]
+packages = ["agent_runner", "evaluator", "news_fetch", "news_fetch.sources"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -58,6 +58,7 @@ python_version = "3.11"
 files = [
     "briefing_config.py",
     "fetch_news.py",
+    "news_fetch",
     "eval_briefing.py",
     "corpus_schema.py",
     "run_briefing.py",

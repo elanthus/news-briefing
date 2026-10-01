@@ -7,7 +7,7 @@ judgments code cannot prove.
 ## Runtime and dependencies
 
 - Keep the pipeline on Python 3.11+ and standard-library-only. This includes
-  `fetch_news.py`, `run_briefing.py`, `agent_runner/`, `corpus_*.py`,
+  `fetch_news.py`, `news_fetch/`, `run_briefing.py`, `agent_runner/`, `corpus_*.py`,
   `prepare_publication.py`, `restore_private_corpora.py`, `private_archive.py`,
   and the evaluator core.
 - The only third-party runtime dependencies are pinned in

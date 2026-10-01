@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 
 import briefing_config
-from fetch_news import DEFAULT_SOURCES_PATH, load_sources
+from fetch_news import DEFAULT_SOURCES_PATH
+from news_fetch.config import load_sources
 
 
 def raw_config():

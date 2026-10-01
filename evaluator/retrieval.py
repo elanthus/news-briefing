@@ -12,7 +12,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from fetch_news import Item, dedupe
+from news_fetch.curation import dedupe
+from news_fetch.model import Item
 
 from evaluator.adapters import (
     API_MAX_ATTEMPTS,

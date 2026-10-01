@@ -28,30 +28,33 @@ from unittest.mock import patch
 
 import corpus_schema
 import fetch_news
-from fetch_news import (
-    DEFAULT_SOURCES_PATH,
-    DEFAULT_WINDOW_HOURS,
-    MAX_RESPONSE_BYTES,
+from corpus_schema import canonicalize_url
+from fetch_news import DEFAULT_SOURCES_PATH, DEFAULT_WINDOW_HOURS, positive_int
+from news_fetch import (
+    collect,
+    curation,
+    destinations,
+    limits,
+    model,
+    telemetry,
+    transport,
+)
+from news_fetch.config import load_sources
+from news_fetch.curation import apply_global_context_budget, dedupe, prepare_category, sort_items
+from news_fetch.feed_xml import parse_feed_xml
+from news_fetch.relevance import is_relevant_item
+from news_fetch.sources import common, hn, reddit, rss
+from news_fetch.sources.common import parse_feed_date, publication_in_window, strip_html
+from news_fetch.sources.hn import fetch_hn
+from news_fetch.sources.reddit import (
     REDDIT_MAX_LIMIT,
     _reddit_md_text,
-    apply_global_context_budget,
-    canonicalize_url,
-    dedupe,
-    fetch_hn,
     fetch_reddit,
-    is_relevant_item,
-    load_sources,
-    parse_feed_date,
-    parse_feed_xml,
-    positive_int,
-    prepare_category,
-    publication_in_window,
     reddit_limit,
     reddit_top_bucket,
     retry_after_seconds,
-    sort_items,
-    strip_html,
 )
+from news_fetch.transport import MAX_RESPONSE_BYTES
 
 
 def utc(*args):
@@ -93,7 +96,7 @@ class ParseFeedDateTest(unittest.TestCase):
     def test_malformed_rfc_dates_cannot_escape_parser_exceptions(self):
         for error in (OverflowError, IndexError):
             with (self.subTest(error=error.__name__),
-                  patch.object(fetch_news, "parsedate_to_datetime", side_effect=error)):
+                  patch.object(common, "parsedate_to_datetime", side_effect=error)):
                 self.assertIsNone(parse_feed_date("malformed"))
 
     def test_result_is_always_timezone_aware(self):
@@ -137,8 +140,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<item><title>After boundary</title><link>https://ex.com/after</link>'
                 b'<pubDate>Sat, 08 Aug 2026 12:00:01 GMT</pubDate></item>'
                 b'</channel></rss>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed",
                 utc(2026, 8, 7, 12), utc(2026, 8, 8, 12),
             )
@@ -152,8 +155,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<description> </description>'
                 b'<content:encoded><![CDATA[<p>Full <b>technical</b> summary</p>]]>'
                 b'</content:encoded></item></channel></rss>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["summary"], "Full technical summary")
@@ -164,8 +167,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<published>2026-08-08T12:00:00Z</published><summary />'
                 b'<content type="html">&lt;p&gt;Detailed Atom content&lt;/p&gt;</content>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["summary"], "Detailed Atom content")
@@ -177,8 +180,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<link rel="alternate" href="https://ex.com/article"/>'
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
@@ -190,8 +193,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<link href="https://ex.com/article"/>'
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
@@ -202,8 +205,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<link rel="self" href="https://ex.com/feed-entry"/>'
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["url"], "https://ex.com/feed-entry")
@@ -215,8 +218,8 @@ class FeedSummaryFallbackTest(unittest.TestCase):
                 b'<link rel="alternate" href=" https://ex.com/article "/>'
                 b'<published>2026-08-08T12:00:00Z</published>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(result.items[0]["url"], "https://ex.com/article")
@@ -247,8 +250,8 @@ class DevCommunityFeedFixturesTest(unittest.TestCase):
                 b'<updated>2026-09-04T19:12:03Z</updated>'
                 b'<content type="html">Adds background task support</content>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Claude Code Releases",
                 "https://github.com/anthropics/claude-code/releases.atom",
                 utc(2026, 9, 1), utc(2026, 9, 7),
@@ -268,8 +271,8 @@ class DevCommunityFeedFixturesTest(unittest.TestCase):
                 b'<updated>2026-09-05T00:59:27Z</updated>'
                 b'<content type="html">Release 0.154.0-alpha.4</content>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Codex Releases", "https://github.com/openai/codex/releases.atom",
                 utc(2026, 9, 1), utc(2026, 9, 7),
             )
@@ -286,8 +289,8 @@ class DevCommunityFeedFixturesTest(unittest.TestCase):
                 b'<updated>2026-08-31T20:34:32Z</updated>'
                 b'<content type="html">Updated packages: server-filesystem, server-memory</content>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "MCP Servers Releases",
                 "https://github.com/modelcontextprotocol/servers/releases.atom",
                 utc(2026, 8, 25), utc(2026, 9, 1),
@@ -311,8 +314,8 @@ class DevCommunityFeedFixturesTest(unittest.TestCase):
                 b'<pubDate>Mon, 31 Aug 2026 00:00:00 GMT</pubDate>'
                 b'<description>Codebase indexing is now significantly faster.</description>'
                 b'</item></channel></rss>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Cursor Changelog", "https://cursor.com/changelog/rss.xml",
                 utc(2026, 8, 30), utc(2026, 9, 3),
             )
@@ -338,8 +341,8 @@ class DevCommunityFeedFixturesTest(unittest.TestCase):
                 b'<updated>2026-09-05T09:12:00+00:00</updated>'
                 b'<summary type="html">A look at how spammers abuse domain registration.</summary>'
                 b'</entry></feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = rss.fetch_rss(
                 "Simon Willison's Weblog", "https://simonwillison.net/atom/everything/",
                 utc(2026, 9, 1), utc(2026, 9, 7),
             )
@@ -580,8 +583,8 @@ class PrepareCategoryTest(unittest.TestCase):
             "summary": "x" * 500,
         }
         kept, stats = prepare_category([item])
-        self.assertLessEqual(len(kept[0]["title"].encode("utf-8")), fetch_news.TITLE_BYTES)
-        self.assertEqual(len(kept[0]["summary"]), fetch_news.SUMMARY_CHARS)
+        self.assertLessEqual(len(kept[0]["title"].encode("utf-8")), limits.TITLE_BYTES)
+        self.assertEqual(len(kept[0]["summary"]), limits.SUMMARY_CHARS)
         self.assertEqual(stats["title_truncated"], 1)
         self.assertEqual(stats["summary_truncated"], 1)
 
@@ -624,7 +627,7 @@ class PrepareCategoryTest(unittest.TestCase):
             {**self.item(n), "summary": "x" * 200}
             for n in range(1, 4)
         ]
-        one_size, one_tokens = fetch_news.item_context_usage(items[0])
+        one_size, one_tokens = curation.item_context_usage(items[0])
         kept, stats = prepare_category(
             items, source_byte_budget=one_size + 10,
             source_token_budget=one_tokens + 10)
@@ -634,7 +637,7 @@ class PrepareCategoryTest(unittest.TestCase):
     def test_enforces_one_global_budget_across_categories(self):
         first, first_stats = prepare_category([self.item(1, "A")])
         second, second_stats = prepare_category([self.item(2, "B")])
-        size, tokens = fetch_news.item_context_usage(first[0])
+        size, tokens = curation.item_context_usage(first[0])
         categories = {"first": first, "second": second}
         processing = {"first": first_stats, "second": second_stats}
         used = apply_global_context_budget(
@@ -646,14 +649,14 @@ class PrepareCategoryTest(unittest.TestCase):
 
     def test_budget_totals_serialize_each_item_once_per_budget_pass(self):
         items = [self.item(n) for n in range(1, 4)]
-        real_usage = fetch_news.item_context_usage
-        with patch.object(fetch_news, "item_context_usage", wraps=real_usage) as usage:
+        real_usage = curation.item_context_usage
+        with patch.object(curation, "item_context_usage", wraps=real_usage) as usage:
             kept, stats = prepare_category(items)
         self.assertEqual(usage.call_count, len(items))
 
         categories = {"news": kept}
         processing = {"news": stats}
-        with patch.object(fetch_news, "item_context_usage", wraps=real_usage) as usage:
+        with patch.object(curation, "item_context_usage", wraps=real_usage) as usage:
             apply_global_context_budget(categories, processing)
         self.assertEqual(usage.call_count, len(kept))
 
@@ -664,16 +667,16 @@ class HackerNewsTest(unittest.TestCase):
             {
                 "objectID": "20", "title": "At boundary", "url": None,
                 "story_text": "", "created_at_i": int(utc(2026, 8, 9).timestamp()),
-                "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+                "points": hn.HN_MIN_POINTS, "num_comments": 1,
             },
             {
                 "objectID": "21", "title": "After boundary", "url": None,
                 "story_text": "", "created_at_i": int(utc(2026, 8, 9, 0, 0, 1).timestamp()),
-                "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+                "points": hn.HN_MIN_POINTS, "num_comments": 1,
             },
         ]}
         with patch.object(
-            fetch_news, "http_get", return_value=json.dumps(payload).encode()
+            transport, "http_get", return_value=json.dumps(payload).encode()
         ) as get:
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
 
@@ -700,14 +703,14 @@ class HackerNewsTest(unittest.TestCase):
             with self.subTest(points=bad):
                 payload = json.dumps({"hits": [hit("1", bad, 1)]}).encode()
                 with (
-                    patch.object(fetch_news, "http_get", return_value=payload),
-                    self.assertRaises(fetch_news.SourceDataError),
+                    patch.object(transport, "http_get", return_value=payload),
+                    self.assertRaises(model.SourceDataError),
                 ):
                     fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         payload = json.dumps({"hits": [hit("1", 30, 2.5)]}).encode()
         with (
-            patch.object(fetch_news, "http_get", return_value=payload),
-            self.assertRaises(fetch_news.SourceDataError),
+            patch.object(transport, "http_get", return_value=payload),
+            self.assertRaises(model.SourceDataError),
         ):
             fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
 
@@ -739,7 +742,7 @@ class HackerNewsTest(unittest.TestCase):
             ]
             with (
                 patch.object(fetch_news.sys, "argv", argv),
-                patch.object(fetch_news, "http_get", side_effect=fake_get),
+                patch.object(transport, "http_get", side_effect=fake_get),
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
             ):
@@ -761,9 +764,9 @@ class HackerNewsTest(unittest.TestCase):
         payload = {"hits": [{
             "objectID": "20", "title": "At the threshold", "url": None,
             "story_text": "", "created_at_i": 1786204800,
-            "points": fetch_news.HN_MIN_POINTS, "num_comments": 1,
+            "points": hn.HN_MIN_POINTS, "num_comments": 1,
         }]}
-        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+        with patch.object(transport, "http_get", return_value=json.dumps(payload).encode()):
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(len(result.items), 1)
 
@@ -774,13 +777,13 @@ class HackerNewsTest(unittest.TestCase):
             "points": None, "num_comments": None,
         }]}
         encoded = json.dumps(payload).encode()
-        with patch.object(fetch_news, "http_get", return_value=encoded):
+        with patch.object(transport, "http_get", return_value=encoded):
             filtered = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(filtered.items, [])
 
         with (
-            patch.object(fetch_news, "HN_MIN_POINTS", 0),
-            patch.object(fetch_news, "http_get", return_value=encoded),
+            patch.object(hn, "HN_MIN_POINTS", 0),
+            patch.object(transport, "http_get", return_value=encoded),
         ):
             emitted = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(emitted.items[0]["points"], 0)
@@ -819,7 +822,7 @@ class HackerNewsTest(unittest.TestCase):
             "story_text": "<p>Measured details</p>", "created_at_i": 1786204800,
             "points": 21, "num_comments": 4,
         }]}
-        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+        with patch.object(transport, "http_get", return_value=json.dumps(payload).encode()):
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(result.items[0]["summary"], "Measured details")
 
@@ -833,9 +836,9 @@ class HackerNewsTest(unittest.TestCase):
         payload = {"hits": [{
             "objectID": "1", "title": "Below the floor", "url": None,
             "story_text": "", "created_at_i": int(utc(2026, 8, 8, 12).timestamp()),
-            "points": fetch_news.HN_MIN_POINTS - 1, "num_comments": 1,
+            "points": hn.HN_MIN_POINTS - 1, "num_comments": 1,
         }]}
-        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+        with patch.object(transport, "http_get", return_value=json.dumps(payload).encode()):
             result = fetch_hn("prompt", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(result.items, [])
         self.assertEqual(result.dated_entries, 1)
@@ -848,7 +851,7 @@ class HackerNewsTest(unittest.TestCase):
             {"objectID": "2", "title": "Dated", "url": "https://ex.com/a",
              "created_at_i": 1786204800, "points": 99, "num_comments": 1},
         ]}
-        with patch.object(fetch_news, "http_get", return_value=json.dumps(payload).encode()):
+        with patch.object(transport, "http_get", return_value=json.dumps(payload).encode()):
             result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
         self.assertEqual(len(result.items), 1)
         self.assertEqual(result.undated, 1)
@@ -971,7 +974,7 @@ class RetryAfterTest(unittest.TestCase):
     def test_clamps_an_absurd_delay(self):
         """The header is attacker-influenced; an hour-long sleep would hang."""
         self.assertEqual(retry_after_seconds(self._error("99999"), 5),
-                         fetch_news.REDDIT_RETRY_MAX_SLEEP)
+                         reddit.REDDIT_RETRY_MAX_SLEEP)
 
 
 class UndatedAccountingTest(unittest.TestCase):
@@ -986,8 +989,8 @@ class UndatedAccountingTest(unittest.TestCase):
             b'</channel></rss>')
 
     def test_fetch_rss_counts_unparseable_dates_separately(self):
-        with patch.object(fetch_news, "http_get", return_value=self.FEED):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=self.FEED):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 8, 1), utc(2026, 8, 9)
             )
         self.assertEqual(len(result.items), 1)
@@ -995,8 +998,8 @@ class UndatedAccountingTest(unittest.TestCase):
 
     def test_stale_items_are_not_counted_as_undated(self):
         """Too old and unparseable are different failures."""
-        with patch.object(fetch_news, "http_get", return_value=self.FEED):
-            result = fetch_news.fetch_rss(
+        with patch.object(transport, "http_get", return_value=self.FEED):
+            result = rss.fetch_rss(
                 "Test", "https://ex.com/feed", utc(2026, 9, 1), utc(2026, 9, 2)
             )
         self.assertEqual(result.items, [])
@@ -1060,8 +1063,8 @@ class RedditTopBucketTest(unittest.TestCase):
 
     def test_default_fetch_url_uses_day_bucket(self):
         empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
-        with patch.object(fetch_news, "http_get", return_value=empty_feed) as get:
-            self.assertEqual(fetch_news.fetch_reddit_rss(
+        with patch.object(transport, "http_get", return_value=empty_feed) as get:
+            self.assertEqual(reddit.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             ).items,
                              [])
@@ -1076,8 +1079,8 @@ class RedditTopBucketTest(unittest.TestCase):
                 b'<entry><title>After boundary</title><link href="https://ex.com/after"/>'
                 b'<updated>2026-08-09T00:00:01Z</updated></entry>'
                 b'</feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_reddit_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = reddit.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             )
 
@@ -1094,8 +1097,8 @@ class RedditTopBucketTest(unittest.TestCase):
                 b'<content type="html">'
                 b'&lt;div class="md"&gt;[removed]&lt;/div&gt;</content></entry>'
                 b'</feed>')
-        with patch.object(fetch_news, "http_get", return_value=feed):
-            result = fetch_news.fetch_reddit_rss(
+        with patch.object(transport, "http_get", return_value=feed):
+            result = reddit.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
             )
 
@@ -1158,7 +1161,7 @@ class RedditFallbackTest(unittest.TestCase):
     WINDOW_END = utc(2026, 8, 9)
 
     def result(self, title="Post"):
-        return fetch_news.FetchResult([{
+        return model.FetchResult([{
             "title": title,
             "url": "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
             "published": "2026-08-08T12:00:00+00:00",
@@ -1166,9 +1169,9 @@ class RedditFallbackTest(unittest.TestCase):
         }], 0, 1, 1)
 
     def test_rss_result_skips_both_fallbacks(self):
-        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=self.result("RSS")),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift") as arctic,
-              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+        with (patch.object(reddit, "fetch_reddit_rss", return_value=self.result("RSS")),
+              patch.object(reddit, "fetch_reddit_arctic_shift") as arctic,
+              patch.object(reddit, "fetch_reddit_scrapecreators") as authenticated):
             result = fetch_reddit(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
             )
@@ -1181,10 +1184,10 @@ class RedditFallbackTest(unittest.TestCase):
             "https://reddit.test", 429, "Too Many Requests", {}, None
         )
         self.addCleanup(error.close)
-        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=error),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift",
+        with (patch.object(reddit, "fetch_reddit_rss", side_effect=error),
+              patch.object(reddit, "fetch_reddit_arctic_shift",
                            return_value=self.result("Arctic")) as arctic,
-              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+              patch.object(reddit, "fetch_reddit_scrapecreators") as authenticated):
             result = fetch_reddit(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
             )
@@ -1193,10 +1196,10 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_fallback_runs_only_after_both_free_paths_are_empty(self):
-        empty = fetch_news.FetchResult([], 0, 0, 0)
-        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=empty),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=empty),
-              patch.object(fetch_news, "fetch_reddit_scrapecreators",
+        empty = model.FetchResult([], 0, 0, 0)
+        with (patch.object(reddit, "fetch_reddit_rss", return_value=empty),
+              patch.object(reddit, "fetch_reddit_arctic_shift", return_value=empty),
+              patch.object(reddit, "fetch_reddit_scrapecreators",
                            return_value=self.result("Authenticated")) as authenticated):
             result = fetch_reddit(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
@@ -1207,11 +1210,11 @@ class RedditFallbackTest(unittest.TestCase):
         )
 
     def test_missing_key_returns_the_last_free_empty_result(self):
-        rss_empty = fetch_news.FetchResult([], 2, 3, 1)
-        arctic_empty = fetch_news.FetchResult([], 0, 0, 0)
-        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=rss_empty),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=arctic_empty),
-              patch.object(fetch_news, "fetch_reddit_scrapecreators") as authenticated):
+        rss_empty = model.FetchResult([], 2, 3, 1)
+        arctic_empty = model.FetchResult([], 0, 0, 0)
+        with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
+              patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
+              patch.object(reddit, "fetch_reddit_scrapecreators") as authenticated):
             result = fetch_reddit(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24
             )
@@ -1219,11 +1222,11 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_failure_preserves_a_valid_free_empty_result(self):
-        rss_empty = fetch_news.FetchResult([], 2, 3, 1)
-        arctic_empty = fetch_news.FetchResult([], 0, 0, 0)
-        with (patch.object(fetch_news, "fetch_reddit_rss", return_value=rss_empty),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift", return_value=arctic_empty),
-              patch.object(fetch_news, "fetch_reddit_scrapecreators",
+        rss_empty = model.FetchResult([], 2, 3, 1)
+        arctic_empty = model.FetchResult([], 0, 0, 0)
+        with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
+              patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
+              patch.object(reddit, "fetch_reddit_scrapecreators",
                            side_effect=TimeoutError("authenticated provider down"))):
             result = fetch_reddit(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
@@ -1231,8 +1234,8 @@ class RedditFallbackTest(unittest.TestCase):
         self.assertEqual(result, arctic_empty)
 
     def test_all_free_transport_failures_remain_an_error_without_a_key(self):
-        with (patch.object(fetch_news, "fetch_reddit_rss", side_effect=OSError("rss down")),
-              patch.object(fetch_news, "fetch_reddit_arctic_shift",
+        with (patch.object(reddit, "fetch_reddit_rss", side_effect=OSError("rss down")),
+              patch.object(reddit, "fetch_reddit_arctic_shift",
                            side_effect=TimeoutError("archive down"))):
             with self.assertRaisesRegex(RuntimeError, "RSS.*Arctic Shift"):
                 fetch_reddit("ClaudeCode", self.CUTOFF, self.WINDOW_END, 24)
@@ -1257,8 +1260,8 @@ class RedditFallbackTest(unittest.TestCase):
             "created_utc": self.CUTOFF.timestamp() - 1,
         }]}).encode()
         fractional_end = self.WINDOW_END + timedelta(microseconds=1)
-        with patch.object(fetch_news, "http_get", return_value=payload) as get:
-            result = fetch_news.fetch_reddit_arctic_shift(
+        with patch.object(transport, "http_get", return_value=payload) as get:
+            result = reddit.fetch_reddit_arctic_shift(
                 "ClaudeCode", self.CUTOFF, fractional_end
             )
         self.assertEqual(
@@ -1272,7 +1275,7 @@ class RedditFallbackTest(unittest.TestCase):
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(get.call_args.args[0]).query)
         self.assertEqual(query["after"], [str(int(self.CUTOFF.timestamp()))])
         self.assertEqual(query["before"], [str(int(self.WINDOW_END.timestamp()) + 1)])
-        self.assertEqual(query["limit"], [str(fetch_news.REDDIT_FALLBACK_LIMIT)])
+        self.assertEqual(query["limit"], [str(reddit.REDDIT_FALLBACK_LIMIT)])
         self.assertEqual(
             query["fields"],
             ["id,title,selftext,created_utc,subreddit,score,num_comments"],
@@ -1320,8 +1323,8 @@ class RedditFallbackTest(unittest.TestCase):
             "score": 20,
             "created_at_iso": "2026-08-09T00:00:01Z",
         }]}).encode()
-        with patch.object(fetch_news, "scrapecreators_get", return_value=payload) as get:
-            result = fetch_news.fetch_reddit_scrapecreators(
+        with patch.object(transport, "scrapecreators_get", return_value=payload) as get:
+            result = reddit.fetch_reddit_scrapecreators(
                 "ClaudeCode", self.CUTOFF, self.WINDOW_END, 24, "secret"
             )
         self.assertEqual(
@@ -1362,7 +1365,7 @@ class RedditFallbackTest(unittest.TestCase):
             "created_at_iso": published,
         }]
 
-        result = fetch_news._reddit_json_result(
+        result = reddit._reddit_json_result(
             posts, "ClaudeCode", self.CUTOFF, self.WINDOW_END
         )
 
@@ -1463,9 +1466,9 @@ class MainFailureModeTest(unittest.TestCase):
             with (
                 patch.object(fetch_news.sys, "argv", argv),
                 patch.object(
-                    fetch_news,
+                    collect,
                     "fetch_hn",
-                    return_value=fetch_news.FetchResult([item], 0),
+                    return_value=model.FetchResult([item], 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1512,9 +1515,9 @@ class MainFailureModeTest(unittest.TestCase):
             with (
                 patch.object(fetch_news.sys, "argv", argv),
                 patch.object(
-                    fetch_news,
+                    collect,
                     "fetch_hn",
-                    return_value=fetch_news.FetchResult([item], 0),
+                    return_value=model.FetchResult([item], 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1537,20 +1540,20 @@ class MainFailureModeTest(unittest.TestCase):
         # Valid, dated entries exist; they are simply all outside the window.
         # That is a low-cadence source, not a broken one, so it is `quiet`
         # rather than `empty` and stays out of the failed-source contract.
-        outcome = fetch_news.TimedFetchResult(
-            fetch_news.FetchResult([], 0, parsed_entries=25, dated_entries=25),
+        outcome = model.TimedFetchResult(
+            model.FetchResult([], 0, parsed_entries=25, dated_entries=25),
             None,
             None,
             12,
             True,
         )
-        status = fetch_news.source_status("rss", "Example", "news", outcome)
+        status = telemetry.source_status("rss", "Example", "news", outcome)
         self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "NoWindowEntries")
 
     def test_fully_filtered_source_reports_a_distinct_quiet_reason(self):
-        outcome = fetch_news.TimedFetchResult(
-            fetch_news.FetchResult(
+        outcome = model.TimedFetchResult(
+            model.FetchResult(
                 [], 0, parsed_entries=25, dated_entries=25, filtered_entries=25
             ),
             None,
@@ -1558,7 +1561,7 @@ class MainFailureModeTest(unittest.TestCase):
             12,
             True,
         )
-        status = fetch_news.source_status("reddit", "ClaudeCode", "news", outcome)
+        status = telemetry.source_status("reddit", "ClaudeCode", "news", outcome)
         self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "EntriesFiltered")
         self.assertIn("25 filtered as removed or low-score", status["message"])
@@ -1574,7 +1577,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "reddit_category": "news",
                 "subreddits": [],
             }), encoding="utf-8")
-            hn_result = fetch_news.FetchResult([{
+            hn_result = model.FetchResult([{
                 "title": "AI coding agent",
                 "url": "https://example.com/hn",
                 "discussion": "https://news.ycombinator.com/item?id=1",
@@ -1586,7 +1589,7 @@ class MainFailureModeTest(unittest.TestCase):
             }], 0)
             argv = ["fetch_news.py", "--sources", str(sources), "--markdown"]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_hn", return_value=hn_result),
+                  patch.object(collect, "fetch_hn", return_value=hn_result),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
@@ -1608,7 +1611,7 @@ class MainFailureModeTest(unittest.TestCase):
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_rss", side_effect=ValueError()),
+                  patch.object(collect, "fetch_rss", side_effect=ValueError()),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
@@ -1643,7 +1646,7 @@ class MainFailureModeTest(unittest.TestCase):
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_rss", side_effect=ValueError()),
+                  patch.object(collect, "fetch_rss", side_effect=ValueError()),
                   redirect_stdout(io.StringIO()),
                   redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
@@ -1666,8 +1669,8 @@ class MainFailureModeTest(unittest.TestCase):
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_rss",
-                               return_value=fetch_news.FetchResult([], 0)),
+                  patch.object(collect, "fetch_rss",
+                               return_value=model.FetchResult([], 0)),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -1692,14 +1695,14 @@ class MainFailureModeTest(unittest.TestCase):
                 "subreddits": ["LocalLLaMA"],
             }), encoding="utf-8")
             published = datetime.now(timezone.utc).isoformat()
-            hn_result = fetch_news.FetchResult([{
+            hn_result = model.FetchResult([{
                 "title": "AI coding agent",
                 "url": "https://example.com/hn",
                 "published": published,
                 "source": "Hacker News",
                 "query": "agent tools",
             }], 0)
-            reddit_result = fetch_news.FetchResult([{
+            reddit_result = model.FetchResult([{
                 "title": "Local model release",
                 "url": "https://example.com/reddit",
                 "published": published,
@@ -1707,8 +1710,8 @@ class MainFailureModeTest(unittest.TestCase):
             }], 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_hn", return_value=hn_result),
-                  patch.object(fetch_news, "fetch_reddit", return_value=reddit_result),
+                  patch.object(collect, "fetch_hn", return_value=hn_result),
+                  patch.object(collect, "fetch_reddit", return_value=reddit_result),
                   redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
             self.assertEqual(result, 0)
@@ -1751,16 +1754,16 @@ class MainFailureModeTest(unittest.TestCase):
                 "subreddits": ["ClaudeAI"],
             }), encoding="utf-8")
             published = datetime.now(timezone.utc).isoformat()
-            reddit_result = fetch_news.FetchResult([
+            reddit_result = model.FetchResult([
                 {
                     "title": f"Reddit post {n}",
                     "url": f"https://example.com/reddit/{n}",
                     "published": published,
                     "source": "r/ClaudeAI",
                 }
-                for n in range(fetch_news.REDDIT_SOURCE_CAP + 5)
+                for n in range(limits.REDDIT_SOURCE_CAP + 5)
             ], 0)
-            rss_result = fetch_news.FetchResult([{
+            rss_result = model.FetchResult([{
                 "title": "Vendor release",
                 "url": "https://example.com/vendor",
                 "published": published,
@@ -1768,8 +1771,8 @@ class MainFailureModeTest(unittest.TestCase):
             }], 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_rss", return_value=rss_result),
-                  patch.object(fetch_news, "fetch_reddit", return_value=reddit_result),
+                  patch.object(collect, "fetch_rss", return_value=rss_result),
+                  patch.object(collect, "fetch_reddit", return_value=reddit_result),
                   redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
                 result = fetch_news.main()
             self.assertEqual(result, 0)
@@ -1777,7 +1780,7 @@ class MainFailureModeTest(unittest.TestCase):
             kept = corpus["categories"]["dev_community"]
             self.assertEqual(
                 sum(item["source"] == "r/ClaudeAI" for item in kept),
-                fetch_news.REDDIT_SOURCE_CAP)
+                limits.REDDIT_SOURCE_CAP)
             self.assertEqual(sum(item["source"] == "Vendor Feed" for item in kept), 1)
 
     def test_quiet_source_is_excluded_from_errors_and_failed_sources(self):
@@ -1795,9 +1798,9 @@ class MainFailureModeTest(unittest.TestCase):
                 "subreddits": [],
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
-            quiet_result = fetch_news.FetchResult([], 0, parsed_entries=5, dated_entries=5)
+            quiet_result = model.FetchResult([], 0, parsed_entries=5, dated_entries=5)
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "fetch_rss", return_value=quiet_result),
+                  patch.object(collect, "fetch_rss", return_value=quiet_result),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -1823,7 +1826,7 @@ class MainFailureModeTest(unittest.TestCase):
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
-                  patch.object(fetch_news, "http_get", return_value=b"<html><body>ok</body></html>"),
+                  patch.object(transport, "http_get", return_value=b"<html><body>ok</body></html>"),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO())):
                 self.assertEqual(fetch_news.main(), 1)
@@ -1859,23 +1862,23 @@ class PublicIpTest(unittest.TestCase):
             "::ffff:0:a9fe:a9fe",      # IPv4-translated embedding 169.254.169.254
         ):
             with self.subTest(address=address):
-                self.assertFalse(fetch_news._public_ip(address))
+                self.assertFalse(destinations._public_ip(address))
 
     def test_accepts_a_public_address_embedded_in_the_well_known_nat64_prefix(self):
-        self.assertTrue(fetch_news._public_ip("64:ff9b::5db8:d822"))  # 93.184.216.34
+        self.assertTrue(destinations._public_ip("64:ff9b::5db8:d822"))  # 93.184.216.34
 
 
 class HttpGetTest(unittest.TestCase):
-    PUBLIC = (fetch_news.ResolvedAddress(2, ("93.184.216.34", 443)),)
+    PUBLIC = (destinations.ResolvedAddress(2, ("93.184.216.34", 443)),)
 
     def get(self, results, url="https://example.com/feed"):
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        with (patch.object(transport, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
-              patch.object(fetch_news, "_request_once", side_effect=results)):
-            return fetch_news.http_get(url)
+              patch.object(transport, "_request_once", side_effect=results)):
+            return transport.http_get(url)
 
     def test_rejects_oversized_response(self):
-        result = fetch_news.HttpResult(200, "OK", {}, b"x" * (MAX_RESPONSE_BYTES + 1))
+        result = transport.HttpResult(200, "OK", {}, b"x" * (MAX_RESPONSE_BYTES + 1))
         with self.assertRaisesRegex(ValueError, "response exceeded"):
             self.get([result])
         self.assertEqual(MAX_RESPONSE_BYTES, 5 * 1024 * 1024)
@@ -1892,12 +1895,12 @@ class HttpGetTest(unittest.TestCase):
 
         def fake_request(*args):
             captured.append(args)
-            return fetch_news.HttpResult(200, "OK", {}, b"ok")
+            return transport.HttpResult(200, "OK", {}, b"ok")
 
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        with (patch.object(transport, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
-              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
-            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+              patch.object(transport, "_request_once", side_effect=fake_request)):
+            self.assertEqual(transport.http_get("https://example.com/feed"), b"ok")
 
         agent = captured[0][-2]
         self.assertIn("news-briefing/", agent)
@@ -1914,64 +1917,64 @@ class HttpGetTest(unittest.TestCase):
             "http://[64:ff9b::a9fe:a9fe]/feed",
         ):
             with self.subTest(url=url), self.assertRaises(ValueError):
-                fetch_news.http_get(url)
+                transport.http_get(url)
 
     def test_dns_answers_must_all_be_public(self):
         answers = [
             (2, 1, 6, "", ("93.184.216.34", 443)),
             (2, 1, 6, "", ("10.0.0.7", 443)),
         ]
-        with patch.object(fetch_news.socket, "getaddrinfo", return_value=answers):
+        with patch.object(socket, "getaddrinfo", return_value=answers):
             with self.assertRaisesRegex(ValueError, "non-public address 10.0.0.7"):
-                fetch_news._resolve_public_addresses("example.com", 443)
+                destinations._resolve_public_addresses("example.com", 443)
 
     def test_request_uses_the_address_from_the_single_dns_resolution(self):
         captured = []
 
         def fake_request(*args):
             captured.append(args)
-            return fetch_news.HttpResult(200, "OK", {}, b"ok")
+            return transport.HttpResult(200, "OK", {}, b"ok")
 
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        with (patch.object(transport, "_resolve_public_addresses",
                            return_value=self.PUBLIC) as resolve,
-              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
-            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+              patch.object(transport, "_request_once", side_effect=fake_request)):
+            self.assertEqual(transport.http_get("https://example.com/feed"), b"ok")
         resolve.assert_called_once_with("example.com", 443)
         self.assertEqual(captured[0][4], self.PUBLIC[0])
 
     def test_redirect_destination_is_revalidated_and_repinned(self):
-        redirect = fetch_news.HttpResult(
+        redirect = transport.HttpResult(
             302, "Found", {"Location": "https://cdn.example.net/feed"}, b"")
-        ok = fetch_news.HttpResult(200, "OK", {}, b"ok")
+        ok = transport.HttpResult(200, "OK", {}, b"ok")
         first = self.PUBLIC
-        second = (fetch_news.ResolvedAddress(2, ("93.184.216.35", 443)),)
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        second = (destinations.ResolvedAddress(2, ("93.184.216.35", 443)),)
+        with (patch.object(transport, "_resolve_public_addresses",
                            side_effect=[first, second]) as resolve,
-              patch.object(fetch_news, "_request_once", side_effect=[redirect, ok])):
-            self.assertEqual(fetch_news.http_get("https://example.com/feed"), b"ok")
+              patch.object(transport, "_request_once", side_effect=[redirect, ok])):
+            self.assertEqual(transport.http_get("https://example.com/feed"), b"ok")
         self.assertEqual(resolve.call_args_list[1].args, ("cdn.example.net", 443))
 
     def test_redirect_to_private_destination_is_rejected_before_request(self):
-        redirect = fetch_news.HttpResult(
+        redirect = transport.HttpResult(
             302, "Found", {"Location": "https://127.0.0.1/admin"}, b"")
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        with (patch.object(transport, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
-              patch.object(fetch_news, "_request_once", return_value=redirect) as request):
+              patch.object(transport, "_request_once", return_value=redirect) as request):
             with self.assertRaisesRegex(ValueError, "non-public"):
-                fetch_news.http_get("https://example.com/feed")
+                transport.http_get("https://example.com/feed")
         self.assertEqual(request.call_count, 1)
 
     def test_https_redirect_downgrade_is_rejected_before_second_request(self) -> None:
-        redirect = fetch_news.HttpResult(
+        redirect = transport.HttpResult(
             302, "Found", {"Location": "http://cdn.example.net/feed"}, b"")
         with (
             patch.object(
-                fetch_news, "_resolve_public_addresses", return_value=self.PUBLIC
+                transport, "_resolve_public_addresses", return_value=self.PUBLIC
             ) as resolve,
-            patch.object(fetch_news, "_request_once", return_value=redirect) as request,
+            patch.object(transport, "_request_once", return_value=redirect) as request,
             self.assertRaisesRegex(ValueError, "HTTPS request cannot redirect to HTTP"),
         ):
-            fetch_news.http_get("https://example.com/feed")
+            transport.http_get("https://example.com/feed")
         self.assertEqual(resolve.call_count, 1)
         self.assertEqual(request.call_count, 1)
 
@@ -2000,16 +2003,16 @@ class HttpGetTest(unittest.TestCase):
         thread.start()
         started = time.monotonic()
         try:
-            address = fetch_news.ResolvedAddress(
+            address = destinations.ResolvedAddress(
                 socket.AF_INET, ("127.0.0.1", port)
             )
             with (
                 patch.object(
-                    fetch_news, "_resolve_public_addresses", return_value=(address,)
+                    transport, "_resolve_public_addresses", return_value=(address,)
                 ),
                 self.assertRaisesRegex(TimeoutError, "total deadline"),
             ):
-                fetch_news.http_get(
+                transport.http_get(
                     f"http://example.com:{port}/trickle", timeout=1
                 )
         finally:
@@ -2055,7 +2058,7 @@ class HttpGetTest(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            address = fetch_news.ResolvedAddress(
+            address = destinations.ResolvedAddress(
                 socket.AF_INET, ("127.0.0.1", port)
             )
             for path in ("trickle-status", "trickle-headers"):
@@ -2063,13 +2066,13 @@ class HttpGetTest(unittest.TestCase):
                 with (
                     self.subTest(path=path),
                     patch.object(
-                        fetch_news,
+                        transport,
                         "_resolve_public_addresses",
                         return_value=(address,),
                     ),
                     self.assertRaisesRegex(TimeoutError, "total deadline"),
                 ):
-                    fetch_news.http_get(
+                    transport.http_get(
                         f"http://example.com:{port}/{path}", timeout=1
                     )
                 self.assertLess(time.monotonic() - started, 2)
@@ -2081,7 +2084,7 @@ class HttpGetTest(unittest.TestCase):
         self.assertFalse(thread.is_alive())
 
     def test_scrapecreators_key_is_origin_locked_and_redirects_are_refused(self):
-        redirect = fetch_news.HttpResult(
+        redirect = transport.HttpResult(
             302, "Found", {"Location": "https://attacker.example/collect"}, b"")
         captured = []
 
@@ -2089,11 +2092,11 @@ class HttpGetTest(unittest.TestCase):
             captured.append(args)
             return redirect
 
-        with (patch.object(fetch_news, "_resolve_public_addresses",
+        with (patch.object(transport, "_resolve_public_addresses",
                            return_value=self.PUBLIC),
-              patch.object(fetch_news, "_request_once", side_effect=fake_request)):
+              patch.object(transport, "_request_once", side_effect=fake_request)):
             with self.assertRaises(urllib.error.HTTPError) as raised:
-                fetch_news.scrapecreators_get(
+                transport.scrapecreators_get(
                     "https://api.scrapecreators.com/v1/reddit/subreddit?subreddit=test",
                     "secret",
                 )
@@ -2101,12 +2104,12 @@ class HttpGetTest(unittest.TestCase):
         self.assertEqual(captured[0][-1]["x-api-key"], "secret")
         self.assertEqual(len(captured), 1)
         with self.assertRaisesRegex(ValueError, "only be sent"):
-            fetch_news.scrapecreators_get("https://attacker.example/collect", "secret")
+            transport.scrapecreators_get("https://attacker.example/collect", "secret")
 
     def test_scrapecreators_key_must_be_single_line(self):
         for key in ("", " ", "secret\nforwarded"):
             with self.subTest(key=key), self.assertRaises(ValueError):
-                fetch_news.scrapecreators_get(
+                transport.scrapecreators_get(
                     "https://api.scrapecreators.com/v1/reddit/subreddit", key
                 )
 

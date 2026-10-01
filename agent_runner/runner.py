@@ -158,6 +158,7 @@ def _git_provenance() -> dict[str, Any]:
         ROOT / "corpus_schema.py",
         ROOT / "eval_briefing.py",
         ROOT / "fetch_news.py",
+        *sorted((ROOT / "news_fetch").rglob("*.py")),
         ROOT / "run_briefing.py",
         *sorted((ROOT / "agent_runner").glob("*.py")),
     ]
