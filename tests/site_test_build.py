@@ -728,7 +728,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 7)
+            self.assertEqual(history["schema_version"], 8)
             self.assertEqual(history["entries"][0]["repair_actions"], actions)
 
             second = root / "second"
@@ -1292,7 +1292,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 7)
+            self.assertEqual(history["schema_version"], 8)
             self.assertEqual(history["entries"][0]["provenance"], provenance)
 
             second = root / "second"
@@ -1315,7 +1315,7 @@ class BuildSiteTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.json"
-            for version in (True, 1, 2, 3, 4, 5, 6, 8):
+            for version in (True, 1, 2, 3, 4, 5, 6, 9):
                 with self.subTest(version=version):
                     path.write_text(json.dumps({"schema_version": version, "entries": []}))
                     with self.assertRaisesRegex(ValueError, "schema_version 7"):
@@ -1716,7 +1716,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             history = json.loads((root / "site/history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 7)
+            self.assertEqual(history["schema_version"], 8)
             entry = history["entries"][0]
             self.assertEqual(len(entry["advisory_findings"]), 1)
             self.assertEqual(entry["advisory_findings"][0]["check"], "exclusion_log_missing")
@@ -1965,3 +1965,63 @@ class BuildSiteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SemanticAuditSiteTests(unittest.TestCase):
+    def test_public_repair_audit_is_escaped_and_survives_rebuild(self):
+        from datetime import date
+
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            audit = daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+                                          judge=Judge(headline), repair_provider=PatchProvider())
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
+            payload = record.payload()
+            # The renderer must treat public model prose as text even in restored history.
+            payload['semantic_audit']['topics'][0]['original']['prose'] = '<script>alert(1)</script>'
+            (root / 'history/2026-09-30.json').write_text(json.dumps(payload))
+            build_site(root / 'history', root / 'site')
+            page = (root / 'site/reports/2026-09-30.html').read_text()
+            self.assertIn('Original prose', page)
+            self.assertIn('Changed prose — applied', page)
+            self.assertIn('0.90 / 0.90', page)
+            self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', page)
+            self.assertNotIn('<script>alert(1)</script>', page)
+            self.assertEqual(page.count('<h4>Original prose</h4>'), sum(len(c['positions']) for c in audit['checks']))
+            history = json.loads((root / 'site/history.json').read_text())
+            self.assertEqual(history['schema_version'], 8)
+            self.assertEqual(history['entries'][0]['semantic_audit'], payload['semantic_audit'])
+            self.assertNotIn('"evidence":', json.dumps(history['entries'][0]['semantic_audit']))
+            self.assertNotIn('"prompt":', json.dumps(history['entries'][0]['semantic_audit']))
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
+            self.assertEqual(page, (root / 'rebuilt/reports/2026-09-30.html').read_text())
+
+    def test_live_schema_seven_history_migrates_without_losing_prose(self):
+        from datetime import date
+
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _headline = make_run(root)
+            prepare_publication(run, root / 'input.json', root / 'history', date(2026, 9, 30))
+            build_site(root / 'history', root / 'site')
+            old = json.loads((root / 'site/history.json').read_text())
+            old['schema_version'] = 7
+            for entry in old['entries']:
+                del entry['semantic_audit']
+            (root / 'legacy.json').write_text(json.dumps(old))
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'legacy.json')
+            current = json.loads((root / 'rebuilt/history.json').read_text())
+            self.assertEqual(current['schema_version'], 8)
+            self.assertIsNone(current['entries'][0]['semantic_audit'])
+            self.assertEqual(current['entries'][0]['markdown'], old['entries'][0]['markdown'])

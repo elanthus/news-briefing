@@ -182,6 +182,9 @@ class GenerateReportsTests(unittest.TestCase):
             scripts = [command[1] for command in runner.commands if command[0] == sys.executable]
             self.assertEqual(scripts.count("fetch_news.py"), 1)
             self.assertEqual(scripts.count("run_daily_briefing.py"), 7)
+            for command in runner.commands:
+                if command[:2] == [sys.executable, "run_daily_briefing.py"]:
+                    self.assertEqual(command[command.index("--jev-repair-mode") + 1], "apply")
             self.assertEqual(scripts.count("prepare_publication.py"), 7)
             run_dates = [
                 command[command.index("--date") + 1]

@@ -174,3 +174,124 @@ def finding_payload(finding: ReviewFinding) -> dict[str, object]:
         "message": finding.message,
         "context": asdict(finding.context) if finding.context is not None else None,
     }
+
+
+SEMANTIC_CHECKS = {"duplicate", "unsafe_grouping", "unsupported_claim", "strengthened_claim", "reversed_claim"}
+SEMANTIC_AUDIT_FIELDS = {
+    "status", "post_status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
+    "skipped_oversized_checks",
+    "reported_cost_usd", "unknown_cost_calls", "topics", "checks",
+}
+
+
+def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
+    """Accept only bounded public prose and scores; never evidence or prompts."""
+    import math
+
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) != SEMANTIC_AUDIT_FIELDS:
+        raise ValueError("invalid semantic audit fields")
+
+    def probability(value: object, *, optional: bool = False) -> None:
+        if optional and value is None:
+            return
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not 0 <= value <= 1 or not math.isfinite(value)):
+            raise ValueError("invalid semantic audit probability")
+
+    def position(value: object) -> str:
+        if (not isinstance(value, dict) or set(value) != {"bucket", "section", "index"}
+                or value["bucket"] not in ("sections", "excluded_topics")
+                or not isinstance(value["section"], str) or not 1 <= len(value["section"]) <= 100
+                or type(value["index"]) is not int or not 0 <= value["index"] < 64):
+            raise ValueError("invalid semantic audit position")
+        return repr((value["bucket"], value["section"], value["index"]))
+
+    def prose(value: object) -> None:
+        if (not isinstance(value, dict) or set(value) != {"headline", "prose"}
+                or any(not isinstance(value[k], str) or not 1 <= len(value[k]) <= 2000 for k in value)):
+            raise ValueError("invalid semantic audit prose")
+
+    if raw["post_status"] not in (None, "complete", "partial", "failed"):
+        raise ValueError("invalid semantic post-review status")
+    if raw["status"] not in ("complete", "partial", "failed"):
+        raise ValueError("invalid semantic audit status")
+    if not isinstance(raw["model"], str) or not 1 <= len(raw["model"]) <= 100:
+        raise ValueError("invalid semantic audit model")
+    probability(raw["threshold"])
+    if raw["threshold"] == 0:
+        raise ValueError("invalid semantic audit threshold")
+    for field in ("planned_checks", "omitted_duplicate_pairs", "skipped_oversized_checks", "unknown_cost_calls"):
+        if type(raw[field]) is not int or not 0 <= raw[field] <= 5000:
+            raise ValueError("invalid semantic audit count")
+    cost = raw["reported_cost_usd"]
+    if type(cost) not in (int, float) or not 0 <= cost <= 100 or not math.isfinite(cost):
+        raise ValueError("invalid semantic audit cost")
+    topics, checks = raw["topics"], raw["checks"]
+    if not isinstance(topics, list) or len(topics) > 64 or not isinstance(checks, list) or len(checks) > 2300:
+        raise ValueError("semantic audit exceeds scope bound")
+    positions: set[str] = set()
+    for topic in topics:
+        if not isinstance(topic, dict) or set(topic) != {
+            "position", "original", "changed", "repair_status", "removed_evidence_count",
+        }:
+            raise ValueError("invalid semantic audit topic fields")
+        key = position(topic["position"])
+        if key in positions:
+            raise ValueError("duplicate semantic audit topic")
+        positions.add(key)
+        prose(topic["original"])
+        if topic["changed"] is not None:
+            prose(topic["changed"])
+        if topic["repair_status"] not in (
+            "unchanged", "candidate", "applied", "rejected", "failed", "skipped",
+        ):
+            raise ValueError("invalid semantic repair status")
+        if (topic["repair_status"] in ("candidate", "applied", "rejected")) != (topic["changed"] is not None):
+            raise ValueError("semantic repair prose does not match its status")
+        if type(topic["removed_evidence_count"]) is not int or not 0 <= topic["removed_evidence_count"] <= 64:
+            raise ValueError("invalid semantic removed-evidence count")
+    seen: set[str] = set()
+    for check in checks:
+        if not isinstance(check, dict) or set(check) != {
+            "check", "positions", "probability", "confirmation_probability", "confirmation_label",
+            "after_probability", "after_confirmation_probability", "after_confirmation_label", "after_basis",
+        } or not isinstance(check["check"], str) or check["check"] not in SEMANTIC_CHECKS:
+            raise ValueError("invalid semantic audit check")
+        refs = check["positions"]
+        count = 2 if check["check"] == "duplicate" else 1
+        if not isinstance(refs, list) or len(refs) != count:
+            raise ValueError("invalid semantic check position count")
+        keys = [position(ref) for ref in refs]
+        key = repr((check["check"], sorted(keys)))
+        if any(k not in positions for k in keys) or len(set(keys)) != count or key in seen:
+            raise ValueError("invalid or duplicate semantic check reference")
+        seen.add(key)
+        if check["after_basis"] not in (None, "model", "single_evidence"):
+            raise ValueError("invalid semantic post-check basis")
+        if (check["after_basis"] == "model") != (check["after_probability"] is not None):
+            raise ValueError("semantic post-check basis does not match score")
+        if check["after_basis"] == "single_evidence" and check["check"] != "unsafe_grouping":
+            raise ValueError("single evidence proves only grouping scope")
+        probability(check["probability"])
+        probability(check["confirmation_probability"], optional=True)
+        probability(check["after_probability"], optional=True)
+        probability(check["after_confirmation_probability"], optional=True)
+        for prefix in ("", "after_"):
+            p = check[prefix + "probability"]
+            confirmation = check[prefix + "confirmation_probability"]
+            label = check[prefix + "confirmation_label"]
+            expected = (None if p is None else "not_flagged" if p < raw["threshold"] else
+                        "unconfirmed" if confirmation is None else
+                        "confirmed" if confirmation >= raw["threshold"] else "disputed")
+            if label != expected or (confirmation is not None and (p is None or p < raw["threshold"])):
+                raise ValueError("semantic label does not match both scores")
+    if len(checks) > raw["planned_checks"]:
+        raise ValueError("semantic coverage exceeds planned checks")
+    if raw["status"] == "complete" and (
+        len(checks) != raw["planned_checks"] or raw["omitted_duplicate_pairs"]
+        or raw["skipped_oversized_checks"] or any(c["confirmation_label"] == "unconfirmed" for c in checks)
+    ):
+        raise ValueError("complete semantic audit has incomplete coverage")
+    return raw

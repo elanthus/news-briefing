@@ -182,7 +182,7 @@ def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any
 
 def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = None,
                threshold: float = 0.8, max_pairs: int = 1000, cost_ceiling: float = 0.10,
-               timeout: int = 30) -> dict[str, Any]:
+               timeout: int = 30, confirm_flags: bool = False) -> dict[str, Any]:
     """Write a separate advisory report, preserving partial and unknown-cost results."""
     if not math.isfinite(threshold) or not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
@@ -199,7 +199,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
     report: dict[str, Any] = {"schema_version": 1, "mode": "advisory", "model": JEV_MODEL,
                               "started_at": utc_now(), "status": "running", "threshold": threshold,
                               "cost_ceiling_usd": cost_ceiling, "max_duplicate_pairs": max_pairs,
-                              "timeout_seconds": timeout, "calls": [], "results": [],
+                              "timeout_seconds": timeout, "confirm_flags": confirm_flags, "calls": [], "results": [],
                               "max_review_seconds": MAX_REVIEW_SECONDS,
                               "limitations": ["Automated judgments, not human verification.",
                                                "Grounding covers supplied excerpts, not full articles.",
@@ -248,15 +248,50 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             for offset, task in enumerate(batch):
                 p = result["probabilities"][f"q{offset}"]
                 report["results"].append({"check": task["check"], "positions": task["positions"],
-                                          "probability": p, "flagged": p >= threshold})
+                                          "probability": p, "flagged": p >= threshold,
+                                          "confirmation_probability": None,
+                                          "confirmation_label": "unconfirmed" if p >= threshold else "not_flagged"})
             index += len(batch)
             if result["cost_usd"] is None:
                 report["stop_reason"] = "provider did not report cost; further calls refused"
                 break
             total_cost += result["cost_usd"]
             write_json_atomic(path, report)
+        if confirm_flags and not any(call.get("cost_usd") is None for call in report["calls"]):
+            by_task = {(task["check"], json.dumps(task["positions"], sort_keys=True)): task for task in tasks}
+            for row in report["results"]:
+                if not row["flagged"]:
+                    continue
+                task = by_task[(row["check"], json.dumps(row["positions"], sort_keys=True))]
+                state, questions, size = _payload([task])
+                remaining = deadline - time.monotonic()
+                if (remaining < 1 or len(report["calls"]) >= MAX_CALLS
+                        or total_cost + size * 0.042 / 1_000_000 > cost_ceiling):
+                    report["stop_reason"] = "confirmation budget or deadline reached"
+                    break
+                call = {"index": len(report["calls"]), "status": "in_flight", "checks": 1,
+                        "purpose": "isolated_confirmation", "check": row["check"], "positions": row["positions"],
+                        "request_sha256": sha256_bytes(json.dumps(
+                            {"model": JEV_MODEL, "state": state, "questions": questions},
+                            ensure_ascii=True).encode("ascii"))}
+                report["calls"].append(call)
+                write_json_atomic(path, report)
+                result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
+                call.update({key: value for key, value in result.items() if key != "probabilities"})
+                call["status"] = "complete"
+                row["confirmation_probability"] = result["probabilities"]["q0"]
+                row["confirmation_label"] = (
+                    "confirmed" if row["confirmation_probability"] >= threshold else "disputed"
+                )
+                write_json_atomic(path, report)
+                if result["cost_usd"] is None:
+                    report["stop_reason"] = "provider did not report confirmation cost; further calls refused"
+                    break
+                total_cost += result["cost_usd"]
         report["status"] = "complete" if (
             index == len(tasks) and not omitted and not report["skipped_oversized_checks"]
+            and (not confirm_flags or all(not row["flagged"] or row["confirmation_probability"] is not None
+                                          for row in report["results"]))
         ) else "partial"
     except (ValueError, OSError, ProviderError, KeyError, TypeError, RecursionError, OverflowError) as exc:
         report["status"] = "failed" if not report["results"] else "partial"
@@ -287,6 +322,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--confirm-flags", action="store_true")
     parser.add_argument("--threshold", type=float, default=0.8)
     parser.add_argument("--max-pairs", type=int, default=1000)
     parser.add_argument("--cost-ceiling", type=float, default=0.10)
@@ -294,7 +330,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         report = review_run(args.run_dir, args.output_dir, threshold=args.threshold,
-                            max_pairs=args.max_pairs, cost_ceiling=args.cost_ceiling, timeout=args.timeout)
+                            max_pairs=args.max_pairs, cost_ceiling=args.cost_ceiling, timeout=args.timeout,
+                            confirm_flags=args.confirm_flags)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     print(f"Jev advisory review: {report['status']}; {report['flagged_checks']} flagged checks; "

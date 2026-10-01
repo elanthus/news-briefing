@@ -20,6 +20,7 @@ from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow
+from agent_runner.semantic_repairs import daily_semantic_review
 
 
 @dataclass(frozen=True)
@@ -363,6 +364,8 @@ def main() -> int:
     parser.add_argument("--run-dir", type=Path, required=True, help="fallback-chain artifact directory")
     parser.add_argument("--jev-review-dir", type=Path,
                         help="write Jev advisory findings for the selected ready candidate")
+    parser.add_argument("--jev-repair-mode", choices=("candidates", "apply"),
+                        help="confirm Jev flags and retain bounded HY3 repair candidates")
     parser.add_argument("--corpus", type=Path, required=True, help="existing corpus to replay")
     parser.add_argument("--config", type=Path, default=briefing_config.DEFAULT_CONFIG_PATH)
     parser.add_argument("--sources", type=Path, default=fetch_news.DEFAULT_SOURCES_PATH)
@@ -374,6 +377,8 @@ def main() -> int:
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
 
+    if args.jev_repair_mode is not None and args.jev_review_dir is None:
+        parser.error("--jev-repair-mode requires --jev-review-dir")
     if args.run_dir.exists():
         parser.error(f"run directory already exists: {args.run_dir}")
     if args.output.exists() and not args.force:
@@ -404,7 +409,15 @@ def main() -> int:
             f"(artifacts: {result.run_dir})"
         )
         if args.jev_review_dir is not None and result.selected_run_dir is not None:
-            print_advisory_review(result.selected_run_dir, args.jev_review_dir)
+            if args.jev_repair_mode is None:
+                print_advisory_review(result.selected_run_dir, args.jev_review_dir)
+            else:
+                try:
+                    audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir,
+                                                  apply_repairs=args.jev_repair_mode == "apply")
+                    print(f"Jev daily checks: {audit['status']}; audit retained in {args.jev_review_dir}")
+                except (ValueError, OSError):
+                    print("Jev daily checks could not complete; original generation retained.", file=sys.stderr)
         return 0
     print(f"NO RESULT: all production models failed (artifacts: {result.run_dir})", file=sys.stderr)
     return 1
