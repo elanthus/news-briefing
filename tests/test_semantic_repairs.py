@@ -46,6 +46,29 @@ class Judge:
                 'cost_usd': None if self.missing_cost else 0.00001, 'latency_ms': 1}
 
 
+class CitationJudge(Judge):
+    def __init__(self, headline, bad_title, *, score=0.7, confirmation=0.7, after_score=0.1):
+        super().__init__(headline)
+        self.bad_title = bad_title
+        self.score = score
+        self.confirmation = confirmation
+        self.after_score = after_score
+
+    def evaluate(self, state, questions, *, timeout=30):
+        self.calls.append((copy.deepcopy(state), copy.deepcopy(questions)))
+        probabilities = {}
+        for i, (key, question) in enumerate(questions.items()):
+            check = state['checks'][i]
+            relevant = ('citation_evidence' in question['instructions']
+                        and check['topic']['headline'] == self.headline
+                        and check['citation_evidence']['title'] == self.bad_title)
+            after = ('citation_evidence' in question['instructions']
+                     and check['topic']['headline'] == 'Repaired headline')
+            probabilities[key] = (self.confirmation if len(questions) == 1 else self.score) if relevant else (
+                self.after_score if after else 0.1)
+        return {'probabilities': probabilities, 'model': 'typesafe/jev-test', 'cost_usd': 0.00001, 'latency_ms': 1}
+
+
 class PatchProvider:
     name = 'fake'
     model = 'patch'
@@ -90,6 +113,88 @@ def make_run(root, *, grouping=False):
 
 
 class SemanticRepairTests(unittest.TestCase):
+    def test_citation_removal_at_lower_threshold_and_followup_indexes_are_bound(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root, grouping=True)
+            topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
+            provider = PatchProvider()
+            judge = CitationJudge(headline, topic['evidence'][0]['title'])
+            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                          judge=judge, repair_provider=provider)
+            rows = [c for c in audit['checks'] if c['check'] == 'irrelevant_citation'
+                    and c['positions'] == [topic['position']]]
+            self.assertEqual(audit['citation_threshold'], 0.6)
+            self.assertEqual(audit['threshold'], 0.8)
+            self.assertEqual(rows[0]['confirmation_label'], 'confirmed')
+            self.assertEqual(rows[0]['after_basis'], 'citation_removed')
+            self.assertIsNone(rows[0]['after_probability'])
+            self.assertEqual(rows[1]['after_probability'], 0.1)
+            changed = next(t for t in audit['topics'] if t['changed'])
+            self.assertEqual(changed['repair_status'], 'applied')
+            self.assertEqual(changed['removed_evidence_count'], 1)
+            self.assertEqual(len(provider.requests), 1)
+            self.assertNotIn(topic['evidence'][0]['title'], provider.requests[0].prompt)
+            isolated = [state['checks'][0] for state, q in judge.calls if len(q) == 1]
+            self.assertEqual(isolated[0]['citation_evidence'], topic['evidence'][0])
+            self.assertEqual(set(isolated[0]), {'topic', 'citation_evidence'})
+            self.assertNotRegex(json.dumps(judge.calls), r'https?://|\b(?:citation|item)_\d+\b')
+            self.assertEqual(load_public_audit(run, root / 'review')[0], audit)
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            (root / 'review').rename(root / 'jev-review')
+            record = prepare_publication(root, root / 'input.json', root / 'published', date(2026, 10, 1))
+            self.assertEqual(record.disposition, 'ready')
+            self.assertEqual(record.semantic_audit, audit)
+            markdown = (root / 'published/2026-10-01.md').read_text()
+            self.assertNotIn(rows[0]['citation_urls'][0], markdown)
+            for field, value in (('citation_urls', ['https://example.com/wrong']), ('evidence_index', 1)):
+                envelope = json.loads((root / 'jev-review/audit.json').read_text())
+                next(c for c in envelope['audit']['checks'] if c['check'] == 'irrelevant_citation'
+                     and c['confirmation_label'] == 'confirmed')[field] = value
+                (root / 'jev-review/audit.json').write_text(json.dumps(envelope))
+                self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
+
+    def test_followup_citation_above_its_cutoff_prevents_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root, grouping=True)
+            topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
+            judge = CitationJudge(headline, topic['evidence'][0]['title'], after_score=0.65)
+            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                          judge=judge,
+                                          repair_provider=PatchProvider())
+            self.assertIn('rejected', [t['repair_status'] for t in audit['topics']])
+            self.assertEqual(load_public_audit(run, root / 'review')[1], run)
+            self.assertTrue(any(c['after_probability'] == 0.65 for c in audit['checks']))
+
+    def test_citation_schema_rejects_executable_urls_and_wrong_index_types(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _headline = make_run(root)
+            audit = daily_semantic_review(run, root / 'review', judge=Judge('never flagged'))
+            for field, value in (('citation_urls', ['javascript:alert(1)']), ('evidence_index', True),
+                                 ('citation_urls', ['https://user:password@example.com'])):
+                bad = copy.deepcopy(audit)
+                next(c for c in bad['checks'] if c['check'] == 'irrelevant_citation')[field] = value
+                with self.assertRaises(ValueError):
+                    parse_semantic_audit(bad)
+
+    def test_disputed_citation_and_last_source_are_preserved(self):
+        for grouping, confirmation in ((True, 0.59), (False, 0.7)):
+            with self.subTest(grouping=grouping), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run, headline = make_run(root, grouping=grouping)
+                topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
+                provider = PatchProvider()
+                judge = CitationJudge(headline, topic['evidence'][0]['title'], confirmation=confirmation)
+                audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                              judge=judge, repair_provider=provider)
+                self.assertFalse(provider.requests)
+                row = next(c for c in audit['checks'] if c['check'] == 'irrelevant_citation'
+                           and c['positions'] == [topic['position']] and c['evidence_index'] == 0)
+                self.assertEqual(row['confirmation_label'], 'disputed' if grouping else 'confirmed')
+                self.assertEqual(load_public_audit(run, root / 'review')[1], run)
+
     def test_confirmation_is_exact_and_disputed_score_prevents_repair(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

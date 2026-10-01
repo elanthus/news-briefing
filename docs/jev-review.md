@@ -2,16 +2,16 @@
 
 After the fallback chain selects a ready briefing, the daily publisher requests a
 Jev review, confirms each initial flag in isolation, and attempts one bounded HY3
-repair round for confirmed included grouping or prose problems. Accepted repairs
-update the public report; the original run remains immutable. The existing
+repair round for confirmed included citation, grouping or prose problems. Accepted
+repairs update the public report; the original run remains immutable. The existing
 `OPENROUTER_API_KEY` authenticates both models.
 
-The public integrity report includes every returned check, original generated
-headline and prose, changed prose when a valid candidate exists, both confirmation
-scores, follow-up scores and repair status. Missing or partial coverage is explicit.
-Frozen feed excerpts, model prompts and full call traces remain in the encrypted
-diagnostics archive. Audit judgments can be wrong: see the
-[preliminary evaluations](results/jev-preliminary-2026-09-30.md).
+The public integrity report summarizes counts by check category. It shows full
+before/after prose and outcomes for repair findings; when a category has none,
+it shows only its five highest scores with story names and citation destinations.
+The full public check records remain in history JSON. Frozen excerpts, prompts
+and call traces remain in encrypted diagnostics. Missing coverage is explicit.
+See the [preliminary evaluations](results/jev-preliminary-2026-09-30.md).
 
 The reviewer uses OpenRouter's Decisions API with `typesafe/jev-1.13` and the existing
 `OPENROUTER_API_KEY`. It requires no TypeSafe key or third-party Python package. Jev
@@ -44,20 +44,27 @@ or failed review, regardless of how many findings it flags.
 
 ## Confirmation and repair policy
 
-An initial score at or above 0.80 triggers a single recheck with only that
+An initial score at or above its threshold triggers a single recheck with only that
 finding's exact frozen evidence, prose and rubric. A pair check retains exactly
-its two topics. Both scores are preserved: **confirmed** requires both to reach
-0.80; otherwise the flag is **disputed**. If the recheck cannot return, the label
+its two topics. Citation relevance uses **0.60** by default; other checks use
+**0.80**. Both scores are preserved: **confirmed** requires both to reach the
+cutoff; otherwise the flag is **disputed**. If the recheck cannot return, the label
 is **unconfirmed**, coverage is partial and no repair is attempted.
 
-Only confirmed included grouping and prose findings trigger repair. Duplicate
-findings and excluded-topic grouping flags remain advisory. A round repairs at
+Confirmed included citation, grouping and prose findings trigger repair. Each
+citation check sees one source's title/excerpt and the published story's prose,
+with no neighboring sources. Code removes that exact source only when both scores
+reach 0.60. This favors excluding questionable links. Disputed and lower-scoring
+citations remain. If all sources in a slot are confirmed irrelevant, skip the
+repair round and retain the original report; the nonempty-citation contract still
+applies. Use `--citation-threshold` on the standalone reviewer to change its
+cutoff. Duplicate findings and excluded-topic grouping flags remain advisory. A round repairs at
 most four slots; more targets skip the entire round. HY3 keeps affected topics
 in their existing positions and code preserves every other topic and the
 exclusion log. No section reranking occurs.
 
-Grouping repair first selects a nonempty subset of a slot's own source items,
-using local integer indexes, then writes prose against the refrozen subset.
+After confirmed citation removals, grouping repair selects a nonempty subset of
+a slot's own source items, using local integer indexes, then writes prose against the refrozen subset.
 Prose-only repair preserves its original references and source order. No model
 receives a URL or opaque citation handle. Each actual repair call is limited to
 10,000 output tokens and 180 seconds; the round makes at most two calls through
@@ -65,11 +72,14 @@ the existing provider adapter. A prose-only round preserves selection in code,
 so it needs just one paid call.
 
 The normal runner validates and renders the complete candidate. A separate Jev
-review then repeats grouping/prose checks and duplicate comparisons for the
-candidate. Its coverage must be complete, costs known, and all checks involving
-an affected position must be below 0.80 before the repaired run becomes the
-publication input. A singleton source no longer needs a grouping check; the
+review then repeats citation, grouping and prose checks and duplicate comparisons
+for the candidate. Its coverage must be complete, costs known, and all checks involving
+an affected position must be below its respective threshold before the repaired
+run becomes the publication input. A singleton source no longer needs a grouping check; the
 audit identifies that code-level scope change without inventing a Jev score.
+Removed citations likewise have a removal outcome, not an invented follow-up
+score. Retained citations are matched back to their original frozen indexes so
+removing one cannot attach the next source's score to it.
 Unrelated findings remain visible and do not prevent an otherwise cleared repair.
 
 One round is the limit: a rejected candidate is retained in the audit, with the
@@ -89,8 +99,13 @@ they do not prove readability, truth or exhaustive support.
 The public `semantic_audit` field contains bounded generated before/after prose,
 positions, scores, labels, repair statuses and coverage/cost metadata. It never
 contains frozen feed titles/excerpts or model prompts. HTML treats all prose as
-plain escaped text. Every returned check has an audit row; pairs show both topics.
-Checks without a rewrite explicitly report no changed prose. Raw reports and
+plain escaped text; citation links come from validated code-owned destinations,
+never a model. Every returned check remains in public JSON. The HTML page shows
+counts (below threshold, confirmed, disputed, unconfirmed, requiring repair) for
+each check category. Categories with repair findings show all such findings with
+before/after prose; other categories show up to five highest initial scores,
+including both story names for pairs. Older audits remain readable; categories
+without recorded checks say so. Raw reports and
 failed private traces stay in `runs/DATE/jev-review/` in encrypted diagnostics.
 
 The site writes history schema 8 and migrates the existing schema-7 archive,
@@ -104,6 +119,7 @@ semantic prose.
 | Check | Evidence and scope |
 |---|---|
 | Reworded duplicate | Compare frozen evidence between included topics and between included and excluded topics, across sections. Shared entities or themes alone are not duplicates; distinct developments are not duplicates. Excluded-versus-excluded pairs are omitted. |
+| Citation relevance | For each included source, compare only its own frozen title/excerpt against the story headline and prose. Shared entities or themes alone do not make it relevant. |
 | Unsafe grouping | For every included or excluded topic citing multiple evidence items, judge whether those items describe distinct developments that should be separate stories. |
 | Unsupported claim | For each included headline and summary, judge whether any material factual assertion lacks support in its own frozen excerpts. |
 | Strengthened claim | Judge whether the included prose increases certainty, scope, magnitude, or causality beyond its own evidence. |
@@ -111,7 +127,8 @@ semantic prose.
 
 The report includes redacted topic evidence and positions, the question rubrics, all
 returned probabilities, per-call model identity, request hash, latency, reported cost, and input
-artifact hashes. A probability at or above `--threshold` (default `0.8`) flags a check.
+artifact hashes. A score at or above `--threshold` (default `0.8`) flags a check;
+citation relevance uses `--citation-threshold` (default `0.6`).
 This is a provisional triage threshold, not a calibrated guarantee of correctness.
 Several checks can flag one topic; `flagged_checks` is not a topic error rate.
 

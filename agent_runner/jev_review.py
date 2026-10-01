@@ -43,6 +43,14 @@ RUBRICS = {
         "Does `topic.evidence` combine distinct events or developments that should be separate stories? "
         "Multiple accounts of the same specific event are safe. Shared entities alone do not justify grouping."
     ),
+    "irrelevant_citation": (
+        "Does `citation_evidence` describe a different specific event or development from the central "
+        "event reported in `topic.headline` and `topic.prose`, making this citation irrelevant to that "
+        "story? Judge this citation individually using only its title and excerpt. Shared organizations, "
+        "people, products, or a broad theme alone do not establish relevance. Different accounts or "
+        "details of the same specific event are relevant. A citation need not support every sentence, "
+        "but it must report the same event or development. Do not use outside knowledge or infer absent details."
+    ),
     "unsupported_claim": (
         "Does `topic.headline` or `topic.prose` assert any material fact unsupported by all of "
         "`topic.evidence`? Use only these excerpts. Faithful paraphrases are supported; "
@@ -143,6 +151,27 @@ def load_topics(run_dir: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
     return public, hashes
 
 
+def task_key(row: dict[str, Any]) -> str:
+    """Keep per-source checks distinct at the same topic position."""
+    return json.dumps([row["check"], row["positions"], row.get("evidence_index")], sort_keys=True)
+
+
+def load_citation_urls(run: Path) -> dict[str, list[list[str]]]:
+    """Resolve verified frozen references in code; these destinations never enter model state."""
+    load_topics(run)
+    selection = _read_json(run / "frozen-selection.json")[0]
+    projected = project_corpus(_read_json(run / "corpus.json")[0])
+    urls = {}
+    for bucket in ("sections", "excluded_topics"):
+        for section, entries in selection[bucket].items():
+            rows = entries["topics"] if bucket == "sections" else entries
+            for index, row in enumerate(rows):
+                position = {"bucket": bucket, "section": section, "index": index}
+                urls[json.dumps(position, sort_keys=True)] = [
+                    [d.url for d in projected.citations[ref].destinations()] for ref in row["citation_refs"]]
+    return urls
+
+
 def build_tasks(topics: list[dict[str, Any]], max_pairs: int) -> tuple[list[dict[str, Any]], int]:
     tasks: list[dict[str, Any]] = []
     for topic in topics:
@@ -151,6 +180,12 @@ def build_tasks(topics: list[dict[str, Any]], max_pairs: int) -> tuple[list[dict
             checks.extend(("unsupported_claim", "strengthened_claim", "reversed_claim"))
         for check in checks:
             tasks.append({"check": check, "positions": [topic["position"]], "state": {"topic": topic}})
+        if topic["included"]:
+            for index, evidence in enumerate(topic["evidence"]):
+                tasks.append({"check": "irrelevant_citation", "positions": [topic["position"]],
+                              "evidence_index": index, "state": {
+                                  "topic": {"headline": topic["headline"], "prose": topic["prose"]},
+                                  "citation_evidence": evidence}})
     pairs = [(left, right) for left, right in itertools.combinations(topics, 2)
              if left["included"] or right["included"]]
     # If capped, prioritize lexical overlap, without treating it as a semantic verdict.
@@ -172,7 +207,8 @@ def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any
     # Prefix every field reference, not just the first, to prevent cross-topic support.
     for index, task in enumerate(tasks):
         rubric = RUBRICS[task["check"]]
-        for field in ("left.evidence", "right.evidence", "topic.evidence", "topic.headline", "topic.prose"):
+        for field in ("left.evidence", "right.evidence", "topic.evidence",
+                      "topic.headline", "topic.prose", "citation_evidence"):
             rubric = rubric.replace(f"`{field}`", f"`checks[{index}].{field}`")
         questions[f"q{index}"]["instructions"] = rubric + SCOPE
     size = len(json.dumps({"model": JEV_MODEL, "state": state, "questions": questions},
@@ -182,10 +218,12 @@ def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any
 
 def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = None,
                threshold: float = 0.8, max_pairs: int = 1000, cost_ceiling: float = 0.10,
-               timeout: int = 30, confirm_flags: bool = False) -> dict[str, Any]:
+               timeout: int = 30, confirm_flags: bool = False, citation_threshold: float = 0.6) -> dict[str, Any]:
     """Write a separate advisory report, preserving partial and unknown-cost results."""
     if not math.isfinite(threshold) or not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
+    if not math.isfinite(citation_threshold) or not 0 < citation_threshold <= 1:
+        raise ValueError("citation threshold must be in (0, 1]")
     if not math.isfinite(cost_ceiling) or not 0 < cost_ceiling <= 1:
         raise ValueError("cost ceiling must be in (0, 1] USD")
     if not 0 <= max_pairs <= 2016 or timeout <= 0:
@@ -198,6 +236,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
     deadline = time.monotonic() + MAX_REVIEW_SECONDS
     report: dict[str, Any] = {"schema_version": 1, "mode": "advisory", "model": JEV_MODEL,
                               "started_at": utc_now(), "status": "running", "threshold": threshold,
+                              "citation_threshold": citation_threshold,
                               "cost_ceiling_usd": cost_ceiling, "max_duplicate_pairs": max_pairs,
                               "timeout_seconds": timeout, "confirm_flags": confirm_flags, "calls": [], "results": [],
                               "max_review_seconds": MAX_REVIEW_SECONDS,
@@ -210,7 +249,8 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
         topics, hashes = load_topics(root)
         tasks, omitted = build_tasks(topics, max_pairs)
         report.update({"input_hashes": hashes, "topic_count": len(topics), "topics": topics, "rubrics": RUBRICS,
-                       "planned_checks": len(tasks), "omitted_duplicate_pairs": omitted,
+                       "citation_urls": load_citation_urls(root), "planned_checks": len(tasks),
+                       "omitted_duplicate_pairs": omitted,
                        "skipped_oversized_checks": 0})
         judge = client or JevClient()
         total_cost = 0.0
@@ -247,10 +287,13 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             call["status"] = "complete"
             for offset, task in enumerate(batch):
                 p = result["probabilities"][f"q{offset}"]
+                cutoff = citation_threshold if task["check"] == "irrelevant_citation" else threshold
                 report["results"].append({"check": task["check"], "positions": task["positions"],
-                                          "probability": p, "flagged": p >= threshold,
+                                          "probability": p, "flagged": p >= cutoff,
+                                          **({"evidence_index": task["evidence_index"]}
+                                             if "evidence_index" in task else {}),
                                           "confirmation_probability": None,
-                                          "confirmation_label": "unconfirmed" if p >= threshold else "not_flagged"})
+                                          "confirmation_label": "unconfirmed" if p >= cutoff else "not_flagged"})
             index += len(batch)
             if result["cost_usd"] is None:
                 report["stop_reason"] = "provider did not report cost; further calls refused"
@@ -258,11 +301,12 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             total_cost += result["cost_usd"]
             write_json_atomic(path, report)
         if confirm_flags and not any(call.get("cost_usd") is None for call in report["calls"]):
-            by_task = {(task["check"], json.dumps(task["positions"], sort_keys=True)): task for task in tasks}
+            by_task = {task_key(task): task for task in tasks}
             for row in report["results"]:
                 if not row["flagged"]:
                     continue
-                task = by_task[(row["check"], json.dumps(row["positions"], sort_keys=True))]
+                task = by_task[task_key(row)]
+                cutoff = citation_threshold if row["check"] == "irrelevant_citation" else threshold
                 state, questions, size = _payload([task])
                 remaining = deadline - time.monotonic()
                 if (remaining < 1 or len(report["calls"]) >= MAX_CALLS
@@ -281,7 +325,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 call["status"] = "complete"
                 row["confirmation_probability"] = result["probabilities"]["q0"]
                 row["confirmation_label"] = (
-                    "confirmed" if row["confirmation_probability"] >= threshold else "disputed"
+                    "confirmed" if row["confirmation_probability"] >= cutoff else "disputed"
                 )
                 write_json_atomic(path, report)
                 if result["cost_usd"] is None:
@@ -324,6 +368,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--confirm-flags", action="store_true")
     parser.add_argument("--threshold", type=float, default=0.8)
+    parser.add_argument("--citation-threshold", type=float, default=0.6)
     parser.add_argument("--max-pairs", type=int, default=1000)
     parser.add_argument("--cost-ceiling", type=float, default=0.10)
     parser.add_argument("--timeout", type=int, default=30)
@@ -331,7 +376,7 @@ def main() -> int:
     try:
         report = review_run(args.run_dir, args.output_dir, threshold=args.threshold,
                             max_pairs=args.max_pairs, cost_ceiling=args.cost_ceiling, timeout=args.timeout,
-                            confirm_flags=args.confirm_flags)
+                            confirm_flags=args.confirm_flags, citation_threshold=args.citation_threshold)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     print(f"Jev advisory review: {report['status']}; {report['flagged_checks']} flagged checks; "

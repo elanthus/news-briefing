@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import urllib.parse
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -176,7 +177,8 @@ def finding_payload(finding: ReviewFinding) -> dict[str, object]:
     }
 
 
-SEMANTIC_CHECKS = {"duplicate", "unsafe_grouping", "unsupported_claim", "strengthened_claim", "reversed_claim"}
+SEMANTIC_CHECKS = {"duplicate", "unsafe_grouping", "unsupported_claim", "strengthened_claim", "reversed_claim",
+                   "irrelevant_citation"}
 SEMANTIC_AUDIT_FIELDS = {
     "status", "post_status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
     "skipped_oversized_checks",
@@ -190,7 +192,8 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
 
     if raw is None:
         return None
-    if not isinstance(raw, dict) or set(raw) != SEMANTIC_AUDIT_FIELDS:
+    if (not isinstance(raw, dict)
+            or set(raw) not in (SEMANTIC_AUDIT_FIELDS, SEMANTIC_AUDIT_FIELDS | {"citation_threshold"})):
         raise ValueError("invalid semantic audit fields")
 
     def probability(value: object, *, optional: bool = False) -> None:
@@ -220,6 +223,9 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
     if not isinstance(raw["model"], str) or not 1 <= len(raw["model"]) <= 100:
         raise ValueError("invalid semantic audit model")
     probability(raw["threshold"])
+    probability(raw.get("citation_threshold", raw["threshold"]))
+    if raw.get("citation_threshold", raw["threshold"]) == 0:
+        raise ValueError("invalid citation threshold")
     if raw["threshold"] == 0:
         raise ValueError("invalid semantic audit threshold")
     for field in ("planned_checks", "omitted_duplicate_pairs", "skipped_oversized_checks", "unknown_cost_calls"):
@@ -229,7 +235,7 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
     if type(cost) not in (int, float) or not 0 <= cost <= 100 or not math.isfinite(cost):
         raise ValueError("invalid semantic audit cost")
     topics, checks = raw["topics"], raw["checks"]
-    if not isinstance(topics, list) or len(topics) > 64 or not isinstance(checks, list) or len(checks) > 2300:
+    if not isinstance(topics, list) or len(topics) > 64 or not isinstance(checks, list) or len(checks) > 5000:
         raise ValueError("semantic audit exceeds scope bound")
     positions: set[str] = set()
     for topic in topics:
@@ -254,26 +260,44 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
             raise ValueError("invalid semantic removed-evidence count")
     seen: set[str] = set()
     for check in checks:
-        if not isinstance(check, dict) or set(check) != {
+        if not isinstance(check, dict):
+            raise ValueError("invalid semantic audit check")
+        extra = {"evidence_index", "citation_urls"} if check.get("check") == "irrelevant_citation" else set()
+        if set(check) != {
             "check", "positions", "probability", "confirmation_probability", "confirmation_label",
             "after_probability", "after_confirmation_probability", "after_confirmation_label", "after_basis",
-        } or not isinstance(check["check"], str) or check["check"] not in SEMANTIC_CHECKS:
+        } | extra or not isinstance(check["check"], str) or check["check"] not in SEMANTIC_CHECKS:
             raise ValueError("invalid semantic audit check")
         refs = check["positions"]
         count = 2 if check["check"] == "duplicate" else 1
         if not isinstance(refs, list) or len(refs) != count:
             raise ValueError("invalid semantic check position count")
         keys = [position(ref) for ref in refs]
-        key = repr((check["check"], sorted(keys)))
+        if extra:
+            if type(check["evidence_index"]) is not int or not 0 <= check["evidence_index"] < 5000:
+                raise ValueError("invalid citation evidence index")
+            urls = check["citation_urls"]
+            if not isinstance(urls, list) or not 1 <= len(urls) <= 2:
+                raise ValueError("invalid semantic citation destinations")
+            for url in urls:
+                if not isinstance(url, str) or not 1 <= len(url) <= 4096 or any(ord(c) < 32 for c in url):
+                    raise ValueError("invalid semantic citation URL")
+                parsed = urllib.parse.urlsplit(url)
+                if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+                    raise ValueError("invalid semantic citation URL")
+        key = repr((check["check"], sorted(keys), check.get("evidence_index")))
         if any(k not in positions for k in keys) or len(set(keys)) != count or key in seen:
             raise ValueError("invalid or duplicate semantic check reference")
         seen.add(key)
-        if check["after_basis"] not in (None, "model", "single_evidence"):
+        if check["after_basis"] not in (None, "model", "single_evidence", "citation_removed"):
             raise ValueError("invalid semantic post-check basis")
         if (check["after_basis"] == "model") != (check["after_probability"] is not None):
             raise ValueError("semantic post-check basis does not match score")
         if check["after_basis"] == "single_evidence" and check["check"] != "unsafe_grouping":
             raise ValueError("single evidence proves only grouping scope")
+        if check["after_basis"] == "citation_removed" and check["check"] != "irrelevant_citation":
+            raise ValueError("citation removal proves only citation scope")
+        cutoff = raw.get("citation_threshold", raw["threshold"]) if extra else raw["threshold"]
         probability(check["probability"])
         probability(check["confirmation_probability"], optional=True)
         probability(check["after_probability"], optional=True)
@@ -282,10 +306,10 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
             p = check[prefix + "probability"]
             confirmation = check[prefix + "confirmation_probability"]
             label = check[prefix + "confirmation_label"]
-            expected = (None if p is None else "not_flagged" if p < raw["threshold"] else
+            expected = (None if p is None else "not_flagged" if p < cutoff else
                         "unconfirmed" if confirmation is None else
-                        "confirmed" if confirmation >= raw["threshold"] else "disputed")
-            if label != expected or (confirmation is not None and (p is None or p < raw["threshold"])):
+                        "confirmed" if confirmation >= cutoff else "disputed")
+            if label != expected or (confirmation is not None and (p is None or p < cutoff)):
                 raise ValueError("semantic label does not match both scores")
     if len(checks) > raw["planned_checks"]:
         raise ValueError("semantic coverage exceeds planned checks")

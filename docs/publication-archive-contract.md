@@ -74,16 +74,20 @@ Each `ready` or `review_required` publication carries a `provenance` object: the
 ## Daily semantic repair and audit
 
 After ordinary generation reaches `ready`, the daily command runs Jev checks and
-isolated confirmation. Confirmed included grouping/prose findings receive one
+isolated confirmation. Confirmed included citation/grouping/prose findings receive one
 bounded HY3 repair round. Only a structurally valid ready candidate with complete,
 clear follow-up checks involving affected slots replaces the publication input.
 Original fallback-chain artifacts remain immutable. Partial coverage, failed or
 rejected repairs retain the original ready report. Unrelated disputed findings
 do not block an otherwise-cleared repair; checks involving repaired slots must
 still clear the follow-up threshold. The sidecar's `semantic_audit`
-shows generated before/after prose and scores for every returned automated check,
-without frozen feed excerpts. Publication revalidates the source and repaired
-artifacts before accepting that audit or using its candidate.
+retains generated before/after prose and all scores without frozen excerpts.
+Citation rows identify a frozen evidence index and code-owned destinations.
+Citation removal requires both scores to reach 0.60; other repair thresholds stay
+0.80. Publication rebinds retained-source follow-up indexes to the originals and
+verifies that removed citations cannot return. The HTML audit shows per-category
+counts and repair findings, or the five highest scores when none require repair.
+Publication revalidates the source and repaired artifacts before accepting that audit or using its candidate.
 
 See [daily semantic checks and repairs](jev-review.md) for exact limits and
 [preliminary evaluations](results/jev-preliminary-2026-09-30.md) for observed
