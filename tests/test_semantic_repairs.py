@@ -197,6 +197,23 @@ class SemanticRepairTests(unittest.TestCase):
             path.write_text(json.dumps(envelope))
             self.assertEqual(load_public_audit(run, root / 'review'), (None, run))
 
+    def test_valid_looking_score_tampering_and_changed_review_artifact_are_rejected(self):
+        for tamper in ('audit-score', 'post-report'):
+            with self.subTest(tamper=tamper), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run, headline = make_run(root)
+                daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                      judge=Judge(headline), repair_provider=PatchProvider())
+                path = root / ('review/audit.json' if tamper == 'audit-score' else 'review/post-review/report.json')
+                data = json.loads(path.read_text())
+                if tamper == 'audit-score':
+                    row = next(c for c in data['audit']['checks'] if c['confirmation_label'] == 'confirmed')
+                    row['probability'] = 0.85
+                else:
+                    data['results'][0]['probability'] = 0.05
+                path.write_text(json.dumps(data))
+                self.assertEqual(load_public_audit(run, root / 'review'), (None, run))
+
     def test_damaged_repaired_markdown_falls_back_to_original_publication(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

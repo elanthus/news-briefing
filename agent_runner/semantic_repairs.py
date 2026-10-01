@@ -232,7 +232,8 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
         if check["check"] == "unsafe_grouping":
             grouping.add(key)
     metadata: dict[str, Any] = {"schema_version": 1, "input_hashes": report.get("input_hashes", {}),
-                                "applied": False, "targets": sorted(targets), "grouping": sorted(grouping)}
+                                "applied": False, "targets": sorted(targets), "grouping": sorted(grouping),
+                                "review_sha256": _read_json(destination / "report.json")[1]}
     if report["status"] != "complete" or report["unknown_cost_calls"] or len(targets) > MAX_REPAIR_TOPICS:
         for key in targets:
             by_position[key]["repair_status"] = "skipped"
@@ -254,6 +255,7 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
             verify_repair(run, repair_root / "run", targets, grouping)
             revised, hashes = load_topics(repair_root / "run")
             after = review_run(repair_root / "run", destination / "post-review", client=judge, confirm_flags=True)
+            metadata["post_review_sha256"] = _read_json(destination / "post-review" / "report.json")[1]
             audit["post_status"] = after["status"]
             audit["reported_cost_usd"] += after["reported_cost_usd"]
             audit["unknown_cost_calls"] += after["unknown_cost_calls"]
@@ -302,6 +304,36 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
         if audit is None:
             raise ValueError("missing semantic audit")
         metadata = envelope["metadata"]
+        before, review_hash = _read_json(destination / "report.json")
+        if metadata["review_sha256"] != review_hash:
+            raise ValueError("semantic review artifact hash mismatch")
+        initial = public_audit(before)
+        parse_semantic_audit(initial)
+        for field in ("status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
+                      "skipped_oversized_checks"):
+            if audit[field] != initial[field]:
+                raise ValueError("semantic audit review metadata mismatch")
+        base_fields = ("check", "positions", "probability", "confirmation_probability", "confirmation_label")
+        if ([{f: row[f] for f in base_fields} for row in audit["checks"]]
+                != [{f: row[f] for f in base_fields} for row in initial["checks"]]):
+            raise ValueError("semantic audit before scores mismatch")
+        post_report = None
+        if audit["post_status"] is not None:
+            post_report, post_hash = _read_json(destination / "post-review" / "report.json")
+            if metadata.get("post_review_sha256") != post_hash or audit["post_status"] != post_report["status"]:
+                raise ValueError("semantic post-review artifact hash mismatch")
+            post_scores = {_check_key(row): row for row in post_report["results"]}
+            for row in audit["checks"]:
+                recorded = post_scores.get(_check_key(row))
+                if recorded is not None:
+                    if (row["after_basis"] != "model" or row["after_probability"] != recorded["probability"]
+                            or row["after_confirmation_probability"] != recorded["confirmation_probability"]
+                            or row["after_confirmation_label"] != recorded["confirmation_label"]):
+                        raise ValueError("semantic audit after scores mismatch")
+                elif row["after_probability"] is not None:
+                    raise ValueError("semantic audit invented after score")
+        elif any(row["after_basis"] is not None for row in audit["checks"]):
+            raise ValueError("semantic audit has no post-review for its after scores")
         topics, hashes = load_topics(original)
         if metadata["input_hashes"] != hashes or len(topics) != len(audit["topics"]):
             raise ValueError("semantic audit source hash mismatch")
@@ -334,7 +366,9 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
                              if c["confirmation_label"] == "confirmed" and c["check"] != "duplicate"}
                 if not targets <= confirmed or any(t["repair_status"] != "applied" for t in changed):
                     raise ValueError("only confirmed target repairs may be applied")
-                after, _ = _read_json(destination / "post-review" / "report.json")
+                if post_report is None:
+                    raise ValueError("semantic repair has no post-review")
+                after = post_report
                 post = public_audit(after)
                 parse_semantic_audit(post)
                 if (post["status"] != "complete" or post["unknown_cost_calls"]
