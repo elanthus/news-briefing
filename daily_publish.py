@@ -205,6 +205,7 @@ def generate_reports(
                 "--corpus", str(corpus),
                 "--run-dir", str(run_dir),
                 "--jev-review-dir", str(run_dir / "jev-review"),
+                "--jev-repair-mode", "apply",
                 "--output", str(report),
                 "--force",
                 "--max-corrections", "3",

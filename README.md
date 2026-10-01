@@ -18,7 +18,7 @@ My news agent cited an article it had never been given.
 
 It was an early manual run in August 2026 (Claude Opus 5 via Claude Desktop), before any publishing pipeline existed. One link in its 22 plausible topics pointed at a story the fetcher had never retrieved. The deterministic checker rejected it with an `ungrounded_link` error ([dogfooding log](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair)), and that became the project's rule: **anything code can decide, the prompt does not get to decide.**
 
-Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS, Hacker News, and Reddit items, runs separate selection and prose passes, and publishes only what passes the gate. The model never receives a URL. It chooses among opaque handles; code resolves each to its destination. Whether the evidence supports the prose is not checked.
+Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS, Hacker News, and Reddit items, runs separate selection and prose passes, and publishes only what passes the gate. The model never receives a URL. It chooses among opaque handles; code resolves each to its destination. Jev checks whether the prose is supported by its frozen feed excerpts, confirms flags in isolation, and triggers bounded repairs; these model judgments can still be wrong.
 
 ## What code enforces, and what it doesn't
 
@@ -30,7 +30,7 @@ Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS,
 | Is the story eligible for this section? | Per-section schema enums and the validator restrict eligible handles. |
 | Did a source silently fail? | Every source request records an outcome, and the briefing must declare the resulting corpus health. |
 | Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied summaries of at least eight words block publication. Reworded duplicates still need model judgment. |
-| **Is the summary faithful to the article?** | **Not checked.** The system sees only the feed title and excerpt. Heuristics warn about claims the excerpt can't support. |
+| **Is the summary faithful to the article?** | Jev checks and repairs support against the frozen title and excerpt. The full article is not reviewed; low scores do not prove factual accuracy. |
 
 ## Architecture
 
@@ -45,12 +45,34 @@ prepare_publication.py / build_site.py  →  static site + per-run integrity rep
 
 The validator rejects any URL or reference token in prose, and rendering expands a Hacker News handle to both article and discussion links. This is destination allowlisting, not semantic grounding.
 
-Daily runs also record an **advisory Jev semantic review** through OpenRouter: reworded
-duplicates, distinct events grouped into one topic, and unsupported, strengthened, or
-reversed claims against frozen feed excerpts. These model judgments never change the
-publication decision and are not grounding verification. Reports stay in the encrypted
-diagnostics archive. See [Jev advisory review](docs/jev-review.md) for replay commands,
-coverage limits, and billing controls.
+Daily runs use **Jev checks and automatic repairs** through OpenRouter with the
+existing `OPENROUTER_API_KEY`:
+
+1. Review reworded duplicates, distinct events combined in one topic, and
+   unsupported, strengthened or reversed claims against frozen feed excerpts.
+2. Recheck each initial flag using only its exact evidence and prose, with the
+   same rubric. Both scores must reach 0.80 to confirm a finding.
+3. Repair confirmed grouping and prose problems once with HY3, keeping affected
+   stories in their existing slots and preserving all unaffected topics. Grouping
+   repairs retain a subset of the slot's sources; prose-only repairs keep all its
+   frozen sources. Code validates the candidate before another Jev review.
+4. Publish the repaired candidate only when follow-up coverage is complete and
+   every returned check involving an affected slot is below 0.80. Otherwise,
+   retain the original ready briefing and show the attempted repair in its audit.
+
+The per-run integrity report shows **original and changed prose for every returned
+check**, both confirmation scores, follow-up results, repair status, coverage and
+reported cost. No-change checks say so explicitly. Feed excerpts and prompts stay
+in encrypted diagnostics. Duplicate findings and grouping problems in exclusion
+entries remain advisory; the repair round does not rerank sections or delete slots.
+
+These are preliminary automated judgments, not grounding guarantees. The
+[September 30 preliminary evaluations](docs/results/jev-preliminary-2026-09-30.md)
+found useful grouping repairs and successful detection of seeded prose errors,
+but also false alarms, a missed attribution error and incomplete rewritten
+sentences. Monitor the audit as the daily workflow runs. See
+[daily semantic checks and repairs](docs/jev-review.md) for replay commands,
+coverage limits, repair bounds and billing controls.
 
 ## Read one
 

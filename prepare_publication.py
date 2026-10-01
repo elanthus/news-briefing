@@ -15,6 +15,7 @@ from typing import Any
 
 import corpus_schema
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
+from agent_runner.semantic_repairs import load_public_audit
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     FINDING_FIELDS,
@@ -51,9 +52,11 @@ class PublicationRecord:
     generation_failures: tuple[GenerationFailure, ...] = ()
     advisory_findings: tuple[ReviewFinding, ...] = ()
     provenance: Provenance | None = None
+    semantic_audit: dict[str, Any] | None = None
 
     def payload(self) -> dict[str, object]:
         return {
+            "semantic_audit": self.semantic_audit,
             "date": self.date,
             "disposition": self.disposition,
             "findings_count": self.findings_count,
@@ -457,7 +460,10 @@ def prepare_publication(
     provenance: Provenance | None = None
     public_content: bytes | None = None
 
+    semantic_audit: dict[str, Any] | None = None
     generation_run_dir = _selected_generation_run(run_dir)
+    if generation_run_dir is not None and (run_dir / "jev-review" / "audit.json").is_file():
+        semantic_audit, generation_run_dir = load_public_audit(generation_run_dir, run_dir / "jev-review")
     manifest = (
         _load_json(generation_run_dir / "manifest.json")
         if generation_run_dir is not None
@@ -544,6 +550,7 @@ def prepare_publication(
         ),
         advisory_findings=advisory_findings,
         provenance=provenance,
+        semantic_audit=semantic_audit if public_content is not None else None,
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
