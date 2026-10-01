@@ -1,5 +1,7 @@
 # Dogfooding log
 
+> Historical record of the manual runs from August 2026. The current production path is described in the [README](../README.md).
+
 This is the operating record for news-briefing. It records the first run of the day, including degraded runs, rather than keeping only successful reruns.
 
 It is long on purpose — it is provenance, not a tutorial. If you are reading three entries, read these:
@@ -45,7 +47,7 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 
 The first complete-run attempt of the day stopped during the initial model call, before a schema-valid briefing or checker result existed. The failed run is preserved under [`docs/runs/2026-08-18/`](runs/2026-08-18/) rather than being replaced by a cleaner rerun. Its manifest, closed corpus, exact request and schema, source/configuration snapshots, and append-only trace are archived there.
 
-- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Claude Code CLI 2.1.224 and exact model identifier `claude-sonnet-5`.
+- Environment: macOS 26.5.2, Python 3.14.6, Claude Code CLI 2.1.224, model `claude-sonnet-5`; orchestrated from the OpenAI Codex desktop app.
 - Provider boundary: the adapter invoked Claude Code with `--safe-mode`, no tools, a deny-all tool rule, disabled slash commands, no session persistence, and the runner's JSON schema. The model had no browsing or external retrieval path.
 - Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; repository commit `ab53f60`.
 - Corpus window: 2026-08-17 17:09:08 UTC → 2026-08-18 17:09:08 UTC (24h), with the default caps of 25 items per source and 60 per category.
@@ -62,7 +64,7 @@ After preserving the failed first run, the Claude Code adapter was changed to ex
 
 The complete live workflow was then rerun against a fresh corpus. Its artifacts are archived under [`structured-output-enabled/`](runs/2026-08-18/structured-output-enabled/). This is a follow-up to diagnose and verify the adapter fix, not a replacement for the failed first run.
 
-- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Claude Code CLI 2.1.224 and exact model identifier `claude-sonnet-5`.
+- Environment: macOS 26.5.2, Python 3.14.6, Claude Code CLI 2.1.224, model `claude-sonnet-5`; orchestrated from the OpenAI Codex desktop app.
 - Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; clean repository commit `0a06c30`.
 - Corpus window: 2026-08-17 17:41:05 UTC → 2026-08-18 17:41:05 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 196 items — 34 US politics, 60 US news, 53 world, 19 AI/tech, and 30 developer-community. Live fetch time: 24.559 seconds.
@@ -75,7 +77,7 @@ The complete live workflow was then rerun against a fresh corpus. Its artifacts 
 
 #### Controlled structured-runner corpus replay
 
-At owner request, the latest successful August 18 corpus was replayed through Codex CLI Terra and three OpenRouter models instead of being fetched again. The runner gained a `--corpus` replay path that validates, hashes, and archives the supplied corpus, and OpenRouter reasoning became enabled by default while remaining explicitly disableable. These implementation changes and their tests were uncommitted during generation, so the manifests record clean base commit `022f2d0` plus `dirty: true` and exact runtime source hashes.
+The latest successful August 18 corpus was replayed through Codex CLI Terra and three OpenRouter models instead of being fetched again. The runner gained a `--corpus` replay path that validates, hashes, and archives the supplied corpus, and OpenRouter reasoning became enabled by default while remaining explicitly disableable. These implementation changes and their tests were uncommitted during generation, so the manifests record clean base commit `022f2d0` plus `dirty: true` and exact runtime source hashes.
 
 - Controlled input: [`structured-output-enabled/corpus-2026-08-18.json`](runs/2026-08-18/structured-output-enabled/corpus-2026-08-18.json), SHA-256 `6f6f798f1d2e6ae7a3547d1917c68b4f04f0fa8894928286953176ad17687ee5`. All four completed comparisons archived byte-identical `corpus.json` artifacts and the same projected model corpus, SHA-256 `09de2b773fe2ec0c844bc745ce4f56b9cee703acb23c6bc8d4ea3acdd1e59301`.
 - Prompt and controls: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `50373c30bf4471dc056b3eb97c3d5eeb3f7ae1e9464c6c0c782493360e1d022b`; temperature 0 for OpenRouter; one checker-guided correction allowed; 600-second per-call deadline. Codex used its fixed medium reasoning. OpenRouter sent reasoning enabled and used each model's provider-default effort: Hy3 high, DeepSeek high, and Gemini mandatory medium.
@@ -90,7 +92,7 @@ At owner request, the latest successful August 18 corpus was replayed through Co
 
 The original run artifacts recorded all four completed candidates as `review_required`: their corrected or first accepted candidates remained corpus-bound and contract-accepted, but the multi-axis outcome policy quarantined evidence warnings instead of publishing them. PR review identified Terra's sole warning as a checker false positive: the figure parser split the supported abbreviated school-year range `2025–26` and treated `26` as a standalone figure. The corrected checker preserves and canonicalizes year ranges; re-evaluating Terra now yields 0 errors and 0 warnings, so its candidate is `ready` with degraded source coverage. The historical finding remains in the run artifact rather than being rewritten. Hy3 retains three `unsupported_figure` and two `claim_exceeds_evidence` warnings. DeepSeek retains one of each. Gemini retains one `exclusion_log_short` and two `claim_exceeds_evidence` warnings. The corpus had the same four recorded coverage gaps as the Claude structured-output follow-up.
 
-Production OpenRouter calls cost **$0.1370035874**. One successful Gemini diagnostic probe cost $0.00063075; rejected schema requests reported no usage. Total measured spend was therefore **$0.1376343374**, below the authorized $1 ceiling.
+Production OpenRouter calls cost **$0.1370035874**. One successful Gemini diagnostic probe cost $0.00063075; rejected schema requests reported no usage. Total measured spend was therefore **$0.1376343374**. Codex CLI subscription cost remains unavailable.
 
 Relative to previous records, Terra again needed one correction and was slightly faster than its August 17 run (106.650s versus 112.756s), with zero warnings under the amended checker versus two after the prior run's manual amendment. Reasoning-enabled Hy3 used one call, fewer reasoning tokens, less time, and less reported cost than its August 15 same-input follow-up, but corpus, prompt, and checker versions differ, so this is operational context rather than a controlled quality improvement. DeepSeek reasoning produced usable structured output for the first time in the production-sized workflow after the earlier 8,192-token ceiling had been exhausted without text; the permanent larger ceiling was the material difference. No earlier Gemini 3.7 Flash dogfood result exists. The same-corpus Claude result is not a controlled model comparison because it used an older prompt and projection, but it provides an operational reference: one 399.413-second call, three warnings, and $0.9580372.
 
@@ -98,7 +100,7 @@ Relative to previous records, Terra again needed one correction and was slightly
 
 The complete fetch → rank and summarize → check → single correction → final check loop, run at the requested Terra Medium setting. The corpus, both model attempts, corrected briefing, configuration snapshot, and machine-readable manifest are archived at [`docs/runs/2026-08-17/`](runs/README.md#removed-run-directories). The Codex CLI manifest records the exact generation model as `gpt-5.6-terra`; its adapter does not expose a separate reasoning-effort field.
 
-- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6, using Codex CLI 0.147.0 and `gpt-5.6-terra`. The generation process ran in the runner's empty read-only sandbox and rejected non-message/non-reasoning trace items.
+- Environment: macOS 26.5.2, Python 3.14.6, Codex CLI 0.147.0, model `gpt-5.6-terra`; orchestrated from the OpenAI Codex desktop app. The generation process ran in the runner's empty read-only sandbox and rejected non-message/non-reasoning trace items.
 - Prompt version: [`briefing-runner-prompt.md`](../briefing-runner-prompt.md) SHA-256 `745c9dda04decb2f984916704f84ab4a20707a9e78e979af2f5814f25a4c488c`; repository commit `748f4a9`.
 - Corpus window: 2026-08-17 04:13:45 UTC → 2026-08-18 04:13:45 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 210 items — 34 US politics, 60 US news, 49 world, 13 AI/tech, and 54 developer-community. Live fetch time: 24.655 seconds.
@@ -119,7 +121,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 
 The complete fetch → rank and summarize → check → single correction → final check loop, run with OpenRouter [`z-ai/glm-5.2`](https://openrouter.ai/z-ai/glm-5.2). Unlike the surrounding entries, this run has no `docs/runs/2026-08-16/` archive: the corpus, drafts, and configuration snapshot were not committed, so the figures below cannot be re-derived and there is no reproduce command. The prompt and configuration hashes were recorded at run time and identify the exact inputs.
 
-- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Operator date August 16, 2026 in `America/Los_Angeles`.
+- Environment: macOS 26.5.2, Python 3.14.6; orchestrated from the OpenAI Codex desktop app. Operator date August 16, 2026 in `America/Los_Angeles`.
 - Prompt version: [`briefing-prompt.md`](../evaluator/prompts/briefing-prompt.md) at base commit `b340548be06ec2d1a898bffda384defe5fd31730` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`; Git blob `731d706316b358b65550a22c8116dba5c0847df8`), prompt version name `production`. The assembled first-pass request, including the operator-date prefix, trusted configuration, and fetched corpus, had SHA-256 `b0473bf8ba717ff62f8be8ebc556f0776528b8c271d6d2914588ceb00a7a5231`.
 - Configuration version: `briefing-config.json` from the same base commit (SHA-256 `ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9`; Git blob `38429ea90cdd97ad95d949a232ccd169134e9905`).
 - Generation controls: temperature 0, no seed, reasoning enabled at `high` effort, a 100,000-token completion ceiling, and a 600-second per-call timeout. The model received only the trusted prompt and configuration plus the closed, untrusted corpus; no tools, browsing, or external retrieval were available to it.
@@ -138,9 +140,9 @@ The complete fetch → rank and summarize → check → single correction → fi
 
 The complete fetch → rank and summarize → check → single correction → final check loop run with OpenRouter `tencent/hy3`. The corpus, first draft, final `ERROR` briefing, configuration snapshot, and token/cost manifest are archived at [`docs/runs/2026-08-15/`](runs/README.md#removed-run-directories). This entry preserves the unhealthy result rather than replacing it with an unrecorded cleaner rerun.
 
-- Agent and execution environment: OpenAI Codex desktop agent on macOS 26.5.2 with Python 3.14.6. Generation used OpenRouter `tencent/hy3` with temperature 0, no seed, reasoning disabled, an 8,192-token output ceiling, and a 300-second per-call timeout. The model received only the trusted prompt/configuration and the closed corpus; it had no tools or browsing capability.
+- Environment: macOS 26.5.2, Python 3.14.6; orchestrated from the OpenAI Codex desktop app. Generation used OpenRouter `tencent/hy3` with temperature 0, no seed, reasoning disabled, an 8,192-token output ceiling, and a 300-second per-call timeout. The model received only the trusted prompt/configuration and the closed corpus; it had no tools or browsing capability.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
-- Initial environment attempt: the first sandboxed fetch had no outbound-network access and exited after 6.1 seconds with 0 usable items and 28 fetch errors. It was immediately rerun after network access was approved; the failed environment check is recorded here and is not misreported as source health.
+- Initial environment attempt: the first sandboxed fetch had no outbound-network access and exited after 6.1 seconds with 0 usable items and 28 fetch errors. It was immediately rerun with network access enabled; the failed environment check is recorded here and is not misreported as source health.
 - Corpus window: 2026-08-14 17:09:55 UTC → 2026-08-15 17:09:55 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 185 items — 24 US politics, 60 US news, 46 world, 3 AI/tech, and 52 developer-community. The successful live fetch took 19.65 seconds according to the corpus manifest.
 - Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries; `r/LocalLLaMA` and `r/cursor` returned HTTP 429. The briefing's corpus-health and validation sections record all three coverage gaps.
@@ -159,11 +161,11 @@ The complete fetch → rank and summarize → check → single correction → fi
 
 #### Reasoning-enabled follow-up on the same corpus
 
-At owner request, Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/README.md#removed-run-directories).
+Hy3 was run again against the exact archived corpus and configuration with reasoning enabled at the provider-default effort (high at run time). This is a same-input operational comparison, not a replacement for the first run. Its artifacts are archived under [`hy3-reasoning-enabled/`](runs/README.md#removed-run-directories).
 
 - Inferred prompt version (not recorded at run time): the same `briefing-prompt.md` version as the initial run, `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`).
 - Original-ceiling attempt: with the original 8,192-token completion budget and 300-second call timeout, Hy3 consumed the completion budget in reasoning and returned no text (`finish_reason='length'`). Because the one-off invocation did not persist the exception's usage envelope, its exact billed cost is unavailable. Using the identical retry's 33,260-token prompt count and the exhausted 8,192-token budget, the catalog-rate estimate is $0.008715696.
-- Owner-authorized retry controls: the same request was retried with a 100,000-token completion budget and a 600-second per-call timeout. No other generation control changed. The larger budget was subsequently made the evaluator's permanent default; the 10-minute timeout applied only to this follow-up.
+- Retry controls: the same request was retried with a 100,000-token completion budget and a 600-second per-call timeout. No other generation control changed. The larger budget was subsequently made the evaluator's permanent default; the 10-minute timeout applied only to this follow-up.
 - First completed draft: 90.85 seconds; 33,260 prompt tokens and 19,631 completion tokens, including 15,748 reasoning and 3,883 visible-output tokens. OpenRouter reported $0.014438142. The checker found 6 errors and 16 warnings: three AI subsection labels were unrecognized because the model again emitted literal square brackets, three BBC URLs lost their required query strings, and the unsupported-figure heuristic produced 16 warnings.
 - Correction: one checker-guided reasoning-enabled turn completed in 174.34 seconds using 37,355 prompt tokens and 14,093 completion tokens, including 10,189 reasoning and 3,904 visible-output tokens. OpenRouter reported $0.0117533658.
 - Final checker result: **0 errors and 27 warnings**. The briefing stabilized at `WARN`: AI News filled 3 of 4 slots, one Hacker News summary exceeded its thin evidence, and the remaining 25 warnings were `unsupported_figure` findings, mostly digits in inline citation URL paths being attributed to topic prose by the checker used for this run. No second correction was made.
@@ -181,14 +183,14 @@ At owner request, Hy3 was run again against the exact archived corpus and config
 
 The complete fetch → rank and summarize → check loop run with the Claude Code CLI. The corpus, corrected briefing, and configuration snapshot are archived at [`docs/runs/2026-08-13/`](runs/README.md#removed-run-directories).
 
-- Agent and execution environment: Claude Code 2.1.220 using Claude Sonnet 5 at high effort, in a local macOS checkout with Python 3.14.6. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
+- Environment: local macOS checkout, Python 3.14.6, Claude Code 2.1.220, model Claude Sonnet 5 at high effort. The generation process was limited to the `Read` and `Write` tools; its recorded usage confirms zero web searches and zero web fetches.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `bbefb4b` (SHA-256 `41b038151c36031df3d3ae35578b5d959168251a22fb04e6baa8273dd6b9d86c`). The CLI also loaded unarchived startup-hook context, so this identifies only the repository prompt, not the complete model input.
 - Corpus window: 2026-08-12 16:53:27 UTC → 2026-08-13 16:53:27 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 236 items — 35 US politics, 60 US news, 58 world, 23 AI/tech, and 60 developer-community. Elapsed live fetch time: 10.5 seconds.
 - Source failures: the Hacker News query `prompt engineering` returned successfully but contained zero recognized entries. The briefing's corpus-health prose and machine-readable manifest record the resulting coverage gap.
 - Processing: 36 AI/tech and 3 developer-community items failed the relevance filter; 1 US-news and 1 developer-community duplicate were dropped; a per-source cap dropped 6 world items; and the 60-per-category cap dropped 24 US-news and 43 developer-community items. No field, source-budget, or global-budget drops occurred, and all counters reconcile against `fetched`.
 - Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the empty source.
-- CLI behavior: the first buffered attempt was stopped after 369.1 seconds because it exposed no progress and had not written a file; it cost $0.3564 and made no web requests or file changes. A retry with streaming diagnostics completed in 363.4 seconds and cost $1.2746. That retry first wrote a partial one-section draft, recognized the truncation itself, and replaced it with the complete briefing. Total model cost across both attempts was $1.6310. User-level Claude Code startup hooks also loaded unrelated learning-mode and skill context despite the narrow tool allowlist; `--safe-mode` would make a future run more reproducible and less noisy.
+- CLI behavior: the first buffered attempt was stopped after 369.1 seconds because it exposed no progress and had not written a file; it cost $0.3564 and made no web requests or file changes. A retry with streaming diagnostics completed in 363.4 seconds and cost $1.2746. That retry first wrote a partial one-section draft, recognized the truncation itself, and replaced it with the complete briefing. Total model cost across both attempts was $1.6310.
 - Checker, first result: 0 errors, 1 warning — `claim_exceeds_evidence` because the Hacker News item “Codex in ChatGPT desktop app for Linux is now in preview” had an empty summary, while the generated prose expanded its 56-character title into 184 characters of unsupported framing.
 - Correction made after checking: reduced that summary to the title-supported statement, “Codex in the ChatGPT desktop app for Linux is now in preview.” No topic, citation, or section placement changed.
 - Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
@@ -204,7 +206,7 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
 
 The complete fetch → rank and summarize → check loop run in Codex. The corpus, briefing, and configuration snapshot are archived at [`docs/runs/2026-08-12/`](runs/README.md#removed-run-directories).
 
-- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Environment: local macOS checkout, Python 3.14.6; orchestrated from the OpenAI Codex desktop app.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `5e31cfa` (SHA-256 `e115aeb706bc87c3a9df87b349672d6f858e7ddf6a6b346dd6da0602b97fcf3a`).
 - Corpus window: 2026-08-11 18:54:09 UTC → 2026-08-12 18:54:09 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 210 items — 40 US politics, 60 US news, 58 world, 24 AI/tech, and 28 developer-community. Elapsed live fetch time: 25.4 seconds.
@@ -224,7 +226,7 @@ The complete fetch → rank and summarize → check loop run in Codex. The corpu
 
 The complete fetch → rank and summarize → check loop requested as a dated sample. Unlike the fixed 2026-08-09 regression pair, this run is preserved as a separate dated fixture set: [`corpus-2026-08-11.json`](../fixtures/corpus-2026-08-11.json), [`briefing-2026-08-11.md`](../fixtures/briefing-2026-08-11.md), and [`briefing-config-2026-08-11.json`](../fixtures/briefing-config-2026-08-11.json).
 
-- Agent and execution environment: OpenAI Codex desktop agent in a local macOS checkout with Python 3.14.6.
+- Environment: local macOS checkout, Python 3.14.6; orchestrated from the OpenAI Codex desktop app.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `2adfeba` (SHA-256 `a5067598917874ef5e30acfd65d7b2e55c9992c5b4c6ba2368a160696fa7e72b`).
 - Corpus window: 2026-08-10 16:47:41 UTC → 2026-08-11 16:47:41 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 230 items — 40 US politics, 60 US news, 55 world, 22 AI/tech, and 53 developer-community. Elapsed fetch time: 19.5 seconds.
@@ -243,7 +245,7 @@ The complete fetch → rank and summarize → check loop requested as a dated sa
 
 The regular `daily-news-briefing` scheduled task (fetch → rank and summarize → check loop), run unattended by Claude Code. The corpus, briefing, and config snapshot are archived at [`docs/runs/2026-08-10/`](runs/README.md#removed-run-directories), so this entry can be re-derived instead of taken on trust.
 
-- Agent and execution environment: Claude Sonnet 5 in Claude Code, running the scheduled `daily-news-briefing` task unattended, local macOS checkout with Python 3.14.6.
+- Environment: local macOS checkout, Python 3.14.6, Claude Code, model Claude Sonnet 5; run unattended as the scheduled `daily-news-briefing` task.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `c47973a` (SHA-256 `c83082cbeaa8df013a8de6251b8e26011aceccf9728b49fee5a955894daf49b2`). This is the latest prompt change before corpus generation and the version in the parent of the contemporaneous log commit; the artifacts were archived later, after another prompt change.
 - Corpus window: 2026-08-09 17:10:48 UTC → 2026-08-10 17:10:48 UTC (24h), default caps of 25 items per source and 60 per category.
 - Corpus: 208 items — 26 US politics, 60 US news, 47 world, 15 AI/tech, 60 developer-community. Elapsed fetch time wasn't captured on the actual run; an immediate follow-up fetch under the same environment and script took 23.9 seconds, given here as representative.
@@ -263,7 +265,7 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
 
 The complete fetch → rank and summarize → check loop that produced [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md). Every count below is derived from those two committed files, so this entry can be re-derived instead of taken on trust.
 
-- Agent and execution environment: Claude Opus 5 subagent via Claude Desktop 2.1.222, in a local macOS checkout with Python 3.14.6.
+- Environment: local macOS checkout, Python 3.14.6, Claude Desktop 2.1.222, model Claude Opus 5.
 - Inferred prompt version (not recorded at run time): `briefing-prompt.md` at `8f89fb6` (SHA-256 `3d470b528b257e52de3889bdda9dadda2f8f5255ac81abad4ae6010404c9885d`).
 - Corpus window: 2026-08-09 00:34 UTC → 2026-08-10 00:34 UTC (24h), with the default caps of 25 items per source and 60 per category.
 - Corpus: 158 items — 27 US politics, 53 US news, 46 world, 7 AI/tech, 25 developer-community. Elapsed fetch time: 27.1 seconds.
