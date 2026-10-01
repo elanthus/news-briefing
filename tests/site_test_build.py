@@ -1984,7 +1984,8 @@ class SemanticAuditSiteTests(unittest.TestCase):
             record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
             payload = record.payload()
             # The renderer must treat public model prose as text even in restored history.
-            payload['semantic_audit']['topics'][0]['original']['prose'] = '<script>alert(1)</script>'
+            changed_topic = next(t for t in payload['semantic_audit']['topics'] if t['changed'])
+            changed_topic['original']['prose'] = '<script>alert(1)</script>'
             (root / 'history/2026-09-30.json').write_text(json.dumps(payload))
             build_site(root / 'history', root / 'site')
             page = (root / 'site/reports/2026-09-30.html').read_text()
@@ -1993,7 +1994,9 @@ class SemanticAuditSiteTests(unittest.TestCase):
             self.assertIn('0.90 / 0.90', page)
             self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', page)
             self.assertNotIn('<script>alert(1)</script>', page)
-            self.assertEqual(page.count('<h4>Original prose</h4>'), sum(len(c['positions']) for c in audit['checks']))
+            self.assertEqual(page.count('<h4>Original prose</h4>'), sum(len(c['positions']) for c in audit['checks']
+                                  if c['confirmation_label'] == 'confirmed' and c['check'] != 'duplicate'
+                                  and c['positions'][0]['bucket'] == 'sections'))
             history = json.loads((root / 'site/history.json').read_text())
             self.assertEqual(history['schema_version'], 8)
             self.assertEqual(history['entries'][0]['semantic_audit'], payload['semantic_audit'])
@@ -2002,6 +2005,35 @@ class SemanticAuditSiteTests(unittest.TestCase):
             (root / 'empty').mkdir()
             build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
             self.assertEqual(page, (root / 'rebuilt/reports/2026-09-30.html').read_text())
+
+    def test_summary_and_top_five_limit_without_repairs_including_legacy_audit(self):
+        from collections import Counter
+
+        import build_site as build_site_module
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from publication_schema import parse_semantic_audit
+        from tests.test_semantic_repairs import Judge, make_run
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _headline = make_run(root)
+            audit = daily_semantic_review(run, root / 'review', judge=Judge('never flagged'))
+            for index, row in enumerate(audit['checks']):
+                row['probability'] = (index % 40) / 100
+            page = build_site_module._render_semantic_audit(audit)
+            counts = Counter(c['check'] for c in audit['checks'])
+            self.assertEqual(page.count('<details>'), sum(min(5, n) for n in counts.values()))
+            self.assertNotIn('<h4>Original prose</h4>', page)
+            self.assertIn('Total checks', page)
+            self.assertIn('confirmation not required', page)
+            self.assertIn('href="https://', page)
+            self.assertIn('Threshold: 0.60', page)
+            audit['checks'] = [c for c in audit['checks'] if c['check'] != 'irrelevant_citation']
+            audit['planned_checks'] = len(audit['checks'])
+            del audit['citation_threshold']
+            parse_semantic_audit(audit)
+            page = build_site_module._render_semantic_audit(audit)
+            self.assertIn('No returned checks in this category', page)
+            self.assertLessEqual(page.count('<details>'), 25)
 
     def test_live_schema_seven_history_migrates_without_losing_prose(self):
         from datetime import date

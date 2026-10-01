@@ -1351,51 +1351,100 @@ def _render_semantic_audit(audit: dict[str, Any]) -> str:
     topics = {json.dumps(t["position"], sort_keys=True): t for t in audit["topics"]}
     checks = sorted(audit["checks"], key=lambda c: (c["confirmation_label"] != "confirmed",
                                                   c["confirmation_label"] != "disputed", -c["probability"]))
+    repair_needed = any(c["confirmation_label"] == "confirmed" and c["check"] != "duplicate"
+                        and c["positions"][0]["bucket"] == "sections" for c in checks)
+    post_status = audit["post_status"] or ("not attempted" if repair_needed else "not required")
     parts = ['<section class="semantic-audit"><h2>Jev automated checks and repairs</h2>',
              '<p>Preliminary automated judgments against frozen excerpts. Agreement does not prove correctness. '
-             'Confirmed grouping and prose findings receive one bounded repair round. Applied repairs update '
+             'Confirmed citation, grouping and prose findings receive one bounded repair round. Applied repairs update '
              'the published briefing; rejected candidates retain the original prose.</p>',
              f'<p>Coverage: {html.escape(audit["status"])}; {len(checks)} of {audit["planned_checks"]} checks. '
-             f'Repair review: {html.escape(audit["post_status"] or "not run")}. '
+             f'Repair review: {html.escape(post_status)}. '
              f'Omitted pairs: {audit["omitted_duplicate_pairs"]}; oversized checks: '
              f'{audit["skipped_oversized_checks"]}. Model: {html.escape(audit["model"])}. '
              f'Reported cost: ${audit["reported_cost_usd"]:.4f}; unknown-cost calls: '
              f'{audit["unknown_cost_calls"]}.</p>']
-    for check in checks:
-        confirmation = check["confirmation_probability"]
-        first = f'{check["probability"]:.2f}'
-        second = "not run" if confirmation is None else f'{confirmation:.2f}'
-        label = check["confirmation_label"].replace("_", " ")
-        subject = " / ".join(topics[json.dumps(p, sort_keys=True)]["original"]["headline"][:100]
-                             for p in check["positions"])
-        parts.append('<details><summary>' + html.escape(check["check"].replace("_", " "))
-                     + f' — {html.escape(label)} ({first} / {second}): {html.escape(subject)}</summary>')
-        for position in check["positions"]:
-            topic = topics[json.dumps(position, sort_keys=True)]
-            location = f'{position["section"]}, slot {position["index"] + 1}'
-            if position["bucket"] == "excluded_topics":
-                location += " (excluded)"
-            old = topic["original"]
-            parts.append(f'<h3>{html.escape(location)}</h3><h4>Original prose</h4>'
-                         f'<p><strong>{html.escape(old["headline"])}</strong></p><p>{html.escape(old["prose"])}</p>')
-            new = topic["changed"]
-            if new is None:
-                parts.append(f'<p>Changed prose: none ({html.escape(topic["repair_status"])}).</p>')
-            else:
-                parts.append(f'<h4>Changed prose — {html.escape(topic["repair_status"])}</h4>'
-                             f'<p><strong>{html.escape(new["headline"])}</strong></p><p>{html.escape(new["prose"])}</p>'
-                             f'<p>Source items removed from this slot: {topic["removed_evidence_count"]}.</p>')
-        after = check["after_probability"]
-        if after is not None:
-            repeated = check["after_confirmation_probability"]
-            score = "not run" if repeated is None else f'{repeated:.2f}'
-            parts.append(f'<p>After check: {after:.2f} / {score} '
-                         f'({html.escape(check["after_confirmation_label"].replace("_", " "))}).</p>')
-        elif check["after_basis"] == "single_evidence":
-            parts.append("<p>After check: one evidence item remains; a grouping check is unnecessary.</p>")
-        elif any(topics[json.dumps(p, sort_keys=True)]["changed"] is not None for p in check["positions"]):
-            parts.append('<p>After check: not returned. The repair is not cleared for publication.</p>')
-        parts.append('</details>')
+    categories = (
+        ("irrelevant_citation", "Citation relevance"), ("unsafe_grouping", "Story grouping"),
+        ("unsupported_claim", "Unsupported claims"), ("strengthened_claim", "Overstated claims"),
+        ("reversed_claim", "Reversed meaning"), ("duplicate", "Duplicates"),
+    )
+    parts.append('<table><thead><tr><th>Check category</th><th>Total checks</th><th>Below threshold</th>'
+                 '<th>Confirmed</th><th>Disputed</th><th>Unconfirmed</th><th>Requiring repair</th>'
+                 '</tr></thead><tbody>')
+    by_category = {kind: [c for c in checks if c["check"] == kind] for kind, _ in categories}
+
+    def requires_repair(check: dict[str, Any]) -> bool:
+        return (check["confirmation_label"] == "confirmed" and check["check"] != "duplicate"
+                and check["positions"][0]["bucket"] == "sections")
+
+    for kind, label in categories:
+        rows = by_category[kind]
+        counts = [sum(c["confirmation_label"] == status for c in rows)
+                  for status in ("not_flagged", "confirmed", "disputed", "unconfirmed")]
+        count_text = ''.join(f'<td>{n}</td>' for n in counts)
+        parts.append(f'<tr><td>{label}</td><td>{len(rows)}</td>{count_text}'
+                     f'<td>{sum(requires_repair(c) for c in rows)}</td></tr>')
+    parts.append('</tbody></table>')
+    for kind, label in categories:
+        rows = by_category[kind]
+        repair_rows = [c for c in rows if requires_repair(c)]
+        threshold = (audit.get("citation_threshold", audit["threshold"])
+                     if kind == "irrelevant_citation" else audit["threshold"])
+        parts.append(f'<h3>{label}</h3><p>Threshold: {threshold:.2f} for both initial and confirmation scores.</p>')
+        if not rows:
+            parts.append('<p>No returned checks in this category.</p>')
+            continue
+        displayed = [(c, True) for c in repair_rows] if repair_rows else [
+            (c, False) for c in sorted(rows, key=lambda c: -c["probability"])[:5]]
+        parts.append('<p>Findings requiring repair.</p>' if repair_rows else
+                     '<p>No findings requiring repair. Highest scores (up to five):</p>')
+        for check, detailed in displayed:
+            confirmation = check["confirmation_probability"]
+            first = f'{check["probability"]:.2f}'
+            second = ("confirmation not required" if check["confirmation_label"] == "not_flagged"
+                      else "confirmation unavailable") if confirmation is None else f'{confirmation:.2f}'
+            label = check["confirmation_label"].replace("_", " ")
+            subject = " / ".join(topics[json.dumps(p, sort_keys=True)]["original"]["headline"][:100]
+                                 for p in check["positions"])
+            parts.append('<details><summary>' + html.escape(check["check"].replace("_", " "))
+                         + f' — {html.escape(label)} ({first} / {second}): {html.escape(subject)}</summary>')
+            if check["check"] == "irrelevant_citation":
+                parts.append('<p>Citation ' + str(check["evidence_index"] + 1) + ': '
+                             + ' · '.join('<a href="' + html.escape(url, quote=True) + '">'
+                                          + html.escape(url) + '</a>' for url in check["citation_urls"]) + '</p>')
+            for position in check["positions"]:
+                topic = topics[json.dumps(position, sort_keys=True)]
+                location = f'{position["section"]}, slot {position["index"] + 1}'
+                if position["bucket"] == "excluded_topics":
+                    location += " (excluded)"
+                old = topic["original"]
+                if not detailed:
+                    parts.append(f'<p>{html.escape(location)}: <strong>{html.escape(old["headline"])}</strong></p>')
+                    continue
+                parts.append(f'<h3>{html.escape(location)}</h3><h4>Original prose</h4>'
+                             f'<p><strong>{html.escape(old["headline"])}</strong></p><p>{html.escape(old["prose"])}</p>')
+                new = topic["changed"]
+                if new is None:
+                    parts.append(f'<p>Changed prose: none ({html.escape(topic["repair_status"])}).</p>')
+                else:
+                    parts.append(f'<h4>Changed prose — {html.escape(topic["repair_status"])}</h4>'
+                                 f'<p><strong>{html.escape(new["headline"])}</strong></p><p>{html.escape(new["prose"])}</p>'
+                                 f'<p>Source items removed from this slot: {topic["removed_evidence_count"]}.</p>')
+            after = check["after_probability"]
+            if after is not None:
+                repeated = check["after_confirmation_probability"]
+                score = ("confirmation not required" if check["after_confirmation_label"] == "not_flagged"
+                         else "confirmation unavailable") if repeated is None else f'{repeated:.2f}'
+                parts.append(f'<p>After check: {after:.2f} / {score} '
+                             f'({html.escape(check["after_confirmation_label"].replace("_", " "))}).</p>')
+            elif check["after_basis"] == "citation_removed":
+                parts.append("<p>After check: citation removed from the candidate.</p>")
+            elif check["after_basis"] == "single_evidence":
+                parts.append("<p>After check: one evidence item remains; a grouping check is unnecessary.</p>")
+            elif any(topics[json.dumps(p, sort_keys=True)]["changed"] is not None for p in check["positions"]):
+                parts.append('<p>After check: not returned. The repair is not cleared for publication.</p>')
+            parts.append('</details>')
     parts.append('</section>')
     return "\n".join(parts)
 

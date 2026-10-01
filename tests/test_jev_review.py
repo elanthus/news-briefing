@@ -238,15 +238,19 @@ class JevReviewTests(unittest.TestCase):
             topics = [{"included": True, "position": {}, "headline": "Large", "prose": "x" * 30_000,
                        "evidence": [{"title": "x" * 30_000}]}]
             judge = FakeJudge()
-            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})):
+            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})), patch(
+                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+            ):
                 report = review_run(root / "run", root / "review", client=judge)
             self.assertEqual(report["status"], "partial")
-            self.assertEqual(report["skipped_oversized_checks"], 3)
+            self.assertEqual(report["skipped_oversized_checks"], 4)
             self.assertFalse(judge.calls)
             topics[0]["headline"] = "Short"
             topics[0]["prose"] = "Short"
             topics[0]["evidence"] = [{"title": "Short"}]
-            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})):
+            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})), patch(
+                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+            ):
                 report = review_run(root / "run", root / "budget", client=judge, cost_ceiling=0.000000001)
             self.assertEqual(report["status"], "partial")
             self.assertFalse(judge.calls)

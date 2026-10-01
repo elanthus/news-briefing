@@ -48,24 +48,28 @@ The validator rejects any URL or reference token in prose, and rendering expands
 Daily runs use **Jev checks and automatic repairs** through OpenRouter with the
 existing `OPENROUTER_API_KEY`:
 
-1. Review reworded duplicates, distinct events combined in one topic, and
-   unsupported, strengthened or reversed claims against frozen feed excerpts.
-2. Recheck each initial flag using only its exact evidence and prose, with the
-   same rubric. Both scores must reach 0.80 to confirm a finding.
-3. Repair confirmed grouping and prose problems once with HY3, keeping affected
-   stories in their existing slots and preserving all unaffected topics. Grouping
-   repairs retain a subset of the slot's sources; prose-only repairs keep all its
-   frozen sources. Code validates the candidate before another Jev review.
-4. Publish the repaired candidate only when follow-up coverage is complete, costs
-   are known, and every returned check involving an affected slot is below 0.80.
-   Otherwise, retain the original ready briefing and show the attempted repair in
-   its audit.
+1. Review each included citation against its own frozen excerpt and story, plus
+   reworded duplicates, unsafe grouping, and unsupported, strengthened or reversed
+   claims.
+2. Recheck each flag in isolation with the same evidence, prose and rubric.
+   Citation removal requires both scores to reach **0.60**; grouping and prose
+   repairs still require **0.80**. The lower citation cutoff favors excluding
+   questionable links, at the cost of some useful citations.
+3. Code removes confirmed irrelevant citations, then HY3 rewrites affected slots
+   against their remaining frozen evidence. Grouping repairs may retain a further
+   subset; prose-only repairs keep their sources. All unaffected topics retain
+   their positions and prose. The normal validator checks the candidate.
+4. Publish a repaired candidate only with complete follow-up coverage, known costs,
+   and all returned checks involving affected slots below their respective
+   thresholds. Otherwise retain the original ready briefing. A repair that would
+   remove every source from a slot is skipped rather than publish an uncited story.
 
-The per-run integrity report shows **original and changed prose for every returned
-check**, both confirmation scores, follow-up results, repair status, coverage and
-reported cost. No-change checks say so explicitly. Feed excerpts and prompts stay
-in encrypted diagnostics. Duplicate findings and grouping problems in exclusion
-entries remain advisory; the repair round does not rerank sections or delete slots.
+The integrity report shows **counts by check category**. Categories with repair
+findings show their original and changed prose, scores and outcomes. Categories
+without repair findings show only their **five highest scores**, with the relevant
+stories and citation links. The full check data remains in public history JSON.
+Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
+excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
 
 These are preliminary automated judgments, not grounding guarantees. The
 [September 30 preliminary evaluations](docs/results/jev-preliminary-2026-09-30.md)

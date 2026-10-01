@@ -11,7 +11,7 @@ from typing import Any
 import fetch_news
 from agent_runner.checkpoint import sha256_bytes, write_json_atomic
 from agent_runner.decisions import MAX_REQUEST_BYTES
-from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json, load_topics, review_run
+from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json, load_citation_urls, load_topics, review_run
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 from agent_runner.output import redact_destinations, redact_opaque_references
 from agent_runner.providers import provider_for
@@ -27,7 +27,8 @@ def position_key(position: dict[str, Any]) -> str:
 
 
 def _check_key(row: dict[str, Any]) -> str:
-    return json.dumps([row["check"], sorted(position_key(p) for p in row["positions"])])
+    return json.dumps([row["check"], sorted(position_key(p) for p in row["positions"]),
+                       row.get("evidence_index")])
 
 
 def _candidate(run: Path) -> dict[str, Any]:
@@ -36,7 +37,8 @@ def _candidate(run: Path) -> dict[str, Any]:
     return _read_json(run / attempt["structured_artifact"])[0]
 
 
-def verify_repair(original: Path, repaired: Path, targets: set[str], grouping: set[str]) -> None:
+def verify_repair(original: Path, repaired: Path, targets: set[str], grouping: set[str],
+                  removed: dict[str, set[int]] | None = None) -> None:
     """Verify normal contracts, exact untouched output, and nonempty source subsets."""
     load_topics(original)
     load_topics(repaired)
@@ -73,7 +75,10 @@ def verify_repair(original: Path, repaired: Path, targets: set[str], grouping: s
             new_refs = new_selection["sections"][section]["topics"][index]["citation_refs"]
             if not new_refs or not set(new_refs) <= set(old_refs):
                 raise ValueError("semantic repair selected new evidence")
-            if key not in grouping and new_refs != old_refs:
+            allowed = [ref for i, ref in enumerate(old_refs) if i not in (removed or {}).get(key, set())]
+            if not set(new_refs) <= set(allowed):
+                raise ValueError("semantic repair retained a confirmed irrelevant citation")
+            if key not in grouping and new_refs != allowed:
                 raise ValueError("prose repair changed frozen references")
     if visited != targets:
         raise ValueError("semantic repair has invalid target positions")
@@ -86,7 +91,7 @@ class RepairProvider:
     model = REPAIR_MODEL
 
     def __init__(self, original: Path, destination: Path, targets: set[str], grouping: set[str],
-                 delegate: ModelProvider) -> None:
+                 delegate: ModelProvider, removed: dict[str, set[int]] | None = None) -> None:
         self.original = original
         self.destination = destination
         self.targets = targets
@@ -96,6 +101,11 @@ class RepairProvider:
         self.topics = {position_key(t["position"]): t for t in topics}
         self.selection = _read_json(original / "frozen-selection.json")[0]
         self.candidate = _candidate(original)
+        self.removed = removed or {}
+        for key, indexes in self.removed.items():
+            pos = self.topics[key]["position"]
+            entry = self.selection["sections"][pos["section"]]["topics"][pos["index"]]
+            entry["citation_refs"] = [ref for i, ref in enumerate(entry["citation_refs"]) if i not in indexes]
         self.calls: list[dict[str, Any]] = []
 
     def info(self) -> dict[str, Any]:
@@ -125,9 +135,11 @@ class RepairProvider:
             if selection_stage:
                 # Position-local integers avoid sending opaque citation handles or destinations.
                 properties[label] = {"type": "array", "items": {"type": "integer", "minimum": 0,
-                                     "maximum": len(topic["evidence"]) - 1}, "minItems": 1,
+                                     "maximum": len(topic["evidence"]) - len(self.removed.get(key, set())) - 1},
+                                     "minItems": 1,
                                      "maxItems": len(topic["evidence"])}
-                state[label] = {"section": section, "evidence": topic["evidence"]}
+                state[label] = {"section": section, "evidence": [
+                    e for i, e in enumerate(topic["evidence"]) if i not in self.removed.get(key, set())]}
             else:
                 properties[label] = {"type": "object", "properties": {
                     "headline": {"type": "string", "minLength": 1, "maxLength": 300},
@@ -195,6 +207,31 @@ class RepairProvider:
         return replace(answer, structured_output=merged)
 
 
+def aligned_post_checks(original: Path, repaired: Path, after: dict[str, Any]
+                        ) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Bind follow-up source indexes to the original frozen references, including removed sources."""
+    old = _read_json(original / "frozen-selection.json")[0]
+    new = _read_json(repaired / "frozen-selection.json")[0]
+    scores = {}
+    removed = set()
+    for section, data in old["sections"].items():
+        for index, topic in enumerate(data["topics"]):
+            refs = new["sections"][section]["topics"][index]["citation_refs"]
+            for i, ref in enumerate(topic["citation_refs"]):
+                if ref not in refs:
+                    removed.add(_check_key({"check": "irrelevant_citation", "positions": [
+                        {"bucket": "sections", "section": section, "index": index}], "evidence_index": i}))
+    for row in after["results"]:
+        aligned = dict(row)
+        if row["check"] == "irrelevant_citation":
+            pos = row["positions"][0]
+            previous = old["sections"][pos["section"]]["topics"][pos["index"]]["citation_refs"]
+            current = new["sections"][pos["section"]]["topics"][pos["index"]]["citation_refs"]
+            aligned["evidence_index"] = previous.index(current[row["evidence_index"]])
+        scores[_check_key(aligned)] = aligned
+    return scores, removed
+
+
 def public_audit(report: dict[str, Any]) -> dict[str, Any]:
     """Project only generated prose and scores, excluding frozen feed excerpts."""
     topics = [{"position": t["position"], "original": {"headline": t["headline"], "prose": t["prose"]},
@@ -204,13 +241,17 @@ def public_audit(report: dict[str, Any]) -> dict[str, Any]:
                "confirmation_probability": r.get("confirmation_probability"),
                "confirmation_label": r.get("confirmation_label", "unconfirmed" if r["flagged"] else "not_flagged"),
                "after_probability": None, "after_confirmation_probability": None, "after_confirmation_label": None,
-               "after_basis": None}
+               "after_basis": None,
+               **({"evidence_index": r["evidence_index"], "citation_urls": report["citation_urls"][
+                   position_key(r["positions"][0])][r["evidence_index"]]}
+                  if r["check"] == "irrelevant_citation" else {})}
               for r in report["results"]]
     return {"status": report["status"], "post_status": None, "model": report["model"], "threshold": report["threshold"],
             "planned_checks": report.get("planned_checks", 0), "omitted_duplicate_pairs": report.get(
                 "omitted_duplicate_pairs", 0), "skipped_oversized_checks": report.get("skipped_oversized_checks", 0),
             "reported_cost_usd": report["reported_cost_usd"], "unknown_cost_calls": report["unknown_cost_calls"],
-            "topics": topics, "checks": checks}
+            "topics": topics, "checks": checks,
+            **({"citation_threshold": report["citation_threshold"]} if "citation_threshold" in report else {})}
 
 
 def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool = False,
@@ -219,8 +260,10 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
     report = review_run(run, destination, client=judge, confirm_flags=True)
     audit = public_audit(report)
     by_position = {position_key(t["position"]): t for t in audit["topics"]}
+    evidence_counts = {position_key(t["position"]): len(t["evidence"]) for t in report.get("topics", [])}
     grouping: set[str] = set()
     targets: set[str] = set()
+    removed: dict[str, set[int]] = {}
     for check in audit["checks"]:
         if check["confirmation_label"] != "confirmed" or check["check"] == "duplicate":
             continue
@@ -231,17 +274,23 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
         targets.add(key)
         if check["check"] == "unsafe_grouping":
             grouping.add(key)
+        elif check["check"] == "irrelevant_citation":
+            removed.setdefault(key, set()).add(check["evidence_index"])
     metadata: dict[str, Any] = {"schema_version": 1, "input_hashes": report.get("input_hashes", {}),
                                 "applied": False, "targets": sorted(targets), "grouping": sorted(grouping),
-                                "review_sha256": _read_json(destination / "report.json")[1]}
-    if report["status"] != "complete" or report["unknown_cost_calls"] or len(targets) > MAX_REPAIR_TOPICS:
+                                "review_sha256": _read_json(destination / "report.json")[1],
+                                "removed_citations": {k: sorted(v) for k, v in removed.items()}}
+    if report["status"] != "complete" or report["unknown_cost_calls"] or len(targets) > MAX_REPAIR_TOPICS or any(
+        len(indexes) == evidence_counts[key]
+        for key, indexes in removed.items()
+    ):
         for key in targets:
             by_position[key]["repair_status"] = "skipped"
     elif targets:
         repair_root = destination / "repair"
         repair_root.mkdir()
         provider = RepairProvider(run, repair_root, targets, grouping, repair_provider or provider_for(
-            "openrouter", REPAIR_MODEL, temperature=0.2, reasoning_effort="high", max_tokens=10000))
+            "openrouter", REPAIR_MODEL, temperature=0.2, reasoning_effort="high", max_tokens=10000), removed=removed)
         try:
             policy = repair_root / "policy.txt"
             policy.write_text("Repair only confirmed target positions using their own frozen evidence.\n")
@@ -252,20 +301,22 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
             result = run_workflow(provider, settings, repair_root / "run")
             if result.status != "ready":
                 raise ValueError("semantic repair failed normal validation")
-            verify_repair(run, repair_root / "run", targets, grouping)
+            verify_repair(run, repair_root / "run", targets, grouping, removed)
             revised, hashes = load_topics(repair_root / "run")
             after = review_run(repair_root / "run", destination / "post-review", client=judge, confirm_flags=True)
             metadata["post_review_sha256"] = _read_json(destination / "post-review" / "report.json")[1]
             audit["post_status"] = after["status"]
             audit["reported_cost_usd"] += after["reported_cost_usd"]
             audit["unknown_cost_calls"] += after["unknown_cost_calls"]
-            after_checks = {_check_key(r): r for r in after["results"]}
+            after_checks, removed_checks = aligned_post_checks(run, repair_root / "run", after)
             for check in audit["checks"]:
                 row = after_checks.get(_check_key(check))
                 if row is not None:
                     check.update(after_probability=row["probability"],
                                  after_confirmation_probability=row.get("confirmation_probability"),
                                  after_confirmation_label=row["confirmation_label"], after_basis="model")
+                elif _check_key(check) in removed_checks:
+                    check["after_basis"] = "citation_removed"
                 elif check["check"] == "unsafe_grouping":
                     new_topic = next(t for t in revised if t["position"] == check["positions"][0])
                     if len(new_topic["evidence"]) == 1:
@@ -310,19 +361,24 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
         initial = public_audit(before)
         parse_semantic_audit(initial)
         for field in ("status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
-                      "skipped_oversized_checks"):
+                      "skipped_oversized_checks", "citation_threshold"):
+            if field not in initial and field not in audit:
+                continue
             if audit[field] != initial[field]:
                 raise ValueError("semantic audit review metadata mismatch")
-        base_fields = ("check", "positions", "probability", "confirmation_probability", "confirmation_label")
-        if ([{f: row[f] for f in base_fields} for row in audit["checks"]]
-                != [{f: row[f] for f in base_fields} for row in initial["checks"]]):
+        if "citation_urls" in before and before["citation_urls"] != load_citation_urls(original):
+            raise ValueError("semantic audit citation destinations mismatch")
+        base_fields = ("check", "positions", "probability", "confirmation_probability", "confirmation_label",
+                       "evidence_index", "citation_urls")
+        if ([{f: row[f] for f in base_fields if f in row} for row in audit["checks"]]
+                != [{f: row[f] for f in base_fields if f in row} for row in initial["checks"]]):
             raise ValueError("semantic audit before scores mismatch")
         post_report = None
         if audit["post_status"] is not None:
             post_report, post_hash = _read_json(destination / "post-review" / "report.json")
             if metadata.get("post_review_sha256") != post_hash or audit["post_status"] != post_report["status"]:
                 raise ValueError("semantic post-review artifact hash mismatch")
-            post_scores = {_check_key(row): row for row in post_report["results"]}
+            post_scores, removed_checks = aligned_post_checks(original, destination / "repair" / "run", post_report)
             for row in audit["checks"]:
                 recorded = post_scores.get(_check_key(row))
                 if recorded is not None:
@@ -332,6 +388,8 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
                         raise ValueError("semantic audit after scores mismatch")
                 elif row["after_probability"] is not None:
                     raise ValueError("semantic audit invented after score")
+                if (row["after_basis"] == "citation_removed") != (_check_key(row) in removed_checks):
+                    raise ValueError("semantic audit citation removal mismatch")
         elif any(row["after_basis"] is not None for row in audit["checks"]):
             raise ValueError("semantic audit has no post-review for its after scores")
         topics, hashes = load_topics(original)
@@ -352,7 +410,14 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if len(targets) > MAX_REPAIR_TOPICS or {position_key(t["position"]) for t in changed} != targets:
                 raise ValueError("semantic audit repair scope mismatch")
             repaired = destination / "repair" / "run"
-            verify_repair(original, repaired, targets, grouping)
+            removed = {k: set(v) for k, v in metadata.get("removed_citations", {}).items()}
+            confirmed_removals: dict[str, set[int]] = {}
+            for row in audit["checks"]:
+                if row["check"] == "irrelevant_citation" and row["confirmation_label"] == "confirmed":
+                    confirmed_removals.setdefault(position_key(row["positions"][0]), set()).add(row["evidence_index"])
+            if removed != confirmed_removals:
+                raise ValueError("semantic citation removals are not confirmed")
+            verify_repair(original, repaired, targets, grouping, removed)
             revised, repaired_hashes = load_topics(repaired)
             if metadata.get("repaired_hashes") != repaired_hashes:
                 raise ValueError("semantic audit repair hash mismatch")
@@ -372,7 +437,9 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
                 post = public_audit(after)
                 parse_semantic_audit(post)
                 if (post["status"] != "complete" or post["unknown_cost_calls"]
-                        or any(c["probability"] >= post["threshold"] and any(
+                        or any(c["probability"] >= (post.get("citation_threshold", post["threshold"])
+                                                      if c["check"] == "irrelevant_citation" else post["threshold"])
+                                and any(
                             position_key(p) in targets for p in c["positions"]) for c in post["checks"])
                         or after["input_hashes"] != repaired_hashes):
                     raise ValueError("semantic repair post-review was not clear")
