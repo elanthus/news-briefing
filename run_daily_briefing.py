@@ -416,8 +416,9 @@ def main() -> int:
                     audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir,
                                                   apply_repairs=args.jev_repair_mode == "apply")
                     print(f"Jev daily checks: {audit['status']}; audit retained in {args.jev_review_dir}")
-                except (ValueError, OSError):
-                    print("Jev daily checks could not complete; original generation retained.", file=sys.stderr)
+                except Exception as exc:
+                    print("Jev daily checks could not complete; original generation retained "
+                          f"({type(exc).__name__}).", file=sys.stderr)
         return 0
     print(f"NO RESULT: all production models failed (artifacts: {result.run_dir})", file=sys.stderr)
     return 1

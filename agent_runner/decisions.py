@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import os
@@ -55,7 +56,7 @@ class JevClient:
             exc.close()
             # Never echo the remote body: it can contain credentials or evidence.
             raise ProviderError(f"Jev HTTP {status}", transient=False, status_code=status) from exc
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as exc:
             raise ProviderError("Jev transport failed; completion and billing may be ambiguous",
                                 transient=False, ambiguous_completion=True) from exc
         if len(raw) > MAX_RESPONSE_BYTES:

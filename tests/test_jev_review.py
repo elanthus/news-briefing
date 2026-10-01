@@ -1,4 +1,5 @@
 import copy
+import http.client
 import io
 import json
 import os
@@ -7,7 +8,7 @@ import unittest
 import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from agent_runner.checkpoint import sha256_file, write_json_atomic
 from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
@@ -89,6 +90,23 @@ class DecisionsTests(unittest.TestCase):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         opened.assert_called_once()
         self.assertNotIn("secret", str(caught.exception))
+
+    def test_http_protocol_errors_are_ambiguous_typed_failures_without_retry_or_body_leak(self):
+        for error in (http.client.BadStatusLine("secret remote line"),
+                      http.client.IncompleteRead(b"secret partial response", 50)):
+            with self.subTest(error=type(error).__name__), patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}):
+                if isinstance(error, http.client.IncompleteRead):
+                    response = MagicMock()
+                    response.__enter__.return_value.read.side_effect = error
+                    opener = patch("agent_runner.decisions._urlopen", return_value=response)
+                else:
+                    opener = patch("agent_runner.decisions._urlopen", side_effect=error)
+                with opener as opened, self.assertRaises(ProviderError) as caught:
+                    JevClient().evaluate({}, {"q": {"type": "noul"}})
+                opened.assert_called_once()
+                self.assertTrue(caught.exception.ambiguous_completion)
+                self.assertFalse(caught.exception.transient)
+                self.assertNotIn("secret", str(caught.exception))
 
     def test_deeply_nested_json_is_a_typed_provider_failure(self):
         raw = b"[" * 2000 + b"0" + b"]" * 2000
@@ -239,6 +257,49 @@ class JevReviewTests(unittest.TestCase):
             for output in (root, root / "run", root / "run" / "review"):
                 with self.assertRaisesRegex(ValueError, "separate"):
                     review_run(root / "run", output)
+
+    def test_truncated_response_closes_review_with_unknown_billing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = self.make_run(root)
+            before = {p.name: p.read_bytes() for p in run.iterdir() if p.is_file()}
+            response = MagicMock()
+            response.__enter__.return_value.read.side_effect = http.client.IncompleteRead(
+                b"private-http-response-marker-209", 20)
+            with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+                "agent_runner.decisions._urlopen", return_value=response
+            ) as opened:
+                report = review_run(run, root / "review")
+            self.assertEqual(report["status"], "failed")
+            self.assertEqual(report["calls"][0]["status"], "failed_billing_unknown")
+            self.assertEqual(report["unknown_cost_calls"], 1)
+            self.assertNotIn("private-http-response-marker-209", json.dumps(report))
+            self.assertEqual(before, {p.name: p.read_bytes() for p in run.iterdir() if p.is_file()})
+            opened.assert_called_once()
+
+    def test_daily_repair_exception_preserves_ready_exit_and_logs_only_type(self):
+        import run_daily_briefing
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_dir = root / "chain"
+            selected = run_dir / "candidate"
+            output = root / "briefing.md"
+            output.write_text("Original ready briefing.")
+            argv = ["run_daily_briefing.py", "--output", str(output), "--force", "--run-dir", str(run_dir),
+                    "--corpus", str(ROOT / "fixtures/current-corpus.json"),
+                    "--jev-review-dir", str(run_dir / "jev-review"), "--jev-repair-mode", "apply"]
+            result = ChainResult("ready", "test", selected, run_dir)
+            for exception in (RuntimeError("secret remote error"), ProviderError("secret", transient=False)):
+                stderr = io.StringIO()
+                with self.subTest(exception=type(exception).__name__), patch("sys.argv", argv), patch(
+                    "run_daily_briefing.run_fallback_chain", return_value=result
+                ), patch("run_daily_briefing.daily_semantic_review", side_effect=exception), \
+                        redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                    self.assertEqual(run_daily_briefing.main(), 0)
+                self.assertIn(type(exception).__name__, stderr.getvalue())
+                self.assertNotIn("secret", stderr.getvalue())
+                self.assertEqual(output.read_text(), "Original ready briefing.")
 
     def test_daily_cli_reviews_only_selected_ready_candidate(self):
         import run_daily_briefing

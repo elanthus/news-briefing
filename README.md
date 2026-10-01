@@ -56,9 +56,10 @@ existing `OPENROUTER_API_KEY`:
    stories in their existing slots and preserving all unaffected topics. Grouping
    repairs retain a subset of the slot's sources; prose-only repairs keep all its
    frozen sources. Code validates the candidate before another Jev review.
-4. Publish the repaired candidate only when follow-up coverage is complete and
-   every returned check involving an affected slot is below 0.80. Otherwise,
-   retain the original ready briefing and show the attempted repair in its audit.
+4. Publish the repaired candidate only when follow-up coverage is complete, costs
+   are known, and every returned check involving an affected slot is below 0.80.
+   Otherwise, retain the original ready briefing and show the attempted repair in
+   its audit.
 
 The per-run integrity report shows **original and changed prose for every returned
 check**, both confirmation scores, follow-up results, repair status, coverage and

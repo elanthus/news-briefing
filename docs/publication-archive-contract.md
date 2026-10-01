@@ -77,8 +77,10 @@ After ordinary generation reaches `ready`, the daily command runs Jev checks and
 isolated confirmation. Confirmed included grouping/prose findings receive one
 bounded HY3 repair round. Only a structurally valid ready candidate with complete,
 clear follow-up checks involving affected slots replaces the publication input.
-Original fallback-chain artifacts remain immutable. Partial, disputed, failed or
-rejected repairs retain the original ready report. The sidecar's `semantic_audit`
+Original fallback-chain artifacts remain immutable. Partial coverage, failed or
+rejected repairs retain the original ready report. Unrelated disputed findings
+do not block an otherwise-cleared repair; checks involving repaired slots must
+still clear the follow-up threshold. The sidecar's `semantic_audit`
 shows generated before/after prose and scores for every returned automated check,
 without frozen feed excerpts. Publication revalidates the source and repaired
 artifacts before accepting that audit or using its candidate.
