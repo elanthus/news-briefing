@@ -39,11 +39,26 @@ Repair never trims an entry held for rejection: unknown evidence remains a rejec
 
 Gemini 3.7 Flash receives the same schema except for redundant `maxItems` bounds on unique citation arrays whose string enums already imply that maximum. Section limits, exact prose counts, citation enums, and uniqueness remain unchanged. On September 6, 2026, a short-prompt probe reconstructed the selection schema from that day's [public audit manifest](https://elanthus.github.io/news-briefing/manifests/2026-09-06.json): Google AI Studio returned HTTP 400 with the original schema and completed successfully when only those redundant bounds were omitted. Lowering `max_tokens` or omitting reasoning did not resolve the error in the initial probe. This verifies schema acceptance, not the quality of a complete briefing; the encrypted production prompt was not replayed. Google's [structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output) notes that complex schemas may be rejected.
 
-The static builder renders `review_required` entries as a quarantine stub on the public page — a notice and a status chip linking to the per-run integrity report under `reports/<date>.html`. On that report, story context derived from both headline-based checks and structured paths attaches grouped, ordinary, and excluded affected stories to their actionable findings inline beside the annotated preview; only genuinely run-level findings remain in a separate panel. Every entry's status chip links to its report, and a `ready` page shows clean prose with no inline review panels. Nonblocking quality notes never count toward `findings_count` or appear as review-panel warnings, but the four deterministic, reader-relevant ones (`slots_underfilled`, `exclusion_log_missing`, `exclusion_log_short`, `low_claim_evidence_overlap`) are still visible: the integrity report shows them in a distinct, calmer Advisory panel — inline beside a matching story when one resolves, otherwise in a run-level list — and a `ready` report's all-clear text names the count ("the publication gate passed with N advisory notes") instead of reading as if nothing were flagged. The status chip on the reader-facing page gets a matching, subtle "N advisory notes" suffix. The excerpt-bounded figure heuristics (`unsupported_figure`, `figure_supported_elsewhere`) stay in the run artifacts only and are excluded from both counts and the Advisory panel. The builder also drops their rows from the Run outcome warning list on the reader page; the list reads "None" when no other warning remains.
+The static builder renders `review_required` entries as a quarantine stub on the
+public page, with a status chip linking to `reports/<date>.html`. Every status chip
+links to its integrity report; ready briefing pages contain no inline review
+panels. Integrity reports show counts by deterministic finding category and do
+not reproduce the briefing, its accountability log, or unchanged story prose.
+Finding messages and structured context remain in public history JSON.
 
-When a previewed story actually redacts a model-authored destination, its report panel includes a closed disclosure containing the hash-verified original structured entry as escaped, non-clickable text.
+Nonblocking quality notes do not count toward `findings_count`. The four
+reader-relevant checks (`slots_underfilled`, `exclusion_log_missing`,
+`exclusion_log_short`, `low_claim_evidence_overlap`) appear in the integrity
+report's advisory counts, and the ready report states that the gate passed with
+N advisory notes. The reader-facing status chip retains its advisory-note count.
+The excerpt-bounded figure heuristics (`unsupported_figure`,
+`figure_supported_elsewhere`) remain in run artifacts and are excluded from
+advisory counts. Their rows are also omitted from the reader page's Run outcome
+warning list; the list reads "None" when no other warning remains.
 
-The published `repair_actions` describe the final attempt only: a repair superseded by a later model correction is not the published content's provenance and remains in the manifest for audit.
+The published `repair_actions` describe the final attempt only: a repair
+superseded by a later model correction is not the published content's provenance
+and remains in the manifest for audit.
 
 `rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. The manual triage workflow follows the same rule: its public issue carries only the run date, first failure class, run link, and artifact name, and the full triage report is uploaded as an encrypted workflow artifact. Fallback logs use schema v2 and carry structured failure records from the originating provider or checker. Records carry their own schema version 1; the original unversioned structured shape remains readable. A finalized checker outcome takes precedence over earlier recoverable provider errors. Public projection ignores private `failure_reason` text and allowlists only model identifiers and fixed codes. Unknown or malformed records use the generic explanation; old string-only chain logs are not classified. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
 
@@ -86,7 +101,9 @@ Citation rows identify a frozen evidence index and code-owned destinations.
 Citation removal requires both scores to reach 0.60; other repair thresholds stay
 0.80. Publication rebinds retained-source follow-up indexes to the originals and
 verifies that removed citations cannot return. The HTML audit shows per-category
-counts and repair findings, or the five highest scores when none require repair.
+counts and before/after prose only for grouping or prose corrections, once per
+changed story. Removed citations appear as struck-through links with scores and
+repair status; proposed removals are labeled when the candidate was not applied.
 Publication revalidates the source and repaired artifacts before accepting that audit or using its candidate.
 
 See [daily semantic checks and repairs](jev-review.md) for exact limits and
@@ -113,4 +130,6 @@ The generated `history.json` uses `schema_version: 8`. The builder also accepts 
 | `provenance` | The selected model and correction/repair counts for the run (see "Generation provenance" above), or `null` when unavailable. Published only for entries with a public artifact. |
 | `markdown` | A string for `ready` and `review_required` entries; `null` otherwise. |
 
-Finding context may carry a structured `path` that the site uses to attach findings to their stories by producer-emitted anchors; an advisory finding without a matching story (e.g. a section-level `slots_underfilled` note) appears in the report's general Advisory panel instead of inline.
+Finding context may carry a structured `path` and hash-bound original model prose.
+That context is retained in public history JSON; the minimal integrity report
+summarizes finding counts without rendering the full preview or unchanged stories.

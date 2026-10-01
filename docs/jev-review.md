@@ -6,12 +6,13 @@ repair round for confirmed included citation, grouping or prose problems. Accept
 repairs update the public report; the original run remains immutable. The existing
 `OPENROUTER_API_KEY` authenticates both models.
 
-The public integrity report summarizes counts by check category. It shows full
-before/after prose and outcomes for repair findings; when a category has none,
-it shows only its five highest scores with story names and citation destinations.
-The full public check records remain in history JSON. Frozen excerpts, prompts
-and call traces remain in encrypted diagnostics. Missing coverage is explicit.
-See the [preliminary evaluations](results/jev-preliminary-2026-09-30.md).
+The public integrity report summarizes counts by check category. It shows each
+corrected story's before/after prose once, with the associated scores and repair
+outcome. Citation-only removals appear as struck-through links with scores and
+status. Unchanged stories and top-score examples are omitted. Full public check
+records remain in history JSON. Frozen excerpts, prompts and call traces remain
+in encrypted diagnostics. Missing coverage is explicit. See the
+[preliminary evaluations](results/jev-preliminary-2026-09-30.md).
 
 The reviewer uses OpenRouter's Decisions API with `typesafe/jev-1.13` and the existing
 `OPENROUTER_API_KEY`. It requires no TypeSafe key or third-party Python package. Jev
@@ -102,11 +103,13 @@ contains frozen feed titles/excerpts or model prompts. HTML treats all prose as
 plain escaped text; citation links come from validated code-owned destinations,
 never a model. Every returned check remains in public JSON. The HTML page shows
 counts (below threshold, confirmed, disputed, unconfirmed, requiring repair) for
-each check category. Categories with repair findings show all such findings with
-before/after prose; other categories show up to five highest initial scores,
-including both story names for pairs. Older audits remain readable; categories
-without recorded checks say so. Raw reports and
-failed private traces stay in `runs/DATE/jev-review/` in encrypted diagnostics.
+each check category. Detail entries show only grouping/prose corrections, grouped
+by story so multiple findings do not repeat its prose. Removed citations are
+struck through; rejected or advisory candidate removals are labeled as proposals,
+so they are not mistaken for changes to the published briefing. Older audits
+remain readable and categories without returned checks show zero counts. Raw
+reports and failed private traces stay in `runs/DATE/jev-review/` in encrypted
+diagnostics.
 
 The site writes history schema 8 and migrates the existing schema-7 archive,
 adding a null semantic audit to old entries. Audit data survives history merges,

@@ -64,10 +64,10 @@ existing `OPENROUTER_API_KEY`:
    thresholds. Otherwise retain the original ready briefing. A repair that would
    remove every source from a slot is skipped rather than publish an uncited story.
 
-The integrity report shows **counts by check category**. Categories with repair
-findings show their original and changed prose, scores and outcomes. Categories
-without repair findings show only their **five highest scores**, with the relevant
-stories and citation links. The full check data remains in public history JSON.
+The integrity report shows **counts by check category** and individual before/after
+text only for grouping or prose corrections. Removed citations appear as
+struck-through links with their scores and repair status. Unchanged stories and
+top-score examples are omitted. The full check data remains in public history JSON.
 Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
 excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
 
