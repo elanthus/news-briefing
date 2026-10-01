@@ -11,6 +11,7 @@ from pathlib import Path
 
 import briefing_config
 import fetch_news
+from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, run_workflow
@@ -60,6 +61,8 @@ def main() -> int:
     parser.add_argument("--model", required=True, help="exact provider model identifier")
     parser.add_argument("--output", "-o", type=Path, required=True, help="final Markdown path")
     parser.add_argument("--run-dir", type=Path, help="artifact directory; generated when omitted")
+    parser.add_argument("--jev-review-dir", type=Path,
+                        help="write a separate Jev advisory review after a ready run; uses OPENROUTER_API_KEY")
     parser.add_argument(
         "--resume",
         type=Path,
@@ -199,6 +202,8 @@ def main() -> int:
     disposition = result.status.replace("_", " ").upper()
     artifact = "final output" if result.status == "ready" else "unpublished preview"
     print(f"{disposition}: {artifact} at {result.output_path} (artifacts: {result.run_dir})")
+    if args.jev_review_dir is not None and result.status == "ready":
+        print_advisory_review(result.run_dir, args.jev_review_dir)
     return result.exit_code
 
 
