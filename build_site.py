@@ -37,6 +37,7 @@ from publication_schema import (
     parse_provenance,
     parse_repair_actions,
     parse_review_context,
+    parse_semantic_audit,
     provenance_payload,
 )
 
@@ -44,7 +45,10 @@ SIDECAR_FIELDS = {
     "date", "disposition", "findings_count", "degraded_sources", "findings",
     "repair_actions", "generation_failures", "advisory_findings", "provenance",
 }
+LEGACY_SIDECAR_FIELDS = SIDECAR_FIELDS.copy()
+SIDECAR_FIELDS |= {"semantic_audit"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
+LEGACY_HISTORY_FIELDS = LEGACY_SIDECAR_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -152,6 +156,7 @@ class BriefingEntry:
     generation_failures: tuple[GenerationFailure, ...] = ()
     advisory_findings: tuple[ReviewFinding, ...] = ()
     provenance: Provenance | None = None
+    semantic_audit: dict[str, Any] | None = None
 
     @property
     def slug(self) -> str:
@@ -182,6 +187,7 @@ def _entry_from_sidecar(path: Path) -> BriefingEntry:
         generation_failures=entry.generation_failures,
         advisory_findings=entry.advisory_findings,
         provenance=entry.provenance,
+        semantic_audit=entry.semantic_audit,
     )
 
 
@@ -231,7 +237,7 @@ def _entry_from_payload(
     source: str,
     expected_slug: str | None = None,
 ) -> BriefingEntry:
-    if not isinstance(payload, dict) or set(payload) != SIDECAR_FIELDS:
+    if not isinstance(payload, dict) or set(payload) not in (SIDECAR_FIELDS, LEGACY_SIDECAR_FIELDS):
         raise ValueError(f"{source} must contain exactly {sorted(SIDECAR_FIELDS)}")
 
     raw_date = payload["date"]
@@ -286,6 +292,9 @@ def _entry_from_payload(
     if generation_failures and disposition != "blocked":
         raise ValueError(f"{source} generation failures require a blocked disposition")
     repair_actions = parse_repair_actions(payload.get("repair_actions"))
+    semantic_audit = parse_semantic_audit(payload.get("semantic_audit"))
+    if semantic_audit is not None and disposition not in PAGE_DISPOSITIONS:
+        raise ValueError(f"{source} semantic audit requires a public artifact")
     provenance = parse_provenance(payload.get("provenance"))
     if provenance is not None and disposition not in PAGE_DISPOSITIONS:
         raise ValueError(f"{source} provenance requires a public artifact")
@@ -300,6 +309,7 @@ def _entry_from_payload(
         generation_failures=generation_failures,
         advisory_findings=tuple(advisory_findings),
         provenance=provenance,
+        semantic_audit=semantic_audit,
     )
 
 
@@ -309,17 +319,18 @@ def _load_history(path: Path) -> list[BriefingEntry]:
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
         or type(payload.get("schema_version")) is not int
-        or payload["schema_version"] != 7
+        or payload["schema_version"] not in (7, 8)
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 7 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 7 or 8 with an entries array")
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
         source = f"history {path} entry {index}"
-        if not isinstance(raw_entry, dict) or set(raw_entry) != HISTORY_FIELDS:
+        fields = LEGACY_HISTORY_FIELDS if payload["schema_version"] == 7 else HISTORY_FIELDS
+        if not isinstance(raw_entry, dict) or set(raw_entry) != fields:
             raise ValueError(f"{source} must contain exactly {sorted(HISTORY_FIELDS)}")
-        metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS}
+        metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS if key in raw_entry}
         entry = _entry_from_payload(
             metadata,
             source=source,
@@ -344,6 +355,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
                 generation_failures=entry.generation_failures,
                 advisory_findings=entry.advisory_findings,
                 provenance=entry.provenance,
+                semantic_audit=entry.semantic_audit,
             )
         )
     return entries
@@ -372,9 +384,10 @@ def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 7,
+        "schema_version": 8,
         "entries": [
             {
+                "semantic_audit": entry.semantic_audit,
                 "date": entry.slug,
                 "disposition": entry.disposition,
                 "findings_count": entry.findings_count,
@@ -1306,6 +1319,8 @@ def _render_report(
         )
     if not advisory_shown and entry.advisory_findings:
         parts.append(_render_advisory_panel(entry.advisory_findings))
+    if entry.semantic_audit is not None:
+        parts.append(_render_semantic_audit(entry.semantic_audit))
     if entry.repair_actions:
         items = []
         for action in entry.repair_actions:
@@ -1330,6 +1345,59 @@ def _render_report(
         "\n".join(parts),
         asset_prefix="../",
     )
+
+
+def _render_semantic_audit(audit: dict[str, Any]) -> str:
+    topics = {json.dumps(t["position"], sort_keys=True): t for t in audit["topics"]}
+    checks = sorted(audit["checks"], key=lambda c: (c["confirmation_label"] != "confirmed",
+                                                  c["confirmation_label"] != "disputed", -c["probability"]))
+    parts = ['<section class="semantic-audit"><h2>Jev automated checks and repairs</h2>',
+             '<p>Preliminary automated judgments against frozen excerpts. Agreement does not prove correctness. '
+             'Confirmed grouping and prose findings receive one bounded repair round. Applied repairs update '
+             'the published briefing; rejected candidates retain the original prose.</p>',
+             f'<p>Coverage: {html.escape(audit["status"])}; {len(checks)} of {audit["planned_checks"]} checks. '
+             f'Repair review: {html.escape(audit["post_status"] or "not run")}. '
+             f'Omitted pairs: {audit["omitted_duplicate_pairs"]}; oversized checks: '
+             f'{audit["skipped_oversized_checks"]}. Model: {html.escape(audit["model"])}. '
+             f'Reported cost: ${audit["reported_cost_usd"]:.4f}; unknown-cost calls: '
+             f'{audit["unknown_cost_calls"]}.</p>']
+    for check in checks:
+        confirmation = check["confirmation_probability"]
+        first = f'{check["probability"]:.2f}'
+        second = "not run" if confirmation is None else f'{confirmation:.2f}'
+        label = check["confirmation_label"].replace("_", " ")
+        subject = " / ".join(topics[json.dumps(p, sort_keys=True)]["original"]["headline"][:100]
+                             for p in check["positions"])
+        parts.append('<details><summary>' + html.escape(check["check"].replace("_", " "))
+                     + f' — {html.escape(label)} ({first} / {second}): {html.escape(subject)}</summary>')
+        for position in check["positions"]:
+            topic = topics[json.dumps(position, sort_keys=True)]
+            location = f'{position["section"]}, slot {position["index"] + 1}'
+            if position["bucket"] == "excluded_topics":
+                location += " (excluded)"
+            old = topic["original"]
+            parts.append(f'<h3>{html.escape(location)}</h3><h4>Original prose</h4>'
+                         f'<p><strong>{html.escape(old["headline"])}</strong></p><p>{html.escape(old["prose"])}</p>')
+            new = topic["changed"]
+            if new is None:
+                parts.append(f'<p>Changed prose: none ({html.escape(topic["repair_status"])}).</p>')
+            else:
+                parts.append(f'<h4>Changed prose — {html.escape(topic["repair_status"])}</h4>'
+                             f'<p><strong>{html.escape(new["headline"])}</strong></p><p>{html.escape(new["prose"])}</p>'
+                             f'<p>Source items removed from this slot: {topic["removed_evidence_count"]}.</p>')
+        after = check["after_probability"]
+        if after is not None:
+            repeated = check["after_confirmation_probability"]
+            score = "not run" if repeated is None else f'{repeated:.2f}'
+            parts.append(f'<p>After check: {after:.2f} / {score} '
+                         f'({html.escape(check["after_confirmation_label"].replace("_", " "))}).</p>')
+        elif check["after_basis"] == "single_evidence":
+            parts.append("<p>After check: one evidence item remains; a grouping check is unnecessary.</p>")
+        elif any(topics[json.dumps(p, sort_keys=True)]["changed"] is not None for p in check["positions"]):
+            parts.append('<p>After check: not returned. The repair is not cleared for publication.</p>')
+        parts.append('</details>')
+    parts.append('</section>')
+    return "\n".join(parts)
 
 
 def _remove_path(path: Path) -> None:
