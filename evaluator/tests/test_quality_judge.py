@@ -20,10 +20,7 @@ from evaluator.quality import (
     matched_pairs,
     run_quality_judging,
 )
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    run_evaluation,
-)
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     FakeAdapter,
 )

@@ -49,6 +49,35 @@ python3 -S -m evaluator checker
 python3 -S -m unittest discover -s evaluator/tests
 ```
 
+### Optional console scripts
+
+The documented `python3 -S <module>.py` and `python3 -S -m evaluator` commands
+need no installation and remain the supported interface. If you prefer named
+commands, an editable install into a virtual environment exposes the same
+`main()` functions as console scripts:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/news-briefing-fetch --help
+```
+
+The scripts are `news-briefing-fetch`, `news-briefing-run`,
+`news-briefing-daily`, `news-briefing-eval`, `news-briefing-publish`,
+`news-briefing-prepare-publication`, `news-briefing-restore-corpora`,
+`news-briefing-private-archive`, `news-briefing-triage`,
+`news-briefing-build-site`, and `news-briefing-evaluator`. The install adds no
+runtime dependency; `news-briefing-build-site` still needs
+`requirements-site.txt` to render. Use an editable install only: the modules
+read prompts, sources, and evaluator protocols from the checkout.
+
+### One interpreter per run
+
+A script that starts another pipeline script runs it with `sys.executable`,
+never a bare `python` or `python3` looked up on `PATH`. The child then uses the
+interpreter, version, and environment the parent was started with. New
+orchestration code must follow the same rule.
+
 Never commit API keys, `.env` files, generated corpora, briefings, or evaluator
 run artifacts.
 
@@ -62,7 +91,6 @@ run artifacts.
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
 | [`briefing_config.py`](briefing_config.py) | Loads and validates the trusted editorial configuration used for generation and checking |
 | [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
-| [`briefing-prompt.md`](briefing-prompt.md) | Historical direct-Markdown prompt retained with its published evidence |
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
 | [`run_briefing.py`](run_briefing.py) | Code-owned runner entry point: fetch, project, generate, validate, repair, correct, finalize |
 | [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
@@ -94,7 +122,7 @@ run artifacts.
 
 Changes to `briefing-runner-prompt.md`—the production prompt used by
 `run_briefing.py` and the daily chain—need particular care, as do changes to
-`briefing-prompt.md`, which serves the evaluator's direct-Markdown path. Changes
+`evaluator/prompts/briefing-prompt.md`, which serves the evaluator's direct-Markdown path. Changes
 to security controls, fixture labels, or evaluator oracles also need particular
 care. Explain the intended guarantee, add a regression case, and distinguish
 deterministic enforcement from heuristic or model-evaluated behavior.

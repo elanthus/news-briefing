@@ -14,11 +14,7 @@ from evaluator.adapters import (
     Generation,
     ProviderRequestError,
 )
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    ROOT,
-    run_evaluation,
-)
+from evaluator.runner import DEFAULT_CORPUS, ROOT, run_evaluation
 from evaluator.tests.support import (
     StructuredFakeAdapter,
     _resume_fixture,

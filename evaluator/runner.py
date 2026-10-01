@@ -1,4 +1,4 @@
-"""End-to-end model evaluation orchestration and compatibility exports."""
+"""End-to-end model evaluation orchestration."""
 
 from __future__ import annotations
 
@@ -7,58 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import eval_briefing as eval_briefing
-
 from evaluator.adapters import Adapter
-from evaluator.cases import run_deterministic_suite as run_deterministic_suite
-from evaluator.checkpoint import _checkpoint as _checkpoint
-from evaluator.execution import DEFAULT_PROTOCOL as DEFAULT_PROTOCOL
-from evaluator.execution import execute_evaluation
-from evaluator.plan import (
-    _attack_dimensions as _attack_dimensions,
-)
-from evaluator.plan import (
-    _json as _json,
-)
-from evaluator.plan import (
-    _mutate as _mutate,
-)
-from evaluator.plan import (
-    _relocate as _relocate,
-)
-from evaluator.plan import (
-    _set_source_failures as _set_source_failures,
-)
-from evaluator.plan import (
-    _sha256,
-)
-from evaluator.plan import (
-    _validate_generation_case as _validate_generation_case,
-)
-from evaluator.report import (
-    _OPERATIONS_HEADER as _OPERATIONS_HEADER,
-)
-from evaluator.report import (
-    _attack_breakdown as _attack_breakdown,
-)
-from evaluator.report import (
-    _operations_row as _operations_row,
-)
-from evaluator.report import (
-    markdown_report as markdown_report,
-)
-from evaluator.report import (
-    summarize as summarize,
-)
-from evaluator.scoring import (
-    _oracle as _oracle,
-)
-from evaluator.scoring import (
-    _semantic_adjudication_template as _semantic_adjudication_template,
-)
-from evaluator.scoring import (
-    apply_adjudications as apply_adjudications,
-)
+from evaluator.execution import DEFAULT_PROTOCOL, execute_evaluation
+from evaluator.plan import _sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 EVALUATOR_DIR = Path(__file__).resolve().parent

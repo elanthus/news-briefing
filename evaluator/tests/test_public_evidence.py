@@ -9,9 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from evaluator.publication import export_public_run, verify_public_run
-from evaluator.runner import (
-    ROOT,
-)
+from evaluator.runner import ROOT
 
 
 class PublicRunTest(unittest.TestCase):

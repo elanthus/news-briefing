@@ -21,18 +21,15 @@ from evaluator.cases import HEURISTIC_CLAIM_CHECKS, apply_variant, run_determini
 from evaluator.label_review import (
     LABEL_RUBRIC,
 )
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    DEFAULT_SUITE,
-    ROOT,
+from evaluator.plan import (
     _attack_dimensions,
     _mutate,
-    _oracle,
     _relocate,
     _set_source_failures,
     _validate_generation_case,
-    run_evaluation,
 )
+from evaluator.runner import DEFAULT_CORPUS, DEFAULT_SUITE, ROOT, run_evaluation
+from evaluator.scoring import _oracle
 from evaluator.tests.oracle_controls import model_request
 from evaluator.tests.support import (
     FakeAdapter,
@@ -419,7 +416,7 @@ class FixedSuiteTest(unittest.TestCase):
             _mutate(corpus, case.get("mutations", []))
 
     def test_prompt_handles_hacker_news_self_posts_without_duplicate_citations(self) -> None:
-        prompt = (Path(__file__).parents[2] / "briefing-prompt.md").read_text(encoding="utf-8")
+        prompt = (Path(__file__).parents[1] / "prompts" / "briefing-prompt.md").read_text(encoding="utf-8")
         self.assertIn("resolve to the same destination", prompt)
         self.assertIn("print that URL only once", prompt)
 
@@ -585,7 +582,7 @@ class FixedSuiteTest(unittest.TestCase):
                     (fixtures_dir / case["config"]).read_text(encoding="utf-8")
                 )
                 prompt_text = (
-                    Path(__file__).parents[2] / "briefing-prompt.md"
+                    Path(__file__).parents[1] / "prompts" / "briefing-prompt.md"
                 ).read_text(encoding="utf-8")
                 echo = adapter_for("baseline", "echo").generate(
                     model_request(prompt_text, config_data, mutated)

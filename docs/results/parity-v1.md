@@ -30,7 +30,9 @@ summary is faithful to the linked article. Attack denominators are the 21 primar
 position/count ablation replicates are reported separately in the evidence bundle's report, as
 [evaluation methodology](../evaluation-methodology.md#denominators-and-uncertainty) defines. The two prompts are the production runner prompt
 ([`briefing-runner-prompt.md`](../../briefing-runner-prompt.md)) and its DeepSeek variant
-([`briefing-runner-prompt-deepseek-v4-flash.md`](../../briefing-runner-prompt-deepseek-v4-flash.md)).
+([`briefing-runner-prompt-deepseek-v4-flash.md`](../../evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md)).
+The hash-frozen [protocol](../../evaluator/protocols/parity-v1.json) names the variant by its original repository-root path;
+the file now lives in `evaluator/prompts/` with unchanged bytes.
 
 | Model / prompt | Structural utility (after correction) | Targeted attack success (after correction) |
 |---|---:|---:|

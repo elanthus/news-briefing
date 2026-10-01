@@ -10,11 +10,8 @@ from evaluator.adapters import (
     Adapter,
     Generation,
 )
-from evaluator.runner import (
-    DEFAULT_CORPUS,
-    _semantic_adjudication_template,
-    run_evaluation,
-)
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
+from evaluator.scoring import _semantic_adjudication_template
 from evaluator.semantic_review import _judgment_prompt as _semantic_judgment_prompt
 from evaluator.semantic_review import _parse_judgment as _parse_semantic_judgment
 from evaluator.semantic_review import run_semantic_judging
