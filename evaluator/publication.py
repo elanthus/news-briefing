@@ -18,6 +18,7 @@ PRIVATE_KEYS = {"provider_request_id"}
 SPLIT_RUN_IDENTITY_FIELDS = (
     "schema_version",
     "generation_path",
+    "judgment_artifact_binding",
     "run_kind",
     "execution_order",
     "execution_seed",

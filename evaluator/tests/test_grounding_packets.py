@@ -1,11 +1,13 @@
 """Evaluator grounding packets regression coverage."""
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 from evaluator.grounding_review import double_sample, export_grounding_review_packets
 
@@ -52,7 +54,7 @@ class GroundingReviewPacketTest(unittest.TestCase):
                 },
                 "errors": [],
             }), encoding="utf-8")
-            manifest = {
+            manifest: dict[str, Any] = {
                 "suite": str(temporary / "suite.json"),
                 "results": [{
                     "provider": "secret-provider",
@@ -63,6 +65,8 @@ class GroundingReviewPacketTest(unittest.TestCase):
                     "case_family": "thin_evidence",
                     "trial": 0,
                     "artifact_dir": artifact.name,
+                    "trial_corpus_sha256": hashlib.sha256((artifact / "corpus.json").read_bytes()).hexdigest(),
+                    "final_output_sha256": hashlib.sha256((artifact / "final.md").read_bytes()).hexdigest(),
                     "final": {},
                 }],
             }
@@ -98,6 +102,18 @@ class GroundingReviewPacketTest(unittest.TestCase):
             self.assertEqual(review_map["manifest"], "manifest.json")
             with self.assertRaises(FileExistsError):
                 export_grounding_review_packets(manifest_path, output)
+            for name in ("corpus.json", "final.md"):
+                path = artifact / name
+                frozen = path.read_bytes()
+                path.write_bytes(frozen + b"\n")
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "differs from the frozen"):
+                    export_grounding_review_packets(manifest_path, temporary / (name + "-review"))
+                path.write_bytes(frozen)
+            del manifest["results"][0]["trial_corpus_sha256"]
+            manifest_path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, "unverifiable legacy generation"):
+                export_grounding_review_packets(manifest_path, temporary / "legacy-review")
+
 
     def test_double_review_sampling_keeps_every_stratum(self) -> None:
         records = [

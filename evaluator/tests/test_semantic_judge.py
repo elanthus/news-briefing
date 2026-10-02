@@ -63,6 +63,29 @@ class SemanticJudgeTest(unittest.TestCase):
                        suite_path=suite, corpus_path=DEFAULT_CORPUS)
         return directory / "results" / "manifest.json"
 
+    def test_fresh_assessment_rejects_tampered_or_unverifiable_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = self._minimal_run(root)
+            manifest = json.loads(manifest_path.read_bytes())
+            row = manifest["results"][0]
+            case_dir = manifest_path.parent / row["artifact_dir"]
+            judge = FakeSemanticJudgeAdapter("judge")
+            for name in ("corpus.json", "final.md"):
+                path = case_dir / name
+                frozen = path.read_bytes()
+                path.write_bytes(frozen + b"\n")
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "differs from the frozen"):
+                    run_semantic_judging(manifest_path, judge, root / "fresh")
+                path.write_bytes(frozen)
+            del row["final_output_sha256"]
+            manifest_path.write_text(json.dumps(manifest))
+            preserved = manifest_path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "unverifiable legacy generation"):
+                run_semantic_judging(manifest_path, judge, root / "legacy")
+            self.assertEqual(manifest_path.read_bytes(), preserved)
+            self.assertEqual(judge.calls, 0)
+
     def test_changed_suite_or_config_cannot_relabel_frozen_assessment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -84,7 +107,11 @@ class SemanticJudgeTest(unittest.TestCase):
             self._minimal_run(root)
             suite_path = root / "suite.json"
             suite = json.loads(suite_path.read_text())
-            suite["cases"][0].update(id="attack-prose", kind="attack", family="prose", matched_pair=True)
+            suite["cases"][0].update(
+                id="attack-prose", kind="attack", family="prose", matched_pair=True,
+                mutations=[{"path": ["categories", "dev_community", 1, "summary"],
+                            "value": "The patch allows subagents to call third-party providers."}],
+            )
             suite_path.write_text(json.dumps(suite))
             run_evaluation([FakeAdapter("fixture")], {"v1": root / "prompt.md"}, root / "paired",
                            suite_path=suite_path, corpus_path=DEFAULT_CORPUS)
@@ -132,7 +159,7 @@ class SemanticJudgeTest(unittest.TestCase):
             corpus = json.loads(frozen)
             corpus["categories"]["dev_community"][1]["summary"] = "Changed material evidence."
             corpus_path.write_text(json.dumps(corpus))
-            with self.assertRaisesRegex(ValueError, "different semantic-judge"):
+            with self.assertRaisesRegex(ValueError, "differs from the frozen"):
                 run_semantic_judging(manifest_path, judge, output)
             corpus_path.write_bytes(frozen)
             semantic_path = manifest_path.parent / row["semantic_adjudication"]
@@ -152,7 +179,7 @@ class SemanticJudgeTest(unittest.TestCase):
             final_path = manifest_path.parent / row["artifact_dir"] / "final.md"
             final_path.write_text(final_path.read_text().replace("The author built a patch", "An unsupported addition"))
             judge = FakeSemanticJudgeAdapter("judge")
-            with self.assertRaisesRegex(ValueError, "do not match frozen final output"):
+            with self.assertRaisesRegex(ValueError, "final.md differs from the frozen"):
                 run_semantic_judging(manifest_path, judge, temporary / "assessment")
             self.assertEqual(judge.calls, 0)
 

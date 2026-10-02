@@ -24,6 +24,7 @@ from evaluator.judge_io import (
     parse_json_response,
     reviewer_identity,
     sha256_bytes,
+    verified_generation_artifact,
     write_json_atomic,
     write_text_atomic,
 )
@@ -118,8 +119,8 @@ def _assessment_inputs(
             continue
         payload = json.loads((run_dir / relative_path).read_bytes())
         case_dir = run_dir / row["artifact_dir"]
-        corpus_bytes = (case_dir / "corpus.json").read_bytes()
-        final_bytes = (case_dir / "final.md").read_bytes()
+        corpus_bytes = verified_generation_artifact(case_dir / "corpus.json", row, "trial_corpus_sha256")
+        final_bytes = verified_generation_artifact(case_dir / "final.md", row, "final_output_sha256")
         evidence = eval_briefing.corpus_evidence(json.loads(corpus_bytes))
         sections = eval_briefing.parse_briefing(
             final_bytes.decode("utf-8"), configs[row["case_id"]]

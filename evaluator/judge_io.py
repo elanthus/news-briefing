@@ -19,6 +19,20 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def verified_generation_artifact(path: Path, row: dict[str, Any], digest_key: str) -> bytes:
+    """Require generation-owned evidence identity, including for a new assessment."""
+    expected = row.get(digest_key)
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise ValueError(
+            f"unverifiable legacy generation: missing {digest_key}; "
+            "preserve the run and use a generation with recorded artifact digests"
+        )
+    content = path.read_bytes()
+    if sha256_bytes(content) != expected:
+        raise ValueError(f"{path.name} differs from the frozen generation artifact")
+    return content
+
+
 def portable_path(path: Path) -> str:
     """Represent repository paths without exposing a machine-specific checkout."""
     resolved = path.resolve()

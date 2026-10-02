@@ -575,6 +575,7 @@ def _identity(
     return {
         "schema_version": 9,
         "generation_path": "production-parity",
+        "judgment_artifact_binding": 1,
         "run_kind": run_kind,
         "execution_order": (
             "prompt_interleaved_randomized"

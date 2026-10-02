@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -181,6 +182,7 @@ def _prepare_trial(
         safe_key,
         plan.case_corpus_sha256[case["id"]],
     )
+    base_result["trial_corpus_sha256"] = hashlib.sha256((case_dir / "corpus.json").read_bytes()).hexdigest()
     ceiling_applies = options.cost_ceiling_usd is not None and (
         options.cost_ceiling_provider is None
         or adapter.provider == options.cost_ceiling_provider
@@ -439,6 +441,9 @@ def _run_case_trial(
     semantic, semantic_path = _write_completed_artifacts(
         context, options, first_attempt, first, final_attempt, final
     )
+    context.base_result["final_output_sha256"] = hashlib.sha256(
+        (context.case_dir / "final.md").read_bytes()
+    ).hexdigest()
     state.results.append(build_completed_result(
         base_result=context.base_result,
         first_attempt=first_attempt,
