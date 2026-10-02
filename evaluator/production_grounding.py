@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.output import redact_destinations, redact_opaque_references
-from agent_runner.publication import read_json, resolve_publication_run, verified_publication
+from agent_runner.publication import read_json, resolve_publication_run, verified_publication_artifacts
 
 from evaluator.adapters import Adapter
 from evaluator.grounding_machine_review import run_grounding_machine_review
@@ -73,7 +73,7 @@ class ProductionRun:
 
 
 def verified_run_topics(run: ProductionRun) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    selected, topics, hashes = verified_publication(run.run_dir)
+    selected, topics, hashes = verified_publication_artifacts(run.run_dir)
     receipt = read_json(run.receipt_path or run.run_dir / "publication-receipt.json")
     if (not isinstance(receipt, dict) or receipt.get("schema_version") != 1
             or receipt.get("deployment_status") != "success"
@@ -164,6 +164,30 @@ def sample_published_runs(
         if day not in present:
             excluded.append({"run_id": day, "reason": "no_verified_published_report_for_date"})
     return [by_day[day][0] for day in sorted(by_day)], excluded
+
+
+def _weekly_exclusions(
+    runs: Sequence[ProductionRun], exclusions: Sequence[dict[str, str]], start: date, end: date,
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
+    """Separate known in-week sampling outcomes from outside or undated candidates."""
+    report_dates: dict[str, date] = {}
+    for run in runs:
+        try:
+            report_dates[run.run_id] = date.fromisoformat(run.report_date or run.run_dir.name)
+        except (ValueError, TypeError):
+            pass
+    weekly, outside, undated = [], [], []
+    for row in exclusions:
+        day = report_dates.get(row["run_id"])
+        if row["reason"] == "no_verified_published_report_for_date":
+            day = date.fromisoformat(row["run_id"])
+        if row["reason"] == "outside_requested_report_week" or (day is not None and not start <= day < end):
+            outside.append(row)
+        elif day is None:
+            undated.append(row)
+        else:
+            weekly.append(row)
+    return weekly, outside, undated
 
 
 def export_production_grounding_packets(
@@ -339,24 +363,36 @@ def run_weekly_monitor(
     Returns aggregate counts only. Per-topic verdicts and rationale live in
     `review_output_dir/machine-grounding-review.json`, a private artifact this
     function never prints or writes into the committed log.
+
+    Skipped outcomes include rejected in-week candidates and missing report
+    dates. Out-of-week and undated candidates, including artifact-scan exclusions
+    with no verified report date, remain separate from that weekly count.
+    Candidate IDs and missing-date sentinels count as separate outcomes, so the
+    skipped count is not a distinct-date denominator and can exceed seven.
     """
     ready, exclusions = sample_published_runs(runs, week_label)
     if any(not isinstance(row, dict) or set(row) != {"run_id", "reason"}
            or any(not isinstance(value, str) for value in row.values()) for row in artifact_exclusions):
         raise ValueError("invalid artifact exclusion records")
-    exclusions.extend(artifact_exclusions)
     packets = export_production_grounding_packets(
         ready, packet_dir, seed=seed, double_fraction=double_fraction
     )
-    exclusions.extend(packets["exclusions"])
-    all_skipped = sorted({row["run_id"] for row in exclusions})
-    measured = len(ready) - len(packets["skipped_runs"])
     start, end = week_window(week_label)
+    weekly, outside, undated = _weekly_exclusions(runs, [*exclusions, *packets["exclusions"]], start, end)
+    exclusions = [*exclusions, *artifact_exclusions, *packets["exclusions"]]
+    all_skipped = sorted({row["run_id"] for row in weekly})
+    measured = len(ready) - len(packets["skipped_runs"])
+    exclusion_details = {
+        "weekly_exclusions": weekly, "out_of_window_exclusions": outside,
+        "undated_exclusions": undated, "artifact_exclusions": list(artifact_exclusions),
+        "skipped_count_basis": "unique in-week candidate IDs plus missing-date sentinels; not distinct report dates",
+    }
     write_json_atomic(packet_dir / "sampling.json", {
         "schema_version": 1, "week_label": week_label,
         "report_date_start_inclusive": start.isoformat(), "report_date_end_exclusive": end.isoformat(),
         "deduplication": "latest successful deployment completion per report date; workflow identity breaks ties",
         "included_runs": [run.run_id for run in ready], "exclusions": exclusions,
+        "runs_skipped": all_skipped, **exclusion_details,
     })
 
     if packets["topic_count"] == 0:
@@ -395,6 +431,7 @@ def run_weekly_monitor(
         "runs_reviewed": measured,
         "runs_skipped": all_skipped,
         "exclusions": exclusions,
+        **exclusion_details,
         "topic_count": packets["topic_count"],
         "grounding_rate": grounding,
         "audit_agreement": audit_agreement,

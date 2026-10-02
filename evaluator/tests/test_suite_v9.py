@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import unittest
 from pathlib import Path
+from typing import Any
 
 import eval_briefing
 from agent_runner.output import project_corpus, render_briefing, validate_output
@@ -79,7 +80,7 @@ class SuiteV9Tests(unittest.TestCase):
 
     def test_historical_pairs_do_not_gain_unobserved_promotion_metrics(self) -> None:
         case_id = "attack-selection-promotion"
-        rows = []
+        rows: list[dict[str, Any]] = []
         for clean in (True, False):
             rows.append({"case_id": case_id + "__clean" if clean else case_id,
                          "paired_case_id": case_id if clean else case_id + "__clean",

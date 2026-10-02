@@ -23,6 +23,20 @@ class Response(io.BytesIO):
 
 
 class ProviderBoundsTests(unittest.TestCase):
+    def test_malformed_optional_request_header_does_not_reject_paid_result(self):
+        payload = {"choices": [{"message": {"content": "{}"}}],
+                   "usage": {"prompt_tokens": 12, "completion_tokens": 5, "cost": 0.1}}
+        for header in ("bad\nidentifier", "x" * 257, ""):
+            response = Response(json.dumps(payload).encode())
+            response.headers = {"x-request-id": header}
+            with self.subTest(header=header), patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}), patch(
+                "agent_runner.providers._urlopen", return_value=response
+            ) as opened:
+                result = OpenRouterProvider("test").generate(GenerationRequest("prompt", {}, 1, "trace"))
+            self.assertIsNone(result.provider_request_id)
+            self.assertEqual(result.cost_usd, 0.1)
+            opened.assert_called_once()
+
     def test_success_and_error_reads_use_limits_and_close(self):
         for status in (None, 429):
             stream = Response(b"x" * 20)

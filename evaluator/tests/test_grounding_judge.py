@@ -286,6 +286,23 @@ class GroundingMachineReviewTest(unittest.TestCase):
             self.assertEqual(changed.calls, 0)
             self.assertEqual(checkpoint.read_bytes(), frozen)
 
+    def test_non_object_checkpoint_fails_without_calls_or_overwrite(self) -> None:
+        payloads: list[Any] = [[], None, 1, "invalid"]
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                checkpoint = output / "primary-batch-0001-attempt-01.json"
+                frozen = json.dumps(payload)
+                checkpoint.write_text(frozen)
+                adapter = FakeGroundingJudgeAdapter("judge", {"ground-00001": False})
+                with self.assertRaisesRegex(ValueError, "checkpoint is not an object"):
+                    _review_batch(adapter, "prompt", ["ground-00001"], output,
+                                  "primary-batch-0001", cost_ceiling_usd=1, cost_headroom_usd=0.1)
+                with self.assertRaisesRegex(ValueError, "checkpoint is not an object"):
+                    _grounding_checkpoint_cost(output)
+                self.assertEqual(adapter.calls, 0)
+                self.assertEqual(checkpoint.read_text(), frozen)
+
     def test_machine_review_stops_before_reserved_cost_headroom(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -347,4 +364,3 @@ class GroundingMachineReviewTest(unittest.TestCase):
                     cost_headroom_usd=0.1,
                 )
             self.assertEqual(list(output.iterdir()), [])
-

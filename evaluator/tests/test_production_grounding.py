@@ -5,8 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from agent_runner.checkpoint import sha256_file, write_json_atomic
+from agent_runner.jev_review import load_topics
 from agent_runner.publication import publication_receipt, verified_publication
 from agent_runner.semantic_repairs import daily_semantic_review
 from evaluator.adapters import Adapter, Generation
@@ -199,6 +201,102 @@ class VerifiedProductionTests(unittest.TestCase):
             receipt = publication_receipt(day.parent, root / "history.json", 123, 1)
             self.assertEqual(receipt["reports"], [])
             self.assertIn("stale", receipt["skipped"][0]["reason"])
+
+    def test_missing_or_duplicate_attempt_skips_only_the_invalid_report(self) -> None:
+        for invalid in ("missing", "duplicate"):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                bad_day, bad_run, _headline = prepared_day(root)
+                good_day, good_run, _headline = prepared_day(root, "2026-09-02")
+                write_json_atomic(root / "history.json", {"entries": [
+                    {"date": day.name, "disposition": "ready", "integrity": {"workflow_run_id": 123},
+                     "markdown": (run / "final.md").read_text()}
+                    for day, run in ((bad_day, bad_run), (good_day, good_run))
+                ]})
+                manifest = json.loads((bad_run / "manifest.json").read_text())
+                if invalid == "missing":
+                    manifest["attempts"] = [row for row in manifest["attempts"]
+                                            if row["index"] != manifest["final"]["attempt"]]
+                else:
+                    manifest["attempts"].append(next(row for row in manifest["attempts"]
+                                                      if row["index"] == manifest["final"]["attempt"]))
+                write_json_atomic(bad_run / "manifest.json", manifest)
+                receipt = publication_receipt(bad_day.parent, root / "history.json", 123, 1)
+                self.assertEqual([row["date"] for row in receipt["reports"]], [good_day.name])
+                self.assertEqual(receipt["skipped"], [
+                    {"date": bad_day.name, "reason": "final attempt is not unique"}
+                ])
+
+    def test_manifest_change_between_verified_reads_is_a_validation_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            day, original, _headline = prepared_day(root)
+
+            def replace_manifest_after_verification(run: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
+                verified = load_topics(run)
+                manifest = json.loads((run / "manifest.json").read_text())
+                manifest["attempts"] = []
+                write_json_atomic(run / "manifest.json", manifest)
+                return verified
+
+            with patch("agent_runner.publication.load_topics", side_effect=replace_manifest_after_verification):
+                receipt = publication_receipt(day.parent, root / "history.json", 123, 1)
+            self.assertEqual(receipt["reports"], [])
+            self.assertEqual(receipt["skipped"], [
+                {"date": day.name, "reason": "publication manifest changed during verification"}
+            ])
+            self.assertEqual(json.loads((original / "manifest.json").read_text())["attempts"], [])
+
+    def test_monitor_accepts_receipt_bound_artifacts_after_renderer_and_checker_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            day, _original, _headline = prepared_day(root)
+            primary, audit = FakeJudge("primary"), FakeJudge("audit")
+            with (patch("agent_runner.output.render_briefing", side_effect=AssertionError("renderer drift")),
+                  patch("eval_briefing.evaluate", side_effect=AssertionError("checker drift"))):
+                result = run_weekly_monitor(
+                    [ProductionRun("historic", day)], week_label="2026-W36",
+                    packet_dir=root / "packets", review_output_dir=root / "review",
+                    log_path=root / "log.md", primary_judge=primary, audit_judge=audit,
+                )
+            self.assertEqual(result["runs_reviewed"], 1)
+            self.assertGreater(result["topic_count"], 0)
+            self.assertGreater(primary.calls, 0)
+
+    def test_monitor_rejects_rehashed_candidate_or_markdown_despite_renderer_drift(self) -> None:
+        for artifact in ("attempt-02-structured.json", "final.md"):
+            with self.subTest(artifact=artifact), tempfile.TemporaryDirectory() as directory:
+                day, original, _headline = prepared_day(Path(directory))
+                target = original / artifact
+                if artifact.endswith(".json"):
+                    candidate = json.loads(target.read_text())
+                    section = next(value for value in candidate["sections"].values() if value["topics"])
+                    section["topics"][0]["headline"] = "A different authored headline"
+                    write_json_atomic(target, candidate)
+                else:
+                    target.write_bytes(target.read_bytes() + b"\nUnreconciled extra prose.\n")
+                manifest = json.loads((original / "manifest.json").read_text())
+                manifest["artifacts"][artifact] = sha256_file(target)
+                if artifact == "final.md":
+                    manifest["final"]["output_sha256"] = sha256_file(target)
+                write_json_atomic(original / "manifest.json", manifest)
+                with patch("agent_runner.output.render_briefing", side_effect=AssertionError("renderer drift")):
+                    with self.assertRaisesRegex(ValueError, "artifact identity differs"):
+                        verified_run_topics(ProductionRun("tampered", day))
+
+    def test_new_receipts_still_require_the_current_renderer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            day, _original, _headline = prepared_day(root)
+            render = importlib.import_module("agent_runner.output").render_briefing
+
+            def drifting_renderer(*args: Any, **kwargs: Any) -> str:
+                return str(render(*args, **kwargs)) + "\nDifferent renderer revision.\n"
+
+            with patch("agent_runner.output.render_briefing", side_effect=drifting_renderer):
+                receipt = publication_receipt(day.parent, root / "history.json", 123, 1)
+            self.assertEqual(receipt["reports"], [])
+            self.assertIn("Markdown differs", receipt["skipped"][0]["reason"])
 
     def test_retries_deduplicate_by_published_date_and_week(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

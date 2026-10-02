@@ -19,12 +19,16 @@ from agent_runner.jev_review import MAX_ARTIFACT_BYTES, load_topics
 from agent_runner.semantic_repairs import load_public_audit
 
 
-def read_json(path: Path, *, max_bytes: int = MAX_ARTIFACT_BYTES) -> Any:
+def _read_bytes(path: Path, *, max_bytes: int = MAX_ARTIFACT_BYTES) -> bytes:
     with path.open("rb") as stream:
         raw = stream.read(max_bytes + 1)
     if len(raw) > max_bytes:
         raise ValueError("publication artifact exceeds the input bound")
-    return json.loads(raw)
+    return raw
+
+
+def read_json(path: Path, *, max_bytes: int = MAX_ARTIFACT_BYTES) -> Any:
+    return json.loads(_read_bytes(path, max_bytes=max_bytes))
 
 
 def selected_generation_run(root: Path) -> Path | None:
@@ -61,24 +65,45 @@ def resolve_publication_run(root: Path) -> tuple[dict[str, Any] | None, Path | N
     return None, original
 
 
-def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
-    """Verify exact frozen evidence positions and the public Markdown artifact."""
+def _verified_publication_artifacts(
+    root: Path,
+) -> tuple[Path, list[dict[str, Any]], dict[str, str], dict[str, Any]]:
+    """Verify artifact identity without replaying a potentially newer renderer."""
     _audit, selected = resolve_publication_run(root)
     if selected is None:
         raise ValueError("no ready publication candidate")
     topics, hashes = load_topics(selected)
-    manifest = read_json(selected / "manifest.json")
+    manifest_bytes = _read_bytes(selected / "manifest.json")
+    if hashlib.sha256(manifest_bytes).hexdigest() != hashes["manifest.json"]:
+        raise ValueError("publication manifest changed during verification")
+    manifest = json.loads(manifest_bytes)
     final = manifest["final"]
     if final.get("artifact_type") != "final" or final.get("run_artifact") != "final.md":
         raise ValueError("invalid public artifact binding")
-    with (selected / "final.md").open("rb") as stream:
-        markdown = stream.read(MAX_ARTIFACT_BYTES + 1)
-    if len(markdown) > MAX_ARTIFACT_BYTES:
-        raise ValueError("publication artifact exceeds the input bound")
+    markdown = _read_bytes(selected / "final.md")
     markdown.decode("utf-8")
     digest = hashlib.sha256(markdown).hexdigest()
     if manifest["artifacts"].get("final.md") != digest or final.get("output_sha256") != digest:
         raise ValueError("public artifact hash mismatch")
+    return selected, topics, {**hashes, "final.md": digest}, manifest
+
+
+def verified_publication_artifacts(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
+    """Verify frozen evidence and exact artifact hashes for receipt comparison.
+
+    This establishes diagnostics integrity, not deployment. Historical monitors
+    must additionally match these hashes to a receipt whose Actions deployment
+    was independently verified. They must not replay the current Markdown
+    renderer or checker against an older, already deployed artifact.
+    """
+    selected, topics, hashes, _manifest = _verified_publication_artifacts(root)
+    return selected, topics, hashes
+
+
+def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
+    """Verify newly published Markdown against this revision's exact rendering."""
+    selected, topics, hashes, manifest = _verified_publication_artifacts(root)
+    final = manifest["final"]
     # Re-render the verified candidate and its code-owned validation footer.
     # A prefix match alone would permit unreviewed prose after the footer.
     import briefing_config
@@ -90,9 +115,15 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     from publication_schema import parse_repair_actions
 
     attempts = manifest["attempts"]
-    attempt = next(row for row in attempts if row.get("index") == final["attempt"])
+    if not isinstance(attempts, list) or type(final.get("attempt")) is not int:
+        raise ValueError("invalid final attempt")
+    matches = [row for row in attempts if isinstance(row, dict)
+               and type(row.get("index")) is int and row["index"] == final["attempt"]]
+    if len(matches) != 1:
+        raise ValueError("final attempt is not unique")
+    attempt = matches[0]
     actions = list(parse_repair_actions(attempt.get("repair_actions")))
-    selections = [row for row in attempts if row.get("kind") in SELECTION_ATTEMPT_KINDS]
+    selections = [row for row in attempts if isinstance(row, dict) and row.get("kind") in SELECTION_ATTEMPT_KINDS]
     if selections:
         actions.extend(action for action in parse_repair_actions(selections[-1].get("repair_actions"))
                        if action["action"] == PROMOTION_ACTION)
@@ -113,9 +144,12 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
         expected = rendered.rstrip() + "\n" + render_validation_status(after, corpus, outcome=outcome)
         if fingerprint(eval_briefing.evaluate(corpus, expected, config)) != fingerprint(after):
             raise ValueError("published validation footer did not stabilize")
+    markdown = _read_bytes(selected / "final.md")
+    if hashlib.sha256(markdown).hexdigest() != hashes["final.md"]:
+        raise ValueError("public artifact changed during verification")
     if markdown.decode("utf-8") != expected:
         raise ValueError("published Markdown differs from the verified candidate")
-    return selected, topics, {**hashes, "final.md": digest}
+    return selected, topics, hashes
 
 
 def publication_receipt(runs_dir: Path, history_path: Path, workflow_run_id: int,

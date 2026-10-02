@@ -146,8 +146,8 @@ def bounded_request(request: urllib.request.Request, *, deadline: float,
                 # The original socket is closed; subsequent error handling is memory-only.
                 raise urllib.error.HTTPError(exc.url, exc.code, exc.msg, exc.headers, io.BytesIO(data)) from exc
             with response as opened:
-                request_id = getattr(opened, "headers", {}).get("x-request-id")
-                exchange.request_id = _safe_request_id(request_id)
+                request_id = _safe_request_id(getattr(opened, "headers", {}).get("x-request-id"))
+                exchange.request_id = request_id
                 data = opened.read(max_bytes + 1)
                 exchange.check()
                 if len(data) > max_bytes:

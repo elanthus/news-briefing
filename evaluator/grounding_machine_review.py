@@ -139,6 +139,8 @@ def _checkpoint_cost(output_dir: Path) -> float:
     total = 0.0
     for path in output_dir.glob("*-batch-*-attempt-*.json"):
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"machine-review checkpoint is not an object: {path}")
         if payload.get("kind") == "provider_error":
             cost = payload.get("cost_usd")
             if cost is None:
@@ -169,6 +171,8 @@ def _review_batch(
     existing = sorted(output_dir.glob(f"{checkpoint_prefix}-attempt-*.json"))
     for path in existing:
         payload = json.loads(path.read_bytes())
+        if not isinstance(payload, dict):
+            raise ValueError(f"machine-review checkpoint is not an object: {path}")
         if any(payload.get(key) != value for key, value in identity.items()):
             raise ValueError(
                 "checkpoint has incompatible or legacy judgment provenance; "
