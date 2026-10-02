@@ -194,8 +194,8 @@ repeat an interrupted request with ambiguous billing.
 
 The reviewer sees feed excerpts, not full articles, and does not assess exclusion
 reasons for grounding. Its judgments can be wrong or influenced by injected evidence.
-The daily repair policy is a monitored preliminary rollout authorized after the
-local experiments; it does not establish calibrated thresholds. Continue checking
+The daily repair policy is a monitored preliminary rollout informed by local
+experiments; those experiments do not establish calibrated thresholds. Continue checking
 false alarms, missed errors and editorial losses in the public audit. The existing
 deterministic gate remains mandatory.
 

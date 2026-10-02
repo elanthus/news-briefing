@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
-from evaluator.judge_io import parse_json_response, portable_path, sha256_bytes, write_json_atomic
+from evaluator.judge_io import (
+    judgment_identity,
+    parse_json_response,
+    portable_path,
+    reviewer_identity,
+    sha256_bytes,
+    write_json_atomic,
+)
 from evaluator.metrics import rate
 
 
@@ -122,13 +129,18 @@ def _load_generation(path: Path) -> Generation:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"machine-review checkpoint is not an object: {path}")
-    return Generation(**payload)
+    return Generation(**{
+        key: value for key, value in payload.items()
+        if key not in {"checkpoint_schema_version", "prompt_sha256", "reviewer"}
+    })
 
 
 def _checkpoint_cost(output_dir: Path) -> float:
     total = 0.0
     for path in output_dir.glob("*-batch-*-attempt-*.json"):
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"machine-review checkpoint is not an object: {path}")
         if payload.get("kind") == "provider_error":
             cost = payload.get("cost_usd")
             if cost is None:
@@ -155,8 +167,17 @@ def _review_batch(
     max_attempts: int = 3,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Resume a valid attempt or make bounded, durably recorded attempts."""
+    identity = judgment_identity(adapter, prompt)
     existing = sorted(output_dir.glob(f"{checkpoint_prefix}-attempt-*.json"))
     for path in existing:
+        payload = json.loads(path.read_bytes())
+        if not isinstance(payload, dict):
+            raise ValueError(f"machine-review checkpoint is not an object: {path}")
+        if any(payload.get(key) != value for key, value in identity.items()):
+            raise ValueError(
+                "checkpoint has incompatible or legacy judgment provenance; "
+                "use a new assessment directory (the existing record is preserved)"
+            )
         try:
             generation = _load_generation(path)
             return _parse_reviews(generation.text, expected_ids), True
@@ -178,6 +199,7 @@ def _review_batch(
             generation = adapter.generate(prompt)
         except ProviderRequestError as exc:
             write_json_atomic(checkpoint, {
+                **identity,
                 "kind": "provider_error",
                 "error": str(exc),
                 "attempts": exc.attempts,
@@ -194,7 +216,7 @@ def _review_batch(
             raise ValueError(
                 f"cannot enforce the cost ceiling because {checkpoint.name} has no reported cost"
             )
-        write_json_atomic(checkpoint, asdict(generation) | {"structured_output": None})
+        write_json_atomic(checkpoint, asdict(generation) | {"structured_output": None} | identity)
         try:
             return _parse_reviews(generation.text, expected_ids), False
         except ValueError:
@@ -221,22 +243,15 @@ def _identity(
         for name in ("reviewer-primary.json", "reviewer-double.json", "review-map.json")
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "review_kind": "automated_model",
         "human_review": False,
         "manifest": portable_path(manifest_path),
         "manifest_sha256": sha256_bytes(manifest_path.read_bytes()),
         "packet_files_sha256": files,
-        "primary_judge": {
-            "provider": primary_judge.provider,
-            "model": primary_judge.model,
-            "generation_controls": primary_judge.generation_controls(),
-        },
-        "audit_judge": {
-            "provider": audit_judge.provider,
-            "model": audit_judge.model,
-            "generation_controls": audit_judge.generation_controls(),
-        },
+        "primary_judge": reviewer_identity(primary_judge),
+        "audit_judge": reviewer_identity(audit_judge),
+        "prompt_template_sha256": sha256_bytes(_review_prompt({}, []).encode()),
         "batch_size": batch_size,
         "cost_ceiling_usd": cost_ceiling_usd,
         "cost_headroom_usd": cost_headroom_usd,
@@ -342,7 +357,7 @@ def run_grounding_machine_review(
                 cost_ceiling_usd=cost_ceiling_usd,
                 cost_headroom_usd=cost_headroom_usd,
             )
-            role_labels.extend(labels)
+            role_labels.extend({**label, "reviewer": reviewer_identity(judge)} for label in labels)
             if progress:
                 status = f"{role} {'resumed' if resumed else 'judged'}"
                 progress(judge.provider, judge.model, index, len(packet_batches), status)

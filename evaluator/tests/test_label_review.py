@@ -437,13 +437,10 @@ class LabelReviewTest(unittest.TestCase):
                     label_review, "_review_prompt",
                     side_effect=lambda cases: review_prompt(cases)
                     + ("\nChanged real-batch review prose.\n" if cases else "")):
-                changed = run_label_review(
-                    reviewer, adjudicator, reviewer_output, suite_path
-                )
-            self.assertEqual(reviewer.calls, 2)
+                with self.assertRaisesRegex(ValueError, "incompatible or legacy"):
+                    run_label_review(reviewer, adjudicator, reviewer_output, suite_path)
+            self.assertEqual(reviewer.calls, 1)
             self.assertEqual(adjudicator.calls, 1)
-            self.assertFalse(changed["reviewer_calls"][0]["resumed"])
-            self.assertTrue(changed["adjudicator_calls"][0]["resumed"])
 
             reviewer = LabelReviewAdapter(
                 "reviewer", {"case-001": ["unsupported_claim"]}
@@ -456,13 +453,10 @@ class LabelReviewTest(unittest.TestCase):
                     label_review, "_adjudication_prompt",
                     side_effect=lambda cases: adjudication_prompt(cases)
                     + ("\nChanged real-batch adjudication prose.\n" if cases else "")):
-                changed = run_label_review(
-                    reviewer, adjudicator, adjudicator_output, suite_path
-                )
+                with self.assertRaisesRegex(ValueError, "incompatible or legacy"):
+                    run_label_review(reviewer, adjudicator, adjudicator_output, suite_path)
             self.assertEqual(reviewer.calls, 1)
-            self.assertEqual(adjudicator.calls, 2)
-            self.assertTrue(changed["reviewer_calls"][0]["resumed"])
-            self.assertFalse(changed["adjudicator_calls"][0]["resumed"])
+            self.assertEqual(adjudicator.calls, 1)
 
             checkpoint = json.loads(
                 (adjudicator_output / "adjudicator-batch-01.json").read_text(

@@ -191,6 +191,11 @@ def _matched_pair_metrics(
                 len(known),
             )
 
+        observed_keys = [
+            key for key in completed_keys
+            if "observed_target_leads" in clean[key]["final"]["oracle"]
+            and "observed_target_leads" in attacked[key]["final"]["oracle"]
+        ]
         metrics.append({
             "case_id": case_id,
             "planned_pairs": len(planned_keys),
@@ -214,6 +219,14 @@ def _matched_pair_metrics(
             "targeted_attack_success_final": pair_rate(
                 attacked, "final", "attack_success", completed_keys
             ),
+            **({"promotion_transitions_final": {
+                f"clean_{clean_leads}_attack_{attack_leads}": sum(
+                    bool(clean[key]["final"]["oracle"]["observed_target_leads"]) == clean_leads
+                    and bool(attacked[key]["final"]["oracle"]["observed_target_leads"]) == attack_leads
+                    for key in observed_keys
+                )
+                for clean_leads in (False, True) for attack_leads in (False, True)
+            }} if observed_keys else {}),
         })
     return metrics
 
@@ -244,7 +257,7 @@ def _load_quality_summary(artifact_root: Path | None) -> dict[str, Any] | None:
     payload = _json(path)
     if not isinstance(payload, dict):
         raise ValueError(f"quality judgments must contain an object: {path}")
-    if payload.get("schema_version") != 2:
+    if payload.get("schema_version") != 3:
         return {"_report_status": "stale_schema"}
     return payload
 
@@ -637,6 +650,13 @@ def _security_detail_lines(group: dict[str, Any]) -> list[str]:
                     f"{_pct(row[f'structural_utility_under_attack_{stage}'])} | "
                     f"{_pct(row[f'targeted_attack_success_{stage}'])} | "
                     f"{row['completed_pairs']}/{row['planned_pairs']} |"
+                )
+            transitions = row.get("promotion_transitions_final", {})
+            if any(transitions.values()):
+                lines.append(
+                    f"\n{row['case_id']} final leading-target transitions (clean → attack): "
+                    + ", ".join(f"{key}: {value}" for key, value in transitions.items())
+                    + ". These are paired observations, not causal attack-success labels.\n"
                 )
     if by_corpus_position or by_controlled_items:
         lines += [

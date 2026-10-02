@@ -30,7 +30,9 @@ from evaluator.adapters import Adapter
 from evaluator.judge_io import (
     checkpointed_generate,
     parse_json_response,
+    reviewer_identity,
     sha256_bytes,
+    verified_generation_artifact,
     write_json_atomic,
     write_text_atomic,
 )
@@ -84,8 +86,8 @@ def _case_configs(suite: dict[str, Any], suite_path: Path) -> dict[str, briefing
 def _topics(run_dir: Path, row: dict[str, Any], config: briefing_config.BriefingConfig) -> list[dict[str, Any]]:
     """Every judgeable topic in one case-trial's final output: title, prose, and its evidence."""
     case_dir = run_dir / row["artifact_dir"]
-    text = (case_dir / "final.md").read_text(encoding="utf-8")
-    corpus = json.loads((case_dir / "corpus.json").read_text(encoding="utf-8"))
+    text = verified_generation_artifact(case_dir / "final.md", row, "final_output_sha256").decode("utf-8")
+    corpus = json.loads(verified_generation_artifact(case_dir / "corpus.json", row, "trial_corpus_sha256"))
     evidence = eval_briefing.corpus_evidence(corpus)
     sections = eval_briefing.parse_briefing(text, config)
     topics = []
@@ -198,7 +200,7 @@ def _parse_judgment(text: str) -> dict[str, str]:
     if set(payload) != expected_keys:
         raise ValueError(f"judgment response must contain exactly {sorted(expected_keys)}")
     for axis in (*QUALITY_AXES, "overall"):
-        if payload[axis] not in {"a", "b", "tie"}:
+        if not isinstance(payload[axis], str) or payload[axis] not in {"a", "b", "tie"}:
             raise ValueError(f"judgment {axis!r} must be 'a', 'b', or 'tie'")
     if not isinstance(payload["rationale"], str) or not payload["rationale"].strip():
         raise ValueError("judgment rationale must be a non-empty string")
@@ -227,15 +229,19 @@ def _identity(
     judge: Adapter,
     sample: int | None,
     seed: int,
+    inputs: dict[str, str],
+    prompts: list[str],
 ) -> dict[str, Any]:
     """Bind resumable quality checkpoints to their exact inputs and judge."""
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "manifest": str(manifest_path.resolve()),
         "manifest_sha256": sha256_bytes(manifest_content),
         "suite": str(suite_path.resolve()),
         "suite_sha256": sha256_bytes(suite_content),
-        "judge": {"provider": judge.provider, "model": judge.model},
+        "judge": reviewer_identity(judge),
+        "referenced_inputs_sha256": inputs,
+        "effective_prompts_sha256": [sha256_bytes(prompt.encode()) for prompt in prompts],
         "sample": sample,
         "seed": seed,
     }
@@ -254,6 +260,8 @@ def run_quality_judging(
     manifest = json.loads(manifest_content)
     run_dir = manifest_path.parent
     resolved_suite_path = suite_path or Path(manifest["suite"])
+    if suite_path is None and not resolved_suite_path.is_absolute():
+        resolved_suite_path = run_dir / resolved_suite_path
     suite_content = resolved_suite_path.read_bytes()
     suite = json.loads(suite_content)
     configs = _case_configs(suite, resolved_suite_path)
@@ -272,6 +280,19 @@ def run_quality_judging(
         judge,
         sample,
         seed,
+        {
+            str(path.resolve()): sha256_bytes(path.read_bytes())
+            for path in (
+                [resolved_suite_path.parent / case["config"] for case in suite["cases"]]
+                + [
+                    run_dir / row["artifact_dir"] / name
+                    for row in manifest["results"]
+                    if row.get("case_kind") == "utility" and isinstance(row.get("final"), dict)
+                    for name in ("final.md", "corpus.json")
+                ]
+            )
+        },
+        [_judgment_prompt(pair, swapped) for pair in pairs for swapped in (False, True)],
     )
     identity_path = output_dir / "quality-judging-run.json"
     if identity_path.exists():
@@ -302,6 +323,7 @@ def run_quality_judging(
             "group_b": list(pair["group_b"]),
             "original": original,
             "swapped": swapped,
+            "reviewer": reviewer_identity(judge),
         }
         for axis in (*QUALITY_AXES, "overall"):
             record[f"{axis}_consistent"] = original[axis] == _FLIP[swapped[axis]]
@@ -343,9 +365,9 @@ def run_quality_judging(
         })
 
     result = {
-        "schema_version": 2,
+        "schema_version": 3,
         "manifest": str(manifest_path),
-        "judge": {"provider": judge.provider, "model": judge.model},
+        "judge": reviewer_identity(judge),
         "pairs_available": len(all_pairs),
         "pairs_judged": len(pairs),
         "position_consistency": {

@@ -74,7 +74,7 @@ Owner: schema implementer. Main files: `publication_schema.py` and focused schem
 
 ### B Record phase outcomes and bind them to artifacts
 
-Owner: pipeline implementer. Main files: `agent_runner/jev_review.py`, `agent_runner/semantic_repairs.py`, `prepare_publication.py`, `daily_publish.py`, and their focused tests. Depends on A's agreed contract.
+Implementation files: `agent_runner/jev_review.py`, `agent_runner/semantic_repairs.py`, `prepare_publication.py`, `daily_publish.py`, and their focused tests. Depends on A's agreed contract.
 
 1. Preserve the original generation directory separately from the selected publication directory. Derive original generation provenance from the former and repair provenance from verified repair artifacts.
 2. Extract safe generation action history and correction calls from recorded manifests. Verify any public subject context against hash-bound artifacts; preserve private superseded prose.
@@ -102,7 +102,7 @@ Owner: report implementer. Main files: `build_site.py`, `tests/site_test_build.p
 
 ### D Integrate verify and document
 
-Owner: coordinator, delegating implementation fixes to Sol agents. Main documentation: `README.md`, `docs/design.md`, `docs/jev-review.md`, `docs/publication-archive-contract.md`, and the stale per-run statement in `docs/evaluation-methodology.md`.
+Integration documentation: `README.md`, `docs/design.md`, `docs/jev-review.md`, `docs/publication-archive-contract.md`, and the stale per-run statement in `docs/evaluation-methodology.md`.
 
 1. Trace all new public fields through production, sidecars, history merge, and rendering. Resolve contract disagreements before adding compatibility fallbacks.
 2. Update documentation around the final implemented behavior and scope, including generation versus repair counts, report vocabulary, schema migration, public/private boundaries, and legacy limitations.
@@ -150,19 +150,7 @@ Because `build_site.py` and `prepare_publication.py` change, install `requiremen
 python3 -m unittest tests.site_test_build
 ```
 
-Follow [`AGENTS.md`](../AGENTS.md), [`SECURITY.md`](../SECURITY.md), and the applicable agentic-preflight skill. Do not change repair thresholds, provider budgets, topic limits, ranking, excerpt scope, or the one-round policy. Do not add paid or network-dependent tests.
-
-## Agent execution order
-
-Use `gpt-6.1-sol` with `medium` reasoning for implementation subagents and `gpt-6-astra` with `low` reasoning for an independent reviewer. This is the user's requested configuration; explicit model/effort requests are supported by [official subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents#choosing-models-and-reasoning). Recheck the available tool schema in the new session and report inability to honor these settings rather than silently substituting models.
-
-1. The coordinator inspects the current PR, working tree, and instructions; assigns exclusive file ownership; and establishes package A's contract with the schema implementer.
-2. Astra reviews the proposed contract and public/private boundary. The schema implementer resolves findings and freezes the interface.
-3. Pipeline and report implementers work in parallel against that interface. Schema work must be complete before another worker edits those same files. Keep the reviewer idle until a coherent snapshot is ready.
-4. The coordinator integrates code, documentation, fixtures, and visual QA. Astra reviews the complete resulting diff and representative rendered outcomes read-only.
-5. Sol implementers fix actionable findings within their ownership. Astra verifies the changed snapshot. The coordinator completes gates, preflight, PR publication, and CI.
-
-Respect the actual concurrency limit. With four available slots including the coordinator, run at most three child agents at once; schedule contract review and integrated review when an implementation slot is free. Workers must not commit, push, change branches, or edit another worker's files. The coordinator owns Git operations. If a model override cannot accompany a full-history fork, use a fresh or limited-context spawn and provide the plan path, repository path, task contract, and constraints explicitly.
+The implementation follows [`AGENTS.md`](../AGENTS.md) and [`SECURITY.md`](../SECURITY.md). Do not change repair thresholds, provider budgets, topic limits, ranking, excerpt scope, or the one-round policy. Do not add paid or network-dependent tests.
 
 ## Implementation record
 

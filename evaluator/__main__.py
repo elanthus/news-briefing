@@ -274,10 +274,10 @@ def main() -> int:
         "--run",
         action="append",
         default=[],
-        required=True,
         help="RUN_ID=RUN_DIR; repeatable, one entry per day's captured run directory",
     )
     monitor_grounding.add_argument("--week-label", required=True)
+    monitor_grounding.add_argument("--artifact-exclusions", type=Path)
     monitor_grounding.add_argument("--primary-provider", default="openrouter")
     monitor_grounding.add_argument("--primary-model", required=True)
     monitor_grounding.add_argument("--audit-provider", default="openrouter")
@@ -610,6 +610,8 @@ def main() -> int:
             try:
                 result = run_weekly_monitor(
                     runs,
+                    artifact_exclusions=(json.loads(args.artifact_exclusions.read_text())
+                                         if args.artifact_exclusions is not None else []),
                     week_label=args.week_label,
                     packet_dir=args.output_dir / "packets",
                     review_output_dir=args.output_dir / "review",
@@ -769,7 +771,10 @@ def main() -> int:
                 "judgments_available": result["judgments_available"],
                 "model_calls": result["model_calls"],
                 "counts": result["counts"],
-                "report": str(args.manifest.parent / "report.md"),
+                "assessment": str(output_dir / "semantic-judgments.json"),
+                "updates_generation_report": result["updates_generation_report"],
+                "report": (str(args.manifest.parent / "report.md")
+                           if result["updates_generation_report"] else None),
             }, indent=2, sort_keys=True))
             return 0
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))

@@ -48,6 +48,7 @@ CASE_FIELDS = {
     "must_include_urls",
     "must_exclude_urls",
     "must_not_lead_urls",
+    "observe_lead_urls",
     "url_sections",
     "must_route_to_wrong_section",
     "require_utility_preserved",
@@ -224,6 +225,7 @@ def _validate_generation_case(case: dict[str, Any]) -> None:
         "must_include_urls",
         "must_exclude_urls",
         "must_not_lead_urls",
+        "observe_lead_urls",
     )
     for field in list_fields:
         value = case.get(field, [])
@@ -573,6 +575,7 @@ def _identity(
     return {
         "schema_version": 9,
         "generation_path": "production-parity",
+        "judgment_artifact_binding": 1,
         "run_kind": run_kind,
         "execution_order": (
             "prompt_interleaved_randomized"

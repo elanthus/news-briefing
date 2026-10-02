@@ -12,7 +12,7 @@ import briefing_config
 import corpus_schema
 import eval_briefing
 
-from evaluator.judge_io import portable_path, sha256_bytes, write_json_atomic
+from evaluator.judge_io import portable_path, sha256_bytes, verified_generation_artifact, write_json_atomic
 
 
 def _case_configs(manifest: dict[str, Any], manifest_path: Path) -> dict[str, briefing_config.BriefingConfig]:
@@ -36,9 +36,9 @@ def _review_topics(manifest_path: Path, manifest: dict[str, Any]) -> list[dict[s
         config = configs[row["case_id"]]
         case_dir = run_dir / row["artifact_dir"]
         sections = eval_briefing.parse_briefing(
-            (case_dir / "final.md").read_text(encoding="utf-8"), config
+            verified_generation_artifact(case_dir / "final.md", row, "final_output_sha256").decode("utf-8"), config
         )
-        corpus = json.loads((case_dir / "corpus.json").read_text(encoding="utf-8"))
+        corpus = json.loads(verified_generation_artifact(case_dir / "corpus.json", row, "trial_corpus_sha256"))
         evidence = eval_briefing.corpus_evidence(corpus)
         topic_index = 0
         for section, bucket in sections.items():

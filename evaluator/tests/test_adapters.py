@@ -48,8 +48,8 @@ class FakeHttpResponse:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def read(self) -> bytes:
-        return self.body
+    def read(self, limit: int = -1) -> bytes:
+        return self.body[:limit] if limit >= 0 else self.body
 
 
 
@@ -70,10 +70,10 @@ class AdapterRetryTest(unittest.TestCase):
         })
         with (
             patch(
-                "evaluator.adapters.urllib.request.urlopen",
+                "agent_runner.providers._urlopen",
                 side_effect=[_http_error(429, "7"), response],
             ) as urlopen,
-            patch("evaluator.adapters.time.sleep") as sleep,
+            patch("agent_runner.providers.time.sleep") as sleep,
         ):
             generation = NvidiaAdapter("free-model", timeout=30).generate("request")
 
@@ -85,7 +85,7 @@ class AdapterRetryTest(unittest.TestCase):
     @patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"})
     def test_nvidia_stops_after_bounded_rate_limit_attempts(self) -> None:
         errors = [_http_error(429, "0") for _ in range(API_MAX_ATTEMPTS)]
-        with patch("evaluator.adapters.urllib.request.urlopen", side_effect=errors) as urlopen:
+        with patch("agent_runner.providers._urlopen", side_effect=errors) as urlopen:
             with self.assertRaises(ProviderRequestError) as raised:
                 NvidiaAdapter("free-model", timeout=30).generate("request")
 
@@ -95,7 +95,7 @@ class AdapterRetryTest(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 429)
 
     @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
-    def test_openrouter_retries_connection_reset_then_succeeds(self) -> None:
+    def test_openrouter_retries_connection_refused_then_succeeds(self) -> None:
         response = FakeHttpResponse({
             "id": "generation-1",
             "choices": [{"message": {"content": "review"}}],
@@ -103,10 +103,10 @@ class AdapterRetryTest(unittest.TestCase):
         })
         with (
             patch(
-                "evaluator.adapters.urllib.request.urlopen",
-                side_effect=[ConnectionResetError("peer reset"), response],
+                "agent_runner.providers._urlopen",
+                side_effect=[ConnectionRefusedError("connection refused"), response],
             ) as urlopen,
-            patch("evaluator.adapters.time.sleep") as sleep,
+            patch("agent_runner.providers.time.sleep") as sleep,
         ):
             generation = OpenRouterAdapter("review-model", timeout=30).generate("request")
 
@@ -125,7 +125,7 @@ class AdapterRetryTest(unittest.TestCase):
             }],
             "usage": {"prompt_tokens": 10, "completion_tokens": 8192, "cost": 0.01},
         })
-        with patch("evaluator.adapters.urllib.request.urlopen", return_value=response):
+        with patch("agent_runner.providers._urlopen", return_value=response):
             with self.assertRaisesRegex(
                 RuntimeError, "returned no text content.*finish_reason='length'"
             ) as raised:
@@ -135,25 +135,41 @@ class AdapterRetryTest(unittest.TestCase):
         self.assertEqual(raised.exception.cost_usd, 0.01)
         self.assertEqual(raised.exception.output_tokens, 8192)
 
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})
+    def test_malformed_paid_envelope_preserves_accounting(self) -> None:
+        choices_variants: list[object] = [[], None, [{}]]
+        for choices in choices_variants:
+            response = FakeHttpResponse({
+                "id": "paid-invalid", "choices": choices,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 7, "cost": 0.01},
+            })
+            with self.subTest(choices=choices), patch(
+                "agent_runner.providers._urlopen", return_value=response
+            ), self.assertRaises(ProviderRequestError) as raised:
+                OpenRouterAdapter("model", timeout=30).generate("request")
+            self.assertEqual(raised.exception.cost_usd, 0.01)
+            self.assertEqual(raised.exception.input_tokens, 10)
+            self.assertEqual(raised.exception.output_tokens, 7)
+            self.assertEqual(raised.exception.provider_request_id, "paid-invalid")
+
     @patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"})
     def test_retry_after_reports_actual_remaining_budget_on_a_later_attempt(self) -> None:
+        from agent_runner.models import ProviderError
+
+        failure = ProviderError("rate limited", transient=True, status_code=429, retry_after=4, attempts=2)
         with (
-            patch(
-                "evaluator.adapters.urllib.request.urlopen",
-                side_effect=[_http_error(429, "0"), _http_error(429, "4")],
-            ) as urlopen,
-            patch(
-                "evaluator.adapters.time.perf_counter",
-                side_effect=[100.0, 100.0, 100.0, 102.0, 103.0],
-            ),
-            patch("evaluator.adapters.time.sleep") as sleep,
+            patch("agent_runner.providers.bounded_request", side_effect=[
+                _http_error(429, "0"), _http_error(429, "4"),
+            ]) as exchange,
+            patch("agent_runner.providers.time.perf_counter", side_effect=[100.0, 100.0, 102.0, 102.0, 103.0]),
+            patch("agent_runner.providers.time.sleep") as sleep,
         ):
             with self.assertRaisesRegex(
-                ProviderRequestError, "retry delay 4s exceeds the remaining 2s call timeout budget"
-            ):
+                ProviderRequestError, "retry delay 4s exceeds the remaining deadline"
+            ) as raised:
                 NvidiaAdapter("free-model", timeout=5).generate("request")
-
-        self.assertEqual(urlopen.call_count, 2)
+        self.assertEqual(raised.exception.attempts, failure.attempts)
+        self.assertEqual(exchange.call_count, 2)
         sleep.assert_not_called()
 
 

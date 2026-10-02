@@ -44,12 +44,12 @@ class FakeResponse:
     def __exit__(self, *_args):
         return False
 
-    def read(self):
-        return self.payload
+    def read(self, limit=-1):
+        return self.payload[:limit] if limit >= 0 else self.payload
 
 
 class TimeoutResponse(FakeResponse):
-    def read(self):
+    def read(self, limit=-1):
         raise TimeoutError("response read timed out")
 
 
@@ -177,7 +177,7 @@ class ProviderTests(unittest.TestCase):
         ), self.assertRaisesRegex(ProviderError, "empty tool policy"):
             provider.generate(REQUEST)
 
-    def test_openrouter_ignores_malformed_optional_cost(self):
+    def test_openrouter_rejects_malformed_optional_cost(self):
         payload = {
             "id": "gen-1",
             "choices": [{"message": {"content": '{"schema_version":1}'}}],
@@ -186,9 +186,8 @@ class ProviderTests(unittest.TestCase):
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
-        ):
-            result = provider.generate(REQUEST)
-        self.assertIsNone(result.cost_usd)
+        ), self.assertRaisesRegex(ProviderError, "invalid operational metadata: cost"):
+            provider.generate(REQUEST)
 
     def test_openrouter_retries_429_and_honors_retry_after(self):
         error = urllib.error.HTTPError(
@@ -611,7 +610,7 @@ class ProviderTests(unittest.TestCase):
                 ClaudeCodeProvider("sonnet").generate(REQUEST)
             self.assertEqual(raised.exception.record()["failure"]["code"], "empty_response")
 
-    def test_claude_ignores_malformed_optional_cost(self):
+    def test_claude_rejects_malformed_optional_cost(self):
         wrapper = {
             "result": '{"schema_version":1}',
             "structured_output": {"schema_version": 1},
@@ -620,9 +619,8 @@ class ProviderTests(unittest.TestCase):
         completed = subprocess.CompletedProcess([], 0, json.dumps(wrapper), "")
         with patch("shutil.which", return_value="/bin/claude"), patch(
             "agent_runner.providers._run_cli", return_value=(completed, 12.0, 1)
-        ):
-            result = ClaudeCodeProvider("sonnet").generate(REQUEST)
-        self.assertIsNone(result.cost_usd)
+        ), self.assertRaisesRegex(ProviderError, "invalid operational metadata: cost"):
+            ClaudeCodeProvider("sonnet").generate(REQUEST)
 
     def test_command_version_returns_none_when_probe_fails(self):
         for failure in (
@@ -657,6 +655,21 @@ class ProviderTests(unittest.TestCase):
             _run_cli(["model", "run"], "prompt", timeout=30)
         self.assertTrue(raised.exception.ambiguous_completion)
         self.assertEqual(run.call_count, 1)
+
+    def test_codex_rejects_non_object_usage(self):
+        events = [
+            {"thread_id": "thread-1", "type": "thread.started"},
+            {"type": "turn.started"},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": '{"schema_version":1}'}},
+            {"type": "turn.completed", "usage": []},
+        ]
+        completed = subprocess.CompletedProcess([], 0, "\n".join(map(json.dumps, events)), "")
+        with patch("shutil.which", return_value="/bin/codex"), patch(
+            "agent_runner.providers._run_cli", return_value=(completed, 20.0, 1)
+        ), self.assertRaises(ProviderError) as raised:
+            CodexCliProvider("gpt").generate(REQUEST)
+        self.assertIn("usage", raised.exception.invalid_metadata)
+        self.assertEqual(raised.exception.provider_request_id, "thread-1")
 
     def test_codex_accepts_only_message_and_reasoning_events(self):
         events = [

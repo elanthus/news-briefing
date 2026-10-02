@@ -5,21 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import time
-import urllib.error
-import urllib.request
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+from agent_runner.models import ProviderError
+from agent_runner.providers import _post_chat_completion
 from news_fetch.curation import dedupe
 from news_fetch.model import Item
-
-from evaluator.adapters import (
-    API_MAX_ATTEMPTS,
-    RETRYABLE_HTTP_STATUSES,
-    _retry_after_seconds,
-)
 
 EMBEDDINGS_ENDPOINT = "https://openrouter.ai/api/v1/embeddings"
 EMBEDDINGS_TIMEOUT_SECONDS = 60
@@ -197,43 +190,19 @@ def embed_texts(texts: list[str], model: str, api_key: str) -> list[list[float]]
         raise ValueError("embedding model must be non-empty")
     if not api_key.strip():
         raise ValueError("OpenRouter API key must be non-empty")
-    request = urllib.request.Request(
-        EMBEDDINGS_ENDPOINT,
-        data=json.dumps(
-            {
-                "dimensions": EMBEDDING_DIMENSIONS,
-                "input": texts,
-                "model": model,
-            }
-        ).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    for attempt in range(1, API_MAX_ATTEMPTS + 1):
-        try:
-            with urllib.request.urlopen(request, timeout=EMBEDDINGS_TIMEOUT_SECONDS) as response:
-                payload = json.loads(response.read())
-            return _embedding_vectors(payload, len(texts))
-        except urllib.error.HTTPError as exc:
-            retry_after = _retry_after_seconds(exc.headers.get("Retry-After"))
-            transient = exc.code in RETRYABLE_HTTP_STATUSES or 500 <= exc.code <= 599
-            status = exc.code
-            exc.close()
-            if not transient or attempt == API_MAX_ATTEMPTS:
-                raise RuntimeError(
-                    f"OpenRouter embeddings request failed with HTTP {status} after {attempt} attempt(s)"
-                ) from exc
-            delay = retry_after if retry_after is not None else float(2 ** (attempt - 1))
-        except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
-            if attempt == API_MAX_ATTEMPTS:
-                raise RuntimeError(f"OpenRouter embeddings request failed after {attempt} attempt(s): {exc}") from exc
-            delay = float(2 ** (attempt - 1))
-        if delay:
-            time.sleep(delay)
-    raise AssertionError("embedding retry loop exhausted without returning or raising")
+    try:
+        raw, _, _, _ = _post_chat_completion(
+            "OpenRouter embeddings", EMBEDDINGS_ENDPOINT,
+            {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json.dumps({"dimensions": EMBEDDING_DIMENSIONS, "input": texts, "model": model}).encode("utf-8"),
+            timeout=EMBEDDINGS_TIMEOUT_SECONDS,
+        )
+        payload = json.loads(raw)
+    except ProviderError as exc:
+        raise RuntimeError(f"OpenRouter embeddings request failed after {exc.attempts} attempt(s): {exc}") from exc
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise RuntimeError("OpenRouter returned invalid embeddings JSON") from exc
+    return _embedding_vectors(payload, len(texts))
 
 
 def _pair_item(value: object, pair_id: str, side: str) -> PairItem:

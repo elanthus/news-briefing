@@ -168,8 +168,8 @@ class _Response:
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def read(self) -> bytes:
-        return self.payload
+    def read(self, limit: int = -1) -> bytes:
+        return self.payload[:limit] if limit >= 0 else self.payload
 
 
 class EmbeddingFetchTests(unittest.TestCase):
@@ -184,7 +184,7 @@ class EmbeddingFetchTests(unittest.TestCase):
                 ]
             }
         )
-        with patch("evaluator.retrieval.urllib.request.urlopen", return_value=response) as opened:
+        with patch("agent_runner.providers._urlopen", return_value=response) as opened:
             vectors = embed_texts(["first", "second"], "embedding/model", "test-key")
 
         self.assertEqual(vectors, [first, second])
@@ -209,10 +209,10 @@ class EmbeddingFetchTests(unittest.TestCase):
         response = _Response({"data": [{"index": 0, "embedding": vector}]})
         with (
             patch(
-                "evaluator.retrieval.urllib.request.urlopen",
+                "agent_runner.providers._urlopen",
                 side_effect=[rate_limit, response],
             ),
-            patch("evaluator.retrieval.time.sleep") as sleep,
+            patch("agent_runner.providers.time.sleep") as sleep,
         ):
             self.assertEqual(
                 embed_texts(["first"], "embedding/model", "test-key"),
@@ -222,7 +222,7 @@ class EmbeddingFetchTests(unittest.TestCase):
 
     def test_rejects_unexpected_embedding_dimension(self) -> None:
         response = _Response({"data": [{"index": 0, "embedding": [1, 0]}]})
-        with patch("evaluator.retrieval.urllib.request.urlopen", return_value=response):
+        with patch("agent_runner.providers._urlopen", return_value=response):
             with self.assertRaisesRegex(RuntimeError, "unexpected dimension"):
                 embed_texts(["first"], "embedding/model", "test-key")
 
@@ -233,7 +233,7 @@ class EmbeddingFetchTests(unittest.TestCase):
             response = _Response({"data": [{"index": 0, "embedding": vector}]})
             with self.subTest(value=value):
                 with patch(
-                    "evaluator.retrieval.urllib.request.urlopen", return_value=response
+                    "agent_runner.providers._urlopen", return_value=response
                 ):
                     with self.assertRaisesRegex(RuntimeError, "invalid embedding"):
                         embed_texts(["first"], "embedding/model", "test-key")
@@ -244,9 +244,9 @@ class EmbeddingFetchTests(unittest.TestCase):
         )
         with (
             patch(
-                "evaluator.retrieval.urllib.request.urlopen", side_effect=error
+                "agent_runner.providers._urlopen", side_effect=error
             ) as opened,
-            patch("evaluator.retrieval.time.sleep") as sleep,
+            patch("agent_runner.providers.time.sleep") as sleep,
         ):
             with self.assertRaisesRegex(RuntimeError, "HTTP 400"):
                 embed_texts(["first"], "embedding/model", "test-key")
@@ -256,10 +256,10 @@ class EmbeddingFetchTests(unittest.TestCase):
     def test_transient_failures_stop_after_max_attempts(self) -> None:
         with (
             patch(
-                "evaluator.retrieval.urllib.request.urlopen",
-                side_effect=urllib.error.URLError("boom"),
+                "agent_runner.providers._urlopen",
+                side_effect=urllib.error.URLError(ConnectionRefusedError("boom")),
             ) as opened,
-            patch("evaluator.retrieval.time.sleep"),
+            patch("agent_runner.providers.time.sleep"),
         ):
             with self.assertRaisesRegex(RuntimeError, "attempt"):
                 embed_texts(["first"], "embedding/model", "test-key")

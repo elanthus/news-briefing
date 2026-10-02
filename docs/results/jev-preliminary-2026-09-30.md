@@ -108,8 +108,8 @@ recorded here; this document is not a public reproducibility bundle.
 
 ## Daily workflow decision
 
-The user authorized repairing public daily reports while monitoring the audit
-results over time. The daily workflow therefore confirms initial flags, attempts
+The rollout decision was to repair public daily reports while monitoring audit
+results over time. The daily workflow confirms initial flags, attempts
 one bounded HY3 repair round for confirmed grouping/prose findings, validates
 it, and applies it only after a complete follow-up review clears the affected
 slots and their duplicate comparisons. Unrelated topics retain their positions

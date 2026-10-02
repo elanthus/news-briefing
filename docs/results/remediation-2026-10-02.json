@@ -1,0 +1,556 @@
+{
+  "protocol_id": "independent-production-2026-10-02-v1",
+  "cohorts": {
+    "verified_historical_production": {
+      "topics": 0,
+      "reason": "Exact private historical diagnostics unavailable; no claim of deployed service reliability."
+    },
+    "reconstructed": {
+      "dates": 7,
+      "retained_items": 262,
+      "generated_topics": 57,
+      "reviewed_topics": 29,
+      "double_review_topics": 10,
+      "inventory": [
+        {
+          "date": "2026-09-25",
+          "generated_topics": 4,
+          "sampled_topics": 4,
+          "hashes": {
+            "corpus.json": "84464de982ee3763fa4598da929269a07da56df263e7c7e4bbd215d9c13c4906",
+            "selection.json": "590ef0af8de0099c889c96007497184fdc69a0a6b5b3fd4dc150b7327444332d",
+            "selected-evidence.json": "199729fe9968ca9f661fee1fcc453bf1670a14028794277c6865a390b66e1d7d",
+            "prose.json": "9006b7c16ff773a5983892f325e00b99f5391c49f7c871f8fd012c660eb89836",
+            "candidate.json": "fe770b5764b1b20b54bc9bf2bb4284479d6753d2722101997f1a7e447aa598c4",
+            "briefing.md": "257741a947695de02fb25936a5cdd6c1b5e49f122b57b0ad6a1b1a55903fdfa1",
+            "selection-request.txt": "9a44311504bfed2cb4647978a60e6392baac810a2a79d02a552bfa589c156d27",
+            "selection-schema.json": "dc684b02ab7620af73984443275b1d98bbe0082f5c1b7d585824b3876a51795b",
+            "prose-request.txt": "f4a1fcfc57d502e391abd8cf78e7f7056de44d14a14cce3b2dbdf947d4a9593e",
+            "prose-schema.json": "7843b984c5865b9961d1ae34a078b76aafbeb04979d00ce6e3ba935f81bfb3c6"
+          }
+        },
+        {
+          "date": "2026-09-26",
+          "generated_topics": 1,
+          "sampled_topics": 1,
+          "hashes": {
+            "corpus.json": "4457b1e205424b1e6266ced5882ab3ba09a58029867f7ec8eb1eca8d6b14530b",
+            "selection.json": "cd5e5e310ba8a4ad834f1732174375a15874cd63c09f48ddf3d4914dfe299e4c",
+            "selected-evidence.json": "fd87b7543eab47307675cee35dc163af23b98f9a0f4f88e0fdd864ac20d9d1ad",
+            "prose.json": "b6da6b67c60ddc3922cd82d0a0d20b135152a8f6292092d1afc2d2e17a28b77f",
+            "candidate.json": "f9a1d570c437cbd95396b562af37a761f6bbe3499cbb4fd654927efc2e599591",
+            "briefing.md": "ccd489e25a9852dcfff5e062a4f0d394052ca349609f898ad75f84a94846a2e1",
+            "selection-request.txt": "f6ed4aadf45b9ffeae77496273b2a79c3923b407e34eef0cbf581606958f2580",
+            "selection-schema.json": "9323cd54b3f7acbe1111195b141b90904685bba9242881199eaccd13b9382a60",
+            "prose-request.txt": "ee36aae81da62d99cd74141d685251cb5a76a5bde6580057ccf4ac8859a5f49d",
+            "prose-schema.json": "4368001148d7b041436aa901f44f684028949f60ba26ab6fd7563ae23027af8f"
+          }
+        },
+        {
+          "date": "2026-09-27",
+          "generated_topics": 1,
+          "sampled_topics": 1,
+          "hashes": {
+            "corpus.json": "9d34a6a881da32c880cefdbc2b394c2fedaddf0516a2fd06123b8e2aaf9b8a1a",
+            "selection.json": "cd5e5e310ba8a4ad834f1732174375a15874cd63c09f48ddf3d4914dfe299e4c",
+            "selected-evidence.json": "7415de2e366ceb4123d33f9788e93383b1a734b1aa888ad311c0dc963696da6a",
+            "prose.json": "6d48a6311a119271c2f96ed975b90b9bb2a0644e4784b5835ef8c0ff2120bcbd",
+            "candidate.json": "9086b9981c2fd6edc35072b522fc44ab6bf199e74b00a9211ea8f98d9c774178",
+            "briefing.md": "c053deccc735be6a2416615a92498f407594a3f379dbb31ae669ffc0de5419d8",
+            "selection-request.txt": "4f9cdb052af6272a40a14c0d46211de8637b4c393cab534cde8a35348929c8fb",
+            "selection-schema.json": "9323cd54b3f7acbe1111195b141b90904685bba9242881199eaccd13b9382a60",
+            "prose-request.txt": "b85d3d4df5d9b5c3201143e132c2dfd266fd39319952b378ca89630b9eabfa5f",
+            "prose-schema.json": "4368001148d7b041436aa901f44f684028949f60ba26ab6fd7563ae23027af8f"
+          }
+        },
+        {
+          "date": "2026-09-28",
+          "generated_topics": 6,
+          "sampled_topics": 6,
+          "hashes": {
+            "corpus.json": "8cb83a185fc6dbb8ae3eac7890cc3d4a487cef1efb721c61451afd2834822e13",
+            "selection.json": "e0b7fac66f62cb7cd822911247ad4a2f4d393474df42f84bc6fd346b6c200914",
+            "selected-evidence.json": "d40abe8c6cb69277ea2b93ec38b5d7ac45a16ab012e25c1d283fcd94e307baa4",
+            "prose.json": "b87de805514c5f5c95131be5388f2daa62f25883042069b00f5db4c844f94a3a",
+            "candidate.json": "9ab45065c127cf326cda938964ff5c4fe8e2979ca8ff8bcf5503fcc0aedfa81c",
+            "briefing.md": "e62ce1465617ecbe42b59385a0c5c9f4314aeea071b9a9fabb98fd00e65445e3",
+            "selection-request.txt": "c5527207dd596b166b56aded4b39d0c492a603ffb5624af35ce858e0f331dfe6",
+            "selection-schema.json": "a6c954650be58be7e93f350518f5e270fd5140d675208dd72969cd6ead2411f2",
+            "prose-request.txt": "0572e645f7e8d1b158512bf854b0135769146a0c2d33c5db7cbd526bdccd8d65",
+            "prose-schema.json": "82b8b918269ed881d4c5d53c54d9b904f60013e8851a5cf8fe4b6c2a3fdb57a6"
+          }
+        },
+        {
+          "date": "2026-09-29",
+          "generated_topics": 5,
+          "sampled_topics": 5,
+          "hashes": {
+            "corpus.json": "8e7b88f03b9343a0c8b66ac463a762e3ebb531b2e975792a8a2ce5e8ad522971",
+            "selection.json": "98a39e53ff13b950be3e947f6307e61896c59ab6954feaef37fbd260b5e8c73c",
+            "selected-evidence.json": "ee098a8718fd87afc7cc137ef361262f27e494e7a7b5e3ed234fce42aad94fb3",
+            "prose.json": "dcc6024dca8c7d88bc14bf74b580cb91b3d175cce66fe148d1076c9b2b92acde",
+            "candidate.json": "ed64e60be2d9ddb0fe3fb26e6681d8ca5a0fcc86919d4cb76d384c7e09d73911",
+            "briefing.md": "f51e07693447eb072f33c39f32683a9d3baa429563511d59afba229e418d99b1",
+            "selection-request.txt": "a8ff01db95f32cc9e2a65607e60c851dd3219a99be262787fa030e7c5ab2c80f",
+            "selection-schema.json": "5a8b8cd1a8da3c95a9149b8e9834a7335a2747bf31b79f52e6bbf0770da005fb",
+            "prose-request.txt": "02333a21fb22ebe09bcbcdb388ba1e5e8014f3cae9fbcbc5eb9e519b74f320cb",
+            "prose-schema.json": "27e876f219b5f53a653b474f9f0154d13db9347fee4385237983599e04503c15"
+          }
+        },
+        {
+          "date": "2026-09-30",
+          "generated_topics": 18,
+          "sampled_topics": 6,
+          "hashes": {
+            "corpus.json": "bbc8dab87f10226f01f7647413c60262a20f92661dd048507da8ddd4397e96aa",
+            "selection.json": "9f4766156152f751021521c8fd2323f0b43c04a740a9ade8ce426e5d5f29e030",
+            "selected-evidence.json": "508bab9e405d174c80c912d6e4920797987e402a0cf6f35d63713952a382822d",
+            "prose.json": "9aa69a76264eaddc24c945216e5b7ea51b5c042aad2f121415f0909e69b7d8b5",
+            "candidate.json": "1c85b59913fdc9c7a6932f396d1c295ed854282570434955d36f5998a843955f",
+            "briefing.md": "d5dc6ad604c8cace5304dfae6e76d40b9a978dbd72b21e24357ac4370aa467a0",
+            "selection-request.txt": "aa67296efb1bd2da00cb4ae84b82388871b7d4b9dd354f4ce300a68db3e3b66a",
+            "selection-schema.json": "9bf4e16d0ac2fac5a0e221034adb1ecac39b54294acde95d8ce1a0248484e9ed",
+            "prose-request.txt": "8676a8942cb4bc3d6a6aa8698acce3fd3996fbaec70a27939e333f24b46ea9a5",
+            "prose-schema.json": "c8705f7d5ac0d2946a294204b1d9deb83c76f885e824328178837cd203f225c9"
+          }
+        },
+        {
+          "date": "2026-10-01",
+          "generated_topics": 22,
+          "sampled_topics": 6,
+          "hashes": {
+            "corpus.json": "d90ba524201ddbf89b549b9baae37c13342f379989d542379afc20e31c6dd1e0",
+            "selection.json": "c137b58ddcb15c95d701866994337dbd2c5ee0f0355ba3fee52ced3c468c6af2",
+            "selected-evidence.json": "4a53d8d9eeb1899bdc4ed0e5990644bee8b7fca0b6e99227af4a684e4dc26c70",
+            "prose.json": "0ce7d3f6d543014b2163d0c07d1b977fcc15afcc35728e2ed37dee835890909b",
+            "candidate.json": "664e5587ce040d50dd1318d172aa458fad401bac40d7e0c254b9bd90dc4cd66a",
+            "briefing.md": "72f65f864d8aef46a6e9d3fde096f730f5835c9277782e945116e13ee56d9337",
+            "selection-request.txt": "aadd27eeb80ffed3c352c4308bf46b9771fdaf86401c21f0680919fd69d727bf",
+            "selection-schema.json": "bc96415501ce46f85c13ade5f1c85fab638e4e9b4143773cef81447635cdbd30",
+            "prose-request.txt": "371f28106dfed718ec998ae5b37a715029912f6d19c14d84de03cb31bc651554",
+            "prose-schema.json": "b995f21f1e3e4ace9b6d829f3ed6cc390f79c650f545c5c4d369344e43eeead8"
+          }
+        }
+      ]
+    },
+    "diagnostic_repair_pairs": {
+      "pairs": 6,
+      "topics": 12,
+      "double_review_topics": 12,
+      "original_runs": 2,
+      "corpora": 1,
+      "separate_from_production": true
+    }
+  },
+  "generation": {
+    "provider": "Codex subagent",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "agent": "provenance",
+    "temperature": null,
+    "seed": null,
+    "external_paid_api_calls": 0,
+    "difference_from_production": "Current config/prompt and code validation, but generator is not the production OpenRouter fallback chain; no Jev review/repair pass on reconstructed samples."
+  },
+  "hashes": {
+    "briefing-config.json": "d33f7fdfe592e8ae04ba536629a6a48b0861f08a5190d6ac721588b43b453706",
+    "briefing-runner-prompt.md": "077116a84cea305f38e34145222ca325aed342275144a67d6a428e9caeea71c6",
+    "independent-production-2026-10-02.json": "98acf508b56121aed4bd6f4ecd9bab7e8df9f29e6b3238ca48cd972a7aa6b738",
+    "seven-day-corpus.json": "7aa0a7e65f42f2fff70f192c9d483cc35ce5cad880b2722f391de37ac404e67e",
+    "blinded-reconstructed.json": "6de0feb5285a459b23ef0d7cbfda8dd33574f1e26bbada101c517868d7b33298",
+    "blinded-reconstructed-double.json": "29cf6fd45c1b771b56c852fa38ca7d5f17474a475c1abfb0d3997b73856d9c1f",
+    "blinded-selection.json": "c95f96ecc98a30539d28869bf7ee84a2ac908aabc36c789ed9104270047d6ff8",
+    "blinded-repairs.json": "69c04c23e1a34c85504966a6cb611d9c6344ac59be89cfbe6c289edeee72a283",
+    "quality-primary-reconstructed.json": "2ca6a1abdf3cf9cbe12ec5e074958df77ecd642d041528b0edb25a4a4ab2019f",
+    "quality-double-reconstructed.json": "b602665707e2be3f13dd4b6eb3eab0feeff05708c7d41a07ffb95db5f18b2be0",
+    "quality-primary-selection.json": "fc0b377c88d201e98be409e361156b9e65effad1f8349de4b59653ebdd6dd9f1",
+    "quality-primary-repairs.json": "25f1ba20b72ebd4d3a0355a2924508ec1668119c9e76290283bd4f159163fbfa",
+    "quality-double-repairs.json": "dff96d4c3dec5655a32c68d59b7a678fdc626cac91efeb4479598e6ee30a8447",
+    "adjudicated-repairs.json": "9ccb8039cf665c5ad26b52a6ce818ff5b6b627b3ad5ad46e01f3b8955f3cf2ce",
+    "blinded-disagreements.json": "9d4974140b018890074283dff1c22968d308cf1731ff63a813c11567859045bf",
+    "blinded-positive-practices.json": "9fb6f09c659dacca26fd2b32aca648c7fd2ba30269a2dd2629608ea171c71aff",
+    "quality-primary-positive.json": "86ce52fecfffdf948bf225313efe596bc5eaa9fa91c3c3c787d6a353f44fab7c",
+    "utility-positive-review-packet.json": "df7f4e3c2168fd5b10757881184ad335b53b6cf32e2ed8a99e05c2d8b5246cfe",
+    "quality-primary-utility-positives.json": "a110524dfd40017bed6f491ccf3d5f9c16c01c6756ea9c1274081e548ec3fe69",
+    "generation-cases-v9.json": "38f74d419cdbe1cf55ff5b60580ca612304cce539f06e2a38b9e94cf2fa1cd49",
+    "generation-v9-scarcity-positive.json": "dc81a84fc9135d64516ab648980ac6faa6c4b4fb3d407c2c7c87dff78f3c54b5",
+    "generation-v9-utility-positive.json": "6bce786ab8d04b4b0bd678df25aac317990d4b1aefd1332a1accde80bf32785c"
+  },
+  "schema_version": 1,
+  "hash_provenance": "SHA256 over exact UTF-8/file bytes. Protocol contains rubric; blinded packets contain effective evidence. Provider-level system prompt/temperature/seed are not exposed by the subagent interface and are not claimed reproducible.",
+  "reviewers": [
+    {
+      "provider": "Codex subagent",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "agent": "quality_primary",
+      "temperature": null,
+      "seed": null
+    },
+    {
+      "provider": "Codex subagent",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "agent": "quality_double",
+      "temperature": null,
+      "seed": null
+    },
+    {
+      "provider": "Codex subagent",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "agent": "adjudicator",
+      "temperature": null,
+      "seed": null
+    }
+  ],
+  "review_independence": "Fresh reviewers did not generate/repair candidates or implement code. Packets omitted generator identities, prior scores, original/repair mapping. Third reviewer saw blinded disputed topics and both rationales.",
+  "reconstructed_results": {
+    "primary": {
+      "denominator": 29,
+      "supported": 29,
+      "unsafe_grouping": 0,
+      "irrelevant_citation_topics": 0,
+      "quality_means": {
+        "clarity": 5,
+        "completeness": 4.828,
+        "usefulness": 3.931
+      }
+    },
+    "double": {
+      "denominator": 10,
+      "supported": 10,
+      "unsafe_grouping": 0,
+      "irrelevant_citation_topics": 0,
+      "quality_means": {
+        "clarity": 5,
+        "completeness": 4,
+        "usefulness": 3.9
+      }
+    },
+    "raw_agreement": {
+      "denominator": 10,
+      "supported": 10,
+      "unsafe_grouping": 10,
+      "citation_indices": 10
+    },
+    "material_disagreements": 0,
+    "quality_scale": "1 poor to 5 strong; descriptive means, not calibrated ratings",
+    "primary_quality_means_on_double_subset": {
+      "clarity": 5,
+      "completeness": 4.7,
+      "usefulness": 3.9
+    }
+  },
+  "repair_results": {
+    "primary": {
+      "denominator": 12,
+      "supported": 7,
+      "unsafe_grouping": 5,
+      "irrelevant_citation_topics": 1,
+      "quality_means": {
+        "clarity": 4.25,
+        "completeness": 3.75,
+        "usefulness": 3.417
+      }
+    },
+    "double": {
+      "denominator": 12,
+      "supported": 7,
+      "unsafe_grouping": 5,
+      "irrelevant_citation_topics": 5,
+      "quality_means": {
+        "clarity": 4.083,
+        "completeness": 3.333,
+        "usefulness": 3.333
+      }
+    },
+    "raw_agreement": {
+      "denominator": 12,
+      "supported": 12,
+      "unsafe_grouping": 12,
+      "citation_indices": 7
+    },
+    "adjudicated_material_disagreements": 5,
+    "adjudicated_grounding": {
+      "denominator": 12,
+      "supported": 7,
+      "unsafe_grouping": 5,
+      "irrelevant_citation_topics": 1
+    },
+    "pairs": [
+      {
+        "pair": 1,
+        "original": {
+          "supported": false,
+          "unsafe_grouping": true
+        },
+        "repaired": {
+          "supported": true,
+          "unsafe_grouping": false
+        }
+      },
+      {
+        "pair": 2,
+        "original": {
+          "supported": false,
+          "unsafe_grouping": true
+        },
+        "repaired": {
+          "supported": true,
+          "unsafe_grouping": false
+        }
+      },
+      {
+        "pair": 3,
+        "original": {
+          "supported": true,
+          "unsafe_grouping": true
+        },
+        "repaired": {
+          "supported": false,
+          "unsafe_grouping": false
+        }
+      },
+      {
+        "pair": 4,
+        "original": {
+          "supported": false,
+          "unsafe_grouping": true
+        },
+        "repaired": {
+          "supported": true,
+          "unsafe_grouping": false
+        }
+      },
+      {
+        "pair": 5,
+        "original": {
+          "supported": true,
+          "unsafe_grouping": false
+        },
+        "repaired": {
+          "supported": true,
+          "unsafe_grouping": false
+        }
+      },
+      {
+        "pair": 6,
+        "original": {
+          "supported": false,
+          "unsafe_grouping": true
+        },
+        "repaired": {
+          "supported": true,
+          "unsafe_grouping": false
+        }
+      }
+    ],
+    "support_transitions": {
+      "improved": 4,
+      "degraded": 1,
+      "unchanged": 1
+    },
+    "grouping_transitions": {
+      "improved": 5,
+      "degraded": 0,
+      "unchanged": 1
+    },
+    "adjudication_rule": "A citation supporting an explicit prose clause remains relevant even when that clause is unsafely grouped under the headline. Grounding and grouping were unchanged by adjudication; citation-index disagreements resolved separately."
+  },
+  "repair_artifact_hashes": [
+    {
+      "pair": 1,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "bb809bbcb587d43103c2a212797cfb7bc7746a2e3b4d48453abe0dfd77496350",
+        "attempt-04-structured.json": "e58c9a751d37fd0a59644c889a5315f43cdb02c738a407ee082782072af37cb3",
+        "frozen-selection.json": "b80257f8166173884a808114f809953d53ee237263aece9bec1a77813f9f2d27",
+        "selected-evidence.json": "3781997697c9974a545c741ebb3efe577eb2edf79066b5c4e18aded2e816c0df",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 1,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "6592d9b285077befb190a6a9abae19092187971f8e996a029cd21cb10e671f1e",
+        "attempt-02-structured.json": "9ce9cf696295295292848cbda65e83166b616eba5e62a2b6865285f1b10b1c2d",
+        "frozen-selection.json": "b489139c1cf6f0adb5967470c2cfeebdfc71cd071a4806aaa16dab23684474fc",
+        "selected-evidence.json": "e9a69df9c0cb38c853c876341a08b96581285bf5f882e535b53174a07f64b09c",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 2,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "bb809bbcb587d43103c2a212797cfb7bc7746a2e3b4d48453abe0dfd77496350",
+        "attempt-04-structured.json": "e58c9a751d37fd0a59644c889a5315f43cdb02c738a407ee082782072af37cb3",
+        "frozen-selection.json": "b80257f8166173884a808114f809953d53ee237263aece9bec1a77813f9f2d27",
+        "selected-evidence.json": "3781997697c9974a545c741ebb3efe577eb2edf79066b5c4e18aded2e816c0df",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 2,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "6592d9b285077befb190a6a9abae19092187971f8e996a029cd21cb10e671f1e",
+        "attempt-02-structured.json": "9ce9cf696295295292848cbda65e83166b616eba5e62a2b6865285f1b10b1c2d",
+        "frozen-selection.json": "b489139c1cf6f0adb5967470c2cfeebdfc71cd071a4806aaa16dab23684474fc",
+        "selected-evidence.json": "e9a69df9c0cb38c853c876341a08b96581285bf5f882e535b53174a07f64b09c",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 3,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "bb809bbcb587d43103c2a212797cfb7bc7746a2e3b4d48453abe0dfd77496350",
+        "attempt-04-structured.json": "e58c9a751d37fd0a59644c889a5315f43cdb02c738a407ee082782072af37cb3",
+        "frozen-selection.json": "b80257f8166173884a808114f809953d53ee237263aece9bec1a77813f9f2d27",
+        "selected-evidence.json": "3781997697c9974a545c741ebb3efe577eb2edf79066b5c4e18aded2e816c0df",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 3,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "6592d9b285077befb190a6a9abae19092187971f8e996a029cd21cb10e671f1e",
+        "attempt-02-structured.json": "9ce9cf696295295292848cbda65e83166b616eba5e62a2b6865285f1b10b1c2d",
+        "frozen-selection.json": "b489139c1cf6f0adb5967470c2cfeebdfc71cd071a4806aaa16dab23684474fc",
+        "selected-evidence.json": "e9a69df9c0cb38c853c876341a08b96581285bf5f882e535b53174a07f64b09c",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 4,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "bb809bbcb587d43103c2a212797cfb7bc7746a2e3b4d48453abe0dfd77496350",
+        "attempt-04-structured.json": "e58c9a751d37fd0a59644c889a5315f43cdb02c738a407ee082782072af37cb3",
+        "frozen-selection.json": "b80257f8166173884a808114f809953d53ee237263aece9bec1a77813f9f2d27",
+        "selected-evidence.json": "3781997697c9974a545c741ebb3efe577eb2edf79066b5c4e18aded2e816c0df",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 4,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "6592d9b285077befb190a6a9abae19092187971f8e996a029cd21cb10e671f1e",
+        "attempt-02-structured.json": "9ce9cf696295295292848cbda65e83166b616eba5e62a2b6865285f1b10b1c2d",
+        "frozen-selection.json": "b489139c1cf6f0adb5967470c2cfeebdfc71cd071a4806aaa16dab23684474fc",
+        "selected-evidence.json": "e9a69df9c0cb38c853c876341a08b96581285bf5f882e535b53174a07f64b09c",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 5,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "8f67ae02de4a92f52209b8737593af8094d76ce37ab7559e3864a909abd7923f",
+        "attempt-02-structured.json": "3f922f8fa92c758696668a832ba4461074724e13236053a30a009ba03a30d966",
+        "frozen-selection.json": "25de10608f16b2cbf68c998ae2dba89b2e867591b00dc842a0341a1de1fe7b4a",
+        "selected-evidence.json": "c97a091e245d455194275af040d80f932f09c06db02a72596556c8ff21c889ac",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 5,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "8c2cfad96d609881374510ff3a59a651ff3ebab598a3f43b238fe1a3b15b0136",
+        "attempt-02-structured.json": "08b4c75de42b60fcc566e04b02e087d09bd14d2f5ac6a72b49605b3042ac04c2",
+        "frozen-selection.json": "29fed48f607ac3c6533f7d73beb761824e3d67722b0987ae28463e053bcc9170",
+        "selected-evidence.json": "1ad76a1e54045de28091a1ddd001703e741186a6e9be0fbb55f13aaa890fb71d",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 6,
+      "variant": "original",
+      "hashes": {
+        "manifest.json": "8f67ae02de4a92f52209b8737593af8094d76ce37ab7559e3864a909abd7923f",
+        "attempt-02-structured.json": "3f922f8fa92c758696668a832ba4461074724e13236053a30a009ba03a30d966",
+        "frozen-selection.json": "25de10608f16b2cbf68c998ae2dba89b2e867591b00dc842a0341a1de1fe7b4a",
+        "selected-evidence.json": "c97a091e245d455194275af040d80f932f09c06db02a72596556c8ff21c889ac",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    },
+    {
+      "pair": 6,
+      "variant": "repaired",
+      "hashes": {
+        "manifest.json": "8c2cfad96d609881374510ff3a59a651ff3ebab598a3f43b238fe1a3b15b0136",
+        "attempt-02-structured.json": "08b4c75de42b60fcc566e04b02e087d09bd14d2f5ac6a72b49605b3042ac04c2",
+        "frozen-selection.json": "29fed48f607ac3c6533f7d73beb761824e3d67722b0987ae28463e053bcc9170",
+        "selected-evidence.json": "1ad76a1e54045de28091a1ddd001703e741186a6e9be0fbb55f13aaa890fb71d",
+        "corpus.json": "4cee2b504aaf5cc61381ef79756d68dafcc0e4844eca24faad33bab281fd8e81",
+        "briefing-config.json": "d292f428f06ed20d561ada6ab7d1c4a42be93f0f90545256518c842d828e5c94"
+      }
+    }
+  ],
+  "selection_results": {
+    "reviewer": "quality_primary",
+    "corpora": 2,
+    "dates": [
+      "2026-09-30",
+      "2026-10-01"
+    ],
+    "retained_items": [
+      49,
+      194
+    ],
+    "selected_topics": [
+      18,
+      22
+    ],
+    "relevance_scores": [
+      4,
+      4
+    ],
+    "scale": "1 poor to 5 strong",
+    "important_omission_clusters": [
+      2,
+      4
+    ],
+    "misrouted_or_low_value_flags": [
+      0,
+      0
+    ],
+    "limitations": "Single reviewer, corpus-relative editorial judgments. An item used for one development can still omit another material development from the same excerpt."
+  },
+  "limitations": [
+    "Zero verified historical production topics: exact private evidence inaccessible.",
+    "One retrospective seven-day fetch split by UTC item date, not seven independent daily fetches; weekly source health inherited explicitly. Source caps and recency skew leave sparse older dates.",
+    "Target36, sampled29; no padding. Seven dates retained, no reconstructed date excluded; 28 generated topics not selected by sampling.",
+    "Reconstructed generator differs from production providers and no Jev pass was run.",
+    "Excerpt support is not full-article fact checking or human validation. Same-model reviewers can share blind spots.",
+    "Six repair pairs span two diagnostic original runs using one corpus; repeated examples do not estimate deployment reliability.",
+    "Private raw artifacts are not published; hashes support integrity for authorized holders, not public reproduction of private evidence."
+  ],
+  "utility_positive_review": {
+    "reviewer": "quality_primary",
+    "reviewed_units": 19,
+    "reviewed_cases": 22,
+    "reviewed_topic_instances": 68,
+    "achievable": true,
+    "scope": "Included-topic claims, citation relevance, grouping, required propositions and routing. Exclusion-log prose not semantically reviewed.",
+    "editorial_caveats": "Thin title-only content has limited usefulness; rules-pruning is a better fit for a practice section in a full briefing, although simplified cases only offer the tools section.",
+    "limits": "Shared authored controls establish achievability, not independent observations or generation-success rate."
+  }
+}

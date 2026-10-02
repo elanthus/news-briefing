@@ -2,8 +2,10 @@
 
 ## Status
 
-Proposed. The workflow change is committed. The ruleset, deploy key, and
-secret have not been created yet.
+Proposed; external setup pending. Read-only GitHub checks on October 2, 2026
+confirmed no rulesets, `protected: false`, legacy protection returning 404,
+no deploy keys, and no `MONITOR_DEPLOY_KEY` secret. The committed workflow
+alone does not activate protection.
 
 ## Context
 
@@ -144,8 +146,8 @@ gh api -X POST repos/elanthus/news-briefing/rulesets --input ruleset.json
 - Run `gh workflow run monitor-grounding.yml`, or wait for the Sunday
   14:00 UTC run. Confirm that the "Commit the updated weekly log" step either
   pushes or reports no change.
-- Make a trivial commit on a laptop and run `git push origin HEAD:main`.
-  GitHub rejects it with a ruleset violation.
+- Read back the ruleset rules, required check contexts, enforcement, and bypass
+  actors through the GitHub API. Do not test protection with a real direct push.
 - Open a pull request and confirm it cannot merge until the six required
   checks pass.
 - Confirm the next scheduled `daily-briefing.yml` run succeeds. That workflow

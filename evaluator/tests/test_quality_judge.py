@@ -1,10 +1,13 @@
 """Evaluator quality judge regression coverage."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import corpus_schema
 import eval_briefing
@@ -118,6 +121,42 @@ class QualityJudgeTest(unittest.TestCase):
         )
         return output / "manifest.json"
 
+    def test_explicit_relative_suite_uses_cwd_and_manifest_relative_uses_run_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = self._minimal_run(root)
+            relative = Path(os.path.relpath(root / "suite.json"))
+            judge = FakeJudgeAdapter("judge")
+            run_quality_judging(manifest_path, judge, root / "explicit", suite_path=relative)
+            manifest = json.loads(manifest_path.read_bytes())
+            manifest["suite"] = "../suite.json"
+            manifest_path.write_text(json.dumps(manifest))
+            run_quality_judging(manifest_path, judge, root / "implicit")
+            self.assertEqual(judge.calls, 4)
+
+    def test_fresh_assessment_rejects_tampered_or_unverifiable_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = self._minimal_run(root)
+            manifest = json.loads(manifest_path.read_bytes())
+            row = manifest["results"][0]
+            case_dir = manifest_path.parent / row["artifact_dir"]
+            judge = FakeJudgeAdapter("judge")
+            for name in ("corpus.json", "final.md"):
+                path = case_dir / name
+                frozen = path.read_bytes()
+                path.write_bytes(frozen + b"\n")
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "differs from the frozen"):
+                    run_quality_judging(manifest_path, judge, root / "fresh")
+                path.write_bytes(frozen)
+            del row["trial_corpus_sha256"]
+            manifest_path.write_text(json.dumps(manifest))
+            preserved = manifest_path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "unverifiable legacy generation"):
+                run_quality_judging(manifest_path, judge, root / "legacy")
+            self.assertEqual(manifest_path.read_bytes(), preserved)
+            self.assertEqual(judge.calls, 0)
+
     def test_parse_judgment_accepts_fenced_json_and_rejects_bad_shapes(self) -> None:
         fenced = "```\n" + json.dumps({
             "faithfulness": "a", "salience": "b", "concision": "tie", "coherence": "a",
@@ -166,7 +205,11 @@ class QualityJudgeTest(unittest.TestCase):
                 Path(__file__).parents[1] / "fixtures" / "generation-config-1.json"
             )
 
-            topics = _topics(temporary, {"artifact_dir": "case"}, config)
+            topics = _topics(temporary, {
+                "artifact_dir": "case",
+                "trial_corpus_sha256": hashlib.sha256((case_dir / "corpus.json").read_bytes()).hexdigest(),
+                "final_output_sha256": hashlib.sha256((case_dir / "final.md").read_bytes()).hexdigest(),
+            }, config)
 
             evidence = eval_briefing.corpus_evidence(corpus)
             expected = " ".join(
@@ -236,6 +279,47 @@ class QualityJudgeTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "different judge-quality run"):
                 run_quality_judging(manifest_path, judge, temporary / "quality")
+
+    def test_changed_controls_rubric_evidence_output_or_config_rejects_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeJudgeAdapter("fixture-judge")
+            output = temporary / "quality"
+            run_quality_judging(manifest_path, judge, output)
+            with patch.object(judge, "generation_controls", return_value={"temperature": 0.5}):
+                with self.assertRaisesRegex(ValueError, "different judge-quality"):
+                    run_quality_judging(manifest_path, judge, output)
+            with patch("evaluator.quality.AXIS_RUBRIC", {"faithfulness": "changed rubric"}):
+                with self.assertRaisesRegex(ValueError, "different judge-quality"):
+                    run_quality_judging(manifest_path, judge, output)
+            manifest = json.loads(manifest_path.read_bytes())
+            case_dir = manifest_path.parent / manifest["results"][0]["artifact_dir"]
+            for path in (case_dir / "corpus.json", case_dir / "final.md", temporary / "config.json"):
+                with self.subTest(path=path.name):
+                    frozen = path.read_bytes()
+                    path.write_bytes(frozen + b"\n ")
+                    with self.assertRaisesRegex(ValueError, "different judge-quality|differs from the frozen"):
+                        run_quality_judging(manifest_path, judge, output)
+                    path.write_bytes(frozen)
+            self.assertEqual(judge.calls, 2)
+
+    def test_legacy_checkpoint_is_preserved_and_rejected_without_paid_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeJudgeAdapter("fixture-judge")
+            output = temporary / "quality"
+            run_quality_judging(manifest_path, judge, output)
+            checkpoint = next(output.glob("*-original.json"))
+            payload = json.loads(checkpoint.read_bytes())
+            del payload["reviewer"]
+            checkpoint.write_text(json.dumps(payload))
+            frozen = checkpoint.read_bytes()
+            with self.assertRaisesRegex(ValueError, "incompatible or legacy"):
+                run_quality_judging(manifest_path, judge, output)
+            self.assertEqual(judge.calls, 2)
+            self.assertEqual(checkpoint.read_bytes(), frozen)
 
     def test_suite_override_missing_a_manifest_case_reports_a_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

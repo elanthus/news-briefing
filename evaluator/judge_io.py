@@ -19,6 +19,20 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def verified_generation_artifact(path: Path, row: dict[str, Any], digest_key: str) -> bytes:
+    """Require generation-owned evidence identity, including for a new assessment."""
+    expected = row.get(digest_key)
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise ValueError(
+            f"unverifiable legacy generation: missing {digest_key}; "
+            "preserve the run and use a generation with recorded artifact digests"
+        )
+    content = path.read_bytes()
+    if sha256_bytes(content) != expected:
+        raise ValueError(f"{path.name} differs from the frozen generation artifact")
+    return content
+
+
 def portable_path(path: Path) -> str:
     """Represent repository paths without exposing a machine-specific checkout."""
     resolved = path.resolve()
@@ -65,32 +79,65 @@ def write_json_atomic(path: Path, payload: Any) -> None:
     )
 
 
+def reviewer_identity(adapter: Adapter) -> dict[str, Any]:
+    """Describe the requested reviewer and every adapter-exposed call control."""
+    return {
+        "provider": adapter.provider,
+        "model": adapter.model,
+        "generation_controls": adapter.generation_controls(),
+        "timeout_seconds": adapter.timeout,
+    }
+
+
+def judgment_identity(adapter: Adapter, prompt: str) -> dict[str, Any]:
+    """Bind a judgment to its effective evidence, output, rubric and reviewer."""
+    return {
+        "checkpoint_schema_version": 2,
+        "prompt_sha256": sha256_bytes(prompt.encode("utf-8")),
+        "reviewer": reviewer_identity(adapter),
+    }
+
+
+def checked_generation(payload: dict[str, Any], identity: dict[str, Any]) -> Generation:
+    """Reject legacy or incompatible provenance before considering cached labels."""
+    if any(payload.get(key) != value for key, value in identity.items()):
+        raise ValueError(
+            "checkpoint has incompatible or legacy judgment provenance; "
+            "use a new assessment directory (the existing record is preserved)"
+        )
+    return Generation(**{key: value for key, value in payload.items() if key not in identity})
+
+
 def checkpointed_generate(
     adapter: Adapter,
     prompt: str,
     checkpoint: Path,
     parse: Callable[[str], Parsed],
     *,
-    bind_prompt: bool = False,
+    bind_prompt: bool = True,
 ) -> tuple[Generation, Parsed, bool]:
-    """Return a valid cached generation or durably save and parse one new call."""
-    prompt_sha256 = sha256_bytes(prompt.encode("utf-8")) if bind_prompt else None
+    """Resume compatible judgments; preserve and reject incompatible or legacy ones."""
+    if not bind_prompt:
+        raise ValueError("judge checkpoints must bind the effective prompt")
+    identity = judgment_identity(adapter, prompt)
     if checkpoint.exists():
+        payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"checkpoint {checkpoint.name} is not a JSON object")
+        generation = checked_generation(payload, identity)
         try:
-            payload = json.loads(checkpoint.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                raise ValueError(f"checkpoint {checkpoint.name} is not a JSON object")
-            saved_prompt_sha256 = payload.pop("prompt_sha256", None)
-            if bind_prompt and saved_prompt_sha256 != prompt_sha256:
-                raise ValueError(f"checkpoint {checkpoint.name} belongs to another prompt")
-            generation = Generation(**payload)
-            return generation, parse(generation.text), True
-        except (OSError, TypeError, ValueError):
-            # Retry corrupt checkpoints and malformed saved model responses.
-            pass
+            parsed = parse(generation.text)
+        except ValueError:
+            # Preserve the response and its provenance before retrying this same
+            # assessment. Incompatible identities above are never retried.
+            index = 1
+            archived = checkpoint.with_name(f"{checkpoint.stem}-invalid-{index:03d}.json")
+            while archived.exists():
+                index += 1
+                archived = checkpoint.with_name(f"{checkpoint.stem}-invalid-{index:03d}.json")
+            checkpoint.rename(archived)
+        else:
+            return generation, parsed, True
     generation = adapter.generate(prompt)
-    record = generation.record()
-    if bind_prompt:
-        record["prompt_sha256"] = prompt_sha256
-    write_json_atomic(checkpoint, record)
+    write_json_atomic(checkpoint, generation.record() | identity)
     return generation, parse(generation.text), False

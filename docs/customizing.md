@@ -1,6 +1,6 @@
 # Customizing the briefing
 
-Two files decide what gets fetched and how the briefing is sectioned. The output contract itself lives in the production prompt, [`briefing-runner-prompt.md`](../briefing-runner-prompt.md). This page walks through both, then shows how to iterate on them without spending a model call per change. The [README](../README.md#point-it-at-your-own-news) has the short version.
+Two files decide what gets fetched and how the briefing is sectioned. Code owns the output contract: [`agent_runner/output.py`](../agent_runner/output.py) builds schemas and validates selections and prose. The production prompt, [`briefing-runner-prompt.md`](../briefing-runner-prompt.md), supplies editorial instructions. This page walks through both, then shows how to iterate on them without spending a model call per change. The [README](../README.md#generate-one) has the short version.
 
 ## `sources.json`: where items come from
 
@@ -62,7 +62,7 @@ Use it to confirm a new feed parses, lands in the category you expect, and survi
 
 ## Replay a saved corpus while you iterate
 
-Once the feeds are right, save a corpus and replay it. Iterating on section wording then costs one model call instead of a fresh fetch each time, and every attempt runs against identical evidence:
+Once the feeds are right, save a corpus and replay it. Each replay uses separate selection and prose calls, with additional calls for corrections and optional semantic review or repair. It avoids another fetch and keeps the input evidence fixed:
 
 ```bash
 python3 -S fetch_news.py --hours 24 -o corpus.json

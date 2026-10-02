@@ -20,6 +20,28 @@ It was an early manual run in August 2026 (Claude Opus 5 via Claude Desktop), be
 
 Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS, Hacker News, and Reddit items, runs separate selection and prose passes, and publishes only what passes the gate. The model never receives a URL. It chooses among opaque handles; code resolves each to its destination. Jev checks whether the prose is supported by its frozen feed excerpts, confirms flags in isolation, and triggers bounded repairs; these model judgments can still be wrong.
 
+## Generate one
+
+Python 3.11+, no dependencies:
+
+```bash
+# Signed-in `claude` session
+python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --output briefing.md
+
+# Signed-in `codex` session
+python3 -S run_briefing.py --provider codex-cli --model gpt-5.6-terra --output briefing.md
+
+# Needs OPENROUTER_API_KEY
+python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-flash --output briefing.md
+
+# Any OpenAI-compatible server (default: local Ollama)
+python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --output briefing.md
+```
+
+A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
+
+To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News queries, subreddits) and [`briefing-config.json`](briefing-config.json) (sections and the categories each may draw from). [Customizing the briefing](docs/customizing.md) has complete examples.
+
 ## What code enforces, and what it doesn't
 
 | Question | Enforcement |
@@ -34,7 +56,7 @@ Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS,
 
 ## Architecture
 
-![Runtime pipeline: fetch, project, generate, validate, repair, correct, gate, publish](docs/images/runtime-pipeline.svg)
+![Runtime pipeline: select, validate frozen evidence, write prose, review, confirm, repair, follow up, publish](docs/images/runtime-pipeline.svg)
 
 ```text
 fetch_news.py      →  corpus.json (schema v7, validated on write)
@@ -90,29 +112,9 @@ The [live site](https://elanthus.github.io/news-briefing/) publishes daily with 
 
 | Reader view | Auditor view |
 |---|---|
-| ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Per-run integrity report](docs/images/auditor-report.png) |
+| ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Current integrity report from an offline fixture](docs/images/auditor-report-current.jpg) |
 
-## Generate one
-
-Python 3.11+, no dependencies:
-
-```bash
-# Signed-in `claude` session
-python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --output briefing.md
-
-# Signed-in `codex` session
-python3 -S run_briefing.py --provider codex-cli --model gpt-5.6-terra --output briefing.md
-
-# Needs OPENROUTER_API_KEY
-python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-flash --output briefing.md
-
-# Any OpenAI-compatible server (default: local Ollama)
-python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --output briefing.md
-```
-
-A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
-
-To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News queries, subreddits) and [`briefing-config.json`](briefing-config.json) (sections and the categories each may draw from). [Customizing the briefing](docs/customizing.md) has complete examples.
+The auditor screenshot uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
 
 ## Watch it catch an injection
 
@@ -137,9 +139,11 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 | **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; an unexpected provider tool call is a hard failure. |
 | **Verification** | Three offline test suites (core, evaluator, opt-in site build) on Python 3.11–3.14, plus `ruff`, configured `mypy` checks, and Actions pinned to commit SHAs. |
 
-## What the benchmark measured
+## Historical injection benchmark
 
-[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. The latest run, [parity v2](docs/results/parity-v2.md) (September 4, 2026), completed 1,198 of 1,200 planned rows.
+The [October 2 integrity and quality assessment](docs/results/remediation-2026-10-02.md) documents the current controls, reconstructed seven-day sample, repair regressions, and remaining operational limits.
+
+[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. The historical run, [parity v2](docs/results/parity-v2.md) (September 4, 2026), completed 1,198 of 1,200 planned rows.
 
 | Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) | Selection family, 6 primary cases (final) | Selection family, production-corpus ablation (final) |
 |---|---:|---:|---:|---:|

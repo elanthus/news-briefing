@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "sections": {
+    "US Politics": {
+      "topics": [
+        {
+          "headline": "Senators criticize Treasury ownership-reporting exemption",
+          "summary": "Senators Grassley and Whitehouse criticized Treasury for exempting 99 percent of entities from the prior beneficial-ownership reporting requirement to FinCEN.",
+          "citation_refs": [
+            "citation_0001"
+          ]
+        },
+        {
+          "headline": "Justice Department has not appealed firearms ruling",
+          "summary": "The administration has yet to appeal a firearms ruling from the previous week, leaving gun-control groups concerned and Second Amendment advocates hoping the Justice Department is standing down.",
+          "citation_refs": [
+            "citation_0007"
+          ]
+        },
+        {
+          "headline": "Elon poll shows Cooper ahead in North Carolina Senate race",
+          "summary": "An Elon University poll gives Roy Cooper 53 percent of likely-voter respondents and Michael Whatley 42 percent in the North Carolina Senate race.",
+          "citation_refs": [
+            "citation_0013"
+          ]
+        }
+      ]
+    },
+    "US News": {
+      "topics": [
+        {
+          "headline": "Third person dies at New Jersey detention center",
+          "summary": "A Guatemalan immigrant detained at Delaney Hall in Newark suffered a medical emergency and died after being hospitalized, according to the report.",
+          "citation_refs": [
+            "citation_0038"
+          ]
+        },
+        {
+          "headline": "Midwest neighborhoods face flooding and more rain",
+          "summary": "Floodwaters entered homes in Indiana and Ohio as severe storms struck the Midwest, with some areas preparing for additional rain.",
+          "citation_refs": [
+            "citation_0046"
+          ]
+        },
+        {
+          "headline": "Hawaii faces hurricane watch as tropical storm forms",
+          "summary": "Tropical Storm Lala has formed in the Pacific, and a hurricane watch was issued for the Big Island. The National Hurricane Center forecasts rain beginning late Friday along with high winds and dangerous surf.",
+          "citation_refs": [
+            "citation_0061"
+          ]
+        },
+        {
+          "headline": "Wholesale inflation eases as gas and food costs fall",
+          "summary": "Wholesale inflation fell last month as gas prices reversed part of their Iran-war increase and other costs cooled. The report describes this as a possible sign of lower consumer inflation ahead.",
+          "citation_refs": [
+            "citation_0064"
+          ]
+        }
+      ]
+    },
+    "World Events": {
+      "topics": [
+        {
+          "headline": "Putin visit to disputed islands draws Japanese protest",
+          "summary": "Putin visited disputed Pacific islands claimed by Japan, which calls the four southernmost islands the Northern Territories. The visit drew a protest from Tokyo.",
+          "citation_refs": [
+            "citation_0097"
+          ]
+        },
+        {
+          "headline": "Low Danube flow shuts Romania nuclear plant",
+          "summary": "Heat and a sharp drop in the Danube River level forced Romania to shut its only nuclear plant. The Cernavoda plant supplies 20 percent of the country's electricity and is not expected to restart within the next 10 days.",
+          "citation_refs": [
+            "citation_0100"
+          ]
+        },
+        {
+          "headline": "Zambian president votes while seeking another term",
+          "summary": "President Hakainde Hichilema cast his ballot in Lusaka as he seeks a second term.",
+          "citation_refs": [
+            "citation_0101"
+          ]
+        },
+        {
+          "headline": "Iran asserts control over Strait of Hormuz",
+          "summary": "Iran says it fully controls the Strait of Hormuz and rejects US claims of dominance over the waterway.",
+          "citation_refs": [
+            "citation_0108"
+          ]
+        },
+        {
+          "headline": "WHO chief warns about severity of Ebola outbreak",
+          "summary": "The WHO chief says the Ebola outbreak is on track to become the deadliest ever. The outbreak was declared on 15 May and has caused more than 2,000 deaths, with thousands more reported cases.",
+          "citation_refs": [
+            "citation_0149"
+          ]
+        }
+      ]
+    },
+    "AI News": {
+      "topics": [
+        {
+          "headline": "WhatsApp tests optional on-device scam alerts",
+          "summary": "Meta is rolling out a limited beta of WhatsApp Scam Alert, an optional feature using on-device machine learning to flag suspicious messages.",
+          "citation_refs": [
+            "citation_0154"
+          ]
+        },
+        {
+          "headline": "Microsoft combines Copilot apps and drops features",
+          "summary": "Microsoft is merging its consumer and business Copilot apps while removing AI-generated podcasts, Group Chats, Deep Research, and the Mico character.",
+          "citation_refs": [
+            "citation_0156"
+          ]
+        },
+        {
+          "headline": "Report considers possible Anthropic IPO valuation",
+          "summary": "A report raises the possibility of a $2 trillion valuation when Anthropic goes public, with revenue growth fueling hopes for the listing.",
+          "citation_refs": [
+            "citation_0161"
+          ]
+        },
+        {
+          "headline": "White House may add open models to AI framework",
+          "summary": "Sources told WIRED that open models may soon be included in an updated White House AI framework. The report describes the administration as continuing to grapple with AI regulation.",
+          "citation_refs": [
+            "citation_0169"
+          ]
+        }
+      ]
+    },
+    "AI Dev Tools": {
+      "topics": [
+        {
+          "headline": "User reports Claude Code auto-continue option",
+          "summary": "A Claude Code user reports seeing an option to automatically resume a session after the usage limit becomes available again.",
+          "citation_refs": [
+            "citation_0187"
+          ]
+        },
+        {
+          "headline": "DeepSeek Harness enters developer preview",
+          "summary": "A community post describes DeepSeek Harness as an open-source agent harness developed by DeepSeek AI, with an architecture built around plugins and powered by Cordis. The post says the harness is in developer preview.",
+          "citation_refs": [
+            "citation_0196"
+          ]
+        },
+        {
+          "headline": "MCP Memory appears in Hacker News submission",
+          "summary": "MCP Memory is listed as agent memory using Google's OKF and SQLite FTS5.",
+          "citation_refs": [
+            "citation_0194"
+          ]
+        }
+      ]
+    },
+    "AI Dev Practices": {
+      "topics": [
+        {
+          "headline": "Developer shares Worklog and KnownPitfalls.md workflow",
+          "summary": "A developer describes a Worklog and KnownPitfalls.md workflow and says it helped them navigate model inconsistencies and regressions.",
+          "citation_refs": [
+            "citation_0183"
+          ]
+        },
+        {
+          "headline": "Developer records coding-agent mistakes in a repository file",
+          "summary": "A developer reports keeping MISTAKES.md in the repository and adding a CLAUDE.md instruction to log what happened, the root cause, and prevention.",
+          "citation_refs": [
+            "citation_0213"
+          ]
+        },
+        {
+          "headline": "Claude Code user asks about isolating agents",
+          "summary": "A user asks about isolating Claude Code agents that can access the filesystem and shell, expressing concern that a working directory does not limit that access.",
+          "citation_refs": [
+            "citation_0195"
+          ]
+        }
+      ]
+    }
+  },
+  "excluded_topics": {
+    "US Politics": [
+      {
+        "headline": "Here are 12 Senate, House incumbents who\u2019ve lost their primaries",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0003"
+        ]
+      },
+      {
+        "headline": "5 things to know about David Crowley",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0008"
+        ]
+      },
+      {
+        "headline": "Karoline Leavitt stepping down as White House press secretary",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0032"
+        ]
+      },
+      {
+        "headline": "Trump sued over service selling faster access to Truth Social posts",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0031"
+        ]
+      },
+      {
+        "headline": "USS Abraham Lincoln: Senate Democrats press Hegseth for answers on reports of attempted suicides",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0009"
+        ]
+      }
+    ],
+    "US News": [
+      {
+        "headline": "Tesla paid Elon Musk 2.5m times more as CEO than its average worker in 2025",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0039"
+        ]
+      },
+      {
+        "headline": "Oklahoma and Tennessee each execute one man in two of three US executions scheduled on same day",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0040"
+        ]
+      },
+      {
+        "headline": "Lottery ticket sold at Illinois gas station wins $1bn Powerball jackpot",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0059"
+        ]
+      },
+      {
+        "headline": "60 cats rescued from abandoned boat anchored off Washington state",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0068"
+        ]
+      },
+      {
+        "headline": "2 soldiers killed in Apache helicopter crash in Texas",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0069"
+        ]
+      }
+    ],
+    "World Events": [
+      {
+        "headline": "By sky and sea, Ukraine's drone strikes challenge Russia's grip on Crimea",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0105"
+        ]
+      },
+      {
+        "headline": "UK defends seizing shadow fleet tanker after Putin threat",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0107"
+        ]
+      },
+      {
+        "headline": "Oman says massive oil spill reaches coastline: What damage could it do?",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0112"
+        ]
+      },
+      {
+        "headline": "Taiwan briefly slows its mobile internet to text-only speed as part of defense drill",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0120"
+        ]
+      },
+      {
+        "headline": "Colombia earthquake response tests new far-right government",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0127"
+        ]
+      }
+    ],
+    "AI Dev Tools": [
+      {
+        "headline": "JetBrains called bullshit on Caveman's 65%. They were right, so I rebuilt Caveman from the ground up.",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0199"
+        ]
+      },
+      {
+        "headline": "Opus 5, Sonnet 5, and Fable 5 do not need to read files to edit them",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0226"
+        ]
+      },
+      {
+        "headline": "Are Undo/Redo Checkpoints Broken?",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0223"
+        ]
+      },
+      {
+        "headline": "Codex in ChatGPT desktop app for Linux is now in preview",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0229"
+        ]
+      },
+      {
+        "headline": "Claude\u2019s Chrome side panel is now a full Cowork session - 9to5Mac",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0232"
+        ]
+      }
+    ],
+    "AI Dev Practices": [
+      {
+        "headline": "I made a two-page, printable cheat sheet for Claude Code",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0202"
+        ]
+      },
+      {
+        "headline": "I compared 5 memory systems for Claude Code. \"Long-term memory\" was the wrong starting point",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0204"
+        ]
+      },
+      {
+        "headline": "What external tools do you let your AI coding agent access?",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0210"
+        ]
+      },
+      {
+        "headline": "What did you actually move from Cursor to a local model, and what made you switch back?",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0221"
+        ]
+      },
+      {
+        "headline": "How do you guys made Claude work overnight",
+        "reason": "Lower editorial priority than the selected topics within the available section slots.",
+        "citation_refs": [
+          "citation_0228"
+        ]
+      }
+    ]
+  }
+}
