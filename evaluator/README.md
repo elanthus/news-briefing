@@ -366,7 +366,7 @@ Sampling controls are not equivalent across providers. OpenRouter sends the conf
 
 ### Retries, timeouts, and circuit breaking
 
-The CLI displays a progress bar labeled with the exact provider and model. API calls make at most three attempts for HTTP 408, 425, 429, 5xx, network, and timeout failures. `Retry-After` is honored when present; otherwise retries wait one second and then two seconds. `--timeout` remains the total ceiling for one model call, including retry waits and attempts. A retry is not started when its delay would exceed the remaining call timeout.
+The CLI displays a progress bar labeled with the exact provider and model. API calls make at most three attempts for HTTP 408, 425, 429, and 5xx responses, or known pre-transmission failures such as DNS lookup failures and refused connections. Timeouts, resets, and other failures after transmission may have begun have ambiguous completion and are not automatically retried. `Retry-After` is honored when present; otherwise retries wait one second and then two seconds. `--timeout` remains the total ceiling for one model call, including retry waits and attempts. A retry is not started when its delay would exceed the remaining call timeout.
 
 Three consecutive provider failures open a circuit for that exact provider/model. Its remaining case-trials are recorded as circuit-open skips, while other models continue. Any successful case-trial resets the consecutive-failure count.
 
