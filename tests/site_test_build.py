@@ -144,7 +144,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('class="site-header"', page)
             self.assertIn("https://github.com/elanthus/news-briefing", page)
             self.assertIn('class="site-footer"', page)
-            self.assertIn("semantic faithfulness is not automatically assessed", page)
+            self.assertIn("semantic review assesses frozen excerpts", page)
 
     def test_build_copies_theme_aware_favicons(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -184,7 +184,7 @@ class BuildSiteTests(unittest.TestCase):
             _build_site(briefings, root / "site", allow_empty_history=True)
             self.assertTrue((root / "site" / "index.html").exists())
 
-    def test_renders_latest_review_preview_on_index_with_detailed_findings(self) -> None:
+    def test_review_required_report_summarizes_findings_without_preview(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -248,26 +248,18 @@ class BuildSiteTests(unittest.TestCase):
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn('href="../favicon-light.png"', report)
             self.assertIn('href="../favicon-dark.png"', report)
-            self.assertIn("Review required · 2 findings", report)
-            self.assertIn("WARN · evidence · unsupported figure:", report)
-            self.assertIn("states &#x27;&lt;60&gt;&#x27;", report)
-            self.assertIn("Verify the figure against the cited source", report)
-            # The annotated preview renders on the report with findings attached
-            # inline to their stories and the redaction disclosure intact.
-            self.assertIn('<section class="review-story">', report)
+            self.assertIn("Recorded deterministic findings", report)
+            self.assertIn("unsupported figure", report)
+            self.assertIn("claim exceeds evidence", report)
             self.assertIn("Important detail", report)
-            self.assertNotIn("UNPUBLISHED BRIEFING CANDIDATE", report)
-            self.assertNotIn("duplicate public warning", report)
-            self.assertIn("<details>", report)
-            self.assertNotIn("<details open", report)
-            self.assertIn("Click to see redacted information", report)
-            self.assertNotIn("INLINE_REVIEW_", report)
-            self.assertIn("https://model.example/claim", report)
-            self.assertNotIn('href="https://model.example/claim"', report)
-            self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", report)
+            self.assertNotIn('<article class="briefing-content">', report)
+            self.assertNotIn("https://model.example/claim", report)
             self.assertNotIn("<script>", report)
             self.assertNotIn('href="javascript:', report)
-            self.assertIn("&lt;script&gt;alert(&quot;preview&quot;)&lt;/script&gt;", report)
+            history = json.loads((output / "history.json").read_text())
+            preview = history['entries'][0]
+            self.assertIn('Important detail', preview['markdown'])
+            self.assertEqual(preview['findings'], findings)
 
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
             self.assertIn('href="index.html">2026-08-20</a>', prior)
@@ -311,7 +303,7 @@ class BuildSiteTests(unittest.TestCase):
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("unsupported figure", report)
 
-    def test_adjacent_flagged_stories_have_balanced_review_boxes(self) -> None:
+    def test_adjacent_flagged_stories_are_counted_without_reprinting_prose(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -347,10 +339,11 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn('<section class="review-story">', index)
             self.assertIn("did not pass automated checks", index)
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("First story&#x27; states &#x27;1&#x27;", report)
-            self.assertIn("Second story&#x27; states &#x27;2&#x27;", report)
+            self.assertIn('<td>unsupported figure</td><td>2</td>', report)
+            self.assertNotIn('First summary', report)
+            self.assertNotIn('Second summary', report)
 
-    def test_grouped_and_excluded_story_findings_render_inline(self) -> None:
+    def test_grouped_and_excluded_story_findings_have_summary_counts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -404,8 +397,10 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn('<section class="review-panel">', index)
             self.assertIn("did not pass automated checks", index)
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("ineligible citation", report)
-            self.assertIn("repeats an item", report)
+            self.assertIn('category ineligible ref', report)
+            self.assertIn('duplicate item', report)
+            self.assertNotIn('Included summary', report)
+            self.assertNotIn('Lower impact', report)
 
     def test_status_only_run_does_not_expose_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -656,10 +651,8 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(history["entries"][0]["disposition"], "ready")
             self.assertEqual(history["entries"][0]["markdown"], "live briefing")
 
-    def test_legacy_findings_without_anchors_render_inline(self) -> None:
-        # Production preview.md predating story anchors, with v3 findings that
-        # carry only section/headline context: the legacy subheading tracking
-        # must still attach grouped and excluded findings inline.
+    def test_legacy_findings_without_anchors_have_summary_counts(self) -> None:
+        # Legacy context remains readable without reproducing the preview.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -708,10 +701,10 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn('<section class="review-story">', index)
             self.assertIn("did not pass automated checks", index)
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertEqual(report.count('<section class="review-story">'), 2)
-            self.assertNotIn('<section class="review-panel">', report)
-            self.assertLess(report.index("AI story"), report.index("ineligible citation"))
-            self.assertLess(report.index("Excluded story"), report.index("repeats an item"))
+            self.assertIn('category ineligible ref', report)
+            self.assertIn('duplicate item', report)
+            self.assertIn('AI story', report)
+            self.assertIn('Excluded story', report)
 
     def test_repair_actions_survive_history_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -728,7 +721,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 8)
+            self.assertEqual(history["schema_version"], 9)
             self.assertEqual(history["entries"][0]["repair_actions"], actions)
 
             second = root / "second"
@@ -1206,7 +1199,7 @@ class BuildSiteTests(unittest.TestCase):
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("unsupported figure", report)
-            self.assertIn("Action:", report)
+            self.assertIn("Recorded deterministic findings", report)
             self.assertIn("drop_entry", report)
             self.assertIn("topics.AI News[1]", report)
             self.assertIn("duplicate", report)
@@ -1229,7 +1222,7 @@ class BuildSiteTests(unittest.TestCase):
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn(
-                "Generated by deepseek/deepseek-v4-flash-0731, attempt 2 of 3, "
+                "Generated by openrouter / deepseek/deepseek-v4-flash-0731, fallback position 2 of 3, "
                 "1 selection correction, 0 prose corrections, 0 total repair actions.",
                 report,
             )
@@ -1276,7 +1269,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("Generated by claude-opus-4, 1 selection correction", report)
+            self.assertIn("Generated by claude-code-cli / claude-opus-4, 1 selection correction", report)
             self.assertNotIn("attempt 1 of 1", report)
 
     def test_provenance_survives_history_round_trip(self) -> None:
@@ -1292,7 +1285,7 @@ class BuildSiteTests(unittest.TestCase):
             first_site = root / "site-1"
             build_site(first, first_site)
             history = json.loads((first_site / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 8)
+            self.assertEqual(history["schema_version"], 9)
             self.assertEqual(history["entries"][0]["provenance"], provenance)
 
             second = root / "second"
@@ -1308,14 +1301,14 @@ class BuildSiteTests(unittest.TestCase):
             restored_report = (second_site / "reports/2026-08-19.html").read_text(
                 encoding="utf-8"
             )
-            self.assertIn("Generated by deepseek/deepseek-v4-flash-0731", restored_report)
+            self.assertIn("Generated by openrouter / deepseek/deepseek-v4-flash-0731", restored_report)
 
     def test_historical_history_versions_are_rejected(self) -> None:
         from build_site import _load_history
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.json"
-            for version in (True, 1, 2, 3, 4, 5, 6, 9):
+            for version in (True, 1, 2, 3, 4, 5, 6, 10):
                 with self.subTest(version=version):
                     path.write_text(json.dumps({"schema_version": version, "entries": []}))
                     with self.assertRaisesRegex(ValueError, "schema_version 7"):
@@ -1377,9 +1370,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
 
     def test_ready_report_with_advisory_findings_states_gate_passed_with_notes(self) -> None:
-        # Issue #171: a `ready` run with only nonblocking quality findings must
-        # not read as "nothing flagged" — the all-clear text names the count
-        # and the findings appear in a distinct, clearly labelled panel.
+        # A passed gate still names and counts its nonblocking notes.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1406,11 +1397,11 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("All deterministic contract checks passed", report)
             self.assertIn("The publication gate passed with 1 advisory note", report)
             self.assertIn("Semantic faithfulness was not assessed", report)
-            self.assertIn('<section class="advisory-panel"', report)
-            self.assertIn("World Events: 2 topics, expected 5", report)
+            self.assertIn('<td>Advisory</td><td>slots underfilled</td><td>1</td>', report)
+            self.assertNotIn('Summary.', report)
             self.assertNotIn("Action:", report)
 
-    def test_advisory_finding_with_story_context_renders_inline(self) -> None:
+    def test_advisory_context_does_not_reprint_briefing_or_accountability_log(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1418,7 +1409,9 @@ class BuildSiteTests(unittest.TestCase):
             (briefings / "2026-08-20.md").write_text(
                 "## AI News\n\n"
                 "<!-- story: topics.AI News[0] -->\n"
-                "**AI story** — Summary.\n",
+                "**AI story** — Summary.\n\n"
+                "### Excluded Topics (accountability log)\n\n"
+                "**Other story** — Accountability entry retained.\n",
                 encoding="utf-8",
             )
             self._write_sidecar(
@@ -1443,11 +1436,13 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn('<section class="advisory-story">', report)
-            self.assertIn('<aside class="advisory-panel inline-advisory"', report)
-            story_pos = report.index("AI story")
-            advisory_pos = report.index('<section class="advisory-story">')
-            self.assertLess(advisory_pos, story_pos)
+            self.assertIn('low claim evidence overlap', report)
+            self.assertNotIn('<article class="briefing-content">', report)
+            self.assertNotIn('Summary.', report)
+            self.assertNotIn('Accountability entry retained.', report)
+            index = (root / 'site/index.html').read_text()
+            self.assertIn('Summary.', index)
+            self.assertIn('Accountability entry retained.', index)
 
     def test_blocked_report_does_not_claim_checks_passed(self) -> None:
         # A blocked run means the checker never accepted a candidate; its
@@ -1479,7 +1474,7 @@ class BuildSiteTests(unittest.TestCase):
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn("REJECTED · 1 finding", report)
             self.assertNotIn("All deterministic contract checks passed", report)
-            self.assertIn("details are published only for review-required runs", report)
+            self.assertIn("No findings details are available", report)
     @staticmethod
     def _corpus_health_markdown(payload: str) -> str:
         return (
@@ -1691,7 +1686,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn('<section class="review-story">', index)
             self.assertIn("did not pass automated checks", index)
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("states &#x27;42&#x27;", report)
+            self.assertIn("unsupported figure", report)
             self.assertIn("drop_entry", report)
 
     def test_current_history_round_trips_advisory_findings(self) -> None:
@@ -1716,7 +1711,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             history = json.loads((root / "site/history.json").read_text(encoding="utf-8"))
-            self.assertEqual(history["schema_version"], 8)
+            self.assertEqual(history["schema_version"], 9)
             entry = history["entries"][0]
             self.assertEqual(len(entry["advisory_findings"]), 1)
             self.assertEqual(entry["advisory_findings"][0]["check"], "exclusion_log_missing")
@@ -1991,6 +1986,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
             page = (root / 'site/reports/2026-09-30.html').read_text()
             self.assertIn('Original prose', page)
             self.assertIn('Changed prose — applied', page)
+            self.assertNotIn('Semantic faithfulness was not assessed', page)
             self.assertIn('0.90 / 0.90', page)
             self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', page)
             self.assertNotIn('<script>alert(1)</script>', page)
@@ -1998,7 +1994,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
                                   if c['confirmation_label'] == 'confirmed' and c['check'] != 'duplicate'
                                   and c['positions'][0]['bucket'] == 'sections'))
             history = json.loads((root / 'site/history.json').read_text())
-            self.assertEqual(history['schema_version'], 8)
+            self.assertEqual(history['schema_version'], 9)
             self.assertEqual(history['entries'][0]['semantic_audit'], payload['semantic_audit'])
             self.assertNotIn('"evidence":', json.dumps(history['entries'][0]['semantic_audit']))
             self.assertNotIn('"prompt":', json.dumps(history['entries'][0]['semantic_audit']))
@@ -2006,9 +2002,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
             build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
             self.assertEqual(page, (root / 'rebuilt/reports/2026-09-30.html').read_text())
 
-    def test_summary_and_top_five_limit_without_repairs_including_legacy_audit(self):
-        from collections import Counter
-
+    def test_summary_only_without_corrections_including_legacy_audit(self):
         import build_site as build_site_module
         from agent_runner.semantic_repairs import daily_semantic_review
         from publication_schema import parse_semantic_audit
@@ -2020,20 +2014,74 @@ class SemanticAuditSiteTests(unittest.TestCase):
             for index, row in enumerate(audit['checks']):
                 row['probability'] = (index % 40) / 100
             page = build_site_module._render_semantic_audit(audit)
-            counts = Counter(c['check'] for c in audit['checks'])
-            self.assertEqual(page.count('<details>'), sum(min(5, n) for n in counts.values()))
+            self.assertNotIn('Prose differences', page)
+            for topic in audit['topics']:
+                self.assertNotIn(topic['original']['prose'], page)
             self.assertNotIn('<h4>Original prose</h4>', page)
             self.assertIn('Total checks', page)
-            self.assertIn('confirmation not required', page)
-            self.assertIn('href="https://', page)
-            self.assertIn('Threshold: 0.60', page)
+            self.assertNotIn('Highest scores', page)
+            self.assertIn('<th scope="row">Citation irrelevance probability</th><td>0.60</td>', page)
             audit['checks'] = [c for c in audit['checks'] if c['check'] != 'irrelevant_citation']
             audit['planned_checks'] = len(audit['checks'])
             del audit['citation_threshold']
             parse_semantic_audit(audit)
             page = build_site_module._render_semantic_audit(audit)
-            self.assertIn('No returned checks in this category', page)
-            self.assertLessEqual(page.count('<details>'), 25)
+            self.assertIn('<th scope="row">Citation irrelevance probability</th><td>0.80</td>'
+                          '<td colspan="5">Not in scope', page)
+            self.assertNotIn('Prose differences', page)
+            audit['status'] = 'partial'
+            partial = build_site_module._render_semantic_audit(audit)
+            self.assertIn('No results returned — scope unresolved', partial)
+
+    def test_multiple_correction_findings_show_story_prose_once(self):
+        import build_site as build_site_module
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                          judge=Judge(headline), repair_provider=PatchProvider())
+            topic = next(t for t in audit['topics'] if t['changed'])
+            extra = next(c for c in audit['checks'] if c['check'] == 'strengthened_claim'
+                         and c['positions'] == [topic['position']])
+            extra.update(probability=0.9, confirmation_probability=0.9, confirmation_label='confirmed')
+            page = build_site_module._render_semantic_audit(audit)
+            self.assertEqual(page.count('<h4>Original prose</h4>'), 1)
+            self.assertEqual(page.count(topic['original']['prose']), 1)
+            self.assertIn('Unsupported claims: 0.90 / 0.90', page)
+            self.assertIn('Overstated claims: 0.90 / 0.90', page)
+
+    def test_citation_only_removal_is_struck_through_without_repeating_prose(self):
+        import build_site as build_site_module
+        from agent_runner.jev_review import load_topics
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from tests.test_semantic_repairs import CitationJudge, PatchProvider, make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root, grouping=True)
+            original = next(t for t in load_topics(run)[0] if t['headline'] == headline)
+            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                                          judge=CitationJudge(headline, original['evidence'][0]['title']),
+                                          repair_provider=PatchProvider())
+            citation = next(c for c in audit['checks'] if c['after_basis'] == 'citation_removed')
+            topic = next(t for t in audit['topics'] if t['changed'])
+            for status, outcome in (('applied', 'Removed'), ('rejected', 'Proposed removal — rejected')):
+                topic['repair_status'] = status
+                page = build_site_module._render_semantic_audit(audit)
+                self.assertIn('<del><a href="' + citation['citation_urls'][0], page)
+                self.assertIn('</a></del>', page)
+                self.assertIn(outcome, page)
+                self.assertIn('0.70 / 0.70', page)
+                self.assertIn('Original prose', page)
+                self.assertIn(topic['original']['prose'], page)
+                self.assertIn(topic['changed']['prose'], page)
+                topic['changed'] = dict(topic['original'])
+                unchanged = build_site_module._render_semantic_audit(audit)
+                self.assertNotIn('Original prose', unchanged)
+                topic['changed'] = {'headline': 'Repaired headline', 'prose': 'A supported complete sentence.'}
 
     def test_live_schema_seven_history_migrates_without_losing_prose(self):
         from datetime import date
@@ -2050,10 +2098,207 @@ class SemanticAuditSiteTests(unittest.TestCase):
             old['schema_version'] = 7
             for entry in old['entries']:
                 del entry['semantic_audit']
+                del entry['integrity']
             (root / 'legacy.json').write_text(json.dumps(old))
             (root / 'empty').mkdir()
             build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'legacy.json')
             current = json.loads((root / 'rebuilt/history.json').read_text())
-            self.assertEqual(current['schema_version'], 8)
+            self.assertEqual(current['schema_version'], 9)
             self.assertIsNone(current['entries'][0]['semantic_audit'])
             self.assertEqual(current['entries'][0]['markdown'], old['entries'][0]['markdown'])
+
+
+class IntegrityReportTests(unittest.TestCase):
+    def test_failed_and_skipped_targets_keep_subjects_and_all_causes(self):
+        from datetime import date
+
+        import build_site as site
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import CitationJudge, PatchProvider, make_run
+
+        for skipped in (False, True):
+            with self.subTest(skipped=skipped), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run, headline = make_run(root, grouping=not skipped)
+                from agent_runner.jev_review import load_topics
+                topic = next(t for t in load_topics(run)[0] if t["headline"] == headline)
+                judge = CitationJudge(headline, topic["evidence"][0]["title"])
+                daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+                                      judge=judge,
+                                      repair_provider=PatchProvider(incomplete=True))
+                (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+                record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
+                entry = site._entry_from_payload(record.payload(), source='fixture')
+                page = site._render_report(entry, [entry])
+                self.assertIn(headline, page)
+                self.assertIn('Original briefing published', page)
+                self.assertIn('skipped' if skipped else 'failed', page)
+                self.assertNotIn('Original prose', page)
+                self.assertIn('Flagged source item 1', page)
+                self.assertIn('Article ·', page)
+                self.assertIn('0.70 / 0.70', page)
+                self.assertIn('No removal established', page)
+                self.assertLess(page.index('Action ledger'), page.index('Initial review statistics'))
+                self.assertIn('remove every source item' if skipped else 'failed validation', page)
+
+    def test_schema_eight_migration_preserves_audit_and_schema_nine_integrity(self):
+        from datetime import date
+
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = make_run(root)
+            record = prepare_publication(run, root / 'input.json', root / 'public', date(2026, 9, 30))
+            build_site(root / 'public', root / 'site')
+            current = json.loads((root / 'site/history.json').read_text())
+            self.assertEqual(current['entries'][0]['integrity'], record.payload()['integrity'])
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
+            self.assertEqual(current, json.loads((root / 'rebuilt/history.json').read_text()))
+            sidecar = root / 'public/2026-09-30.json'
+            legacy_sidecar = json.loads(sidecar.read_text())
+            del legacy_sidecar['integrity']
+            sidecar.write_text(json.dumps(legacy_sidecar))
+            build_site(root / 'public', root / 'merged', prior_history=root / 'site/history.json')
+            self.assertEqual(current, json.loads((root / 'merged/history.json').read_text()))
+            current['schema_version'] = 8
+            del current['entries'][0]['integrity']
+            (root / 'legacy.json').write_text(json.dumps(current))
+            legacy = site._load_history(root / 'legacy.json')[0]
+            self.assertIsNone(legacy.integrity)
+            self.assertEqual(legacy.markdown, current['entries'][0]['markdown'])
+            self.assertIn('Historical publication decision', site._render_report(legacy, [legacy]))
+
+    def test_word_diff_escapes_both_sides_and_marks_changed_words(self):
+        import build_site as site
+        old, new = site._word_diff('A <script>bad</script> sentence.', 'A supported sentence.')
+        self.assertIn('<del>&lt;script&gt;bad&lt;/script&gt; ', old)
+        self.assertIn('<ins>supported ', new)
+        self.assertNotIn('<script>', old + new)
+        self.assertTrue(old.startswith('A '))
+        self.assertTrue(new.endswith('sentence.'))
+
+    def test_nonpublic_integrity_keeps_status_only_rendering(self):
+        import build_site as site
+        from agent_runner.integrity import blank_integrity
+
+        for disposition in ('blocked', 'rejected', 'no_result'):
+            with self.subTest(disposition=disposition):
+                payload = {
+                    'date': '2026-09-30', 'disposition': disposition, 'findings_count': 0,
+                    'degraded_sources': [], 'findings': [], 'advisory_findings': [],
+                    'generation_failures': [], 'provenance': None, 'semantic_audit': None,
+                    'integrity': blank_integrity('unpublished', ['no_result']),
+                    'repair_actions': [{'action': 'drop_entry', 'path': 'private-subject',
+                                        'reason': 'private-reason'}],
+                }
+                entry = site._entry_from_payload(payload, source='fixture')
+                page = site._render_report(entry, [entry])
+                self.assertIn('No briefing published', page)
+                self.assertNotIn('private-subject', page)
+                self.assertNotIn('private-reason', page)
+                payload['integrity']['generation'] = {
+                    'provider': 'private', 'model': 'private', 'attempt_index': 1, 'attempt_count': 1,
+                    'selection_corrections': 0, 'prose_corrections': 0, 'repair_action_count': 0,
+                    'prompt_sha256': 'a' * 64,
+                }
+                with self.assertRaises(ValueError):
+                    site._entry_from_payload(payload, source='fixture')
+
+    def test_retained_original_flags_are_separate_from_candidate_assessment(self):
+        from datetime import date
+
+        import build_site as site
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+
+        class NewBlockers(Judge):
+            def evaluate(self, state, questions, **kwargs):
+                result = super().evaluate(state, questions, **kwargs)
+                for index, (key, question) in enumerate(questions.items()):
+                    if state['checks'][index].get('topic', {}).get('headline') == 'Repaired headline':
+                        result['probabilities'][key] = (
+                            0.9 if ('strengthen certainty' in question['instructions']
+                                    or 'contradict or reverse' in question['instructions']) else 0.1)
+                return result
+
+        for rejected in (False, True):
+            with self.subTest(rejected=rejected), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run, headline = make_run(root)
+                daily_semantic_review(run, root / 'jev-review', apply_repairs=rejected,
+                                      judge=NewBlockers(headline) if rejected else Judge(headline),
+                                      repair_provider=PatchProvider())
+                (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+                record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
+                entry = site._entry_from_payload(record.payload(), source='fixture')
+                page = site._render_report(entry, [entry])
+                self.assertIn('Published briefing: <strong>1 semantic flag</strong> (initial assessment)', page)
+                self.assertIn(f'Unpublished candidate: {2 if rejected else 0} semantic flags', page)
+                self.assertIn('Candidate follow-up', page)
+                if rejected:
+                    self.assertIn('Follow-up blocker</strong> — Overstated claims', page)
+                    self.assertIn('Follow-up blocker</strong> — Reversed meaning', page)
+                    self.assertEqual(entry.integrity['decision'], 'original_retained')
+                else:
+                    self.assertEqual(entry.integrity['decision'], 'candidate_retained')
+
+    def test_integrity_published_digest_rejects_tampering_and_preserves_exact_bytes(self):
+        import hashlib
+        from datetime import date
+
+        import build_site as site
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+                                  judge=Judge(headline), repair_provider=PatchProvider())
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
+            sidecar = root / 'public/2026-09-30.json'
+            markdown = sidecar.with_suffix('.md')
+            valid_bytes = markdown.read_bytes()
+            entry = site._entry_from_sidecar(sidecar)
+            self.assertEqual(entry.integrity['decision'], 'repaired_applied')
+            build_site(root / 'public', root / 'site')
+            history = root / 'site/history.json'
+            valid_history = json.loads(history.read_text())
+            markdown.write_bytes(b'Unrelated publication text.\n')
+            with self.assertRaisesRegex(ValueError, 'published artifact does not match Markdown'):
+                site._entry_from_sidecar(sidecar)
+            with self.assertRaisesRegex(ValueError, 'published artifact does not match Markdown'):
+                build_site(root / 'public', root / 'replacement', prior_history=history, replace_existing=True)
+            markdown.write_bytes(valid_bytes)
+            tampered = json.loads(history.read_text())
+            tampered['entries'][0]['markdown'] = 'Unrelated restored history text.'
+            history.write_text(json.dumps(tampered))
+            with self.assertRaisesRegex(ValueError, 'published artifact does not match Markdown'):
+                site._load_history(history)
+            history.write_text(json.dumps(valid_history))
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=history)
+            self.assertEqual(valid_history, json.loads((root / 'rebuilt/history.json').read_text()))
+            build_site(root / 'public', root / 'replacement', prior_history=history, replace_existing=True)
+            self.assertEqual(valid_history, json.loads((root / 'replacement/history.json').read_text()))
+            # Exact UTF-8 identity must survive CRLF sidecars and JSON history;
+            # universal-newline text reads would incorrectly reject this input.
+            crlf_bytes = valid_bytes.replace(b'\n', b'\r\n')
+            payload = json.loads(sidecar.read_text())
+            for artifact in payload['integrity']['artifacts']:
+                if artifact['id'] in {'published', 'candidate'}:
+                    artifact['sha256'] = hashlib.sha256(crlf_bytes).hexdigest()
+            sidecar.write_text(json.dumps(payload))
+            markdown.write_bytes(crlf_bytes)
+            exact = site._entry_from_sidecar(sidecar)
+            self.assertEqual(exact.markdown.encode('utf-8'), crlf_bytes)
+            history.write_text(json.dumps(site._history_payload([exact])))
+            self.assertEqual(site._load_history(history)[0].markdown.encode('utf-8'), crlf_bytes)

@@ -329,5 +329,20 @@ class InterpreterTests(unittest.TestCase):
         )
 
 
+class WorkflowIdentityTests(unittest.TestCase):
+    def test_optional_valid_workflow_identity_is_forwarded_only_to_publication(self) -> None:
+        for identity, expected in ((123456, True), (None, False), (0, False), (10**19, False), (True, False)):
+            with self.subTest(identity=identity), tempfile.TemporaryDirectory() as directory:
+                runner = FakeRunner(0)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    daily_publish.generate_reports(
+                        today=date(2026, 10, 1), window_start="start", window_end="end",
+                        event_name="schedule", manual_mode="", manual_report_date="",
+                        root=Path(directory), runner=runner, workflow_run_id=identity)
+                publication = next(c for c in runner.commands if c[1] == "prepare_publication.py")
+                self.assertEqual("--workflow-run-id" in publication, expected)
+                self.assertFalse(any("--workflow-run-id" in c for c in runner.commands if c != publication))
+
+
 if __name__ == "__main__":
     unittest.main()
