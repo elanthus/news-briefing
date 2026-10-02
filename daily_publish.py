@@ -164,6 +164,7 @@ def generate_reports(
     manual_report_date: str,
     root: Path = Path("."),
     runner: CommandRunner = _run,
+    workflow_run_id: int | None = None,
 ) -> int:
     report_dates = _report_dates(
         event_name=event_name,
@@ -222,13 +223,16 @@ def generate_reports(
                 f"::warning::Skipping briefing generation for {report_date}: "
                 "no corpus is available"
             )
-        prepared = _invoke([
+        publication_command = [
             sys.executable, "prepare_publication.py",
             "--run-dir", str(run_dir),
             "--corpus", str(corpus),
             "--history-dir", str(root / "briefing-history"),
             "--date", report_date,
-        ], runner)
+        ]
+        if type(workflow_run_id) is int and 1 <= workflow_run_id <= 10**18:
+            publication_command.extend(["--workflow-run-id", str(workflow_run_id)])
+        prepared = _invoke(publication_command, runner)
         if prepared.returncode != 0:
             print(f"::warning::Publication preparation failed for {report_date}")
     return 0
@@ -282,6 +286,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         manual_report_date=manual_report_date,
         window_start=os.environ["WINDOW_START"],
         window_end=os.environ["WINDOW_END"],
+        workflow_run_id=(int(value) if (value := os.environ.get("GITHUB_RUN_ID", "")).isascii()
+                         and value.isdecimal() and len(value) <= 19 else None),
     )
 
 

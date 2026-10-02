@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import corpus_schema
+from agent_runner.integrity import (
+    add_phase,
+    blank_integrity,
+    corpus_health,
+    generation_history,
+)
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
 from agent_runner.semantic_repairs import load_public_audit
 from publication_failures import GenerationFailure, summarize_failed_chain
@@ -26,6 +32,7 @@ from publication_schema import (
     finding_level_is_valid,
     finding_payload,
     finding_strings_are_valid,
+    parse_integrity,
     parse_provenance,
     parse_repair_actions,
     provenance_payload,
@@ -53,10 +60,12 @@ class PublicationRecord:
     advisory_findings: tuple[ReviewFinding, ...] = ()
     provenance: Provenance | None = None
     semantic_audit: dict[str, Any] | None = None
+    integrity: dict[str, Any] | None = None
 
     def payload(self) -> dict[str, object]:
         return {
             "semantic_audit": self.semantic_audit,
+            "integrity": self.integrity,
             "date": self.date,
             "disposition": self.disposition,
             "findings_count": self.findings_count,
@@ -450,6 +459,8 @@ def prepare_publication(
     corpus_path: Path,
     history_dir: Path,
     day: date,
+    *,
+    workflow_run_id: int | None = None,
 ) -> PublicationRecord:
     """Write a fail-closed sidecar and any hash-bound public briefing artifact."""
     disposition = "blocked"
@@ -461,7 +472,9 @@ def prepare_publication(
     public_content: bytes | None = None
 
     semantic_audit: dict[str, Any] | None = None
-    generation_run_dir = _selected_generation_run(run_dir)
+    original_generation_dir = _selected_generation_run(run_dir)
+    generation_run_dir = original_generation_dir
+    audit_present = (run_dir / "jev-review" / "audit.json").is_file()
     if generation_run_dir is not None and (run_dir / "jev-review" / "audit.json").is_file():
         semantic_audit, generation_run_dir = load_public_audit(generation_run_dir, run_dir / "jev-review")
     manifest = (
@@ -518,7 +531,10 @@ def prepare_publication(
                     # with a public artifact; non-public dispositions keep the
                     # minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
-                    provenance = _provenance(run_dir, generation_run_dir, manifest)
+                    original_manifest = (_load_json(original_generation_dir / "manifest.json")
+                                         if original_generation_dir is not None else None)
+                    if original_generation_dir is not None and isinstance(original_manifest, dict):
+                        provenance = _provenance(run_dir, original_generation_dir, original_manifest)
                     public_content = _bound_artifact(
                         generation_run_dir, manifest, final, disposition
                     )
@@ -537,6 +553,54 @@ def prepare_publication(
     else:
         markdown_path.write_bytes(public_content)
 
+    legacy_semantic = False
+    if public_content is None:
+        integrity = blank_integrity("unpublished", [disposition] if disposition in {
+            "review_required", "rejected", "no_result"} else ["verification_failed"])
+        add_phase(integrity, "publication_verification", "failed", integrity["reasons"])
+    else:
+        integrity = blank_integrity("original_retained", ["verification_failed"] if audit_present and
+                                    semantic_audit is None else ["audit_unavailable"])
+        if semantic_audit is not None:
+            envelope = _load_json(run_dir / "jev-review" / "audit.json")
+            if isinstance(envelope, dict) and "integrity" in envelope:
+                integrity = envelope["integrity"]
+            else:
+                # Legacy scores remain visible; operational history was not recorded.
+                legacy_semantic = True
+                integrity = blank_integrity("historical_unknown", ["audit_unavailable"])
+        if not integrity["artifacts"]:
+            digest = hashlib.sha256(public_content).hexdigest()
+            original_digest = digest
+            if original_generation_dir is not None and generation_run_dir != original_generation_dir:
+                original_manifest = _load_json(original_generation_dir / "manifest.json")
+                original_content = (_bound_artifact(original_generation_dir, original_manifest,
+                                    original_manifest["final"], "ready")
+                                    if isinstance(original_manifest, dict) else None)
+                if original_content is not None:
+                    original_digest = hashlib.sha256(original_content).hexdigest()
+            integrity["artifacts"] = [{"id": "original", "sha256": original_digest},
+                                      {"id": "published", "sha256": digest}]
+            if generation_run_dir != original_generation_dir:
+                integrity["artifacts"].insert(1, {"id": "candidate", "sha256": digest})
+        if original_generation_dir is not None:
+            try:
+                integrity = generation_history(original_generation_dir, integrity, audit=semantic_audit)
+            except (ValueError, OSError, KeyError, TypeError):
+                if "baseline_unavailable" not in integrity["reasons"]:
+                    integrity["reasons"].append("baseline_unavailable")
+        integrity["generation"] = provenance_payload(provenance) if provenance is not None else None
+        if not any(p["phase"] == "publication_verification" for p in integrity["phases"]):
+            add_phase(integrity, "publication_verification", "complete")
+    integrity["workflow_run_id"] = (workflow_run_id if type(workflow_run_id) is int
+                                    and 1 <= workflow_run_id <= 10**18 else None)
+    verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
+                       if original_generation_dir is not None and isinstance(
+                           original_manifest := _load_json(original_generation_dir / "manifest.json"), dict) else None)
+    integrity["corpus_health"] = corpus_health(verified_corpus)
+    verified_integrity = (None if legacy_semantic else parse_integrity(
+        integrity, semantic_audit=semantic_audit if public_content is not None else None, disposition=disposition))
+
     record = PublicationRecord(
         date=day.isoformat(),
         disposition=disposition,
@@ -551,6 +615,7 @@ def prepare_publication(
         advisory_findings=advisory_findings,
         provenance=provenance,
         semantic_audit=semantic_audit if public_content is not None else None,
+        integrity=verified_integrity,
     )
     (history_dir / f"{record.date}.json").write_text(
         json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
@@ -565,9 +630,11 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, default=Path("corpus.json"))
     parser.add_argument("--history-dir", type=Path, default=Path("briefing-history"))
     parser.add_argument("--date", type=date.fromisoformat, default=None, dest="day")
+    parser.add_argument("--workflow-run-id", type=int, default=None)
     args = parser.parse_args()
     day = args.day or datetime.now(UTC).date()
-    record = prepare_publication(args.run_dir, args.corpus, args.history_dir, day)
+    record = prepare_publication(args.run_dir, args.corpus, args.history_dir, day,
+                                 workflow_run_id=args.workflow_run_id)
     print(json.dumps(record.payload(), indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 

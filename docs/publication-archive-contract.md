@@ -42,14 +42,16 @@ Gemini 3.7 Flash receives the same schema except for redundant `maxItems` bounds
 The static builder renders `review_required` entries as a quarantine stub on the
 public page, with a status chip linking to `reports/<date>.html`. Every status chip
 links to its integrity report; ready briefing pages contain no inline review
-panels. Integrity reports show counts by deterministic finding category and do
-not reproduce the briefing, its accountability log, or unchanged story prose.
-Finding messages and structured context remain in public history JSON.
+panels. Integrity reports lead with the publication decision and review status,
+then actions and changes before statistics. They show concise deterministic
+finding messages and safe subjects without reproducing the briefing or its
+accountability log. Unchanged prose is omitted while repair outcomes remain
+visible; complete finding context remains in public history JSON.
 
 Nonblocking quality notes do not count toward `findings_count`. The four
 reader-relevant checks (`slots_underfilled`, `exclusion_log_missing`,
 `exclusion_log_short`, `low_claim_evidence_overlap`) appear in the integrity
-report's advisory counts, and the ready report states that the gate passed with
+report's advisory counts and concise finding details, and the ready report states that the gate passed with
 N advisory notes. The reader-facing status chip retains its advisory-note count.
 The excerpt-bounded figure heuristics (`unsupported_figure`,
 `figure_supported_elsewhere`) remain in run artifacts and are excluded from
@@ -57,8 +59,9 @@ advisory counts. Their rows are also omitted from the reader page's Run outcome
 warning list; the list reads "None" when no other warning remains.
 
 The published `repair_actions` describe the final attempt only: a repair
-superseded by a later model correction is not the published content's provenance
-and remains in the manifest for audit.
+superseded by a later model correction did not produce the published content.
+The integrity ledger distinguishes superseded generation actions from actions
+bound to the published candidate, without publishing earlier private prose.
 
 `rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. The manual triage workflow follows the same rule: its public issue carries only the run date, first failure class, run link, and artifact name, and the full triage report is uploaded as an encrypted workflow artifact. Fallback logs use schema v2 and carry structured failure records from the originating provider or checker. Records carry their own schema version 1; the original unversioned structured shape remains readable. A finalized checker outcome takes precedence over earlier recoverable provider errors. Public projection ignores private `failure_reason` text and allowlists only model identifiers and fixed codes. Unknown or malformed records use the generic explanation; old string-only chain logs are not classified. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
 
@@ -100,25 +103,45 @@ retains generated before/after prose and all scores without frozen excerpts.
 Citation rows identify a frozen evidence index and code-owned destinations.
 Citation removal requires both scores to reach 0.60; other repair thresholds stay
 0.80. Publication rebinds retained-source follow-up indexes to the originals and
-verifies that removed citations cannot return. The HTML audit shows per-category
-counts and before/after prose only for grouping or prose corrections, once per
-changed story. Removed citations appear as struck-through links with scores and
-repair status; proposed removals are labeled when the candidate was not applied.
+verifies that removed citations cannot return. The HTML report displays each exact headline or summary change once per story,
+regardless of the triggering check. Removed source items identify confirmed
+irrelevance, grouping subset selection, or both as the cause. An article and its
+Hacker News discussion count as one source removal. Candidate changes remain
+proposals when the original is retained. Failed and skipped actions retain safe
+subjects and all applicable fixed explanations. Initial and follow-up statistics
+and confirmation counts are separate; actual follow-up blockers remain visible
+even when they were below threshold initially.
 Publication revalidates the source and repaired artifacts before accepting that audit or using its candidate.
 
 See [daily semantic checks and repairs](jev-review.md) for exact limits and
 [preliminary evaluations](results/jev-preliminary-2026-09-30.md) for observed
-benefits, misses and false alarms. The selected repaired run supplies the public
-Markdown and generation provenance; semantic repair costs and outcomes live in
-the separate audit rather than the ordinary correction counter.
+benefits, misses and false alarms. A selected repair run supplies the final public
+Markdown, while generation provenance continues to describe the original selected
+fallback run. `integrity.repair_generation` separately identifies the actual repair
+provider/model and its recorded prompt hash. Jev is the judge rather than the
+prose author. Initial review, repair generation, and follow-up review have separate
+cost records; known spend is aggregated once and unknown billing is never zeroed.
+Semantic repair work is separate from original generation correction counters.
 
 ## Machine-readable history
 
-The generated `history.json` uses `schema_version: 8`. The builder also accepts schema 7 and migrates it by adding a null semantic audit to every old entry; other versions are rejected. Every schema-8 entry requires `date`, `disposition`, `findings_count`, `findings`, `degraded_sources`, `repair_actions`, `generation_failures`, `advisory_findings`, `provenance`, `semantic_audit`, and `markdown`. Current publication sidecars require the same metadata fields. Legacy sidecars without `semantic_audit` are still accepted. Missing optional values are represented explicitly as empty lists or `null`, not inferred from an older format.
+The generated `history.json` uses `schema_version: 9`. The builder accepts schemas
+7 and 8, adding `integrity: null` while preserving existing fields; schema 7 also
+receives its missing `semantic_audit: null`. Other versions are rejected. Every
+schema-9 entry requires `date`, `disposition`, `findings_count`, `findings`,
+`degraded_sources`, `repair_actions`, `generation_failures`, `advisory_findings`,
+`provenance`, `semantic_audit`, `integrity`, and `markdown`. Current sidecars use
+the same metadata fields. Known legacy sidecars without integrity or semantic
+audit remain accepted as explicit shapes; arbitrary extra fields are rejected.
+Missing historical facts remain unavailable, and rebuilding never calls a model
+to populate them. Legacy provenance is retained as recorded; when an older entry
+does not separate original generation from repair generation, the builder does
+not infer those identities.
 
 | Field | Contents |
 |---|---|
-| `semantic_audit` | Public generated original/changed prose, Jev scores and confirmations, repair outcomes and coverage/cost metadata; null without a valid audit or public artifact. No frozen feed excerpts or prompts. |
+| `integrity` | Bounded version-1 operational record: publication decision and fixed reasons, verified artifact hashes, original/repair identities, ordered phases and action references, separate coverage/costs, optional numeric workflow run identity, and typed corpus-health records. Null for unavailable history. Non-public entries expose status-only information. |
+| `semantic_audit` | Public generated original/changed prose, initial and actual follow-up Jev scores and confirmations, repair outcomes and coverage/cost metadata; null without a valid audit or public artifact. No frozen feed excerpts or prompts. |
 | `date` | The Eastern report date the entry was labeled with. |
 | `disposition` | The run's publication disposition. |
 | `findings_count` | Actionable findings only, excluding nonblocking quality notes. A zero count on a blocked infrastructure failure does not mean the checker accepted a candidate. |
@@ -127,9 +150,27 @@ The generated `history.json` uses `schema_version: 8`. The builder also accepts 
 | `degraded_sources` | Sources behind the runner's degraded-coverage predicate (`corpus_schema.corpus_health_degraded`): fetch errors, undated drops, and the quiet sources of any category whose quiet count exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`. An empty list means no degradation was reported, not that every possible source was available or complete. |
 | `repair_actions` | The deterministic repair log for the run, empty when nothing was repaired. Published only for entries with a public artifact. |
 | `advisory_findings` | Nonblocking quality findings worth a reader's attention — `slots_underfilled`, `exclusion_log_missing`, `exclusion_log_short`, and `low_claim_evidence_overlap` — reusing the same finding shape and story-context resolution as `findings`, published for both `ready` and `review_required` entries. `findings_count` never counts these. The excerpt-bounded `unsupported_figure` and `figure_supported_elsewhere` heuristics stay out of this list (see [design.md](design.md#ranking-and-checking)). |
-| `provenance` | The selected model and correction/repair counts for the run (see "Generation provenance" above), or `null` when unavailable. Published only for entries with a public artifact. |
+| `provenance` | The original selected generation model and correction/repair counts for that run (see "Generation provenance" above), or `null` when unavailable. Published only for entries with a public artifact. |
 | `markdown` | A string for `ready` and `review_required` entries; `null` otherwise. |
 
 Finding context may carry a structured `path` and hash-bound original model prose.
-That context is retained in public history JSON; the minimal integrity report
-summarizes finding counts without rendering the full preview or unchanged stories.
+That context is retained in public history JSON; the report shows concise messages
+and safe subject/value context without rendering the full preview or unchanged
+stories. Integrity actions reference check indexes and verified artifact scopes;
+initial-prose hashes identify the first complete rendered candidate, while the
+first ready candidate is the semantic-review baseline. Selection preparation
+precedes that initial-briefing boundary. A missing baseline is explicitly
+unavailable, and sequence numbers do not imply measured durations.
+
+The public metadata parser bounds every integrity field and validates internal
+consistency, but structural validity does not authorize a repair. Publication
+reconstructs or cross-checks operational claims from hash-bound artifacts and
+reports. The site loader also checks the published artifact digest against exact
+sidecar Markdown bytes and stored history Markdown before rendering or replacing
+an entry. Legacy null integrity does not invent an artifact digest. An invalid
+audit retains the original and does not expose its unverified
+prose, scores, actions, or destinations as applied. Fixed reason codes replace
+raw exception messages. Optional workflow links are constructed from the configured
+repository and a validated numeric run ID; absent IDs produce no link. Typed
+corpus-health records contain source identities, statuses, counts, and fixed
+degradation reasons from a validated corpus, never feed text or provider bodies.

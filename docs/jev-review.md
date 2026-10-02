@@ -6,13 +6,14 @@ repair round for confirmed included citation, grouping or prose problems. Accept
 repairs update the public report; the original run remains immutable. The existing
 `OPENROUTER_API_KEY` authenticates both models.
 
-The public integrity report summarizes counts by check category. It shows each
-corrected story's before/after prose once, with the associated scores and repair
-outcome. Citation-only removals appear as struck-through links with scores and
-status. Unchanged stories and top-score examples are omitted. Full public check
-records remain in history JSON. Frozen excerpts, prompts and call traces remain
-in encrypted diagnostics. Missing coverage is explicit. See the
-[preliminary evaluations](results/jev-preliminary-2026-09-30.md).
+The public integrity report shows the publication decision and action outcomes
+before detailed statistics. It identifies skipped and failed repairs as well as
+accepted and rejected candidates. Actual headline and summary differences appear
+once per story, even when citation review triggered the repair. Unchanged prose
+is omitted; removal and repair metadata remain visible. Initial and follow-up
+review coverage, isolated confirmations, unresolved flags, and billing uncertainty
+are reported separately. These are automated excerpt judgments, not human
+verification.
 
 The reviewer uses OpenRouter's Decisions API with `typesafe/jev-1.13` and the existing
 `OPENROUTER_API_KEY`. It requires no TypeSafe key or third-party Python package. Jev
@@ -98,24 +99,36 @@ they do not prove readability, truth or exhaustive support.
 ## Public audit and retained history
 
 The public `semantic_audit` field contains bounded generated before/after prose,
-positions, scores, labels, repair statuses and coverage/cost metadata. It never
-contains frozen feed titles/excerpts or model prompts. HTML treats all prose as
-plain escaped text; citation links come from validated code-owned destinations,
-never a model. Every returned check remains in public JSON. The HTML page shows
-counts (below threshold, confirmed, disputed, unconfirmed, requiring repair) for
-each check category. Detail entries show only grouping/prose corrections, grouped
-by story so multiple findings do not repeat its prose. Removed citations are
-struck through; rejected or advisory candidate removals are labeled as proposals,
-so they are not mistaken for changes to the published briefing. Older audits
-remain readable and categories without returned checks show zero counts. Raw
-reports and failed private traces stay in `runs/DATE/jev-review/` in encrypted
-diagnostics.
+positions, scores, labels, repair outcomes, and coverage/cost metadata. It never
+contains frozen feed titles/excerpts or prompts. Canonical `followup_checks`
+retain the actual returned follow-up questions, including blockers that were
+below threshold initially. Source indexes stay aligned to the original frozen
+selection. Removed citations and singleton grouping establish a code-owned scope
+change; they do not receive invented Jev scores.
 
-The site writes history schema 8 and migrates the existing schema-7 archive,
-adding a null semantic audit to old entries. Audit data survives history merges,
-manual replacement and subsequent rebuilds, and appears only beside a public
-ready briefing or review preview. Non-public dispositions retain no generated
-semantic prose.
+The versioned `integrity` record adds operational facts and references canonical
+check records rather than duplicating story prose. The publication step verifies
+artifacts and recomputes or cross-checks decisions, coverage, removals, costs, and
+subjects. Invalid or tampered audits retain the original and expose only a safe
+verification-failed explanation. Fixed allowlisted codes explain all applicable
+skip causes, failures, rejections, and candidate mode. Raw exceptions, provider
+bodies, private paths, prompts, and frozen excerpts remain private.
+
+The report leads with publication and review status, then an action ledger,
+then story differences and initial/follow-up statistics. Source items display
+short destination labels; article and Hacker News links remain paired as one
+source. Proposed changes are labeled separately from published changes. Every
+returned check remains in public JSON. HTML escapes prose and highlights exact
+word differences without interpreting model-authored markup. Definitions explain
+probability thresholds, disputed/unconfirmed flags, missing confirmation, and
+excerpt-only scope.
+
+History schema 9 preserves valid integrity metadata through merges, replacement,
+and rebuilds. Schemas 7 and 8 migrate with `integrity: null`; existing prose,
+audit data, and provenance remain intact. Older reports explicitly identify
+unavailable operational history and are never enriched by rerunning models.
+Non-public dispositions remain status-only. Raw reports and failed traces stay
+in encrypted diagnostics under `runs/DATE/jev-review/`.
 
 ## What is checked
 

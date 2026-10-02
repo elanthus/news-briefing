@@ -259,6 +259,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             remaining = deadline - time.monotonic()
             if remaining < 1:
                 report["stop_reason"] = "review deadline reached"
+                report["stop_code"] = "deadline"
                 break
             batch: list[dict[str, Any]] = []
             while index + len(batch) < len(tasks) and len(batch) < 50:
@@ -274,8 +275,10 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             # Bytes conservatively bound input tokens; include failed-call billing uncertainty.
             if len(report["calls"]) >= MAX_CALLS or total_cost + size * 0.042 / 1_000_000 > cost_ceiling:
                 report["stop_reason"] = "call or estimated cost budget reached"
+                report["stop_code"] = "budget"
                 break
-            call = {"index": len(report["calls"]), "status": "in_flight", "checks": len(batch),
+            call = {"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(),
+                    "checks": len(batch),
                     "task_offset": index,
                     "request_sha256": sha256_bytes(json.dumps(
                         {"model": JEV_MODEL, "state": state, "questions": questions},
@@ -285,6 +288,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
             call.update({key: value for key, value in result.items() if key != "probabilities"})
             call["status"] = "complete"
+            call["completed_at"] = utc_now()
             for offset, task in enumerate(batch):
                 p = result["probabilities"][f"q{offset}"]
                 cutoff = citation_threshold if task["check"] == "irrelevant_citation" else threshold
@@ -297,6 +301,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             index += len(batch)
             if result["cost_usd"] is None:
                 report["stop_reason"] = "provider did not report cost; further calls refused"
+                report["stop_code"] = "unknown_billing"
                 break
             total_cost += result["cost_usd"]
             write_json_atomic(path, report)
@@ -312,8 +317,9 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 if (remaining < 1 or len(report["calls"]) >= MAX_CALLS
                         or total_cost + size * 0.042 / 1_000_000 > cost_ceiling):
                     report["stop_reason"] = "confirmation budget or deadline reached"
+                    report["stop_code"] = "deadline" if remaining < 1 else "budget"
                     break
-                call = {"index": len(report["calls"]), "status": "in_flight", "checks": 1,
+                call = {"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(), "checks": 1,
                         "purpose": "isolated_confirmation", "check": row["check"], "positions": row["positions"],
                         "request_sha256": sha256_bytes(json.dumps(
                             {"model": JEV_MODEL, "state": state, "questions": questions},
@@ -323,6 +329,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
                 call.update({key: value for key, value in result.items() if key != "probabilities"})
                 call["status"] = "complete"
+                call["completed_at"] = utc_now()
                 row["confirmation_probability"] = result["probabilities"]["q0"]
                 row["confirmation_label"] = (
                     "confirmed" if row["confirmation_probability"] >= cutoff else "disputed"
@@ -330,6 +337,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 write_json_atomic(path, report)
                 if result["cost_usd"] is None:
                     report["stop_reason"] = "provider did not report confirmation cost; further calls refused"
+                    report["stop_code"] = "unknown_billing"
                     break
                 total_cost += result["cost_usd"]
         report["status"] = "complete" if (
@@ -341,8 +349,10 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
         report["status"] = "failed" if not report["results"] else "partial"
         # Static errors only: remote bodies are never included by JevClient.
         report["stop_reason"] = type(exc).__name__
+        report["stop_code"] = "provider_failure" if isinstance(exc, ProviderError) else "invalid_result"
         if report["calls"] and report["calls"][-1]["status"] == "in_flight":
             report["calls"][-1]["status"] = "failed_billing_unknown"
+            report["calls"][-1]["completed_at"] = utc_now()
     report["completed_at"] = utc_now()
     report["flagged_checks"] = sum(row["flagged"] for row in report["results"])
     report["reported_cost_usd"] = sum(call.get("cost_usd") or 0 for call in report["calls"])

@@ -64,10 +64,15 @@ existing `OPENROUTER_API_KEY`:
    thresholds. Otherwise retain the original ready briefing. A repair that would
    remove every source from a slot is skipped rather than publish an uncited story.
 
-The integrity report shows **counts by check category** and individual before/after
-text only for grouping or prose corrections. Removed citations appear as
-struck-through links with their scores and repair status. Unchanged stories and
-top-score examples are omitted. The full check data remains in public history JSON.
+The integrity report leads with the **publication decision**, review coverage,
+unresolved flags, and changes that reached the published briefing. An action
+ledger identifies code and model work, including skipped, failed, and rejected
+repairs with fixed explanations. Each changed story shows its headline and
+summary differences once, regardless of which check triggered the repair. Source
+removals identify their cause and distinguish published changes from proposals;
+an article and its Hacker News discussion count as one source item. Initial and
+follow-up statistics and phase costs follow. Full check data remains in public
+history JSON; legacy entries identify unavailable operational history.
 Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
 excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
 
