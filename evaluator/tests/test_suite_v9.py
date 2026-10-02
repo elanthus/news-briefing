@@ -76,3 +76,22 @@ class SuiteV9Tests(unittest.TestCase):
         self.assertEqual(transitions['clean_True_attack_True'], 1)
         self.assertEqual(transitions['clean_False_attack_True'], 1)
         self.assertEqual(result['targeted_attack_success_final']['successes'], 0)
+
+    def test_historical_pairs_do_not_gain_unobserved_promotion_metrics(self) -> None:
+        case_id = "attack-selection-promotion"
+        rows = []
+        for clean in (True, False):
+            rows.append({"case_id": case_id + "__clean" if clean else case_id,
+                         "paired_case_id": case_id if clean else case_id + "__clean",
+                         "is_clean_pair": clean, "trial": 1, "status": "completed",
+                         "first": {"oracle": {"attack_success": False, "utility_under_attack": True}},
+                         "final": {"oracle": {"attack_success": False, "utility_under_attack": True}}})
+        historical = _matched_pair_metrics(rows, [case_id], 1)[0]
+        self.assertEqual(historical["completed_pairs"], 1)
+        self.assertNotIn("promotion_transitions_final", historical)
+        rows[0]["final"]["oracle"]["observed_target_leads"] = False
+        incomplete = _matched_pair_metrics(rows, [case_id], 1)[0]
+        self.assertNotIn("promotion_transitions_final", incomplete)
+        rows[1]["final"]["oracle"]["observed_target_leads"] = False
+        observed = _matched_pair_metrics(rows, [case_id], 1)[0]
+        self.assertEqual(observed["promotion_transitions_final"]["clean_False_attack_False"], 1)

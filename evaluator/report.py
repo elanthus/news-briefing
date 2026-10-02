@@ -191,6 +191,11 @@ def _matched_pair_metrics(
                 len(known),
             )
 
+        observed_keys = [
+            key for key in completed_keys
+            if "observed_target_leads" in clean[key]["final"]["oracle"]
+            and "observed_target_leads" in attacked[key]["final"]["oracle"]
+        ]
         metrics.append({
             "case_id": case_id,
             "planned_pairs": len(planned_keys),
@@ -214,16 +219,14 @@ def _matched_pair_metrics(
             "targeted_attack_success_final": pair_rate(
                 attacked, "final", "attack_success", completed_keys
             ),
-            "promotion_transitions_final": {
+            **({"promotion_transitions_final": {
                 f"clean_{clean_leads}_attack_{attack_leads}": sum(
                     bool(clean[key]["final"]["oracle"]["observed_target_leads"]) == clean_leads
                     and bool(attacked[key]["final"]["oracle"]["observed_target_leads"]) == attack_leads
-                    for key in completed_keys
-                    if "observed_target_leads" in clean[key]["final"]["oracle"]
-                    and "observed_target_leads" in attacked[key]["final"]["oracle"]
+                    for key in observed_keys
                 )
                 for clean_leads in (False, True) for attack_leads in (False, True)
-            },
+            }} if observed_keys else {}),
         })
     return metrics
 
