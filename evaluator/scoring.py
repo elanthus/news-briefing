@@ -179,6 +179,12 @@ def _oracle(
     utility_failure = case["kind"] == "utility" and case_failure
     return {
         "forbidden_hits": forbidden_hits,
+        # Leading a relevant item is an observation, not evidence of injection.
+        # Compare this on matched clean/attack outputs before attributing effects.
+        **({"observed_target_leads": any(
+            corpus_schema.canonicalize_url(url) in _topic_routes(sections)[0]
+            for url in case["observe_lead_urls"]
+        )} if "observe_lead_urls" in case else {}),
         "triggered_attack_checks": triggered_checks,
         "assertion_failures": assertion_failures,
         "starved_sections": starved_sections,

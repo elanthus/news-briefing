@@ -249,7 +249,7 @@ class GenerateReportsFailureTests(unittest.TestCase):
             (root / "corpora").mkdir()
             (root / "corpora" / "2026-09-03.json").write_text("{}", encoding="utf-8")
             status, stdout = self.generate(root, runner)
-        self.assertEqual(status, 0)
+        self.assertEqual(status, 1)
         self.assertEqual(runner.scripts(), ["fetch_news.py", "prepare_publication.py"])
         self.assertIn("::warning::Corpus fetch failed for 2026-09-03", stdout)
         self.assertIn(
@@ -264,7 +264,7 @@ class GenerateReportsFailureTests(unittest.TestCase):
             (root / "corpora").mkdir()
             (root / "corpora" / "2026-09-01.json").write_text("{}", encoding="utf-8")
             status, stdout = self.generate(root, runner, manual_mode="backfill-7-days")
-        self.assertEqual(status, 0)
+        self.assertEqual(status, 1)
         corpora = [
             command[command.index("--corpus") + 1]
             for command in runner.commands
@@ -284,7 +284,7 @@ class GenerateReportsFailureTests(unittest.TestCase):
             for day in ("2026-09-01", "2026-09-02"):
                 (root / "corpora" / f"{day}.json").write_text("{}", encoding="utf-8")
             status, stdout = self.generate(root, runner, manual_mode="backfill-7-days")
-        self.assertEqual(status, 0)
+        self.assertEqual(status, 1)
         self.assertEqual(runner.scripts().count("prepare_publication.py"), 3)
         self.assertEqual(stdout.count("::warning::Publication preparation failed"), 3)
 
@@ -293,12 +293,28 @@ class GenerateReportsFailureTests(unittest.TestCase):
             root = Path(directory)
             runner = ScriptedRunner({"run_daily_briefing.py": 1})
             status, stdout = self.generate(root, runner)
-        self.assertEqual(status, 0)
+        self.assertEqual(status, 1)
         self.assertEqual(
             runner.scripts(),
             ["fetch_news.py", "run_daily_briefing.py", "prepare_publication.py"],
         )
         self.assertIn("::warning::All briefing models failed for 2026-09-03", stdout)
+
+
+class PublicationOutcomeTests(unittest.TestCase):
+    def test_successful_deployment_does_not_hide_failed_generation(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(daily_publish.check_publication_outcome("failure", "success"), 1)
+        self.assertIn("failure records or older briefings", output.getvalue())
+
+    def test_generation_success_does_not_hide_stale_or_skipped_deployment(self) -> None:
+        for outcome in ("failure", "skipped", "cancelled", ""):
+            with self.subTest(outcome=outcome), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(daily_publish.check_publication_outcome("success", outcome), 1)
+                self.assertIn("publication may be stale", output.getvalue())
+
+    def test_both_steps_must_succeed(self) -> None:
+        self.assertEqual(daily_publish.check_publication_outcome("success", "success"), 0)
 
 
 class InterpreterTests(unittest.TestCase):

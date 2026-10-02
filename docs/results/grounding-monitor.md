@@ -13,6 +13,8 @@ double-review sample on which the audit judge's grounding verdict matched the pr
 sample is recorded only in the encrypted review artifact, so a 100.0% cell may rest on few topics and should not
 be read as strong evidence of judge reliability.
 
+**Historical artifact limitations (2026-10-02).** The W37–W39 rows were produced before the monitor followed accepted semantic repairs, verified recorded artifact hashes and evidence positions, or required proof of a matching successful deployment. Its previous artifact selection also did not establish seven distinct report dates in the requested ISO week. Those measurements describe the diagnostic candidates reviewed at the time; they cannot establish the grounding of the exact published artifacts. Their values remain unchanged. The [remediation record](remediation-2026-10-02.md) describes the corrected sampling and publication contract. Future repeated assessments append separately labeled rows.
+
 | Week | Runs reviewed | Runs skipped | Topics reviewed | Unverified grounding rate (95% CI) | Audit agreement | Primary judge | Cost (USD) |
 |---|---:|---:|---:|---:|---:|---|---:|
 | 2026-W37 | 5 | 0 | 110 | 110/110; 100.0% [96.6, 100.0] | 100.0% | openrouter/tencent/hy3 | 0.0103 |

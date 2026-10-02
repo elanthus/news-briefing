@@ -53,8 +53,8 @@ packages = ["agent_runner", "evaluator", "news_fetch", "news_fetch.sources"]
 python_version = "3.11"
 # The modules listed in `files` (the dependency-free pipeline and runner, plus
 # the site builder) are fully annotated and checked. The isolated evaluator has its own pyproject.toml.
-# The test modules are not: annotating assertions adds noise without catching
-# anything the tests themselves wouldn't.
+# Test modules are currently outside this type-checking scope; targeted test
+# annotations may still help catch fixture and helper mistakes.
 files = [
     "briefing_config.py",
     "fetch_news.py",

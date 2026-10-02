@@ -38,7 +38,7 @@ Schema v4 replaces ambiguous error strings with structured identities and adds c
 
 ## The code-owned runner
 
-[`run_briefing.py`](../run_briefing.py) is an orchestration boundary rather than another agent prompt. It owns the sequence fetch → project → generate → validate → repair → correct → finalize, while provider adapters implement one `ModelProvider` protocol. The primary workflow remains Python-standard-library-only: OpenRouter and the OpenAI-compatible adapter for local servers such as Ollama share one `urllib` transport, and the Claude Code and Codex adapters launch their installed commands directly.
+[`run_briefing.py`](../run_briefing.py) is an orchestration boundary rather than another agent prompt. It owns the sequence fetch → project → select → validate and freeze evidence → write prose → validate → repair → correct → finalize, while provider adapters implement one `ModelProvider` protocol. The primary workflow remains Python-standard-library-only: OpenRouter and the OpenAI-compatible adapter for local servers such as Ollama share one `urllib` transport, and the Claude Code and Codex adapters launch their installed commands directly.
 
 **The model never receives a destination, internal item ID, or mutable HN engagement.** Before generation, the runner projects each corpus item into untrusted evidence plus exactly one handle formatted as `citation_` followed by digits. Handle numbering is item-aligned: an HN article with a separate discussion URL still consumes one handle, and both URLs live together in the code-owned citation map. HN points and comment counts stay in the raw corpus.
 
@@ -90,8 +90,10 @@ In the evaluator, separate semantic and grounding judges perform blinded machine
 
 ```mermaid
 flowchart LR
-    corpus[Closed corpus] --> generate[Generate]
-    generate --> validate[Deterministic validation]
+    corpus[Closed corpus] --> select[Select citation handles]
+    select --> frozen[Validate and freeze position-scoped evidence]
+    frozen --> generate[Write prose]
+    generate --> validate[Attach frozen references and validate]
     validate --> findings{Blocking findings?}
     findings -- No --> candidate[Final candidate]
     findings -- All repairable --> normalize[Deterministic structural repair]
@@ -102,7 +104,14 @@ flowchart LR
     normalize -- Budget exhausted --> candidate
     candidate --> gate{Completed-candidate disposition gate}
 
-    gate -- ready --> publish[Publish final briefing]
+    gate -- ready --> review[Semantic review]
+    review --> confirm[Isolated confirmation]
+    confirm --> repair[Bounded semantic repair when warranted]
+    repair --> followup[Validate candidate and follow-up review]
+    followup -- Accepted --> publish[Publish selected artifact]
+    followup -- Rejected or incomplete --> original[Retain original ready artifact]
+    original --> publish
+    publish --> receipt[Successful deployment receipt]
     gate -- review_required --> quarantine[Quarantine preview]
     gate -- rejected --> quarantine
     generate -. provider or runtime failure .-> failed[Run failed: no_result, no candidate]

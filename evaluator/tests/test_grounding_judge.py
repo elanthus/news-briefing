@@ -22,6 +22,7 @@ from evaluator.grounding_machine_review import (
     _parse_reviews as _parse_grounding_machine_reviews,
 )
 from evaluator.grounding_machine_review import _review_batch, run_grounding_machine_review
+from evaluator.judge_io import judgment_identity
 
 
 class FakeGroundingJudgeAdapter(Adapter):
@@ -267,16 +268,34 @@ class GroundingMachineReviewTest(unittest.TestCase):
                     cost_headroom_usd=0.1,
                 )
 
+    def test_batch_reuse_rejects_changed_effective_prompt_or_reviewer(self) -> None:
+        prompt = 'TOPICS:\n[{"review_id":"ground-00001"}]\n\nReturn JSON only'
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            adapter = FakeGroundingJudgeAdapter("judge", {"ground-00001": False})
+            _review_batch(adapter, prompt, ["ground-00001"], output, "primary-batch-0001",
+                          cost_ceiling_usd=1, cost_headroom_usd=0.1)
+            checkpoint = next(output.glob("*-attempt-*.json"))
+            frozen = checkpoint.read_bytes()
+            changed = FakeGroundingJudgeAdapter("new-judge", {"ground-00001": True})
+            for reviewer, effective_prompt in ((adapter, prompt + " Changed rubric."), (changed, prompt)):
+                with self.assertRaisesRegex(ValueError, "incompatible or legacy"):
+                    _review_batch(reviewer, effective_prompt, ["ground-00001"], output,
+                                  "primary-batch-0001", cost_ceiling_usd=1, cost_headroom_usd=0.1)
+            self.assertEqual(adapter.calls, 1)
+            self.assertEqual(changed.calls, 0)
+            self.assertEqual(checkpoint.read_bytes(), frozen)
+
     def test_machine_review_stops_before_reserved_cost_headroom(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             output = temporary / "output"
             output.mkdir()
             generation = Generation(text="not valid", latency_ms=1, cost_usd=0.91)
-            (output / "primary-batch-0001-attempt-01.json").write_text(
-                json.dumps(generation.record()), encoding="utf-8"
-            )
             adapter = FakeGroundingJudgeAdapter("judge", {"ground-00001": False})
+            (output / "primary-batch-0001-attempt-01.json").write_text(
+                json.dumps(generation.record() | judgment_identity(adapter, "prompt")), encoding="utf-8"
+            )
             with self.assertRaisesRegex(RuntimeError, r"preserve \$0.10 headroom"):
                 _review_batch(
                     adapter,
@@ -293,12 +312,11 @@ class GroundingMachineReviewTest(unittest.TestCase):
         prompt = 'TOPICS:\n[{"review_id":"ground-00001"}]\n\nReturn JSON only'
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
+            adapter = FakeGroundingJudgeAdapter("judge", {"ground-00001": False})
             (output / "primary-batch-0001-attempt-01.json").write_text(
-                json.dumps({"kind": "provider_error", "cost_usd": None}),
+                json.dumps({"kind": "provider_error", "cost_usd": None}
+                           | judgment_identity(adapter, prompt)),
                 encoding="utf-8",
-            )
-            adapter = FakeGroundingJudgeAdapter(
-                "judge", {"ground-00001": False}
             )
             labels, resumed = _review_batch(
                 adapter,

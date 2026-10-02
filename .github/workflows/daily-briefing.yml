@@ -65,6 +65,10 @@ jobs:
         run: python3 daily_publish.py restore-corpus
 
       - name: Generate scheduled daily or manual backfill reports
+        id: generation
+        # Keep preparing/deploying failure records; report generation failure
+        # separately after deployment so a successful site update cannot hide it.
+        continue-on-error: true
         env:
           MANUAL_MODE: ${{ inputs.mode }}
           MANUAL_REPORT_DATE: ${{ inputs.report_date }}
@@ -93,6 +97,7 @@ jobs:
             --output prior-history.json
 
       - name: Build static archive
+        id: build
         if: always()
         env:
           ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}
@@ -139,16 +144,43 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: briefing-diagnostics-${{ github.run_id }}
+          name: briefing-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: private-artifacts/briefing-diagnostics.tar.gz.enc
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload Pages artifact
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        id: pages
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
       - name: Deploy to GitHub Pages
+        if: ${{ !cancelled() && steps.pages.outcome == 'success' }}
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Record successful publication identity
+        if: ${{ !cancelled() && steps.deployment.outcome == 'success' }}
+        run: |
+          python3 -S -m agent_runner.publication \
+            --runs-dir runs --history site/history.json \
+            --workflow-run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output publication-receipt.json
+
+      - name: Upload publication receipt
+        if: ${{ !cancelled() && steps.deployment.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: briefing-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: publication-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report briefing and deployment outcome
+        if: always()
+        env:
+          GENERATION_OUTCOME: ${{ steps.generation.outcome }}
+          DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+        run: python3 -S daily_publish.py check-outcome

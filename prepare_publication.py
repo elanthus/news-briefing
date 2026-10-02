@@ -21,7 +21,7 @@ from agent_runner.integrity import (
     generation_history,
 )
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
-from agent_runner.semantic_repairs import load_public_audit
+from agent_runner.publication import resolve_publication_run, selected_generation_run
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     FINDING_FIELDS,
@@ -85,35 +85,7 @@ def _load_json(path: Path) -> object | None:
         return None
 
 
-def _selected_generation_run(run_dir: Path) -> Path | None:
-    """Resolve a fallback-chain root to its selected successful child run."""
-    fallback_path = run_dir / FALLBACK_LOG_NAME
-    if not fallback_path.exists():
-        return run_dir
-    fallback = _load_json(fallback_path)
-    if not isinstance(fallback, dict) or fallback.get("status") != "ready":
-        return None
-    selected = fallback.get("selected_run_dir")
-    if not isinstance(selected, str) or not selected or Path(selected).name != selected:
-        return None
-    selected_path = run_dir / selected
-    try:
-        resolved_root = run_dir.resolve(strict=True)
-        resolved_selected = selected_path.resolve(strict=True)
-    except OSError:
-        return None
-    if selected_path.is_symlink() or resolved_selected.parent != resolved_root:
-        return None
-    manifest = _load_json(resolved_selected / "manifest.json")
-    final = manifest.get("final") if isinstance(manifest, dict) else None
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("status") != "complete"
-        or not isinstance(final, dict)
-        or final.get("status") != "ready"
-    ):
-        return None
-    return resolved_selected
+_selected_generation_run = selected_generation_run
 
 
 def _is_valid_review_finding(raw: object) -> bool:
@@ -473,10 +445,8 @@ def prepare_publication(
 
     semantic_audit: dict[str, Any] | None = None
     original_generation_dir = _selected_generation_run(run_dir)
-    generation_run_dir = original_generation_dir
+    semantic_audit, generation_run_dir = resolve_publication_run(run_dir)
     audit_present = (run_dir / "jev-review" / "audit.json").is_file()
-    if generation_run_dir is not None and (run_dir / "jev-review" / "audit.json").is_file():
-        semantic_audit, generation_run_dir = load_public_audit(generation_run_dir, run_dir / "jev-review")
     manifest = (
         _load_json(generation_run_dir / "manifest.json")
         if generation_run_dir is not None

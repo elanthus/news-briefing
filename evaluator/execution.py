@@ -64,7 +64,7 @@ from evaluator.scoring import (
 )
 
 EVALUATOR_DIR = Path(__file__).resolve().parent
-DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases.json"
+DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases-v9.json"
 DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
 DEFAULT_PROTOCOL = EVALUATOR_DIR / "protocols" / "parity-v1.json"
 ProgressCallback = Callable[[str, str, int, int, str], None]

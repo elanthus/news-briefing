@@ -174,6 +174,7 @@ def generate_reports(
     )
     if report_dates is None:
         return 1
+    unsuccessful: list[str] = []
     for value in report_dates:
         report_date = value.isoformat()
         corpus = root / "corpora" / f"{report_date}.json"
@@ -192,6 +193,7 @@ def generate_reports(
                 corpus_ready = True
             else:
                 print(f"::warning::Corpus fetch failed for {report_date}")
+                unsuccessful.append(report_date)
         elif corpus.is_file():
             print(f"Reusing privately restored corpus for {report_date}")
             corpus_ready = True
@@ -199,6 +201,7 @@ def generate_reports(
             print(
                 f"::warning::Skipping {report_date}: no private stored corpus is available"
             )
+            unsuccessful.append(report_date)
             continue
         if corpus_ready:
             generated = _invoke([
@@ -213,6 +216,7 @@ def generate_reports(
                 "--max-tokens", "100000",
             ], runner)
             if generated.returncode != 0:
+                unsuccessful.append(report_date)
                 print(
                     f"::warning::All briefing models failed for {report_date}; "
                     f"see {run_dir}/fallback.log in the encrypted "
@@ -234,7 +238,15 @@ def generate_reports(
             publication_command.extend(["--workflow-run-id", str(workflow_run_id)])
         prepared = _invoke(publication_command, runner)
         if prepared.returncode != 0:
+            unsuccessful.append(report_date)
             print(f"::warning::Publication preparation failed for {report_date}")
+    if unsuccessful:
+        print(
+            "::error::Briefing generation or preparation incomplete for "
+            + ", ".join(sorted(set(unsuccessful)))
+            + "; deploying failure records does not make these briefings successful"
+        )
+        return 1
     return 0
 
 
@@ -243,6 +255,16 @@ def _date_argument(value: str) -> date:
     if parsed is None:
         raise argparse.ArgumentTypeError("must be a real YYYY-MM-DD date")
     return parsed
+
+
+def check_publication_outcome(generation: str, deployment: str) -> int:
+    """Report generation and deployment independently, including skipped steps."""
+    if generation != "success":
+        print("::error::Briefing generation/preparation failed or was skipped; "
+              "site deployment may contain failure records or older briefings.")
+    if deployment != "success":
+        print("::error::The site was not deployed; publication may be stale.")
+    return int(generation != "success" or deployment != "success")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -255,7 +277,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     restore.add_argument("--today", type=_date_argument, default=None)
     generate = subparsers.add_parser("generate-reports")
     generate.add_argument("--today", type=_date_argument, default=None)
+    subparsers.add_parser("check-outcome")
     args = parser.parse_args(argv)
+    if args.command == "check-outcome":
+        return check_publication_outcome(
+            os.environ.get("GENERATION_OUTCOME", ""),
+            os.environ.get("DEPLOYMENT_OUTCOME", ""),
+        )
     if args.command == "capture-window":
         github_env = args.github_env or Path(os.environ["GITHUB_ENV"])
         return capture_window(

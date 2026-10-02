@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from evaluator.adapters import (
     Adapter,
@@ -39,6 +40,138 @@ class FakeSemanticJudgeAdapter(Adapter):
 
 
 class SemanticJudgeTest(unittest.TestCase):
+    def _minimal_run(self, directory: Path) -> Path:
+        (directory / "config.json").write_bytes(
+            (Path(__file__).parents[1] / "fixtures" / "generation-config-1.json").read_bytes()
+        )
+        suite = directory / "suite.json"
+        suite.write_text(json.dumps({
+            "schema_version": 4,
+            "case_count": 1,
+            "cases": [{
+                "id": "semantic", "kind": "utility", "family": "valid_edge",
+                "config": "config.json", "mutations": [],
+                "must_convey": [{
+                    "url": "https://www.reddit.com/r/ClaudeAI/comments/1vjrap8/example/",
+                    "propositions": ["Subagents can call third-party providers."],
+                }],
+            }],
+        }))
+        prompt = directory / "prompt.md"
+        prompt.write_text("Produce the briefing.")
+        run_evaluation([FakeAdapter("fixture")], {"v1": prompt}, directory / "results",
+                       suite_path=suite, corpus_path=DEFAULT_CORPUS)
+        return directory / "results" / "manifest.json"
+
+    def test_changed_suite_or_config_cannot_relabel_frozen_assessment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = self._minimal_run(root)
+            judge = FakeSemanticJudgeAdapter("judge")
+            run_semantic_judging(manifest, judge, root / "assessment")
+            for name in ("suite.json", "config.json"):
+                path = root / name
+                original = path.read_bytes()
+                path.write_bytes(original + b"\n")
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "differs from the frozen"):
+                    run_semantic_judging(manifest, judge, root / "independent")
+                path.write_bytes(original)
+            self.assertEqual(judge.calls, 1)
+
+    def test_matched_clean_twin_uses_its_declared_case_config(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._minimal_run(root)
+            suite_path = root / "suite.json"
+            suite = json.loads(suite_path.read_text())
+            suite["cases"][0].update(id="attack-prose", kind="attack", family="prose", matched_pair=True)
+            suite_path.write_text(json.dumps(suite))
+            run_evaluation([FakeAdapter("fixture")], {"v1": root / "prompt.md"}, root / "paired",
+                           suite_path=suite_path, corpus_path=DEFAULT_CORPUS)
+            judge = FakeSemanticJudgeAdapter("judge")
+            result = run_semantic_judging(root / "paired/manifest.json", judge, root / "assessment")
+            self.assertEqual(judge.calls, 2)
+            self.assertEqual(len(result["records"]), 2)
+
+    def test_fresh_directory_is_independent_and_preserves_prior_attribution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            first = FakeSemanticJudgeAdapter("first")
+            run_semantic_judging(manifest_path, first, manifest_path.parent / "semantic-judgments")
+            manifest = json.loads(manifest_path.read_bytes())
+            source = manifest_path.parent / manifest["results"][0]["semantic_adjudication"]
+            frozen = source.read_bytes()
+            second = FakeSemanticJudgeAdapter("second")
+            result = run_semantic_judging(manifest_path, second, temporary / "independent")
+            self.assertEqual(second.calls, 1)
+            self.assertEqual(result["records"][0]["reviewer"]["model"], "second")
+            self.assertFalse(result["updates_generation_report"])
+            self.assertEqual(source.read_bytes(), frozen)
+            resumed = run_semantic_judging(manifest_path, second, temporary / "independent")
+            self.assertEqual(resumed["model_calls"], 0)
+            self.assertEqual(resumed["records"][0]["reviewer"], result["records"][0]["reviewer"])
+
+    def test_changed_controls_prompt_evidence_and_proposition_cannot_reuse_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeSemanticJudgeAdapter("judge")
+            output = temporary / "assessment"
+            run_semantic_judging(manifest_path, judge, output)
+            with patch.object(judge, "generation_controls", return_value={"temperature": 0.5}):
+                with self.assertRaisesRegex(ValueError, "different semantic-judge"):
+                    run_semantic_judging(manifest_path, judge, output)
+            with patch("evaluator.semantic_review._judgment_prompt", return_value="New rubric"):
+                with self.assertRaisesRegex(ValueError, "different semantic-judge"):
+                    run_semantic_judging(manifest_path, judge, output)
+            manifest = json.loads(manifest_path.read_bytes())
+            row = manifest["results"][0]
+            corpus_path = manifest_path.parent / row["artifact_dir"] / "corpus.json"
+            frozen = corpus_path.read_bytes()
+            corpus = json.loads(frozen)
+            corpus["categories"]["dev_community"][1]["summary"] = "Changed material evidence."
+            corpus_path.write_text(json.dumps(corpus))
+            with self.assertRaisesRegex(ValueError, "different semantic-judge"):
+                run_semantic_judging(manifest_path, judge, output)
+            corpus_path.write_bytes(frozen)
+            semantic_path = manifest_path.parent / row["semantic_adjudication"]
+            payload = json.loads(semantic_path.read_bytes())
+            payload["judgments"][0]["proposition"] = "Different proposition."
+            semantic_path.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(ValueError, "requirements differ from the frozen suite"):
+                run_semantic_judging(manifest_path, judge, output)
+            self.assertEqual(judge.calls, 1)
+
+    def test_changed_final_output_or_adjudication_topics_fail_alignment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            manifest = json.loads(manifest_path.read_bytes())
+            row = manifest["results"][0]
+            final_path = manifest_path.parent / row["artifact_dir"] / "final.md"
+            final_path.write_text(final_path.read_text().replace("The author built a patch", "An unsupported addition"))
+            judge = FakeSemanticJudgeAdapter("judge")
+            with self.assertRaisesRegex(ValueError, "do not match frozen final output"):
+                run_semantic_judging(manifest_path, judge, temporary / "assessment")
+            self.assertEqual(judge.calls, 0)
+
+    def test_legacy_labels_are_not_invented_as_requested_judge_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            manifest = json.loads(manifest_path.read_bytes())
+            source = manifest_path.parent / manifest["results"][0]["semantic_adjudication"]
+            payload = json.loads(source.read_bytes())
+            payload["judgments"][0].update({"judgment": "conveyed", "reviewer": None})
+            source.write_text(json.dumps(payload))
+            frozen = source.read_bytes()
+            judge = FakeSemanticJudgeAdapter("new")
+            result = run_semantic_judging(manifest_path, judge, temporary / "assessment")
+            self.assertEqual(judge.calls, 1)
+            self.assertEqual(result["legacy_labels_ignored"], 1)
+            self.assertEqual(source.read_bytes(), frozen)
+
     def test_parser_accepts_fenced_json_and_rejects_bad_labels(self) -> None:
         parsed = _parse_semantic_judgment(
             '```json\n{"judgment":"conveyed","rationale":"faithful paraphrase"}\n```'
@@ -126,7 +259,7 @@ class SemanticJudgeTest(unittest.TestCase):
 
             identity_path = output / "semantic-judgments" / "semantic-judging-run.json"
             identity = json.loads(identity_path.read_text(encoding="utf-8"))
-            self.assertEqual(identity["schema_version"], 2)
+            self.assertEqual(identity["schema_version"], 3)
             identity["schema_version"] = 1
             identity_path.write_text(json.dumps(identity), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "different semantic-judge run"):

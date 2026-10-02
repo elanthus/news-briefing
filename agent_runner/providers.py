@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import email.message
+import http.client
 import ipaddress
 import json
 import math
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -21,6 +23,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import IO, Any
 
+from agent_runner.http_transport import ResponseLimitError, bounded_request, deadline_handlers
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 
 MAX_ATTEMPTS = 3
@@ -70,7 +73,7 @@ _SCHEMA_VALUE_KEYWORDS = frozenset(
 def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
     try:
         value = json.loads(text)
-    except json.JSONDecodeError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ProviderError(
             f"{provider} returned invalid JSON: {exc}", transient=False
         ) from exc
@@ -177,13 +180,47 @@ def _command_version(command: str) -> str | None:
 
 
 def _optional_float(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+    """Validate observed numeric billing; missing or invalid is never zero."""
+    if type(value) not in (int, float):
         return None
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (OverflowError, ValueError):
         return None
-    return parsed if math.isfinite(parsed) else None
+    return parsed if math.isfinite(parsed) and parsed >= 0 else None
+
+
+def validated_metadata(provider: str, raw_usage: Any, request_id: Any, *,
+                       input_field: str, output_field: str, cost: Any = None,
+                       attempts: int = 1, latency_ms: float | None = None,
+                       ) -> tuple[dict[str, Any], str | None, float | None]:
+    """Reject malformed accounting while retaining each independently valid observation."""
+    invalid: list[str] = []
+    if raw_usage is not None and not isinstance(raw_usage, dict):
+        invalid.append("usage")
+    usage = dict(raw_usage) if isinstance(raw_usage, dict) else {}
+    for field, value in list(usage.items()):
+        if field.endswith("tokens") and value is not None and (type(value) is not int or value < 0):
+            invalid.append(field)
+            usage.pop(field)
+    valid_cost = _optional_float(cost)
+    if cost is not None and valid_cost is None:
+        invalid.append("cost")
+        usage.pop("cost", None)
+    valid_id = request_id
+    if request_id is not None and (not isinstance(request_id, str) or not request_id
+                                  or len(request_id) > 256
+                                  or any(ord(char) < 32 or ord(char) == 127 for char in request_id)):
+        invalid.append("provider_request_id")
+        valid_id = None
+    if invalid:
+        raise ProviderError(
+            f"{provider} returned invalid operational metadata: {', '.join(invalid)}",
+            transient=False, attempts=attempts, provider_request_id=valid_id,
+            input_tokens=usage.get(input_field), output_tokens=usage.get(output_field),
+            cost_usd=valid_cost, latency_ms=latency_ms, invalid_metadata=tuple(invalid),
+        )
+    return usage, valid_id, valid_cost
 
 
 def _safe_openrouter_error_detail(detail: str) -> str:
@@ -211,7 +248,8 @@ def _retry_after_seconds(value: str | None, now: datetime | None = None) -> floa
     if not value:
         return None
     try:
-        return max(0.0, float(value.strip()))
+        delay = float(value.strip())
+        return max(0.0, delay) if math.isfinite(delay) else None
     except ValueError:
         pass
     try:
@@ -307,7 +345,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _urlopen(request: urllib.request.Request, *, timeout: float) -> Any:
     """Open a provider request through the no-redirect opener."""
-    return urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout)
+    return urllib.request.build_opener(_NoRedirect, *deadline_handlers()).open(request, timeout=timeout)
 
 
 def _post_chat_completion(
@@ -343,9 +381,9 @@ def _post_chat_completion(
         failure: ProviderError | None = None
         cause: Exception | None = None
         try:
-            with _urlopen(http_request, timeout=remaining) as response:
-                response_body = response.read()
-                request_id = response.headers.get("x-request-id")
+            response_body, request_id = bounded_request(
+                http_request, deadline=deadline, opener=_urlopen
+            )
             break
         except urllib.error.HTTPError as exc:
             retry_after = _retry_after_seconds(exc.headers.get("Retry-After"))
@@ -364,17 +402,31 @@ def _post_chat_completion(
                 openrouter_model_404=flag_model_404 and exc.code == 404,
             )
             cause = exc
-        except TimeoutError as exc:
+        except ResponseLimitError as exc:
             raise ProviderError(
-                f"{provider} request timed out after transmission may have begun; completion is ambiguous",
+                f"{provider} {exc}", transient=False, attempts=attempt,
+                status_code=exc.status, provider_request_id=exc.request_id,
+                ambiguous_completion=exc.status is None,
+            ) from exc
+        except ConnectionRefusedError as exc:
+            failure = ProviderError(f"{provider} connection refused", transient=True, attempts=attempt)
+            cause = exc
+        except (TimeoutError, ConnectionError, http.client.HTTPException) as exc:
+            raise ProviderError(
+                f"{provider} request timed out or failed after transmission may have begun; "
+                    "completion is ambiguous",
                 transient=True,
                 attempts=attempt,
                 ambiguous_completion=True,
+                provider_request_id=getattr(exc, "request_id", None),
+                status_code=getattr(exc, "status", None),
+                latency_ms=(time.perf_counter() - started) * 1000,
             ) from exc
         except urllib.error.URLError as exc:
-            if isinstance(exc.reason, TimeoutError):
+            if not isinstance(exc.reason, (ConnectionRefusedError, socket.gaierror)):
                 raise ProviderError(
-                    f"{provider} request timed out after transmission may have begun; completion is ambiguous",
+                    f"{provider} request timed out or failed after transmission may have begun; "
+                    "completion is ambiguous",
                     transient=True,
                     attempts=attempt,
                     ambiguous_completion=True,
@@ -415,17 +467,40 @@ def _parse_chat_completion(
     """
     try:
         payload = json.loads(response_body)
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise ProviderError(f"{provider} returned an unexpected response", transient=False,
+                            attempts=attempt, latency_ms=latency_ms) from exc
+    if not isinstance(payload, dict):
+        raise ProviderError(f"{provider} returned an unexpected response", transient=False,
+                            attempts=attempt, latency_ms=latency_ms)
+    raw_usage = payload.get("usage")
+    usage, observed_id, cost = validated_metadata(
+        provider, raw_usage, payload.get("id", request_id),
+        input_field="prompt_tokens", output_field="completion_tokens",
+        cost=raw_usage.get("cost") if isinstance(raw_usage, dict) else None,
+        attempts=attempt, latency_ms=latency_ms,
+    )
+    try:
         choice = payload["choices"][0]
         message = choice["message"]
         content = message["content"]
-    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-        raise ProviderError(f"{provider} returned an unexpected response", transient=False) from exc
+        if not isinstance(choice, dict) or not isinstance(message, dict):
+            raise TypeError("invalid chat response objects")
+        if choice.get("finish_reason") is not None and not isinstance(choice["finish_reason"], str):
+            raise TypeError("invalid finish reason")
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderError(f"{provider} returned an unexpected response", transient=False,
+                            attempts=attempt, latency_ms=latency_ms, provider_request_id=observed_id,
+                            cost_usd=cost, input_tokens=usage.get("prompt_tokens"),
+                            output_tokens=usage.get("completion_tokens")) from exc
     if message.get("tool_calls") or message.get("function_call"):
         raise ProviderError(
             f"{provider} violated the empty tool policy by returning a tool call",
             transient=False,
             attempts=attempt,
-            provider_request_id=payload.get("id") or request_id,
+            provider_request_id=observed_id,
+            cost_usd=cost, input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"), latency_ms=latency_ms,
         )
     if isinstance(choice, dict) and choice.get("finish_reason") == "length":
         # The body is a prefix of the intended output, so it would fail as
@@ -435,7 +510,9 @@ def _parse_chat_completion(
             f"{provider} output was truncated at the max_tokens ceiling (finish_reason=length)",
             transient=False,
             attempts=attempt,
-            provider_request_id=payload.get("id") or request_id,
+            provider_request_id=observed_id,
+            cost_usd=cost, input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"), latency_ms=latency_ms,
             output_truncated=True,
         )
     if not isinstance(content, str) or not content.strip():
@@ -444,20 +521,25 @@ def _parse_chat_completion(
             transient=False,
             empty_response=True,
             attempts=attempt,
-            provider_request_id=payload.get("id") or request_id,
+            provider_request_id=observed_id,
+            cost_usd=cost, input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"), latency_ms=latency_ms,
         )
-    structured = _parse_json_object(normalize(content) if normalize else content, provider)
-    raw_usage = payload.get("usage")
-    usage = raw_usage if isinstance(raw_usage, dict) else {}
-    cost = usage.get("cost")
+    try:
+        structured = _parse_json_object(normalize(content) if normalize else content, provider)
+    except ProviderError as exc:
+        raise ProviderError(str(exc), transient=False, attempts=attempt,
+                            provider_request_id=observed_id, cost_usd=cost,
+                            input_tokens=usage.get("prompt_tokens"),
+                            output_tokens=usage.get("completion_tokens"), latency_ms=latency_ms) from exc
     return ModelResponse(
         raw_output=content,
         structured_output=structured,
         latency_ms=latency_ms,
         input_tokens=usage.get("prompt_tokens"),
         output_tokens=usage.get("completion_tokens"),
-        cost_usd=_optional_float(cost),
-        provider_request_id=payload.get("id") or request_id,
+        cost_usd=cost,
+        provider_request_id=observed_id,
         usage=usage,
         attempts=attempt,
     )
@@ -852,16 +934,19 @@ class ClaudeCodeProvider(ModelProvider):
                 )
             structured = _parse_json_object(raw, self.name)
         raw_usage = payload.get("usage")
-        usage = raw_usage if isinstance(raw_usage, dict) else {}
-        total_cost = payload.get("total_cost_usd")
+        usage, observed_id, total_cost = validated_metadata(
+            self.name, raw_usage, payload.get("session_id"), input_field="input_tokens",
+            output_field="output_tokens", cost=payload.get("total_cost_usd"),
+            attempts=attempts, latency_ms=latency_ms,
+        )
         return ModelResponse(
             raw_output=raw if isinstance(raw, str) else json.dumps(structured, ensure_ascii=False),
             structured_output=structured,
             latency_ms=latency_ms,
             input_tokens=usage.get("input_tokens"),
             output_tokens=usage.get("output_tokens"),
-            cost_usd=_optional_float(total_cost),
-            provider_request_id=payload.get("session_id"),
+            cost_usd=total_cost,
+            provider_request_id=observed_id,
             usage=usage,
             attempts=attempts,
         )
@@ -941,7 +1026,7 @@ class CodexCliProvider(ModelProvider):
             )
         events: list[dict[str, Any]] = []
         text = ""
-        usage: dict[str, Any] = {}
+        usage: Any = {}
         request_id: str | None = None
         tool_items: list[str] = []
         for line in completed.stdout.splitlines():
@@ -978,8 +1063,12 @@ class CodexCliProvider(ModelProvider):
                         text = candidate
             elif item is not None:
                 raise ProviderError("codex-cli returned an item on a non-item event", transient=False)
-            if event_type == "turn.completed" and isinstance(event.get("usage"), dict):
-                usage = event["usage"]
+            if event_type == "turn.completed":
+                usage = event.get("usage")
+        usage, request_id, _ = validated_metadata(
+            self.name, usage, request_id, input_field="input_tokens", output_field="output_tokens",
+            attempts=attempts, latency_ms=latency_ms,
+        )
         if tool_items:
             rendered = ", ".join(sorted(set(tool_items)))
             raise ProviderError(

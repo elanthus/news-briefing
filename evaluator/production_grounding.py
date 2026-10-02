@@ -1,39 +1,23 @@
-"""Blinded grounding packets from a production run directory.
+"""Blinded monitoring of verified, deployed production artifacts.
 
-`evaluator/grounding_review.py` builds its packets from an evaluator manifest
-plus its case configs and corpus fixtures. This module builds the same
-packet shape from one completed `agent_runner` run directory instead, so the
-periodic monitoring workflow (see `docs/evaluation-methodology.md`) can send
-already-published production topics through the existing
-`evaluator/grounding_machine_review.py` judge machinery.
-
-Every public packet field is built from `selected-evidence.json` and the
-finalized structured candidate's `headline`/`summary` text -- both already
-free of destinations and opaque `citation_`/`item_` handles because
-`agent_runner.output.project_selected_evidence()` and `validate_output()`
-enforce that before a run can reach a `ready` disposition. `redact_destinations()`
-and `redact_opaque_references()` are still applied defensively, so the packet
-builder itself proves the boundary rather than trusting an upstream run.
-
-A structural repair (`agent_runner.output.repair_structural_output()`) can
-drop an included topic from a section after its evidence was frozen, which
-would shift every later position out of alignment with `selected-evidence.json`.
-`production_run_topics()` detects that by comparing entry counts per section
-and skips the whole run rather than risk pairing prose with the wrong
-evidence; this is a disclosed limitation of the position-keyed design, not a
-crash.
+Shared publication resolution includes accepted semantic repairs. Frozen evidence,
+references, corpus, candidate and Markdown hashes are verified before sampling.
+Legacy diagnostics require separately verified live-history and deployment proof.
 """
 
 from __future__ import annotations
 
 import json
 import random
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from agent_runner.output import redact_destinations, redact_opaque_references
+from agent_runner.publication import read_json, resolve_publication_run, verified_publication
 
 from evaluator.adapters import Adapter
 from evaluator.grounding_machine_review import run_grounding_machine_review
@@ -69,109 +53,117 @@ def _load_json(path: Path) -> Any:
 
 
 def resolve_ready_run_dir(day_dir: Path) -> Path | None:
-    """Resolve one day's captured directory to its selected, ready run.
-
-    A daily run directory holds `manifest.json` directly when a single
-    provider produced the result, or a `fallback-log.json` naming the
-    selected candidate subdirectory when `run_daily_briefing.py`'s model
-    chain produced one. Returns ``None`` when no candidate reached a ready
-    disposition, mirroring `triage_run.py`'s path-traversal guard on the
-    recorded subdirectory name.
-    """
-    if (day_dir / "manifest.json").is_file():
-        return day_dir
-    chain = _load_json(day_dir / "fallback-log.json")
-    if not isinstance(chain, dict) or chain.get("status") != "ready":
+    """Resolve the publication policy's ready generation (not proof of deployment)."""
+    _audit, selected = resolve_publication_run(day_dir)
+    if selected is None:
         return None
-    selected = chain.get("selected_run_dir")
-    if not isinstance(selected, str) or not selected or Path(selected).name != selected:
+    manifest = _load_json(selected / "manifest.json")
+    if (not isinstance(manifest, dict) or manifest.get("status") != "complete"
+            or not isinstance(manifest.get("final"), dict) or manifest["final"].get("status") != "ready"):
         return None
-    candidate_dir = day_dir / selected
-    return candidate_dir if (candidate_dir / "manifest.json").is_file() else None
-
-
-def production_run_topics(run_dir: Path, run_id: str) -> list[dict[str, Any]]:
-    """Extract blinded, position-verified grounding records from one ready run.
-
-    Returns one record per published topic (never the accountability-log
-    exclusions, matching `evaluator.grounding_review`'s human packets), shaped
-    for `evaluator.grounding_review.packet()`. Returns an empty list for a
-    run that is not a published `ready` result, or whose artifacts cannot be
-    read, or whose finalized candidate's topic counts no longer match its
-    frozen evidence.
-    """
-    manifest = _load_json(run_dir / "manifest.json")
-    if not isinstance(manifest, dict) or manifest.get("status") != "complete":
-        return []
-    final = manifest.get("final")
-    if not isinstance(final, dict) or final.get("status") != "ready":
-        return []
-    attempt_index = final.get("attempt")
-    attempts = manifest.get("attempts")
-    if type(attempt_index) is not int or not isinstance(attempts, list):
-        return []
-    matching = [
-        row for row in attempts
-        if isinstance(row, dict) and row.get("index") == attempt_index
-    ]
-    if len(matching) != 1:
-        return []
-    structured_name = matching[0].get("structured_artifact")
-    if not isinstance(structured_name, str):
-        return []
-    candidate = _load_json(run_dir / structured_name)
-    evidence_doc = _load_json(run_dir / "selected-evidence.json")
-    if not isinstance(candidate, dict) or not isinstance(evidence_doc, dict):
-        return []
-    sections = candidate.get("sections")
-    evidence_sections = evidence_doc.get("sections")
-    if not isinstance(sections, dict) or not isinstance(evidence_sections, dict):
-        return []
-
-    records: list[dict[str, Any]] = []
-    topic_index = 0
-    for name in sorted(sections):
-        section = sections[name]
-        evidence_section = evidence_sections.get(name)
-        topics = section.get("topics") if isinstance(section, dict) else None
-        evidence_topics = (
-            evidence_section.get("topics") if isinstance(evidence_section, dict) else None
-        )
-        if not isinstance(topics, list) or not isinstance(evidence_topics, list):
-            return []
-        if len(topics) != len(evidence_topics):
-            # A structural repair dropped or reordered an entry after evidence
-            # was frozen; positions can no longer be proven aligned.
-            return []
-        for entry, evidence_entry in zip(topics, evidence_topics, strict=True):
-            if not isinstance(entry, dict) or not isinstance(evidence_entry, dict):
-                return []
-            topic_index += 1
-            public = redact_opaque_references(
-                redact_destinations({
-                    "section": name,
-                    "title": entry.get("headline"),
-                    "prose": entry.get("summary"),
-                    "evidence": evidence_entry.get("evidence"),
-                }),
-                include_citations=True,
-            )
-            if not isinstance(public, dict):
-                return []
-            records.append({
-                "artifact_dir": run_id,
-                "topic_index": topic_index,
-                "stratum": name,
-                "private": {},
-                "public": public,
-            })
-    return records
+    return selected
 
 
 @dataclass(frozen=True)
 class ProductionRun:
     run_id: str
     run_dir: Path
+    receipt_path: Path | None = None
+    report_date: str | None = None
+
+
+def verified_run_topics(run: ProductionRun) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    selected, topics, hashes = verified_publication(run.run_dir)
+    receipt = read_json(run.receipt_path or run.run_dir / "publication-receipt.json")
+    if (not isinstance(receipt, dict) or receipt.get("schema_version") != 1
+            or receipt.get("deployment_status") != "success"
+            or type(receipt.get("workflow_run_id")) is not int or receipt["workflow_run_id"] <= 0
+            or type(receipt.get("run_attempt")) is not int or receipt["run_attempt"] <= 0
+            or not isinstance(receipt.get("reports"), list)):
+        raise ValueError("missing or invalid successful deployment receipt")
+    deployed_at = receipt.get("deployment_completed_at")
+    if receipt.get("actions_deployment_verified") is not True or not isinstance(deployed_at, str):
+        raise ValueError("receipt has no independently verified Actions deployment proof")
+    deployment_time = datetime.fromisoformat(deployed_at.replace("Z", "+00:00"))
+    if deployment_time.utcoffset() is None:
+        raise ValueError("deployment completion timestamp has no timezone")
+    report_date = date.fromisoformat(run.report_date or run.run_dir.name).isoformat()
+    matches = [row for row in receipt["reports"] if isinstance(row, dict) and row.get("date") == report_date]
+    if len(matches) != 1:
+        raise ValueError("publication receipt does not identify this report exactly once")
+    proof = matches[0]
+    if (proof.get("artifact_hashes") != hashes
+            or proof.get("selected_run") != selected.relative_to(run.run_dir).as_posix()):
+        raise ValueError("published artifact identity differs from verified diagnostics")
+    records: list[dict[str, Any]] = []
+    for topic in topics:
+        if not topic["included"]:
+            continue
+        public = redact_opaque_references(redact_destinations({
+            "section": topic["position"]["section"], "title": topic["headline"],
+            "prose": topic["prose"], "evidence": topic["evidence"],
+        }), include_citations=True)
+        records.append({"artifact_dir": run.run_id, "topic_index": len(records) + 1,
+                        "stratum": topic["position"]["section"], "private": {}, "public": public})
+    return records, {"report_date": report_date, "workflow_run_id": receipt["workflow_run_id"],
+                     "run_attempt": receipt["run_attempt"], "artifact_hashes": hashes,
+                     "deployment_completed_at": deployment_time.isoformat(),
+                     "selected_run": selected.relative_to(run.run_dir).as_posix(),
+                     "evidence_source": receipt.get("evidence_source", "post_deployment_receipt")}
+
+
+def production_run_topics(run_dir: Path, run_id: str) -> list[dict[str, Any]]:
+    """Return only verified published included topics; invalid diagnostics yield no topics."""
+    try:
+        return verified_run_topics(ProductionRun(run_id, run_dir))[0]
+    except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError, StopIteration):
+        return []
+
+
+def week_window(week_label: str) -> tuple[date, date]:
+    """The label identifies an ISO Monday-through-Sunday report-date window."""
+    if re.fullmatch(r"[0-9]{4}-W[0-9]{2}", week_label) is None:
+        raise ValueError("week label must have the form YYYY-Www")
+    year, week = week_label.split("-W")
+    start = date.fromisocalendar(int(year), int(week), 1)
+    return start, start + timedelta(days=7)
+
+
+def sample_published_runs(
+    runs: Sequence[ProductionRun], week_label: str,
+) -> tuple[list[ProductionRun], list[dict[str, str]]]:
+    """One latest successfully deployed version per report date in the requested ISO week."""
+    start, end = week_window(week_label)
+    excluded: list[dict[str, str]] = []
+    by_day: dict[str, tuple[ProductionRun, dict[str, Any]]] = {}
+    for run in runs:
+        try:
+            _topics, identity = verified_run_topics(run)
+            day = identity["report_date"]
+            if not start <= date.fromisoformat(day) < end:
+                excluded.append({"run_id": run.run_id, "reason": "outside_requested_report_week"})
+                continue
+            previous = by_day.get(day)
+            if previous is not None:
+                previous_order = (datetime.fromisoformat(previous[1]["deployment_completed_at"]),
+                                  previous[1]["workflow_run_id"], previous[1]["run_attempt"])
+                order = (datetime.fromisoformat(identity["deployment_completed_at"]),
+                         identity["workflow_run_id"], identity["run_attempt"])
+                if order == previous_order and identity["artifact_hashes"] != previous[1]["artifact_hashes"]:
+                    raise ValueError("conflicting artifacts for the same deployment identity")
+                if order <= previous_order:
+                    excluded.append({"run_id": run.run_id, "reason": "duplicate_or_superseded_report_date"})
+                    continue
+                excluded.append({"run_id": previous[0].run_id, "reason": "duplicate_or_superseded_report_date"})
+            by_day[day] = run, identity
+        except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError, StopIteration) as exc:
+            excluded.append({"run_id": run.run_id, "reason": str(exc) or type(exc).__name__})
+    present = set(by_day)
+    for offset in range(7):
+        day = (start + timedelta(days=offset)).isoformat()
+        if day not in present:
+            excluded.append({"run_id": day, "reason": "no_verified_published_report_for_date"})
+    return [by_day[day][0] for day in sorted(by_day)], excluded
 
 
 def export_production_grounding_packets(
@@ -193,13 +185,19 @@ def export_production_grounding_packets(
     records: list[dict[str, Any]] = []
     manifest_results: list[dict[str, Any]] = []
     skipped: list[str] = []
+    exclusions: list[dict[str, str]] = []
     for run in runs:
-        topics = production_run_topics(run.run_dir, run.run_id)
-        if not topics:
+        try:
+            topics, identity = verified_run_topics(run)
+            if not topics:
+                raise ValueError("published report contains no included topics")
+        except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError, StopIteration) as exc:
             skipped.append(run.run_id)
+            exclusions.append({"run_id": run.run_id, "reason": str(exc) or type(exc).__name__})
             continue
         records.extend(topics)
-        run_manifest = _load_json(run.run_dir / "manifest.json")
+        selected = resolve_ready_run_dir(run.run_dir)
+        run_manifest = _load_json(selected / "manifest.json") if selected is not None else None
         provider_info = run_manifest.get("provider") if isinstance(run_manifest, dict) else None
         provider_name = provider_info.get("provider") if isinstance(provider_info, dict) else None
         model_name = provider_info.get("model") if isinstance(provider_info, dict) else None
@@ -208,6 +206,7 @@ def export_production_grounding_packets(
             "provider": provider_name if isinstance(provider_name, str) else "unknown",
             "model": model_name if isinstance(model_name, str) else "unknown",
             "prompt_version": "production",
+            "publication_identity": identity,
         })
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -241,6 +240,7 @@ def export_production_grounding_packets(
         "topic_count": len(records),
         "double_review_count": len(double_records),
         "skipped_runs": skipped,
+        "exclusions": exclusions,
         "manifest_path": manifest_path,
         "manifest_sha256": sha256_bytes(manifest_bytes),
         "output_dir": portable_path(output_dir),
@@ -301,18 +301,16 @@ def render_weekly_log_row(
 
 
 def upsert_weekly_log(path: Path, week_label: str, row: str) -> str:
-    """Insert one week's row, replacing a prior row for the same week (a rerun)."""
+    """Append a measurement; retain historical rows and label repeated assessments."""
     text = path.read_text(encoding="utf-8") if path.is_file() else WEEKLY_LOG_HEADER
     marker = f"| {week_label} |"
     lines = text.splitlines(keepends=True)
-    for index, line in enumerate(lines):
-        if line.startswith(marker):
-            lines[index] = row
-            break
-    else:
-        if lines and not lines[-1].endswith("\n"):
-            lines[-1] += "\n"
-        lines.append(row)
+    previous_count = sum(line.startswith(marker) or line.startswith(f"| {week_label} (assessment ") for line in lines)
+    if previous_count:
+        row = row.replace(marker, f"| {week_label} (assessment {previous_count + 1}) |", 1)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    lines.append(row)
     updated = "".join(lines)
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, updated)
@@ -334,6 +332,7 @@ def run_weekly_monitor(
     cost_ceiling_usd: float = 7.0,
     cost_headroom_usd: float = 0.10,
     progress: Any = None,
+    artifact_exclusions: Sequence[dict[str, str]] = (),
 ) -> dict[str, Any]:
     """Build packets, run the judge, and publish one week's aggregate row.
 
@@ -341,20 +340,24 @@ def run_weekly_monitor(
     `review_output_dir/machine-grounding-review.json`, a private artifact this
     function never prints or writes into the committed log.
     """
-    resolved = [
-        (run.run_id, resolve_ready_run_dir(run.run_dir)) for run in runs
-    ]
-    unready = sorted(run_id for run_id, run_dir in resolved if run_dir is None)
-    ready = [
-        ProductionRun(run_id, run_dir)
-        for run_id, run_dir in resolved
-        if run_dir is not None
-    ]
+    ready, exclusions = sample_published_runs(runs, week_label)
+    if any(not isinstance(row, dict) or set(row) != {"run_id", "reason"}
+           or any(not isinstance(value, str) for value in row.values()) for row in artifact_exclusions):
+        raise ValueError("invalid artifact exclusion records")
+    exclusions.extend(artifact_exclusions)
     packets = export_production_grounding_packets(
         ready, packet_dir, seed=seed, double_fraction=double_fraction
     )
-    all_skipped = sorted(set(unready) | set(packets["skipped_runs"]))
+    exclusions.extend(packets["exclusions"])
+    all_skipped = sorted({row["run_id"] for row in exclusions})
     measured = len(ready) - len(packets["skipped_runs"])
+    start, end = week_window(week_label)
+    write_json_atomic(packet_dir / "sampling.json", {
+        "schema_version": 1, "week_label": week_label,
+        "report_date_start_inclusive": start.isoformat(), "report_date_end_exclusive": end.isoformat(),
+        "deduplication": "latest successful deployment completion per report date; workflow identity breaks ties",
+        "included_runs": [run.run_id for run in ready], "exclusions": exclusions,
+    })
 
     if packets["topic_count"] == 0:
         grounding = rate(0, 0)
@@ -391,6 +394,7 @@ def run_weekly_monitor(
         "week_label": week_label,
         "runs_reviewed": measured,
         "runs_skipped": all_skipped,
+        "exclusions": exclusions,
         "topic_count": packets["topic_count"],
         "grounding_rate": grounding,
         "audit_agreement": audit_agreement,

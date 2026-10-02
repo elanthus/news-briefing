@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import tempfile
 import time
-import urllib.error
-import urllib.request
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
+from agent_runner.providers import (
+    _post_chat_completion,
+    validated_metadata,
+)
+from agent_runner.providers import (
+    _retry_after_seconds as _retry_after_seconds,
+)
 from agent_runner.providers import provider_for as runner_provider_for
 
 API_MAX_ATTEMPTS = 3
@@ -84,8 +88,12 @@ class ProviderRequestError(RuntimeError):
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         provider_request_id: str | None = None,
+        ambiguous_completion: bool = False,
+        invalid_metadata: tuple[str, ...] = (),
     ):
         super().__init__(message)
+        self.ambiguous_completion = ambiguous_completion
+        self.invalid_metadata = invalid_metadata
         self.transient = transient
         self.attempts = attempts
         self.status_code = status_code
@@ -96,28 +104,21 @@ class ProviderRequestError(RuntimeError):
         self.provider_request_id = provider_request_id
 
 
+def _request_error(exc: ProviderError) -> ProviderRequestError:
+    return ProviderRequestError(
+        str(exc), transient=exc.transient, attempts=exc.attempts,
+        status_code=exc.status_code, retry_after=exc.retry_after,
+        provider_request_id=exc.provider_request_id, cost_usd=exc.cost_usd,
+        input_tokens=exc.input_tokens, output_tokens=exc.output_tokens,
+        ambiguous_completion=exc.ambiguous_completion, invalid_metadata=exc.invalid_metadata,
+    )
+
+
 def is_transient_provider_error(exc: Exception) -> bool:
     if isinstance(exc, ProviderRequestError):
-        return exc.transient
+        return exc.transient and not exc.ambiguous_completion
     return isinstance(exc, (TimeoutError, subprocess.TimeoutExpired))
 
-
-def _retry_after_seconds(value: str | None, now: datetime | None = None) -> float | None:
-    """Parse Retry-After delta-seconds or an HTTP date, returning a nonnegative delay."""
-    if not value:
-        return None
-    try:
-        return max(0.0, float(value.strip()))
-    except ValueError:
-        pass
-    try:
-        target = parsedate_to_datetime(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if target.tzinfo is None:
-        target = target.replace(tzinfo=UTC)
-    current = now or datetime.now(UTC)
-    return max(0.0, (target - current).total_seconds())
 
 
 def _run(
@@ -170,6 +171,13 @@ class CodexCliAdapter(Adapter):
                 usage = event.get("usage", usage)
         if not text:
             raise RuntimeError("codex CLI returned no final agent message")
+        try:
+            usage, request_id, _ = validated_metadata(
+                self.provider, usage, request_id, input_field="input_tokens", output_field="output_tokens",
+                latency_ms=latency_ms,
+            )
+        except ProviderError as exc:
+            raise _request_error(exc) from exc
         return Generation(
             text=text,
             latency_ms=latency_ms,
@@ -196,8 +204,14 @@ class ClaudeCodeCliAdapter(Adapter):
             raise RuntimeError("claude-code CLI returned invalid JSON") from exc
         if payload.get("is_error"):
             raise RuntimeError(f"claude-code CLI failed: {payload.get('result', 'unknown error')}")
-        usage = payload.get("usage") or {}
-        total_cost = payload.get("total_cost_usd")
+        try:
+            usage, request_id, total_cost = validated_metadata(
+                self.provider, payload.get("usage"), payload.get("session_id"),
+                input_field="input_tokens", output_field="output_tokens", cost=payload.get("total_cost_usd"),
+                latency_ms=latency_ms,
+            )
+        except ProviderError as exc:
+            raise _request_error(exc) from exc
         return Generation(
             text=payload.get("result", ""),
             latency_ms=latency_ms,
@@ -208,7 +222,7 @@ class ClaudeCodeCliAdapter(Adapter):
                 None if total_cost is not None
                 else "Claude Code did not report total_cost_usd for this call."
             ),
-            provider_request_id=payload.get("session_id"),
+            provider_request_id=request_id,
             usage=usage,
         )
 
@@ -264,6 +278,7 @@ class OpenAiCompatibleAdapter(Adapter):
         return {
             "temperature": self.temperature,
             "seed": self.seed,
+            "max_tokens": int(os.environ.get("EVALUATOR_MAX_TOKENS", "100000")),
             "reasoning_enabled": self.reasoning_enabled,
             "reasoning_effort": self.reasoning_effort,
             "disclosure": (
@@ -276,78 +291,45 @@ class OpenAiCompatibleAdapter(Adapter):
         }
 
     def generate(self, prompt: str) -> Generation:
-        request = urllib.request.Request(
-            self.endpoint,
-            data=json.dumps(self._payload(prompt)).encode("utf-8"),
-            headers=self._headers(),
-            method="POST",
-        )
-        started = time.perf_counter()
-        deadline = started + self.timeout
-        attempt = 0
-        while True:
-            attempt += 1
-            remaining = deadline - time.perf_counter()
-            if remaining <= 0:
-                raise ProviderRequestError(
-                    f"{self.provider} timed out after {self.timeout}s across {attempt - 1} attempt(s)",
-                    transient=True,
-                    attempts=attempt - 1,
-                )
-            failure: ProviderRequestError | None = None
-            cause: Exception | None = None
-            try:
-                with urllib.request.urlopen(request, timeout=remaining) as response:
-                    response_body = response.read()
-                    request_id = response.headers.get("x-request-id")
-                break
-            except urllib.error.HTTPError as exc:
-                retry_after = _retry_after_seconds(exc.headers.get("Retry-After"))
-                try:
-                    detail = exc.read().decode("utf-8", errors="replace")
-                finally:
-                    exc.close()
-                transient = exc.code in RETRYABLE_HTTP_STATUSES or 500 <= exc.code <= 599
-                failure = ProviderRequestError(
-                    f"{self.provider} HTTP {exc.code}: {detail[:500]}",
-                    transient=transient,
-                    attempts=attempt,
-                    status_code=exc.code,
-                    retry_after=retry_after,
-                )
-                cause = exc
-            except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
-                failure = ProviderRequestError(
-                    f"{self.provider} request failed: {exc}",
-                    transient=True,
-                    attempts=attempt,
-                )
-                cause = exc
-
-            if not failure.transient or attempt >= API_MAX_ATTEMPTS:
-                raise failure from cause
-            delay = failure.retry_after if failure.retry_after is not None else float(2 ** (attempt - 1))
-            remaining = max(0.0, deadline - time.perf_counter())
-            if delay >= remaining:
-                raise ProviderRequestError(
-                    f"{failure}; retry delay {delay:g}s exceeds the remaining "
-                    f"{remaining:g}s call timeout budget",
-                    transient=True,
-                    attempts=attempt,
-                    status_code=failure.status_code,
-                    retry_after=delay,
-                ) from cause
-            if delay:
-                time.sleep(delay)
-        latency_ms = (time.perf_counter() - started) * 1000
+        try:
+            response_body, request_id, latency_ms, attempt = _post_chat_completion(
+                self.provider, self.endpoint, self._headers(),
+                json.dumps(self._payload(prompt)).encode("utf-8"), timeout=self.timeout,
+            )
+        except ProviderError as exc:
+            raise _request_error(exc) from exc
         try:
             payload = json.loads(response_body)
+        except (ValueError, UnicodeError, RecursionError) as exc:
+            raise ProviderRequestError(
+                f"{self.provider} returned an unexpected response", transient=False,
+                attempts=attempt, provider_request_id=request_id,
+            ) from exc
+        if not isinstance(payload, dict):
+            raise ProviderRequestError(
+                f"{self.provider} returned an unexpected response", transient=False,
+                attempts=attempt, provider_request_id=request_id,
+            )
+        raw_usage = payload.get("usage")
+        raw_cost = raw_usage.get("cost") if isinstance(raw_usage, dict) else None
+        try:
+            usage, request_id, cost = validated_metadata(
+                self.provider, raw_usage, payload.get("id", request_id),
+                input_field="prompt_tokens", output_field="completion_tokens", cost=raw_cost,
+                attempts=attempt, latency_ms=latency_ms,
+            )
+        except ProviderError as exc:
+            raise _request_error(exc) from exc
+        cost_usd = cost if cost is not None else self._estimated_cost(usage)
+        try:
             text = payload["choices"][0]["message"]["content"]
-        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(f"{self.provider} returned an unexpected response") from exc
-        usage = payload.get("usage") or {}
-        cost = usage.get("cost")
-        cost_usd = float(cost) if cost is not None else self._estimated_cost(usage)
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderRequestError(
+                f"{self.provider} returned an unexpected response", transient=False,
+                attempts=attempt, cost_usd=cost_usd,
+                input_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"), provider_request_id=request_id,
+            ) from exc
         if not isinstance(text, str):
             finish_reason = payload.get("choices", [{}])[0].get("finish_reason")
             raise ProviderRequestError(
@@ -358,7 +340,7 @@ class OpenAiCompatibleAdapter(Adapter):
                 cost_usd=cost_usd,
                 input_tokens=usage.get("prompt_tokens"),
                 output_tokens=usage.get("completion_tokens"),
-                provider_request_id=payload.get("id") or request_id,
+                provider_request_id=request_id,
             )
         return Generation(
             text=text,
@@ -367,7 +349,7 @@ class OpenAiCompatibleAdapter(Adapter):
             output_tokens=usage.get("completion_tokens"),
             cost_usd=cost_usd,
             cost_note=None if cost is not None else self._cost_note(usage),
-            provider_request_id=payload.get("id") or request_id,
+            provider_request_id=request_id,
             usage=usage,
             attempts=attempt,
         )
@@ -377,11 +359,16 @@ class OpenAiCompatibleAdapter(Adapter):
         try:
             input_rate = float(os.environ[f"{prefix}_INPUT_USD_PER_MTOK"])
             output_rate = float(os.environ[f"{prefix}_OUTPUT_USD_PER_MTOK"])
-            return (
-                int(usage.get("prompt_tokens", 0)) * input_rate
-                + int(usage.get("completion_tokens", 0)) * output_rate
-            ) / 1_000_000
-        except (KeyError, TypeError, ValueError):
+            input_tokens = usage.get("prompt_tokens")
+            output_tokens = usage.get("completion_tokens")
+            if (type(input_tokens) is not int or type(output_tokens) is not int
+                    or input_tokens < 0 or output_tokens < 0
+                    or not math.isfinite(input_rate) or input_rate < 0
+                    or not math.isfinite(output_rate) or output_rate < 0):
+                return None
+            estimate = (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
+            return estimate if math.isfinite(estimate) else None
+        except (KeyError, TypeError, ValueError, OverflowError):
             return None
 
     def _cost_note(self, usage: dict[str, Any]) -> str | None:
@@ -439,14 +426,7 @@ class ProductionParityAdapter(Adapter):
                 trace_id=trace_id,
             ))
         except ProviderError as exc:
-            raise ProviderRequestError(
-                str(exc),
-                transient=exc.transient,
-                attempts=exc.attempts,
-                status_code=exc.status_code,
-                retry_after=exc.retry_after,
-                provider_request_id=exc.provider_request_id,
-            ) from exc
+            raise _request_error(exc) from exc
         return Generation(
             text=response.raw_output,
             latency_ms=response.latency_ms,
@@ -511,6 +491,7 @@ def production_adapter_for(
     controls = {
         "temperature": resolved_temperature if provider == "openrouter" else None,
         "seed": None,
+        "max_tokens": max_tokens if provider == "openrouter" else None,
         "reasoning_enabled": effective_reasoning_enabled,
         "reasoning_effort": effective_reasoning_effort,
         "tool_policy": info.get("tool_policy"),

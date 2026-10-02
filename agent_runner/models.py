@@ -53,8 +53,18 @@ class ProviderError(RuntimeError):
         openrouter_model_404: bool = False,
         output_truncated: bool = False,
         empty_response: bool = False,
+        cost_usd: float | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        latency_ms: float | None = None,
+        invalid_metadata: tuple[str, ...] = (),
     ):
         super().__init__(message)
+        self.cost_usd = cost_usd
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.latency_ms = latency_ms
+        self.invalid_metadata = invalid_metadata
         self.transient = transient
         self.attempts = attempts
         self.status_code = status_code
@@ -68,6 +78,11 @@ class ProviderError(RuntimeError):
 
     def record(self) -> dict[str, Any]:
         return {
+            "cost_usd": self.cost_usd,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "latency_ms": self.latency_ms,
+            "invalid_metadata": list(self.invalid_metadata),
             "failure": self.failure.payload(),
             "type": type(self).__name__,
             "message": str(self),

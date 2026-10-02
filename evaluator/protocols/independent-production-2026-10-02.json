@@ -1,0 +1,31 @@
+{
+  "protocol_id": "independent-production-2026-10-02-v1",
+  "frozen_before_assessment": true,
+  "target": {
+    "topics": 36,
+    "report_dates": 6,
+    "minimum_dates": 5
+  },
+  "production_sampling": "Latest six distinct report dates on or before 2026-10-02 with verified deployed Markdown and digest-verified frozen evidence; order topics by SHA256(protocol_id + report_date + section + position), take first six per date. Exclude rather than replace unverifiable evidence silently. If fewer dates exist, include all verified dates and disclose shortfall.",
+  "publication_verification": "Match current public history Markdown to selected final Markdown; bind public workflow identity and successful deployment step where available. Legacy reports without provable identity are excluded from production sample.",
+  "repairs": "All accessible verified original/repaired pairs up to six pairs, ordered by original run path; blind and independently shuffle both sides. Separate diagnostic examples from published production.",
+  "selection": "Two complete frozen corpora from included dates, newest first; if inaccessible use two existing frozen diagnostic corpora and label the cohort separately.",
+  "reviewers": "Fresh gpt-6.1-sol subagents with high reasoning; machine review independent of generation/repair, not human review. No additional paid API calls.",
+  "blindness": "Packets omit model/provider, prior scores, implementation decisions, paths identifying original/repair, and correspondence until labels are frozen.",
+  "double_review": "Second reviewer independently labels first twelve SHA256-ordered production topics (or one third rounded up if fewer than 36); all repair pairs double reviewed. Report exact denominators.",
+  "rubric": {
+    "support": "Every material claim supported by supplied frozen excerpt evidence; identify unsupported, strengthened, or reversed claims.",
+    "citations": "Each cited evidence item relevant; identify unsafe grouping.",
+    "quality": "Clarity, completeness, usefulness, each 1 poor to 5 strong with rationale.",
+    "selection": "Relevant included topics and important omitted corpus items with evidence references."
+  },
+  "disagreements": "Retain both labels; fresh third reviewer resolves material grounding/citation disagreements using only blinded evidence and rationales. Report raw agreement and adjudicated outcomes separately.",
+  "privacy": "Commit protocol, aggregate counts, artifact SHA256 and review identity metadata only. Private excerpts, prompts, judgments and packets stay ignored. Only reproducible synthetic examples can be public.",
+  "limits": "Excerpt support is not full-article fact checking. Same-model reviewers share blind spots. Repeated cases are not independent deployment observations. Missing private diagnostics limits production claims.",
+  "access_amendment_before_assessment": {
+    "reason": "Private historical archive passphrase unavailable. User requested a seven-day fetch split into seven corpora for testing.",
+    "cohort": "Retrospective reconstructed feed corpora; not exact evidence used for historical production and not a published-artifact reliability sample.",
+    "sampling": "Fetch trailing seven complete UTC days ending 2026-10-02T00:00:00Z; assign dated items to their UTC calendar day. Retain provenance and health. Use current production config, six sampled topics per nonempty daily candidate up to 36. Generation requires approved no-extra-API subagents; label execution configuration differences.",
+    "review": "Fresh gpt-6.1-sol agents separate from candidate generators and implementers. Preserve original target and disclose verified production denominator separately."
+  }
+}

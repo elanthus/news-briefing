@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import corpus_schema
 import eval_briefing
@@ -236,6 +237,47 @@ class QualityJudgeTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "different judge-quality run"):
                 run_quality_judging(manifest_path, judge, temporary / "quality")
+
+    def test_changed_controls_rubric_evidence_output_or_config_rejects_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeJudgeAdapter("fixture-judge")
+            output = temporary / "quality"
+            run_quality_judging(manifest_path, judge, output)
+            with patch.object(judge, "generation_controls", return_value={"temperature": 0.5}):
+                with self.assertRaisesRegex(ValueError, "different judge-quality"):
+                    run_quality_judging(manifest_path, judge, output)
+            with patch("evaluator.quality.AXIS_RUBRIC", {"faithfulness": "changed rubric"}):
+                with self.assertRaisesRegex(ValueError, "different judge-quality"):
+                    run_quality_judging(manifest_path, judge, output)
+            manifest = json.loads(manifest_path.read_bytes())
+            case_dir = manifest_path.parent / manifest["results"][0]["artifact_dir"]
+            for path in (case_dir / "corpus.json", case_dir / "final.md", temporary / "config.json"):
+                with self.subTest(path=path.name):
+                    frozen = path.read_bytes()
+                    path.write_bytes(frozen + b"\n ")
+                    with self.assertRaisesRegex(ValueError, "different judge-quality"):
+                        run_quality_judging(manifest_path, judge, output)
+                    path.write_bytes(frozen)
+            self.assertEqual(judge.calls, 2)
+
+    def test_legacy_checkpoint_is_preserved_and_rejected_without_paid_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            manifest_path = self._minimal_run(temporary)
+            judge = FakeJudgeAdapter("fixture-judge")
+            output = temporary / "quality"
+            run_quality_judging(manifest_path, judge, output)
+            checkpoint = next(output.glob("*-original.json"))
+            payload = json.loads(checkpoint.read_bytes())
+            del payload["reviewer"]
+            checkpoint.write_text(json.dumps(payload))
+            frozen = checkpoint.read_bytes()
+            with self.assertRaisesRegex(ValueError, "incompatible or legacy"):
+                run_quality_judging(manifest_path, judge, output)
+            self.assertEqual(judge.calls, 2)
+            self.assertEqual(checkpoint.read_bytes(), frozen)
 
     def test_suite_override_missing_a_manifest_case_reports_a_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

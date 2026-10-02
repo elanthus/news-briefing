@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import http.client
 import json
-import math
 import os
 import re
 import time
@@ -12,8 +11,9 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from agent_runner.http_transport import ResponseLimitError, bounded_request
 from agent_runner.models import ProviderError
-from agent_runner.providers import _urlopen
+from agent_runner.providers import _urlopen, validated_metadata
 
 JEV_MODEL = "typesafe/jev-1.13"
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
@@ -49,8 +49,11 @@ class JevClient:
         })
         started = time.perf_counter()
         try:
-            with _urlopen(request, timeout=timeout) as response:
-                raw = response.read(MAX_RESPONSE_BYTES + 1)
+            raw, _ = bounded_request(request, deadline=started + timeout, opener=_urlopen,
+                                     max_bytes=MAX_RESPONSE_BYTES)
+        except ResponseLimitError as exc:
+            raise ProviderError(f"Jev {exc}", transient=False, status_code=exc.status,
+                                provider_request_id=exc.request_id) from exc
         except urllib.error.HTTPError as exc:
             status = exc.code
             exc.close()
@@ -78,25 +81,15 @@ class JevClient:
         usage = payload.get("usage")
         if not isinstance(usage, dict):
             raise ProviderError("Jev returned missing usage", transient=False)
-        cost = usage.get("cost")
-        if cost is not None:
-            if type(cost) not in (int, float):
-                raise ProviderError("Jev returned invalid cost", transient=False)
-            try:
-                cost = float(cost)
-            except OverflowError as exc:
-                raise ProviderError("Jev returned invalid cost", transient=False) from exc
-            if not math.isfinite(cost) or cost < 0:
-                raise ProviderError("Jev returned invalid cost", transient=False)
-        tokens = {}
-        for field in ("input_tokens", "output_tokens"):
-            value = usage.get(field)
-            if value is not None and (type(value) is not int or value < 0):
-                raise ProviderError("Jev returned invalid token usage", transient=False)
-            tokens[field] = value
+        usage, request_id, cost = validated_metadata(
+            "Jev", usage, payload.get("id"), input_field="input_tokens", output_field="output_tokens",
+            cost=usage.get("cost"), latency_ms=(time.perf_counter() - started) * 1000,
+        )
+        tokens = {field: usage.get(field) for field in ("input_tokens", "output_tokens")}
         model = payload.get("model")
         if (not isinstance(model, str) or len(model) > 100
                 or re.fullmatch(r"typesafe/jev-[A-Za-z0-9.-]+", model) is None):
             raise ProviderError("Jev returned an unexpected model", transient=False)
         return {"probabilities": probabilities, "model": model, "cost_usd": cost,
+                "provider_request_id": request_id,
                 **tokens, "latency_ms": (time.perf_counter() - started) * 1000}
