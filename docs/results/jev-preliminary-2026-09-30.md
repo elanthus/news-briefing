@@ -116,12 +116,13 @@ slots and their duplicate comparisons. Unrelated topics retain their positions
 and prose. Duplicate findings and exclusion-entry grouping findings remain
 visible advisory checks; they do not trigger slot deletion or reranking.
 
-The public integrity report shows original and changed generated prose for each
-returned check, initial and confirmation scores, follow-up scores, and whether
-a repair was applied, rejected, failed or skipped. Frozen feed excerpts and model
-prompts remain private. Partial reviews or uncertain costs retain the original
-briefing. This is a monitored improvement to model judgment; the deterministic
-publication contract remains mandatory.
+The public integrity report now leads with the publication decision and an action
+ledger, including applied, rejected, failed and skipped repairs. It shows each
+changed story's prose once, followed by separate initial and follow-up check
+statistics. Frozen feed excerpts and model prompts remain private. Partial
+reviews or uncertain costs retain the original briefing. This is a monitored
+improvement to model judgment; the deterministic publication contract remains
+mandatory.
 
 See [daily semantic checks and repairs](../jev-review.md) for commands, bounds and
 failure handling, and the [publication archive contract](../publication-archive-contract.md)
