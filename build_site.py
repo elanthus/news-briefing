@@ -644,23 +644,6 @@ def _humanize_corpus_health(markdown: str) -> str:
     return markdown
 
 
-def _section_priority(name: str, *, excluded: bool = False) -> int:
-    """Put AI first and US politics last while preserving all other order."""
-    folded = name.casefold()
-    if folded == "ai/tech" or (excluded and folded.startswith("ai ")):
-        return 0
-    if folded == "us politics":
-        return 2
-    return 1
-
-
-def _separator_before(lines: list[str], heading_index: int, floor: int) -> int:
-    index = heading_index - 1
-    while index >= floor and not lines[index].strip():
-        index -= 1
-    return index if index >= floor and lines[index] == "---" else heading_index
-
-
 def _markdown_structure_mask(lines: list[str]) -> list[bool]:
     """Identify lines that can safely act as Markdown structure."""
     outside: list[bool] = []
@@ -734,82 +717,6 @@ def _omit_report_only_warnings(markdown: str) -> str:
     return "\n".join(output)
 
 
-def _reorder_briefing_sections(markdown: str) -> str:
-    """Apply the public presentation order to current and archived Markdown."""
-    lines = markdown.split("\n")
-    structural = _markdown_structure_mask(lines)
-    main_headings = [
-        index
-        for index, line in enumerate(lines)
-        if structural[index] and line.startswith("## ")
-    ]
-    if main_headings:
-        first = main_headings[0]
-        trailing_heading = next(
-            (
-                index
-                for index, line in enumerate(lines[first:], start=first)
-                if structural[index] and line.startswith("### ")
-            ),
-            len(lines),
-        )
-        end = _separator_before(lines, trailing_heading, first)
-        boundaries = [index for index in main_headings if first <= index < end] + [end]
-        blocks = [
-            (lines[start][3:].strip(), lines[start:stop])
-            for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True)
-        ]
-        if blocks:
-            ordered = sorted(blocks, key=lambda block: _section_priority(block[0]))
-            lines = (
-                lines[:first]
-                + [line for _, block in ordered for line in block]
-                + lines[end:]
-            )
-
-    structural = _markdown_structure_mask(lines)
-    excluded_heading = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if structural[index] and line.startswith("### Excluded Topics")
-        ),
-        None,
-    )
-    if excluded_heading is None:
-        return "\n".join(lines)
-
-    # The accountability log ends at the next structural subsection (Corpus
-    # health, Run outcome, or any later block); labels past it belong to that
-    # block and never join the excluded-topic ordering.
-    next_heading = next(
-        (
-            index
-            for index, line in enumerate(lines[excluded_heading + 1 :], excluded_heading + 1)
-            if structural[index] and line.startswith("### ")
-        ),
-        len(lines),
-    )
-    end = _separator_before(lines, next_heading, excluded_heading + 1)
-    label_pattern = re.compile(r"^\*\*(.+)\*\*$")
-    labels = [
-        (index, match.group(1).strip())
-        for index, line in enumerate(lines[excluded_heading + 1 : end], excluded_heading + 1)
-        if structural[index] and (match := label_pattern.fullmatch(line)) is not None
-    ]
-    if not labels:
-        return "\n".join(lines)
-    boundaries = [index for index, _ in labels] + [end]
-    blocks = [
-        (name, lines[start:stop])
-        for (start, name), stop in zip(labels, boundaries[1:], strict=True)
-    ]
-    ordered = sorted(blocks, key=lambda block: _section_priority(block[0], excluded=True))
-    first = labels[0][0]
-    lines = lines[:first] + [line for _, block in ordered for line in block] + lines[end:]
-    return "\n".join(lines)
-
-
 def _autolink_citation(match: re.Match[str]) -> str:
     """Wrap one 🔗 citation URL, keeping sentence punctuation out of the href.
 
@@ -846,7 +753,6 @@ def _render_markdown(markdown: str) -> str:
     parser = markdown_it.MarkdownIt("commonmark", {"html": False})
     parser.validateLink = _is_web_link
     public_markdown = markdown or ""
-    public_markdown = _reorder_briefing_sections(public_markdown)
     public_markdown = _omit_report_only_warnings(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
