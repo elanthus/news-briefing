@@ -16,7 +16,6 @@ exclude = [
   "docs/results/data/**",
   "docs/results/portfolio-v2-evidence/**",
   "docs/results/parity-v2-evidence/**",
-  "evaluator/fixtures/dedup-embeddings.json",
 ]
 
 [commands]
