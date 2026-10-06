@@ -25,7 +25,6 @@ news-briefing-publish = "daily_publish:main"
 news-briefing-prepare-publication = "prepare_publication:main"
 news-briefing-restore-corpora = "restore_private_corpora:main"
 news-briefing-private-archive = "private_archive:main"
-news-briefing-triage = "triage_run:main"
 news-briefing-build-site = "build_site:main"
 news-briefing-evaluator = "evaluator.__main__:main"
 
@@ -45,7 +44,6 @@ py-modules = [
     "restore_private_corpora",
     "run_briefing",
     "run_daily_briefing",
-    "triage_run",
 ]
 packages = ["agent_runner", "evaluator", "news_fetch", "news_fetch.sources"]
 
@@ -64,7 +62,6 @@ files = [
     "run_briefing.py",
     "run_daily_briefing.py",
     "daily_publish.py",
-    "triage_run.py",
     "prepare_publication.py",
     "publication_schema.py",
     "publication_failures.py",

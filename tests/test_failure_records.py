@@ -3,14 +3,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
 
 from agent_runner.checkpoint import RunStore
 from agent_runner.failures import FailureRecord, final_failure, parse_failure, run_failure
 from agent_runner.models import ProviderError
 from publication_failures import summarize_failed_chain
 from run_daily_briefing import PRODUCTION_MODEL_CHAIN, _write_chain_logs
-from triage_run import generate_report
 
 
 class FailureRecordTests(unittest.TestCase):
@@ -73,20 +71,6 @@ class FailureRecordTests(unittest.TestCase):
         self.assertEqual(record, parse_failure(error["failure"]))
         self.assertEqual(run_failure(None, error), record)
         self.assertEqual(run_failure({"error": {"message": "HTTP 429"}}).code, "generation_failed")
-
-    def test_invalid_json_and_embedded_length_text_do_not_prove_truncation(self):
-        import json
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "raw.txt").write_text('{"unfinished":')
-            (root / "events.jsonl").write_text(json.dumps({"untrusted": {"finish_reason": "length"}}))
-            (root / "manifest.json").write_text(json.dumps({
-                "attempts": [{"raw_artifact": "raw.txt", "provider_events_artifact": "events.jsonl"}],
-                "error": {"type": "ProviderError", "message": "output truncated"},
-            }))
-            report = generate_report(root)
-            self.assertNotIn("output_truncated", [cause.class_id for cause in report.classes])
 
     def test_public_code_is_unchanged_when_private_message_changes(self):
         raw = {"schema_version": 2, "status": "failed", "model_chain": ["tencent/hy3"],
@@ -170,22 +154,3 @@ class FailureRecordTests(unittest.TestCase):
             chain = json.loads(path.read_text())
             self.assertEqual(parse_failure(chain["failure"]).code, "chain_incomplete")
             self.assertEqual(summarize_failed_chain(chain), ())
-            for failure, expected in ((chain["failure"], "fallback_chain_incomplete"),
-                                      (None, "fallback_chain_failed")):
-                chain["failure"] = failure
-                path.write_text(json.dumps(chain))
-                report = generate_report(root)
-                cause = next(cause for cause in report.classes if cause.class_id == expected)
-                self.assertEqual(len(cause.details["candidates"]), 2)
-                self.assertNotIn("fallback_chain_exhausted", [cause.class_id for cause in report.classes])
-
-    def test_unexpected_model_summary_error_uses_a_neutral_private_label(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "manifest.json").write_text(json.dumps({"status": "complete",
-                                                           "final": {"status": "ready"}}))
-            provider = Mock()
-            provider.generate.side_effect = TypeError("private sensitive error")
-            report = generate_report(root, provider=provider)
-            self.assertEqual(report.model_summary_error, "model_summary_failed")
-            self.assertIsNone(report.model_summary)
