@@ -164,7 +164,8 @@ If `--prompt` is omitted, `briefing-runner-prompt.md` is selected
 automatically. Production parity supports the same three transports as the
 scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
 the evaluator-only NVIDIA and baseline adapters rather than silently
-evaluating a different transport. Corrections use the schema for the failed stage: selection failures receive a replacement selection request,
+evaluating a different transport. Corrections use the schema for the failed
+stage: selection failures receive a replacement selection request,
 while prose or rendered-contract failures receive a prose-only request against
 the frozen evidence.
 
@@ -492,7 +493,8 @@ generation path** (`"generation_path": "markdown"`), not production parity. See 
 The exact generation source is tag `portfolio-v2-source-20260819`; Portfolio v1's protocol and machine
 history remain provenance only because its final run came from an unpreserved dirty source tree.
 
-The original portfolio-v2 command was:
+The original portfolio-v2 command was (a historical record from tag
+`portfolio-v2-source-20260819`; the current `run` subcommand no longer accepts `--seed`):
 
 ```bash
 python3 -m evaluator run \
