@@ -6,7 +6,6 @@ This README covers both how to run the benchmark and how its numbers are defined
 
 - **[Bring your own model or prompt](#bring-your-own-model-or-prompt)** — start here; four steps from an offline smoke test to a promotion decision.
 - **[What is fixed](#what-is-fixed)** — the committed case suites, their construction, and what each one does and does not measure.
-- **[Retrieval and near-duplicate study](#retrieval-and-near-duplicate-study)** — a separate embedding study, not wired into the production fetcher.
 - **[Setup](#setup)** — credentials, environment file, and the credential-free offline path.
 - **[Live model runs](#live-model-runs)** — the full command reference: generation paths, sampling controls, resume, and exports.
 - **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
@@ -89,26 +88,6 @@ Historical reports render baseline rows in a separate "Reference baselines" sect
 The injection design follows the evaluation posture of the peer-reviewed [AgentDojo paper (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf)—measure clean utility alongside attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. The matched structural-utility measure and the category-position/item-count axes are inspired proxies: they do not reproduce AgentDojo's deterministic user-task utility, relative injection-token position, or controlled-token fraction.
 
 The active checker and generation corpora require schema v7. Their evidence text is unchanged; byte-budget and schema metadata were refreshed for current validation. Original dated corpora, review receipts, public bundles, and result snapshots remain unchanged. The recorded model reviews apply to the historical evidence and labels, not a new review of the refreshed metadata. New final runs need a protocol binding the current input hashes; frozen historical protocols remain source-tag reproduction records.
-
-## Retrieval and near-duplicate study
-
-The evaluator includes a separate embedding-based near-duplicate study; it is not imported by or wired into the production fetcher. [`fixtures/dedup-pairs.json`](fixtures/dedup-pairs.json) contains 60 pairs drawn from the August 9 and August 11 frozen corpora: 20 same-story duplicates, 20 clear negatives, and 20 hard negatives that share a topic but describe different events. The labels are machine-proposed and explicitly pending owner review, so the generated numbers are descriptive rather than a deployment claim.
-
-Each side is indexed as its UTF-8 title, a newline, and its summary. URLs remain in the labeled fixture for provenance but are not embedded. The cache key is the SHA-256 of that exact text. [`fixtures/dedup-embeddings.json`](fixtures/dedup-embeddings.json) holds 512-dimensional `openai/text-embedding-3-small` vectors for the 82 unique texts, generated as one batch through [OpenRouter's embeddings API](https://openrouter.ai/docs/api/reference/embeddings). Committing those vectors keeps CI credential-free and makes every threshold comparison byte-reproducible.
-
-Regenerate the report entirely offline:
-
-```bash
-python3 -m evaluator dedup-study
-```
-
-The committed [`results/dedup-study.md`](results/dedup-study.md) compares a 0.70–0.95 cosine sweep with the exact production 60-character normalized-title key, selects an in-sample operating point deterministically, and lists every hard negative plus the remaining chosen-threshold errors. To refresh vectors after changing the pair fixture, put `OPENROUTER_API_KEY` in the ignored `evaluator/.env` and run:
-
-```bash
-python3 -m evaluator dedup-study --fetch-embeddings
-```
-
-The fetch path batches all unique texts, honors `Retry-After`, retries only transient failures, validates response indices and dimensions, and never writes the key. Review and commit the resulting cache and report together; production deduplication remains unchanged unless a separate, larger time-split study justifies an experiment.
 
 ## Setup
 
