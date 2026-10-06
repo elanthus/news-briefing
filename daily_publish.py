@@ -219,7 +219,7 @@ def generate_reports(
                 unsuccessful.append(report_date)
                 print(
                     f"::warning::All briefing models failed for {report_date}; "
-                    f"see {run_dir}/fallback.log in the encrypted "
+                    f"see {run_dir}/fallback-log.json in the encrypted "
                     "briefing-diagnostics workflow artifact"
                 )
         else:

@@ -36,11 +36,12 @@ or be contained by the source directory. This preserves the source run and its
 checkpoint hashes. To review again with different settings, choose a new directory.
 
 To request an advisory-only review immediately after generation, add
-`--jev-review-dir .news-briefing/jev-reviews/RUN` to `run_briefing.py` or
-`run_daily_briefing.py`. Review runs only when generation reaches `ready`. Add `--confirm-flags` to the standalone review command for isolated confirmation.
-For the daily fallback-chain command, add `--jev-repair-mode apply` with
-`--jev-review-dir` to enable automatic repairs; `--jev-repair-mode candidates`
-retains candidates without applying them. Scheduled publication uses `apply`.
+`--jev-review-dir .news-briefing/jev-reviews/RUN` to `run_briefing.py`. Review
+runs only when generation reaches `ready`. Add `--confirm-flags` to the standalone
+review command for isolated confirmation. The daily fallback-chain command
+`run_daily_briefing.py` takes `--jev-review-dir` together with
+`--jev-repair-mode apply`, which confirms flags and applies bounded repairs;
+scheduled publication passes both.
 The standalone review command returns zero for complete coverage and one for partial
 or failed review, regardless of how many findings it flags.
 

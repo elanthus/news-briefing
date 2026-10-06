@@ -6,17 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import briefing_config
 import fetch_news
-from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic, write_text_atomic
+from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic
 from agent_runner.failures import FailureRecord, run_failure
-from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow
@@ -39,8 +36,6 @@ PRODUCTION_MODEL_CHAIN = (
 )
 
 LOG_NAME = "fallback-log.json"
-TEXT_LOG_NAME = "fallback.log"
-OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models"
 
 
 @dataclass(frozen=True)
@@ -83,18 +78,6 @@ def _manifest_error(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
     return error if isinstance(error, dict) else None
 
 
-def _run_telemetry(manifest: dict[str, Any] | None) -> dict[str, Any]:
-    """Expose comparable cost, latency, and citation counts in the chain log."""
-    if manifest is None:
-        return {"generation": None, "citation_cardinality": None}
-    generation = manifest.get("generation_totals")
-    cardinality = manifest.get("citation_cardinality")
-    return {
-        "generation": generation if isinstance(generation, dict) else None,
-        "citation_cardinality": cardinality if isinstance(cardinality, dict) else None,
-    }
-
-
 def _failure_reason(result: RunResult | None, manifest: dict[str, Any] | None, exc: Exception | None) -> str:
     error = _manifest_error(manifest)
     if error is not None:
@@ -118,58 +101,9 @@ def _failure_reason(result: RunResult | None, manifest: dict[str, Any] | None, e
             if isinstance(check, str) and isinstance(message, str):
                 details.append(f"{check}: {message}")
     status = result.status if result is not None else "failed"
-    if status == "ready" and result is not None and result.exit_code != 0:
-        return "ready result rejected by --strict: " + (
-            "; ".join(details) if details else "corpus coverage was degraded"
-        )
     if status == "ready":
         return "ready result failed final artifact integrity checks"
     return f"{status}: " + ("; ".join(details) if details else "no ready report was produced")
-
-
-def _openrouter_model_404(manifest: dict[str, Any] | None, exc: Exception | None) -> bool:
-    if isinstance(exc, ProviderError) and exc.openrouter_model_404:
-        return True
-    error = _manifest_error(manifest)
-    return bool(error and error.get("openrouter_model_404") is True)
-
-
-def _catalog_model_removed_from_openrouter(model: str) -> bool | None:
-    """Return exact catalog absence after a 404, or None when it cannot be checked."""
-    request = urllib.request.Request(
-        OPENROUTER_MODELS_ENDPOINT,
-        headers={"User-Agent": "news-briefing/model-availability-check"},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            payload = json.loads(response.read())
-    except (OSError, UnicodeError, json.JSONDecodeError, urllib.error.URLError):
-        return None
-    rows = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(rows, list):
-        return None
-    model_ids = {
-        row.get("id")
-        for row in rows
-        if isinstance(row, dict) and isinstance(row.get("id"), str)
-    }
-    return model not in model_ids
-
-
-def _model_removed(
-    model: str,
-    manifest: dict[str, Any] | None,
-    exc: Exception | None,
-) -> bool | None:
-    if not _openrouter_model_404(manifest, exc):
-        return False
-    return _catalog_model_removed_from_openrouter(model)
-
-
-def _removal_label(removed: bool | None) -> str:
-    if removed is None:
-        return "unknown"
-    return str(removed).lower()
 
 
 def _is_publishable_ready_result(
@@ -178,8 +112,6 @@ def _is_publishable_ready_result(
     candidate_dir: Path,
     output_path: Path,
 ) -> bool:
-    # A nonzero exit code on a ready result means --strict rejected findings
-    # or degraded corpus coverage, so the chain must try the next model.
     if result is None or result.status != "ready" or result.exit_code != 0 or manifest is None:
         return False
     final = manifest.get("final")
@@ -209,39 +141,6 @@ def _is_publishable_ready_result(
         return False
 
 
-def _quarantined_report(
-    root: Path,
-    candidate_dir: Path,
-    candidate: ModelCandidate,
-    result: RunResult | None,
-    reason: str,
-    removed: bool | None,
-) -> str:
-    if result is not None and result.output_path is not None and result.output_path.is_file():
-        try:
-            return result.output_path.relative_to(root).as_posix()
-        except ValueError:
-            pass
-    candidate_dir.mkdir(parents=True, exist_ok=True)
-    report = candidate_dir / "failure.md"
-    removal = "unknown" if removed is None else ("yes" if removed else "no")
-    diagnostic_note = (
-        "See `manifest.json` and `trace.jsonl` in this directory for the provider and "
-        "checkpoint diagnostics."
-        if (candidate_dir / "manifest.json").is_file()
-        else "The failure occurred before a run manifest could be initialized."
-    )
-    write_text_atomic(
-        report,
-        "# Briefing generation failure\n\n"
-        f"- Model: `{candidate.model}`\n"
-        f"- Model removed from OpenRouter: `{removal}`\n"
-        f"- Failure reason: {reason}\n\n"
-        f"No renderable candidate report was produced. {diagnostic_note}\n",
-    )
-    return report.relative_to(root).as_posix()
-
-
 def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]]) -> None:
     selected = next((row for row in attempts if row["status"] == "ready"), None)
     payload = {
@@ -260,20 +159,6 @@ def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]
         "attempts": attempts,
     }
     write_json_atomic(root / LOG_NAME, payload)
-    lines = []
-    for row in attempts:
-        line = (
-            f"{row['completed_at']} status={row['status']} model={row['model']} "
-            f"run_dir={row['run_dir']}"
-        )
-        if row["failure_reason"] is not None:
-            line += (
-                f" model_removed_from_openrouter={_removal_label(row['model_removed_from_openrouter'])}"
-                f" failure_reason={json.dumps(row['failure_reason'], ensure_ascii=False)}"
-                f" quarantined_report={row['quarantined_report']}"
-            )
-        lines.append(line)
-    write_text_atomic(root / TEXT_LOG_NAME, "\n".join(lines) + "\n")
 
 
 def run_fallback_chain(
@@ -317,9 +202,6 @@ def run_fallback_chain(
                 "run_dir": candidate_name,
                 "failure_reason": None,
                 "failure": None,
-                "model_removed_from_openrouter": False,
-                "quarantined_report": None,
-                **_run_telemetry(manifest),
             }
             attempts.append(row)
             _write_chain_logs(run_dir, started_at, attempts)
@@ -327,10 +209,6 @@ def run_fallback_chain(
             return ChainResult("ready", candidate.model, candidate_dir, run_dir)
 
         reason = _failure_reason(result, manifest, failure)
-        removed = _model_removed(candidate.model, manifest, failure)
-        quarantined_report = _quarantined_report(
-            run_dir, candidate_dir, candidate, result, reason, removed
-        )
         row = {
             "index": index,
             "model": candidate.model,
@@ -342,18 +220,10 @@ def run_fallback_chain(
             "failure": run_failure(
                 manifest, failure.record() if isinstance(failure, ProviderError) else None
             ).payload(),
-            "model_removed_from_openrouter": removed,
-            "quarantined_report": quarantined_report,
-            **_run_telemetry(manifest),
         }
         attempts.append(row)
         _write_chain_logs(run_dir, started_at, attempts)
-        print(
-            f"FAILED model={candidate.model} "
-            f"model_removed_from_openrouter={_removal_label(removed)} "
-            f"failure_reason={reason} quarantined_report={quarantined_report}",
-            file=sys.stderr,
-        )
+        print(f"FAILED model={candidate.model} failure_reason={reason}", file=sys.stderr)
 
     return ChainResult("failed", None, None, run_dir)
 
@@ -364,43 +234,30 @@ def main() -> int:
     parser.add_argument("--run-dir", type=Path, required=True, help="fallback-chain artifact directory")
     parser.add_argument("--jev-review-dir", type=Path,
                         help="write Jev advisory findings for the selected ready candidate")
-    parser.add_argument("--jev-repair-mode", choices=("candidates", "apply"),
-                        help="confirm Jev flags and retain bounded HY3 repair candidates")
+    parser.add_argument("--jev-repair-mode", choices=("apply",),
+                        help="confirm Jev flags and apply bounded HY3 repairs")
     parser.add_argument("--corpus", type=Path, required=True, help="existing corpus to replay")
-    parser.add_argument("--config", type=Path, default=briefing_config.DEFAULT_CONFIG_PATH)
-    parser.add_argument("--sources", type=Path, default=fetch_news.DEFAULT_SOURCES_PATH)
-    parser.add_argument("--prompt", type=Path, default=ROOT / "briefing-runner-prompt.md")
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
-    parser.add_argument("--timeout", type=_positive_int, default=600)
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=3)
     parser.add_argument("--max-tokens", type=_positive_int, default=100_000)
-    parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
 
-    if args.jev_repair_mode is not None and args.jev_review_dir is None:
-        parser.error("--jev-repair-mode requires --jev-review-dir")
+    if (args.jev_repair_mode is None) != (args.jev_review_dir is None):
+        parser.error("--jev-repair-mode and --jev-review-dir must be passed together")
     if args.run_dir.exists():
         parser.error(f"run directory already exists: {args.run_dir}")
     if args.output.exists() and not args.force:
         parser.error(f"output already exists: {args.output}; pass --force to replace it")
-    for label, path in (
-        ("config", args.config),
-        ("sources", args.sources),
-        ("prompt", args.prompt),
-        ("corpus", args.corpus),
-    ):
-        if not path.is_file():
-            parser.error(f"{label} file does not exist: {path}")
+    if not args.corpus.is_file():
+        parser.error(f"corpus file does not exist: {args.corpus}")
 
     settings = RunnerSettings(
-        config_path=args.config.resolve(),
-        sources_path=args.sources.resolve(),
-        prompt_path=args.prompt.resolve(),
+        config_path=briefing_config.DEFAULT_CONFIG_PATH.resolve(),
+        sources_path=fetch_news.DEFAULT_SOURCES_PATH.resolve(),
+        prompt_path=(ROOT / "briefing-runner-prompt.md").resolve(),
         output_path=args.output.resolve(),
         corpus_path=args.corpus.resolve(),
-        timeout_seconds=args.timeout,
         max_corrections=args.max_corrections,
-        strict=args.strict,
     )
     result = run_fallback_chain(settings, args.run_dir.resolve(), max_tokens=args.max_tokens)
     if result.status == "ready":
@@ -409,16 +266,13 @@ def main() -> int:
             f"(artifacts: {result.run_dir})"
         )
         if args.jev_review_dir is not None and result.selected_run_dir is not None:
-            if args.jev_repair_mode is None:
-                print_advisory_review(result.selected_run_dir, args.jev_review_dir)
-            else:
-                try:
-                    audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir,
-                                                  apply_repairs=args.jev_repair_mode == "apply")
-                    print(f"Jev daily checks: {audit['status']}; audit retained in {args.jev_review_dir}")
-                except Exception as exc:
-                    print("Jev daily checks could not complete; original generation retained "
-                          f"({type(exc).__name__}).", file=sys.stderr)
+            try:
+                audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir,
+                                              apply_repairs=True)
+                print(f"Jev daily checks: {audit['status']}; audit retained in {args.jev_review_dir}")
+            except Exception as exc:
+                print("Jev daily checks could not complete; original generation retained "
+                      f"({type(exc).__name__}).", file=sys.stderr)
         return 0
     print(f"NO RESULT: all production models failed (artifacts: {result.run_dir})", file=sys.stderr)
     return 1
