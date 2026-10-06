@@ -98,7 +98,8 @@ still clear the follow-up threshold. The sidecar's `semantic_audit`
 retains generated before/after prose and all scores without frozen excerpts.
 Citation rows identify a frozen evidence index and code-owned destinations.
 The confirmation thresholds are stated in
-[Jev checks and repairs](jev-review.md#confirmation-and-repair-policy). Publication rebinds retained-source follow-up indexes to the originals and
+[Jev checks and repairs](jev-review.md#confirmation-and-repair-policy).
+Publication rebinds retained-source follow-up indexes to the originals and
 verifies that removed citations cannot return. The HTML report displays each exact headline or summary change once per story,
 regardless of the triggering check. Removed source items identify confirmed
 irrelevance, grouping subset selection, or both as the cause. An article and its
