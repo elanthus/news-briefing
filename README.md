@@ -74,9 +74,8 @@ existing `OPENROUTER_API_KEY`:
    reworded duplicates, unsafe grouping, and unsupported, strengthened or reversed
    claims.
 2. Recheck each flag in isolation with the same evidence, prose and rubric.
-   Citation removal requires both scores to reach **0.60**; grouping and prose
-   repairs still require **0.80**. The lower citation cutoff favors excluding
-   questionable links, at the cost of some useful citations.
+   Confirmation thresholds are in
+   [Jev checks and repairs](docs/jev-review.md#confirmation-and-repair-policy).
 3. Code removes confirmed irrelevant citations, then HY3 rewrites affected slots
    against their remaining frozen evidence. Grouping repairs may retain a further
    subset; prose-only repairs keep their sources. All unaffected topics retain
@@ -164,7 +163,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evid
 ## Further reading
 
 - [Design notes](docs/design.md) · [ADRs](docs/adr/README.md) · [evaluation methodology](docs/evaluation-methodology.md) · [benchmark guide](evaluator/README.md)
-- [Grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [workflow](docs/ai-workflow.md) · [write-up](docs/writeups/injection-benchmark-post.md)
+- [Grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [write-up](docs/writeups/injection-benchmark-post.md)
 - [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CLAUDE.md`](CLAUDE.md)
 
 MIT licensed. Third-party news titles, feed excerpts, and linked content remain subject to their owners' rights and are not licensed under MIT.

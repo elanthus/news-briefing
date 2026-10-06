@@ -128,16 +128,9 @@ deterministic enforcement from heuristic or model-evaluated behavior.
 
 ## Checks
 
-Run the same offline checks used in continuous integration:
-
-```bash
-python3 -S -m unittest -v
-python3 -S -m unittest discover -s evaluator/tests -v
-python3 -m evaluator checker
-uvx ruff@0.14.2 check .
-uvx mypy@1.14.1
-uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator
-```
+Run the repository gate listed under
+[Required checks](CLAUDE.md#required-checks) in `CLAUDE.md`; it is the same
+offline gate continuous integration runs.
 
 The evaluator checker validates checker behavior against the committed snapshot.
 CI fails on snapshot drift; snapshot updates are opt-in via `--update-snapshot`.
@@ -157,6 +150,9 @@ request. If you run live model evaluations, disclose the provider, exact model,
 prompt version, trial count, sampling controls, and any incomplete or failed runs.
 
 ## Pull requests
+
+Pull requests get an automated Claude review defined in
+[`.github/workflows/claude-code-review.yml`](.github/workflows/claude-code-review.yml).
 
 In the pull request description:
 
