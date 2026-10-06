@@ -226,14 +226,6 @@ def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path
     return tuple(paths)
 
 
-def restore_corpora_from_bytes(payload: bytes, output_dir: Path) -> tuple[Path, ...]:
-    """Test-friendly wrapper around the path-based safe restore function."""
-    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as stream:
-        stream.write(payload)
-        stream.flush()
-        return restore_corpora_from_tar(Path(stream.name), output_dir)
-
-
 def prune_corpora(directory: Path, newest: date, keep_days: int = 14) -> tuple[Path, ...]:
     """Validate retained corpora and delete files outside a bounded window."""
     if keep_days < 1:
@@ -275,32 +267,25 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     create = subparsers.add_parser("create", help="create an encrypted tar archive")
     create.add_argument("--output", type=Path, required=True)
-    create.add_argument(
-        "--passphrase-env", default="CORPUS_ARCHIVE_PASSPHRASE"
-    )
     create.add_argument("paths", nargs="+", type=Path)
     decrypt = subparsers.add_parser("decrypt", help="decrypt an archive")
     decrypt.add_argument("encrypted", type=Path)
     decrypt.add_argument("plaintext", type=Path)
-    decrypt.add_argument(
-        "--passphrase-env", default="CORPUS_ARCHIVE_PASSPHRASE"
-    )
     prune = subparsers.add_parser(
         "prune-corpora", help="prune dated corpus files outside a retention window"
     )
     prune.add_argument("directory", type=Path)
     prune.add_argument("--newest", type=date.fromisoformat, required=True)
-    prune.add_argument("--keep-days", type=int, default=14)
     args = parser.parse_args()
     try:
         if args.command == "create":
-            passphrase = _passphrase(args.passphrase_env)
+            passphrase = _passphrase("CORPUS_ARCHIVE_PASSPHRASE")
             create_encrypted_archive(args.paths, args.output, passphrase)
         elif args.command == "decrypt":
-            passphrase = _passphrase(args.passphrase_env)
+            passphrase = _passphrase("CORPUS_ARCHIVE_PASSPHRASE")
             decrypt_archive(args.encrypted, args.plaintext, passphrase)
         else:
-            removed = prune_corpora(args.directory, args.newest, args.keep_days)
+            removed = prune_corpora(args.directory, args.newest)
             print(f"Pruned {len(removed)} private corpus file(s)")
     except (OSError, RuntimeError, ValueError, tarfile.TarError) as exc:
         parser.error(str(exc))

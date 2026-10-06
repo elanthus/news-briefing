@@ -14,10 +14,16 @@ from private_archive import (
     create_encrypted_archive,
     decrypt_archive,
     prune_corpora,
-    restore_corpora_from_bytes,
     restore_corpora_from_tar,
 )
 from tests.test_briefing_output import fixture_contract
+
+
+def _restore(payload: bytes, output_dir: Path) -> tuple[Path, ...]:
+    with tempfile.TemporaryDirectory() as directory:
+        archive = Path(directory) / "corpora.tar.gz"
+        archive.write_bytes(payload)
+        return restore_corpora_from_tar(archive, output_dir)
 
 
 class PrivateArchiveTests(unittest.TestCase):
@@ -74,7 +80,7 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
             ValueError, "unexpected private corpus archive member"
         ):
-            restore_corpora_from_bytes(payload.getvalue(), Path(directory))
+            _restore(payload.getvalue(), Path(directory))
 
     def test_restore_refuses_report_date_filename_mismatch(self) -> None:
         payload = io.BytesIO()
@@ -89,7 +95,7 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
             ValueError, "report_date does not match"
         ):
-            restore_corpora_from_bytes(payload.getvalue(), Path(directory))
+            _restore(payload.getvalue(), Path(directory))
 
     def test_restore_refuses_non_object_corpus_json(self) -> None:
         payload = io.BytesIO()
@@ -104,7 +110,7 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
             ValueError, "not a JSON object"
         ):
-            restore_corpora_from_bytes(payload.getvalue(), Path(directory))
+            _restore(payload.getvalue(), Path(directory))
 
     @staticmethod
     def _tar_members(rows: list[tuple[str, bytes]]) -> bytes:
@@ -125,7 +131,7 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with contextlib.redirect_stdout(io.StringIO()) as stdout:
-                paths = restore_corpora_from_bytes(payload, root)
+                paths = _restore(payload, root)
             self.assertEqual(
                 stdout.getvalue(),
                 "Skipping obsolete corpus schema v6: corpora/2026-08-19.json\n",
@@ -141,7 +147,7 @@ class PrivateArchiveTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             contextlib.redirect_stdout(io.StringIO()) as stdout,
         ):
-            self.assertEqual(restore_corpora_from_bytes(payload, Path(directory)), ())
+            self.assertEqual(_restore(payload, Path(directory)), ())
         self.assertIn("Skipping obsolete corpus schema v6", stdout.getvalue())
 
     def test_restore_labels_impossible_calendar_dates_before_writing(self) -> None:
@@ -157,7 +163,7 @@ class PrivateArchiveTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     ValueError, r"invalid calendar date: corpora/2026-02-30\.json"
                 ):
-                    restore_corpora_from_bytes(payload, Path(directory))
+                    _restore(payload, Path(directory))
                 self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_obsolete_members_still_require_unique_matching_dates(self) -> None:
@@ -169,7 +175,7 @@ class PrivateArchiveTests(unittest.TestCase):
                     self.assertRaises(ValueError),
                     contextlib.redirect_stdout(io.StringIO()),
                 ):
-                    restore_corpora_from_bytes(self._tar_members(rows), Path(directory))
+                    _restore(self._tar_members(rows), Path(directory))
                 self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_invalid_or_future_versions_are_not_skipped(self) -> None:
@@ -177,7 +183,7 @@ class PrivateArchiveTests(unittest.TestCase):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
                 content = json.dumps({"schema_version": version, "report_date": "2026-08-19"}).encode()
                 with self.assertRaisesRegex(ValueError, "violates its schema"):
-                    restore_corpora_from_bytes(
+                    _restore(
                         self._tar_members([("corpora/2026-08-19.json", content)]), Path(directory)
                     )
 

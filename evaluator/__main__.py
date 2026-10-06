@@ -234,12 +234,6 @@ def main() -> int:
         help="sampling temperature for API providers (default: 0)",
     )
     run.add_argument(
-        "--seed",
-        type=int,
-        help="unsupported: runs use the production transports, which send no seed, "
-        "so any value is rejected",
-    )
-    run.add_argument(
         "--execution-seed",
         type=int,
         help="optional final-run ordering seed; generated and recorded when omitted",
@@ -529,7 +523,6 @@ def main() -> int:
                     model,
                     args.timeout,
                     temperature=args.temperature,
-                    seed=args.seed,
                     reasoning_enabled=(
                         None if args.reasoning is None else args.reasoning == "enabled"
                     ),

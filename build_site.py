@@ -11,7 +11,6 @@ import importlib
 import json
 import re
 import shutil
-from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
@@ -79,20 +78,6 @@ PROJECT_DESCRIPTION = (
 )
 FAVICON_SOURCE_DIR = Path(__file__).resolve().parent / "docs" / "images"
 FAVICON_FILENAMES = ("favicon-light.png", "favicon-dark.png")
-
-
-def _parse_canonical_date(value: str) -> date:
-    try:
-        parsed = date.fromisoformat(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "date must use canonical YYYY-MM-DD format"
-        ) from exc
-    if value != parsed.isoformat():
-        raise argparse.ArgumentTypeError(
-            "date must use canonical YYYY-MM-DD format"
-        )
-    return parsed
 
 
 STYLE = """
@@ -1401,15 +1386,14 @@ def _remove_path(path: Path) -> None:
 
 
 def _publish_audit_manifests(
-    corpora_dirs: Sequence[Path],
+    corpora_dir: Path | None,
     output_dir: Path,
     newest_entry_date: date | None,
 ) -> frozenset[str]:
     """Publish text-free manifests derived from validated private corpora.
 
-    Raw corpora never enter the site output. First directory wins on date
-    conflicts. Each input must be a schema-valid corpus whose report date
-    matches its canonical filename. Dates outside the 14-day window ending at
+    Raw corpora never enter the site output. Each input must be a schema-valid
+    corpus whose report date matches its canonical filename. Dates outside the 14-day window ending at
     the newest history entry are pruned.
     """
     raw_corpora_out = output_dir / "corpora"
@@ -1418,46 +1402,42 @@ def _publish_audit_manifests(
     manifests_out = output_dir / "manifests"
     if manifests_out.exists() or manifests_out.is_symlink():
         _remove_path(manifests_out)
-    if newest_entry_date is None:
+    if newest_entry_date is None or corpora_dir is None:
         return frozenset()
 
     oldest_kept = newest_entry_date - timedelta(days=13)
     survivors: dict[str, dict[str, Any]] = {}
-    claimed_slugs: set[str] = set()
-    for corpora_dir in corpora_dirs:
-        for corpus in sorted(corpora_dir.glob("*.json")):
-            if not corpus.is_file():
-                continue
-            try:
-                day = date.fromisoformat(corpus.stem)
-            except ValueError:
-                continue
-            slug = day.isoformat()
-            if (
-                corpus.stem != slug
-                or slug in claimed_slugs
-                or day < oldest_kept
-                or day > newest_entry_date
-            ):
-                continue
-            raw = corpus.read_bytes()
-            try:
-                payload = json.loads(raw)
-            except ValueError:
-                continue
-            if (
-                corpus_schema.validate_corpus(payload)
-                or payload.get("report_date") != slug
-            ):
-                continue
-            claimed_slugs.add(slug)
-            try:
-                survivors[slug] = build_audit_manifest(payload, raw)
-            except (AssertionError, KeyError, TypeError, ValueError):
-                # A historical corpus can satisfy its storage schema yet be
-                # unusable by a newer projection. Isolate that date so one bad
-                # retained input cannot suppress the rest of the Pages build.
-                continue
+    for corpus in sorted(corpora_dir.glob("*.json")):
+        if not corpus.is_file():
+            continue
+        try:
+            day = date.fromisoformat(corpus.stem)
+        except ValueError:
+            continue
+        slug = day.isoformat()
+        if (
+            corpus.stem != slug
+            or day < oldest_kept
+            or day > newest_entry_date
+        ):
+            continue
+        raw = corpus.read_bytes()
+        try:
+            payload = json.loads(raw)
+        except ValueError:
+            continue
+        if (
+            corpus_schema.validate_corpus(payload)
+            or payload.get("report_date") != slug
+        ):
+            continue
+        try:
+            survivors[slug] = build_audit_manifest(payload, raw)
+        except (AssertionError, KeyError, TypeError, ValueError):
+            # A historical corpus can satisfy its storage schema yet be
+            # unusable by a newer projection. Isolate that date so one bad
+            # retained input cannot suppress the rest of the Pages build.
+            continue
     if not survivors:
         return frozenset()
     manifests_out.mkdir(parents=True, exist_ok=True)
@@ -1474,8 +1454,7 @@ def build_site(
     output_dir: Path,
     prior_history: Path | None = None,
     replace_existing: bool = False,
-    corpora_dirs: Sequence[Path] = (),
-    exclude_dates: Sequence[str] = (),
+    corpora_dir: Path | None = None,
     *,
     allow_empty_history: bool = False,
 ) -> None:
@@ -1519,14 +1498,12 @@ def build_site(
                     and entry.semantic_audit in (None, prior.semantic_audit)):
                 entry = replace(entry, integrity=prior.integrity, semantic_audit=prior.semantic_audit)
             by_date[entry.slug] = entry
-    for excluded_date in exclude_dates:
-        by_date.pop(excluded_date, None)
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
     entries = entries[:7]
 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_dates = _publish_audit_manifests(
-        corpora_dirs,
+        corpora_dir,
         output_dir,
         entries[0].day if entries else None,
     )
@@ -1583,23 +1560,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--corpora-dir",
-        action="append",
         type=Path,
-        default=[],
-        dest="corpora_dirs",
         help=(
             "private directory of per-day corpus JSON files from which to publish "
-            "text-free manifests under site/manifests; repeatable, earlier "
-            "directories win on date conflicts"
+            "text-free manifests under site/manifests"
         ),
-    )
-    parser.add_argument(
-        "--exclude-date",
-        action="append",
-        type=_parse_canonical_date,
-        default=[],
-        dest="exclude_dates",
-        help="canonical ISO date to omit from the generated archive; repeatable",
     )
     args = parser.parse_args()
     try:
@@ -1608,8 +1573,7 @@ def main() -> int:
             args.output_dir,
             args.prior_history,
             args.replace_existing,
-            args.corpora_dirs,
-            [excluded_date.isoformat() for excluded_date in args.exclude_dates],
+            args.corpora_dir,
             allow_empty_history=args.allow_empty_history,
         )
     except (OSError, ValueError) as exc:

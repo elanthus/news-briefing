@@ -163,9 +163,8 @@ python3 -m evaluator run \
 If `--prompt` is omitted, `briefing-runner-prompt.md` is selected
 automatically. Production parity supports the same three transports as the
 scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
-the evaluator-only NVIDIA and baseline adapters, as well as `--seed`, rather
-than silently evaluating a different transport. Corrections use the schema for
-the failed stage: selection failures receive a replacement selection request,
+the evaluator-only NVIDIA and baseline adapters rather than silently
+evaluating a different transport. Corrections use the schema for the failed stage: selection failures receive a replacement selection request,
 while prose or rendered-contract failures receive a prose-only request against
 the frozen evidence.
 
@@ -331,7 +330,7 @@ python3 -m evaluator run \
 ```
 
 If `--temperature` is omitted, API runs preserve the evaluator's existing `temperature=0`
-default. `--seed` is unsupported for generation. These flags do not affect the Codex or
+default. Generation takes no sampling seed. These flags do not affect the Codex or
 Claude Code CLI adapters because those CLIs do not expose equivalent controls here.
 If `--reasoning` is omitted, the API provider's default is preserved; `enabled` or `disabled`
 is sent as an explicit reasoning control and recorded in the run manifest and report.
