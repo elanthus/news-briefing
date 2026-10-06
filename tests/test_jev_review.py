@@ -315,17 +315,19 @@ class JevReviewTests(unittest.TestCase):
             review_dir = run_dir / "jev-review"
             argv = ["run_daily_briefing.py", "--output", str(root / "briefing.md"),
                     "--run-dir", str(run_dir), "--corpus", str(ROOT / "fixtures/current-corpus.json"),
-                    "--jev-review-dir", str(review_dir)]
+                    "--jev-review-dir", str(review_dir), "--jev-repair-mode", "apply"]
             for status in ("ready", "failed"):
                 result = ChainResult(status, "test", selected if status == "ready" else None, run_dir)
                 with patch("sys.argv", argv), patch(
                     "run_daily_briefing.run_fallback_chain", return_value=result
-                ), patch("run_daily_briefing.print_advisory_review") as review, \
+                ), patch(
+                    "run_daily_briefing.daily_semantic_review", return_value={"status": "complete"}
+                ) as review, \
                         redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     exit_code = run_daily_briefing.main()
                 self.assertEqual(exit_code, 0 if status == "ready" else 1)
                 if status == "ready":
-                    review.assert_called_once_with(selected, review_dir)
+                    review.assert_called_once_with(selected, review_dir, apply_repairs=True)
                 else:
                     review.assert_not_called()
 

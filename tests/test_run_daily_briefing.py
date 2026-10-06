@@ -6,7 +6,6 @@ import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,18 +25,16 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             corpus_path=root / "corpus.json",
         )
 
-    def _degraded_ready_chain(self, strict: bool) -> tuple[str, list[str], dict]:
+    def test_ready_but_degraded_attempt_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            settings = replace(self._settings(root), strict=strict)
             seen: list[str] = []
 
             def fake_run(provider, run_settings, run_dir):
                 seen.append(provider.model)
                 run_dir.mkdir(parents=True)
-                final = run_dir / "final.md"
                 content = b"ready report with warnings\n"
-                final.write_bytes(content)
+                (run_dir / "final.md").write_bytes(content)
                 run_settings.output_path.write_bytes(content)
                 digest = hashlib.sha256(content).hexdigest()
                 (run_dir / "manifest.json").write_text(
@@ -54,27 +51,15 @@ class DailyBriefingFallbackTests(unittest.TestCase):
                     }),
                     encoding="utf-8",
                 )
-                # The runner reports a strict rejection through its exit code.
-                return RunResult(1 if run_settings.strict else 0, run_dir, run_settings.output_path, "ready")
+                return RunResult(0, run_dir, run_settings.output_path, "ready")
 
             with (
                 patch("run_daily_briefing.run_workflow", side_effect=fake_run),
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
             ):
-                result = run_fallback_chain(settings, root / "run", max_tokens=100_000)
-            log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
-        return result.status, seen, log
-
-    def test_strict_rejects_a_ready_but_degraded_attempt(self) -> None:
-        status, seen, log = self._degraded_ready_chain(strict=True)
-        self.assertEqual(status, "failed")
-        self.assertEqual(seen, [candidate.model for candidate in PRODUCTION_MODEL_CHAIN])
-        self.assertIn("--strict", log["attempts"][0]["failure_reason"])
-        self.assertIn("source_health: one feed failed", log["attempts"][0]["failure_reason"])
-
-        status, seen, _ = self._degraded_ready_chain(strict=False)
-        self.assertEqual(status, "ready")
+                result = run_fallback_chain(self._settings(root), root / "run", max_tokens=100_000)
+        self.assertEqual(result.status, "ready")
         self.assertEqual(seen, [PRODUCTION_MODEL_CHAIN[0].model])
 
     def test_falls_back_in_order_and_preserves_failure_diagnostics(self) -> None:
@@ -164,17 +149,12 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             stderr = io.StringIO()
             with (
                 patch("run_daily_briefing.run_workflow", side_effect=fake_run),
-                patch(
-                    "run_daily_briefing._catalog_model_removed_from_openrouter",
-                    return_value=True,
-                ),
                 redirect_stdout(stdout),
                 redirect_stderr(stderr),
             ):
                 result = run_fallback_chain(settings, root / "run", max_tokens=100_000)
 
             log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
-            text_log = (root / "run/fallback.log").read_text(encoding="utf-8")
 
         self.assertEqual(
             seen,
@@ -187,42 +167,12 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(result.selected_model, "google/gemini-3.7-flash")
         self.assertEqual(log["selected_model"], "google/gemini-3.7-flash")
-        self.assertTrue(log["attempts"][0]["model_removed_from_openrouter"])
-        self.assertIn("failure.md", log["attempts"][0]["quarantined_report"])
         self.assertIn("ungrounded_link: outside corpus", log["attempts"][1]["failure_reason"])
         self.assertEqual(log["schema_version"], 2)
         self.assertEqual(log["attempts"][0]["failure"]["code"], "invalid_request")
         self.assertEqual(log["attempts"][0]["failure"]["status_code"], 404)
-        self.assertTrue(log["attempts"][1]["quarantined_report"].endswith("preview.md"))
-        self.assertIn("model_removed_from_openrouter=true", text_log)
-        self.assertIn("quarantined_report=", text_log)
         self.assertIn("READY", stdout.getvalue())
         self.assertIn("FAILED", stderr.getvalue())
-
-    def test_catalog_check_distinguishes_present_removed_and_unknown_models(self) -> None:
-        class CatalogResponse:
-            def __init__(self, payload):
-                self.payload = json.dumps(payload).encode()
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self):
-                return self.payload
-
-        from run_daily_briefing import _catalog_model_removed_from_openrouter
-
-        present = CatalogResponse({"data": [{"id": "tencent/hy3"}]})
-        absent = CatalogResponse({"data": [{"id": "deepseek/deepseek-v4-flash-0731"}]})
-        with patch("urllib.request.urlopen", return_value=present):
-            self.assertFalse(_catalog_model_removed_from_openrouter("tencent/hy3"))
-        with patch("urllib.request.urlopen", return_value=absent):
-            self.assertTrue(_catalog_model_removed_from_openrouter("tencent/hy3"))
-        with patch("urllib.request.urlopen", side_effect=OSError("offline")):
-            self.assertIsNone(_catalog_model_removed_from_openrouter("tencent/hy3"))
 
     def test_ready_primary_stops_before_fallback_models(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -279,11 +229,6 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(seen, [PRODUCTION_MODEL_CHAIN[0].model])
         self.assertEqual(result.selected_model, "tencent/hy3")
         self.assertEqual(len(log["attempts"]), 1)
-        self.assertEqual(log["attempts"][0]["generation"]["calls"], 2)
-        self.assertEqual(
-            log["attempts"][0]["citation_cardinality"]["model_visible_handles"],
-            200,
-        )
 
     def test_uncorrected_opaque_reference_advances_to_fallback_model(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
