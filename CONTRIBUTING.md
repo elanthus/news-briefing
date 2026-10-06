@@ -49,27 +49,6 @@ python3 -S -m evaluator checker
 python3 -S -m unittest discover -s evaluator/tests
 ```
 
-### Optional console scripts
-
-The documented `python3 -S <module>.py` and `python3 -S -m evaluator` commands
-need no installation and remain the supported interface. If you prefer named
-commands, an editable install into a virtual environment exposes the same
-`main()` functions as console scripts:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/news-briefing-fetch --help
-```
-
-The scripts are `news-briefing-fetch`, `news-briefing-run`,
-`news-briefing-daily`, `news-briefing-eval`, `news-briefing-publish`,
-`news-briefing-prepare-publication`, `news-briefing-restore-corpora`,
-`news-briefing-private-archive`, `news-briefing-build-site`, and `news-briefing-evaluator`. The install adds no
-runtime dependency; `news-briefing-build-site` still needs
-`requirements-site.txt` to render. Use an editable install only: the modules
-read prompts, sources, and evaluator protocols from the checkout.
-
 ### One interpreter per run
 
 A script that starts another pipeline script runs it with `sys.executable`,
