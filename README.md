@@ -164,7 +164,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evid
 ## Further reading
 
 - [Design notes](docs/design.md) · [ADRs](docs/adr/README.md) · [evaluation methodology](docs/evaluation-methodology.md) · [benchmark guide](evaluator/README.md)
-- [Run triage](docs/triage.md) · [grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [workflow](docs/ai-workflow.md) · [write-up](docs/writeups/injection-benchmark-post.md)
+- [Grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [workflow](docs/ai-workflow.md) · [write-up](docs/writeups/injection-benchmark-post.md)
 - [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CLAUDE.md`](CLAUDE.md)
 
 MIT licensed. Third-party news titles, feed excerpts, and linked content remain subject to their owners' rights and are not licensed under MIT.

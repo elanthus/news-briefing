@@ -65,8 +65,7 @@ python3 -m venv .venv
 The scripts are `news-briefing-fetch`, `news-briefing-run`,
 `news-briefing-daily`, `news-briefing-eval`, `news-briefing-publish`,
 `news-briefing-prepare-publication`, `news-briefing-restore-corpora`,
-`news-briefing-private-archive`, `news-briefing-triage`,
-`news-briefing-build-site`, and `news-briefing-evaluator`. The install adds no
+`news-briefing-private-archive`, `news-briefing-build-site`, and `news-briefing-evaluator`. The install adds no
 runtime dependency; `news-briefing-build-site` still needs
 `requirements-site.txt` to render. Use an editable install only: the modules
 read prompts, sources, and evaluator protocols from the checkout.
@@ -100,7 +99,6 @@ run artifacts.
 | [`prepare_publication.py`](prepare_publication.py) | Validates a completed run and prepares its public archive input |
 | [`publication_schema.py`](publication_schema.py) | Shared schema for publication review metadata and generation provenance |
 | [`publication_failures.py`](publication_failures.py) | Allowlisted public failure explanations; raw provider and model text stays private |
-| [`triage_run.py`](triage_run.py) | Classifies a briefing run and optionally asks a model to summarize the diagnosis |
 | [`audit_manifest.py`](audit_manifest.py) | Text-free public corpus membership, provenance, canonical destinations, content hashes |
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
