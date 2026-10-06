@@ -1,3 +1,7 @@
+# The project runs on Python 3.11+ from a checkout without installation; this
+# file only configures ruff and mypy. The site renderer dependency is pinned in
+# requirements-site.txt.
+
 [tool.mypy]
 python_version = "3.11"
 # The modules listed in `files` (the dependency-free pipeline and runner, plus
