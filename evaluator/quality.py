@@ -9,8 +9,8 @@ second model, so this does not try." This module is that second model,
 scoped narrowly to relative comparison rather than absolute scoring, because
 pairwise preference is more reliable than an LLM rubric score in isolation.
 
-It shares the durable checkpoint and fence-tolerant JSON machinery used by
-label_review.py, and reads its inputs from the artifacts a completed
+It uses the durable checkpoint and fence-tolerant JSON machinery in
+judge_io.py, and reads its inputs from the artifacts a completed
 `evaluator run` already wrote to disk (final.md, corpus.json per case-trial).
 """
 

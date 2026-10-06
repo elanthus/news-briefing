@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import io
 import json
 import sys
@@ -15,12 +14,8 @@ from unittest.mock import patch
 import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
-import evaluator.label_review as label_review
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.cases import HEURISTIC_CLAIM_CHECKS, apply_variant, run_deterministic_suite
-from evaluator.label_review import (
-    LABEL_RUBRIC,
-)
 from evaluator.plan import (
     _attack_dimensions,
     _mutate,
@@ -28,7 +23,7 @@ from evaluator.plan import (
     _set_source_failures,
     _validate_generation_case,
 )
-from evaluator.runner import DEFAULT_CORPUS, DEFAULT_SUITE, ROOT, run_evaluation
+from evaluator.runner import DEFAULT_CORPUS, DEFAULT_SUITE, run_evaluation
 from evaluator.scoring import _oracle
 from evaluator.tests.oracle_controls import model_request
 from evaluator.tests.support import (
@@ -54,7 +49,6 @@ class FixedSuiteTest(unittest.TestCase):
 
     def test_known_checker_limits_are_reported_not_hidden(self) -> None:
         result = run_deterministic_suite()
-        self.assertTrue(set(HEURISTIC_CLAIM_CHECKS).issubset(LABEL_RUBRIC))
         misses = {
             label
             for case in result["cases"] if case["component"] == "checker"
@@ -117,41 +111,6 @@ class FixedSuiteTest(unittest.TestCase):
                 self.assertFalse(
                     any("Tool three updates its extension" in line for line in excluded_lines)
                 )
-
-    def test_historical_review_receipt_still_binds_the_same_evidence(self) -> None:
-        receipt = json.loads(
-            (ROOT / "docs/results/repaired-fixture-model-review-2026-08-26.json").read_text()
-        )
-        # The receipt's fixture_builder hash records the builder version at
-        # review time and is deliberately not asserted: the payload hashes below
-        # are recomputed through the live builder, so they alone fail if an edit
-        # changes either reviewed case.
-        suite = json.loads(
-            (Path(__file__).parents[1] / "fixtures/checker-cases.json").read_text()
-        )
-        cases = {case["id"]: case for case in suite["cases"]}
-        for review in receipt["successful_reviews"]:
-            payload = label_review._blind_case(cases[review["fixture_id"]], "case-001")
-            # The receipt binds the original v3 fixture metadata. Reconstruct
-            # only that envelope in this test; evidence, prose, and routing
-            # remain byte-identical and must still match the reviewed hash.
-            corpus = payload["corpus"]
-            corpus["schema_version"] = 3
-            for field in ("sources", "fetch_duration_ms", "context_budget"):
-                corpus.pop(field)
-            for stats in corpus["processing"].values():
-                for field in corpus_schema.V5_PROCESSING_FIELDS:
-                    stats.pop(field)
-            payload_bytes = json.dumps(
-                payload,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            ).encode()
-            self.assertEqual(
-                hashlib.sha256(payload_bytes).hexdigest(),
-                review["case_payload_sha256"],
-            )
 
     def test_equivalent_ranges_and_duration_units_remain_supported(self) -> None:
         cases = {case["id"]: case for case in run_deterministic_suite()["cases"]}

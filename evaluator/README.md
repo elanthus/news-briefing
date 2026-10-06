@@ -9,7 +9,7 @@ This README covers both how to run the benchmark and how its numbers are defined
 - **[Setup](#setup)** — credentials, environment file, and the credential-free offline path.
 - **[Live model runs](#live-model-runs)** — the full command reference: generation paths, sampling controls, resume, and exports.
 - **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
-- **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge and human-review layers.
+- **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge layer and the history of fixture label review.
 - **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
 - **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, portfolio v2 then portfolio v1, both superseded by [parity v2](../docs/results/parity-v2.md); provenance, not instructions.
 
@@ -461,7 +461,7 @@ python3 -m evaluator judge-quality evaluator/results/<run>/manifest.json \
   --judge-provider claude-code-cli --judge-model claude-opus-4-6
 ```
 
-It matches same-story topics written by two different provider/model/prompt groups in the same run, by exact canonical-URL-set identity, and asks a judge model to pick the better option on four axes — faithfulness (to the corpus's title/summary blurb, never to outside knowledge), salience, concision, and coherence — plus an overall preference. Every pair is judged twice with option order swapped, because pairwise LLM judges are known to favor whichever option is labeled first; a low position-consistency rate on an axis means its win rate is not yet trustworthy, and both are reported side by side rather than only the win rate. The default output directory also refreshes the main report so its Editorial quality family links the pairwise metrics with meaning and grounding. Like label review, this is additional evidence, not a substitute for human read-through, and checkpoints bind the effective rubric and prompt bytes, referenced corpus/output/configuration files, reviewer provider/model, controls, and timeout. A changed input or reviewer refuses resume. Use a new empty `--output-dir` for a separate independent assessment; its report preserves per-pair reviewer identity. Quality result schema 3 records this provenance. Older schema 2 reports remain historical and are marked `stale_schema` when rebuilding current reports.
+It matches same-story topics written by two different provider/model/prompt groups in the same run, by exact canonical-URL-set identity, and asks a judge model to pick the better option on four axes — faithfulness (to the corpus's title/summary blurb, never to outside knowledge), salience, concision, and coherence — plus an overall preference. Every pair is judged twice with option order swapped, because pairwise LLM judges are known to favor whichever option is labeled first; a low position-consistency rate on an axis means its win rate is not yet trustworthy, and both are reported side by side rather than only the win rate. The default output directory also refreshes the main report so its Editorial quality family links the pairwise metrics with meaning and grounding. Like the historical label review, this is additional evidence, not a substitute for human read-through, and checkpoints bind the effective rubric and prompt bytes, referenced corpus/output/configuration files, reviewer provider/model, controls, and timeout. A changed input or reviewer refuses resume. Use a new empty `--output-dir` for a separate independent assessment; its report preserves per-pair reviewer identity. Quality result schema 3 records this provenance. Older schema 2 reports remain historical and are marked `stale_schema` when rebuilding current reports.
 
 ## Label review
 
@@ -469,35 +469,7 @@ The 10 cases disputed by the initial blinded model review were adjudicated by th
 
 Nemotron Ultra completed a randomized opaque-ID model review of the original 49 cases, producing 38 exact agreements and 11 disagreements. The repository owner adjudicated all 11 against the evidence and rubric; `claim-thin-unsupported` was the only final label set changed. GLM 5.2 model-reviewed the six subsequent coverage additions, producing 3 exact agreements and 3 owner-adjudicated disagreements with no final label changes. GLM 5.2 later reviewed the 24 paired heuristic cases and two UTF-32 regressions in a new randomized opaque-ID packet, producing 23 exact agreements and three owner-adjudicated disagreements. The owner accepted `unsupported_quotation` for `claim-quote-punctuation-valid` and `claim-quote-whitespace-valid` and retained both existing labels for `claim-uncertainty-invalid`.
 
-These LLM reviews supported initial fixture and benchmark development; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. Additional blinded model review remains available to expose unclear or inconsistent labels ahead of any future fixture change:
-
-```bash
-python3 -m evaluator review-labels \
-  --reviewer-model claude-sonnet-5 \
-  --adjudicator-model claude-opus-4-6
-```
-
-Run a blinded reviewer-only pass when disagreements should remain for human adjudication:
-
-```bash
-python3 -m evaluator review-labels \
-  --reviewer-provider openrouter \
-  --reviewer-model deepseek/deepseek-v4-flash-0731 \
-  --reviewer-reasoning enabled \
-  --review-only
-```
-
-Export cases marked provisional into a randomized opaque-ID packet for an independent human reviewer. The current suite has no provisional cases, so select case IDs explicitly when preparing a new review packet:
-
-```bash
-python3 -m evaluator export-label-review \
-  --case-id selection-category-ambiguity \
-  --output-dir evaluator/results/independent-label-review
-```
-
-Share only `reviewer-packet.json` and `attestation-and-review-form.json`; keep the generated `coordinator-only/answer-key.json` private until the response is locked.
-
-The selected reviewer receives opaque case identifiers, the rubric, and case inputs, but not fixture names, provisional labels, or checker findings. When an adjudicator is configured, only disagreements are sent to it; `--review-only` instead leaves those disagreements unresolved for human adjudication. The resulting `label-review.json` preserves both label sets, rationales, any adjudications, provider/model identifiers, reviewer and adjudicator prompt-template identities and generation controls, usage, and the fixture hash. Each batch checkpoint also records the SHA-256 identity of the exact effective prompt bytes it consumed. It never rewrites the fixture and explicitly retains the requirement for independent human approval. Validated batch checkpoints resume only when the suite hash, providers, models, generation controls, timeouts, effective reviewer and adjudicator instructions (including the label rubric), exact batch prompts, and batch size match. Incompatible and legacy checkpoints are preserved and rejected. Compatible malformed responses are archived before a replacement call, preserving the earlier attempt.
+These LLM reviews supported initial fixture and benchmark development; they are not independent human review. All 81 current cases have completed model review. On 2026-08-26, Nemotron Ultra exactly agreed with `structure-overfilled`; after `selection-category-ambiguity` was rewritten to isolate a story spanning a tool release and workflow change, GLM 5.2 exactly agreed with that label. The [renewed-review receipt](../docs/results/repaired-fixture-model-review-2026-08-26.json) records the effective prompt, response, checkpoint, case-payload, and fixture-builder hashes. Full independent human review is recommended before production use. The `review-labels` and `export-label-review` commands that ran these reviews were removed once fixture labelling finished; they are recoverable from the repository history (last present at commit 24af334).
 
 ## Prompt provenance
 
