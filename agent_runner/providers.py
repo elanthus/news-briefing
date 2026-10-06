@@ -557,7 +557,6 @@ class OpenRouterProvider(ModelProvider):
         reasoning_enabled: bool | None = True,
         reasoning_effort: str | None = None,
         max_tokens: int | None = None,
-        endpoint: str | None = None,
     ):
         if reasoning_effort is not None and reasoning_enabled is False:
             raise ValueError("reasoning effort cannot be combined with disabled reasoning")
@@ -566,8 +565,6 @@ class OpenRouterProvider(ModelProvider):
         self.reasoning_enabled = True if reasoning_effort is not None else reasoning_enabled
         self.reasoning_effort = reasoning_effort
         self.max_tokens = 100_000 if max_tokens is None else max_tokens
-        if endpoint is not None:
-            self.endpoint = endpoint
 
     def info(self) -> dict[str, Any]:
         return {

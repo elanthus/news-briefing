@@ -17,13 +17,7 @@ from agent_runner.providers import (
     _post_chat_completion,
     validated_metadata,
 )
-from agent_runner.providers import (
-    _retry_after_seconds as _retry_after_seconds,
-)
 from agent_runner.providers import provider_for as runner_provider_for
-
-API_MAX_ATTEMPTS = 3
-RETRYABLE_HTTP_STATUSES = {408, 425, 429}
 
 
 @dataclass(frozen=True)
@@ -453,16 +447,10 @@ def production_adapter_for(
     model: str,
     timeout: int = 300,
     temperature: float | None = None,
-    seed: int | None = None,
     reasoning_enabled: bool | None = None,
     reasoning_effort: str | None = None,
 ) -> ProductionParityAdapter:
     """Build an evaluator adapter around the production runner's provider."""
-    if seed is not None:
-        raise ValueError(
-            "--seed is unavailable for production-parity runs because the production transports "
-            "do not send one"
-        )
     if provider not in {"codex-cli", "claude-code-cli", "openrouter"}:
         raise ValueError(
             "production-parity runs support codex-cli, claude-code-cli, and openrouter"

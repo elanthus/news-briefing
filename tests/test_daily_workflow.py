@@ -128,9 +128,6 @@ class DailyWorkflowTests(unittest.TestCase):
                 self.assertEqual(present, expected.get(label, set()))
         self.assertNotIn("env:", WORKFLOW.split("steps:", 1)[0])
 
-    def test_workflow_passes_no_exclude_date_arguments(self) -> None:
-        self.assertNotIn("--exclude-date", WORKFLOW)
-
     def test_deploy_is_gated_on_prior_history_unless_explicitly_allowed_empty(self) -> None:
         """The prior-history download step tolerates failure with
         continue-on-error so diagnostics still upload, but a missing

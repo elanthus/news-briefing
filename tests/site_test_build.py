@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import io
 import json
@@ -18,7 +17,6 @@ from agent_runner.failures import FailureRecord
 from agent_runner.output import render_briefing, render_validation_status
 from build_site import (
     _humanize_corpus_health,
-    _parse_canonical_date,
     _render_markdown,
 )
 from build_site import build_site as _build_site
@@ -80,14 +78,6 @@ class BuildSiteTests(unittest.TestCase):
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 _entry_from_payload({**base, **changes}, source="test")
-
-    def test_exclude_date_parser_requires_canonical_calendar_date(self) -> None:
-        self.assertEqual(_parse_canonical_date("2026-08-15").isoformat(), "2026-08-15")
-        for value in ("20260815", "2026-W33-6"):
-            with self.subTest(value=value), self.assertRaisesRegex(
-                argparse.ArgumentTypeError, "canonical YYYY-MM-DD"
-            ):
-                _parse_canonical_date(value)
 
     def test_cli_refuses_to_build_without_prior_history_unless_explicitly_allowed(self) -> None:
         # A prior-history download failure and "there is genuinely no history
@@ -513,46 +503,6 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(history["entries"][0]["date"], "2026-08-20")
             self.assertEqual(history["entries"][-1]["date"], "2026-08-14")
             self.assertFalse((output / "2026-08-13.html").exists())
-
-    def test_excluded_dates_are_removed_from_prior_history_and_generated_pages(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            initial = root / "initial"
-            initial.mkdir()
-            for day in ("2026-08-15", "2026-08-16", "2026-08-17"):
-                (initial / f"{day}.md").write_text(
-                    f"briefing {day}", encoding="utf-8"
-                )
-                self._write_sidecar(initial, date=day, disposition="ready")
-
-            initial_site = root / "initial-site"
-            build_site(initial, initial_site)
-            self.assertTrue((initial_site / "2026-08-15.html").is_file())
-            self.assertTrue((initial_site / "2026-08-16.html").is_file())
-
-            current = root / "current"
-            current.mkdir()
-            output = initial_site
-            build_site(
-                current,
-                output,
-                prior_history=output / "history.json",
-                exclude_dates={"2026-08-15", "2026-08-16"},
-            )
-
-            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
-            self.assertEqual(
-                [entry["date"] for entry in history["entries"]],
-                ["2026-08-17"],
-            )
-            index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertNotIn("2026-08-15", index)
-            self.assertNotIn("2026-08-16", index)
-            self.assertFalse((output / "2026-08-15.html").exists())
-            self.assertFalse((output / "2026-08-16.html").exists())
-            self.assertFalse((output / "reports/2026-08-15.html").exists())
-            self.assertFalse((output / "reports/2026-08-16.html").exists())
-
 
     def test_lower_rank_same_day_retry_preserves_prior_public_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1561,40 +1511,34 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(entry["advisory_findings"][0]["check"], "exclusion_log_missing")
 
 
-    def test_publishes_text_free_manifests_with_first_dir_precedence(self) -> None:
+    def test_publishes_text_free_manifests_from_validated_corpora(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
             briefings.mkdir()
             (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
             self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
-            fresh = root / "fresh"
-            prior = root / "prior"
-            fresh.mkdir()
-            prior.mkdir()
+            corpora = root / "corpora"
+            corpora.mkdir()
             valid_corpus, _config, _projected, _output = fixture_contract()
             fresh_corpus = json.dumps(
                 {**valid_corpus, "report_date": "2026-08-20"}
             )
-            (fresh / "2026-08-20.json").write_text(fresh_corpus, encoding="utf-8")
-            (prior / "2026-08-20.json").write_text(
-                json.dumps({**valid_corpus, "report_date": "2026-08-19"}),
-                encoding="utf-8",
-            )
-            (prior / "2026-08-14.json").write_text(
+            (corpora / "2026-08-20.json").write_text(fresh_corpus, encoding="utf-8")
+            (corpora / "2026-08-14.json").write_text(
                 json.dumps({**valid_corpus, "report_date": "2026-08-14"}),
                 encoding="utf-8",
             )
-            (prior / "not-a-date.json").write_text("{}", encoding="utf-8")
-            (prior / "2026-08-19.json").write_text("{invalid json", encoding="utf-8")
-            (prior / "2026-08-18.json").write_text("{}", encoding="utf-8")
-            (prior / "2026-08-21.json").write_text(
+            (corpora / "not-a-date.json").write_text("{}", encoding="utf-8")
+            (corpora / "2026-08-19.json").write_text("{invalid json", encoding="utf-8")
+            (corpora / "2026-08-18.json").write_text("{}", encoding="utf-8")
+            (corpora / "2026-08-21.json").write_text(
                 json.dumps({**valid_corpus, "report_date": "2026-08-21"}),
                 encoding="utf-8",
             )
 
             output = root / "site"
-            build_site(briefings, output, corpora_dirs=[fresh, prior])
+            build_site(briefings, output, corpora_dir=corpora)
 
             published_path = output / "manifests/2026-08-20.json"
             published = json.loads(published_path.read_text(encoding="utf-8"))
@@ -1635,7 +1579,7 @@ class BuildSiteTests(unittest.TestCase):
                 )
 
             output = root / "site"
-            build_site(briefings, output, corpora_dirs=[corpora])
+            build_site(briefings, output, corpora_dir=corpora)
 
             self.assertTrue((output / "manifests/2026-08-07.json").is_file())
             self.assertFalse((output / "manifests/2026-08-06.json").exists())
@@ -1649,10 +1593,8 @@ class BuildSiteTests(unittest.TestCase):
             briefings.mkdir()
             (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
             self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
-            first = root / "first-corpora"
-            fallback = root / "fallback-corpora"
+            first = root / "corpora"
             first.mkdir()
-            fallback.mkdir()
             valid_corpus, _config, _projected, _output = fixture_contract()
             (first / "2026-08-19.json").write_text(
                 json.dumps({**valid_corpus, "report_date": "2026-08-19"}),
@@ -1666,10 +1608,6 @@ class BuildSiteTests(unittest.TestCase):
                 json.dumps({**unusable, "report_date": "2026-08-20"}),
                 encoding="utf-8",
             )
-            (fallback / "2026-08-20.json").write_text(
-                json.dumps({**valid_corpus, "report_date": "2026-08-20"}),
-                encoding="utf-8",
-            )
 
             def build_manifest(payload, _raw):
                 first_item = next(iter(payload["categories"].values()))[0]
@@ -1681,7 +1619,7 @@ class BuildSiteTests(unittest.TestCase):
             with patch(
                 "build_site.build_audit_manifest", side_effect=build_manifest
             ) as manifest_builder:
-                build_site(briefings, output, corpora_dirs=[first, fallback])
+                build_site(briefings, output, corpora_dir=first)
 
             self.assertTrue((output / "index.html").is_file())
             self.assertTrue((output / "reports/2026-08-20.html").is_file())
@@ -1724,7 +1662,7 @@ class BuildSiteTests(unittest.TestCase):
             )
 
             output = root / "site"
-            build_site(briefings, output, corpora_dirs=[corpora])
+            build_site(briefings, output, corpora_dir=corpora)
 
             self.assertTrue((output / "index.html").is_file())
             self.assertFalse((output / "corpora").exists())

@@ -215,8 +215,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--output-dir", type=Path, default=Path("corpora"))
-    parser.add_argument("--token-env", default="GITHUB_TOKEN")
-    parser.add_argument("--passphrase-env", default="CORPUS_ARCHIVE_PASSPHRASE")
     args = parser.parse_args()
     try:
         if not args.repository:
@@ -224,8 +222,8 @@ def main() -> int:
         restored = restore(
             args.repository,
             args.output_dir,
-            os.environ.get(args.token_env, ""),
-            os.environ.get(args.passphrase_env, ""),
+            os.environ.get("GITHUB_TOKEN", ""),
+            os.environ.get("CORPUS_ARCHIVE_PASSPHRASE", ""),
         )
     except NoArchiveError as exc:
         print(str(exc))

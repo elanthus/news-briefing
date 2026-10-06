@@ -10,13 +10,12 @@ from datetime import UTC, datetime, timedelta
 from email.message import Message
 from unittest.mock import patch
 
+from agent_runner.providers import MAX_ATTEMPTS, _retry_after_seconds
 from evaluator.adapters import (
-    API_MAX_ATTEMPTS,
     NvidiaAdapter,
     OpenAiCompatibleAdapter,
     OpenRouterAdapter,
     ProviderRequestError,
-    _retry_after_seconds,
 )
 from evaluator.tests.support import (
     adapter_for,
@@ -84,14 +83,14 @@ class AdapterRetryTest(unittest.TestCase):
 
     @patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"})
     def test_nvidia_stops_after_bounded_rate_limit_attempts(self) -> None:
-        errors = [_http_error(429, "0") for _ in range(API_MAX_ATTEMPTS)]
+        errors = [_http_error(429, "0") for _ in range(MAX_ATTEMPTS)]
         with patch("agent_runner.providers._urlopen", side_effect=errors) as urlopen:
             with self.assertRaises(ProviderRequestError) as raised:
                 NvidiaAdapter("free-model", timeout=30).generate("request")
 
-        self.assertEqual(urlopen.call_count, API_MAX_ATTEMPTS)
+        self.assertEqual(urlopen.call_count, MAX_ATTEMPTS)
         self.assertTrue(raised.exception.transient)
-        self.assertEqual(raised.exception.attempts, API_MAX_ATTEMPTS)
+        self.assertEqual(raised.exception.attempts, MAX_ATTEMPTS)
         self.assertEqual(raised.exception.status_code, 429)
 
     @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"})

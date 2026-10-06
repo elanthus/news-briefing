@@ -113,12 +113,8 @@ def checkpointed_generate(
     prompt: str,
     checkpoint: Path,
     parse: Callable[[str], Parsed],
-    *,
-    bind_prompt: bool = True,
 ) -> tuple[Generation, Parsed, bool]:
     """Resume compatible judgments; preserve and reject incompatible or legacy ones."""
-    if not bind_prompt:
-        raise ValueError("judge checkpoints must bind the effective prompt")
     identity = judgment_identity(adapter, prompt)
     if checkpoint.exists():
         payload = json.loads(checkpoint.read_text(encoding="utf-8"))
