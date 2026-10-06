@@ -37,8 +37,6 @@ Repair never trims an entry held for rejection: unknown evidence remains a rejec
 
 [`prepare_publication.py`](../prepare_publication.py) publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule.
 
-Gemini 3.7 Flash receives the same schema except for redundant `maxItems` bounds on unique citation arrays whose string enums already imply that maximum. Section limits, exact prose counts, citation enums, and uniqueness remain unchanged. On September 6, 2026, a short-prompt probe reconstructed the selection schema from that day's [public audit manifest](https://elanthus.github.io/news-briefing/manifests/2026-09-06.json): Google AI Studio returned HTTP 400 with the original schema and completed successfully when only those redundant bounds were omitted. Lowering `max_tokens` or omitting reasoning did not resolve the error in the initial probe. This verifies schema acceptance, not the quality of a complete briefing; the encrypted production prompt was not replayed. Google's [structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output) notes that complex schemas may be rejected.
-
 The static builder renders `review_required` entries as a quarantine stub on the
 public page, with a status chip linking to `reports/<date>.html`. Every status chip
 links to its integrity report; ready briefing pages contain no inline review
@@ -73,8 +71,6 @@ The site and its machine-readable history retain up to seven report dates. When 
 
 Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
 
-The public-to-private migration is complete. There is no public-corpus download fallback, storage marker, or dogfood-history bootstrap. Published historical evidence remains available as committed artifacts; the daily runtime does not import it.
-
 ## Private operational artifacts
 
 The repository secret `CORPUS_ARCHIVE_PASSPHRASE` is required by the daily workflow. Exact corpora and diagnostics are first gzip-compressed, then encrypted with AES-256-CBC using a PBKDF2-SHA-256-derived key. A separately derived HMAC-SHA-256 authenticates the versioned envelope, and restoration verifies that MAC before decryption. The passphrase is supplied on standard input rather than in process arguments. The checkout step sets `persist-credentials: false`, so no Git credential is left in the workspace. The restore step is the only step with an explicit `GITHUB_TOKEN` binding and receives `CORPUS_ARCHIVE_PASSPHRASE`; the generation step, which fetches feeds and calls models, is bound to `OPENROUTER_API_KEY` and `SCRAPECREATORS_API_KEY`; the encryption step is bound to `CORPUS_ARCHIVE_PASSPHRASE`. The job-level permissions (`actions: read`, `contents: read`, `pages: write`, `id-token: write`) are available to every step, including fetch and generation: any step can read `github.token` or request an OIDC token, because Actions does not isolate permissions per step. Archive restoration accepts only regular `corpora/YYYY-MM-DD.json` members whose JSON validates against the current corpus schema and whose `report_date` matches the filename; unexpected members, traversal paths, duplicate dates, oversized data, and malformed current corpora fail closed. Authenticated members declaring obsolete positive integer schema versions are skipped, with their date identities, uniqueness, and byte bounds still checked. They are never upgraded or restored, and an all-obsolete archive produces an empty window. Missing, malformed, and future versions fail closed. The token-authenticated GitHub download follows only an absolute HTTPS artifact redirect, then downloads that destination without forwarding the token.
@@ -101,8 +97,9 @@ do not block an otherwise-cleared repair; checks involving repaired slots must
 still clear the follow-up threshold. The sidecar's `semantic_audit`
 retains generated before/after prose and all scores without frozen excerpts.
 Citation rows identify a frozen evidence index and code-owned destinations.
-Citation removal requires both scores to reach 0.60; other repair thresholds stay
-0.80. Publication rebinds retained-source follow-up indexes to the originals and
+The confirmation thresholds are stated in
+[Jev checks and repairs](jev-review.md#confirmation-and-repair-policy).
+Publication rebinds retained-source follow-up indexes to the originals and
 verifies that removed citations cannot return. The HTML report displays each exact headline or summary change once per story,
 regardless of the triggering check. Removed source items identify confirmed
 irrelevance, grouping subset selection, or both as the cause. An article and its

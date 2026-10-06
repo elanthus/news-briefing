@@ -78,6 +78,8 @@ The public site renders `review_required` entries as a quarantine stub with a no
 
 **Checkpoints are verified state, not just cached files.** The manifest binds the run to content hashes for trusted config, source config, generation policy, runner source files, every provider generation control, provider/CLI version, Python version, runner settings, and every recorded artifact. Writes are atomic; trace entries are appended and synced. Resume requires a still-running compatible manifest and matching hashes, and reads the corpus only from the exact bytes whose recorded hash was verified. It reuses a received or validated response, but refuses an in-flight call and any changed input, runtime, control, or artifact.
 
+**Gemini's structured-output schema is the shared selection schema minus redundant bounds.** For structured selection output, Gemini 3.7 Flash receives the same JSON schema as the other providers except for redundant `maxItems` bounds on unique citation arrays whose string enums already imply that maximum. Section limits, exact prose counts, citation enums, and uniqueness remain unchanged. On September 6, 2026, a short-prompt probe reconstructed the selection schema from that day's [public audit manifest](https://elanthus.github.io/news-briefing/manifests/2026-09-06.json): Google AI Studio returned HTTP 400 with the original schema and completed successfully when only those redundant bounds were omitted. Lowering `max_tokens` or omitting reasoning did not resolve the error in the initial probe. This verifies schema acceptance, not the quality of a complete briefing; the encrypted production prompt was not replayed. Google's [structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output) notes that complex schemas may be rejected.
+
 ## Orchestration view
 
 The system is a coordinated multi-role loop: a selector works from the complete closed corpus, code freezes its validated evidence groups, and a prose generator works only from those groups under a fail-closed provider tool policy. A deterministic checker acts as the oracle; a deterministic normalizer repairs editorial placement and evidence-length errors; and a bounded corrector gets up to the configured repair limit for findings repair cannot fix. Selection and prose each receive that many corrections independently. When every blocking selection finding is repairable — an ineligible-category or globally repeated citation, or an over-limit section — the normalizer runs before freezing and no correction pass is spent; a WARN-only oversized summary likewise takes the evidence-swap path before finalization.
@@ -138,7 +140,19 @@ This is orchestration of specialized roles around one generator, not concurrent 
 
 Figure checks are nonblocking quality notes: the corpus contains bounded feed excerpts, so a number's absence from an excerpt cannot establish its absence from the linked article.
 
-A fifth claim-family warning, [`low_claim_evidence_overlap`](low-overlap-diagnostic.md), is a narrow, nonblocking lexical-overlap diagnostic.
+### Low claim/evidence overlap diagnostic
+
+A fifth claim-family warning, `low_claim_evidence_overlap`, is a deliberately narrow, nonblocking lexical-overlap diagnostic. It reports a topic only when both the model claim and its cited excerpts contain at least eight distinctive lexical terms, fewer than two terms overlap, and overlap is at most 8% of the claim terms. The 8% ceiling independently constrains the diagnostic: a one-term match needs at least 13 claim terms, while a zero-term match can still qualify at the eight-term minimum. It is a triage signal, not a claim that semantic entailment failed: paraphrase and named-entity variation remain outside deterministic proof.
+
+#### Predefined promotion gate
+
+The warning may become blocking only after a prospective, human-reviewed clean set contains at least 400 topics across at least 14 report dates and the two-sided 95% Wilson interval's upper bound for false positives is at most 1%. The threshold and sample requirement are fixed before collecting that promotion set. `unsupported_figure` remains nonblocking independently because its known false positives measure a different heuristic.
+
+#### Retained-history baseline
+
+The repository retains two clean historical briefings with matching corpora: the August 9 reference fixture and the hash-bound August 18 structured-output final. They contain 44 included topics in total. The diagnostic flagged 0 of 44. The two-sided 95% Wilson upper bound is about 8.0%, so this baseline is far too small to satisfy the promotion gate. The diagnostic therefore remains in the `quality` domain, is excluded from actionable public warning counts and panels, and is preserved in private run diagnostics.
+
+`tests.test_eval_briefing.CommittedFixtureTest.test_low_overlap_on_retained_historical_clean_briefings` reproduces the baseline on every test run.
 
 A figure missing from the cited excerpts is still cross-checked against item-level corpus evidence: when the exact figure appears in an uncited item with at least three shared title terms and 60% overlap with the shorter title, the checker emits `figure_supported_elsewhere`; otherwise it emits `unsupported_figure`. Both remain available in evaluation and run artifacts, but neither blocks ordinary publication nor appears in public review-required panels. The conservative title threshold prevents a common number elsewhere in a large corpus from being presented as corroboration for an unrelated claim. The committed [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md) reference pair evaluates clean under those heuristics, but that result does not establish semantic entailment; run the checker and review the evidence for each new output.
 

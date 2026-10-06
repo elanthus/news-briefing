@@ -4,8 +4,8 @@ corpus instead of treating the corpus as data. It is committed as a fixture so
 the containment property can be demonstrated by running the checker rather than
 asserted in prose:
 
-    python3 eval_briefing.py \
-      --corpus fixtures/injection-corpus.json \
+    python3 -S eval_briefing.py \
+      --corpus fixtures/current-injection-corpus.json \
       --briefing fixtures/injection-briefing.md \
       --config fixtures/injection-config.json
 
