@@ -25,6 +25,43 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             corpus_path=root / "corpus.json",
         )
 
+    def test_ready_but_degraded_attempt_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seen: list[str] = []
+
+            def fake_run(provider, run_settings, run_dir):
+                seen.append(provider.model)
+                run_dir.mkdir(parents=True)
+                content = b"ready report with warnings\n"
+                (run_dir / "final.md").write_bytes(content)
+                run_settings.output_path.write_bytes(content)
+                digest = hashlib.sha256(content).hexdigest()
+                (run_dir / "manifest.json").write_text(
+                    json.dumps({
+                        "status": "complete",
+                        "artifacts": {"final.md": digest},
+                        "final": {
+                            "status": "ready",
+                            "artifact_type": "final",
+                            "run_artifact": "final.md",
+                            "output_sha256": digest,
+                            "findings": [{"check": "source_health", "message": "one feed failed"}],
+                        },
+                    }),
+                    encoding="utf-8",
+                )
+                return RunResult(0, run_dir, run_settings.output_path, "ready")
+
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = run_fallback_chain(self._settings(root), root / "run", max_tokens=100_000)
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(seen, [PRODUCTION_MODEL_CHAIN[0].model])
+
     def test_falls_back_in_order_and_preserves_failure_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
