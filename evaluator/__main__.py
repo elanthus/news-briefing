@@ -18,7 +18,6 @@ from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.execution import DEFAULT_PROTOCOL
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
-from evaluator.label_review import export_human_review_packet, run_label_review
 from evaluator.production_grounding import ProductionRun, run_weekly_monitor
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
@@ -155,52 +154,6 @@ def main() -> int:
         "--update-snapshot",
         action="store_true",
         help="replace the expected snapshot explicitly; review and approve the resulting diff",
-    )
-
-    label_review = subparsers.add_parser(
-        "review-labels", help="blind-review provisional offline labels and adjudicate disagreements"
-    )
-    label_review.add_argument("--reviewer-model", default="claude-sonnet-5")
-    label_review.add_argument("--reviewer-provider", default="claude-code-cli")
-    label_review.add_argument(
-        "--reviewer-reasoning",
-        choices=("enabled", "disabled"),
-        help="optional reasoning control for API reviewer providers",
-    )
-    label_review.add_argument(
-        "--reviewer-reasoning-effort",
-        choices=("max", "xhigh", "high", "medium", "low", "minimal"),
-        help="optional API reviewer reasoning effort; implies reasoning enabled",
-    )
-    label_review.add_argument("--adjudicator-model", default="claude-opus-5")
-    label_review.add_argument("--adjudicator-provider", default="claude-code-cli")
-    label_review.add_argument(
-        "--review-only",
-        action="store_true",
-        help="record blinded reviewer disagreements without model adjudication",
-    )
-    label_review.add_argument("--batch-size", type=int, default=10)
-    label_review.add_argument("--timeout", type=int, default=600)
-    label_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
-    label_review.add_argument(
-        "--provisional-only",
-        action="store_true",
-        help="review only cases whose label_status is provisional",
-    )
-    label_review.add_argument("--output-dir", type=Path)
-    label_review.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
-
-    export_review = subparsers.add_parser(
-        "export-label-review",
-        help="export a randomized opaque-ID packet for independent human review",
-    )
-    export_review.add_argument("--suite", type=Path, default=DEFAULT_CHECKER_SUITE)
-    export_review.add_argument("--output-dir", type=Path, required=True)
-    export_review.add_argument(
-        "--case-id",
-        action="append",
-        default=[],
-        help="specific case ID; repeatable (default: every provisional case)",
     )
 
     grounding_review = subparsers.add_parser(
@@ -615,60 +568,6 @@ def main() -> int:
                 or operations["correction_error_trials"]
                 or operations["run_status"] != "complete"
             ))
-        if args.command == "export-label-review":
-            result = export_human_review_packet(
-                args.output_dir,
-                args.suite,
-                case_ids=set(args.case_id) if args.case_id else None,
-            )
-            print(json.dumps(result, indent=2, sort_keys=True))
-            return 0
-        if args.command == "review-labels":
-            load_dotenv(args.env_file)
-            selected = [(args.reviewer_provider, args.reviewer_model)]
-            if not args.review_only:
-                selected.append((args.adjudicator_provider, args.adjudicator_model))
-            _preflight(selected)
-            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-            output_dir = args.output_dir or EVALUATOR_DIR / "results" / f"label-review-{stamp}"
-            reviewer = adapter_for(
-                args.reviewer_provider,
-                args.reviewer_model,
-                args.timeout,
-                reasoning_enabled=(
-                    None if args.reviewer_reasoning is None
-                    else args.reviewer_reasoning == "enabled"
-                ),
-                reasoning_effort=args.reviewer_reasoning_effort,
-            )
-            adjudicator = (
-                None if args.review_only
-                else adapter_for(args.adjudicator_provider, args.adjudicator_model, args.timeout)
-            )
-            result = run_label_review(
-                reviewer,
-                adjudicator,
-                output_dir,
-                args.suite,
-                args.batch_size,
-                case_ids=(
-                    {
-                        case["id"]
-                        for case in json.loads(args.suite.read_text(encoding="utf-8"))["cases"]
-                        if case.get("label_status") == "provisional"
-                    }
-                    if args.provisional_only else None
-                ),
-            )
-            print(json.dumps({
-                "status": result["status"],
-                "case_count": result["case_count"],
-                "exact_agreements": result["exact_agreements"],
-                "disagreements_found": result["disagreements_found"],
-                "disagreements_adjudicated": result["disagreements_adjudicated"],
-                "report": str(output_dir / "label-review.json"),
-            }, indent=2, sort_keys=True))
-            return 0
         if args.command == "judge-quality":
             load_dotenv(args.env_file)
             _preflight([(args.judge_provider, args.judge_model)])
