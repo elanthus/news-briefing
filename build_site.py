@@ -109,34 +109,6 @@ article { padding: 1rem 0; }
 .history-nav ul { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 0; }
 .verdict { font-weight: 700; }
 .muted { color: #595959; }
-.review-panel { background: #f5a62318; border: 1px solid #d98200; border-radius: .4rem;
-  font-size: .88rem; margin: .6rem 0 1rem; padding: .5rem .7rem; }
-.review-story { background: #f5a62318; border: 1px solid #d98200; border-radius: .4rem;
-  margin: .6rem 0 1rem; padding: .55rem .7rem; }
-.review-story-heading { font-size: .95rem; margin: 0 0 .35rem; }
-.review-story > p { margin: .1rem 0; }
-.review-story .inline-review { background: none; border: 0; border-radius: 0;
-  border-top: 2px solid #d9820099; margin: .55rem 0 0; padding: .45rem 0 0; }
-.review-panel h2 { font-size: 1rem; margin: 0 0 .15rem; }
-.review-panel h3 { font-size: .95rem; margin: 0 0 .15rem; }
-.review-panel ol { margin: .2rem 0 0; padding-left: 1.25rem; }
-.review-panel li { margin: .2rem 0; padding-left: .1rem; }
-.finding-label { font-weight: 700; }
-.review-action::before { content: " — "; }
-.review-panel details { border-top: 1px solid #d9820066; margin-top: .4rem; padding-top: .3rem; }
-.review-panel summary { cursor: pointer; font-weight: 650; }
-.advisory-panel { background: #2f7bd918; border: 1px solid #2f7bd9; border-radius: .4rem;
-  font-size: .88rem; margin: .6rem 0 1rem; padding: .5rem .7rem; }
-.advisory-story { background: #2f7bd918; border: 1px solid #2f7bd9; border-radius: .4rem;
-  margin: .6rem 0 1rem; padding: .55rem .7rem; }
-.advisory-story .inline-advisory { background: none; border: 0; border-radius: 0;
-  border-top: 2px solid #2f7bd999; margin: .55rem 0 0; padding: .45rem 0 0; }
-.advisory-panel h2 { font-size: 1rem; margin: 0 0 .15rem; }
-.advisory-panel ol { margin: .2rem 0 0; padding-left: 1.25rem; }
-.advisory-panel li { margin: .2rem 0; padding-left: .1rem; }
-.review-story-heading.advisory-heading { margin-top: .5rem; }
-.briefing-content .review-panel pre { background: #8881; border: 1px solid #8884; font-size: .8rem;
-  margin: .35rem 0 0; max-height: 16rem; overflow: auto; padding: .5rem; white-space: pre-wrap; }
 .briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
 .briefing-content ul { list-style: disc; padding-left: 1.25rem; }
@@ -503,27 +475,6 @@ def _corpus_health(entry: BriefingEntry) -> str:
     return f"Degraded sources: {sources}"
 
 
-DESTINATION_REDACTION = "[destination omitted; use citation refs]"
-EXCLUDED_CONTEXT_PREFIX = "Excluded Topics: "
-
-
-def _topic_headline(line: str) -> str | None:
-    candidate = line[2:] if line.startswith("- ") else line
-    if not candidate.startswith("**"):
-        return None
-    closing = candidate.find("** — ", 2)
-    return candidate[2:closing] if closing >= 2 else None
-
-
-def _section_subheading(line: str) -> str | None:
-    """Section attribution for findings without a structured story path."""
-    if not line.startswith("**") or not line.endswith("**") or " — " in line:
-        return None
-    label = line[2:-2].strip()
-    slots = re.fullmatch(r"(.+) \(\d+ slots\)", label)
-    return slots.group(1) if slots is not None else label
-
-
 _CORPUS_HEALTH_HEADING = "### Corpus health"
 _CORPUS_HEALTH_EXPLANATIONS = {
     "Coverage was degraded by the source failures or empty responses listed below.",
@@ -859,19 +810,6 @@ def _reorder_briefing_sections(markdown: str) -> str:
     return "\n".join(lines)
 
 
-def _finding_matches(
-    finding: ReviewFinding,
-    section: str,
-    headline: str,
-    current_path: str | None = None,
-) -> bool:
-    if finding.path is not None and current_path is not None:
-        return finding.path == current_path
-    if finding.section is not None or finding.headline is not None:
-        return finding.section == section and finding.headline == headline
-    return finding.message.startswith(f"{section}: {headline!r}")
-
-
 def _autolink_citation(match: re.Match[str]) -> str:
     """Wrap one 🔗 citation URL, keeping sentence punctuation out of the href.
 
@@ -896,12 +834,8 @@ def _is_web_link(url: str) -> bool:
     return url.lower().startswith(("http://", "https://"))
 
 
-def _render_markdown(
-    markdown: str,
-    findings: tuple[ReviewFinding, ...] = (),
-    advisory_findings: tuple[ReviewFinding, ...] = (),
-) -> tuple[str, frozenset[int], frozenset[int]]:
-    """Render untrusted Markdown and place story-specific findings beside the story."""
+def _render_markdown(markdown: str) -> str:
+    """Render untrusted Markdown with only code-owned citation links live."""
     markdown_it = importlib.import_module("markdown_it")
     # linkify is deliberately OFF: it would turn any bare domain a model wrote
     # into prose (e.g. "attacker.com") into a live link the corpus never
@@ -916,117 +850,11 @@ def _render_markdown(
     public_markdown = _omit_report_only_warnings(public_markdown)
     public_markdown = _humanize_corpus_health(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
-    lines: list[str] = []
-    replacements: dict[str, str] = {}
-    matched: set[int] = set()
-    matched_advisory: set[int] = set()
-    section = ""
-    excluded_section = False
-    current_path: str | None = None
-    pending_end_marker: str | None = None
-    digest = hashlib.sha256(public_markdown.encode("utf-8")).hexdigest()[:16]
-    for line in public_markdown.splitlines():
-        anchor_match = STORY_ANCHOR.match(line)
-        if anchor_match is not None:
-            current_path = anchor_match.group(1)
-            continue
-        headline = _topic_headline(line)
-        if pending_end_marker is not None and (
-            line.startswith("## ") or headline is not None
-        ):
-            lines.extend(["", pending_end_marker, ""])
-            pending_end_marker = None
-        # Section/subheading tracking only serves findings without a structured
-        # path (pre-v4 sidecars and histories); anchored findings match by path.
-        if line.startswith("### Excluded Topics"):
-            excluded_section = True
-        elif line.startswith("## "):
-            excluded_section = False
-            section = line.removeprefix("## ").strip()
-        subheading = _section_subheading(line)
-        if subheading is not None:
-            section = (
-                f"{EXCLUDED_CONTEXT_PREFIX}{subheading}"
-                if excluded_section
-                else subheading
-            )
-        if headline is None:
-            lines.append(line)
-            current_path = None
-            continue
-        indices = [
-            index
-            for index, finding in enumerate(findings)
-            if index not in matched
-            and _finding_matches(finding, section, headline, current_path)
-        ]
-        advisory_indices = [
-            index
-            for index, finding in enumerate(advisory_findings)
-            if index not in matched_advisory
-            and _finding_matches(finding, section, headline, current_path)
-        ]
-        current_path = None
-        if not indices and not advisory_indices:
-            lines.append(line)
-            continue
-        marker_id = len(replacements)
-        start_marker = f"INLINE_REVIEW_START_{digest}_{marker_id}"
-        end_marker = f"INLINE_REVIEW_END_{digest}_{marker_id}"
-        while start_marker in public_markdown or end_marker in public_markdown:
-            start_marker += "_"
-            end_marker += "_"
-        original = next(
-            (
-                findings[index].model_authored
-                for index in indices
-                if findings[index].model_authored is not None
-            ),
-            None,
-        )
-        if DESTINATION_REDACTION not in line:
-            original = None
-        box_heading_parts = []
-        if indices:
-            count = len(indices)
-            box_heading_parts.append(f"Review required · {count} {'finding' if count == 1 else 'findings'}")
-        if advisory_indices:
-            acount = len(advisory_indices)
-            box_heading_parts.append(f"Advisory · {acount} {'note' if acount == 1 else 'notes'}")
-        box_heading = " · ".join(box_heading_parts)
-        # A story with only advisory notes gets the calmer advisory-story
-        # styling; any actionable finding keeps the amber review-story frame,
-        # even when an advisory note rides along in the same box.
-        wrapper_class = "review-story" if indices else "advisory-story"
-        replacements[start_marker] = (
-            f'<section class="{wrapper_class}">\n'
-            f'<h3 class="review-story-heading">{html.escape(box_heading)}</h3>\n'
-        )
-        panel_html = ""
-        if indices:
-            panel_html += _render_review_panel(
-                tuple(findings[index] for index in indices),
-                inline=True,
-                original=original,
-                show_heading=False,
-            )
-        if advisory_indices:
-            panel_html += _render_advisory_panel(
-                tuple(advisory_findings[index] for index in advisory_indices),
-                inline=True,
-                show_heading=False,
-            )
-        replacements[end_marker] = panel_html + "</section>\n"
-        matched.update(indices)
-        matched_advisory.update(advisory_indices)
-        lines.extend([start_marker, "", line])
-        pending_end_marker = end_marker
-    if pending_end_marker is not None:
-        lines.extend(["", pending_end_marker])
-    rendered = str(parser.render("\n".join(lines)))
-    for marker, panel in replacements.items():
-        rendered = rendered.replace(f"<p>{marker}</p>\n", panel, 1)
-    return rendered, frozenset(matched), frozenset(matched_advisory)
+    # With html disabled, story anchor comments would otherwise render as text.
+    lines = [
+        line for line in public_markdown.splitlines() if STORY_ANCHOR.match(line) is None
+    ]
+    return str(parser.render("\n".join(lines)))
 
 
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
@@ -1119,7 +947,7 @@ def _entry_body(entry: BriefingEntry) -> str:
             f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
     elif entry.markdown is not None:
-        rendered_markdown, _matched, _matched_advisory = _render_markdown(entry.markdown)
+        rendered_markdown = _render_markdown(entry.markdown)
         briefing = _briefing_layout(rendered_markdown, status_chip)
     else:
         briefing = (
@@ -1145,112 +973,6 @@ def _render_briefing(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
     return _document(
         f"Daily briefing — {entry.slug}",
         _history_nav(entries, entry) + _entry_body(entry),
-    )
-
-
-def _review_action(finding: ReviewFinding) -> str:
-    actions = {
-        "unsupported_figure": (
-            "Verify the figure against the cited source; correct or remove it if the source does not support it."
-        ),
-        "unsupported_quotation": (
-            "Verify the quotation against the cited source; correct or remove it if it is not supported."
-        ),
-        "claim_exceeds_evidence": (
-            "Compare the summary with the cited excerpt and shorten or remove claims the excerpt does not support."
-        ),
-    }
-    if finding.check in actions:
-        return actions[finding.check]
-    if finding.domain == "evidence":
-        return "Compare the claim with its cited evidence and correct or remove any unsupported detail."
-    if finding.domain == "coverage":
-        return "Confirm the missing or degraded coverage and decide whether the briefing is complete enough to use."
-    return "Resolve the checker message below and rerun the briefing before treating this preview as approved."
-
-
-def _render_review_panel(
-    findings: tuple[ReviewFinding, ...],
-    *,
-    inline: bool = False,
-    original: str | None = None,
-    show_heading: bool = True,
-) -> str:
-    items = []
-    for finding in findings:
-        label = " · ".join(
-            [finding.level, finding.domain, finding.check.replace("_", " ")]
-        )
-        items.append(
-            "<li>"
-            f'<span class="finding-label">{html.escape(label)}:</span> '
-            f"{html.escape(finding.message)} "
-            f'<span class="review-action"><strong>Action:</strong> '
-            f"{html.escape(_review_action(finding))}</span>"
-            "</li>"
-        )
-    count = len(findings)
-    heading = f"Review required · {count} {'finding' if count == 1 else 'findings'}"
-    disclosure = (
-        "<details>"
-        "<summary>Click to see redacted information</summary>"
-        f'<pre class="model-authored">{html.escape(original)}</pre>'
-        "</details>"
-        if original is not None
-        else ""
-    )
-    tag = "aside" if inline else "section"
-    heading_tag = "h3" if inline else "h2"
-    classes = "review-panel inline-review" if inline else "review-panel"
-    heading_html = (
-        f"<{heading_tag}>{html.escape(heading)}</{heading_tag}>" if show_heading else ""
-    )
-    aria_label = ' aria-label="Review findings"' if not show_heading else ""
-    return (
-        f'<{tag} class="{classes}"{aria_label}>'
-        f"{heading_html}"
-        f"<ol>{''.join(items)}</ol>"
-        f"{disclosure}"
-        f"</{tag}>\n"
-    )
-
-
-def _render_advisory_panel(
-    findings: tuple[ReviewFinding, ...],
-    *,
-    inline: bool = False,
-    show_heading: bool = True,
-) -> str:
-    """Render nonblocking quality notes: visible, but distinct from a review panel.
-
-    No "Action:" line — these are diagnostics for a passed run, not defects
-    that must be resolved before publication.
-    """
-    items = []
-    for finding in findings:
-        label = " · ".join(
-            [finding.level, finding.domain, finding.check.replace("_", " ")]
-        )
-        items.append(
-            "<li>"
-            f'<span class="finding-label">{html.escape(label)}:</span> '
-            f"{html.escape(finding.message)}"
-            "</li>"
-        )
-    count = len(findings)
-    heading = f"Advisory · {count} {'note' if count == 1 else 'notes'}"
-    tag = "aside" if inline else "section"
-    heading_tag = "h3" if inline else "h2"
-    classes = "advisory-panel inline-advisory" if inline else "advisory-panel"
-    heading_html = (
-        f"<{heading_tag}>{html.escape(heading)}</{heading_tag}>" if show_heading else ""
-    )
-    aria_label = ' aria-label="Advisory notes"' if not show_heading else ""
-    return (
-        f'<{tag} class="{classes}"{aria_label}>'
-        f"{heading_html}"
-        f"<ol>{''.join(items)}</ol>"
-        f"</{tag}>\n"
     )
 
 

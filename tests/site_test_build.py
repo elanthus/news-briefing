@@ -17,8 +17,6 @@ import eval_briefing
 from agent_runner.failures import FailureRecord
 from agent_runner.output import render_briefing, render_validation_status
 from build_site import (
-    STYLE,
-    ReviewFinding,
     _humanize_corpus_health,
     _parse_canonical_date,
     _render_markdown,
@@ -118,16 +116,6 @@ class BuildSiteTests(unittest.TestCase):
             ):
                 self.assertEqual(build_site_main(), 0)
             self.assertTrue((output / "index.html").exists())
-
-    def test_review_panel_pre_uses_the_dark_mode_safe_translucent_gray_fill(self) -> None:
-        """A pure-white translucent fill (#fff8) stays light in dark mode, while
-        `color-scheme: light dark` flips foreground text to white — leaving
-        redacted-destination disclosures pale-on-pale. The neutral gray fill
-        (#8881) tracks the page background in both themes instead. Asserting the
-        two load-bearing facts, not the full rule text, keeps the test from
-        breaking on unrelated formatting changes to the stylesheet."""
-        self.assertIn("background: #8881", STYLE)
-        self.assertNotIn("#fff8", STYLE)
 
     def test_pages_explain_the_project_and_include_social_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -743,86 +731,6 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("Automated repair actions (1)", restored_report)
             self.assertIn("topics.US News[3]", restored_report)
 
-    def test_anchor_based_matching_ignores_section_heading_format(self) -> None:
-        markdown = (
-            "## Renamed Section Container\n\n"
-            "<!-- story: topics.AI News[0] -->\n"
-            "**AI story** — Summary.\n"
-            "🔗 https://example.com/ai\n\n"
-            "<!-- story: topics.US News[0] -->\n"
-            "**US story** — Summary.\n"
-            "🔗 https://example.com/us\n"
-        )
-        findings = (
-            ReviewFinding(
-                level="WARN", check="unsupported_figure", domain="evidence",
-                message="topics.AI News[0].summary states '42'",
-                section="AI News", headline="AI story",
-                path="topics.AI News[0]",
-            ),
-        )
-        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
-        self.assertEqual(matched, frozenset({0}))
-        self.assertIn("review-story", rendered)
-        self.assertIn("AI story", rendered)
-
-    def test_anchor_matching_distinguishes_identical_headlines(self) -> None:
-        markdown = (
-            "## Section A\n\n"
-            "<!-- story: topics.Section A[0] -->\n"
-            "**Same headline** — Summary A.\n\n"
-            "## Section B\n\n"
-            "<!-- story: topics.Section B[0] -->\n"
-            "**Same headline** — Summary B.\n"
-        )
-        findings = (
-            ReviewFinding(
-                level="WARN", check="unsupported_figure", domain="evidence",
-                message="topics.Section B[0].summary states '99'",
-                section="Section B", headline="Same headline",
-                path="topics.Section B[0]",
-            ),
-        )
-        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
-        self.assertEqual(matched, frozenset({0}))
-        self.assertIn("review-story", rendered)
-        second_headline_pos = rendered.index("Summary B")
-        review_pos = rendered.index("review-story")
-        self.assertLess(review_pos, second_headline_pos)
-
-    def test_finding_with_path_but_no_matching_anchor_is_unmatched(self) -> None:
-        markdown = (
-            "## US News\n\n"
-            "**Some story** — Summary.\n"
-        )
-        findings = (
-            ReviewFinding(
-                level="WARN", check="unsupported_figure", domain="evidence",
-                message="topics.AI News[0].summary states '42'",
-                path="topics.AI News[0]",
-            ),
-        )
-        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
-        self.assertEqual(matched, frozenset())
-        self.assertNotIn("review-story", rendered)
-
-    def test_legacy_section_headline_matching_still_works(self) -> None:
-        markdown = (
-            "## US News\n\n"
-            "<!-- story: topics.US News[0] -->\n"
-            "**Legacy story** — Summary.\n"
-        )
-        findings = (
-            ReviewFinding(
-                level="WARN", check="unsupported_figure", domain="evidence",
-                message="US News: 'Legacy story' states '42'",
-                section="US News", headline="Legacy story",
-            ),
-        )
-        rendered, matched, _matched_advisory = _render_markdown(markdown, findings)
-        self.assertEqual(matched, frozenset({0}))
-        self.assertIn("review-story", rendered)
-
     def test_status_chip_contract_checks_passed_for_clean_ready_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1009,7 +917,7 @@ class BuildSiteTests(unittest.TestCase):
             "## AI/Tech\n\nAI.\n"
         )
 
-        rendered, _matched, _matched_advisory = _render_markdown(markdown)
+        rendered = _render_markdown(markdown)
 
         self.assertLess(rendered.index("<h2>AI/Tech</h2>"), rendered.index("<h2>US Politics</h2>"))
         self.assertIn("## AI/Tech", rendered)
@@ -1033,7 +941,7 @@ class BuildSiteTests(unittest.TestCase):
         self.assertNotIn("### Corpus health", markdown)
         self.assertIn("unsupported_figure", markdown)
 
-        rendered, _matched, _matched_advisory = _render_markdown(markdown)
+        rendered = _render_markdown(markdown)
 
         excluded = rendered.index("<h3>Excluded Topics (accountability log)</h3>")
         outcome = rendered.index("<h3>Run outcome</h3>")
@@ -1501,7 +1409,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered = _render_markdown(self._corpus_health_markdown(payload))
         self.assertNotIn("failed_sources", rendered)
         self.assertNotIn("<pre", rendered)
         self.assertNotIn("<code", rendered)
@@ -1531,13 +1439,13 @@ class BuildSiteTests(unittest.TestCase):
             "source failures or empty responses",
             "source failures, empty responses, or undated drops",
         )
-        rendered, _, _ = _render_markdown(markdown)
+        rendered = _render_markdown(markdown)
         self.assertNotIn("undated_sources", rendered)
         self.assertIn("1 source dropped 2 items without parseable dates.", rendered)
         self.assertIn("NPR Politics (2)", rendered)
 
     def test_malformed_corpus_health_json_is_left_verbatim(self) -> None:
-        rendered, _, _ = _render_markdown(
+        rendered = _render_markdown(
             self._corpus_health_markdown('{"failed_sources":[{"source_type":')
         )
         self.assertIn("<code", rendered)
@@ -1555,14 +1463,14 @@ class BuildSiteTests(unittest.TestCase):
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":42}]}',
             '["not","an","object"]',
         ):
-            rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
+            rendered = _render_markdown(self._corpus_health_markdown(payload))
             self.assertIn("<code", rendered, payload)
             self.assertNotIn("this day's window", rendered, payload)
 
     def test_empty_source_type_is_left_verbatim(self) -> None:
         # A degenerate-but-well-typed payload must not crash the site build.
         payload = '{"failed_sources":[{"source_type":"","source_id":"x","status":"empty"}]}'
-        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered = _render_markdown(self._corpus_health_markdown(payload))
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
 
@@ -1583,7 +1491,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered = _render_markdown(self._corpus_health_markdown(payload))
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
         self.assertNotIn("<h3>Injected heading</h3>", rendered)
@@ -1601,7 +1509,7 @@ class BuildSiteTests(unittest.TestCase):
             "```\n"
             "````\n"
         )
-        rendered, _, _ = _render_markdown(markdown)
+        rendered = _render_markdown(markdown)
         self.assertIn("failed_sources", rendered)
         self.assertNotIn("⚠", rendered)
 
@@ -1629,7 +1537,7 @@ class BuildSiteTests(unittest.TestCase):
             },
             separators=(",", ":"),
         )
-        rendered, _, _ = _render_markdown(self._corpus_health_markdown(payload))
+        rendered = _render_markdown(self._corpus_health_markdown(payload))
         self.assertNotIn("failed_sources", rendered)
         self.assertIn("1 mastodon returned no items in this day's window.", rendered)
         self.assertIn("1 RSS feed timeout.", rendered)
@@ -1644,7 +1552,7 @@ class BuildSiteTests(unittest.TestCase):
             '{"failed_sources":[{"source_type":"rss","source_id":"NPR","status":"empty"}]}\n'
             "```\n"
         )
-        rendered, _, _ = _render_markdown(markdown)
+        rendered = _render_markdown(markdown)
         self.assertIn("<code", rendered)
         self.assertIn("failed_sources", rendered)
     def test_sidecar_v4_with_repair_actions_and_path(self) -> None:
