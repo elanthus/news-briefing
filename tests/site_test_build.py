@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +17,9 @@ import eval_briefing
 from agent_runner.failures import FailureRecord
 from agent_runner.output import render_briefing, render_validation_status
 from build_site import (
+    BriefingEntry,
+    _count_label,
+    _decorate_briefing,
     _humanize_corpus_health,
     _render_markdown,
 )
@@ -215,7 +219,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, output)
 
             index = (output / "index.html").read_text(encoding="utf-8")
-            self.assertIn('<strong aria-current="date">2026-08-20</strong>', index)
+            self.assertIn('<strong aria-current="date"><time datetime="2026-08-20">', index)
             self.assertIn('href="2026-08-19.html"', index)
             self.assertFalse((output / "2026-08-20.html").exists())
             self.assertIn("did not pass automated checks", index)
@@ -240,7 +244,8 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(preview['findings'], findings)
 
             prior = (output / "2026-08-19.html").read_text(encoding="utf-8")
-            self.assertIn('href="index.html">2026-08-20</a>', prior)
+            self.assertIn('href="index.html"><time datetime="2026-08-20">', prior)
+            self.assertIn('<span class="weekday">Thu</span><span class="monthday">Aug 20</span>', prior)
             self.assertIn("prior ready briefing", prior)
 
     def test_ordinary_warning_does_not_duplicate_unredacted_story(self) -> None:
@@ -859,7 +864,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("sources degraded", index)
+            self.assertIn("no results today from some sources", index)
+            self.assertIn('<p class="status-chip status-warn"><a href="reports/2026-08-20.html">'
+                          "✓ Contract checks passed · no results today from some sources</a></p>", index)
+            report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn("No results today from some sources: reddit:cursor", report)
 
     def test_status_chip_review_required(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1743,6 +1752,93 @@ class BuildSiteTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+def _decorated(markdown: str) -> str:
+    entry = BriefingEntry(
+        day=date(2026, 8, 20), disposition="ready", findings_count=0, findings=(),
+        degraded_sources=(), markdown=markdown,
+    )
+    return _decorate_briefing(_render_markdown(markdown), entry)
+
+
+class BriefingDecorationTests(unittest.TestCase):
+    BRIEFING = (
+        "# Daily Briefing — August 20, 2026\n\n"
+        "Corpus window: 2026-08-19T19:22:09+00:00 → 2026-08-20T19:22:09+00:00\n\n"
+        "## AI/Tech\n\n"
+        "**AI News (2 slots)**\n\n"
+        "**Release ships** *(consolidated)* [verbatim] — Summary <b> text.\n"
+        "🔗 https://github.com/org/repo/releases/tag/v1.0\n"
+        "🔗 https://github.com/org/repo/releases/tag/v1.1\n"
+        "🔗 https://www.example.com/news/story.html\n"
+        "🔗 HN: https://news.ycombinator.com/item?id=1\n\n"
+        "## US News\n\n"
+        "**Plain story** — Second summary.\n"
+        "🔗 https://example.org/a\n\n"
+        "---\n\n"
+        "### Excluded Topics (accountability log)\n\n"
+        "- *Skipped* — Reason. 🔗 https://example.net/skipped\n\n"
+        "### Run outcome\n\n"
+        "**Disposition: READY**\n"
+    )
+
+    def test_citation_links_become_host_chips_with_unchanged_destinations(self) -> None:
+        page = _decorated(self.BRIEFING)
+        for href, label in (
+            ("https://github.com/org/repo/releases/tag/v1.0", "github.com · v1.0"),
+            ("https://github.com/org/repo/releases/tag/v1.1", "github.com · v1.1"),
+            ("https://www.example.com/news/story.html", "example.com"),
+            ("https://news.ycombinator.com/item?id=1", "HN discussion"),
+            ("https://example.net/skipped", "example.net"),
+        ):
+            self.assertIn(f'href="{href}" title="{href}">{label}</a>', page)
+        self.assertIn('class="source-chip source-hn"', page)
+        self.assertNotIn("🔗", page)
+        self.assertNotIn(">https://", page)
+
+    def test_stories_sections_and_run_notes_are_structured(self) -> None:
+        page = _decorated(self.BRIEFING)
+        self.assertIn(
+            '<p class="story"><strong class="story-title">Release ships</strong> '
+            '<span class="story-tag">consolidated</span> <span class="story-tag">verbatim</span>'
+            '<span class="story-dash"> — </span>Summary &lt;b&gt; text.',
+            page,
+        )
+        self.assertIn('<p class="group-label"><strong>AI News</strong></p>', page)
+        self.assertIn('<section class="topic" id="topic-ai-tech"><h2>AI/Tech</h2>', page)
+        self.assertIn('<a href="#topic-us-news">US News<span class="count">1</span></a>', page)
+        self.assertIn('<a href="#run-notes">Behind this briefing</a>', page)
+        notes = page.index('<section class="run-notes"')
+        self.assertLess(page.index("Plain story"), notes)
+        self.assertLess(notes, page.index("<h3>Excluded Topics"))
+        self.assertLess(notes, page.index("<strong>Disposition: READY</strong>"))
+        self.assertTrue(page.startswith('<p class="dateline">Thursday edition · 2 stories</p>'))
+
+    def test_corpus_window_is_humanized_only_when_it_parses(self) -> None:
+        page = _decorated(self.BRIEFING)
+        self.assertIn(
+            '<time datetime="2026-08-19T19:22:09+00:00">Aug 19, 7:22 PM</time> to '
+            '<time datetime="2026-08-20T19:22:09+00:00">Aug 20, 7:22 PM</time> UTC',
+            page,
+        )
+        self.assertIn("Corpus window: start → end", _decorated("Corpus window: start → end\n"))
+
+    def test_unrecognized_shapes_render_unchanged(self) -> None:
+        markdown = (
+            "## AI/Tech\n\n"
+            "**Nested *title*** — Summary with [model link](https://model.example/x).\n"
+        )
+        rendered = _render_markdown(markdown)
+        page = _decorated(markdown)
+        self.assertIn(rendered.split("<h2>AI/Tech</h2>")[1], page)
+        self.assertNotIn("source-chip", page)
+        self.assertNotIn("run-notes", page)
+
+    def test_count_label_pluralizes_y_nouns(self) -> None:
+        self.assertEqual(_count_label(0, "story"), "0 stories")
+        self.assertEqual(_count_label(1, "story"), "1 story")
+        self.assertEqual(_count_label(2, "semantic flag"), "2 semantic flags")
 
 class SemanticAuditSiteTests(unittest.TestCase):
     def test_public_repair_audit_is_escaped_and_survives_rebuild(self):
