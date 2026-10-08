@@ -12,10 +12,10 @@ import json
 import re
 import shutil
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import corpus_schema
 import eval_briefing
@@ -81,48 +81,120 @@ FAVICON_FILENAMES = ("favicon-light.png", "favicon-dark.png")
 
 
 STYLE = """
-:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
-body { overflow-wrap: anywhere; margin: 0 auto; max-width: 76rem; padding: 2rem 1.25rem 4rem; }
-a { color: inherit; }
+:root { color-scheme: light dark;
+  --bg: #faf9f6; --surface: #ffffff; --text: #1c1c1e; --muted: #5c5c63; --rule: #dcd9d2;
+  --strong-rule: #1c1c1e; --accent: #1d5fb0; --chip-bg: #efede8; --chip-text: #38383d;
+  --hn: #b4480a; --hn-bg: #fbeee4; --ok: #1b6e38; --ok-bg: #e5f3e9; --warn: #7d5200;
+  --warn-bg: #fbf0d6; --bad: #9e2428; --bad-bg: #fbe6e6;
+  --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--sans); line-height: 1.5; }
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #131315; --surface: #1c1c1f; --text: #e9e7e2; --muted: #a4a4aa; --rule: #34343a;
+  --strong-rule: #8a8a90; --accent: #8fb9f3; --chip-bg: #27272c; --chip-text: #d6d4ce;
+  --hn: #f3a56c; --hn-bg: #3a2416; --ok: #82d29f; --ok-bg: #173020; --warn: #f1c86f;
+  --warn-bg: #362b12; --bad: #f29c9c; --bad-bg: #3b1b1c; } }
+body { background: var(--bg); color: var(--text); overflow-wrap: anywhere; margin: 0 auto;
+  max-width: 76rem; padding: 2rem 1.25rem 4rem; }
+body:not(.integrity-report) { max-width: 46rem; }
+a { color: inherit; text-underline-offset: .18em; }
+a:hover { color: var(--accent); }
 ul { list-style: none; padding: 0; }
 article { padding: 1rem 0; }
-.site-header { border-bottom: 1px solid #8886; margin-bottom: 1.5rem; padding-bottom: 1rem; }
-.site-header p { margin: .25rem 0 0; }
-.site-name { font-size: 1.15rem; font-weight: 750; }
-.site-footer { border-top: 1px solid #8886; color: #595959; margin-top: 3rem; padding-top: 1rem; }
-.history-nav { border-bottom: 1px solid #8886; margin-bottom: 1.5rem; padding-bottom: 1rem; }
-.history-nav ul { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0 0; }
+.site-header { border-bottom: 1px solid var(--rule); margin-bottom: 1.25rem; padding-bottom: .9rem; }
+.site-header p { color: var(--muted); font-size: .9rem; margin: .2rem 0 0; }
+.site-name { font-size: 1.05rem; font-weight: 750; letter-spacing: -.01em; text-decoration: none; }
+.site-footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem;
+  margin-top: 3rem; padding-top: 1rem; }
+.history-nav { margin-bottom: 1.25rem; }
+.history-label { color: var(--muted); font-size: .72rem; font-weight: 650; letter-spacing: .08em;
+  margin: 0 0 .4rem; text-transform: uppercase; }
+.history-nav ul { display: flex; gap: .4rem; margin: 0; overflow-x: auto; padding-bottom: .2rem; }
+.history-nav li a, .history-nav li strong { align-items: center; border: 1px solid var(--rule);
+  border-radius: .55rem; display: flex; flex-direction: column; font-weight: 600; font-size: .82rem;
+  line-height: 1.25; min-width: 3.6rem; padding: .35rem .55rem; text-decoration: none; }
+.history-nav li a:hover { border-color: var(--accent); }
+.history-nav time { display: contents; }
+.weekday { color: var(--muted); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; }
+.history-nav [aria-current] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.history-nav [aria-current] .weekday { color: inherit; opacity: .75; }
 .verdict { font-weight: 700; }
-.muted { color: #595959; }
-.briefing-content { max-width: 76ch; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
+.briefing-content h1 { font-family: var(--serif); font-size: clamp(2rem, 7vw, 2.85rem);
+  letter-spacing: -.015em; margin: .15rem 0 .9rem; }
+.briefing-content h1 + hr { border-top: 3px double var(--strong-rule); }
+.briefing-content hr { border: 0; border-top: 1px solid var(--rule); margin: .9rem 0; }
 .briefing-content ul { list-style: disc; padding-left: 1.25rem; }
 .briefing-content li { margin: .35rem 0; }
-.briefing-content pre { background: #8881; border: 1px solid #8884; overflow-x: auto; padding: 1rem; }
-.briefing-content code { background: #8881; border-radius: .2rem; padding: .1rem .25rem; }
+.briefing-content pre { background: var(--chip-bg); border: 1px solid var(--rule); overflow-x: auto; padding: 1rem; }
+.briefing-content code { background: var(--chip-bg); border-radius: .2rem; padding: .1rem .25rem; }
 .briefing-content pre code { background: none; padding: 0; }
-.briefing-content blockquote { border-left: .25rem solid #8886; margin-left: 0; padding-left: 1rem; }
+.briefing-content blockquote { border-left: .25rem solid var(--rule); margin-left: 0; padding-left: 1rem; }
+.dateline { color: var(--muted); font-size: .75rem; font-weight: 650; letter-spacing: .09em;
+  margin: 0; text-transform: uppercase; }
 .status-chip { font-size: .88rem; }
 .status-chip a { text-decoration: underline; }
-.integrity-summary { border: 2px solid #8888; padding: .8rem 1rem; border-radius: .4rem; }
+p.status-chip { border-radius: 999px; display: inline-block; font-weight: 600; margin: .1rem 0 .4rem;
+  padding: .2rem .75rem; }
+.status-ok { background: var(--ok-bg); color: var(--ok); }
+.status-warn { background: var(--warn-bg); color: var(--warn); }
+.status-bad { background: var(--bad-bg); color: var(--bad); }
+.status-chip a:hover { color: inherit; }
+.corpus-window { color: var(--muted); font-size: .88rem; margin: 0; }
+.section-nav { background: var(--bg); border-bottom: 1px solid var(--rule); margin: 0 0 .5rem;
+  position: sticky; top: 0; z-index: 1; }
+.briefing-content .section-nav ul { display: flex; gap: .3rem 1.1rem; list-style: none; margin: 0;
+  overflow-x: auto; padding: .6rem 0; white-space: nowrap; }
+.briefing-content .section-nav li { margin: 0; }
+.section-nav a { font-size: .88rem; font-weight: 600; text-decoration: none; }
+.section-nav .count { color: var(--muted); font-size: .75rem; font-weight: 500; margin-left: .3rem; }
+.topic, .run-notes { scroll-margin-top: 3.5rem; }
+.topic > h2 { border-top: 2px solid var(--strong-rule); font-family: var(--serif);
+  font-size: 1.75rem; margin: 2.25rem 0 .25rem; padding-top: .55rem; }
+.group-label { color: var(--muted); font-size: .76rem; letter-spacing: .09em;
+  margin: 1.4rem 0 .6rem; text-transform: uppercase; }
+.briefing-content .story { background: var(--surface); border: 1px solid var(--rule);
+  border-radius: .65rem; font-family: var(--serif); font-size: 1.05rem; line-height: 1.6;
+  margin: 0 0 .9rem; padding: .95rem 1.15rem 1rem; }
+.story-title { font-family: var(--sans); font-size: 1.06rem; line-height: 1.35; }
+.story-dash { display: block; font-size: 0; height: .3rem; }
+.story-tag { border: 1px solid var(--rule); border-radius: 999px; color: var(--muted);
+  font-family: var(--sans); font-size: .66rem; font-weight: 600; letter-spacing: .06em;
+  margin-left: .35rem; padding: .05rem .45rem; text-transform: uppercase; vertical-align: .18em;
+  white-space: nowrap; }
+.sources { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .65rem; }
+.source-chip { background: var(--chip-bg); border-radius: 999px; color: var(--chip-text);
+  font-family: var(--sans); font-size: .76rem; line-height: 1.5; max-width: 100%; overflow: hidden;
+  padding: .12rem .62rem; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.source-chip:hover { background: var(--accent); color: var(--bg); }
+.source-hn { background: var(--hn-bg); color: var(--hn); }
+.run-notes { background: var(--surface); border: 1px solid var(--rule); border-radius: .75rem;
+  font-size: .92rem; margin-top: 3rem; padding: .4rem 1.3rem 1rem; }
+.run-notes > h2 { font-size: 1.2rem; margin: .9rem 0 .2rem; }
+.run-notes h3 { color: var(--muted); font-size: .8rem; letter-spacing: .08em; margin-top: 1.6rem;
+  text-transform: uppercase; }
+.run-notes .sources { margin-top: .35rem; }
+.integrity-summary { border: 2px solid var(--rule); padding: .8rem 1rem; border-radius: .4rem; }
 .integrity-summary p { margin: .35rem 0; }
 .integrity-report .site-header { margin-bottom: .5rem; padding-bottom: .5rem; }
 .integrity-report .site-header p { display: none; }
 .integrity-report h1 { font-size: 1.65rem; margin: .5rem 0; }
 .integrity-report .verdict { margin: .4rem 0; }
 .integrity-report .integrity-summary h2 { font-size: 1.1rem; margin: 0 0 .3rem; }
-.action-ledger li, .story-change { border-bottom: 1px solid #8886; padding: .8rem 0; }
+.action-ledger li, .story-change { border-bottom: 1px solid var(--rule); padding: .8rem 0; }
 .semantic-audit, .action-ledger, .corpus-health { overflow-wrap: anywhere; }
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-weight: 700; padding-bottom: .4rem; }
-th, td { text-align: left; vertical-align: top; border-bottom: 1px solid #8885; padding: .5rem .7rem; }
+th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); padding: .5rem .7rem; }
 .table-scroll { overflow-x: auto; }
 .table-scroll table { min-width: 45rem; }
-@media (prefers-color-scheme: dark) { .muted, .site-footer { color: #aaa; } }
 details { margin: .7rem 0; } summary { cursor: pointer; }
 ins { text-decoration: underline; background: #298a2930; } del { background: #bd393930; }
 @media (max-width: 40rem) { body { padding: 1rem .75rem 3rem; } th, td { padding: .4rem; }
-  .integrity-summary { padding: .6rem; } }
+  .integrity-summary { padding: .6rem; }
+  .briefing-content .story { font-size: 1rem; padding: .8rem .85rem .85rem; }
+  .run-notes { padding: .3rem .9rem .8rem; } }
 """.strip()
 
 
@@ -455,9 +527,9 @@ def _verdict(entry: BriefingEntry) -> str:
 
 def _corpus_health(entry: BriefingEntry) -> str:
     if not entry.degraded_sources:
-        return "Healthy — no degraded sources reported"
+        return "No source problems reported"
     sources = ", ".join(html.escape(source) for source in entry.degraded_sources)
-    return f"Degraded sources: {sources}"
+    return f"No results today from some sources: {sources}"
 
 
 _CORPUS_HEALTH_HEADING = "### Corpus health"
@@ -748,46 +820,211 @@ def _render_markdown(markdown: str) -> str:
     return str(parser.render("\n".join(lines)))
 
 
+# Page decoration below runs on markdown-it output, after untrusted text has
+# been escaped and only code-owned citation autolinks are live. Each pattern
+# matches the exact shape the renderer emits; anything else is left as plain
+# rendered Markdown, so a mismatch costs styling, never content or links.
+_CITATION_ANCHOR = re.compile(r'🔗\s*(HN:\s*)?<a href="([^"<>]*)">[^<]*</a>')
+_CITATION_RUN = re.compile(r'(?:🔗\s*(?:HN:\s*)?<a href="[^"<>]*">[^<]*</a>\s*)+')
+_STORY_OPENING = re.compile(
+    r"<p><strong>([^<]*)</strong>(?: <em>\(([^<()]*)\)</em>)?((?: \[[^\]<]*\])*) — "
+)
+_STORY_LITERAL_TAG = re.compile(r" \[([^\]<]*)\]")
+_GROUP_LABEL = re.compile(r"<p><strong>([^<]*)</strong></p>")
+_SLOT_COUNT = re.compile(r" \(\d+ slots?\)$")
+_TOPIC_HEADING = re.compile(r"<h2>([^<]*)</h2>")
+_RUN_NOTES_START = re.compile(
+    r"(?:<hr ?/?>\s*)?<h3>(?:Excluded Topics|Corpus health|Run outcome)\b"
+)
+_LEADING_RULE = re.compile(r"^<hr ?/?>\s*")
+_CORPUS_WINDOW = re.compile(r"<p>Corpus window: (\S+) → (\S+)</p>")
+_SOURCE_HINT_LIMIT = 32
+# Fixed English names: strftime's %a/%b/%A follow LC_TIME, and pages declare lang="en".
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _source_parts(href: str) -> tuple[str, str]:
+    """Return the display host and last path segment of an escaped href."""
+    try:
+        parts = urlsplit(html.unescape(href))
+        host = parts.hostname or ""
+    except ValueError:
+        return "", ""
+    segments = [segment for segment in parts.path.split("/") if segment]
+    hint = unquote(segments[-1]) if segments else ""
+    hint = re.sub(r"\.(?:s?html?|php|aspx?)$", "", hint)
+    hint = "".join(char for char in hint if char.isprintable())
+    if len(hint) > _SOURCE_HINT_LIMIT:
+        hint = hint[: _SOURCE_HINT_LIMIT - 1] + "…"
+    return host.removeprefix("www."), hint
+
+
+def _source_chips(run: re.Match[str]) -> str:
+    """Replace one run of 🔗 citation links with labelled source chips.
+
+    The href is markdown-it's escaped attribute value, reused unchanged; only
+    the visible text changes from the full URL to its host. Hosts cited more
+    than once in the same run also show their last path segment so readers can
+    tell the links apart.
+    """
+    citations = [
+        (match.group(1) is not None, match.group(2), *_source_parts(match.group(2)))
+        for match in _CITATION_ANCHOR.finditer(run.group(0))
+    ]
+    article_hosts = [host for is_hn, _, host, _ in citations if not is_hn]
+    chips = []
+    for is_hn, href, host, hint in citations:
+        if is_hn:
+            label, css = "HN discussion", "source-chip source-hn"
+        else:
+            label, css = host or "source", "source-chip"
+            if host and hint and article_hosts.count(host) > 1:
+                label = f"{host} · {hint}"
+        chips.append(f'<a class="{css}" href="{href}" title="{href}">{html.escape(label)}</a>')
+    return f'<span class="sources">{"".join(chips)}</span>'
+
+
+def _story_opening(match: re.Match[str]) -> str:
+    tags = [match.group(2)] if match.group(2) else []
+    tags += _STORY_LITERAL_TAG.findall(match.group(3))
+    rendered_tags = "".join(f' <span class="story-tag">{tag}</span>' for tag in tags)
+    return (
+        f'<p class="story"><strong class="story-title">{match.group(1)}</strong>'
+        f'{rendered_tags}<span class="story-dash"> — </span>'
+    )
+
+
+def _group_label(match: re.Match[str]) -> str:
+    return f'<p class="group-label"><strong>{_SLOT_COUNT.sub("", match.group(1))}</strong></p>'
+
+
+def _clock_label(moment: datetime) -> str:
+    hour = moment.hour % 12 or 12
+    meridiem = "AM" if moment.hour < 12 else "PM"
+    return f"{_MONTHS[moment.month - 1]} {moment.day}, {hour}:{moment.minute:02d} {meridiem}"
+
+
+def _corpus_window(match: re.Match[str]) -> str:
+    try:
+        start = datetime.fromisoformat(html.unescape(match.group(1)))
+        end = datetime.fromisoformat(html.unescape(match.group(2)))
+    except ValueError:
+        return match.group(0)
+    if start.tzinfo is None or end.tzinfo is None:
+        return match.group(0)
+    start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    return (
+        '<p class="corpus-window">Covers news from '
+        f'<time datetime="{match.group(1)}">{_clock_label(start)}</time> to '
+        f'<time datetime="{match.group(2)}">{_clock_label(end)}</time> UTC</p>'
+    )
+
+
+def _anchor_id(label: str, used: set[str]) -> str:
+    base = "topic-" + (re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "section")
+    anchor, suffix = base, 2
+    while anchor in used:
+        anchor, suffix = f"{base}-{suffix}", suffix + 1
+    used.add(anchor)
+    return anchor
+
+
+def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
+    """Add story cards, source chips, a section bar, and a run-notes panel."""
+    rendered = _CITATION_RUN.sub(_source_chips, rendered)
+    rendered = _CORPUS_WINDOW.sub(_corpus_window, rendered, count=1)
+    notes_start = _RUN_NOTES_START.search(rendered)
+    news = rendered[: notes_start.start()] if notes_start else rendered
+    notes = rendered[notes_start.start():] if notes_start else ""
+    news = _STORY_OPENING.sub(_story_opening, news)
+    news = _GROUP_LABEL.sub(_group_label, news)
+
+    pieces = re.split(r"(?=<h2>)", news)
+    masthead, sections, nav_links = pieces[0], [], []
+    used: set[str] = set()
+    for piece in pieces[1:]:
+        heading = _TOPIC_HEADING.match(piece)
+        if heading is None:
+            sections.append(piece)
+            continue
+        anchor = _anchor_id(html.unescape(heading.group(1)), used)
+        count = piece.count('<p class="story">')
+        nav_links.append(
+            f'<li><a href="#{anchor}">{heading.group(1)}'
+            f'<span class="count">{count}</span></a></li>'
+        )
+        sections.append(f'<section class="topic" id="{anchor}">{piece}</section>\n')
+    if notes:
+        nav_links.append('<li><a href="#run-notes">Behind this briefing</a></li>')
+        notes = (
+            '<section class="run-notes" id="run-notes" aria-labelledby="run-notes-title">'
+            '<h2 id="run-notes-title">Behind this briefing</h2>'
+            f"{_LEADING_RULE.sub('', notes, count=1)}"
+            "</section>\n"
+        )
+    story_count = news.count('<p class="story">')
+    dateline = f"{_WEEKDAYS[entry.day.weekday()]} edition"
+    if story_count:
+        dateline += f" · {_count_label(story_count, 'story')}"
+    nav = (
+        f'<nav class="section-nav" aria-label="Sections"><ul>{"".join(nav_links)}</ul></nav>\n'
+        if len(nav_links) > 1 else ""
+    )
+    return f'<p class="dateline">{dateline}</p>\n{masthead}{nav}{"".join(sections)}{notes}'
+
+
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
     links = []
     newest = entries[0]
     for entry in entries:
         escaped_date = html.escape(entry.slug)
+        weekday = _WEEKDAYS[entry.day.weekday()][:3]
+        day = (
+            f'<time datetime="{escaped_date}"><span class="weekday">{weekday}</span>'
+            f'<span class="monthday">{_MONTHS[entry.day.month - 1]} {entry.day.day}</span></time>'
+        )
         if entry.slug == current.slug:
-            label = f'<strong aria-current="date">{escaped_date}</strong>'
+            label = f'<strong aria-current="date">{day}</strong>'
         elif entry.slug == newest.slug:
-            label = f'<a href="index.html">{escaped_date}</a>'
+            label = f'<a href="index.html">{day}</a>'
         else:
-            label = f'<a href="{escaped_date}.html">{escaped_date}</a>'
+            label = f'<a href="{escaped_date}.html">{day}</a>'
         links.append(f"<li>{label}</li>")
     return (
         '<nav class="history-nav" aria-label="The seven most recent briefings">'
-        "<strong>Latest 7 briefings</strong>"
+        '<p class="history-label">Latest 7 briefings</p>'
         f"<ul>{''.join(links)}</ul>"
         "</nav>"
     )
 
 
 def _status_chip(entry: BriefingEntry) -> str:
+    tone = "status-ok"
     if entry.disposition == "ready" and entry.repair_actions:
         n = len(entry.repair_actions)
         label = f"⚠ Published after automated repair ({n} {'action' if n == 1 else 'actions'})"
+        tone = "status-warn"
     elif entry.disposition == "ready":
         label = "✓ Contract checks passed"
     elif entry.disposition == "review_required":
         label = "🔍 Review required"
+        tone = "status-bad"
     else:
         label = "✖ Not published"
+        tone = "status-bad"
     suffixes = []
     if entry.advisory_findings:
         n = len(entry.advisory_findings)
         suffixes.append(f"{n} advisory {'note' if n == 1 else 'notes'}")
     if entry.degraded_sources:
-        suffixes.append("sources degraded")
+        suffixes.append("no results today from some sources")
     if suffixes:
         label += " · " + " · ".join(suffixes)
+        if tone == "status-ok":
+            tone = "status-warn"
     report_href = f"reports/{html.escape(entry.slug)}.html"
-    return f'<p class="status-chip"><a href="{report_href}">{label}</a></p>'
+    return f'<p class="status-chip {tone}"><a href="{report_href}">{label}</a></p>'
 
 
 def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
@@ -839,7 +1076,7 @@ def _entry_body(entry: BriefingEntry) -> str:
         )
     elif entry.markdown is not None:
         rendered_markdown = _render_markdown(entry.markdown)
-        briefing = _briefing_layout(rendered_markdown, status_chip)
+        briefing = _decorate_briefing(_briefing_layout(rendered_markdown, status_chip), entry)
     else:
         briefing = (
             f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
@@ -868,7 +1105,11 @@ def _render_briefing(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
 
 
 def _count_label(n: int, noun: str) -> str:
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+    if n == 1:
+        return f"{n} {noun}"
+    if noun.endswith("y") and noun[-2:-1] not in ("a", "e", "i", "o", "u"):
+        return f"{n} {noun[:-1]}ies"
+    return f"{n} {noun}s"
 
 
 def _provenance_line(provenance: Provenance) -> str:
@@ -1188,7 +1429,7 @@ def _render_integrity_details(entry: BriefingEntry) -> str:
                              f'{html.escape("; ".join(sources))}</li>')
             parts.append('</ul>')
         else:
-            parts.append('<p>No source degradation recorded.</p>')
+            parts.append('<p>No source problems recorded.</p>')
         parts.append('<details><summary>All verified source counts</summary><ul>')
         for row in record["corpus_health"]:
             parts.append(
