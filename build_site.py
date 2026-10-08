@@ -839,6 +839,9 @@ _RUN_NOTES_START = re.compile(
 _LEADING_RULE = re.compile(r"^<hr ?/?>\s*")
 _CORPUS_WINDOW = re.compile(r"<p>Corpus window: (\S+) → (\S+)</p>")
 _SOURCE_HINT_LIMIT = 32
+# Fixed English names: strftime's %a/%b/%A follow LC_TIME, and pages declare lang="en".
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _source_parts(href: str) -> tuple[str, str]:
@@ -899,7 +902,7 @@ def _group_label(match: re.Match[str]) -> str:
 def _clock_label(moment: datetime) -> str:
     hour = moment.hour % 12 or 12
     meridiem = "AM" if moment.hour < 12 else "PM"
-    return f"{moment:%b} {moment.day}, {hour}:{moment:%M} {meridiem}"
+    return f"{_MONTHS[moment.month - 1]} {moment.day}, {hour}:{moment.minute:02d} {meridiem}"
 
 
 def _corpus_window(match: re.Match[str]) -> str:
@@ -961,7 +964,7 @@ def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
             "</section>\n"
         )
     story_count = news.count('<p class="story">')
-    dateline = f"{entry.day:%A} edition"
+    dateline = f"{_WEEKDAYS[entry.day.weekday()]} edition"
     if story_count:
         dateline += f" · {_count_label(story_count, 'story')}"
     nav = (
@@ -976,9 +979,10 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
     newest = entries[0]
     for entry in entries:
         escaped_date = html.escape(entry.slug)
+        weekday = _WEEKDAYS[entry.day.weekday()][:3]
         day = (
-            f'<time datetime="{escaped_date}"><span class="weekday">{entry.day:%a}</span>'
-            f'<span class="monthday">{entry.day:%b} {entry.day.day}</span></time>'
+            f'<time datetime="{escaped_date}"><span class="weekday">{weekday}</span>'
+            f'<span class="monthday">{_MONTHS[entry.day.month - 1]} {entry.day.day}</span></time>'
         )
         if entry.slug == current.slug:
             label = f'<strong aria-current="date">{day}</strong>'
@@ -1103,7 +1107,9 @@ def _render_briefing(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
 def _count_label(n: int, noun: str) -> str:
     if n == 1:
         return f"{n} {noun}"
-    return f"{n} {noun[:-1]}ies" if noun.endswith("y") else f"{n} {noun}s"
+    if noun.endswith("y") and noun[-2:-1] not in ("a", "e", "i", "o", "u"):
+        return f"{n} {noun[:-1]}ies"
+    return f"{n} {noun}s"
 
 
 def _provenance_line(provenance: Provenance) -> str:

@@ -1839,6 +1839,7 @@ class BriefingDecorationTests(unittest.TestCase):
         self.assertEqual(_count_label(0, "story"), "0 stories")
         self.assertEqual(_count_label(1, "story"), "1 story")
         self.assertEqual(_count_label(2, "semantic flag"), "2 semantic flags")
+        self.assertEqual(_count_label(2, "day"), "2 days")
 
 class SemanticAuditSiteTests(unittest.TestCase):
     def test_public_repair_audit_is_escaped_and_survives_rebuild(self):
