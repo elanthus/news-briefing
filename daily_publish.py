@@ -127,20 +127,16 @@ def restore_corpus(
         return 1
     corpora = root / "corpora"
     corpora.mkdir(parents=True, exist_ok=True)
-    restore = _invoke(
-        [sys.executable, "restore_private_corpora.py", "--output-dir", str(corpora)],
-        runner,
-    )
+    restore = _invoke([
+        sys.executable, "restore_private_corpora.py", "--output-dir", str(corpora),
+        "--newest", today.isoformat(),
+    ], runner)
     if restore.returncode == 4:
         print("No unexpired private archive remains; starting a fresh corpus window")
     elif restore.returncode != 0:
         print("::error::Private corpus restoration failed")
         return restore.returncode
-    prune = _invoke([
-        sys.executable, "private_archive.py", "prune-corpora", str(corpora),
-        "--newest", today.isoformat(),
-    ], runner)
-    return prune.returncode
+    return 0
 
 
 def _report_dates(
