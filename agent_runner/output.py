@@ -6,7 +6,7 @@ import copy
 import html
 import json
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, NamedTuple
@@ -74,20 +74,39 @@ def _redact_text_destinations(value: str) -> str:
     return redacted
 
 
-def redact_destinations(value: Any) -> Any:
-    """Recursively remove every model-visible web destination spelling."""
+def _redact_strings(value: Any, text: Callable[[str], str], key_error: str | None) -> Any:
+    """Apply ``text`` to every nested string.
+
+    With ``key_error``, a string dictionary key that ``text`` would change raises
+    ``ValueError(key_error)``. Without it, keys are redacted and de-duplicated so
+    a quarantine preview can still show a malformed candidate.
+    """
     if isinstance(value, str):
-        return _redact_text_destinations(value)
+        return text(value)
     if isinstance(value, list):
-        return [redact_destinations(item) for item in value]
+        return [_redact_strings(item, text, key_error) for item in value]
     if isinstance(value, dict):
         redacted: dict[Any, Any] = {}
-        for key, item in value.items():
-            if isinstance(key, str) and _redact_text_destinations(key) != key:
-                raise ValueError("model input contains a destination-bearing dictionary key")
-            redacted[key] = redact_destinations(item)
+        for index, (key, item) in enumerate(value.items()):
+            rendered_key = key
+            if key_error is None:
+                rendered_key = text(key) if isinstance(key, str) else str(key)
+                if rendered_key in redacted:
+                    rendered_key = f"{rendered_key} [duplicate key {index}]"
+            elif isinstance(key, str) and text(key) != key:
+                raise ValueError(key_error)
+            redacted[rendered_key] = _redact_strings(item, text, key_error)
         return redacted
     return value
+
+
+def redact_destinations(value: Any) -> Any:
+    """Recursively remove every model-visible web destination spelling."""
+    return _redact_strings(
+        value,
+        _redact_text_destinations,
+        "model input contains a destination-bearing dictionary key",
+    )
 
 
 def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
@@ -99,25 +118,11 @@ def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
     both are forbidden in model-authored prose.
     """
     pattern = OPAQUE_REFERENCE if include_citations else ITEM_REFERENCE
-    if isinstance(value, str):
-        return pattern.sub(OPAQUE_REFERENCE_REDACTION, value)
-    if isinstance(value, list):
-        return [
-            redact_opaque_references(item, include_citations=include_citations)
-            for item in value
-        ]
-    if isinstance(value, dict):
-        redacted: dict[Any, Any] = {}
-        for key, item in value.items():
-            if isinstance(key, str) and pattern.search(key):
-                raise ValueError(
-                    "model input contains an opaque-reference-bearing dictionary key"
-                )
-            redacted[key] = redact_opaque_references(
-                item, include_citations=include_citations
-            )
-        return redacted
-    return value
+    return _redact_strings(
+        value,
+        lambda text: pattern.sub(OPAQUE_REFERENCE_REDACTION, text),
+        "model input contains an opaque-reference-bearing dictionary key",
+    )
 
 
 def _opaque_reference_tokens(value: str) -> list[str]:
@@ -126,19 +131,7 @@ def _opaque_reference_tokens(value: str) -> list[str]:
 
 def redact_preview_value(value: Any) -> Any:
     """Redact destinations even in malformed dictionary keys for quarantine artifacts."""
-    if isinstance(value, str):
-        return _redact_text_destinations(value)
-    if isinstance(value, list):
-        return [redact_preview_value(item) for item in value]
-    if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
-        for index, (key, item) in enumerate(value.items()):
-            rendered_key = _redact_text_destinations(key) if isinstance(key, str) else str(key)
-            if rendered_key in redacted:
-                rendered_key = f"{rendered_key} [duplicate key {index}]"
-            redacted[rendered_key] = redact_preview_value(item)
-        return redacted
-    return value
+    return _redact_strings(value, _redact_text_destinations, None)
 
 
 def project_corpus(corpus: dict[str, Any]) -> ModelCorpus:
@@ -318,50 +311,80 @@ def _worst_case_pool_demand(
     )
 
 
+def _array_schema(
+    description: str,
+    items: dict[str, Any],
+    minimum: int,
+    maximum: int,
+) -> dict[str, Any]:
+    return {
+        "type": "array",
+        "description": description,
+        "items": items,
+        "minItems": minimum,
+        "maxItems": maximum,
+    }
+
+
+def _object_schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
+
+
+def _schema_envelope(
+    config: briefing_config.BriefingConfig,
+    topics: dict[str, dict[str, Any]],
+    excluded: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Wrap per-section topic arrays and accountable exclusion arrays in the root."""
+    return _object_schema(
+        {
+            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
+            "sections": _object_schema(
+                {
+                    section.name: _object_schema({"topics": topics[section.name]}, ["topics"])
+                    for section in config.sections
+                },
+                [section.name for section in config.sections],
+            ),
+            "excluded_topics": _object_schema(excluded, list(excluded)),
+        },
+        ["schema_version", "sections", "excluded_topics"],
+    )
+
+
 def build_selection_schema(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
 ) -> dict[str, Any]:
     """Build the first-pass schema, which contains evidence choices only."""
-    section_properties: dict[str, Any] = {}
-    excluded_properties: dict[str, Any] = {}
-    accountable: list[str] = []
+    topics: dict[str, dict[str, Any]] = {}
+    excluded: dict[str, dict[str, Any]] = {}
     for section in config.sections:
         eligible_refs = tuple(
             ref
             for ref, citation in citations.items()
             if citation.category in section.corpus_categories
         )
-        selection = {
-            "type": "object",
-            "properties": {"citation_refs": _citation_refs(eligible_refs)},
-            "required": ["citation_refs"],
-            "additionalProperties": False,
-        }
-        section_properties[section.name] = {
-            "type": "object",
-            "properties": {
-                "topics": {
-                    "type": "array",
-                    "description": f"At most {section.target_stories} evidence selections.",
-                    "items": selection,
-                    "minItems": 0,
-                    "maxItems": section.target_stories,
-                }
-            },
-            "required": ["topics"],
-            "additionalProperties": False,
-        }
+        selection = _object_schema(
+            {"citation_refs": _citation_refs(eligible_refs)}, ["citation_refs"]
+        )
+        topics[section.name] = _array_schema(
+            f"At most {section.target_stories} evidence selections.",
+            selection,
+            0,
+            section.target_stories,
+        )
         if section.excluded_stories:
-            accountable.append(section.name)
-            excluded_properties[section.name] = {
-                "type": "array",
-                "description": (
-                    f"At most {section.excluded_stories} excluded evidence "
-                    "selections, most significant first; entry 0 is promoted "
-                    "into topics if this section is under its target."
-                ),
-                "items": selection,
+            excluded[section.name] = _array_schema(
+                f"At most {section.excluded_stories} excluded evidence "
+                "selections, most significant first; entry 0 is promoted "
+                "into topics if this section is under its target.",
+                selection,
                 # A cooperative-sampler nudge only: the eligible set here is not
                 # narrowed by what the model puts in "topics", so this cannot
                 # guarantee a non-empty log, and it must never demand an
@@ -373,31 +396,10 @@ def build_selection_schema(
                 # forced into a duplicate_item failure. check_exclusion_log
                 # (mirrored in _check_exclusion_log_selection) remains the
                 # actual guarantee.
-                "minItems": (
-                    1 if len(eligible_refs) > _worst_case_pool_demand(section, config) else 0
-                ),
-                "maxItems": section.excluded_stories,
-            }
-    return {
-        "type": "object",
-        "properties": {
-            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
-            "sections": {
-                "type": "object",
-                "properties": section_properties,
-                "required": [section.name for section in config.sections],
-                "additionalProperties": False,
-            },
-            "excluded_topics": {
-                "type": "object",
-                "properties": excluded_properties,
-                "required": accountable,
-                "additionalProperties": False,
-            },
-        },
-        "required": ["schema_version", "sections", "excluded_topics"],
-        "additionalProperties": False,
-    }
+                1 if len(eligible_refs) > _worst_case_pool_demand(section, config) else 0,
+                section.excluded_stories,
+            )
+    return _schema_envelope(config, topics, excluded)
 
 
 def build_prose_schema(
@@ -405,76 +407,31 @@ def build_prose_schema(
     selection: dict[str, Any],
 ) -> dict[str, Any]:
     """Build the second-pass schema with no model-writable citation fields."""
-    section_properties: dict[str, Any] = {}
-    excluded_properties: dict[str, Any] = {}
-    accountable: list[str] = []
+    topics: dict[str, dict[str, Any]] = {}
+    excluded: dict[str, dict[str, Any]] = {}
     for section in config.sections:
         topic_count = len(selection["sections"][section.name]["topics"])
-        topic = {
-            "type": "object",
-            "properties": {
-                "headline": _text_property(300),
-                "summary": _text_property(1_500),
-            },
-            "required": ["headline", "summary"],
-            "additionalProperties": False,
-        }
-        section_properties[section.name] = {
-            "type": "object",
-            "properties": {
-                "topics": {
-                    "type": "array",
-                    "description": (
-                        f"Exactly {topic_count} prose entries, in frozen evidence order."
-                    ),
-                    "items": topic,
-                    "minItems": topic_count,
-                    "maxItems": topic_count,
-                }
-            },
-            "required": ["topics"],
-            "additionalProperties": False,
-        }
+        topics[section.name] = _array_schema(
+            f"Exactly {topic_count} prose entries, in frozen evidence order.",
+            _object_schema(
+                {"headline": _text_property(300), "summary": _text_property(1_500)},
+                ["headline", "summary"],
+            ),
+            topic_count,
+            topic_count,
+        )
         if section.excluded_stories:
-            accountable.append(section.name)
             excluded_count = len(selection["excluded_topics"][section.name])
-            excluded_properties[section.name] = {
-                "type": "array",
-                "description": (
-                    f"Exactly {excluded_count} exclusion explanations, in frozen evidence order."
+            excluded[section.name] = _array_schema(
+                f"Exactly {excluded_count} exclusion explanations, in frozen evidence order.",
+                _object_schema(
+                    {"headline": _text_property(300), "reason": _text_property(600)},
+                    ["headline", "reason"],
                 ),
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "headline": _text_property(300),
-                        "reason": _text_property(600),
-                    },
-                    "required": ["headline", "reason"],
-                    "additionalProperties": False,
-                },
-                "minItems": excluded_count,
-                "maxItems": excluded_count,
-            }
-    return {
-        "type": "object",
-        "properties": {
-            "schema_version": {"type": "integer", "minimum": 1, "maximum": 1},
-            "sections": {
-                "type": "object",
-                "properties": section_properties,
-                "required": [section.name for section in config.sections],
-                "additionalProperties": False,
-            },
-            "excluded_topics": {
-                "type": "object",
-                "properties": excluded_properties,
-                "required": accountable,
-                "additionalProperties": False,
-            },
-        },
-        "required": ["schema_version", "sections", "excluded_topics"],
-        "additionalProperties": False,
-    }
+                excluded_count,
+                excluded_count,
+            )
+    return _schema_envelope(config, topics, excluded)
 
 
 REPAIRABLE_CHECKS = frozenset({
@@ -907,51 +864,113 @@ _CollectionHook = Callable[
 ]
 
 
-def _walk_entries(
-    sections: dict[str, Any],
-    excluded_topics: dict[str, Any],
+_EntryCheck = Callable[[briefing_config.BriefingSection, Any, str, bool], None]
+
+
+def _validate_structure(
+    value: Any,
     config: briefing_config.BriefingConfig,
     findings: list[OutputFinding],
     *,
-    section_prefix: str,
-    topics_prefix: str,
-    excluded_prefix: str,
+    prefix: str,
     collection_hook: _CollectionHook,
-) -> Iterator[tuple[briefing_config.BriefingSection, int, Any, str, bool]]:
-    """Walk included entries first, then exclusions, preserving finding order."""
+    check_entry: _EntryCheck,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Check the root envelope, then pass each entry to ``check_entry``.
+
+    ``prefix`` names the candidate in finding paths: ``selection``, ``prose``,
+    or empty for the completed output. Included stories outrank
+    accountability-log entries globally, so every section's topics are walked
+    before any exclusion and correction findings identify the exclusion to move.
+    Returns the parsed ``sections`` and ``excluded_topics`` when both are objects.
+    """
+    dot = f"{prefix}." if prefix else ""
+    root = _object_fields(
+        value,
+        required={"schema_version", "sections", "excluded_topics"},
+        where=prefix or "output",
+        findings=findings,
+    )
+    if root is None:
+        return None
+    if root.get("schema_version") != 1:
+        findings.append(OutputFinding(
+            "ERROR", "structured_schema_version", f"{dot}schema_version must be 1"
+        ))
+    sections = _object_fields(
+        root.get("sections"),
+        required={section.name for section in config.sections},
+        where=f"{dot}sections",
+        findings=findings,
+    )
+    accountable = {section.name for section in config.sections if section.excluded_stories}
+    excluded_topics = _object_fields(
+        root.get("excluded_topics"),
+        required=accountable,
+        where=f"{dot}excluded_topics",
+        findings=findings,
+    )
+    if sections is None or excluded_topics is None:
+        return None
+
+    def walk(
+        entries: Any,
+        section: briefing_config.BriefingSection,
+        excluded: bool,
+        where: str,
+    ) -> None:
+        if not isinstance(entries, list):
+            findings.append(OutputFinding(
+                "ERROR", "structured_type", f"{where} must be an array"
+            ))
+            return
+        collection_hook(section, entries, excluded, where, findings)
+        for index, entry in enumerate(entries):
+            check_entry(section, entry, f"{where}[{index}]", excluded)
+
     for section in config.sections:
         parsed_section = _object_fields(
             sections.get(section.name),
             required={"topics"},
-            where=f"{section_prefix}.{section.name}",
+            where=f"{dot}sections.{section.name}",
             findings=findings,
         )
-        if parsed_section is None:
-            continue
-        entries = parsed_section.get("topics")
-        where = f"{topics_prefix}.{section.name}"
-        if not isinstance(entries, list):
-            findings.append(OutputFinding(
-                "ERROR", "structured_type", f"{where} must be an array"
-            ))
-            continue
-        collection_hook(section, entries, False, where, findings)
-        for index, entry in enumerate(entries):
-            yield section, index, entry, f"{where}[{index}]", False
-
+        if parsed_section is not None:
+            walk(parsed_section.get("topics"), section, False, f"{dot}topics.{section.name}")
     for section in config.sections:
-        if not section.excluded_stories:
-            continue
-        entries = excluded_topics.get(section.name)
-        where = f"{excluded_prefix}.{section.name}"
-        if not isinstance(entries, list):
-            findings.append(OutputFinding(
-                "ERROR", "structured_type", f"{where} must be an array"
-            ))
-            continue
-        collection_hook(section, entries, True, where, findings)
-        for index, entry in enumerate(entries):
-            yield section, index, entry, f"{where}[{index}]", True
+        if section.excluded_stories:
+            walk(
+                excluded_topics.get(section.name),
+                section,
+                True,
+                f"{dot}excluded_topics.{section.name}",
+            )
+    return sections, excluded_topics
+
+
+def _prose_fields(excluded: bool) -> set[str]:
+    return {"headline", "reason" if excluded else "summary"}
+
+
+def _check_prose(
+    parsed: dict[str, Any],
+    entry_where: str,
+    excluded: bool,
+    findings: list[OutputFinding],
+) -> None:
+    _text(
+        parsed.get("headline"),
+        where=f"{entry_where}.headline",
+        maximum=300,
+        findings=findings,
+    )
+    prose_key = "reason" if excluded else "summary"
+    _text(
+        parsed.get(prose_key),
+        where=f"{entry_where}.{prose_key}",
+        maximum=600 if excluded else 1_500,
+        findings=findings,
+    )
 
 
 def _validate_citation_refs(
@@ -1080,45 +1099,14 @@ def validate_selection(
 ) -> list[OutputFinding]:
     """Validate the first pass without accepting any model-authored prose."""
     findings: list[OutputFinding] = []
-    root = _object_fields(
-        selection,
-        required={"schema_version", "sections", "excluded_topics"},
-        where="selection",
-        findings=findings,
-    )
-    if root is None:
-        return findings
-    if root.get("schema_version") != 1:
-        findings.append(OutputFinding(
-            "ERROR", "structured_schema_version", "selection.schema_version must be 1"
-        ))
-    sections = _object_fields(
-        root.get("sections"),
-        required={section.name for section in config.sections},
-        where="selection.sections",
-        findings=findings,
-    )
-    accountable = {section.name for section in config.sections if section.excluded_stories}
-    excluded_topics = _object_fields(
-        root.get("excluded_topics"),
-        required=accountable,
-        where="selection.excluded_topics",
-        findings=findings,
-    )
-    if sections is None or excluded_topics is None:
-        return findings
-
     used_items: dict[str, str] = {}
-    for section, _index, entry, entry_where, _excluded in _walk_entries(
-        sections,
-        excluded_topics,
-        config,
-        findings,
-        section_prefix="selection.sections",
-        topics_prefix="selection.topics",
-        excluded_prefix="selection.excluded_topics",
-        collection_hook=_limit_collection,
-    ):
+
+    def check_entry(
+        section: briefing_config.BriefingSection,
+        entry: Any,
+        entry_where: str,
+        _excluded: bool,
+    ) -> None:
         parsed = _object_fields(
             entry,
             required={"citation_refs"},
@@ -1129,10 +1117,17 @@ def validate_selection(
             _validate_citation_refs(
                 parsed, section, entry_where, citations, used_items, findings
             )
-    if not any(finding.level == "ERROR" for finding in findings):
-        findings.extend(
-            _check_exclusion_log_selection(sections, excluded_topics, config, citations)
-        )
+
+    parsed = _validate_structure(
+        selection,
+        config,
+        findings,
+        prefix="selection",
+        collection_hook=_limit_collection,
+        check_entry=check_entry,
+    )
+    if parsed is not None and not any(finding.level == "ERROR" for finding in findings):
+        findings.extend(_check_exclusion_log_selection(*parsed, config, citations))
     return findings
 
 
@@ -1143,33 +1138,6 @@ def validate_prose_output(
 ) -> list[OutputFinding]:
     """Validate prose-only output against frozen entry counts and positions."""
     findings: list[OutputFinding] = []
-    root = _object_fields(
-        prose,
-        required={"schema_version", "sections", "excluded_topics"},
-        where="prose",
-        findings=findings,
-    )
-    if root is None:
-        return findings
-    if root.get("schema_version") != 1:
-        findings.append(OutputFinding(
-            "ERROR", "structured_schema_version", "prose.schema_version must be 1"
-        ))
-    sections = _object_fields(
-        root.get("sections"),
-        required={section.name for section in config.sections},
-        where="prose.sections",
-        findings=findings,
-    )
-    accountable = {section.name for section in config.sections if section.excluded_stories}
-    excluded_topics = _object_fields(
-        root.get("excluded_topics"),
-        required=accountable,
-        where="prose.excluded_topics",
-        findings=findings,
-    )
-    if sections is None or excluded_topics is None:
-        return findings
 
     def check_frozen_count(
         section: briefing_config.BriefingSection,
@@ -1190,38 +1158,29 @@ def validate_prose_output(
                 f"{where} has {len(entries)} entries; frozen selection requires {expected}",
             ))
 
-    for _section, _index, entry, entry_where, excluded in _walk_entries(
-        sections,
-        excluded_topics,
-        config,
-        findings,
-        section_prefix="prose.sections",
-        topics_prefix="prose.topics",
-        excluded_prefix="prose.excluded_topics",
-        collection_hook=check_frozen_count,
-    ):
-        required = {"headline", "reason"} if excluded else {"headline", "summary"}
+    def check_entry(
+        _section: briefing_config.BriefingSection,
+        entry: Any,
+        entry_where: str,
+        excluded: bool,
+    ) -> None:
         parsed = _object_fields(
             entry,
-            required=required,
+            required=_prose_fields(excluded),
             where=entry_where,
             findings=findings,
         )
-        if parsed is None:
-            continue
-        _text(
-            parsed.get("headline"),
-            where=f"{entry_where}.headline",
-            maximum=300,
-            findings=findings,
-        )
-        prose_key = "reason" if excluded else "summary"
-        _text(
-            parsed.get(prose_key),
-            where=f"{entry_where}.{prose_key}",
-            maximum=600 if excluded else 1_500,
-            findings=findings,
-        )
+        if parsed is not None:
+            _check_prose(parsed, entry_where, excluded, findings)
+
+    _validate_structure(
+        prose,
+        config,
+        findings,
+        prefix="prose",
+        collection_hook=check_frozen_count,
+        check_entry=check_entry,
+    )
     return findings
 
 
@@ -1324,69 +1283,35 @@ def validate_output(
 ) -> list[OutputFinding]:
     """Independently validate the owned structured-output contract."""
     findings: list[OutputFinding] = []
-    root = _object_fields(
-        output,
-        required={"schema_version", "sections", "excluded_topics"},
-        where="output",
-        findings=findings,
-    )
-    if root is None:
-        return findings
-    if root.get("schema_version") != 1:
-        findings.append(OutputFinding("ERROR", "structured_schema_version", "schema_version must be 1"))
-    sections = _object_fields(
-        root.get("sections"),
-        required={section.name for section in config.sections},
-        where="sections",
-        findings=findings,
-    )
-    accountable = {section.name for section in config.sections if section.excluded_stories}
-    excluded_topics = _object_fields(
-        root.get("excluded_topics"),
-        required=accountable,
-        where="excluded_topics",
-        findings=findings,
-    )
-    if sections is None or excluded_topics is None:
-        return findings
-
     used_items: dict[str, str] = {}
-    # Included stories outrank accountability-log entries globally. The walker
-    # preserves that order so correction findings identify the exclusion to move.
-    for section, _index, entry, entry_where, excluded in _walk_entries(
-        sections,
-        excluded_topics,
-        config,
-        findings,
-        section_prefix="sections",
-        topics_prefix="topics",
-        excluded_prefix="excluded_topics",
-        collection_hook=_limit_collection,
-    ):
-        required = {"headline", "reason", "citation_refs"} if excluded else {
-            "headline", "summary", "citation_refs"
-        }
+
+    def check_entry(
+        section: briefing_config.BriefingSection,
+        entry: Any,
+        entry_where: str,
+        excluded: bool,
+    ) -> None:
         parsed = _object_fields(
-            entry, required=required, where=entry_where, findings=findings
+            entry,
+            required=_prose_fields(excluded) | {"citation_refs"},
+            where=entry_where,
+            findings=findings,
         )
         if parsed is None:
-            continue
-        _text(
-            parsed.get("headline"),
-            where=f"{entry_where}.headline",
-            maximum=300,
-            findings=findings,
-        )
-        prose_key = "reason" if excluded else "summary"
-        _text(
-            parsed.get(prose_key),
-            where=f"{entry_where}.{prose_key}",
-            maximum=600 if excluded else 1_500,
-            findings=findings,
-        )
+            return
+        _check_prose(parsed, entry_where, excluded, findings)
         _validate_citation_refs(
             parsed, section, entry_where, citations, used_items, findings
         )
+
+    _validate_structure(
+        output,
+        config,
+        findings,
+        prefix="",
+        collection_hook=_limit_collection,
+        check_entry=check_entry,
+    )
     return findings
 
 
