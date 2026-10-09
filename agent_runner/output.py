@@ -88,13 +88,14 @@ def _redact_strings(value: Any, text: Callable[[str], str], key_error: str | Non
     if isinstance(value, dict):
         redacted: dict[Any, Any] = {}
         for index, (key, item) in enumerate(value.items()):
+            rendered_key = key
             if key_error is None:
-                key = text(key) if isinstance(key, str) else str(key)
-                if key in redacted:
-                    key = f"{key} [duplicate key {index}]"
+                rendered_key = text(key) if isinstance(key, str) else str(key)
+                if rendered_key in redacted:
+                    rendered_key = f"{rendered_key} [duplicate key {index}]"
             elif isinstance(key, str) and text(key) != key:
                 raise ValueError(key_error)
-            redacted[key] = _redact_strings(item, text, key_error)
+            redacted[rendered_key] = _redact_strings(item, text, key_error)
         return redacted
     return value
 
