@@ -17,24 +17,18 @@ from agent_runner.runner import build_request as structured_model_request
 from agent_runner.runner import prompt_policy
 from agent_runner.stages import CorrectionBudget, correction_action
 
-from evaluator import cases as cases_module
-from evaluator import checkpoint as checkpoint_module
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
     CIRCUIT_BREAKER_THRESHOLD,
     RunState,
-    _has_execution_errors,
-    _load_resume_manifest,
     _prepare_artifact_dir,
     _provider_error,
     _reconstruct_failure_state,
     _write_json_atomic,
     _write_text_atomic,
-    initialize_run,
 )
 from evaluator.parity import (
     GenerationAttempt,
-    _ProductionParityAttempt,
     _ProductionParityProviderError,
     _reported_generation_cost,
     _reported_stage_cost,
@@ -52,9 +46,7 @@ from evaluator.plan import (
     _result_key,
     _safe_artifact_key,
     _set_source_failures,
-    resolve_evaluation_plan,
 )
-from evaluator.report import finalize_run_report
 from evaluator.scoring import (
     ScoredAttempt,
     _adjudication_template,
@@ -64,10 +56,6 @@ from evaluator.scoring import (
     score_attempt,
 )
 
-EVALUATOR_DIR = Path(__file__).resolve().parent
-DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases-v9.json"
-DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
-DEFAULT_PROTOCOL = EVALUATOR_DIR / "protocols" / "parity-v1.json"
 ProgressCallback = Callable[[str, str, int, int, str], None]
 Checkpoint = Callable[[dict[str, Any], Path], dict[str, Any]]
 
@@ -229,7 +217,7 @@ def _unwrap_provider_failure(
 ) -> tuple[
     Exception,
     list[tuple[str, Generation]],
-    _ProductionParityAttempt | None,
+    GenerationAttempt | None,
 ]:
     if isinstance(exc, _ProductionParityProviderError):
         return exc.cause, exc.completed_calls, exc.partial_attempt
@@ -298,8 +286,7 @@ def _run_correction(
         corrected = run_correction_attempt(
             adapter=context.adapter,
             prior=first_attempt,
-            request=context.request,
-            findings=[finding._asdict() for finding in first.findings],
+            selection_request=context.request,
             selection_schema=context.selection_schema,
             policy=context.prompt,
             config_data=context.config_data,
@@ -331,9 +318,7 @@ def _write_completed_artifacts(
 ) -> tuple[dict[str, Any], str | None]:
     _write_text_atomic(context.case_dir / "first.md", first.text)
     _write_text_atomic(context.case_dir / "final.md", final.text)
-    _write_production_attempt_artifacts(
-        context.case_dir, "final", final_attempt.parity
-    )
+    _write_production_attempt_artifacts(context.case_dir, "final", final_attempt)
     _write_json_atomic(
         context.case_dir / "first-structured.json",
         first_attempt.generation.structured_output,
@@ -394,7 +379,7 @@ def _run_case_trial(
     try:
         first_attempt = run_first_attempt(
             adapter=context.adapter,
-            request=context.request,
+            selection_request=context.request,
             selection_schema=context.selection_schema,
             policy=context.prompt,
             config_data=context.config_data,
@@ -425,9 +410,7 @@ def _run_case_trial(
             state.observed_ceiling_cost_usd
             + _reported_generation_cost(first_attempt.generation),
         )
-    _write_production_attempt_artifacts(
-        context.case_dir, "first", first_attempt.parity
-    )
+    _write_production_attempt_artifacts(context.case_dir, "first", first_attempt)
     first = score_attempt(context.case, context.corpus, context.config, first_attempt)
     corrected_attempt, correction_error = _run_correction(
         context, state, options, first_attempt, first
@@ -545,89 +528,3 @@ def _run_adapter(
                 status,
             )
     return None
-
-
-def execute_evaluation(
-    adapters: list[Adapter],
-    prompt_versions: dict[str, Path],
-    output_dir: Path,
-    trials: int = 1,
-    suite_path: Path = DEFAULT_SUITE,
-    corpus_path: Path = DEFAULT_CORPUS,
-    progress: ProgressCallback | None = None,
-    *,
-    protocol_path: Path = DEFAULT_PROTOCOL,
-    run_kind: str = "development",
-    execution_seed: int | None = None,
-    cost_ceiling_usd: float | None = None,
-    cost_ceiling_provider: str | None = None,
-    resume: bool = False,
-    source_provenance: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    # evaluator.runner imports this module, so it is imported here to avoid a cycle.
-    from evaluator import runner as runner_module
-
-    if trials <= 0:
-        raise ValueError("trials must be positive")
-    if run_kind not in {"development", "pilot", "final"}:
-        raise ValueError("run_kind must be development, pilot, or final")
-    resume_manifest = _load_resume_manifest(output_dir) if resume else None
-    plan = resolve_evaluation_plan(
-        adapters=adapters,
-        prompt_versions=prompt_versions,
-        trials=trials,
-        suite_path=suite_path,
-        corpus_path=corpus_path,
-        protocol_path=protocol_path,
-        run_kind=run_kind,
-        execution_seed=execution_seed,
-        cost_ceiling_usd=cost_ceiling_usd,
-        cost_ceiling_provider=cost_ceiling_provider,
-        resume_manifest=resume_manifest,
-        source_provenance=source_provenance,
-        provenance=runner_module._git_provenance,
-        circuit_breaker_threshold=CIRCUIT_BREAKER_THRESHOLD,
-    )
-    state = initialize_run(
-        plan=plan,
-        adapters=adapters,
-        output_dir=output_dir,
-        resume_manifest=resume_manifest,
-        suite_path=suite_path,
-        protocol_path=protocol_path,
-        run_kind=run_kind,
-        cost_ceiling_usd=cost_ceiling_usd,
-        cost_ceiling_provider=cost_ceiling_provider,
-        checkpoint=checkpoint_module._checkpoint,
-        deterministic_suite=cases_module.run_deterministic_suite,
-    )
-    if state.completed_report is not None:
-        return state.completed_report
-    options = ExecutionOptions(
-        output_dir,
-        suite_path,
-        corpus_path,
-        cost_ceiling_usd,
-        cost_ceiling_provider,
-        resume_manifest is not None,
-        checkpoint_module._checkpoint,
-    )
-    model_total = len(prompt_versions) * plan.case_trial_units * trials
-    for adapter, adapter_plan in plan.execution_plans:
-        completed = _run_adapter(
-            adapter=adapter,
-            adapter_plan=adapter_plan,
-            plan=plan,
-            state=state,
-            options=options,
-            progress=progress,
-            model_total=model_total,
-        )
-        if completed is not None:
-            return completed
-    return finalize_run_report(
-        state.manifest,
-        output_dir,
-        checkpoint_module._checkpoint,
-        has_errors=_has_execution_errors(state.results),
-    )

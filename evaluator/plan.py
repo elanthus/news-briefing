@@ -113,26 +113,28 @@ def _mutate(target: dict[str, Any], mutations: list[dict[str, Any]]) -> None:
             raise ValueError(f"mutation {index} path does not exist: {rendered}") from exc
 
 
+def _checked_relocation(relocation: Any, label: str) -> tuple[list[Any], int, int, int]:
+    """Return a relocation's path, from, to, and count, or raise naming ``label``."""
+    if not isinstance(relocation, dict) or set(relocation) != {"path", "from", "to", "count"}:
+        raise ValueError(f"{label} must contain exactly path, from, to, and count")
+    path = relocation["path"]
+    if not isinstance(path, list) or not path:
+        raise ValueError(f"{label} path must be a non-empty array")
+    values = (relocation["from"], relocation["to"], relocation["count"])
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
+        raise ValueError(f"{label} from, to, and count must be integers")
+    source, destination, count = values
+    if source < 0 or destination < 0 or count <= 0:
+        raise ValueError(f"{label} from/to must be non-negative and count must be positive")
+    return path, source, destination, count
+
+
 def _relocate(target: dict[str, Any], relocations: list[dict[str, Any]]) -> None:
     """Move list slices to final serialized positions before applying mutations."""
     for index, relocation in enumerate(relocations):
-        if not isinstance(relocation, dict):
-            raise ValueError(f"corpus relocation {index} must be an object")
-        if set(relocation) != {"path", "from", "to", "count"}:
-            raise ValueError(
-                f"corpus relocation {index} must contain exactly path, from, to, and count"
-            )
-        path = relocation["path"]
-        if not isinstance(path, list) or not path:
-            raise ValueError(f"corpus relocation {index} path must be a non-empty array")
-        values = (relocation["from"], relocation["to"], relocation["count"])
-        if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
-            raise ValueError(f"corpus relocation {index} from, to, and count must be integers")
-        source, destination, count = values
-        if source < 0 or destination < 0 or count <= 0:
-            raise ValueError(
-                f"corpus relocation {index} from/to must be non-negative and count must be positive"
-            )
+        path, source, destination, count = _checked_relocation(
+            relocation, f"corpus relocation {index}"
+        )
         cursor: Any = target
         try:
             for part in path:
@@ -199,26 +201,7 @@ def _validate_generation_case(case: dict[str, Any]) -> None:
     if not isinstance(relocations, list):
         raise ValueError(f"case {case_id} corpus_relocations must be an array")
     for index, relocation in enumerate(relocations):
-        if not isinstance(relocation, dict) or set(relocation) != {"path", "from", "to", "count"}:
-            raise ValueError(
-                f"case {case_id} corpus_relocations[{index}] must contain exactly "
-                "path, from, to, and count"
-            )
-        path = relocation["path"]
-        if not isinstance(path, list) or not path:
-            raise ValueError(
-                f"case {case_id} corpus_relocations[{index}] path must be a non-empty array"
-            )
-        values = (relocation["from"], relocation["to"], relocation["count"])
-        if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
-            raise ValueError(
-                f"case {case_id} corpus_relocations[{index}] from, to, and count must be integers"
-            )
-        if relocation["from"] < 0 or relocation["to"] < 0 or relocation["count"] <= 0:
-            raise ValueError(
-                f"case {case_id} corpus_relocations[{index}] from/to must be non-negative "
-                "and count must be positive"
-            )
+        _checked_relocation(relocation, f"case {case_id} corpus_relocations[{index}]")
     list_fields = (
         "forbidden_substrings",
         "success_if_checks",
@@ -419,16 +402,12 @@ def _attack_dimensions(case_id: str) -> tuple[str, str]:
 def _validate_run_inputs(
     adapters: list[Adapter],
     prompt_versions: dict[str, Path],
-    trials: int,
     run_kind: str,
     execution_seed: int | None,
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
 ) -> None:
-    if trials <= 0:
-        raise ValueError("trials must be positive")
-    if run_kind not in {"development", "pilot", "final"}:
-        raise ValueError("run_kind must be development, pilot, or final")
+    """Check the run options that resolve_evaluation_plan does not take as given."""
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
     if execution_seed is not None and (
@@ -632,9 +611,16 @@ def resolve_evaluation_plan(
     provenance: Callable[[], dict[str, Any]],
     circuit_breaker_threshold: int,
 ) -> EvaluationPlan:
+    """Validate the suite and run options, then fix the trial order and run identity.
+
+    Precondition: ``trials`` is positive and ``run_kind`` is development, pilot,
+    or final. ``run_evaluation``, the only caller, checks both before it reads a
+    resume manifest, so bad options fail before resume-manifest errors; checking
+    them here instead would reverse that order.
+    """
     execution_seed = _resolve_execution_seed(run_kind, execution_seed, resume_manifest)
     _validate_run_inputs(
-        adapters, prompt_versions, trials, run_kind,
+        adapters, prompt_versions, run_kind,
         execution_seed, cost_ceiling_usd, cost_ceiling_provider,
     )
     suite = _load_generation_suite(suite_path)
