@@ -1,6 +1,7 @@
 """Code-owned integrity summaries derived from verified private artifacts."""
 from __future__ import annotations
 
+import contextlib
 import copy
 import json
 import re
@@ -28,25 +29,36 @@ def _bound_bytes(run: Path, manifest: dict[str, Any], name: Any) -> bytes:
     return raw
 
 
-def run_provenance(run: Path, *, attempt_index: int = 1, attempt_count: int = 1) -> dict[str, Any] | None:
-    manifest = _read_json(run / "manifest.json")[0]
+def run_provenance(manifest: dict[str, Any], *, attempt_index: int = 1,
+                   attempt_count: int = 1) -> dict[str, Any] | None:
+    """Model identity and correction/repair counts from a run manifest.
+
+    Counts come only from each attempt's ``kind`` and ``repair_actions``, never
+    from prompt, corpus, or model text. ``selection_promotion`` is not a repair:
+    filling a reserved slot from the accountability log is routine editorial
+    bookkeeping. ``None`` when the manifest predates recorded provider identity,
+    the prompt hash, or attempts, so an older run still publishes without
+    provenance. A recorded identity that fails ``parse_provenance`` raises
+    ``ValueError``. Non-object attempts and non-list ``repair_actions`` are skipped.
+    """
     provider, identity = manifest.get("provider"), manifest.get("identity")
-    attempts = manifest.get("attempts", [])
-    if not isinstance(provider, dict) or not isinstance(identity, dict):
+    attempts = manifest.get("attempts")
+    if not isinstance(provider, dict) or not isinstance(identity, dict) or not isinstance(attempts, list):
         return None
-    try:
-        parsed = parse_provenance({
-            "provider": provider["provider"], "model": provider["model"],
-            "attempt_index": attempt_index, "attempt_count": attempt_count,
-            "selection_corrections": sum(a.get("kind") == "selection_correction" for a in attempts),
-            "prose_corrections": sum(a.get("kind") == "correction" for a in attempts),
-            "repair_action_count": sum(len(a.get("repair_actions", [])) for a in attempts
-                                       if a.get("kind") in {"selection_repair", "deterministic_repair"}),
-            "prompt_sha256": identity["prompt_sha256"],
-        })
-        return provenance_payload(parsed) if parsed is not None else None
-    except (ValueError, KeyError, TypeError):
+    fields = {"provider": provider.get("provider"), "model": provider.get("model"),
+              "prompt_sha256": identity.get("prompt_sha256")}
+    if not all(isinstance(value, str) for value in fields.values()):
         return None
+    rows = [a for a in attempts if isinstance(a, dict)]
+    parsed = parse_provenance({
+        **fields, "attempt_index": attempt_index, "attempt_count": attempt_count,
+        "selection_corrections": sum(a.get("kind") == "selection_correction" for a in rows),
+        "prose_corrections": sum(a.get("kind") == "correction" for a in rows),
+        "repair_action_count": sum(len(a["repair_actions"]) for a in rows
+                                   if a.get("kind") in {"selection_repair", "deterministic_repair"}
+                                   and isinstance(a.get("repair_actions"), list)),
+    })
+    return provenance_payload(parsed) if parsed is not None else None
 
 
 def blank_integrity(decision: str, reasons: list[str]) -> dict[str, Any]:
@@ -177,7 +189,8 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
         repaired = destination / "repair" / "run"
         repaired_manifest = _read_json(repaired / "manifest.json")[0]
         if any(c["status"] != "code_preserved" for c in calls):
-            record["repair_generation"] = run_provenance(repaired)
+            with contextlib.suppress(ValueError):  # malformed identity: no repair_generation
+                record["repair_generation"] = run_provenance(repaired_manifest)
         if changed:
             record["artifacts"].append({"id": "candidate", "sha256": sha256_bytes(
                 _bound_bytes(repaired, repaired_manifest, "final.md"))})

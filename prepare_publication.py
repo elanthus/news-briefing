@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -19,19 +19,17 @@ from agent_runner.integrity import (
     blank_integrity,
     corpus_health,
     generation_history,
+    run_provenance,
 )
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
-from agent_runner.publication import resolve_publication_run, selected_generation_run
+from agent_runner.publication import resolve_publication_run
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
-    FINDING_FIELDS,
     Provenance,
     ReviewContext,
     ReviewFinding,
-    finding_has_fields,
-    finding_level_is_valid,
     finding_payload,
-    finding_strings_are_valid,
+    parse_finding,
     parse_integrity,
     parse_provenance,
     parse_repair_actions,
@@ -85,35 +83,15 @@ def _load_json(path: Path) -> object | None:
         return None
 
 
-_selected_generation_run = selected_generation_run
-
-
-def _is_valid_review_finding(raw: object) -> bool:
-    """Apply the per-row checks that ``_review_findings`` requires of every row."""
-    return (
-        finding_has_fields(raw, {frozenset(FINDING_FIELDS)})
-        and isinstance(raw, dict)
-        and finding_strings_are_valid(raw)
-        and finding_level_is_valid(raw)
-    )
-
-
 def _review_findings(raw_findings: object) -> tuple[ReviewFinding, ...] | None:
     if not isinstance(raw_findings, list) or not raw_findings:
         return None
     findings: list[ReviewFinding] = []
     for raw in raw_findings:
-        if not _is_valid_review_finding(raw):
+        finding = parse_finding(raw, require_context=False)
+        if finding is None:
             return None
-        assert isinstance(raw, dict)
-        findings.append(
-            ReviewFinding(
-                level=raw["level"],
-                check=raw["check"],
-                domain=raw["domain"],
-                message=raw["message"],
-            )
-        )
+        findings.append(finding)
     return tuple(findings)
 
 
@@ -126,7 +104,8 @@ def _actionable_finding_count(raw_findings: list[object]) -> int:
     return sum(
         1
         for finding in raw_findings
-        if _is_valid_review_finding(finding) and is_actionable_finding(finding)
+        if parse_finding(finding, require_context=False) is not None
+        and is_actionable_finding(finding)
     )
 
 
@@ -218,85 +197,6 @@ def _chain_attempt_span(run_dir: Path, selected_dir_name: str) -> tuple[int, int
     return 1, attempt_count
 
 
-def _correction_and_repair_counts(attempts: list[Any]) -> tuple[int, int, int]:
-    """Count selection corrections, prose corrections, and repair actions.
-
-    Sourced entirely from ``attempt["kind"]`` and ``attempt["repair_actions"]``
-    already recorded by the runner (agent_runner/runner.py): model identifiers
-    and counts only, never the prompt, corpus, or model text those attempts
-    carry.
-    """
-    selection_corrections = 0
-    prose_corrections = 0
-    repair_action_count = 0
-    for attempt in attempts:
-        if not isinstance(attempt, dict):
-            continue
-        kind = attempt.get("kind")
-        if kind == "selection_correction":
-            selection_corrections += 1
-        elif kind == "correction":
-            prose_corrections += 1
-        # ``selection_promotion`` is deliberately absent: filling a reserved
-        # slot from the accountability log is routine editorial bookkeeping,
-        # not evidence the run had to be patched, and counting it here would
-        # tell a reader the opposite.
-        elif kind in {"deterministic_repair", "selection_repair"}:
-            actions = attempt.get("repair_actions")
-            if isinstance(actions, list):
-                repair_action_count += len(actions)
-    return selection_corrections, prose_corrections, repair_action_count
-
-
-def _provenance(
-    run_dir: Path,
-    generation_run_dir: Path,
-    manifest: dict[str, Any],
-) -> Provenance | None:
-    """Derive publication provenance from the code-owned manifest and chain log.
-
-    Returns ``None`` when the manifest predates recorded provider identity or
-    the runner prompt hash, so an older run still publishes and renders
-    without a provenance object.
-    """
-    provider_info = manifest.get("provider")
-    identity = manifest.get("identity")
-    attempts = manifest.get("attempts")
-    if not isinstance(provider_info, dict) or not isinstance(identity, dict):
-        return None
-    provider = provider_info.get("provider")
-    model = provider_info.get("model")
-    prompt_sha256 = identity.get("prompt_sha256")
-    if (
-        not isinstance(provider, str)
-        or not isinstance(model, str)
-        or not isinstance(prompt_sha256, str)
-        or not isinstance(attempts, list)
-    ):
-        return None
-    attempt_index, attempt_count = _chain_attempt_span(run_dir, generation_run_dir.name)
-    selection_corrections, prose_corrections, repair_action_count = (
-        _correction_and_repair_counts(attempts)
-    )
-    try:
-        return parse_provenance({
-            "provider": provider,
-            "model": model,
-            "attempt_index": attempt_index,
-            "attempt_count": attempt_count,
-            "selection_corrections": selection_corrections,
-            "prose_corrections": prose_corrections,
-            "repair_action_count": repair_action_count,
-            "prompt_sha256": prompt_sha256,
-        })
-    except ValueError as exc:
-        print(
-            f"warning: {generation_run_dir} provenance not published: {exc}",
-            file=sys.stderr,
-        )
-        return None
-
-
 def _review_context(
     finding: ReviewFinding,
     output: dict[str, Any],
@@ -368,20 +268,7 @@ def _attach_review_context(
 ) -> tuple[ReviewFinding, ...]:
     if output is None:
         return findings
-    return tuple(
-        ReviewFinding(
-            level=finding.level,
-            check=finding.check,
-            domain=finding.domain,
-            message=finding.message,
-            section=context.section if context is not None else None,
-            headline=context.headline if context is not None else None,
-            model_authored=context.model_authored if context is not None else None,
-            path=context.path if context is not None else None,
-        )
-        for finding in findings
-        for context in [_review_context(finding, output)]
-    )
+    return tuple(replace(finding, context=_review_context(finding, output)) for finding in findings)
 
 
 def _bound_artifact(run_dir: Path, manifest: dict[str, Any], final: dict[str, Any], status: str) -> bytes | None:
@@ -443,9 +330,9 @@ def prepare_publication(
     provenance: Provenance | None = None
     public_content: bytes | None = None
 
-    semantic_audit: dict[str, Any] | None = None
-    original_generation_dir = _selected_generation_run(run_dir)
-    semantic_audit, generation_run_dir = resolve_publication_run(run_dir)
+    semantic_audit, generation_run_dir, original_generation_dir = resolve_publication_run(run_dir)
+    original_manifest = (_load_json(original_generation_dir / "manifest.json")
+                         if original_generation_dir is not None else None)
     audit_present = (run_dir / "jev-review" / "audit.json").is_file()
     manifest = (
         _load_json(generation_run_dir / "manifest.json")
@@ -501,10 +388,15 @@ def prepare_publication(
                     # with a public artifact; non-public dispositions keep the
                     # minimal-metadata contract.
                     repair_actions = _extract_repair_actions(manifest, final)
-                    original_manifest = (_load_json(original_generation_dir / "manifest.json")
-                                         if original_generation_dir is not None else None)
                     if original_generation_dir is not None and isinstance(original_manifest, dict):
-                        provenance = _provenance(run_dir, original_generation_dir, original_manifest)
+                        attempt_index, attempt_count = _chain_attempt_span(
+                            run_dir, original_generation_dir.name)
+                        try:
+                            provenance = parse_provenance(run_provenance(
+                                original_manifest, attempt_index=attempt_index, attempt_count=attempt_count))
+                        except ValueError as exc:
+                            print(f"warning: {original_generation_dir} provenance not published: {exc}",
+                                  file=sys.stderr)
                     public_content = _bound_artifact(
                         generation_run_dir, manifest, final, disposition
                     )
@@ -543,7 +435,6 @@ def prepare_publication(
             digest = hashlib.sha256(public_content).hexdigest()
             original_digest = digest
             if original_generation_dir is not None and generation_run_dir != original_generation_dir:
-                original_manifest = _load_json(original_generation_dir / "manifest.json")
                 original_content = (_bound_artifact(original_generation_dir, original_manifest,
                                     original_manifest["final"], "ready")
                                     if isinstance(original_manifest, dict) else None)
@@ -565,8 +456,7 @@ def prepare_publication(
     integrity["workflow_run_id"] = (workflow_run_id if type(workflow_run_id) is int
                                     and 1 <= workflow_run_id <= 10**18 else None)
     verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
-                       if original_generation_dir is not None and isinstance(
-                           original_manifest := _load_json(original_generation_dir / "manifest.json"), dict) else None)
+                       if original_generation_dir is not None and isinstance(original_manifest, dict) else None)
     integrity["corpus_health"] = corpus_health(verified_corpus)
     verified_integrity = (None if legacy_semantic else parse_integrity(
         integrity, semantic_audit=semantic_audit if public_content is not None else None, disposition=disposition))

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any, Literal
 
 import briefing_config
@@ -19,15 +18,7 @@ from agent_runner.output import (
     validate_selection,
 )
 
-
-@dataclass(frozen=True)
-class DeterministicRepairResult:
-    """A candidate repaired by the shared production/evaluator policy."""
-
-    output: dict[str, Any]
-    actions: list[dict[str, str]]
-
-
+RepairKind = Literal["selection_promotion", "selection_repair", "deterministic_repair"]
 SELECTION_PROMOTION_KIND: Literal["selection_promotion"] = "selection_promotion"
 SELECTION_ATTEMPT_KINDS = frozenset({
     "selection",
@@ -42,7 +33,7 @@ def selection_promotion_candidate(
     *,
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
-) -> DeterministicRepairResult | None:
+) -> tuple[dict[str, Any], list[dict[str, str]]] | None:
     """Offer the slot-filling move for a selection that is about to freeze.
 
     Withheld when the move would fail the selection contract. A promotion
@@ -63,7 +54,7 @@ def selection_promotion_candidate(
         for finding in validate_selection(promoted, config, citations)
     ):
         return None
-    return DeterministicRepairResult(promoted, actions)
+    return promoted, actions
 
 
 def _underfill_is_the_only_blocker(
@@ -91,7 +82,7 @@ def deterministic_repair_candidate(
     citations: dict[str, Citation],
     corpus: dict[str, Any] | None = None,
     selection_only: bool = False,
-) -> DeterministicRepairResult | None:
+) -> tuple[dict[str, Any], list[dict[str, str]]] | None:
     """Apply the repair decision production makes before a model correction."""
     blocking = [finding for finding in findings if finding.get("level") == "ERROR"]
     repairable_blocking = bool(blocking) and all(
@@ -115,32 +106,7 @@ def deterministic_repair_candidate(
     )
     if not actions or not isinstance(repaired, dict):
         return None
-    return DeterministicRepairResult(repaired, actions)
-
-
-@dataclass(frozen=True)
-class CorrectionBudget:
-    limit: int
-    used: int = 0
-
-    @property
-    def available(self) -> bool:
-        return self.used < self.limit
-
-
-def correction_action(
-    success: bool, budget: CorrectionBudget,
-) -> Literal["accept", "correct", "exhausted"]:
-    return "accept" if success else "correct" if budget.available else "exhausted"
-
-
-@dataclass(frozen=True)
-class StageDecision:
-    action: Literal[
-        "selection_promotion", "selection_repair", "deterministic_repair",
-        "accept", "correct", "exhausted",
-    ]
-    repair: DeterministicRepairResult | None = None
+    return repaired, actions
 
 
 def selection_findings(
@@ -153,21 +119,22 @@ def selection_findings(
     return findings
 
 
-def decide_stage(
+def stage_repair(
     stage: Literal["selection", "prose"],
     output: Any,
     findings: Sequence[Mapping[str, str]],
     *,
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
-    budget: CorrectionBudget,
     last_kind: str,
     corpus: dict[str, Any] | None = None,
-) -> StageDecision:
-    """Choose promotion, repair, acceptance, correction, or exhaustion in order.
+) -> tuple[RepairKind, dict[str, Any], list[dict[str, str]]] | None:
+    """Choose promotion, then repair, as ``(kind, output, actions)``; else ``None``.
 
-    The last durable attempt kind prevents repeated repairs. A provider correction
-    starts a new candidate, so its repair eligibility is independent of the old one.
+    ``None`` leaves the caller to accept a candidate without blocking findings,
+    or to spend or exhaust its correction budget. The last durable attempt kind
+    prevents repeated repairs. A provider correction starts a new candidate, so
+    its repair eligibility is independent of the old one.
     """
     selection = stage == "selection"
     if isinstance(output, dict):
@@ -175,19 +142,16 @@ def decide_stage(
                 and _underfill_is_the_only_blocker(findings)):
             promotion = selection_promotion_candidate(output, config=config, citations=citations)
             if promotion is not None:
-                return StageDecision(SELECTION_PROMOTION_KIND, promotion)
-        repair_kind: Literal["selection_repair", "deterministic_repair"] = (
-            "selection_repair" if selection else "deterministic_repair"
-        )
+                return (SELECTION_PROMOTION_KIND, *promotion)
+        repair_kind: RepairKind = "selection_repair" if selection else "deterministic_repair"
         if last_kind != repair_kind:
             repair = deterministic_repair_candidate(
                 output, findings, config=config, citations=citations,
                 corpus=corpus, selection_only=selection,
             )
             if repair is not None:
-                return StageDecision(repair_kind, repair)
-    success = not any(f.get("level") == "ERROR" for f in findings)
-    return StageDecision(correction_action(success, budget))
+                return (repair_kind, *repair)
+    return None
 
 
 def evaluate_candidate(

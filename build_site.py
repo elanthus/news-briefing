@@ -33,13 +33,10 @@ from publication_schema import (
     INTEGRITY_REASON_MESSAGES,
     Provenance,
     ReviewFinding,
-    finding_has_fields,
-    finding_level_is_valid,
-    finding_strings_are_valid,
+    parse_finding,
     parse_integrity,
     parse_provenance,
     parse_repair_actions,
-    parse_review_context,
     parse_semantic_audit,
     provenance_payload,
 )
@@ -264,35 +261,14 @@ def _parse_finding_entries(
     """Parse one finding-shaped list, shared by ``findings`` and ``advisory_findings``."""
     findings: list[ReviewFinding] = []
     for index, raw_finding in enumerate(raw_findings):
-        finding_source = f"{label} {index}"
-        allowed_finding_fields = {frozenset(FINDING_V3_FIELDS)}
-        if not finding_has_fields(raw_finding, allowed_finding_fields):
-            expected = sorted(FINDING_V3_FIELDS)
-            raise ValueError(f"{finding_source} must contain exactly {expected}")
-        assert isinstance(raw_finding, dict)
-        if not finding_strings_are_valid(raw_finding):
-            raise ValueError(f"{finding_source} fields must be non-empty strings")
-        if not finding_level_is_valid(raw_finding):
-            raise ValueError(f"{finding_source} level must be ERROR or WARN")
-        raw_context = raw_finding.get("context")
-        valid_context, context = parse_review_context(raw_context)
-        if not valid_context:
+        finding = parse_finding(raw_finding, require_context=True)
+        if finding is None:
             raise ValueError(
-                f"{finding_source} context must be null or contain exactly "
-                f"{sorted(CONTEXT_FIELDS)} as non-empty strings"
+                f"{label} {index} must contain exactly {sorted(FINDING_V3_FIELDS)}: "
+                "non-empty strings, level ERROR or WARN, and a context that is null "
+                f"or contains exactly {sorted(CONTEXT_FIELDS)} as non-empty strings"
             )
-        findings.append(
-            ReviewFinding(
-                level=raw_finding["level"],
-                check=raw_finding["check"],
-                domain=raw_finding["domain"],
-                message=raw_finding["message"],
-                section=context.section if context is not None else None,
-                headline=context.headline if context is not None else None,
-                model_authored=context.model_authored if context is not None else None,
-                path=context.path if context is not None else None,
-            )
-        )
+        findings.append(finding)
     return findings
 
 
@@ -437,6 +413,7 @@ def _load_history(path: Path) -> list[BriefingEntry]:
 
 
 def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
+    context = finding.context
     return {
         "level": finding.level,
         "check": finding.check,
@@ -444,14 +421,12 @@ def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
         "message": finding.message,
         "context": (
             {
-                "section": finding.section,
-                "headline": finding.headline,
-                "model_authored": finding.model_authored,
-                **({"path": finding.path} if finding.path is not None else {}),
+                "section": context.section,
+                "headline": context.headline,
+                "model_authored": context.model_authored,
+                **({"path": context.path} if context.path is not None else {}),
             }
-            if finding.section is not None
-            and finding.headline is not None
-            and finding.model_authored is not None
+            if context is not None
             else None
         ),
     }
@@ -1192,7 +1167,8 @@ def _render_report(
         parts.append('</tbody></table>')
         parts.append('<ul>')
         for finding in (*entry.findings, *entry.advisory_findings):
-            subject = ' — '.join(x for x in (finding.section, finding.headline) if x)
+            subject = (f'{finding.context.section} — {finding.context.headline}'
+                       if finding.context is not None else '')
             parts.append(f'<li><strong>{html.escape(finding.check.replace("_", " "))}</strong>: '
                          f'{html.escape(finding.message)} '
                          f'{html.escape(subject)}</li>')
