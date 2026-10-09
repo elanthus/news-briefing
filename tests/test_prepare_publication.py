@@ -11,6 +11,7 @@ from pathlib import Path
 
 import corpus_schema
 from agent_runner.failures import FailureRecord
+from agent_runner.integrity import run_provenance
 from prepare_publication import _degraded_sources, prepare_publication
 
 
@@ -948,6 +949,28 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertIn("provenance", stderr.getvalue())
             sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
             self.assertIsNone(sidecar["provenance"])
+
+    def test_provenance_skips_malformed_attempt_rows_and_needs_an_attempt_list(self) -> None:
+        manifest: dict[str, object] = {
+            "provider": {"provider": "openrouter", "model": "tencent/hy3"},
+            "identity": {"prompt_sha256": "e" * 64},
+        }
+        attempts = [
+            "not an attempt",
+            {"kind": "selection_repair", "repair_actions": "three"},
+            {"kind": "deterministic_repair", "repair_actions": [
+                {"action": "drop_entry", "path": "topics.AI News[1]", "reason": "duplicate"},
+            ]},
+            {"kind": "correction"},
+        ]
+
+        provenance = run_provenance({**manifest, "attempts": attempts})
+
+        assert provenance is not None
+        self.assertEqual(provenance["repair_action_count"], 1)
+        self.assertEqual(provenance["prose_corrections"], 1)
+        self.assertIsNone(run_provenance(manifest))
+        self.assertIsNone(run_provenance({**manifest, "attempts": {"kind": "correction"}}))
 
     @staticmethod
     def _write_manifest(

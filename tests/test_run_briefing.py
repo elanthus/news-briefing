@@ -12,6 +12,7 @@ from unittest.mock import patch
 import corpus_schema
 import eval_briefing
 import run_briefing as briefing_cli
+from agent_runner import stages
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.output import promote_excluded_to_underfilled
@@ -959,6 +960,49 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("[verbatim]", final)
         # No provider correction call was spent on the WARN.
         self.assertEqual(len(provider.requests), 2)
+
+    def test_repair_runs_once_per_candidate_and_again_after_a_correction(self):
+        """A repair that leaves its blocking finding goes to a correction.
+
+        Real repairs converge in one pass, so a second pass would find nothing
+        to do. This repair keeps its actions but returns the unrepaired
+        selection, so the blocking finding survives it. The run spends its one
+        correction instead of repairing twice in a row, and the corrected
+        selection is a new candidate that may be repaired once more.
+        """
+        corpus, config, projected, output = fixture_contract()
+        broken = copy.deepcopy(output)
+        section = config.sections[0]
+        ineligible_ref = next(
+            ref
+            for ref, citation in projected.citations.items()
+            if citation.category not in section.corpus_categories
+        )
+        broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
+        real_repair = stages.repair_structural_output
+
+        calls = []
+
+        def non_converging_repair(candidate, *args, **kwargs):
+            calls.append(candidate)
+            if len(calls) > 2:
+                raise AssertionError("repair repeated without a correction")
+            _repaired, actions = real_repair(candidate, *args, **kwargs)
+            return copy.deepcopy(candidate), actions
+
+        provider = FakeProvider([broken, broken])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+        ), patch.object(stages, "repair_structural_output", side_effect=non_converging_repair):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            [attempt["kind"] for attempt in manifest["attempts"]],
+            ["selection", "selection_repair", "selection_correction", "selection_repair"],
+        )
+        self.assertEqual(len(provider.requests), 2)
+        self.assertNotEqual(result.status, "ready")
 
     def test_unknown_ref_still_spends_a_correction(self):
         corpus, config, _projected, output = fixture_contract()

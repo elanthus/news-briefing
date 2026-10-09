@@ -22,8 +22,7 @@ from agent_runner.integrity import (
     run_provenance,
 )
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
-from agent_runner.publication import selected_generation_run
-from agent_runner.semantic_repairs import load_public_audit
+from agent_runner.publication import resolve_publication_run
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
     Provenance,
@@ -331,16 +330,10 @@ def prepare_publication(
     provenance: Provenance | None = None
     public_content: bytes | None = None
 
-    original_generation_dir = selected_generation_run(run_dir)
+    semantic_audit, generation_run_dir, original_generation_dir = resolve_publication_run(run_dir)
     original_manifest = (_load_json(original_generation_dir / "manifest.json")
                          if original_generation_dir is not None else None)
     audit_present = (run_dir / "jev-review" / "audit.json").is_file()
-    # A present audit decides between an accepted repair and the retained original.
-    semantic_audit, generation_run_dir = (
-        load_public_audit(original_generation_dir, run_dir / "jev-review")
-        if original_generation_dir is not None and audit_present
-        else (None, original_generation_dir)
-    )
     manifest = (
         _load_json(generation_run_dir / "manifest.json")
         if generation_run_dir is not None
@@ -398,11 +391,12 @@ def prepare_publication(
                     if original_generation_dir is not None and isinstance(original_manifest, dict):
                         attempt_index, attempt_count = _chain_attempt_span(
                             run_dir, original_generation_dir.name)
-                        provenance = parse_provenance(run_provenance(
-                            original_manifest, attempt_index=attempt_index, attempt_count=attempt_count))
-                        if provenance is None and {"provider", "identity"} <= original_manifest.keys():
-                            print(f"warning: {original_generation_dir} provenance not published: "
-                                  "malformed provider identity, prompt hash, or attempts", file=sys.stderr)
+                        try:
+                            provenance = parse_provenance(run_provenance(
+                                original_manifest, attempt_index=attempt_index, attempt_count=attempt_count))
+                        except ValueError as exc:
+                            print(f"warning: {original_generation_dir} provenance not published: {exc}",
+                                  file=sys.stderr)
                     public_content = _bound_artifact(
                         generation_run_dir, manifest, final, disposition
                     )
