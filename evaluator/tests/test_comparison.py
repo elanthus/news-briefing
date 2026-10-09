@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,7 +11,6 @@ from typing import Any
 
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.metrics import percentile, rate, wilson_interval
-from evaluator.runner import ROOT
 
 
 class MetricTest(unittest.TestCase):
@@ -387,7 +387,7 @@ class ComparisonTest(unittest.TestCase):
             self.assertIn("selected provider/model set differs", str(raised.exception))
 
 
-
+ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = ROOT / ".news-briefing" / "evidence"
 COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-production-runner.json"
 
@@ -395,12 +395,16 @@ COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-product
 class CommittedComparisonTest(unittest.TestCase):
     """Regenerate a published comparison so bootstrap draw order cannot drift."""
 
-    @unittest.skipUnless(
-        (EVIDENCE / "parity-v1-evidence" / "manifest.json").is_file()
-        and (EVIDENCE / "parity-v2-evidence" / "manifest.json").is_file(),
-        "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch",
-    )
     def test_committed_parity_v2_comparison_reproduces(self) -> None:
+        if not all(
+            (EVIDENCE / bundle / "manifest.json").is_file()
+            for bundle in ("parity-v1-evidence", "parity-v2-evidence")
+        ):
+            message = "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch"
+            # CI sets REQUIRE_EVIDENCE=1 after fetching, so a missing bundle fails there.
+            if os.environ.get("REQUIRE_EVIDENCE") == "1":
+                self.fail(message)
+            self.skipTest(message)
         committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
         row = committed["comparisons"][0]
         result = compare_runs(

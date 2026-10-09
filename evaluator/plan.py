@@ -407,7 +407,7 @@ def _validate_run_inputs(
     cost_ceiling_usd: float | None,
     cost_ceiling_provider: str | None,
 ) -> None:
-    """Check run options; run_evaluation has already checked trials and run_kind."""
+    """Check the run options that resolve_evaluation_plan does not take as given."""
     if run_kind != "final" and execution_seed is not None:
         raise ValueError("execution_seed is only valid for final runs")
     if execution_seed is not None and (
@@ -611,6 +611,13 @@ def resolve_evaluation_plan(
     provenance: Callable[[], dict[str, Any]],
     circuit_breaker_threshold: int,
 ) -> EvaluationPlan:
+    """Validate the suite and run options, then fix the trial order and run identity.
+
+    Precondition: ``trials`` is positive and ``run_kind`` is development, pilot,
+    or final. ``run_evaluation``, the only caller, checks both before it reads a
+    resume manifest, so bad options fail before resume-manifest errors; checking
+    them here instead would reverse that order.
+    """
     execution_seed = _resolve_execution_seed(run_kind, execution_seed, resume_manifest)
     _validate_run_inputs(
         adapters, prompt_versions, run_kind,

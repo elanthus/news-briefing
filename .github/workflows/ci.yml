@@ -52,8 +52,11 @@ jobs:
           python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
           python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
           python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
-      # The standard-library job skips this test because it has no fetched bundles.
+      # The standard-library job skips this test because it has no fetched bundles;
+      # REQUIRE_EVIDENCE=1 makes a missing bundle fail here instead of skipping.
       - name: Regenerate a committed comparison from the fetched bundles
+        env:
+          REQUIRE_EVIDENCE: "1"
         run: python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
       - name: Enforce declared case counts and history reference
         run: |
