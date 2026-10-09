@@ -56,13 +56,17 @@ To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News qu
 
 ## Architecture
 
-![Runtime pipeline: select, validate frozen evidence, write prose, review, confirm, repair, follow up, publish](docs/images/runtime-pipeline.svg)
+![Runtime pipeline: fetch, then per model in the fallback chain select, check, freeze, write prose and gate; a ready candidate is reviewed, confirmed, repaired, followed up, published and deployed with a receipt](docs/images/runtime-pipeline.svg)
 
 ```text
-fetch_news.py      →  corpus.json (schema v7, validated on write)
-agent_runner/      →  project → select → freeze → write prose → validate → repair → correct → gate
-eval_briefing.py   →  deterministic policy checker, usable standalone
+fetch_news.py          →  corpus.json (schema v7, validated on write)
+agent_runner/          →  project → select → validate/repair/correct → freeze
+                          → write prose → validate/repair/correct → disposition gate
+run_daily_briefing.py  →  HY3 → DeepSeek V4 Flash → Gemini 3.7 Flash until one is ready,
+                          then Jev review → confirm → bounded repair → follow-up review
+eval_briefing.py       →  deterministic policy checker, usable standalone
 prepare_publication.py / build_site.py  →  static site + per-run integrity report
+daily_publish.py       →  daily workflow driver: fetch or restore, run, publish
 ```
 
 The validator rejects any URL or reference token in prose, and rendering expands a Hacker News handle to both article and discussion links. This is destination allowlisting, not semantic grounding.
@@ -113,7 +117,7 @@ The [live site](https://elanthus.github.io/news-briefing/) publishes daily with 
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Current integrity report from an offline fixture](docs/images/auditor-report-current.jpg) |
 
-The auditor screenshot uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
+The reader screenshot is the current site renderer applied locally to [`docs/sample-briefing.md`](docs/sample-briefing.md); the earlier dates in its strip are placeholders. The auditor screenshot uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
 
 ## Watch it catch an injection
 

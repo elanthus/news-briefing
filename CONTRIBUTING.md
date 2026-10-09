@@ -108,8 +108,16 @@ deterministic enforcement from heuristic or model-evaluated behavior.
 ## Checks
 
 Run the repository gate listed under
-[Required checks](CLAUDE.md#required-checks) in `CLAUDE.md`; it is the same
-offline gate continuous integration runs.
+[Required checks](CLAUDE.md#required-checks) in `CLAUDE.md`. Continuous
+integration runs the same lint, type, test, and checker steps, plus a few more:
+
+- It enforces the declared case counts in `evaluator/regression-policy.json`.
+  This step reads only checked-in files and runs offline.
+- It fetches and verifies the public evidence bundles, and an informational
+  end-to-end job fetches a live corpus. Both need network access, so they are
+  not part of the local gate.
+- It runs the site tests. Locally they stay opt-in because they need the pinned
+  site-renderer dependency (see below).
 
 The evaluator checker validates checker behavior against the committed snapshot.
 CI fails on snapshot drift; snapshot updates are opt-in via `--update-snapshot`.

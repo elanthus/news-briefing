@@ -43,6 +43,8 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 
 ## Daily runs
 
+The archived corpora below use corpus schemas v3–v5. Current code accepts only v7 and rejects them, so each reproduce command first checks out `47e19ff` (2026-08-17). That commit contains every archived run below, and its checker loads them and reproduces the recorded results. Run them in a separate worktree (`git worktree add ../news-briefing-47e19ff 47e19ff`) if you don't want to leave your branch, or run `git switch -` afterwards to return to it.
+
 ### 2026-08-18 — Claude Code Sonnet 5 failed dogfood run
 
 The first complete-run attempt of the day stopped during the initial model call, before a schema-valid briefing or checker result existed. The failed run is preserved under [`docs/runs/2026-08-18/`](runs/2026-08-18/) rather than being replaced by a cleaner rerun. Its manifest, closed corpus, exact request and schema, source/configuration snapshots, and append-only trace are archived there.
@@ -113,7 +115,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 - PR review amendment: removed the unsupported vaccine-exemption figure from the structured output and regenerated the rendered briefings, findings, schema, and manifest while preserving the raw model response. The current final result is **0 errors and 2 warnings** (`WARN`), both for missing Hacker News discussion links. Reproduce it with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-17 | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-17/corpus-2026-08-17.json --briefing docs/runs/2026-08-17/briefing.md --config docs/runs/2026-08-17/briefing-config.json
   ```
 
@@ -155,7 +157,7 @@ The complete fetch → rank and summarize → check → single correction → fi
 - Reproduce the stabilized final checker result with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-15 | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-15/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/briefing.md --config docs/runs/2026-08-15/briefing-config.json
   ```
 
@@ -175,7 +177,7 @@ Hy3 was run again against the exact archived corpus and configuration with reaso
 - Reproduce the stabilized final checker result with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-15/hy3-reasoning-enabled | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-15/hy3-reasoning-enabled/corpus-2026-08-15.json --briefing docs/runs/2026-08-15/hy3-reasoning-enabled/briefing.md --config docs/runs/2026-08-15/hy3-reasoning-enabled/briefing-config.json
   ```
 
@@ -196,7 +198,7 @@ The complete fetch → rank and summarize → check loop run with the Claude Cod
 - Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-13 | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-13/corpus-2026-08-13.json --briefing docs/runs/2026-08-13/briefing.md --config docs/runs/2026-08-13/briefing-config.json
   ```
 
@@ -218,7 +220,7 @@ The complete fetch → rank and summarize → check loop run in Codex. The corpu
 - Checker, final result: 0 errors, 0 warnings. Reproduce the final checker result with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-12 | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-12/corpus-2026-08-12.json --briefing docs/runs/2026-08-12/briefing.md --config docs/runs/2026-08-12/briefing-config.json
   ```
 
@@ -238,6 +240,7 @@ The complete fetch → rank and summarize → check loop requested as a dated sa
 - Checker, final result: 0 errors, 0 warnings. The full 197-test suite also passed. Reproduce the final checker result with:
 
   ```bash
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus fixtures/corpus-2026-08-11.json --briefing fixtures/briefing-2026-08-11.md --config fixtures/briefing-config-2026-08-11.json
   ```
 
@@ -254,10 +257,10 @@ The regular `daily-news-briefing` scheduled task (fetch → rank and summarize �
 - Briefing: 22 reported topics, filling all six configured sections to target (3/3, 4/4, 5/5, 4/4, 3/3, 3/3), plus a 25-row exclusion log and a corpus-health section naming the one failed source.
 - Checker, first result: 3 errors, 7 warnings — three `category_ineligible` errors because the AI News section (eligible categories: `ai_tech`, `us_news`) cited two `us_politics` items (the Zuckerberg manifesto's "biggest risk" framing and the Sanders AI-pause letter); plus warnings for two unsupported figures (the Will Scharf item's "$400m" figure and the gas-price item's "$1" increase, both true but cited against items that didn't contain them), two unsupported quotations (the Netanyahu item's "historic" quote and the Zuckerberg item's "with as many people..." quote, both cited against items that didn't contain them), and three `claim_exceeds_evidence` warnings on the AI Dev Tools items sourced from Hacker News posts with empty corpus summaries, where the drafted summaries added unsupported framing beyond the bare title.
 - Correction made after checking: moved the Sanders AI-pause letter into US Politics, where `us_politics` is an eligible category, dropping the progressive-primary-wins topic to the exclusion log to keep the section at 3; re-cited the Zuckerberg manifesto against eligible `ai_tech`/`us_news` sources and swapped in a Wired "AI slop backlash" item (from an eligible `ai_tech` source) to refill AI News's fourth slot; added the missing supporting citations for the Will Scharf and gas-price figures and the Netanyahu quote; and trimmed the three Hacker News-sourced AI Dev Tools items down to only what their (otherwise summary-less) titles support, per the empty-summary grounding rule.
-- Checker, final result: 0 errors, 0 warnings — reproducible today:
+- Checker, final result: 0 errors, 0 warnings. Reproduce it with:
 
   ```bash
-  git archive 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6 docs/runs/2026-08-10 | tar -x
+  git checkout 47e19ff
   python3 eval_briefing.py --corpus docs/runs/2026-08-10/corpus-2026-08-10.json --briefing docs/runs/2026-08-10/briefing.md --config docs/runs/2026-08-10/briefing-config.json
   ```
 
