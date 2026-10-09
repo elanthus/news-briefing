@@ -34,9 +34,7 @@ from news_fetch import (
     collect,
     curation,
     destinations,
-    limits,
     model,
-    telemetry,
     transport,
 )
 from news_fetch.config import load_sources
@@ -46,14 +44,7 @@ from news_fetch.relevance import is_relevant_item
 from news_fetch.sources import common, hn, reddit, rss
 from news_fetch.sources.common import parse_feed_date, publication_in_window, strip_html
 from news_fetch.sources.hn import fetch_hn
-from news_fetch.sources.reddit import (
-    REDDIT_MAX_LIMIT,
-    _reddit_md_text,
-    fetch_reddit,
-    reddit_limit,
-    reddit_top_bucket,
-    retry_after_seconds,
-)
+from news_fetch.sources.reddit import _reddit_md_text, fetch_reddit
 from news_fetch.transport import MAX_RESPONSE_BYTES
 
 
@@ -541,22 +532,17 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(stats["kept"], 3)
         self.assertGreater(stats["source_cap_dropped"] + stats["category_cap_dropped"], 0)
 
-    def test_source_caps_override_the_default_for_named_sources(self):
-        """A lower per-source cap (Reddit's) must not affect other sources."""
-        items = [self.item(n, "r/ClaudeAI") for n in range(1, 6)]
-        items += [self.item(n, "VendorFeed") for n in range(1, 6)]
-        kept, stats = prepare_category(
-            items, source_cap=25, category_cap=60,
-            source_caps={"r/ClaudeAI": 2})
-        self.assertEqual(sum(i["source"] == "r/ClaudeAI" for i in kept), 2)
-        self.assertEqual(sum(i["source"] == "VendorFeed" for i in kept), 5)
-        self.assertEqual(stats["source_cap_dropped"], 3)
-
-    def test_source_caps_missing_a_source_falls_back_to_source_cap(self):
-        items = [self.item(n, "VendorFeed") for n in range(1, 4)]
-        kept, _stats = prepare_category(
-            items, source_cap=2, source_caps={"r/ClaudeAI": 1})
-        self.assertEqual(len(kept), 2)
+    def test_reddit_sources_take_the_smaller_of_source_cap_and_reddit_cap(self):
+        """Reddit's lower cap must not affect other sources, and a stricter cap wins."""
+        reddit_cap = curation.REDDIT_SOURCE_CAP
+        items = [self.item(n, "r/ClaudeAI") for n in range(1, reddit_cap + 4)]
+        items += [self.item(n, "VendorFeed") for n in range(1, reddit_cap + 4)]
+        for source_cap, expected_reddit in ((25, reddit_cap), (2, 2)):
+            with self.subTest(source_cap=source_cap):
+                kept, _stats = prepare_category(items, source_cap=source_cap, category_cap=60)
+                self.assertEqual(sum(i["source"] == "r/ClaudeAI" for i in kept), expected_reddit)
+                self.assertEqual(sum(i["source"] == "VendorFeed" for i in kept),
+                                 min(source_cap, reddit_cap + 3))
 
     def test_reports_relevance_and_duplicate_drops(self):
         items = [
@@ -583,8 +569,8 @@ class PrepareCategoryTest(unittest.TestCase):
             "summary": "x" * 500,
         }
         kept, stats = prepare_category([item])
-        self.assertLessEqual(len(kept[0]["title"].encode("utf-8")), limits.TITLE_BYTES)
-        self.assertEqual(len(kept[0]["summary"]), limits.SUMMARY_CHARS)
+        self.assertLessEqual(len(kept[0]["title"].encode("utf-8")), corpus_schema.ITEM_TITLE_MAX_BYTES)
+        self.assertEqual(len(kept[0]["summary"]), corpus_schema.ITEM_SUMMARY_MAX_CHARS)
         self.assertEqual(stats["title_truncated"], 1)
         self.assertEqual(stats["summary_truncated"], 1)
 
@@ -953,30 +939,6 @@ class ParseFeedXmlTest(unittest.TestCase):
         self.assertIn("DOCTYPE", parse_feed_xml(payload).find(".//title").text)
 
 
-class RetryAfterTest(unittest.TestCase):
-    """Reddit tells us how long to wait; guessing wastes time or earns a 429."""
-
-    def _error(self, header):
-        headers = {} if header is None else {"Retry-After": header}
-        error = urllib.error.HTTPError("https://reddit.test", 429, "Too Many Requests",
-                                       headers, io.BytesIO(b""))
-        self.addCleanup(error.close)
-        return error
-
-    def test_uses_the_server_supplied_delay(self):
-        self.assertEqual(retry_after_seconds(self._error("7"), 5), 7)
-
-    def test_falls_back_when_the_header_is_absent_or_unparseable(self):
-        for header in (None, "", "  ", "Wed, 21 Oct 2026 07:28:00 GMT"):
-            with self.subTest(header=header):
-                self.assertEqual(retry_after_seconds(self._error(header), 5), 5)
-
-    def test_clamps_an_absurd_delay(self):
-        """The header is attacker-influenced; an hour-long sleep would hang."""
-        self.assertEqual(retry_after_seconds(self._error("99999"), 5),
-                         reddit.REDDIT_RETRY_MAX_SLEEP)
-
-
 class UndatedAccountingTest(unittest.TestCase):
     """A feed that changes date format must not look like a healthy feed."""
 
@@ -1053,24 +1015,32 @@ class UtcTimestampTest(unittest.TestCase):
                 fetch_news.utc_timestamp(value)
 
 
-class RedditTopBucketTest(unittest.TestCase):
-    """`--hours` must reach Reddit too; pick the smallest bucket that covers it."""
-
-    def test_default_window_requests_reddit_day_bucket(self):
-        self.assertEqual(DEFAULT_WINDOW_HOURS, 24)
-        self.assertEqual(reddit_top_bucket(DEFAULT_WINDOW_HOURS), "day")
-        self.assertEqual(reddit_limit(DEFAULT_WINDOW_HOURS), 25)
-
-    def test_default_fetch_url_uses_day_bucket(self):
+class RedditRssTest(unittest.TestCase):
+    def test_fetch_url_uses_the_covering_top_bucket(self):
+        """`--hours` must reach Reddit too; DST windows run 23-25 hours."""
         empty_feed = b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
-        with patch.object(transport, "http_get", return_value=empty_feed) as get:
-            self.assertEqual(reddit.fetch_reddit_rss(
+        for hours, bucket in ((23, "day"), (DEFAULT_WINDOW_HOURS, "day"), (25, "week")):
+            with (self.subTest(hours=hours),
+                  patch.object(transport, "http_get", return_value=empty_feed) as get):
+                self.assertEqual(reddit.fetch_reddit_rss(
+                    "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), hours
+                ).items, [])
+                url = get.call_args.args[0]
+                self.assertIn(f"t={bucket}", url)
+                self.assertIn("limit=25", url)
+
+    def test_rate_limit_is_not_retried(self):
+        """A 429 falls straight through to Arctic Shift instead of sleeping."""
+        error = urllib.error.HTTPError(
+            "https://reddit.test", 429, "Too Many Requests", {}, None
+        )
+        self.addCleanup(error.close)
+        with (patch.object(transport, "http_get", side_effect=error) as get,
+              self.assertRaises(urllib.error.HTTPError)):
+            reddit.fetch_reddit_rss(
                 "ClaudeAI", utc(2026, 8, 8), utc(2026, 8, 9), DEFAULT_WINDOW_HOURS
-            ).items,
-                             [])
-        url = get.call_args.args[0]
-        self.assertIn("t=day", url)
-        self.assertIn("limit=25", url)
+            )
+        get.assert_called_once()
 
     def test_excludes_entries_after_the_fixed_snapshot(self):
         feed = (b'<feed xmlns="http://www.w3.org/2005/Atom">'
@@ -1105,56 +1075,6 @@ class RedditTopBucketTest(unittest.TestCase):
         self.assertEqual([item["title"] for item in result.items], ["Kept"])
         self.assertEqual(result.filtered_entries, 1)
 
-    def test_selects_smallest_covering_bucket(self):
-        cases = [
-            (1, "hour"),
-            (2, "day"),
-            (24, "day"),
-            (25, "week"),
-            (48, "week"),      # custom windows still choose a covering bucket
-            (168, "week"),
-            (169, "month"),
-            (720, "month"),
-            (721, "year"),
-            (8760, "year"),
-            (9000, "all"),
-        ]
-        for hours, expected in cases:
-            with self.subTest(hours=hours):
-                self.assertEqual(reddit_top_bucket(hours), expected)
-
-    def test_bucket_never_undercovers_the_window(self):
-        """A bucket narrower than the window would silently truncate coverage."""
-        spans = {"hour": 1, "day": 24, "week": 168, "month": 720, "year": 8760}
-        for hours in (1, 6, 23, 24, 25, 47, 48, 72, 167, 168, 400, 800):
-            with self.subTest(hours=hours):
-                bucket = reddit_top_bucket(hours)
-                self.assertGreaterEqual(spans.get(bucket, float("inf")), hours)
-
-
-class RedditLimitTest(unittest.TestCase):
-    """A coarse bucket must not quietly shrink in-window coverage."""
-
-    def test_no_inflation_when_bucket_matches_window(self):
-        self.assertEqual(reddit_limit(24), 25)
-        self.assertEqual(reddit_limit(1), 25)
-
-    def test_inflates_when_bucket_overshoots_window(self):
-        """48h is served by t=week, so ask for ~3.5x to keep coverage steady."""
-        self.assertEqual(reddit_limit(48), 88)
-        self.assertGreater(reddit_limit(48), reddit_limit(168))
-
-    def test_never_exceeds_reddit_ceiling(self):
-        for hours in (2, 3, 25, 169, 721):
-            with self.subTest(hours=hours):
-                self.assertLessEqual(reddit_limit(hours), REDDIT_MAX_LIMIT)
-
-    def test_handles_nonsense_windows_without_raising(self):
-        for hours in (0, -5, 100000):
-            with self.subTest(hours=hours):
-                self.assertLessEqual(reddit_limit(hours), REDDIT_MAX_LIMIT)
-                self.assertGreater(reddit_limit(hours), 0)
-
 
 class RedditFallbackTest(unittest.TestCase):
     CUTOFF = utc(2026, 8, 8)
@@ -1166,7 +1086,7 @@ class RedditFallbackTest(unittest.TestCase):
             "url": "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
             "published": "2026-08-08T12:00:00+00:00",
             "source": "r/ClaudeCode",
-        }], 0, 1, 1)
+        }], 0, 1, 1, 0)
 
     def test_rss_result_skips_both_fallbacks(self):
         with (patch.object(reddit, "fetch_reddit_rss", return_value=self.result("RSS")),
@@ -1196,7 +1116,7 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_fallback_runs_only_after_both_free_paths_are_empty(self):
-        empty = model.FetchResult([], 0, 0, 0)
+        empty = model.FetchResult([], 0, 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=empty),
               patch.object(reddit, "fetch_reddit_scrapecreators",
@@ -1210,8 +1130,8 @@ class RedditFallbackTest(unittest.TestCase):
         )
 
     def test_missing_key_returns_the_last_free_empty_result(self):
-        rss_empty = model.FetchResult([], 2, 3, 1)
-        arctic_empty = model.FetchResult([], 0, 0, 0)
+        rss_empty = model.FetchResult([], 2, 3, 1, 0)
+        arctic_empty = model.FetchResult([], 0, 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
               patch.object(reddit, "fetch_reddit_scrapecreators") as authenticated):
@@ -1222,8 +1142,8 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_failure_preserves_a_valid_free_empty_result(self):
-        rss_empty = model.FetchResult([], 2, 3, 1)
-        arctic_empty = model.FetchResult([], 0, 0, 0)
+        rss_empty = model.FetchResult([], 2, 3, 1, 0)
+        arctic_empty = model.FetchResult([], 0, 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
               patch.object(reddit, "fetch_reddit_scrapecreators",
@@ -1468,7 +1388,7 @@ class MainFailureModeTest(unittest.TestCase):
                 patch.object(
                     collect,
                     "fetch_hn",
-                    return_value=model.FetchResult([item], 0),
+                    return_value=model.FetchResult([item], 0, 1, 1, 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1517,7 +1437,7 @@ class MainFailureModeTest(unittest.TestCase):
                 patch.object(
                     collect,
                     "fetch_hn",
-                    return_value=model.FetchResult([item], 0),
+                    return_value=model.FetchResult([item], 0, 1, 1, 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1541,13 +1461,13 @@ class MainFailureModeTest(unittest.TestCase):
         # That is a low-cadence source, not a broken one, so it is `quiet`
         # rather than `empty` and stays out of the failed-source contract.
         outcome = model.TimedFetchResult(
-            model.FetchResult([], 0, parsed_entries=25, dated_entries=25),
+            model.FetchResult([], 0, parsed_entries=25, dated_entries=25, filtered_entries=0),
             None,
             None,
             12,
             True,
         )
-        status = telemetry.source_status("rss", "Example", "news", outcome)
+        status = collect.source_status("rss", "Example", "news", outcome)
         self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "NoWindowEntries")
 
@@ -1561,7 +1481,7 @@ class MainFailureModeTest(unittest.TestCase):
             12,
             True,
         )
-        status = telemetry.source_status("reddit", "ClaudeCode", "news", outcome)
+        status = collect.source_status("reddit", "ClaudeCode", "news", outcome)
         self.assertEqual(status["status"], "quiet")
         self.assertEqual(status["error_type"], "EntriesFiltered")
         self.assertIn("25 filtered as removed or low-score", status["message"])
@@ -1586,7 +1506,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "query": "agent tools",
                 "points": 32,
                 "comments": 25,
-            }], 0)
+            }], 0, 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "--markdown"]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_hn", return_value=hn_result),
@@ -1670,7 +1590,7 @@ class MainFailureModeTest(unittest.TestCase):
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss",
-                               return_value=model.FetchResult([], 0)),
+                               return_value=model.FetchResult([], 0, 0, 0, 0)),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -1701,13 +1621,13 @@ class MainFailureModeTest(unittest.TestCase):
                 "published": published,
                 "source": "Hacker News",
                 "query": "agent tools",
-            }], 0)
+            }], 0, 1, 1, 0)
             reddit_result = model.FetchResult([{
                 "title": "Local model release",
                 "url": "https://example.com/reddit",
                 "published": published,
                 "source": "r/LocalLLaMA",
-            }], 0)
+            }], 0, 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_hn", return_value=hn_result),
@@ -1761,14 +1681,14 @@ class MainFailureModeTest(unittest.TestCase):
                     "published": published,
                     "source": "r/ClaudeAI",
                 }
-                for n in range(limits.REDDIT_SOURCE_CAP + 5)
-            ], 0)
+                for n in range(curation.REDDIT_SOURCE_CAP + 5)
+            ], 0, curation.REDDIT_SOURCE_CAP + 5, curation.REDDIT_SOURCE_CAP + 5, 0)
             rss_result = model.FetchResult([{
                 "title": "Vendor release",
                 "url": "https://example.com/vendor",
                 "published": published,
                 "source": "Vendor Feed",
-            }], 0)
+            }], 0, 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss", return_value=rss_result),
@@ -1780,7 +1700,7 @@ class MainFailureModeTest(unittest.TestCase):
             kept = corpus["categories"]["dev_community"]
             self.assertEqual(
                 sum(item["source"] == "r/ClaudeAI" for item in kept),
-                limits.REDDIT_SOURCE_CAP)
+                curation.REDDIT_SOURCE_CAP)
             self.assertEqual(sum(item["source"] == "Vendor Feed" for item in kept), 1)
 
     def test_quiet_source_is_excluded_from_errors_and_failed_sources(self):
@@ -1798,7 +1718,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "subreddits": [],
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
-            quiet_result = model.FetchResult([], 0, parsed_entries=5, dated_entries=5)
+            quiet_result = model.FetchResult([], 0, parsed_entries=5, dated_entries=5, filtered_entries=0)
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss", return_value=quiet_result),
                   redirect_stdout(io.StringIO()) as stdout,

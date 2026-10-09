@@ -66,8 +66,11 @@ def _public_ip(value: str) -> bool:
     return address.is_global
 
 
-def _http_destination(url: str) -> tuple[urllib.parse.SplitResult, str, int]:
-    """Validate URL syntax before DNS resolution or a network request."""
+def http_destination(url: str) -> tuple[urllib.parse.SplitResult, str, int]:
+    """Validate URL syntax before DNS resolution or a network request.
+
+    Performs no network I/O, so configured sources are checked with it at load time.
+    """
     if not isinstance(url, str) or not url.strip():
         raise ValueError("destination must be a non-empty URL")
     if len(url.encode("utf-8")) > MAX_URL_BYTES:
@@ -100,11 +103,6 @@ def _http_destination(url: str) -> tuple[urllib.parse.SplitResult, str, int]:
         if not _public_ip(str(literal)):
             raise ValueError("destination resolves to a non-public address")
     return parts, ascii_hostname, port or (443 if parts.scheme.lower() == "https" else 80)
-
-
-def validate_source_url(url: str) -> None:
-    """Validate a configured source without performing network I/O."""
-    _http_destination(url)
 
 
 def _resolve_public_addresses(hostname: str, port: int) -> tuple[ResolvedAddress, ...]:

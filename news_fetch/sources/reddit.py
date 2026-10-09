@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import math
 import re
-import time
-import urllib.error
 import urllib.parse
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -19,23 +17,12 @@ from news_fetch.model import FetchResult, Item, _raise_data_error
 from news_fetch.sources.common import parse_feed_date, publication_in_window, strip_html
 from news_fetch.transport import REDDIT_TIMEOUT
 
-REDDIT_MAX_ATTEMPTS = 2
 REDDIT_FALLBACK_LIMIT = 100
 REDDIT_MIN_SCORE = 2
 ARCTIC_SHIFT_POSTS_URL = "https://arctic-shift.photon-reddit.com/api/posts/search"
 SCRAPECREATORS_SUBREDDIT_URL = "https://api.scrapecreators.com/v1/reddit/subreddit"
 REDDIT_PAUSE_SECONDS = 2  # Reddit rate-limits bursts; space serial requests
-REDDIT_RETRY_MAX_SLEEP = 30  # ceiling on a server-supplied Retry-After
-
-# Reddit's "top" RSS endpoint takes a coarse bucket (t=), not an arbitrary
-# window, so it can't express arbitrary hour ranges directly. Over-fetch the
-# smallest bucket that fully covers the requested window and let the exact
-# fixed publication-window filter in fetch_reddit_rss() do the real work — the
-# same lower and upper bounds used for every other source.
-REDDIT_TOP_BUCKETS = ((1, "hour"), (24, "day"), (168, "week"),
-                      (720, "month"), (8760, "year"))
-REDDIT_BASE_LIMIT = 25
-REDDIT_MAX_LIMIT = 100  # cap applied to scaled anonymous RSS requests
+REDDIT_RSS_LIMIT = 25
 
 
 def _reddit_md_text(atom_content: str) -> str:
@@ -45,44 +32,13 @@ def _reddit_md_text(atom_content: str) -> str:
 
 
 def reddit_top_bucket(hours: int) -> str:
-    """Smallest Reddit `t=` bucket that fully covers `hours`."""
-    for span, name in REDDIT_TOP_BUCKETS:
-        if hours <= span:
-            return name
-    return "all"
+    """Reddit's coarse `t=` bucket for a window.
 
-
-def reddit_limit(hours: int) -> int:
-    """Ask for proportionally more posts when the bucket over-covers the window.
-
-    Reddit ranks across the whole bucket, so a 48h window served by
-    t=week returns only the few weekly-top posts that happen to land in range. Scale
-    the request by how much the bucket overshoots so in-window coverage stays
-    roughly constant as --hours grows.
+    The `top` endpoints take a bucket, not an arbitrary window. Real windows
+    run 23-25 hours, so "day" or "week" covers them; the exact publication
+    window filter applied to every backend does the real work.
     """
-    spans = {name: span for span, name in REDDIT_TOP_BUCKETS}
-    span = spans.get(reddit_top_bucket(hours))
-    if span is None or hours <= 0:
-        return REDDIT_MAX_LIMIT
-    return min(REDDIT_MAX_LIMIT, math.ceil(REDDIT_BASE_LIMIT * span / hours))
-
-
-def retry_after_seconds(exc: urllib.error.HTTPError, fallback: int) -> int:
-    """Seconds to wait after a 429, preferring the server's own instruction.
-
-    Reddit sends Retry-After on rate limits. Backing off on our own guess
-    either wastes time or retries too early and earns another 429, so use the
-    server's number when it gives one — clamped, because the header is
-    attacker-influenced and an hour-long sleep would hang the run.
-    """
-    header = ""
-    try:
-        header = (exc.headers.get("Retry-After") or "").strip()
-    except AttributeError:
-        pass
-    if header.isdigit():
-        return max(0, min(int(header), REDDIT_RETRY_MAX_SLEEP))
-    return fallback
+    return "day" if hours <= 24 else "week"
 
 
 def fetch_reddit_rss(
@@ -94,20 +50,15 @@ def fetch_reddit_rss(
     engagement score.
     """
     url = (f"https://www.reddit.com/r/{subreddit}/top/.rss"
-           f"?t={reddit_top_bucket(hours)}&limit={reddit_limit(hours)}")
+           f"?t={reddit_top_bucket(hours)}&limit={REDDIT_RSS_LIMIT}")
     ns = {"atom": "http://www.w3.org/2005/Atom"}
-    for attempt in range(REDDIT_MAX_ATTEMPTS):
-        try:
-            payload = transport.http_get(url, timeout=REDDIT_TIMEOUT)
-            try:
-                root = parse_feed_xml(payload)
-            except (ET.ParseError, ValueError) as exc:
-                _raise_data_error(exc)
-            break
-        except urllib.error.HTTPError as exc:
-            if exc.code != 429 or attempt == REDDIT_MAX_ATTEMPTS - 1:
-                raise
-            time.sleep(retry_after_seconds(exc, 5 * (attempt + 1)))
+    # A 429 propagates so fetch_reddit() falls through to Arctic Shift, which
+    # serves the exact window, instead of sleeping on a retry here.
+    payload = transport.http_get(url, timeout=REDDIT_TIMEOUT)
+    try:
+        root = parse_feed_xml(payload)
+    except (ET.ParseError, ValueError) as exc:
+        _raise_data_error(exc)
 
     items: list[Item] = []
     undated = 0
