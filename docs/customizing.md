@@ -24,7 +24,7 @@ The fetcher accepts only HTTP(S) feed URLs without embedded credentials, and it 
 
 **Relevance filters.** Six broad feeds are keyword-filtered before ranking: The Verge, Ars Technica, Wired, GitHub Changelog, Simon Willison's Weblog, and Hacker News. The keyword lists live in `SOURCE_RELEVANCE_FILTERS` in [`news_fetch/relevance.py`](../news_fetch/relevance.py). Feeds you add are not filtered unless you add them there too, so a general-interest feed will contribute everything it publishes inside the window.
 
-**`dev_community` primary sources.** Beyond the GitHub product changelog, `dev_community` also carries direct release feeds for the tools the AI Dev Tools and AI Dev Practices sections cover — Claude Code, Cursor, Codex, and the MCP reference servers — plus Simon Willison's practitioner blog, so its five subreddits are not the sections' sole supplier. Reddit sources also get a lower per-source cap (`REDDIT_SOURCE_CAP` in `news_fetch/limits.py`, applied through `prepare_category`'s `source_caps` override) so a handful of subreddits cannot fill the category cap on their own.
+**`dev_community` primary sources.** Beyond the GitHub product changelog, `dev_community` also carries direct release feeds for the tools the AI Dev Tools and AI Dev Practices sections cover — Claude Code, Cursor, Codex, and the MCP reference servers — plus Simon Willison's practitioner blog, so its five subreddits are not the sections' sole supplier. Reddit sources also get a lower per-source cap (`REDDIT_SOURCE_CAP` in `news_fetch/curation.py`, applied by `prepare_category` to every `r/` source) so a handful of subreddits cannot fill the category cap on their own.
 
 ## `briefing-config.json`: what the briefing looks like
 

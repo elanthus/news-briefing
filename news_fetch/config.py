@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import corpus_schema
-from news_fetch.destinations import validate_source_url
-from news_fetch.limits import SOURCE_ID_BYTES
+from news_fetch.destinations import http_destination
 
 
 class Sources(NamedTuple):
@@ -28,8 +27,8 @@ def _source_id_problem(value: Any) -> str | None:
         return "must be a non-empty string"
     if "\n" in value or "\r" in value:
         return "must be single-line"
-    if len(value.encode("utf-8")) > SOURCE_ID_BYTES:
-        return f"must not exceed {SOURCE_ID_BYTES} UTF-8 bytes"
+    if len(value.encode("utf-8")) > corpus_schema.ITEM_SOURCE_MAX_BYTES:
+        return f"must not exceed {corpus_schema.ITEM_SOURCE_MAX_BYTES} UTF-8 bytes"
     return None
 
 
@@ -106,7 +105,7 @@ def load_sources(path: str | Path) -> Sources:
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] source name {problem}")
             try:
-                validate_source_url(url)
+                http_destination(url)
             except ValueError as exc:
                 raise ValueError(
                     f"rss_feeds.{category}[{index}] has unsafe URL: {exc}") from exc

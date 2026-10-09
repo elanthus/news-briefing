@@ -47,11 +47,11 @@ class FetchResult(NamedTuple):
 
     items: list[Item]
     undated: int
-    parsed_entries: int | None = None
-    dated_entries: int | None = None
+    parsed_entries: int
+    dated_entries: int
     # In-window entries dropped as removed/deleted or below the score floor;
     # separate from the counts above so an empty result stays diagnosable.
-    filtered_entries: int | None = None
+    filtered_entries: int
 
 
 class TimedFetchResult(NamedTuple):

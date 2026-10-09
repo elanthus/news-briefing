@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -28,14 +29,17 @@ from typing import Any
 
 import corpus_schema
 from agent_runner.checkpoint import write_text_atomic
-from news_fetch.collect import fetch_all_sources, new_corpus
+from news_fetch.collect import fetch_all_sources, new_corpus, record_source_health
 from news_fetch.config import Sources, load_sources
-from news_fetch.curation import context_budget_report, curate_categories
-from news_fetch.limits import DEFAULT_CATEGORY_CAP, DEFAULT_SOURCE_CAP, DEFAULT_WINDOW_HOURS
-from news_fetch.render import render_corpus
-from news_fetch.telemetry import record_source_health
+from news_fetch.curation import (
+    DEFAULT_CATEGORY_CAP,
+    DEFAULT_SOURCE_CAP,
+    context_budget_report,
+    curate_categories,
+)
 
 DEFAULT_SOURCES_PATH = Path(__file__).with_name("sources.json")
+DEFAULT_WINDOW_HOURS = 24
 
 
 def positive_int(value: str) -> int:
@@ -137,6 +141,24 @@ def resolve_window(parser: argparse.ArgumentParser,
     return cutoff, window_end, window_hours
 
 
+def render_markdown(corpus: dict[str, Any], window_hours: int, window_end: datetime) -> str:
+    """A Markdown digest of every category followed by any fetch errors."""
+    lines = [f"# News corpus — last {window_hours}h "
+             f"(generated {window_end:%Y-%m-%d %H:%M} UTC)\n"]
+    for category, items in corpus["categories"].items():
+        lines.append(f"\n## {category} ({len(items)} items)\n")
+        for item in items:
+            lines.append(f"- **{item['title']}** ({item['source']}, {item['published'][:16]})\n"
+                         f"  {item['url']}")
+    if corpus["errors"]:
+        lines.append("\n## Fetch errors\n")
+        lines.extend(
+            f"- {e['source_type']}:{e['source_id']}: "
+            f"{e['error_type']}: {e['message']}"
+            for e in corpus["errors"])
+    return "\n".join(lines)
+
+
 def emit(corpus: dict[str, Any], text: str, output: str | None) -> int:
     """Validate, write or print the corpus, and return the process exit code."""
     total = sum(len(v) for v in corpus["categories"].values())
@@ -189,12 +211,13 @@ def main() -> int:
                         args.source_cap, args.category_cap, args.report_date)
     undated = fetch_all_sources(corpus, sources, cutoff, window_end, window_hours)
     used_bytes, estimated_tokens = curate_categories(
-        corpus, sources.subreddits, undated, args.source_cap, args.category_cap)
+        corpus, undated, args.source_cap, args.category_cap)
     record_source_health(corpus)
     corpus["context_budget"] = context_budget_report(
         corpus["processing"], used_bytes, estimated_tokens)
 
-    text = render_corpus(corpus, args.markdown, window_hours, window_end)
+    text = (render_markdown(corpus, window_hours, window_end) if args.markdown
+            else json.dumps(corpus, indent=1))
     return emit(corpus, text, args.output)
 
 

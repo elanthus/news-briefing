@@ -80,7 +80,7 @@ class IntegrityPipelineTests(unittest.TestCase):
 
     def test_corpus_health_distinguishes_undated_empty_and_filtered_quiet_sources(self):
         import corpus_schema
-        from news_fetch.telemetry import error_record
+        from news_fetch.collect import error_record
         from tests.test_briefing_output import fixture_contract
 
         corpus, *_ = fixture_contract()

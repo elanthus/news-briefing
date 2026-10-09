@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 from typing import Any, NamedTuple
 
-from news_fetch.destinations import ResolvedAddress, _http_destination, _resolve_public_addresses
+from news_fetch.destinations import ResolvedAddress, _resolve_public_addresses, http_destination
 
 # Feed operators see this traffic from every clone. Naming the project and
 # linking it gives them something to look up, and someone to reach, before a
@@ -187,7 +187,7 @@ def http_get(url: str, user_agent: str = USER_AGENT, timeout: int = TIMEOUT) -> 
     current = url
     initial_scheme: str | None = None
     for redirect_count in range(MAX_REDIRECTS + 1):
-        parts, hostname, port = _http_destination(current)
+        parts, hostname, port = http_destination(current)
         if initial_scheme is None:
             initial_scheme = parts.scheme.lower()
         addresses = _resolve_public_addresses(hostname, port)
@@ -241,7 +241,7 @@ def scrapecreators_get(url: str, api_key: str, timeout: int = REDDIT_TIMEOUT) ->
     key = api_key.strip()
     if not key or "\r" in key or "\n" in key:
         raise ValueError("SCRAPECREATORS_API_KEY must be a non-empty single-line value")
-    parts, hostname, port = _http_destination(url)
+    parts, hostname, port = http_destination(url)
     if parts.scheme.lower() != "https" or hostname != "api.scrapecreators.com" or port != 443:
         raise ValueError("ScrapeCreators credentials may only be sent to its HTTPS API origin")
     addresses = _resolve_public_addresses(hostname, port)

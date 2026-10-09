@@ -97,4 +97,4 @@ def fetch_rss(
             "summary": _feed_summary(entry, "atom:summary", "atom:content"),
             "source": source_name,
         })
-    return FetchResult(items, undated, parsed_entries, dated_entries)
+    return FetchResult(items, undated, parsed_entries, dated_entries, 0)
