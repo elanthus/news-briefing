@@ -873,6 +873,13 @@ class RunnerTests(unittest.TestCase):
         attempts.append({"kind": "prose", "repair_actions": None})
         self.assertEqual(len(promotion_actions(attempts)), 1)
 
+        # Publication reads untrusted manifests: only a selection_promotion
+        # attempt can carry promotions, and one malformed action voids them all.
+        promoted = attempts[-2]
+        self.assertEqual(promotion_actions([{**promoted, "kind": "selection_repair"}]), [])
+        malformed = {**promoted, "repair_actions": [*promoted["repair_actions"], {"action": "promote_excluded_entry"}]}
+        self.assertEqual(promotion_actions([malformed]), [])
+
     def test_empty_section_with_no_usable_log_forces_model_correction(self):
         """Promotion never invents coverage, so the blocker still blocks.
 
