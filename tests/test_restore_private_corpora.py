@@ -114,6 +114,22 @@ class RestorePrivateCorporaTests(unittest.TestCase):
             self.assertEqual([path.name for path in restored], ["2026-08-20.json"])
             self.assertIn(b'"report_date": "2026-08-20"', restored[0].read_bytes())
 
+    def test_restore_refuses_non_empty_output_before_looking_for_archives(self) -> None:
+        for stray in ("2026-08-01.json", "notes.txt"):
+            with self.subTest(stray=stray), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "corpora"
+                output.mkdir()
+                (output / stray).write_text("{}", encoding="utf-8")
+                with (
+                    patch.object(restore_private_corpora, "_artifact_candidates") as candidates,
+                    self.assertRaisesRegex(ValueError, "must be absent or empty"),
+                ):
+                    restore_private_corpora.restore(
+                        "owner/repository", output, "github token", "archive secret",
+                        date(2026, 8, 20),
+                    )
+                candidates.assert_not_called()
+
     def test_signed_redirect_download_does_not_receive_github_token(self) -> None:
         opener = RedirectingOpener()
         unsigned_requests: list[urllib.request.Request] = []

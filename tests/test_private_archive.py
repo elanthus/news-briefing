@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from private_archive import (
     create_encrypted_archive,
@@ -166,6 +167,27 @@ class PrivateArchiveTests(unittest.TestCase):
                 sorted(path.name for path in root.iterdir()),
                 ["2026-08-07.json", "2026-08-20.json"],
             )
+
+    def test_archive_with_only_out_of_window_dates_restores_an_empty_window(self) -> None:
+        payload = self._tar_members([
+            ("corpora/2026-08-06.json", self._corpus_bytes("2026-08-06")),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(_restore(payload, Path(directory)), ())
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_restored_size_limit_counts_members_outside_the_window(self) -> None:
+        current = self._corpus_bytes("2026-08-20")
+        payload = self._tar_members([
+            ("corpora/2026-08-20.json", current),
+            ("corpora/2026-08-06.json", self._corpus_bytes("2026-08-06")),
+        ])
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("private_archive.MAX_RESTORED_BYTES", len(current)),
+            self.assertRaisesRegex(ValueError, "exceeds the restored-size limit"),
+        ):
+            _restore(payload, Path(directory))
 
     def test_restore_validates_members_outside_the_window(self) -> None:
         payload = self._tar_members([

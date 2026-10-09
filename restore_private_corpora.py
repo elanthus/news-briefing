@@ -186,6 +186,8 @@ def restore(
         raise ValueError("archive passphrase must be a non-empty single-line value")
     if repository.count("/") != 1 or any(not part for part in repository.split("/")):
         raise ValueError("repository must use owner/name format")
+    if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
+        raise ValueError(f"corpus output directory must be absent or empty: {output_dir}")
 
     candidates = _artifact_candidates(repository, DEFAULT_ARTIFACT_NAME, token)
     with tempfile.TemporaryDirectory(prefix="news-briefing-restore-") as directory:
