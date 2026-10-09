@@ -163,22 +163,28 @@ def _read_member(archive: tarfile.TarFile, member: tarfile.TarInfo) -> bytes:
     return payload
 
 
-def _validate_corpus_payload(payload: bytes, day: str, label: str) -> None:
+def _validate_corpus_payload(payload: bytes, day: str, label: str) -> bool:
     try:
         corpus = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"private corpus is invalid JSON: {label}") from exc
     if not isinstance(corpus, dict):
         raise ValueError(f"private corpus is not a JSON object: {label}")
-    problems = corpus_schema.validate_corpus(corpus)
-    if problems:
-        raise ValueError(
-            f"private corpus violates its schema: {label}: " + "; ".join(problems)
-        )
+    version = corpus_schema.corpus_version(corpus)
+    obsolete = version is not None and 1 <= version < corpus_schema.SCHEMA_VERSION
+    if not obsolete:
+        problems = corpus_schema.validate_corpus(corpus)
+        if problems:
+            raise ValueError(
+                f"private corpus violates its schema: {label}: " + "; ".join(problems)
+            )
     if corpus.get("report_date") != day:
         raise ValueError(
             f"private corpus report_date does not match its filename: {label}"
         )
+    if obsolete:
+        print(f"Skipping obsolete corpus schema v{version}: {label}")
+    return not obsolete
 
 
 def restore_corpora_from_tar(
@@ -186,8 +192,9 @@ def restore_corpora_from_tar(
 ) -> tuple[Path, ...]:
     """Restore validated ``corpora/YYYY-MM-DD.json`` files inside the retention window.
 
-    Every member is validated; only the ``RETENTION_DAYS`` dates ending at
-    ``newest`` are written.
+    Every member is validated and obsolete-schema members are skipped; only
+    current members within the ``RETENTION_DAYS`` dates ending at ``newest``
+    are written.
     """
     oldest = newest - timedelta(days=RETENTION_DAYS - 1)
     restored: list[tuple[str, bytes]] = []
@@ -214,8 +221,8 @@ def restore_corpora_from_tar(
             if total_bytes > MAX_RESTORED_BYTES:
                 raise ValueError("private corpus archive exceeds the restored-size limit")
             seen.add(day)
-            _validate_corpus_payload(payload, day, member.name)
-            if oldest <= date.fromisoformat(day) <= newest:
+            current = _validate_corpus_payload(payload, day, member.name)
+            if current and oldest <= date.fromisoformat(day) <= newest:
                 restored.append((day, payload))
 
     if not seen:

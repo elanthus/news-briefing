@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import tarfile
@@ -122,18 +123,61 @@ class PrivateArchiveTests(unittest.TestCase):
                 archive.addfile(info, io.BytesIO(content))
         return payload.getvalue()
 
-    def test_restore_labels_impossible_calendar_dates_before_writing(self) -> None:
-        content = json.dumps({"schema_version": 7, "report_date": "2026-02-30"}).encode()
+    def test_restore_skips_obsolete_dates_but_preserves_current_bytes(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        current = self._corpus_bytes("2026-08-20")
         payload = self._tar_members([
-            ("corpora/2026-02-28.json", self._corpus_bytes("2026-02-28")),
-            ("corpora/2026-02-30.json", content),
+            ("corpora/2026-08-19.json", old), ("corpora/2026-08-20.json", current),
         ])
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaisesRegex(
-                ValueError, r"invalid calendar date: corpora/2026-02-30\.json"
-            ):
-                _restore(payload, Path(directory))
-            self.assertEqual(list(Path(directory).iterdir()), [])
+            root = Path(directory)
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                paths = _restore(payload, root)
+            self.assertEqual(
+                stdout.getvalue(),
+                "Skipping obsolete corpus schema v6: corpora/2026-08-19.json\n",
+            )
+            self.assertEqual([path.name for path in paths], ["2026-08-20.json"])
+            self.assertEqual(paths[0].read_bytes(), current)
+            self.assertFalse((root / "2026-08-19.json").exists())
+
+    def test_all_obsolete_archive_restores_an_empty_window(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        payload = self._tar_members([("corpora/2026-08-19.json", old)])
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            contextlib.redirect_stdout(io.StringIO()) as stdout,
+        ):
+            self.assertEqual(_restore(payload, Path(directory)), ())
+        self.assertIn("Skipping obsolete corpus schema v6", stdout.getvalue())
+
+    def test_restore_labels_impossible_calendar_dates_before_writing(self) -> None:
+        for version in (6, 7):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                content = json.dumps({
+                    "schema_version": version, "report_date": "2026-02-30",
+                }).encode()
+                payload = self._tar_members([
+                    ("corpora/2026-02-28.json", self._corpus_bytes("2026-02-28")),
+                    ("corpora/2026-02-30.json", content),
+                ])
+                with self.assertRaisesRegex(
+                    ValueError, r"invalid calendar date: corpora/2026-02-30\.json"
+                ):
+                    _restore(payload, Path(directory))
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_obsolete_members_still_require_unique_matching_dates(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-19"}).encode()
+        for rows in ([('corpora/2026-08-20.json', old)],
+                     [('corpora/2026-08-19.json', old)] * 2):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory() as directory:
+                with (
+                    self.assertRaises(ValueError),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    _restore(self._tar_members(rows), Path(directory))
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_restore_refuses_duplicate_dates_before_writing(self) -> None:
         current = self._corpus_bytes("2026-08-19")
@@ -143,8 +187,8 @@ class PrivateArchiveTests(unittest.TestCase):
                 _restore(self._tar_members(rows), Path(directory))
             self.assertEqual(list(Path(directory).iterdir()), [])
 
-    def test_non_current_versions_fail_closed(self) -> None:
-        for version in (None, True, 0, -1, 6, 8):
+    def test_invalid_or_future_versions_are_not_skipped(self) -> None:
+        for version in (None, True, 0, -1, 8):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
                 content = json.dumps({"schema_version": version, "report_date": "2026-08-19"}).encode()
                 with self.assertRaisesRegex(ValueError, "violates its schema"):
@@ -175,6 +219,21 @@ class PrivateArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(_restore(payload, Path(directory)), ())
             self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_obsolete_member_outside_the_window_is_skipped_not_rejected(self) -> None:
+        old = json.dumps({"schema_version": 6, "report_date": "2026-08-06"}).encode()
+        current = self._corpus_bytes("2026-08-20")
+        payload = self._tar_members([
+            ("corpora/2026-08-06.json", old), ("corpora/2026-08-20.json", current),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                paths = _restore(payload, Path(directory))
+            self.assertEqual(
+                stdout.getvalue(),
+                "Skipping obsolete corpus schema v6: corpora/2026-08-06.json\n",
+            )
+            self.assertEqual([path.name for path in paths], ["2026-08-20.json"])
 
     def test_restored_size_limit_counts_members_outside_the_window(self) -> None:
         current = self._corpus_bytes("2026-08-20")
