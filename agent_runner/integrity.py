@@ -28,8 +28,15 @@ def _bound_bytes(run: Path, manifest: dict[str, Any], name: Any) -> bytes:
     return raw
 
 
-def run_provenance(run: Path, *, attempt_index: int = 1, attempt_count: int = 1) -> dict[str, Any] | None:
-    manifest = _read_json(run / "manifest.json")[0]
+def run_provenance(manifest: dict[str, Any], *, attempt_index: int = 1,
+                   attempt_count: int = 1) -> dict[str, Any] | None:
+    """Model identity and correction/repair counts from a run manifest.
+
+    ``None`` when the manifest predates recorded provider identity or holds a
+    malformed one, so an older run still publishes without provenance.
+    ``selection_promotion`` is not a repair: filling a reserved slot from the
+    accountability log is routine editorial bookkeeping.
+    """
     provider, identity = manifest.get("provider"), manifest.get("identity")
     attempts = manifest.get("attempts", [])
     if not isinstance(provider, dict) or not isinstance(identity, dict):
@@ -177,7 +184,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
         repaired = destination / "repair" / "run"
         repaired_manifest = _read_json(repaired / "manifest.json")[0]
         if any(c["status"] != "code_preserved" for c in calls):
-            record["repair_generation"] = run_provenance(repaired)
+            record["repair_generation"] = run_provenance(repaired_manifest)
         if changed:
             record["artifacts"].append({"id": "candidate", "sha256": sha256_bytes(
                 _bound_bytes(repaired, repaired_manifest, "final.md"))})
