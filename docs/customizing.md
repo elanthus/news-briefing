@@ -75,7 +75,7 @@ By default a run fetches live sources (`--corpus` replays a saved one instead), 
 
 | Flag | Effect |
 |---|---|
-| `--hours` | Moves the publication window. Items older than the cutoff are never shown to the model. |
+| `--hours` | Moves the publication window. Items older than the cutoff are never shown to the model. Reddit coverage is tuned for windows of about a day: longer windows request Reddit's top 25 posts of the week, so a multi-day window keeps fewer Reddit posts, and a window over a week can miss some entirely. |
 | `--source-cap` | Bounds how many items any one publisher contributes to the corpus. Reddit's five subreddits use a lower override (`REDDIT_SOURCE_CAP`) capped at whichever value is smaller. |
 | `--category-cap` | Bounds how many items any one category contributes. |
 | `--strict` | Returns nonzero on any checker finding or degraded source, for use in automation. |
