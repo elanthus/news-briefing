@@ -21,6 +21,7 @@ from agent_runner.checkpoint import write_bytes_atomic
 CORPUS_MEMBER = re.compile(r"^corpora/(\d{4}-\d{2}-\d{2})\.json$")
 MAX_CORPUS_BYTES = 50_000_000
 MAX_RESTORED_BYTES = 100_000_000
+RETENTION_DAYS = 14
 ARCHIVE_MAGIC = b"NBPA1\x00"
 # OpenSSL 1.1/LibreSSL accept an eight-byte explicit salt, while OpenSSL 3 also
 # accepts it. Keep the versioned envelope portable across local and CI runners.
@@ -162,32 +163,33 @@ def _read_member(archive: tarfile.TarFile, member: tarfile.TarInfo) -> bytes:
     return payload
 
 
-def _validate_corpus_payload(payload: bytes, day: str, label: str) -> bool:
+def _validate_corpus_payload(payload: bytes, day: str, label: str) -> None:
     try:
         corpus = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"private corpus is invalid JSON: {label}") from exc
     if not isinstance(corpus, dict):
         raise ValueError(f"private corpus is not a JSON object: {label}")
-    version = corpus_schema.corpus_version(corpus)
-    obsolete = version is not None and 1 <= version < corpus_schema.SCHEMA_VERSION
-    if not obsolete:
-        problems = corpus_schema.validate_corpus(corpus)
-        if problems:
-            raise ValueError(
-                f"private corpus violates its schema: {label}: " + "; ".join(problems)
-            )
+    problems = corpus_schema.validate_corpus(corpus)
+    if problems:
+        raise ValueError(
+            f"private corpus violates its schema: {label}: " + "; ".join(problems)
+        )
     if corpus.get("report_date") != day:
         raise ValueError(
             f"private corpus report_date does not match its filename: {label}"
         )
-    if obsolete:
-        print(f"Skipping obsolete corpus schema v{version}: {label}")
-    return not obsolete
 
 
-def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path, ...]:
-    """Restore only validated ``corpora/YYYY-MM-DD.json`` regular files."""
+def restore_corpora_from_tar(
+    archive_path: Path, output_dir: Path, newest: date
+) -> tuple[Path, ...]:
+    """Restore validated ``corpora/YYYY-MM-DD.json`` files inside the retention window.
+
+    Every member is validated; only the ``RETENTION_DAYS`` dates ending at
+    ``newest`` are written.
+    """
+    oldest = newest - timedelta(days=RETENTION_DAYS - 1)
     restored: list[tuple[str, bytes]] = []
     total_bytes = 0
     seen: set[str] = set()
@@ -212,7 +214,8 @@ def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path
             if total_bytes > MAX_RESTORED_BYTES:
                 raise ValueError("private corpus archive exceeds the restored-size limit")
             seen.add(day)
-            if _validate_corpus_payload(payload, day, member.name):
+            _validate_corpus_payload(payload, day, member.name)
+            if oldest <= date.fromisoformat(day) <= newest:
                 restored.append((day, payload))
 
     if not seen:
@@ -226,42 +229,6 @@ def restore_corpora_from_tar(archive_path: Path, output_dir: Path) -> tuple[Path
     return tuple(paths)
 
 
-def prune_corpora(directory: Path, newest: date, keep_days: int = 14) -> tuple[Path, ...]:
-    """Validate retained corpora and delete files outside a bounded window."""
-    if keep_days < 1:
-        raise ValueError("keep_days must be positive")
-    if not directory.is_dir():
-        raise ValueError(f"corpus directory does not exist: {directory}")
-    oldest = newest - timedelta(days=keep_days - 1)
-    removed = []
-    retained_bytes = 0
-    for path in directory.iterdir():
-        if path.is_symlink() or not path.is_file() or path.suffix != ".json":
-            raise ValueError(f"unexpected entry in corpus directory: {path.name}")
-        try:
-            parsed = date.fromisoformat(path.stem)
-        except ValueError as exc:
-            raise ValueError(f"corpus filename is not a canonical date: {path.name}") from exc
-        if path.stem != parsed.isoformat():
-            raise ValueError(f"corpus filename is not a canonical date: {path.name}")
-        if parsed < oldest or parsed > newest:
-            path.unlink()
-            removed.append(path)
-            continue
-        with path.open("rb") as stream:
-            payload = stream.read(MAX_CORPUS_BYTES + 1)
-        if len(payload) > MAX_CORPUS_BYTES:
-            raise ValueError(f"private corpus is too large: {path.name}")
-        if not _validate_corpus_payload(payload, path.stem, path.name):
-            path.unlink()
-            removed.append(path)
-            continue
-        retained_bytes += len(payload)
-        if retained_bytes > MAX_RESTORED_BYTES:
-            raise ValueError("retained private corpora exceed the restored-size limit")
-    return tuple(removed)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -271,11 +238,6 @@ def main() -> int:
     decrypt = subparsers.add_parser("decrypt", help="decrypt an archive")
     decrypt.add_argument("encrypted", type=Path)
     decrypt.add_argument("plaintext", type=Path)
-    prune = subparsers.add_parser(
-        "prune-corpora", help="prune dated corpus files outside a retention window"
-    )
-    prune.add_argument("directory", type=Path)
-    prune.add_argument("--newest", type=date.fromisoformat, required=True)
     args = parser.parse_args()
     try:
         if args.command == "create":
@@ -284,9 +246,6 @@ def main() -> int:
         elif args.command == "decrypt":
             passphrase = _passphrase("CORPUS_ARCHIVE_PASSPHRASE")
             decrypt_archive(args.encrypted, args.plaintext, passphrase)
-        else:
-            removed = prune_corpora(args.directory, args.newest)
-            print(f"Pruned {len(removed)} private corpus file(s)")
     except (OSError, RuntimeError, ValueError, tarfile.TarError) as exc:
         parser.error(str(exc))
     return 0

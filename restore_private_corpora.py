@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from datetime import date
 from pathlib import Path
 from typing import IO, Any, NamedTuple
 
@@ -176,7 +177,9 @@ def _encrypted_member(artifact_zip: bytes) -> bytes:
     return payload
 
 
-def restore(repository: str, output_dir: Path, token: str, passphrase: str) -> tuple[Path, ...]:
+def restore(
+    repository: str, output_dir: Path, token: str, passphrase: str, newest: date
+) -> tuple[Path, ...]:
     if not token or "\n" in token or "\r" in token:
         raise ValueError("GitHub token must be a non-empty single-line value")
     if not passphrase or "\n" in passphrase or "\r" in passphrase:
@@ -205,7 +208,7 @@ def restore(repository: str, output_dir: Path, token: str, passphrase: str) -> t
                     file=sys.stderr,
                 )
                 continue
-            return restore_corpora_from_tar(plaintext_path, output_dir)
+            return restore_corpora_from_tar(plaintext_path, output_dir, newest)
     raise ValueError(
         f"authentication failed for all {len(candidates)} eligible artifacts tried"
     )
@@ -215,6 +218,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--output-dir", type=Path, default=Path("corpora"))
+    parser.add_argument("--newest", type=date.fromisoformat, required=True)
     args = parser.parse_args()
     try:
         if not args.repository:
@@ -224,6 +228,7 @@ def main() -> int:
             args.output_dir,
             os.environ.get("GITHUB_TOKEN", ""),
             os.environ.get("CORPUS_ARCHIVE_PASSPHRASE", ""),
+            args.newest,
         )
     except NoArchiveError as exc:
         print(str(exc))

@@ -43,12 +43,12 @@ class RestoreCorpusTests(unittest.TestCase):
             runner=runner,
         )
 
-    def test_exit_zero_restores_then_prunes(self) -> None:
+    def test_exit_zero_restores_the_window_ending_today(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner(0)
             self.assertEqual(self.run_restore(runner, Path(directory)), 0)
-            self.assertEqual(runner.commands[-1][1:3], ["private_archive.py", "prune-corpora"])
-
+            self.assertEqual(len(runner.commands), 1)
+            self.assertEqual(runner.commands[0][-2:], ["--newest", "2026-09-03"])
 
     def test_missing_archive_starts_fresh_without_public_downloads(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -56,7 +56,7 @@ class RestoreCorpusTests(unittest.TestCase):
             self.assertEqual(self.run_restore(runner, Path(directory)), 0)
             self.assertIn("No unexpired private archive remains", self.stdout.getvalue())
             self.assertEqual([command[1] for command in runner.commands],
-                             ["restore_private_corpora.py", "private_archive.py"])
+                             ["restore_private_corpora.py"])
 
     def test_exit_two_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -337,7 +337,6 @@ class InterpreterTests(unittest.TestCase):
             [command[:2] for command in runner.commands],
             [
                 [sys.executable, "restore_private_corpora.py"],
-                [sys.executable, "private_archive.py"],
                 [sys.executable, "fetch_news.py"],
                 [sys.executable, "run_daily_briefing.py"],
                 [sys.executable, "prepare_publication.py"],

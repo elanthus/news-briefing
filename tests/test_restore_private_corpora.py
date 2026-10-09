@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from contextlib import redirect_stderr
+from datetime import date
 from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
@@ -106,7 +107,8 @@ class RestorePrivateCorporaTests(unittest.TestCase):
                 ),
             ):
                 restored = restore_private_corpora.restore(
-                    "owner/repository", root / "restored", "github token", "archive secret"
+                    "owner/repository", root / "restored", "github token", "archive secret",
+                    date(2026, 8, 20),
                 )
 
             self.assertEqual([path.name for path in restored], ["2026-08-20.json"])
@@ -238,7 +240,8 @@ class RestorePrivateCorporaTests(unittest.TestCase):
                 redirect_stderr(stderr),
             ):
                 restored = restore_private_corpora.restore(
-                    "owner/repository", root / "restored", "github token", "archive secret"
+                    "owner/repository", root / "restored", "github token", "archive secret",
+                    date(2026, 8, 20),
                 )
 
         self.assertEqual([path.name for path in restored], ["2026-08-20.json"])
@@ -276,7 +279,8 @@ class RestorePrivateCorporaTests(unittest.TestCase):
                 ),
             ):
                 restore_private_corpora.restore(
-                    "owner/repository", root / "restored", "github token", "archive secret"
+                    "owner/repository", root / "restored", "github token", "archive secret",
+                    date(2026, 8, 20),
                 )
 
         self.assertEqual(download.call_count, 2)
