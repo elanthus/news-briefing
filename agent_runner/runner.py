@@ -22,7 +22,7 @@ from agent_runner.checkpoint import (
     write_text_atomic,
 )
 from agent_runner.models import GenerationRequest, ModelProvider, ProviderError
-from agent_runner.outcomes import classify_outcome, finding_domain
+from agent_runner.outcomes import Outcome, classify_outcome, finding_domain
 from agent_runner.output import (
     PROMOTION_ACTION,
     Citation,
@@ -31,6 +31,7 @@ from agent_runner.output import (
     attach_frozen_selection,
     build_prose_schema,
     build_selection_schema,
+    complete_briefing,
     detach_prose,
     project_corpus,
     project_selected_evidence,
@@ -38,7 +39,6 @@ from agent_runner.output import (
     redact_opaque_references,
     redact_preview_value,
     render_candidate_preview,
-    render_validation_status,
     repair_structural_output,
     validate_prose_output,
 )
@@ -46,7 +46,6 @@ from agent_runner.stages import (
     SELECTION_ATTEMPT_KINDS,
     SELECTION_PROMOTION_KIND,
     CorrectionBudget,
-    DeterministicRepairResult,
     decide_stage,
     evaluate_candidate,
 )
@@ -435,97 +434,30 @@ def _attempt_paths(index: int) -> tuple[str, str, str, str, str]:
     )
 
 
-def _deterministic_repair_attempt(
+def _record_code_attempt(
     store: RunStore,
+    kind: str,
     output: dict[str, Any],
-    *,
-    corpus: dict[str, Any],
-    config: briefing_config.BriefingConfig,
-    citations: dict[str, Citation],
-    repair: DeterministicRepairResult | None = None,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    if repair is None:
-        evidence = eval_briefing.corpus_evidence(corpus)
-        repaired, actions = repair_structural_output(
-            output, config, citations, evidence=evidence
-        )
-    else:
-        repaired, actions = repair.output, repair.actions
-    current = store.manifest["attempts"][-1]
-    if not actions or not isinstance(repaired, dict):
-        return current, output
+    actions: list[dict[str, str]],
+    validate: Callable[[dict[str, Any], dict[str, Any]], Any],
+) -> dict[str, Any]:
+    """Record a code-owned change to the candidate as its own attempt.
 
-    index = len(store.manifest["attempts"]) + 1
-    _raw_name, structured_name, _events_name, _briefing_name, _findings_name = _attempt_paths(index)
-    store.write_json(structured_name, repaired)
-    attempt = {
-        "index": index,
-        "kind": "deterministic_repair",
-        "received_at": utc_now(),
-        "raw_artifact": None,
-        "structured_artifact": structured_name,
-        "provider_events_artifact": None,
-        "generation": None,
-        "repair_actions": actions,
-        "validated": False,
-        "contract_success": None,
-        "briefing_artifact": None,
-        "findings_artifact": None,
-    }
-    store.manifest["attempts"].append(attempt)
-    store.trace(
-        "deterministic_repair_completed",
-        attempt=index,
-        source_attempt=current["index"],
-        actions=len(actions),
-    )
-    store.checkpoint("deterministic_repair_received")
-    _validate_attempt(
-        store,
-        attempt,
-        repaired,
-        corpus=corpus,
-        config=config,
-        citations=citations,
-        repair_actions=actions,
-    )
-    return attempt, repaired
-
-
-def _deterministic_selection_repair_attempt(
-    store: RunStore,
-    selection: dict[str, Any],
-    *,
-    config: briefing_config.BriefingConfig,
-    citations: dict[str, Citation],
-    repair: DeterministicRepairResult | None = None,
-    kind: str = "selection_repair",
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Record a code-owned change to the selection as its own attempt.
-
-    ``kind`` separates the two code-owned moves that share this machinery.
-    ``selection_repair`` removes evidence that failed the contract;
-    ``selection_promotion`` fills a reserved slot the model left empty. Only
-    the first is a repair, so only the first belongs in the repair-action count
+    ``kind`` names the move. ``selection_repair`` removes evidence that failed
+    the selection contract; ``selection_promotion`` fills a reserved slot the
+    model left empty; ``deterministic_repair`` repairs the prose candidate.
+    Promotion is not a repair, so it does not belong in the repair-action count
     a reader sees on the published entry.
     """
-    if repair is None:
-        repaired, actions = repair_structural_output(selection, config, citations)
-    else:
-        repaired, actions = repair.output, repair.actions
-    current = store.manifest["attempts"][-1]
-    if not actions or not isinstance(repaired, dict):
-        return current, selection
-
+    source = store.manifest["attempts"][-1]
     index = len(store.manifest["attempts"]) + 1
-    _raw_name, structured_name, _events_name, _briefing_name, _findings_name = _attempt_paths(index)
-    store.write_json(structured_name, repaired)
+    structured_name = _attempt_paths(index)[1]
+    store.write_json(structured_name, output)
     attempt = {
         "index": index,
         "kind": kind,
         "received_at": utc_now(),
         "raw_artifact": None,
-        "model_output_artifact": None,
         "structured_artifact": structured_name,
         "provider_events_artifact": None,
         "generation": None,
@@ -535,22 +467,19 @@ def _deterministic_selection_repair_attempt(
         "briefing_artifact": None,
         "findings_artifact": None,
     }
+    if kind in SELECTION_ATTEMPT_KINDS:
+        # Selection attempts have always recorded this key; prose repairs never have.
+        attempt["model_output_artifact"] = None
     store.manifest["attempts"].append(attempt)
     store.trace(
         f"{kind}_completed",
         attempt=index,
-        source_attempt=current["index"],
+        source_attempt=source["index"],
         actions=len(actions),
     )
     store.checkpoint(f"{kind}_received")
-    _validate_selection_attempt(
-        store,
-        attempt,
-        repaired,
-        config=config,
-        citations=citations,
-    )
-    return attempt, repaired
+    validate(attempt, output)
+    return attempt
 
 
 def _call_provider(
@@ -721,6 +650,31 @@ def _corrections_used(store: RunStore, kind: str) -> int:
     )
 
 
+def _final_record(
+    attempt: dict[str, Any],
+    outcome: Outcome,
+    findings: list[dict[str, str]],
+    corpus: dict[str, Any],
+    settings: RunnerSettings,
+    run_path: Path,
+    output_sha256: str | None = None,
+) -> dict[str, Any]:
+    """The manifest's final record. Only a published artifact carries a hash."""
+    published = output_sha256 is not None
+    return {
+        "status": outcome.disposition,
+        "outcome": outcome.record(),
+        "attempt": attempt["index"],
+        "findings": findings,
+        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
+        "artifact_type": "final" if published else "preview",
+        "run_artifact": run_path.name,
+        "requested_output_path": _portable_path(settings.output_path),
+        "output_path": _portable_path(settings.output_path) if published else None,
+        "output_sha256": output_sha256,
+    }
+
+
 def _finalize_selection_preview(
     store: RunStore,
     attempt: dict[str, Any],
@@ -749,24 +703,8 @@ def _finalize_selection_preview(
         f"{json.dumps(safe_selection, indent=2, ensure_ascii=False)}\n"
         "```\n",
     )
-    final = {
-        "status": outcome.disposition,
-        "outcome": outcome.record(),
-        "attempt": attempt["index"],
-        "findings": findings,
-        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
-        "artifact_type": "preview",
-        "run_artifact": preview_path.name,
-        "requested_output_path": _portable_path(settings.output_path),
-        "output_path": None,
-        "output_sha256": None,
-    }
-    store.finalize(final)
+    store.finalize(_final_record(attempt, outcome, findings, corpus, settings, preview_path))
     return RunResult(1, store.root, preview_path, outcome.disposition)
-
-
-def _checker_fingerprint(findings: list[eval_briefing.Finding]) -> list[tuple[str, str, str]]:
-    return [(finding.level, finding.check, finding.message) for finding in findings]
 
 
 def _finalize_candidate(
@@ -782,37 +720,13 @@ def _finalize_candidate(
     if not isinstance(briefing_name, str):
         raise RuntimeError("the final structured candidate could not be rendered")
     briefing = (store.root / briefing_name).read_text(encoding="utf-8")
-    findings = eval_briefing.evaluate(corpus, briefing, config)
-    outcome = classify_outcome(
-        findings, corpus.get("errors", []),
-        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
-    completed = briefing.rstrip() + "\n" + render_validation_status(
-        findings, corpus, outcome=outcome
-    )
-    after = eval_briefing.evaluate(corpus, completed, config)
-    if _checker_fingerprint(after) != _checker_fingerprint(findings):
-        outcome = classify_outcome(
-            after, corpus.get("errors", []),
-            coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
-        completed = briefing.rstrip() + "\n" + render_validation_status(
-            after, corpus, outcome=outcome
-        )
-        stabilized = eval_briefing.evaluate(corpus, completed, config)
-        if _checker_fingerprint(stabilized) != _checker_fingerprint(after):
-            raise RuntimeError("validation status did not stabilize after two completed-briefing checks")
-        findings = stabilized
-    else:
-        findings = after
-    outcome = classify_outcome(
-        findings, corpus.get("errors", []),
-        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
+    completed, findings, outcome = complete_briefing(briefing, corpus, config)
     if outcome.disposition == "ready":
         store.write_text("briefing.md", completed)
         run_path = store.write_text("final.md", completed)
         write_text_atomic(settings.output_path, completed)
         output_path: Path | None = settings.output_path
         output_sha256: str | None = sha256_file(settings.output_path)
-        artifact_type = "final"
     else:
         output = json.loads(
             (store.root / attempt["structured_artifact"]).read_text(encoding="utf-8")
@@ -828,20 +742,9 @@ def _finalize_candidate(
         run_path = store.write_text("preview.md", preview)
         output_path = run_path
         output_sha256 = None
-        artifact_type = "preview"
-    final = {
-        "status": outcome.disposition,
-        "outcome": outcome.record(),
-        "attempt": attempt["index"],
-        "findings": _finding_records(findings),
-        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
-        "artifact_type": artifact_type,
-        "run_artifact": run_path.name,
-        "requested_output_path": _portable_path(settings.output_path),
-        "output_path": _portable_path(settings.output_path) if artifact_type == "final" else None,
-        "output_sha256": output_sha256,
-    }
-    store.finalize(final)
+    store.finalize(_final_record(
+        attempt, outcome, _finding_records(findings), corpus, settings, run_path, output_sha256
+    ))
     failed = outcome.disposition != "ready" or (
         settings.strict and bool(findings or corpus_schema.corpus_health_degraded(corpus))
     )
@@ -878,19 +781,7 @@ def _finalize_structured_preview(
         outcome,
     )
     preview_path = store.write_text("preview.md", preview)
-    final = {
-        "status": outcome.disposition,
-        "outcome": outcome.record(),
-        "attempt": attempt["index"],
-        "findings": findings,
-        "source_issues": corpus_schema.corpus_health_issue_count(corpus),
-        "artifact_type": "preview",
-        "run_artifact": preview_path.name,
-        "requested_output_path": _portable_path(settings.output_path),
-        "output_path": None,
-        "output_sha256": None,
-    }
-    store.finalize(final)
+    store.finalize(_final_record(attempt, outcome, findings, corpus, settings, preview_path))
     return RunResult(1, store.root, preview_path, outcome.disposition)
 
 
@@ -905,13 +796,17 @@ def _finalize_after_deterministic_repair(
     settings: RunnerSettings,
 ) -> RunResult:
     if attempt.get("kind") != "deterministic_repair":
-        attempt, output = _deterministic_repair_attempt(
-            store,
-            output,
-            corpus=corpus,
-            config=config,
-            citations=citations,
+        repaired, actions = repair_structural_output(
+            output, config, citations, evidence=eval_briefing.corpus_evidence(corpus)
         )
+        if actions and isinstance(repaired, dict):
+            attempt = _record_code_attempt(
+                store, "deterministic_repair", repaired, actions,
+                lambda recorded, candidate: _validate_attempt(
+                    store, recorded, candidate, corpus=corpus, config=config,
+                    citations=citations, repair_actions=recorded["repair_actions"],
+                ),
+            )
     if attempt.get("briefing_artifact"):
         return _finalize_candidate(
             store,
@@ -1018,9 +913,12 @@ def _select_evidence(
             last_kind=selection_attempt["kind"],
         )
         if decision.repair is not None:
-            _, selection = _deterministic_selection_repair_attempt(
-                store, selection, config=config, citations=citations,
-                repair=decision.repair, kind=decision.action,
+            selection = decision.repair.output
+            _record_code_attempt(
+                store, decision.action, selection, decision.repair.actions,
+                lambda recorded, candidate: _validate_selection_attempt(
+                    store, recorded, candidate, config=config, citations=citations,
+                ),
             )
             continue
         if decision.action == "accept":
@@ -1144,9 +1042,13 @@ def _write_prose(
             last_kind=attempt["kind"],
         )
         if decision.repair is not None:
-            _, output = _deterministic_repair_attempt(
-                store, output, corpus=corpus, config=config, citations=citations,
-                repair=decision.repair,
+            output = decision.repair.output
+            _record_code_attempt(
+                store, decision.action, output, decision.repair.actions,
+                lambda recorded, candidate: _validate_attempt(
+                    store, recorded, candidate, corpus=corpus, config=config,
+                    citations=citations, repair_actions=recorded["repair_actions"],
+                ),
             )
             continue
         if decision.action == "accept":

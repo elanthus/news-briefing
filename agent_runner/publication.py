@@ -107,10 +107,7 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     # Re-render the verified candidate and its code-owned validation footer.
     # A prefix match alone would permit unreviewed prose after the footer.
     import briefing_config
-    import corpus_schema
-    import eval_briefing
-    from agent_runner.outcomes import classify_outcome
-    from agent_runner.output import PROMOTION_ACTION, project_corpus, render_briefing, render_validation_status
+    from agent_runner.output import PROMOTION_ACTION, complete_briefing, project_corpus, render_briefing
     from agent_runner.stages import SELECTION_ATTEMPT_KINDS
     from publication_schema import parse_repair_actions
 
@@ -131,19 +128,7 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     candidate = read_json(selected / attempt["structured_artifact"])
     config = briefing_config.parse_config(read_json(selected / "briefing-config.json"))
     rendered = render_briefing(candidate, corpus, config, project_corpus(corpus).citations, actions)
-    findings = eval_briefing.evaluate(corpus, rendered, config)
-    outcome = classify_outcome(findings, corpus.get("errors", []),
-                               coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
-    expected = rendered.rstrip() + "\n" + render_validation_status(findings, corpus, outcome=outcome)
-    after = eval_briefing.evaluate(corpus, expected, config)
-    def fingerprint(rows: list[eval_briefing.Finding]) -> list[tuple[str, str, str]]:
-        return [(row.level, row.check, row.message) for row in rows]
-    if fingerprint(after) != fingerprint(findings):
-        outcome = classify_outcome(after, corpus.get("errors", []),
-                                   coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
-        expected = rendered.rstrip() + "\n" + render_validation_status(after, corpus, outcome=outcome)
-        if fingerprint(eval_briefing.evaluate(corpus, expected, config)) != fingerprint(after):
-            raise ValueError("published validation footer did not stabilize")
+    expected, _findings, _outcome = complete_briefing(rendered, corpus, config)
     markdown = _read_bytes(selected / "final.md")
     if hashlib.sha256(markdown).hexdigest() != hashes["final.md"]:
         raise ValueError("public artifact changed during verification")

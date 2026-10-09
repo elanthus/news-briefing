@@ -1654,7 +1654,7 @@ def render_validation_status(
         for issue in source_issues:
             # Every field is redacted via _preview_text and fetched with
             # .get(): each comes from the same untrusted fetch and is
-            # re-scanned by the checker when _finalize_candidate re-evaluates
+            # re-scanned by the checker when complete_briefing re-evaluates
             # the completed briefing, so a destination in any of them would
             # otherwise self-trip ungrounded_link. Validated corpora constrain
             # status to a code-owned enum and guarantee every key, but this
@@ -1683,3 +1683,28 @@ def render_validation_status(
     else:
         lines.append("None")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def complete_briefing(
+    rendered: str,
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+) -> tuple[str, list[eval_briefing.Finding], Outcome]:
+    """Check a rendered briefing and append its code-owned validation footer.
+
+    The footer starts at ``### Run outcome``, a heading the checker's section
+    parser ignores, and every untrusted value in it passes through
+    ``_preview_text``, so appending it cannot change the findings. The
+    completed text is checked once more to prove that; publication then
+    compares these exact bytes.
+    """
+    findings = eval_briefing.evaluate(corpus, rendered, config)
+    outcome = classify_outcome(
+        findings, corpus.get("errors", []),
+        coverage_degraded=corpus_schema.corpus_health_degraded(corpus))
+    completed = rendered.rstrip() + "\n" + render_validation_status(
+        findings, corpus, outcome=outcome
+    )
+    if eval_briefing.evaluate(corpus, completed, config) != findings:
+        raise ValueError("the validation footer changed the completed briefing's findings")
+    return completed, findings, outcome
