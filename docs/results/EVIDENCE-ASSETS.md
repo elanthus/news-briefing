@@ -28,7 +28,12 @@ python3 -S -m evaluator.evidence_assets fetch
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
+python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
 ```
+
+The last command regenerates `parity-v2-comparison-production-runner.json` and its Markdown from
+the fetched manifests and requires both to match the committed files. It is skipped when the
+bundles have not been fetched.
 
 `fetch` downloads each asset over HTTPS, refusing any redirect hop to a non-HTTPS URL before it is requested, and rejects it unless its SHA-256 matches
 `evaluator/evidence-assets.json`. It accepts only regular tar members with the

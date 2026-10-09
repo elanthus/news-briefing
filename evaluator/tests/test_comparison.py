@@ -10,6 +10,7 @@ from typing import Any
 
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.metrics import percentile, rate, wilson_interval
+from evaluator.runner import ROOT
 
 
 class MetricTest(unittest.TestCase):
@@ -385,3 +386,40 @@ class ComparisonTest(unittest.TestCase):
                 compare_runs(path, path, bootstrap_samples=10)
             self.assertIn("selected provider/model set differs", str(raised.exception))
 
+
+
+EVIDENCE = ROOT / ".news-briefing" / "evidence"
+COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-production-runner.json"
+
+
+class CommittedComparisonTest(unittest.TestCase):
+    """Regenerate a published comparison so bootstrap draw order cannot drift."""
+
+    @unittest.skipUnless(
+        (EVIDENCE / "parity-v1-evidence" / "manifest.json").is_file()
+        and (EVIDENCE / "parity-v2-evidence" / "manifest.json").is_file(),
+        "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch",
+    )
+    def test_committed_parity_v2_comparison_reproduces(self) -> None:
+        committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
+        row = committed["comparisons"][0]
+        result = compare_runs(
+            EVIDENCE / "parity-v1-evidence" / "manifest.json",
+            EVIDENCE / "parity-v2-evidence" / "manifest.json",
+            baseline_prompt=row["baseline_prompt"],
+            candidate_prompt=row["candidate_prompt"],
+            allow_descriptive=True,
+            bootstrap_samples=committed["bootstrap"]["samples"],
+            seed=committed["bootstrap"]["seed"],
+        )
+        # The published file records repository-relative manifest paths.
+        result["baseline_manifest"] = committed["baseline_manifest"]
+        result["candidate_manifest"] = committed["candidate_manifest"]
+        self.assertEqual(
+            json.dumps(result, indent=2, sort_keys=True) + "\n",
+            COMMITTED_COMPARISON.read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            markdown_comparison(result),
+            COMMITTED_COMPARISON.with_suffix(".md").read_text(encoding="utf-8"),
+        )

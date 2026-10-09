@@ -15,6 +15,11 @@ from evaluator.metrics import percentile
 
 Metric = Callable[[dict[str, Any]], float]
 REGRESSION_POLICY = Path(__file__).with_name("regression-policy.json")
+# Prompt versions preferred when a manifest holds several and none is named:
+# the historical production baseline and the reliability candidate it was
+# compared against.
+DEFAULT_BASELINE_PROMPT = "production-2026-08"
+DEFAULT_CANDIDATE_PROMPT = "reliability-v1"
 
 
 def _regression_policy() -> tuple[dict[str, Any], str]:
@@ -114,79 +119,54 @@ def _paired_rows(
 
 def _cluster_bootstrap(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
-    baseline_metric: Metric,
-    candidate_metric: Metric,
+    metric: Callable[[dict[str, Any]], Any],
+    statistic: Callable[[list[Any]], float],
     *,
     samples: int,
     seed: int,
-) -> dict[str, Any]:
-    by_cluster: dict[str, list[tuple[float, float]]] = defaultdict(list)
-    baseline_values = []
-    candidate_values = []
-    for left, right in pairs:
-        baseline_value = baseline_metric(left)
-        candidate_value = candidate_metric(right)
-        by_cluster[_cluster(left["case_id"])].append((baseline_value, candidate_value))
-        baseline_values.append(baseline_value)
-        candidate_values.append(candidate_value)
-    clusters = sorted(by_cluster)
-    if not clusters:
-        return {
-            "baseline_rate": None,
-            "candidate_rate": None,
-            "delta": None,
-            "ci95_case_cluster_bootstrap": None,
-            "pairs": 0,
-            "case_clusters": 0,
-        }
-    baseline_rate = statistics.fmean(baseline_values)
-    candidate_rate = statistics.fmean(candidate_values)
-    rng = random.Random(seed)
-    deltas = []
-    for _ in range(samples):
-        drawn = [rng.choice(clusters) for _ in clusters]
-        selected = [values for cluster in drawn for values in by_cluster[cluster]]
-        base = statistics.fmean(value for value, _ in selected)
-        cand = statistics.fmean(value for _, value in selected)
-        deltas.append(cand - base)
-    return {
-        "baseline_rate": baseline_rate,
-        "candidate_rate": candidate_rate,
-        "delta": candidate_rate - baseline_rate,
-        "ci95_case_cluster_bootstrap": [percentile(deltas, 0.025), percentile(deltas, 0.975)],
-        "pairs": len(pairs),
-        "case_clusters": len(clusters),
-    }
+) -> tuple[list[tuple[Any, Any]], int, list[float]]:
+    """Resample authored case clusters; return paired values, cluster count, and deltas.
 
-
-def _cluster_bootstrap_ratio(
-    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
-    numerator: Metric,
-    denominator: Metric,
-    *,
-    samples: int,
-    seed: int,
-) -> dict[str, Any]:
-    """Bootstrap a topic-weighted ratio while resampling authored case clusters."""
-    by_cluster: dict[str, list[tuple[float, float, float, float]]] = defaultdict(list)
+    Each delta is the candidate statistic minus the baseline statistic over one
+    resample. The draw order is fixed so committed comparisons reproduce.
+    """
+    by_cluster: dict[str, list[tuple[Any, Any]]] = defaultdict(list)
     values = []
     for left, right in pairs:
-        pair_values = (
-            numerator(left),
-            denominator(left),
-            numerator(right),
-            denominator(right),
-        )
-        by_cluster[_cluster(left["case_id"])].append(pair_values)
-        values.append(pair_values)
+        pair = (metric(left), metric(right))
+        by_cluster[_cluster(left["case_id"])].append(pair)
+        values.append(pair)
     clusters = sorted(by_cluster)
+    deltas = []
+    if clusters:
+        rng = random.Random(seed)
+        for _ in range(samples):
+            drawn = [rng.choice(clusters) for _ in clusters]
+            selected = [pair for cluster in drawn for pair in by_cluster[cluster]]
+            deltas.append(
+                statistic([value for _, value in selected])
+                - statistic([value for value, _ in selected])
+            )
+    return values, len(clusters), deltas
 
-    def ratio(selected: list[tuple[float, float, float, float]], side: int) -> float:
-        offset = side * 2
-        return sum(pair[offset] for pair in selected) / sum(
-            pair[offset + 1] for pair in selected
-        )
 
+def _topic_ratio(values: list[tuple[float, float]]) -> float:
+    return sum(numerator for numerator, _ in values) / sum(
+        denominator for _, denominator in values
+    )
+
+
+def _paired_rate(
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+    metric: Callable[[dict[str, Any]], Any],
+    statistic: Callable[[list[Any]], float] = statistics.fmean,
+    *,
+    samples: int,
+    seed: int,
+) -> dict[str, Any]:
+    values, clusters, deltas = _cluster_bootstrap(
+        pairs, metric, statistic, samples=samples, seed=seed
+    )
     if not clusters:
         return {
             "baseline_rate": None,
@@ -196,41 +176,28 @@ def _cluster_bootstrap_ratio(
             "pairs": 0,
             "case_clusters": 0,
         }
-    baseline_rate = ratio(values, 0)
-    candidate_rate = ratio(values, 1)
-    rng = random.Random(seed)
-    deltas = []
-    for _ in range(samples):
-        drawn = [rng.choice(clusters) for _ in clusters]
-        selected = [pair for cluster in drawn for pair in by_cluster[cluster]]
-        deltas.append(ratio(selected, 1) - ratio(selected, 0))
+    baseline_rate = statistic([value for value, _ in values])
+    candidate_rate = statistic([value for _, value in values])
     return {
         "baseline_rate": baseline_rate,
         "candidate_rate": candidate_rate,
         "delta": candidate_rate - baseline_rate,
         "ci95_case_cluster_bootstrap": [percentile(deltas, 0.025), percentile(deltas, 0.975)],
         "pairs": len(pairs),
-        "case_clusters": len(clusters),
+        "case_clusters": clusters,
     }
 
 
-def _cluster_bootstrap_median(
+def _paired_median_ms(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
     metric: Metric,
     *,
     samples: int,
     seed: int,
 ) -> dict[str, Any]:
-    by_cluster: dict[str, list[tuple[float, float]]] = defaultdict(list)
-    baseline_values = []
-    candidate_values = []
-    for left, right in pairs:
-        baseline_value = metric(left)
-        candidate_value = metric(right)
-        by_cluster[_cluster(left["case_id"])].append((baseline_value, candidate_value))
-        baseline_values.append(baseline_value)
-        candidate_values.append(candidate_value)
-    clusters = sorted(by_cluster)
+    values, clusters, deltas = _cluster_bootstrap(
+        pairs, metric, statistics.median, samples=samples, seed=seed
+    )
     if not clusters:
         return {
             "baseline_median_ms": None,
@@ -242,17 +209,10 @@ def _cluster_bootstrap_median(
             "pairs": 0,
             "case_clusters": 0,
         }
+    baseline_values = [value for value, _ in values]
+    candidate_values = [value for _, value in values]
     baseline_median = statistics.median(baseline_values)
     candidate_median = statistics.median(candidate_values)
-    rng = random.Random(seed)
-    deltas = []
-    for _ in range(samples):
-        drawn = [rng.choice(clusters) for _ in clusters]
-        selected = [values for cluster in drawn for values in by_cluster[cluster]]
-        deltas.append(
-            statistics.median(value for _, value in selected)
-            - statistics.median(value for value, _ in selected)
-        )
     return {
         "baseline_median_ms": baseline_median,
         "candidate_median_ms": candidate_median,
@@ -263,7 +223,7 @@ def _cluster_bootstrap_median(
         "baseline_p95_ms": percentile(baseline_values, 0.95),
         "candidate_p95_ms": percentile(candidate_values, 0.95),
         "pairs": len(pairs),
-        "case_clusters": len(clusters),
+        "case_clusters": clusters,
     }
 
 
@@ -552,8 +512,8 @@ def compare_runs(
     baseline_manifest_path, baseline_manifest = _load_manifest(baseline_path)
     candidate_manifest_path, candidate_manifest = _load_manifest(candidate_path)
     problems = _compatible(baseline_manifest, candidate_manifest)
-    left_prompt = _infer_prompt(baseline_manifest, "production-2026-08", baseline_prompt)
-    right_prompt = _infer_prompt(candidate_manifest, "reliability-v1", candidate_prompt)
+    left_prompt = _infer_prompt(baseline_manifest, DEFAULT_BASELINE_PROMPT, baseline_prompt)
+    right_prompt = _infer_prompt(candidate_manifest, DEFAULT_CANDIDATE_PROMPT, candidate_prompt)
 
     baseline_models = {
         (row["provider"], row["model"])
@@ -608,39 +568,39 @@ def compare_runs(
             if all(call.get("latency_ms") is not None for row in pair for call in _calls(row))
         ]
         metrics = {
-            "contract_success_first": _cluster_bootstrap(
+            "contract_success_first": _paired_rate(
                 utility, lambda row: float(row["first"]["contract_success"]),
-                lambda row: float(row["first"]["contract_success"]),
                 samples=bootstrap_samples, seed=seed + model_index * 101,
             ),
-            "contract_success_final": _cluster_bootstrap(
+            "contract_success_final": _paired_rate(
                 utility, lambda row: float(row["final"]["contract_success"]),
-                lambda row: float(row["final"]["contract_success"]),
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 1,
             ),
-            "end_to_end_success_first": _cluster_bootstrap(
-                utility, lambda row: _application(row, "first"), lambda row: _application(row, "first"),
+            "end_to_end_success_first": _paired_rate(
+                utility, lambda row: _application(row, "first"),
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 2,
             ),
-            "end_to_end_success_final": _cluster_bootstrap(
-                utility, lambda row: _application(row, "final"), lambda row: _application(row, "final"),
+            "end_to_end_success_final": _paired_rate(
+                utility, lambda row: _application(row, "final"),
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 3,
             ),
-            "targeted_attack_success_final": _cluster_bootstrap(
-                attacks, lambda row: _attack(row, "final"), lambda row: _attack(row, "final"),
+            "targeted_attack_success_final": _paired_rate(
+                attacks, lambda row: _attack(row, "final"),
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 4,
             ),
-            "correction_success": _cluster_bootstrap(
-                corrections, _correction_success, _correction_success,
+            "correction_success": _paired_rate(
+                corrections, _correction_success,
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 5,
             ),
-            "grounding_error_proxy_final": _cluster_bootstrap_ratio(
-                grounding, _grounding_proxy_errors, _generated_topics,
+            "grounding_error_proxy_final": _paired_rate(
+                grounding,
+                lambda row: (_grounding_proxy_errors(row), _generated_topics(row)),
+                _topic_ratio,
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 6,
             ),
         }
         operations_summary = {
-            "latency_per_completed_case_trial": _cluster_bootstrap_median(
+            "latency_per_completed_case_trial": _paired_median_ms(
                 latency, _row_latency_ms,
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 7,
             ),

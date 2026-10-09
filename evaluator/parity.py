@@ -46,7 +46,7 @@ def _evaluate_structured_generation(
 
 
 @dataclass(frozen=True)
-class _ProductionParityAttempt:
+class GenerationAttempt:
     """One evaluator candidate assembled from production's staged contract."""
 
     generation: Generation
@@ -69,20 +69,12 @@ class _ProductionParityProviderError(RuntimeError):
         self,
         cause: Exception,
         completed_calls: list[tuple[str, Generation]],
-        partial_attempt: _ProductionParityAttempt,
+        partial_attempt: GenerationAttempt,
     ):
         super().__init__(str(cause))
         self.cause = cause
         self.completed_calls = completed_calls
         self.partial_attempt = partial_attempt
-
-
-@dataclass(frozen=True)
-class GenerationAttempt:
-    """A provider generation and its production-parity evaluation."""
-
-    generation: Generation
-    parity: _ProductionParityAttempt
 
 
 def _output_findings(findings: list[Any]) -> list[eval_briefing.Finding]:
@@ -221,90 +213,21 @@ def _repair_record(
     }
 
 
-def _production_parity_after_selection(
+def _prose_attempt(
     *,
-    adapter: Adapter,
     calls: list[tuple[str, Generation]],
-    selection_generation: Generation,
-    policy: str,
-    config_data: dict[str, Any],
+    selection: dict[str, Any],
+    selected_evidence: dict[str, Any] | None,
+    prose_request: str,
+    prose_schema: dict[str, Any],
+    promotion_actions: list[dict[str, str]],
+    deterministic_repairs: list[dict[str, Any]],
     corpus: dict[str, Any],
     config: briefing_config.BriefingConfig,
     projected: ModelCorpus,
-    trace_id: str,
-) -> _ProductionParityAttempt:
-    selection = selection_generation.structured_output
-    selection_findings = _production_selection_findings(
-        selection, config, projected.citations
-    )
-    deterministic_repairs: list[dict[str, Any]] = []
-    last_kind = "selection"
-    promotion_actions: list[dict[str, str]] = []
-    while True:
-        decision = decide_stage(
-            "selection", selection, _finding_dicts(selection_findings),
-            config=config, citations=projected.citations,
-            budget=CorrectionBudget(0), last_kind=last_kind,
-        )
-        if decision.repair is None:
-            break
-        before = selection_findings
-        selection = decision.repair.output
-        selection_findings = _production_selection_findings(selection, config, projected.citations)
-        last_kind = decision.action
-        if last_kind == "selection_promotion":
-            promotion_actions = decision.repair.actions
-        deterministic_repairs.append(_repair_record(
-            "selection" if last_kind == "selection_repair" else last_kind,
-            before, selection_findings, decision.repair.actions,
-        ))
-    if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
-        text, sections = _empty_structured_result(config)
-        return _ProductionParityAttempt(
-            generation=_combine_structured_calls(
-                calls, selection if isinstance(selection, dict) else None
-            ),
-            text=text,
-            sections=sections,
-            findings=selection_findings,
-            selection=selection if isinstance(selection, dict) else None,
-            prose=None,
-            selected_evidence=None,
-            prose_request=None,
-            prose_schema=None,
-            correction_stage="selection",
-            deterministic_repairs=deterministic_repairs,
-        )
-    if not isinstance(selection, dict):
-        raise AssertionError("valid selection must be an object")
-
-    selected_evidence = project_selected_evidence(selection, projected)
-    prose_request = structured_prose_request(policy, config_data, selected_evidence)
-    prose_schema = build_prose_schema(config, selection)
-    try:
-        prose_generation = adapter.generate_structured(
-            prose_request, prose_schema, f"{trace_id}-prose"
-        )
-    except Exception as exc:
-        text, sections = _empty_structured_result(config)
-        partial_attempt = _ProductionParityAttempt(
-            generation=_combine_structured_calls(calls, selection),
-            text=text,
-            sections=sections,
-            findings=selection_findings,
-            selection=selection,
-            prose=None,
-            selected_evidence=selected_evidence,
-            prose_request=prose_request,
-            prose_schema=prose_schema,
-            correction_stage="prose",
-            deterministic_repairs=deterministic_repairs,
-        )
-        raise _ProductionParityProviderError(
-            exc, calls, partial_attempt
-        ) from exc
-    calls.append(("prose", prose_generation))
-    prose = prose_generation.structured_output
+) -> GenerationAttempt:
+    """Validate, render, and deterministically repair the last call's prose."""
+    prose = calls[-1][1].structured_output
     prose_findings = _output_findings(validate_prose_output(prose, config, selection))
     complete_output = attach_frozen_selection(selection, prose, config)
     combined = _combine_structured_calls(calls, complete_output)
@@ -339,7 +262,7 @@ def _production_parity_after_selection(
             findings,
             repair.actions,
         ))
-    return _ProductionParityAttempt(
+    return GenerationAttempt(
         generation=combined,
         text=text,
         sections=sections,
@@ -354,7 +277,104 @@ def _production_parity_after_selection(
     )
 
 
-def _production_parity_first_attempt(
+def _production_parity_after_selection(
+    *,
+    adapter: Adapter,
+    calls: list[tuple[str, Generation]],
+    selection_generation: Generation,
+    policy: str,
+    config_data: dict[str, Any],
+    corpus: dict[str, Any],
+    config: briefing_config.BriefingConfig,
+    projected: ModelCorpus,
+    trace_id: str,
+) -> GenerationAttempt:
+    selection = selection_generation.structured_output
+    selection_findings = _production_selection_findings(
+        selection, config, projected.citations
+    )
+    deterministic_repairs: list[dict[str, Any]] = []
+    last_kind = "selection"
+    promotion_actions: list[dict[str, str]] = []
+    while True:
+        decision = decide_stage(
+            "selection", selection, _finding_dicts(selection_findings),
+            config=config, citations=projected.citations,
+            budget=CorrectionBudget(0), last_kind=last_kind,
+        )
+        if decision.repair is None:
+            break
+        before = selection_findings
+        selection = decision.repair.output
+        selection_findings = _production_selection_findings(selection, config, projected.citations)
+        last_kind = decision.action
+        if last_kind == "selection_promotion":
+            promotion_actions = decision.repair.actions
+        deterministic_repairs.append(_repair_record(
+            "selection" if last_kind == "selection_repair" else last_kind,
+            before, selection_findings, decision.repair.actions,
+        ))
+    if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
+        text, sections = _empty_structured_result(config)
+        return GenerationAttempt(
+            generation=_combine_structured_calls(
+                calls, selection if isinstance(selection, dict) else None
+            ),
+            text=text,
+            sections=sections,
+            findings=selection_findings,
+            selection=selection if isinstance(selection, dict) else None,
+            prose=None,
+            selected_evidence=None,
+            prose_request=None,
+            prose_schema=None,
+            correction_stage="selection",
+            deterministic_repairs=deterministic_repairs,
+        )
+    if not isinstance(selection, dict):
+        raise AssertionError("valid selection must be an object")
+
+    selected_evidence = project_selected_evidence(selection, projected)
+    prose_request = structured_prose_request(policy, config_data, selected_evidence)
+    prose_schema = build_prose_schema(config, selection)
+    try:
+        prose_generation = adapter.generate_structured(
+            prose_request, prose_schema, f"{trace_id}-prose"
+        )
+    except Exception as exc:
+        text, sections = _empty_structured_result(config)
+        partial_attempt = GenerationAttempt(
+            generation=_combine_structured_calls(calls, selection),
+            text=text,
+            sections=sections,
+            findings=selection_findings,
+            selection=selection,
+            prose=None,
+            selected_evidence=selected_evidence,
+            prose_request=prose_request,
+            prose_schema=prose_schema,
+            correction_stage="prose",
+            deterministic_repairs=deterministic_repairs,
+        )
+        raise _ProductionParityProviderError(
+            exc, calls, partial_attempt
+        ) from exc
+    calls.append(("prose", prose_generation))
+    return _prose_attempt(
+        calls=calls,
+        selection=selection,
+        selected_evidence=selected_evidence,
+        prose_request=prose_request,
+        prose_schema=prose_schema,
+        promotion_actions=promotion_actions,
+        deterministic_repairs=deterministic_repairs,
+        corpus=corpus,
+        config=config,
+        projected=projected,
+    )
+
+
+def run_first_attempt(
     *,
     adapter: Adapter,
     selection_request: str,
@@ -365,7 +385,8 @@ def _production_parity_first_attempt(
     config: briefing_config.BriefingConfig,
     projected: ModelCorpus,
     trace_id: str,
-) -> _ProductionParityAttempt:
+) -> GenerationAttempt:
+    """Run the first provider attempt through the production contract."""
     selection_generation = adapter.generate_structured(
         selection_request, selection_schema, f"{trace_id}-selection"
     )
@@ -382,10 +403,10 @@ def _production_parity_first_attempt(
     )
 
 
-def _production_parity_correction_attempt(
+def run_correction_attempt(
     *,
     adapter: Adapter,
-    prior: _ProductionParityAttempt,
+    prior: GenerationAttempt,
     selection_request: str,
     selection_schema: dict[str, Any],
     policy: str,
@@ -394,7 +415,8 @@ def _production_parity_correction_attempt(
     config: briefing_config.BriefingConfig,
     projected: ModelCorpus,
     trace_id: str,
-) -> _ProductionParityAttempt:
+) -> GenerationAttempt:
+    """Run a checker-driven correction through the production contract."""
     finding_records = [finding._asdict() for finding in prior.findings]
     if prior.correction_stage == "selection":
         correction_prompt = structured_correction_request(
@@ -436,14 +458,6 @@ def _production_parity_correction_attempt(
         prior.prose_schema,
         f"{trace_id}-prose-correction",
     )
-    prose = prose_generation.structured_output
-    prose_findings = _output_findings(
-        validate_prose_output(prose, config, prior.selection)
-    )
-    complete_output = attach_frozen_selection(prior.selection, prose, config)
-    combined = _combine_structured_calls(
-        [("prose_correction", prose_generation)], complete_output
-    )
     # The correction re-renders the same frozen, already-promoted selection, so
     # the promotion belongs in this attempt's provenance too. Production keeps
     # its `selection_promotion` attempt in the manifest for the whole run;
@@ -454,125 +468,24 @@ def _production_parity_correction_attempt(
         for record in prior.deterministic_repairs
         if record.get("stage") == "selection_promotion"
     ]
-    promotion_actions = _recorded_promotion_actions(prior.deterministic_repairs)
-    if any(finding.level == eval_briefing.ERROR for finding in prose_findings):
-        text, sections = _empty_structured_result(config)
-        findings = prose_findings
-    else:
-        text, sections, findings = _evaluate_structured_generation(
-            combined, corpus, config, projected.citations,
-            repair_actions=promotion_actions,
-        )
-    deterministic_repairs: list[dict[str, Any]] = list(promotion_records)
-    repair = decide_stage(
-        "prose", complete_output, _finding_dicts(findings),
-        corpus=corpus, config=config, citations=projected.citations,
-        budget=CorrectionBudget(0), last_kind="prose",
-    ).repair
-    if repair is not None:
-        before_repair = findings
-        complete_output = repair.output
-        prose = detach_prose(complete_output, config)
-        combined = _combine_structured_calls(
-            [("prose_correction", prose_generation)], complete_output
-        )
-        text, sections, findings = _evaluate_structured_generation(
-            combined,
-            corpus,
-            config,
-            projected.citations,
-            repair_actions=[*promotion_actions, *repair.actions],
-        )
-        deterministic_repairs.append(_repair_record(
-            "prose",
-            before_repair,
-            findings,
-            repair.actions,
-        ))
-    return _ProductionParityAttempt(
-        generation=combined,
-        text=text,
-        sections=sections,
-        findings=findings,
+    return _prose_attempt(
+        calls=[("prose_correction", prose_generation)],
         selection=prior.selection,
-        prose=prose if isinstance(prose, dict) else None,
         selected_evidence=prior.selected_evidence,
         prose_request=prior.prose_request,
         prose_schema=prior.prose_schema,
-        correction_stage="prose",
-        deterministic_repairs=deterministic_repairs,
-    )
-
-
-def run_first_attempt(
-    *,
-    adapter: Adapter,
-    request: str,
-    selection_schema: dict[str, Any] | None,
-    policy: str,
-    config_data: dict[str, Any],
-    corpus: dict[str, Any],
-    config: briefing_config.BriefingConfig,
-    projected: ModelCorpus | None,
-    trace_id: str,
-) -> GenerationAttempt:
-    """Run the first provider attempt through the production contract."""
-    if projected is None or selection_schema is None:
-        raise AssertionError(
-            "production-parity projection and selection schema were not built"
-        )
-    parity = _production_parity_first_attempt(
-        adapter=adapter,
-        selection_request=request,
-        selection_schema=selection_schema,
-        policy=policy,
-        config_data=config_data,
+        promotion_actions=_recorded_promotion_actions(prior.deterministic_repairs),
+        deterministic_repairs=promotion_records,
         corpus=corpus,
         config=config,
         projected=projected,
-        trace_id=trace_id,
     )
-    return GenerationAttempt(parity.generation, parity)
-
-
-def run_correction_attempt(
-    *,
-    adapter: Adapter,
-    prior: GenerationAttempt,
-    request: str,
-    findings: list[dict[str, str]],
-    selection_schema: dict[str, Any] | None,
-    policy: str,
-    config_data: dict[str, Any],
-    corpus: dict[str, Any],
-    config: briefing_config.BriefingConfig,
-    projected: ModelCorpus | None,
-    trace_id: str,
-) -> GenerationAttempt:
-    """Run a checker-driven correction through the production contract."""
-    if projected is None or selection_schema is None:
-        raise AssertionError(
-            "production-parity projection and selection schema were not built"
-        )
-    parity = _production_parity_correction_attempt(
-        adapter=adapter,
-        prior=prior.parity,
-        selection_request=request,
-        selection_schema=selection_schema,
-        policy=policy,
-        config_data=config_data,
-        corpus=corpus,
-        config=config,
-        projected=projected,
-        trace_id=trace_id,
-    )
-    return GenerationAttempt(parity.generation, parity)
 
 
 def _write_production_attempt_artifacts(
     case_dir: Path,
     prefix: str,
-    attempt: _ProductionParityAttempt,
+    attempt: GenerationAttempt,
 ) -> None:
     """Preserve each stage so prompt/schema compatibility can be audited."""
     _write_json_atomic(case_dir / f"{prefix}-selection.json", attempt.selection)
