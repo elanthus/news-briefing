@@ -55,6 +55,8 @@ from agent_runner.stages import (
 from agent_runner.stages import (
     selection_findings as check_selection,
 )
+from news_fetch.curation import DEFAULT_CATEGORY_CAP, DEFAULT_SOURCE_CAP
+from publication_schema import parse_repair_actions
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,8 +85,8 @@ class RunnerSettings:
     output_path: Path
     corpus_path: Path | None = None
     hours: int = 24
-    source_cap: int = 25
-    category_cap: int = 60
+    source_cap: int = DEFAULT_SOURCE_CAP
+    category_cap: int = DEFAULT_CATEGORY_CAP
     timeout_seconds: int = 600
     max_corrections: int = 1
     strict: bool = False
@@ -390,7 +392,7 @@ def _finding_records(
     ]
 
 
-def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
+def promotion_actions(attempts: list[Any]) -> list[dict[str, str]]:
     """The slot fills that produced the selection now in force.
 
     Promotion happens in the selection stage but is tagged on the rendered
@@ -408,8 +410,8 @@ def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
     reopens promotion for the selection that replaces it.
     """
     selection_attempts = [
-        attempt for attempt in store.manifest["attempts"]
-        if attempt.get("kind") in SELECTION_ATTEMPT_KINDS
+        attempt for attempt in attempts
+        if isinstance(attempt, dict) and attempt.get("kind") in SELECTION_ATTEMPT_KINDS
     ]
     if not selection_attempts:
         return []
@@ -418,8 +420,8 @@ def _promotion_actions(store: RunStore) -> list[dict[str, str]]:
         return []
     return [
         action
-        for action in current.get("repair_actions") or ()
-        if action.get("action") == PROMOTION_ACTION
+        for action in parse_repair_actions(current.get("repair_actions"))
+        if action["action"] == PROMOTION_ACTION
     ]
 
 
@@ -595,7 +597,7 @@ def _validate_attempt(
 ) -> list[dict[str, str]]:
     rendered, _sections, findings = evaluate_candidate(
         output, corpus, config, citations,
-        repair_actions=[*_promotion_actions(store), *repair_actions],
+        repair_actions=[*promotion_actions(store.manifest["attempts"]), *repair_actions],
         pre_findings=pre_findings,
     )
     records = _finding_records(findings)

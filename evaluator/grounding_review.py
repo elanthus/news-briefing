@@ -11,8 +11,9 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
+from agent_runner.checkpoint import sha256_bytes, write_json_atomic
 
-from evaluator.judge_io import portable_path, sha256_bytes, verified_generation_artifact, write_json_atomic
+from evaluator.judge_io import portable_path, verified_generation_artifact
 
 
 def _case_configs(manifest: dict[str, Any], manifest_path: Path) -> dict[str, briefing_config.BriefingConfig]:

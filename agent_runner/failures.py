@@ -5,6 +5,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from agent_runner.stages import SELECTION_ATTEMPT_KINDS
+
 PROVIDER_CODES = frozenset({
     "provider_error", "rate_limited", "provider_unavailable", "invalid_request",
     "empty_response", "output_truncated",
@@ -116,7 +118,7 @@ def final_failure(final: dict[str, Any], manifest: dict[str, Any]) -> FailureRec
     if (isinstance(attempts, list) and attempts
             and all(isinstance(row, dict) and isinstance(row.get("kind"), str) for row in attempts)):
         last_kind = attempts[-1]["kind"]
-        if last_kind in {"selection", "selection_correction", "selection_repair", "selection_promotion"}:
+        if last_kind in SELECTION_ATTEMPT_KINDS:
             stage = "selection"
         elif last_kind in {"prose", "correction", "deterministic_repair"}:
             stage = "prose"

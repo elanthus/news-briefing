@@ -107,8 +107,8 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     # Re-render the verified candidate and its code-owned validation footer.
     # A prefix match alone would permit unreviewed prose after the footer.
     import briefing_config
-    from agent_runner.output import PROMOTION_ACTION, complete_briefing, project_corpus, render_briefing
-    from agent_runner.stages import SELECTION_ATTEMPT_KINDS
+    from agent_runner.output import complete_briefing, project_corpus, render_briefing
+    from agent_runner.runner import promotion_actions
     from publication_schema import parse_repair_actions
 
     attempts = manifest["attempts"]
@@ -119,11 +119,7 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     if len(matches) != 1:
         raise ValueError("final attempt is not unique")
     attempt = matches[0]
-    actions = list(parse_repair_actions(attempt.get("repair_actions")))
-    selections = [row for row in attempts if isinstance(row, dict) and row.get("kind") in SELECTION_ATTEMPT_KINDS]
-    if selections:
-        actions.extend(action for action in parse_repair_actions(selections[-1].get("repair_actions"))
-                       if action["action"] == PROMOTION_ACTION)
+    actions = [*parse_repair_actions(attempt.get("repair_actions")), *promotion_actions(attempts)]
     corpus = read_json(selected / "corpus.json")
     candidate = read_json(selected / attempt["structured_artifact"])
     config = briefing_config.parse_config(read_json(selected / "briefing-config.json"))

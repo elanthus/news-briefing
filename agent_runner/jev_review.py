@@ -254,6 +254,25 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                        "skipped_oversized_checks": 0})
         judge = client or JevClient()
         total_cost = 0.0
+
+        def over_budget(size: int) -> bool:
+            # Bytes conservatively bound input tokens; include failed-call billing uncertainty.
+            return len(report["calls"]) >= MAX_CALLS or total_cost + size * 0.042 / 1_000_000 > cost_ceiling
+
+        def judge_call(call: dict[str, Any], state: dict[str, Any], questions: dict[str, Any],
+                       remaining: float) -> dict[str, Any]:
+            call.update({"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(),
+                         "request_sha256": sha256_bytes(json.dumps(
+                             {"model": JEV_MODEL, "state": state, "questions": questions},
+                             ensure_ascii=True).encode("ascii"))})
+            report["calls"].append(call)
+            write_json_atomic(path, report)
+            result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
+            call.update({key: value for key, value in result.items() if key != "probabilities"})
+            call["status"] = "complete"
+            call["completed_at"] = utc_now()
+            return result
+
         index = 0
         while index < len(tasks):
             remaining = deadline - time.monotonic()
@@ -272,23 +291,11 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 index += 1
                 continue
             state, questions, size = _payload(batch)
-            # Bytes conservatively bound input tokens; include failed-call billing uncertainty.
-            if len(report["calls"]) >= MAX_CALLS or total_cost + size * 0.042 / 1_000_000 > cost_ceiling:
+            if over_budget(size):
                 report["stop_reason"] = "call or estimated cost budget reached"
                 report["stop_code"] = "budget"
                 break
-            call = {"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(),
-                    "checks": len(batch),
-                    "task_offset": index,
-                    "request_sha256": sha256_bytes(json.dumps(
-                        {"model": JEV_MODEL, "state": state, "questions": questions},
-                        ensure_ascii=True).encode("ascii"))}
-            report["calls"].append(call)
-            write_json_atomic(path, report)
-            result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
-            call.update({key: value for key, value in result.items() if key != "probabilities"})
-            call["status"] = "complete"
-            call["completed_at"] = utc_now()
+            result = judge_call({"checks": len(batch), "task_offset": index}, state, questions, remaining)
             for offset, task in enumerate(batch):
                 p = result["probabilities"][f"q{offset}"]
                 cutoff = citation_threshold if task["check"] == "irrelevant_citation" else threshold
@@ -314,22 +321,12 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                 cutoff = citation_threshold if row["check"] == "irrelevant_citation" else threshold
                 state, questions, size = _payload([task])
                 remaining = deadline - time.monotonic()
-                if (remaining < 1 or len(report["calls"]) >= MAX_CALLS
-                        or total_cost + size * 0.042 / 1_000_000 > cost_ceiling):
+                if remaining < 1 or over_budget(size):
                     report["stop_reason"] = "confirmation budget or deadline reached"
                     report["stop_code"] = "deadline" if remaining < 1 else "budget"
                     break
-                call = {"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(), "checks": 1,
-                        "purpose": "isolated_confirmation", "check": row["check"], "positions": row["positions"],
-                        "request_sha256": sha256_bytes(json.dumps(
-                            {"model": JEV_MODEL, "state": state, "questions": questions},
-                            ensure_ascii=True).encode("ascii"))}
-                report["calls"].append(call)
-                write_json_atomic(path, report)
-                result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
-                call.update({key: value for key, value in result.items() if key != "probabilities"})
-                call["status"] = "complete"
-                call["completed_at"] = utc_now()
+                result = judge_call({"checks": 1, "purpose": "isolated_confirmation", "check": row["check"],
+                                     "positions": row["positions"]}, state, questions, remaining)
                 row["confirmation_probability"] = result["probabilities"]["q0"]
                 row["confirmation_label"] = (
                     "confirmed" if row["confirmation_probability"] >= cutoff else "disputed"

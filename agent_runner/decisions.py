@@ -62,8 +62,6 @@ class JevClient:
         except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as exc:
             raise ProviderError("Jev transport failed; completion and billing may be ambiguous",
                                 transient=False, ambiguous_completion=True) from exc
-        if len(raw) > MAX_RESPONSE_BYTES:
-            raise ProviderError("Jev response exceeds the bounded output budget", transient=False)
         try:
             payload = json.loads(raw)
         except (ValueError, UnicodeError, RecursionError) as exc:

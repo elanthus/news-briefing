@@ -46,13 +46,6 @@ class ChainResult:
     run_dir: Path
 
 
-def _positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("must be greater than zero")
-    return parsed
-
-
 def _nonnegative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
@@ -239,7 +232,7 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, required=True, help="existing corpus to replay")
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=3)
-    parser.add_argument("--max-tokens", type=_positive_int, default=100_000)
+    parser.add_argument("--max-tokens", type=fetch_news.positive_int, default=100_000)
     args = parser.parse_args()
 
     if (args.jev_repair_mode is None) != (args.jev_review_dir is None):

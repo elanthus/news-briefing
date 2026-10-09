@@ -11,7 +11,7 @@ from typing import Any
 import fetch_news
 from agent_runner.checkpoint import sha256_bytes, write_json_atomic
 from agent_runner.decisions import MAX_REQUEST_BYTES
-from agent_runner.integrity import repair_scope, semantic_integrity
+from agent_runner.integrity import position_key, repair_scope, semantic_integrity
 from agent_runner.jev_review import (
     MAX_ARTIFACT_BYTES,
     _read_json,
@@ -29,10 +29,6 @@ from publication_schema import parse_integrity, parse_semantic_audit
 
 MAX_REPAIR_TOPICS = 4
 REPAIR_MODEL = "tencent/hy3"
-
-
-def position_key(position: dict[str, Any]) -> str:
-    return json.dumps(position, sort_keys=True)
 
 
 def _check_key(row: dict[str, Any]) -> str:

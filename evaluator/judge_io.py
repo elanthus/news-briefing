@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
+from agent_runner.checkpoint import sha256_bytes, write_json_atomic
+
 from evaluator.adapters import Adapter, Generation
 
 Parsed = TypeVar("Parsed")
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def sha256_bytes(content: bytes) -> str:
-    """Return the lowercase SHA-256 digest for input identity records."""
-    return hashlib.sha256(content).hexdigest()
 
 
 def verified_generation_artifact(path: Path, row: dict[str, Any], digest_key: str) -> bytes:
@@ -62,21 +58,6 @@ def parse_json_response(text: str, response_name: str) -> Any:
         raise ValueError(
             f"{response_name} is not valid JSON: {exc}; response starts {preview!r}"
         ) from exc
-
-
-def write_text_atomic(path: Path, content: str) -> None:
-    """Replace a UTF-8 text file only after its complete temporary file is written."""
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(content, encoding="utf-8")
-    temporary.replace(path)
-
-
-def write_json_atomic(path: Path, payload: Any) -> None:
-    """Serialize JSON through an atomic text replacement."""
-    write_text_atomic(
-        path,
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-    )
 
 
 def reviewer_identity(adapter: Adapter) -> dict[str, Any]:
