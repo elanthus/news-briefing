@@ -804,7 +804,7 @@ def _finalize_after_deterministic_repair(
                 store, "deterministic_repair", repaired, actions,
                 lambda recorded, candidate: _validate_attempt(
                     store, recorded, candidate, corpus=corpus, config=config,
-                    citations=citations, repair_actions=recorded["repair_actions"],
+                    citations=citations, repair_actions=actions,
                 ),
             )
     if attempt.get("briefing_artifact"):
@@ -1043,6 +1043,8 @@ def _write_prose(
         )
         if decision.repair is not None:
             output = decision.repair.output
+            # The validator reads the recorded actions: closing over the loop's
+            # ``decision`` instead would trip ruff B023.
             _record_code_attempt(
                 store, decision.action, output, decision.repair.actions,
                 lambda recorded, candidate: _validate_attempt(

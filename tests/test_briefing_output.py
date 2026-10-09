@@ -3,6 +3,7 @@ import json
 import re
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import briefing_config
 import corpus_schema
@@ -14,6 +15,7 @@ from agent_runner.output import (
     attach_frozen_selection,
     build_prose_schema,
     build_selection_schema,
+    complete_briefing,
     detach_prose,
     project_corpus,
     project_selected_evidence,
@@ -1533,6 +1535,32 @@ class BriefingOutputTests(unittest.TestCase):
         self.assertIn("message=[missing source issue detail]", rendered)
         self.assertIn("source_type=[missing]", rendered)
         self.assertIn("status=[missing]", rendered)
+
+    def test_complete_briefing_appends_footer_without_changing_findings(self):
+        corpus, config, projected, output = fixture_contract()
+        output["sections"][config.sections[0].name]["topics"].pop()
+        corpus["errors"][0]["message"] = "fetch failed: https://attacker.invalid/x"
+        rendered = render_briefing(output, corpus, config, projected.citations)
+        expected = eval_briefing.evaluate(corpus, rendered, config)
+        self.assertTrue(expected)
+
+        text, findings, outcome = complete_briefing(rendered, corpus, config)
+
+        self.assertEqual(findings, expected)
+        self.assertEqual(outcome, classify_outcome(
+            expected, corpus["errors"],
+            coverage_degraded=corpus_schema.corpus_health_degraded(corpus)))
+        self.assertEqual(text, rendered.rstrip() + "\n" + render_validation_status(
+            expected, corpus, outcome=outcome))
+        self.assertNotIn("attacker.invalid", text)
+
+    def test_complete_briefing_fails_closed_when_the_footer_changes_findings(self):
+        corpus, config, projected, output = fixture_contract()
+        rendered = render_briefing(output, corpus, config, projected.citations)
+        changed = [eval_briefing.Finding(eval_briefing.WARN, "slots_underfilled", "footer")]
+        with patch("agent_runner.output.eval_briefing.evaluate", side_effect=[[], changed]):
+            with self.assertRaises(ValueError):
+                complete_briefing(rendered, corpus, config)
 
     def test_quiet_threshold_degradation_never_demands_a_health_section(self):
         # Issue #172 R1: threshold-exceeding quiet sources in one category
