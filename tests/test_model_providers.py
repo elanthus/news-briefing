@@ -445,11 +445,18 @@ class ProviderTests(unittest.TestCase):
                     "required": ["maxLength", "minItems"],
                 }
             },
+            "const": {"maxItems": 2},
+            "default": {"minLength": 1},
+            "examples": [{"maxLength": 3}],
         }
-        sections = sent_schema(OpenAICompatibleProvider("m", lean_schema=True), schema)["properties"]["sections"]
+        sent = sent_schema(OpenAICompatibleProvider("m", lean_schema=True), schema)
+        sections = sent["properties"]["sections"]
         self.assertEqual(set(sections["properties"]), {"maxLength", "minItems"})
         self.assertEqual(sections["properties"]["maxLength"], {"type": "array", "items": {"type": "string"}})
         self.assertEqual(sections["properties"]["minItems"], {"type": "string"})
+        # Data values are not schema nodes, so keyword-named keys inside them survive.
+        for name in ("const", "default", "examples"):
+            self.assertEqual(sent[name], schema[name])
 
     def test_openai_compatible_wrapper_stripping_is_linear_on_unclosed_fences(self):
         pathological = "```" + " " * 200_000
