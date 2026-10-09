@@ -92,8 +92,34 @@ def _parse_json_object(text: str, provider: str) -> dict[str, Any]:
 _UNIQUE_ITEMS_INCOMPATIBLE_MODELS = frozenset({"tencent/hy3"})
 
 
-def _grammar_compatible_schema(value: Any) -> Any:
-    """Return a copy without ``uniqueItems``, for backends that reject it.
+def _strip_schema(value: Any, drop: Callable[[dict[str, Any]], frozenset[str]]) -> Any:
+    """Return a copy of a JSON Schema without the keywords ``drop`` names for each node.
+
+    Only schema nodes are walked. Member names under a schema map (a section
+    can be called anything) and data such as ``enum`` or ``const`` values are
+    copied unchanged, so they cannot be mistaken for keywords. The source
+    schema is not mutated.
+    """
+    if isinstance(value, dict):
+        dropped = drop(value)
+        stripped: dict[str, Any] = {}
+        for key, nested in value.items():
+            if key in dropped:
+                continue
+            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
+                stripped[key] = {name: _strip_schema(schema, drop) for name, schema in nested.items()}
+            elif key in _SCHEMA_VALUE_KEYWORDS:
+                stripped[key] = _strip_schema(nested, drop)
+            else:
+                stripped[key] = deepcopy(nested)
+        return stripped
+    if isinstance(value, list):
+        return [_strip_schema(item, drop) for item in value]
+    return value
+
+
+def _unique_items(_node: dict[str, Any]) -> frozenset[str]:
+    """Drop ``uniqueItems``, for backends that reject it.
 
     Codex structured outputs reject the keyword outright, the OpenRouter
     models in ``_UNIQUE_ITEMS_INCOMPATIBLE_MODELS`` cannot compile it, and
@@ -103,61 +129,27 @@ def _grammar_compatible_schema(value: Any) -> Any:
     distinctness also bounded the array's length, so a stripped schema depends
     on ``citation_refs``'s explicit ``maxItems`` to stay terminating.
     """
-    if isinstance(value, dict):
-        compatible: dict[str, Any] = {}
-        for key, nested in value.items():
-            if key == "uniqueItems":
-                continue
-            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
-                compatible[key] = {
-                    name: _grammar_compatible_schema(schema)
-                    for name, schema in nested.items()
-                }
-            elif key in _SCHEMA_VALUE_KEYWORDS:
-                compatible[key] = _grammar_compatible_schema(nested)
-            else:
-                compatible[key] = deepcopy(nested)
-        return compatible
-    if isinstance(value, list):
-        return [_grammar_compatible_schema(item) for item in value]
-    return value
+    return frozenset({"uniqueItems"})
 
 
-def _gemini_compatible_schema(value: Any) -> Any:
-    """Omit redundant enum-array maxima that trigger Gemini's schema compiler.
+def _redundant_enum_maximum(node: dict[str, Any]) -> frozenset[str]:
+    """Drop redundant enum-array maxima that trigger Gemini's schema compiler.
 
     A unique array with N eligible string values already has at most N members.
     Keep enum, uniqueItems, minima, all topic counts and exact prose counts; the
-    independent validator still checks the original contract. Walk schema nodes
-    only, so property names and enum data cannot be mistaken for keywords.
+    independent validator still checks the original contract.
     """
-    if isinstance(value, dict):
-        items = value.get("items")
-        redundant_maximum = (
-            value.get("type") == "array"
-            and value.get("uniqueItems") is True
-            and isinstance(items, dict)
-            and items.get("type") == "string"
-            and isinstance(items.get("enum"), list)
-            and all(isinstance(item, str) for item in items["enum"])
-            and value.get("maxItems") == len(set(items["enum"]))
-        )
-        compatible: dict[str, Any] = {}
-        for key, nested in value.items():
-            if key == "maxItems" and redundant_maximum:
-                continue
-            if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict):
-                compatible[key] = {
-                    name: _gemini_compatible_schema(schema) for name, schema in nested.items()
-                }
-            elif key in _SCHEMA_VALUE_KEYWORDS:
-                compatible[key] = _gemini_compatible_schema(nested)
-            else:
-                compatible[key] = deepcopy(nested)
-        return compatible
-    if isinstance(value, list):
-        return [_gemini_compatible_schema(item) for item in value]
-    return value
+    items = node.get("items")
+    redundant_maximum = (
+        node.get("type") == "array"
+        and node.get("uniqueItems") is True
+        and isinstance(items, dict)
+        and items.get("type") == "string"
+        and isinstance(items.get("enum"), list)
+        and all(isinstance(item, str) for item in items["enum"])
+        and node.get("maxItems") == len(set(items["enum"]))
+    )
+    return frozenset({"maxItems"}) if redundant_maximum else frozenset()
 
 
 def _command_version(command: str) -> str | None:
@@ -583,9 +575,9 @@ class OpenRouterProvider(ModelProvider):
     def _sent_schema(self, output_schema: dict[str, Any]) -> dict[str, Any]:
         """Apply narrowly scoped compatibility transforms for known backends."""
         if self.model == "google/gemini-3.7-flash":
-            return _gemini_compatible_schema(output_schema)
+            return _strip_schema(output_schema, _redundant_enum_maximum)
         if self.model in _UNIQUE_ITEMS_INCOMPATIBLE_MODELS:
-            return _grammar_compatible_schema(output_schema)
+            return _strip_schema(output_schema, _unique_items)
         return output_schema
 
     def _payload(self, request: GenerationRequest) -> dict[str, Any]:
@@ -634,8 +626,8 @@ class OpenRouterProvider(ModelProvider):
 _LEAN_STRIPPED_KEYWORDS = frozenset({"minItems", "maxItems", "minLength", "maxLength"})
 
 
-def _lean_local_schema(value: Any) -> Any:
-    """Return a copy without string-length bounds or ranged array-size bounds.
+def _ranged_bounds(node: dict[str, Any]) -> frozenset[str]:
+    """Drop string-length bounds and ranged array-size bounds.
 
     An array whose ``minItems`` equals its ``maxItems`` keeps both. Exact
     counts compile to a fixed repetition, which is cheap for every engine,
@@ -655,25 +647,8 @@ def _lean_local_schema(value: Any) -> Any:
     duplicate references, and ineligible references are all still rejected by
     the code-owned validator.
     """
-    if isinstance(value, dict):
-        exact_count = (
-            "minItems" in value and "maxItems" in value and value["minItems"] == value["maxItems"]
-        )
-        kept = {"minItems", "maxItems"} if exact_count else set()
-        return {
-            key: (
-                # Member names under a schema map are user data (a section can
-                # be called anything), not keywords; only their values are schemas.
-                {name: _lean_local_schema(member) for name, member in nested.items()}
-                if key in _SCHEMA_MAP_KEYWORDS and isinstance(nested, dict)
-                else _lean_local_schema(nested)
-            )
-            for key, nested in value.items()
-            if key not in _LEAN_STRIPPED_KEYWORDS or key in kept
-        }
-    if isinstance(value, list):
-        return [_lean_local_schema(item) for item in value]
-    return value
+    exact_count = "minItems" in node and "maxItems" in node and node["minItems"] == node["maxItems"]
+    return frozenset({"minLength", "maxLength"}) if exact_count else _LEAN_STRIPPED_KEYWORDS
 
 
 _THINK_OPEN = "<think>"
@@ -786,8 +761,8 @@ class OpenAICompatibleProvider(ModelProvider):
         }
 
     def _sent_schema(self, output_schema: dict[str, Any]) -> dict[str, Any]:
-        schema = _grammar_compatible_schema(output_schema)
-        return _lean_local_schema(schema) if self.lean_schema else schema
+        schema = _strip_schema(output_schema, _unique_items)
+        return _strip_schema(schema, _ranged_bounds) if self.lean_schema else schema
 
     def _payload(self, request: GenerationRequest) -> dict[str, Any]:
         """Build the chat-completions request body for a local server.
@@ -810,7 +785,7 @@ class OpenAICompatibleProvider(ModelProvider):
         * OpenRouter's ``provider`` and ``reasoning`` fields are omitted.
           Servers that validate the request body reject unknown keys.
         * With ``lean_schema`` array-size and string-length bounds are also
-          removed; see ``_lean_local_schema`` for the engines that need it.
+          removed; see ``_ranged_bounds`` for the engines that need it.
         """
         payload: dict[str, Any] = {
             "model": self.model,
@@ -985,7 +960,7 @@ class CodexCliProvider(ModelProvider):
         with tempfile.TemporaryDirectory(prefix="news-briefing-codex-") as directory:
             schema_path = Path(directory) / "output-schema.json"
             schema_path.write_text(
-                json.dumps(_grammar_compatible_schema(request.output_schema)),
+                json.dumps(_strip_schema(request.output_schema, _unique_items)),
                 encoding="utf-8",
             )
             command = [

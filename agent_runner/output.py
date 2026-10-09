@@ -263,7 +263,7 @@ def _citation_refs(eligible_refs: tuple[str, ...] | None = None) -> dict[str, An
     with the ``enum``, distinctness alone capped the array at the size of the
     eligible set. Providers whose grammar backends cannot compile
     ``uniqueItems`` receive the schema with that keyword removed
-    (``_grammar_compatible_schema``), and without an explicit maximum the
+    (``_unique_items`` in providers.py), and without an explicit maximum the
     grammar then admits an unbounded run of repeated references, which can run
     until the response truncates. ``maxItems`` is implemented by every backend,
     so the bound survives the strip and the array still cannot outrun its
