@@ -70,7 +70,7 @@ Anthropic documents the same general pattern—validate generated values against
 
 **Blocked candidates are preserved but quarantined.** When structured output exists but cannot pass the publication gate, the runner writes `preview.md` and a destination-redacted `preview-structured.json`. The preview renderer accepts malformed shapes defensively, substitutes only code-owned URLs for known citation references, omits unknown references, and redacts model-authored destinations from prose, finding details, values, and dictionary keys. It never writes the configured output path. For a `review_required` page, the publication step copies the affected entry from the hash-bound selected structured artifact into finding metadata and records any deterministic repair actions.
 
-The public site renders `review_required` entries as a quarantine stub with a notice, a status chip linking to the integrity report, and no briefing prose. The per-run integrity report under `reports/<date>.html` leads with the publication decision, deterministic gate result, semantic and confirmation coverage, unresolved flags, and actual published changes. Its action ledger explains actors, subjects, triggers, outcomes, and fixed causes before statistics. Exact headline and summary differences appear once per story, including citation-triggered repairs; unchanged prose is omitted while repair metadata remains visible. Source removals identify grouping or confirmed irrelevance as their cause and distinguish proposed removals from published changes. Concise deterministic finding messages and safe story context are visible without reproducing the preview or accountability log. The complete preview and finding context remain in public history JSON. A blocked run's zero count never reads as acceptance. Each published entry carries a status chip linking to its report; `ready` entries show clean markdown without inline review panels. On the page, each `🔗` citation renders as a source chip labelled with its destination's host, and the run outcome, corpus health, and exclusion log sit in a visible "Behind this briefing" panel after the news. The chip's link is the same code-owned destination the checker grounded; only its visible text changes.
+The public site renders `review_required` entries as a quarantine stub with a notice, a status chip linking to the integrity report, and no briefing prose. The per-run integrity report under `reports/<date>.html` leads with the publication decision, deterministic gate result, semantic and confirmation coverage, unresolved flags, and actual published changes. Its action ledger explains actors, subjects, triggers, outcomes, and fixed causes before statistics. Exact headline and summary differences appear once per story, including citation-triggered repairs; unchanged prose is omitted while repair metadata remains visible. Source removals identify grouping or confirmed irrelevance as their cause and distinguish proposed removals from published changes. Concise deterministic finding messages and safe story context are visible without reproducing the preview or accountability log. The complete preview and finding context remain in public history JSON. A blocked run's zero count never reads as acceptance. Each published entry carries a status chip linking to its report; `ready` entries show clean markdown without inline review panels. On the page, each `🔗` citation renders as a source chip labelled with its destination's host (a Hacker News discussion link reads "HN discussion"), and the run outcome, corpus health, and exclusion log sit in a visible "Behind this briefing" panel after the news. The chip's link is the same code-owned destination the checker grounded; only its visible text changes.
 
 **The tool policy is provider-specific but fail-closed.** OpenRouter and OpenAI-compatible servers receive no tool definitions and any returned tool call fails. Claude Code starts in safe mode, disables commands and session persistence, and uses both `--tools StructuredOutput` and `--allowedTools StructuredOutput` so its internal schema-emission tool is the only tool exposed or permitted; filesystem, shell, web, and MCP tools remain unavailable. The Codex adapter ignores user config and rules and explicitly disables shell, multi-agent, remote-plugin, web-search, and image tools while preserving medium reasoning. It also starts in an empty temporary directory with a read-only sandbox and rejects every completed trace item other than reasoning or the final agent message. Codex has no single documented remove-all-tools flag, so the sandbox and trace validator remain defense-in-depth backstops.
 
@@ -86,21 +86,31 @@ The system is a coordinated multi-role loop: a selector works from the complete 
 
 Each stage's correction budget is reserved for findings that need the model, such as unknown references, free-form URLs, or schema-shape violations. The same normalizer also runs as the post-budget fallback, removing any unsafe later entries that survive correction, before the code-owned disposition gate decides whether the result can be published.
 
-In production, an outer fail-closed chain runs that complete protocol independently with Tencent HY3, DeepSeek V4 Flash 0731, and Gemini 3.7 Flash until one result is `ready`. Tencent HY3 and DeepSeek each allow up to 100,000 completion tokens; Gemini is capped at its supported maximum of 65,536. Failed candidates remain in isolated run directories, and the chain records their reason, quarantined report path, and OpenRouter model-removal state before advancing. Because a generation 404 can also mean no endpoint satisfies the required parameters, removal is confirmed against the public model catalog and remains unknown when that check fails. Publication resolves only the selected successful child run.
+In production, an outer fail-closed chain runs that complete protocol independently with Tencent HY3, DeepSeek V4 Flash 0731, and Gemini 3.7 Flash until one result is `ready`. Tencent HY3 and DeepSeek each allow up to 100,000 completion tokens; Gemini is capped at its supported maximum of 65,536. Failed candidates remain in isolated run directories, and `fallback-log.json` records each attempt's status (`quarantined` when a candidate completed but was not `ready`, `failed` when none completed), failure reason, and typed failure payload before the chain advances. When every model fails, the day publishes a no-result page. Publication resolves only the selected successful child run.
 
-In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the completed-candidate gate remains deterministic and records `ready`, `review_required`, or `rejected`; an outer protocol or runtime failure instead records `no_result` without a candidate.
+In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the completed-candidate gate remains deterministic and records `ready`, `review_required`, or `rejected`; an outer protocol or runtime failure instead records `no_result` without a candidate. After publication, a weekly grounding monitor machine-reviews the retained diagnostics of successfully deployed runs; it reports on published output and never changes it.
 
 ```mermaid
 flowchart LR
     corpus[Closed corpus] --> select[Select citation handles]
-    select --> frozen[Validate and freeze position-scoped evidence]
+    select --> svalidate[Validate selection]
+    svalidate --> sfindings{Blocking findings?}
+    sfindings -- No --> frozen[Freeze position-scoped evidence]
+    sfindings -- Only underfill --> promote[Promote from accountability log]
+    promote --> svalidate
+    sfindings -- All repairable --> srepair[Deterministic selection repair]
+    srepair -- Revalidate --> svalidate
+    sfindings -- Needs model fix, budget remains --> scorrect[Correct selection]
+    scorrect --> svalidate
+    sfindings -- Budget exhausted --> preview
+
     frozen --> generate[Write prose]
     generate --> validate[Attach frozen references and validate]
     validate --> findings{Blocking findings?}
     findings -- No --> candidate[Final candidate]
     findings -- All repairable --> normalize[Deterministic structural repair]
     normalize -- Revalidate --> validate
-    findings -- Needs model fix, budget remains --> correct[Correct within configured limit]
+    findings -- Needs model fix, budget remains --> correct[Correct prose]
     correct --> validate
     findings -- Correction budget exhausted --> normalize
     normalize -- Budget exhausted --> candidate
@@ -114,20 +124,23 @@ flowchart LR
     followup -- Rejected or incomplete --> original[Retain original ready artifact]
     original --> publish
     publish --> receipt[Successful deployment receipt]
-    gate -- review_required --> quarantine[Quarantine preview]
-    gate -- rejected --> quarantine
+    gate -- review_required or rejected --> preview[Quarantine preview]
+    preview -.->|"daily chain: next model"| corpus
+    preview -. chain exhausted .-> noresult[No-result page]
     generate -. provider or runtime failure .-> failed[Run failed: no_result, no candidate]
     validate -. protocol or runtime failure .-> failed
     correct -. unexpected runtime failure .-> failed
+    failed -.->|"daily chain: next model"| corpus
 
-    manifest[(Verified checkpoint manifest)] -. records and resumes .-> corpus
-    manifest -. records and resumes .-> generate
-    manifest -. records and resumes .-> validate
-    manifest -. records and resumes .-> correct
-    manifest -. records and resumes .-> gate
+    manifest[(Verified checkpoint manifest)] -.->|"records; run_briefing.py --resume resumes"| corpus
+    manifest -.->|"records; run_briefing.py --resume resumes"| generate
+    manifest -.->|"records; run_briefing.py --resume resumes"| validate
+    manifest -.->|"records; run_briefing.py --resume resumes"| correct
+    manifest -.->|"records; run_briefing.py --resume resumes"| gate
 
-    candidate -. blinded artifacts .-> judges[Semantic judge + grounding judges]
+    candidate -. blinded artifacts .-> judges[Evaluator semantic + grounding judges]
     judges -. evaluator adjudication .-> evaluation[Regression decision]
+    receipt -. diagnostics of deployed runs .-> monitor[Weekly grounding monitor]
 ```
 
 This is orchestration of specialized roles around one generator, not concurrent multi-agent planning. Where a property is checkable—schema shape, citation membership, section limits, duplicate placement, or corpus-health reporting—a deterministic oracle is cheaper, reproducible, and more reliable than asking a second LLM. Model judges are reserved for semantic properties that code cannot honestly settle, and their machine-review status remains explicit.

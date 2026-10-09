@@ -1,39 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
-<title id="title">Selection, frozen evidence, prose, and publication</title>
-<desc id="desc">Code validates selected evidence before prose. Semantic review, isolated confirmation and bounded repair follow the candidate gate. Only accepted repairs replace the original ready artifact. Deployment receipts bind publication to exact artifacts.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+<title id="title">Selection, frozen evidence, prose, fallback, review, and publication</title>
+<desc id="desc">The corpus is fetched once, or restored for a backfill. Each model in the fallback chain (Tencent HY3, then DeepSeek V4 Flash, then Gemini 3.7 Flash) selects citation handles; code validates, promotes, repairs or requests a correction, then freezes the selected evidence. The model writes prose from the frozen excerpts and the candidate gate validates, repairs or corrects it and records a disposition. A candidate that is not ready advances to the next model; if every model fails, a no-result page is published. A ready candidate gets semantic review, isolated confirmation, bounded repair and a follow-up review. Only an accepted repair replaces the original ready briefing. Publication writes the site and integrity report, and the receipt is recorded only after a successful Pages deploy.</desc>
 <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#64748b"/></marker></defs>
-<style>text{font-family:system-ui,sans-serif;fill:#172033}.title{font-size:25px;font-weight:700}.label{font-size:17px;font-weight:650}.detail{font-size:13px;fill:#475569}.code{fill:#ecfdf5;stroke:#059669}.model{fill:#eef2ff;stroke:#6366f1}.arrow{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style>
-<rect width="1200" height="420" rx="16" fill="#f8fafc"/>
-<text class="title" x="30" y="42">Code constrains the evidence. Models make editorial judgments.</text>
-<rect class="code" x="30" y="90" width="200" height="80" rx="10"/>
-<text class="label" x="130" y="122" text-anchor="middle">Fetch + project</text><text class="detail" x="130" y="146" text-anchor="middle">Bounded untrusted corpus</text>
-<path class="arrow" d="M230 130 H260"/>
-<rect class="model" x="265" y="90" width="200" height="80" rx="10"/>
-<text class="label" x="365" y="122" text-anchor="middle">Selection</text><text class="detail" x="365" y="146" text-anchor="middle">Model chooses handles</text>
-<path class="arrow" d="M465 130 H495"/>
-<rect class="code" x="500" y="90" width="200" height="80" rx="10"/>
-<text class="label" x="600" y="122" text-anchor="middle">Validate + freeze</text><text class="detail" x="600" y="146" text-anchor="middle">Position-scoped evidence</text>
-<path class="arrow" d="M700 130 H730"/>
-<rect class="model" x="735" y="90" width="200" height="80" rx="10"/>
-<text class="label" x="835" y="122" text-anchor="middle">Prose</text><text class="detail" x="835" y="146" text-anchor="middle">Model writes from excerpts</text>
-<path class="arrow" d="M935 130 H965"/>
-<rect class="code" x="970" y="90" width="200" height="80" rx="10"/>
-<text class="label" x="1070" y="122" text-anchor="middle">Candidate gate</text><text class="detail" x="1070" y="146" text-anchor="middle">Validate, repair, correct</text>
-<rect class="model" x="30" y="250" width="200" height="80" rx="10"/>
-<text class="label" x="130" y="282" text-anchor="middle">Semantic review</text><text class="detail" x="130" y="306" text-anchor="middle">Excerpt-level judgments</text>
-<path class="arrow" d="M230 290 H260"/>
-<rect class="model" x="265" y="250" width="200" height="80" rx="10"/>
-<text class="label" x="365" y="282" text-anchor="middle">Confirm flags</text><text class="detail" x="365" y="306" text-anchor="middle">Isolated model checks</text>
-<path class="arrow" d="M465 290 H495"/>
-<rect class="model" x="500" y="250" width="200" height="80" rx="10"/>
-<text class="label" x="600" y="282" text-anchor="middle">Bounded repair</text><text class="detail" x="600" y="306" text-anchor="middle">Code edits + model prose</text>
-<path class="arrow" d="M700 290 H730"/>
-<rect class="code" x="735" y="250" width="200" height="80" rx="10"/>
-<text class="label" x="835" y="282" text-anchor="middle">Follow-up</text><text class="detail" x="835" y="306" text-anchor="middle">Validate and review repairs</text>
-<path class="arrow" d="M935 290 H965"/>
-<rect class="code" x="970" y="250" width="200" height="80" rx="10"/>
-<text class="label" x="1070" y="282" text-anchor="middle">Publish + receipt</text><text class="detail" x="1070" y="306" text-anchor="middle">Accepted repair or original</text>
-<path class="arrow" d="M1070 170 V205 H130 V245"/>
-<text class="detail" x="30" y="374">Green: deterministic code · Indigo: model judgment · Failed or incomplete repairs retain the original ready briefing.</text>
-<text class="detail" x="30" y="398">Frozen excerpts support review; they do not establish full-article factual accuracy or human verification.</text>
+<style>text{font-family:system-ui,sans-serif;fill:#172033}.title{font-size:25px;font-weight:700}.label{font-size:17px;font-weight:650}.detail{font-size:13px;fill:#475569}.note{font-size:13px;fill:#475569;font-style:italic}.code{fill:#ecfdf5;stroke:#059669}.model{fill:#eef2ff;stroke:#6366f1}.mixed{fill:#fffbeb;stroke:#d97706}.arrow{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.loop{fill:none;stroke:#64748b;stroke-width:2;stroke-dasharray:6 4;marker-end:url(#arrow)}.chain{fill:none;stroke:#94a3b8;stroke-width:1.5;stroke-dasharray:4 4}</style>
+<rect width="1200" height="520" rx="16" fill="#f8fafc"/>
+<text class="title" x="15" y="40">Code constrains the evidence. Models make editorial judgments.</text>
+<rect class="chain" x="200" y="62" width="992" height="196" rx="12"/>
+<text class="detail" x="215" y="84">Per model, until one is ready: Tencent HY3 → DeepSeek V4 Flash → Gemini 3.7 Flash</text>
+<rect class="code" x="15" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="100" y="132" text-anchor="middle">Fetch or restore</text>
+<text class="detail" x="100" y="154" text-anchor="middle">Bounded, untrusted</text>
+<text class="detail" x="100" y="170" text-anchor="middle">backfills restore archive</text>
+<rect class="model" x="215" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="300" y="132" text-anchor="middle">Selection</text>
+<text class="detail" x="300" y="154" text-anchor="middle">Model chooses handles</text>
+<rect class="mixed" x="415" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="500" y="132" text-anchor="middle">Selection check</text>
+<text class="detail" x="500" y="154" text-anchor="middle">Validate, promote,</text>
+<text class="detail" x="500" y="170" text-anchor="middle">repair, correct</text>
+<rect class="code" x="615" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="700" y="132" text-anchor="middle">Freeze</text>
+<text class="detail" x="700" y="154" text-anchor="middle">Position-scoped evidence</text>
+<rect class="model" x="815" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="900" y="132" text-anchor="middle">Prose</text>
+<text class="detail" x="900" y="154" text-anchor="middle">Writes from excerpts</text>
+<rect class="mixed" x="1015" y="100" width="170" height="80" rx="10"/>
+<text class="label" x="1100" y="132" text-anchor="middle">Candidate gate</text>
+<text class="detail" x="1100" y="154" text-anchor="middle">Validate, repair, correct</text>
+<text class="detail" x="1100" y="170" text-anchor="middle">→ disposition</text>
+<path class="arrow" d="M185 140 H210"/>
+<path class="arrow" d="M385 140 H410"/>
+<path class="arrow" d="M585 140 H610"/>
+<path class="arrow" d="M785 140 H810"/>
+<path class="arrow" d="M985 140 H1010"/>
+<path class="loop" d="M1050 180 V212 H300 V185"/>
+<text class="note" x="312" y="230">Not ready (quarantined or failed): run the next model on the same corpus.</text>
+<text class="note" x="312" y="246">If the last model also fails, publish a no-result page.</text>
+<path class="arrow" d="M1130 180 V284 H100 V315"/>
+<text class="detail" x="1140" y="272">ready</text>
+<rect class="model" x="15" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="100" y="352" text-anchor="middle">Semantic review</text>
+<text class="detail" x="100" y="374" text-anchor="middle">Excerpt-level judgments</text>
+<rect class="model" x="215" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="300" y="352" text-anchor="middle">Confirm flags</text>
+<text class="detail" x="300" y="374" text-anchor="middle">Isolated model checks</text>
+<rect class="mixed" x="415" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="500" y="352" text-anchor="middle">Bounded repair</text>
+<text class="detail" x="500" y="374" text-anchor="middle">Code edits + model prose</text>
+<rect class="mixed" x="615" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="700" y="352" text-anchor="middle">Follow-up</text>
+<text class="detail" x="700" y="374" text-anchor="middle">Revalidate + re-review</text>
+<rect class="code" x="815" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="900" y="352" text-anchor="middle">Publish</text>
+<text class="detail" x="900" y="374" text-anchor="middle">Accepted repair or original</text>
+<text class="detail" x="900" y="390" text-anchor="middle">+ integrity report</text>
+<rect class="code" x="1015" y="320" width="170" height="80" rx="10"/>
+<text class="label" x="1100" y="352" text-anchor="middle">Deploy + receipt</text>
+<text class="detail" x="1100" y="374" text-anchor="middle">Recorded after Pages deploy</text>
+<path class="arrow" d="M185 360 H210"/>
+<path class="arrow" d="M385 360 H410"/>
+<path class="arrow" d="M585 360 H610"/>
+<path class="arrow" d="M785 360 H810"/>
+<path class="arrow" d="M985 360 H1010"/>
+<text class="detail" x="15" y="446">Green: deterministic code · Indigo: model judgment · Amber: code checks that can also call a model to correct or re-review</text>
+<text class="detail" x="15" y="470">Failed or incomplete repairs retain the original ready briefing.</text>
+<text class="detail" x="15" y="494">Frozen excerpts support review; they do not establish full-article factual accuracy or human verification.</text>
 </svg>

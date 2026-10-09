@@ -4,6 +4,8 @@ This directory is a development-only benchmark. Nothing under `evaluator/` is im
 
 This README covers both how to run the benchmark and how its numbers are defined.
 
+![Evaluation loop: a frozen suite runs through the production-parity runner across models, prompts and trials; deterministic oracles and blinded judges feed a report; evaluator compare applies the fixed promotion rule](../docs/images/evaluation-loop.svg)
+
 - **[Bring your own model or prompt](#bring-your-own-model-or-prompt)** — start here; four steps from an offline smoke test to a promotion decision.
 - **[What is fixed](#what-is-fixed)** — the committed case suites, their construction, and what each one does and does not measure.
 - **[Setup](#setup)** — credentials, environment file, and the credential-free offline path.
@@ -339,7 +341,7 @@ is sent as an explicit reasoning control and recorded in the run manifest and re
 
 ### Providers and adapters
 
-Generation supports `codex-cli`, `claude-code-cli`, and `openrouter` through the production runner's transports and tool policies. Raw-text transports, including NVIDIA, remain for active grounding, semantic, and label-review judges. They cannot be selected for generation.
+Generation supports `codex-cli`, `claude-code-cli`, and `openrouter` through the production runner's transports and tool policies. Raw-text transports, including NVIDIA, remain for active grounding and semantic judges. They cannot be selected for generation.
 
 Sampling controls are not equivalent across providers. OpenRouter sends the configured temperature and reasoning settings. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest records effective settings; exact reproducibility is not guaranteed, and CLI/API results are not directly comparable on sampling controls alone.
 
@@ -514,7 +516,8 @@ python3 -m evaluator run \
 
 After the primary checkpoint was interrupted and resumed, HY3 ran concurrently in a second output directory
 with the same command identity and a $3 component ceiling. The primary was stopped only after all 600 DeepSeek
-rows were checkpointed. The literal HY3 component command was:
+rows were checkpointed. The literal HY3 component command was (also historical; the current `run`
+subcommand no longer accepts `--seed`):
 
 ```bash
 python3 -m evaluator run \

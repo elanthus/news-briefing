@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="580" viewBox="0 0 1200 580" role="img" aria-labelledby="title desc">
   <title id="title">Development-only evaluation loop</title>
-  <desc id="desc">A frozen matched attack and benign suite runs through the production runner across models, prompts and trials. Deterministic oracles and blinded model judges measure saved artifacts. Reports feed a deterministic promotion gate whose thresholds live in regression-policy.json, but the evaluator never changes the production publication decision.</desc>
+  <desc id="desc">A frozen 55-case generation suite of matched attack and benign cases runs across models, prompts and trials through the production-parity runner: selection, frozen evidence, prose, promotion and deterministic repair, with at most one correction. Deterministic oracles and blinded model judges measure the saved artifacts. The report groups results into four score families. evaluator compare applies the fixed promotion rule in regression-policy.json to a compatible, complete baseline and candidate. A separate offline checker gate runs in CI without credentials. The evaluator never changes the production publication decision.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -8,25 +8,24 @@
     </marker>
     <style>
       .canvas { fill: #f8fafc; }
-      .title { fill: #0f172a; font: 700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .subtitle { fill: #475569; font: 400 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .label { fill: #0f172a; font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
-      .detail { fill: #334155; font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
-      .legend { fill: #334155; font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .edge-label { fill: #475569; font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
-      .note { fill: #334155; font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .title { fill: #0f172a; font: 700 26px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; }
+      .subtitle { fill: #475569; font: 400 15px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; }
+      .label { fill: #0f172a; font: 700 17px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; text-anchor: middle; }
+      .detail { fill: #334155; font: 400 13px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; text-anchor: middle; }
+      .legend { fill: #334155; font: 600 13px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; }
+      .edge-label { fill: #475569; font: 600 12px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; text-anchor: middle; }
+      .note { fill: #334155; font: 600 14px -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; text-anchor: middle; }
       .node { stroke-width: 2; }
       .input { fill: #f1f5f9; stroke: #64748b; }
       .code { fill: #ecfdf5; stroke: #059669; }
       .model { fill: #eef2ff; stroke: #4f46e5; }
       .report { fill: #eff6ff; stroke: #2563eb; }
-      .decision { fill: #fffbeb; stroke: #d97706; }
       .flow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
       .dash { stroke-dasharray: 7 6; }
     </style>
   </defs>
 
-  <rect class="canvas" x="1" y="1" width="1198" height="498" rx="18" stroke="#cbd5e1" stroke-width="2"/>
+  <rect class="canvas" x="1" y="1" width="1198" height="578" rx="18" stroke="#cbd5e1" stroke-width="2"/>
 
   <text class="title" x="40" y="45">Dev-only evaluation: measure first, promote only by declared rules</text>
   <text class="subtitle" x="40" y="72">Frozen inputs and saved artifacts keep stochastic model behavior separate from deterministic policy.</text>
@@ -41,22 +40,22 @@
   </g>
 
   <rect class="node input" x="35" y="125" width="205" height="125" rx="12"/>
-  <text class="label" x="138" y="160">Frozen test suite</text>
-  <text class="detail" x="138" y="185">matched attack + benign twins</text>
-  <text class="detail" x="138" y="205">position x count ablations</text>
-  <text class="detail" x="138" y="225">model-reviewed cases</text>
+  <text class="label" x="137.5" y="160">Generation suite</text>
+  <text class="detail" x="137.5" y="185">55 cases, version 9</text>
+  <text class="detail" x="137.5" y="205">attack + clean twins</text>
+  <text class="detail" x="137.5" y="225">position × count ablations</text>
 
   <rect class="node code" x="285" y="125" width="205" height="125" rx="12"/>
-  <text class="label" x="388" y="160">Run matrix</text>
-  <text class="detail" x="388" y="185">models x prompts x trials</text>
-  <text class="detail" x="388" y="205">bounded cost + resume</text>
-  <text class="detail" x="388" y="225">production adapters</text>
+  <text class="label" x="387.5" y="160">Run matrix</text>
+  <text class="detail" x="387.5" y="185">models × prompts × trials</text>
+  <text class="detail" x="387.5" y="205">cost ceilings + resume</text>
+  <text class="detail" x="387.5" y="225">production transports</text>
 
   <rect class="node code" x="535" y="125" width="205" height="125" rx="12"/>
-  <text class="label" x="638" y="160">Code-owned runner</text>
-  <text class="detail" x="638" y="185">project / invoke model / validate</text>
-  <text class="detail" x="638" y="205">repair / correct / finalize</text>
-  <text class="detail" x="638" y="225">hash-bound artifacts</text>
+  <text class="label" x="637.5" y="160">Parity runner</text>
+  <text class="detail" x="637.5" y="185">select → freeze → prose</text>
+  <text class="detail" x="637.5" y="205">promotion + repair</text>
+  <text class="detail" x="637.5" y="225">≤ 1 correction; hashed</text>
 
   <rect class="node code" x="785" y="105" width="190" height="105" rx="12"/>
   <text class="label" x="880" y="143">Deterministic oracles</text>
@@ -66,32 +65,42 @@
   <rect class="node model" x="785" y="245" width="190" height="105" rx="12"/>
   <text class="label" x="880" y="283">Blinded judges</text>
   <text class="detail" x="880" y="308">semantic + grounding</text>
-  <text class="detail" x="880" y="328">position-balanced review</text>
+  <text class="detail" x="880" y="328">pairwise quality, swapped</text>
 
-  <rect class="node report" x="1020" y="145" width="150" height="165" rx="12"/>
-  <text class="label" x="1095" y="180">Report</text>
-  <text class="detail" x="1095" y="205">attack success</text>
-  <text class="detail" x="1095" y="225">utility + regressions</text>
-  <text class="detail" x="1095" y="245">Wilson intervals</text>
-  <text class="detail" x="1095" y="265">cost + latency</text>
-  <text class="detail" x="1095" y="285">saved failures</text>
+  <rect class="node report" x="1020" y="135" width="150" height="195" rx="12"/>
+  <text class="label" x="1095" y="170">Report</text>
+  <text class="detail" x="1095" y="195">4 score families:</text>
+  <text class="detail" x="1095" y="215">checker, utility,</text>
+  <text class="detail" x="1095" y="235">security, editorial</text>
+  <text class="detail" x="1095" y="255">Wilson intervals</text>
+  <text class="detail" x="1095" y="275">cost + latency</text>
 
   <path class="flow" d="M 240 188 H 285"/>
   <path class="flow" d="M 490 188 H 535"/>
   <path class="flow" d="M 740 165 H 785"/>
   <path class="flow dash" d="M 690 250 Q 725 298 785 298"/>
-  <text class="edge-label" x="731" y="289">blinded artifacts</text>
+  <text class="edge-label" x="690" y="322">blinded artifacts</text>
   <path class="flow" d="M 975 158 Q 1000 158 1020 190"/>
   <path class="flow" d="M 975 298 Q 1000 298 1020 270"/>
 
-  <rect class="node code" x="405" y="390" width="390" height="65" rx="12"/>
-  <text class="label" x="600" y="418">Policy promotion gate</text>
-  <text class="detail" x="600" y="440">declared gains + attack threshold + zero contract regressions</text>
+  <rect class="node code" x="380" y="395" width="470" height="120" rx="12"/>
+  <text class="label" x="615" y="425">Promotion gate: evaluator compare</text>
+  <text class="detail" x="615" y="450">baseline vs candidate; compatible, complete runs</text>
+  <text class="detail" x="615" y="470">utility +5 pp; attack non-inferior (paired bootstrap)</text>
+  <text class="detail" x="615" y="490">0 new contract regressions; no human grounding-error increase</text>
 
-  <path class="flow" d="M 1095 310 V 360 Q 1095 422 1025 422 H 795"/>
-  <text class="edge-label" x="936" y="410">apply fixed thresholds</text>
+  <path class="flow" d="M 1095 330 V 400 Q 1095 455 1035 455 H 850"/>
+  <text class="edge-label" x="960" y="445">regression-policy.json</text>
 
-  <rect x="35" y="390" width="320" height="65" rx="10" fill="#e2e8f0" stroke="#94a3b8"/>
-  <text class="note" x="195" y="417">Evaluation cannot publish content.</text>
-  <text class="detail" x="195" y="440">It measures the runtime; it does not replace its gate.</text>
+  <rect class="node code" x="35" y="395" width="310" height="70" rx="12"/>
+  <text class="label" x="190" y="423">Offline checker gate (CI)</text>
+  <text class="detail" x="190" y="448">81 reviewed cases · no credentials</text>
+
+  <rect x="35" y="480" width="310" height="65" rx="10" fill="#e2e8f0" stroke="#94a3b8"/>
+  <text class="note" x="190" y="507">Evaluation cannot publish content.</text>
+  <text class="detail" x="190" y="530">Measures the runtime; never replaces its gate.</text>
+
+  <rect class="node model" x="880" y="480" width="290" height="65" rx="12"/>
+  <text class="label" x="1025" y="505">Weekly grounding monitor</text>
+  <text class="detail" x="1025" y="530">reviews deployed runs; never edits them</text>
 </svg>
