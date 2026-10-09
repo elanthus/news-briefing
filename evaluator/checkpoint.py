@@ -10,6 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.checkpoint import write_json_atomic as _write_json_atomic
+from agent_runner.checkpoint import write_text_atomic as _write_text_atomic
+
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
 from evaluator.plan import EvaluationPlan, _result_key
 from evaluator.report import _operation_call_records, markdown_report, summarize
@@ -23,19 +26,6 @@ class RunState:
     results: list[dict[str, Any]]
     observed_ceiling_cost_usd: float
     completed_report: dict[str, Any] | None = None
-
-
-def _write_text_atomic(path: Path, text: str) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(text, encoding="utf-8")
-    temporary.replace(path)
-
-
-def _write_json_atomic(path: Path, payload: Any) -> None:
-    _write_text_atomic(
-        path,
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-    )
 
 
 def _provider_error(stage: str, exc: Exception) -> dict[str, Any]:

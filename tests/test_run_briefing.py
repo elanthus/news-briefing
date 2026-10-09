@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import corpus_schema
@@ -20,8 +19,8 @@ from agent_runner.runner import (
     RunnerSettings,
     RunResult,
     _fetch_corpus,
-    _promotion_actions,
     build_request,
+    promotion_actions,
     run_workflow,
 )
 from agent_runner.stages import selection_promotion_candidate
@@ -840,7 +839,7 @@ class RunnerTests(unittest.TestCase):
         actions left over from a selection a correction replaced would mark
         whichever story the model put in that slot as promoted.
         """
-        store = SimpleNamespace(manifest={"attempts": [
+        attempts = [
             {"kind": "selection", "repair_actions": None},
             {
                 "kind": "selection_promotion",
@@ -850,20 +849,20 @@ class RunnerTests(unittest.TestCase):
                     "reason": "promoted from excluded_topics.US Politics[0]",
                 }],
             },
-        ]})
+        ]
 
         self.assertEqual(
-            [action["path"] for action in _promotion_actions(store)],
+            [action["path"] for action in promotion_actions(attempts)],
             ["topics.US Politics[2]"],
         )
 
-        store.manifest["attempts"].append(
+        attempts.append(
             {"kind": "selection_correction", "repair_actions": None}
         )
-        self.assertEqual(_promotion_actions(store), [])
+        self.assertEqual(promotion_actions(attempts), [])
 
         # A prose attempt does not supersede it; the frozen selection stands.
-        store.manifest["attempts"][-1] = {
+        attempts[-1] = {
             "kind": "selection_promotion",
             "repair_actions": [{
                 "action": "promote_excluded_entry",
@@ -871,8 +870,8 @@ class RunnerTests(unittest.TestCase):
                 "reason": "promoted from excluded_topics.US Politics[0]",
             }],
         }
-        store.manifest["attempts"].append({"kind": "prose", "repair_actions": None})
-        self.assertEqual(len(_promotion_actions(store)), 1)
+        attempts.append({"kind": "prose", "repair_actions": None})
+        self.assertEqual(len(promotion_actions(attempts)), 1)
 
     def test_empty_section_with_no_usable_log_forces_model_correction(self):
         """Promotion never invents coverage, so the blocker still blocks.

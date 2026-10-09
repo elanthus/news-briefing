@@ -10,6 +10,7 @@ from typing import Any
 import corpus_schema
 from agent_runner.checkpoint import sha256_bytes
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json
+from agent_runner.stages import SELECTION_ATTEMPT_KINDS
 from publication_schema import parse_integrity, parse_provenance, provenance_payload
 
 
@@ -294,7 +295,7 @@ def generation_history(original: Path, record: dict[str, Any], *,
             continue
         candidate = json.loads(_bound_bytes(original, manifest, name))
         kind = attempt.get("kind")
-        preparation = kind in {"selection", "selection_correction", "selection_repair", "selection_promotion"}
+        preparation = kind in SELECTION_ATTEMPT_KINDS
         phase = add_phase(prefix, "generation_preparation" if preparation else "initial_validation",
                           "complete" if attempt.get("contract_success") else "partial")
         if not baseline_found and not preparation and attempt.get("briefing_artifact"):

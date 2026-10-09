@@ -17,13 +17,6 @@ from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, run_workflow
 
 
-def _positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("must be greater than zero")
-    return parsed
-
-
 def _nonnegative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
@@ -78,12 +71,12 @@ def main() -> int:
         help="replay an existing corpus instead of fetching live sources",
     )
     parser.add_argument("--prompt", type=Path, default=ROOT / "briefing-runner-prompt.md")
-    parser.add_argument("--hours", type=_positive_int, default=fetch_news.DEFAULT_WINDOW_HOURS)
-    parser.add_argument("--source-cap", type=_positive_int, default=fetch_news.DEFAULT_SOURCE_CAP)
-    parser.add_argument("--category-cap", type=_positive_int, default=fetch_news.DEFAULT_CATEGORY_CAP)
+    parser.add_argument("--hours", type=fetch_news.positive_int, default=fetch_news.DEFAULT_WINDOW_HOURS)
+    parser.add_argument("--source-cap", type=fetch_news.positive_int, default=fetch_news.DEFAULT_SOURCE_CAP)
+    parser.add_argument("--category-cap", type=fetch_news.positive_int, default=fetch_news.DEFAULT_CATEGORY_CAP)
     parser.add_argument(
         "--timeout",
-        type=_positive_int,
+        type=fetch_news.positive_int,
         default=600,
         help="per-fetch and per-model-call deadline in seconds",
     )
@@ -100,7 +93,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--max-tokens",
-        type=_positive_int,
+        type=fetch_news.positive_int,
         help=(
             "output ceiling: openrouter defaults to 100000, openai-compatible to the server's default, "
             "or 16000 with --lean-schema"

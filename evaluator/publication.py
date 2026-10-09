@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from agent_runner.checkpoint import sha256_file
 
 from evaluator.report import markdown_report, summarize
 from evaluator.runner import ROOT
@@ -118,10 +119,6 @@ def _adjudication_rows(manifest: dict[str, Any], artifact_root: Path) -> list[di
     return rows
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def _adapter_key(value: dict[str, Any]) -> tuple[Any, Any]:
     return value.get("provider"), value.get("model")
 
@@ -164,7 +161,7 @@ def _component_descriptor(
     selected = source["results"] if selected_rows is None else selected_rows
     return {
         "name": path.parent.name,
-        "manifest_sha256": _sha256(path),
+        "manifest_sha256": sha256_file(path),
         "rows": len(source["results"]),
         "selected_rows": len(selected),
         "excluded_partial_rows": len(source["results"]) - len(selected),
@@ -186,7 +183,7 @@ def _expected_adapter_rows(source: dict[str, Any]) -> set[tuple[str, str, int]]:
     suite_path = Path(source.get("suite", ""))
     if not suite_path.is_absolute():
         suite_path = ROOT / suite_path
-    if not suite_path.is_file() or _sha256(suite_path) != source.get("suite_sha256"):
+    if not suite_path.is_file() or sha256_file(suite_path) != source.get("suite_sha256"):
         raise ValueError("split final-run suite is missing or differs from its recorded hash")
     suite = json.loads(suite_path.read_text(encoding="utf-8"))
     cases = suite.get("cases")
@@ -537,11 +534,11 @@ def export_public_run(
         if path.name not in {"metadata.json", "SHA256SUMS"} and path.is_file():
             metadata["files"][path.name] = {
                 "bytes": path.stat().st_size,
-                "sha256": _sha256(path),
+                "sha256": sha256_file(path),
             }
     _write_json(output_dir / "metadata.json", metadata)
     sums = "".join(
-        f"{_sha256(path)}  {path.name}\n"
+        f"{sha256_file(path)}  {path.name}\n"
         for path in sorted(output_dir.iterdir())
         if path.is_file() and path.name != "SHA256SUMS"
     )
@@ -555,7 +552,7 @@ def verify_public_run(output_dir: Path) -> dict[str, Any]:
     failures = []
     for name, expected in metadata["files"].items():
         path = output_dir / name
-        if not path.is_file() or _sha256(path) != expected["sha256"]:
+        if not path.is_file() or sha256_file(path) != expected["sha256"]:
             failures.append(name)
     sums_path = output_dir / "SHA256SUMS"
     try:
@@ -576,7 +573,7 @@ def verify_public_run(output_dir: Path) -> dict[str, Any]:
         failures.append("SHA256SUMS (file list mismatch)")
     for expected_hash, name in sums.items():
         path = output_dir / name
-        if not path.is_file() or _sha256(path) != expected_hash:
+        if not path.is_file() or sha256_file(path) != expected_hash:
             failures.append(f"SHA256SUMS ({name})")
     manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     regenerated = summarize(manifest)
