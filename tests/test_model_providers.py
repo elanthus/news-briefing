@@ -17,7 +17,6 @@ from agent_runner.providers import (
     OpenAICompatibleProvider,
     OpenRouterProvider,
     _command_version,
-    _grammar_compatible_schema,
     _run_cli,
     provider_for,
 )
@@ -53,6 +52,43 @@ class TimeoutResponse(FakeResponse):
         raise TimeoutError("response read timed out")
 
 
+def sent_payload(provider, schema=SCHEMA):
+    """Return the JSON body an HTTP provider sends for ``schema``."""
+    response = FakeResponse({"choices": [{"message": {"content": '{"schema_version":1}'}}]})
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+        "agent_runner.providers._urlopen", return_value=response
+    ) as opened:
+        provider.generate(GenerationRequest("prompt", schema, 30, "0" * 32))
+    return json.loads(opened.call_args.args[0].data)
+
+
+def sent_schema(provider, schema):
+    return sent_payload(provider, schema)["response_format"]["json_schema"]["schema"]
+
+
+def codex_sent_schema(schema):
+    """Return the output schema the Codex CLI provider writes for ``codex exec``."""
+    events = [
+        {"thread_id": "thread-1", "type": "thread.started"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": '{"schema_version":1}'}},
+        {"type": "turn.completed", "usage": {}},
+    ]
+    completed = subprocess.CompletedProcess([], 0, "\n".join(map(json.dumps, events)), "")
+    sent = {}
+
+    def run(command, _prompt, **_kwargs):
+        path = Path(command[command.index("--output-schema") + 1])
+        sent["schema"] = json.loads(path.read_text(encoding="utf-8"))
+        return completed, 20.0, 1
+
+    with patch("shutil.which", return_value="/bin/codex"), patch(
+        "agent_runner.providers._run_cli", side_effect=run
+    ):
+        CodexCliProvider("gpt").generate(GenerationRequest("prompt", schema, 30, "0" * 32))
+    return sent["schema"]
+
+
 class ProviderTests(unittest.TestCase):
     def test_gemini_preserves_contract_without_redundant_citation_maximum(self):
         refs = {"type": "array", "items": {"type": "string", "enum": ["citation_1", "citation_2"]},
@@ -65,16 +101,16 @@ class ProviderTests(unittest.TestCase):
             "restricted": {**refs, "maxItems": 1},
             "repeats": {**refs, "uniqueItems": False},
         }, "const": {"maxItems": 2}}
-        sent = OpenRouterProvider("google/gemini-3.7-flash")._sent_schema(schema)
+        sent = sent_schema(OpenRouterProvider("google/gemini-3.7-flash"), schema)
         self.assertNotIn("maxItems", sent["properties"]["refs"])
         self.assertEqual(sent["properties"]["refs"], {k: v for k, v in refs.items() if k != "maxItems"})
         for name in ("maxItems", "prose", "restricted", "repeats"):
             self.assertEqual(sent["properties"][name], schema["properties"][name])
         self.assertEqual(sent["const"], schema["const"])
         self.assertEqual(refs["maxItems"], 2)
-        self.assertEqual(OpenRouterProvider("deepseek/deepseek-v4-flash-0731")._sent_schema(schema), schema)
+        self.assertEqual(sent_schema(OpenRouterProvider("deepseek/deepseek-v4-flash-0731"), schema), schema)
 
-    def test_grammar_schema_removes_unique_items_without_mutating_source(self):
+    def test_codex_schema_removes_unique_items_from_schema_nodes_without_mutating_source(self):
         schema = {
             "type": "object",
             "const": {"uniqueItems": True},
@@ -93,19 +129,6 @@ class ProviderTests(unittest.TestCase):
                     "uniqueItems": True,
                 }
             },
-        }
-
-        compatible = _grammar_compatible_schema(schema)
-
-        self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
-        self.assertNotIn("uniqueItems", compatible["$defs"]["nested"])
-        self.assertEqual(compatible["properties"]["uniqueItems"], {"type": "boolean"})
-        self.assertEqual(compatible["const"], {"uniqueItems": True})
-        self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
-
-    def test_grammar_compatible_schema_recurses_into_pattern_properties(self):
-        schema = {
-            "type": "object",
             "patternProperties": {
                 "^x-": {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
             },
@@ -114,10 +137,15 @@ class ProviderTests(unittest.TestCase):
             },
         }
 
-        compatible = _grammar_compatible_schema(schema)
+        compatible = codex_sent_schema(schema)
 
+        self.assertNotIn("uniqueItems", compatible["properties"]["refs"])
+        self.assertNotIn("uniqueItems", compatible["$defs"]["nested"])
         self.assertNotIn("uniqueItems", compatible["patternProperties"]["^x-"])
         self.assertNotIn("uniqueItems", compatible["dependentSchemas"]["a"])
+        self.assertEqual(compatible["properties"]["uniqueItems"], {"type": "boolean"})
+        self.assertEqual(compatible["const"], {"uniqueItems": True})
+        self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_sends_schema_and_parses_usage(self):
         payload = {
@@ -148,23 +176,16 @@ class ProviderTests(unittest.TestCase):
             "required": ["refs"],
             "additionalProperties": False,
         }
-        request = GenerationRequest("prompt", schema, 30, "0" * 32)
+        stripped = sent_schema(OpenRouterProvider("tencent/hy3"), schema)
+        kept = sent_schema(OpenRouterProvider("vendor/model"), schema)
 
-        stripped = OpenRouterProvider("tencent/hy3")._payload(request)
-        kept = OpenRouterProvider("vendor/model")._payload(request)
-
-        self.assertNotIn(
-            "uniqueItems",
-            stripped["response_format"]["json_schema"]["schema"]["properties"]["refs"],
-        )
-        self.assertTrue(
-            kept["response_format"]["json_schema"]["schema"]["properties"]["refs"]["uniqueItems"]
-        )
+        self.assertNotIn("uniqueItems", stripped["properties"]["refs"])
+        self.assertTrue(kept["properties"]["refs"]["uniqueItems"])
         self.assertTrue(schema["properties"]["refs"]["uniqueItems"])
 
     def test_openrouter_reasoning_can_be_explicitly_disabled(self):
         provider = OpenRouterProvider("vendor/model", reasoning_enabled=False)
-        self.assertEqual(provider._payload(REQUEST)["reasoning"], {"enabled": False})
+        self.assertEqual(sent_payload(provider)["reasoning"], {"enabled": False})
 
     def test_openrouter_rejects_tool_calls(self):
         payload = {
@@ -285,16 +306,10 @@ class ProviderTests(unittest.TestCase):
             provider_for("openrouter", "vendor/model", endpoint="http://127.0.0.1:8080/v1")
 
     def test_openai_compatible_payload_omits_openrouter_fields_and_constrains_output(self):
-        # Contract for OpenAICompatibleProvider._payload. The schema must reach
-        # the server through response_format, and nothing OpenRouter-specific
-        # may leak into a request that a local server might reject.
-        request = GenerationRequest(
-            "prompt",
-            {"type": "object", "properties": {"refs": {"type": "array", "uniqueItems": True, "maxItems": 2}}},
-            30,
-            "0" * 32,
-        )
-        payload = OpenAICompatibleProvider("qwen3:32b", temperature=0.1, max_tokens=8000)._payload(request)
+        # The schema must reach the server through response_format, and nothing
+        # OpenRouter-specific may leak into a request that a local server might reject.
+        schema = {"type": "object", "properties": {"refs": {"type": "array", "uniqueItems": True, "maxItems": 2}}}
+        payload = sent_payload(OpenAICompatibleProvider("qwen3:32b", temperature=0.1, max_tokens=8000), schema)
         self.assertEqual(payload["model"], "qwen3:32b")
         self.assertEqual(payload["messages"], [{"role": "user", "content": "prompt"}])
         self.assertEqual(payload["temperature"], 0.1)
@@ -305,7 +320,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(sent_refs["maxItems"], 2)
         self.assertNotIn("provider", payload)
         self.assertNotIn("reasoning", payload)
-        self.assertNotIn("max_tokens", OpenAICompatibleProvider("qwen3:32b")._payload(request))
+        self.assertNotIn("max_tokens", sent_payload(OpenAICompatibleProvider("qwen3:32b"), schema))
 
     def test_openai_compatible_lean_profile_removes_array_bounds_and_keeps_enums(self):
         schema = {
@@ -331,11 +346,12 @@ class ProviderTests(unittest.TestCase):
                 }
             },
         }
-        request = GenerationRequest("prompt", schema, 30, "0" * 32)
         full = OpenAICompatibleProvider("m")
         lean = OpenAICompatibleProvider("m", lean_schema=True)
-        full_topics = full._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
-        lean_topics = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        full_payload = sent_payload(full, schema)
+        lean_payload = sent_payload(lean, schema)
+        full_topics = full_payload["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        lean_topics = lean_payload["response_format"]["json_schema"]["schema"]["properties"]["topics"]
         self.assertEqual(full_topics["items"]["properties"]["refs"]["maxItems"], 2)
         refs = lean_topics["items"]["properties"]["refs"]
         self.assertNotIn("maxItems", refs)
@@ -347,8 +363,8 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(lean_topics["items"]["properties"]["summary"], {"type": "string"})
         self.assertEqual(full_topics["items"]["properties"]["summary"]["maxLength"], 300)
         self.assertEqual(schema["properties"]["topics"]["items"]["properties"]["refs"]["maxItems"], 2)
-        self.assertEqual(lean._payload(request)["max_tokens"], OpenAICompatibleProvider.LEAN_DEFAULT_MAX_TOKENS)
-        self.assertNotIn("max_tokens", full._payload(request))
+        self.assertEqual(lean_payload["max_tokens"], OpenAICompatibleProvider.LEAN_DEFAULT_MAX_TOKENS)
+        self.assertNotIn("max_tokens", full_payload)
         self.assertEqual(OpenAICompatibleProvider("m", lean_schema=True, max_tokens=900).max_tokens, 900)
         self.assertEqual(lean.info()["schema_profile"], "lean")
         self.assertEqual(full.info()["schema_profile"], "full")
@@ -406,9 +422,7 @@ class ProviderTests(unittest.TestCase):
                 }
             },
         }
-        request = GenerationRequest("prompt", schema, 30, "0" * 32)
-        lean = OpenAICompatibleProvider("m", lean_schema=True)
-        topics = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["topics"]
+        topics = sent_schema(OpenAICompatibleProvider("m", lean_schema=True), schema)["properties"]["topics"]
         # The prose pass returns exactly one entry per frozen selection; that bound survives.
         self.assertEqual((topics["minItems"], topics["maxItems"]), (3, 3))
         # Ranged bounds and string lengths are still dropped.
@@ -432,9 +446,7 @@ class ProviderTests(unittest.TestCase):
                 }
             },
         }
-        request = GenerationRequest("prompt", schema, 30, "0" * 32)
-        lean = OpenAICompatibleProvider("m", lean_schema=True)
-        sections = lean._payload(request)["response_format"]["json_schema"]["schema"]["properties"]["sections"]
+        sections = sent_schema(OpenAICompatibleProvider("m", lean_schema=True), schema)["properties"]["sections"]
         self.assertEqual(set(sections["properties"]), {"maxLength", "minItems"})
         self.assertEqual(sections["properties"]["maxLength"], {"type": "array", "items": {"type": "string"}})
         self.assertEqual(sections["properties"]["minItems"], {"type": "string"})
