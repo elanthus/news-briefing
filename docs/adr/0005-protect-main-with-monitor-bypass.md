@@ -17,7 +17,7 @@ never reviewed.
 Only one workflow writes to `main`. `.github/workflows/monitor-grounding.yml`
 commits a one-line update to `docs/results/grounding-monitor.md` each week and
 pushes it directly. `daily-briefing.yml` has `contents: read` and never pushes.
-`ci.yml` and `claude-code-review.yml` are also read-only.
+`ci.yml` and `claude-code-review.yml` also cannot write to `main`.
 
 The maintainer chose to protect `main` and let the monitor keep pushing
 directly. The alternative was to have the monitor open a pull request.
