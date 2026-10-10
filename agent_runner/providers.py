@@ -8,10 +8,13 @@ import ipaddress
 import json
 import math
 import os
+import select
 import shutil
+import signal
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -21,12 +24,16 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, BinaryIO, cast
 
 from agent_runner.http_transport import ResponseLimitError, bounded_request, deadline_handlers
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
 
 MAX_ATTEMPTS = 3
+MAX_CLI_STDOUT_BYTES = 8 * 1024 * 1024
+MAX_CLI_STDERR_BYTES = 64 * 1024
+_CLI_READ_CHUNK = 64 * 1024
+_CLI_CLEANUP_SECONDS = 5
 RETRYABLE_HTTP_STATUSES = {408, 425, 429}
 _TRANSIENT_CLI_MARKERS = (
     "rate limit",
@@ -156,16 +163,11 @@ def _command_version(command: str) -> str | None:
     if shutil.which(command) is None:
         return None
     try:
-        completed = subprocess.run(
-            [command, "--version"],
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            check=False,
-            timeout=10,
+        completed = _capture_cli(
+            [command, "--version"], "", timeout=10,
+            stdout_limit=MAX_CLI_STDERR_BYTES,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, ValueError, subprocess.SubprocessError):
         return None
     rendered = completed.stdout.strip() or completed.stderr.strip()
     return rendered.splitlines()[0] if rendered else None
@@ -253,6 +255,155 @@ def _retry_after_seconds(value: str | None, now: datetime | None = None) -> floa
     return max(0.0, (target - (now or datetime.now(UTC))).total_seconds())
 
 
+class _CLIOutputLimitError(ValueError):
+    """A CLI stream exceeded its byte ceiling while being collected."""
+
+
+def _stop_cli(process: subprocess.Popen[bytes]) -> None:
+    """Stop the invocation and its ordinary descendants before closing pipes."""
+    if os.name == "posix":
+        try:
+            # The session is owned by this invocation, even if its leader has
+            # already exited while a descendant still holds an output pipe.
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    elif os.name == "nt":
+        # Windows pipes cannot be selected. Native taskkill stops descendants
+        # as well as the CLI; its own diagnostics are discarded, not captured.
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=_CLI_CLEANUP_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if process.poll() is None:
+        process.kill()
+    process.wait(timeout=_CLI_CLEANUP_SECONDS)
+
+
+def _pipe_ready_bytes(stream: BinaryIO, capacity: int) -> int | None:
+    """Readiness for unbuffered pipes, including Windows on Python 3.11."""
+    if os.name != "nt":
+        readable, _, _ = select.select([stream], [], [], 0)
+        return capacity if readable else None
+    import ctypes
+    import ctypes.wintypes
+    import msvcrt
+
+    kernel = cast(Any, ctypes).WinDLL("kernel32", use_last_error=True)
+    peek = kernel.PeekNamedPipe
+    peek.argtypes = [ctypes.wintypes.HANDLE, ctypes.wintypes.LPVOID,
+                     ctypes.wintypes.DWORD, ctypes.wintypes.LPVOID,
+                     ctypes.POINTER(ctypes.wintypes.DWORD), ctypes.wintypes.LPVOID]
+    peek.restype = ctypes.wintypes.BOOL
+    available = ctypes.wintypes.DWORD()
+    if not peek(cast(Any, msvcrt).get_osfhandle(stream.fileno()), None, 0, None,
+                ctypes.byref(available), None):
+        if cast(Any, ctypes).get_last_error() == 109:  # ERROR_BROKEN_PIPE: writer closed.
+            return 0
+        raise OSError("CLI pipe readiness check failed")
+    return min(capacity, available.value) if available.value else None
+
+
+def _capture_cli(
+    command: list[str], prompt: str, *, timeout: float,
+    cwd: str | None = None, stdout_limit: int = MAX_CLI_STDOUT_BYTES,
+    stderr_limit: int = MAX_CLI_STDERR_BYTES,
+) -> subprocess.CompletedProcess[str]:
+    """Capture bounded binary streams concurrently under one call deadline.
+
+    Each read asks for at most the remaining capacity plus one overflow byte.
+    A temporary input file avoids blocking the supervising thread when a CLI
+    stops consuming stdin. Reader threads work on unbuffered pipes on POSIX
+    and Windows; bounded capture is independent of the locale codec.
+    """
+    deadline = time.perf_counter() + timeout
+    wake = threading.Event()
+    overflow = threading.Event()
+    stop = threading.Event()
+    failures: list[Exception] = []
+    buffers = [bytearray(), bytearray()]
+
+    def collect(stream: BinaryIO, limit: int, target: bytearray) -> None:
+        try:
+            while not overflow.is_set() and not stop.is_set():
+                capacity = min(_CLI_READ_CHUNK, limit - len(target) + 1)
+                available = _pipe_ready_bytes(stream, capacity)
+                if available is None:
+                    stop.wait(0.02)
+                    continue
+                chunk = stream.read(available)
+                if not chunk:
+                    return
+                if len(target) + len(chunk) > limit:
+                    overflow.set()
+                    return
+                target.extend(chunk)
+        except Exception as exc:
+            failures.append(exc)
+        finally:
+            wake.set()
+
+    with tempfile.TemporaryFile() as input_file:
+        input_file.write(prompt.encode("utf-8", errors="replace"))
+        input_file.seek(0)
+        if time.perf_counter() >= deadline:
+            raise subprocess.TimeoutExpired(command, timeout)
+        process = subprocess.Popen(
+            command, stdin=input_file, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, bufsize=0, cwd=cwd,
+            start_new_session=os.name == "posix",
+            creationflags=(cast(Any, subprocess).CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+        )
+        assert process.stdout is not None and process.stderr is not None
+        streams = [process.stdout, process.stderr]
+        readers = [
+            threading.Thread(target=collect, args=(stream, limit, target),
+                             name=f"cli-capture-{process.pid}-{index}")
+            for index, (stream, limit, target) in enumerate(zip(
+                streams, (stdout_limit, stderr_limit), buffers, strict=True))
+        ]
+        try:
+            for reader in readers:
+                reader.start()
+            while True:
+                if overflow.is_set():
+                    raise _CLIOutputLimitError("CLI output exceeded its capture byte limit")
+                if failures:
+                    raise OSError("CLI output collection failed")
+                if process.poll() is not None and not any(reader.is_alive() for reader in readers):
+                    break
+                remaining = deadline - time.perf_counter()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                wake.wait(min(remaining, 0.02))
+                wake.clear()
+            process.wait(timeout=max(0.001, deadline - time.perf_counter()))
+            return subprocess.CompletedProcess(
+                command, process.returncode,
+                buffers[0].decode("utf-8", errors="replace"),
+                buffers[1].decode("utf-8", errors="replace"),
+            )
+        finally:
+            incomplete = process.poll() is None or any(reader.is_alive() for reader in readers)
+            stop.set()
+            # Readiness polling makes these joins independent of pipe EOF,
+            # including a descendant that outlives the invocation's leader.
+            for reader in readers:
+                if reader.ident is not None:
+                    reader.join()
+            try:
+                if incomplete:
+                    _stop_cli(process)
+            finally:
+                for stream in streams:
+                    stream.close()
+
+
 def _run_cli(
     command: list[str],
     prompt: str,
@@ -271,19 +422,18 @@ def _run_cli(
                 attempts=attempt - 1,
             )
         try:
-            completed = subprocess.run(
-                command,
-                input=prompt,
-                text=True,
-                # CLI children speak UTF-8; the Windows locale codec cannot
-                # round-trip corpus text (e.g. U+200A from scraped articles).
-                encoding="utf-8",
-                errors="replace",
-                capture_output=True,
-                timeout=remaining,
-                check=False,
-                cwd=cwd,
-            )
+            completed = _capture_cli(command, prompt, timeout=remaining, cwd=cwd)
+        except _CLIOutputLimitError as exc:
+            raise ProviderError(
+                f"{' '.join(command[:2])} exceeded the CLI output capture byte limit",
+                transient=False, attempts=attempt, ambiguous_completion=True,
+                output_truncated=True,
+            ) from exc
+        except OSError as exc:
+            raise ProviderError(
+                f"{' '.join(command[:2])} could not complete CLI output collection",
+                transient=False, attempts=attempt, ambiguous_completion=True,
+            ) from exc
         except subprocess.TimeoutExpired as exc:
             raise ProviderError(
                 f"{' '.join(command[:2])} exceeded the {timeout}s call deadline",
@@ -298,7 +448,7 @@ def _run_cli(
         transient = any(marker in detail.casefold() for marker in _TRANSIENT_CLI_MARKERS)
         if emitted_output or not transient or attempt >= MAX_ATTEMPTS:
             raise ProviderError(
-                f"{' '.join(command[:2])} failed: {detail[:1000]}",
+                f"{' '.join(command[:2])} failed with exit status {completed.returncode}",
                 transient=transient,
                 attempts=attempt,
                 ambiguous_completion=emitted_output,
