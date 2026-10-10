@@ -71,6 +71,21 @@ The site and its machine-readable history retain up to seven report dates. When 
 
 Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
 
+## Legacy reader retirement
+
+Legacy sidecar/history and semantic-audit readers remain supported pending
+issue #242. The earliest removal date is October 15, 2026; reaching that date
+alone does not authorize removal. Before retiring a reader, inspect the actual
+published history, retained operational artifacts, and active benchmark
+consumers, and record the format evidence in the removal PR. Seven retained
+public entries can span more than seven days when publication has gaps.
+Preserve any still-needed narrow reader or provide an explicit lossless
+migration. Do not clear history with `--allow-empty-history` to satisfy this gate.
+
+Site fixture helpers now emit the current sidecar fields and hash-bound
+integrity records. Targeted legacy cases remain separate so current publication
+coverage does not depend on compatibility fallbacks.
+
 ## Private operational artifacts
 
 The repository secret `CORPUS_ARCHIVE_PASSPHRASE` is required by the daily workflow. Exact corpora and diagnostics are first gzip-compressed, then encrypted with AES-256-CBC using a PBKDF2-SHA-256-derived key. A separately derived HMAC-SHA-256 authenticates the versioned envelope, and restoration verifies that MAC before decryption. The passphrase is supplied on standard input rather than in process arguments. The checkout step sets `persist-credentials: false`, so no Git credential is left in the workspace. The restore step is the only step with an explicit `GITHUB_TOKEN` binding and receives `CORPUS_ARCHIVE_PASSPHRASE`; the generation step, which fetches feeds and calls models, is bound to `OPENROUTER_API_KEY` and `SCRAPECREATORS_API_KEY`; the encryption step is bound to `CORPUS_ARCHIVE_PASSPHRASE`. The job-level permissions (`actions: read`, `contents: read`, `pages: write`, `id-token: write`) are available to every step, including fetch and generation: any step can read `github.token` or request an OIDC token, because Actions does not isolate permissions per step. Archive restoration accepts only regular `corpora/YYYY-MM-DD.json` members whose JSON validates against the current corpus schema and whose `report_date` matches the filename; unexpected members, traversal paths, duplicate dates, oversized data, and malformed current corpora fail closed. Authenticated members declaring obsolete positive integer schema versions are skipped, with their date identities, uniqueness, and byte bounds still checked. They are never upgraded or restored, and an all-obsolete archive produces an empty window. Missing, malformed, and future versions fail closed. Members outside the window receive the same checks; only current corpora for the fourteen report dates ending on the run date are written. Restoration refuses an existing output directory that is not empty, including when no archive is available, so no unvalidated file enters the retained window. The token-authenticated GitHub download follows only an absolute HTTPS artifact redirect, then downloads that destination without forwarding the token.

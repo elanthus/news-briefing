@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import eval_briefing
 from agent_runner.failures import FailureRecord
+from agent_runner.integrity import add_phase, blank_integrity
 from agent_runner.output import render_briefing, render_validation_status
 from build_site import (
     BriefingEntry,
@@ -436,11 +437,41 @@ class BuildSiteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "advisory findings require a published disposition"):
                 build_site(briefings, root / "site")
 
+    def test_current_fixture_shape_and_legacy_sidecar_remain_readable(self) -> None:
+        from build_site import SIDECAR_FIELDS
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            markdown = "# Daily Briefing\n\nCurrent fixture.\n"
+            (briefings / "2026-08-20.md").write_text(markdown)
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            sidecar = briefings / "2026-08-20.json"
+            payload = json.loads(sidecar.read_text())
+            self.assertEqual(set(payload), SIDECAR_FIELDS)
+            self.assertEqual(payload["integrity"]["decision"], "original_retained")
+            self.assertEqual(payload["integrity"]["artifacts"][-1], {
+                "id": "published", "sha256": hashlib.sha256(markdown.encode()).hexdigest(),
+            })
+            build_site(briefings, root / "current")
+            current = json.loads((root / "current/history.json").read_text())["entries"][0]
+            self.assertEqual(current["integrity"], payload["integrity"])
+            for field in ("integrity", "semantic_audit"):
+                payload.pop(field)
+            sidecar.write_text(json.dumps(payload))
+            build_site(briefings, root / "legacy")
+            legacy = json.loads((root / "legacy/history.json").read_text())["entries"][0]
+            self.assertIsNone(legacy["integrity"])
+            self.assertEqual(legacy["markdown"], current["markdown"])
+
     def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
             briefings.mkdir()
+            markdown = briefings / "2026-08-20.md"
+            markdown.write_text("# Test briefing\n")
             self._write_sidecar(
                 briefings,
                 date="2026-08-20",
@@ -448,6 +479,7 @@ class BuildSiteTests(unittest.TestCase):
                 findings=[self._finding("unsupported_figure", "Verify 60.")],
             )
 
+            markdown.unlink()
             with self.assertRaisesRegex(ValueError, "requires matching Markdown"):
                 build_site(briefings, root / "site")
 
@@ -1743,14 +1775,25 @@ class BuildSiteTests(unittest.TestCase):
             repair_actions=repair_actions or [], generation_failures=[],
             advisory_findings=advisory_findings or [], provenance=provenance,
         )
+        integrity = blank_integrity(
+            "original_retained" if disposition in {"ready", "review_required"} else "unpublished",
+            ["audit_unavailable"] if disposition in {"ready", "review_required"} else ["verification_failed"],
+        )
+        markdown_path = directory / f"{date}.md"
+        if disposition in {"ready", "review_required"} and markdown_path.is_file():
+            digest = hashlib.sha256(markdown_path.read_bytes()).hexdigest()
+            integrity["artifacts"] = [
+                {"id": "original", "sha256": digest}, {"id": "published", "sha256": digest},
+            ]
+        integrity["generation"] = provenance
+        add_phase(integrity, "publication_verification",
+                  "complete" if integrity["artifacts"] else "failed")
+        payload.update(semantic_audit=None, integrity=integrity)
         (directory / f"{date}.json").write_text(
             json.dumps(payload),
             encoding="utf-8",
         )
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 
@@ -2181,3 +2224,7 @@ class IntegrityReportTests(unittest.TestCase):
             self.assertEqual(exact.markdown.encode('utf-8'), crlf_bytes)
             history.write_text(json.dumps(site._history_payload([exact])))
             self.assertEqual(site._load_history(history)[0].markdown.encode('utf-8'), crlf_bytes)
+
+
+if __name__ == "__main__":
+    unittest.main()
