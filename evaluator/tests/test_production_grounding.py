@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import patch
 
 from agent_runner.checkpoint import sha256_file, write_json_atomic
-from agent_runner.jev_review import load_topics
+from agent_runner.jev_review import VerifiedRun, load_verified_run
 from agent_runner.publication import publication_receipt, verified_publication
 from agent_runner.semantic_repairs import daily_semantic_review
 from evaluator.adapters import Adapter, Generation
@@ -232,14 +232,14 @@ class VerifiedProductionTests(unittest.TestCase):
             root = Path(directory)
             day, original, _headline = prepared_day(root)
 
-            def replace_manifest_after_verification(run: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
-                verified = load_topics(run)
+            def replace_manifest_after_verification(run: Path) -> VerifiedRun:
+                verified = load_verified_run(run)
                 manifest = json.loads((run / "manifest.json").read_text())
                 manifest["attempts"] = []
                 write_json_atomic(run / "manifest.json", manifest)
                 return verified
 
-            with patch("agent_runner.publication.load_topics", side_effect=replace_manifest_after_verification):
+            with patch("agent_runner.publication.load_verified_run", side_effect=replace_manifest_after_verification):
                 receipt = publication_receipt(day.parent, root / "history.json", 123, 1)
             self.assertEqual(receipt["reports"], [])
             self.assertEqual(receipt["skipped"], [

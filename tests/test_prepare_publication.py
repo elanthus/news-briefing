@@ -62,7 +62,11 @@ class PreparePublicationTests(unittest.TestCase):
                 with self.subTest(name):
                     path = Path(tmp) / "corpus.json"
                     path.write_text(json.dumps(corpus), encoding="utf-8")
-                    labels = _degraded_sources(path)
+                    health = [{"source_type": row["source_type"], "source_id": row["source_id"],
+                               "category": row.get("category", "science"), "status": row["status"],
+                               "parsed_entries": row.get("parsed_entries", 3),
+                               "dated_entries": row.get("dated_entries", 3)} for row in corpus["sources"]]
+                    labels = _degraded_sources(health)
                     self.assertEqual(labels, expected)
                     self.assertEqual(
                         bool(labels), corpus_schema.corpus_health_degraded(corpus)
@@ -268,7 +272,7 @@ class PreparePublicationTests(unittest.TestCase):
             assert record.findings[0].context is not None
             self.assertEqual(record.findings[0].context.section, "US Politics")
             self.assertIn("https://model.example/claim", record.findings[0].context.model_authored)
-            self.assertEqual(record.degraded_sources, ("reddit:cursor",))
+            self.assertEqual(record.degraded_sources, ("source health unavailable",))
             self.assertEqual((history / "2026-08-20.md").read_bytes(), preview)
             # low_claim_evidence_overlap is one of the four advisory checks
             # (issue #171): it is visible, but never counted as actionable.

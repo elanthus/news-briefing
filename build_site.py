@@ -19,6 +19,7 @@ from urllib.parse import unquote, urlsplit
 
 import corpus_schema
 import eval_briefing
+from agent_runner.integrity import degraded_health_records
 from agent_runner.outcomes import ADVISORY_QUALITY_CHECKS, QUALITY_CHECKS
 from audit_manifest import build_audit_manifest
 from publication_failures import (
@@ -504,7 +505,7 @@ def _corpus_health(entry: BriefingEntry) -> str:
     if not entry.degraded_sources:
         return "No source problems reported"
     sources = ", ".join(html.escape(source) for source in entry.degraded_sources)
-    return f"No results today from some sources: {sources}"
+    return f"Source coverage problems: {sources}"
 
 
 _CORPUS_HEALTH_HEADING = "### Corpus health"
@@ -993,7 +994,7 @@ def _status_chip(entry: BriefingEntry) -> str:
         n = len(entry.advisory_findings)
         suffixes.append(f"{n} advisory {'note' if n == 1 else 'notes'}")
     if entry.degraded_sources:
-        suffixes.append("no results today from some sources")
+        suffixes.append("source coverage problems")
     if suffixes:
         label += " · " + " · ".join(suffixes)
         if tone == "status-ok":
@@ -1393,7 +1394,7 @@ def _render_integrity_details(entry: BriefingEntry) -> str:
             "entries_filtered": "entries filtered",
             "undated_entries": "some entries undated",
         }
-        degraded = [r for r in record["corpus_health"] if r["status"] != "ok" or r["reason"] is not None]
+        degraded = degraded_health_records(record["corpus_health"])
         groups: dict[str, list[str]] = {}
         for row in degraded:
             label = messages.get(row["reason"], row["status"])
@@ -1406,6 +1407,10 @@ def _render_integrity_details(entry: BriefingEntry) -> str:
             parts.append('</ul>')
         else:
             parts.append('<p>No source problems recorded.</p>')
+        quiet = [row for row in record["corpus_health"] if row["status"] == "quiet" and row not in degraded]
+        if quiet:
+            parts.append('<p>Quiet sources returned valid dated entries outside the window or filtered by policy: '
+                         + html.escape("; ".join(row["source_id"] for row in quiet)) + '.</p>')
         parts.append('<details><summary>All verified source counts</summary><ul>')
         for row in record["corpus_health"]:
             parts.append(

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.checkpoint import write_json_atomic
-from agent_runner.jev_review import MAX_ARTIFACT_BYTES, load_topics
+from agent_runner.jev_review import MAX_ARTIFACT_BYTES, VerifiedRun, load_verified_run
 from agent_runner.semantic_repairs import load_public_audit
 
 
@@ -73,16 +73,17 @@ def resolve_publication_run(
 
 def _verified_publication_artifacts(
     root: Path,
-) -> tuple[Path, list[dict[str, Any]], dict[str, str], dict[str, Any]]:
+) -> tuple[Path, VerifiedRun, dict[str, str]]:
     """Verify artifact identity without replaying a potentially newer renderer."""
     _audit, selected, _original = resolve_publication_run(root)
     if selected is None:
         raise ValueError("no ready publication candidate")
-    topics, hashes = load_topics(selected)
+    state = load_verified_run(selected)
+    hashes = state.hashes
     manifest_bytes = _read_bytes(selected / "manifest.json")
     if hashlib.sha256(manifest_bytes).hexdigest() != hashes["manifest.json"]:
         raise ValueError("publication manifest changed during verification")
-    manifest = json.loads(manifest_bytes)
+    manifest = state.manifest
     final = manifest["final"]
     if final.get("artifact_type") != "final" or final.get("run_artifact") != "final.md":
         raise ValueError("invalid public artifact binding")
@@ -91,7 +92,7 @@ def _verified_publication_artifacts(
     digest = hashlib.sha256(markdown).hexdigest()
     if manifest["artifacts"].get("final.md") != digest or final.get("output_sha256") != digest:
         raise ValueError("public artifact hash mismatch")
-    return selected, topics, {**hashes, "final.md": digest}, manifest
+    return selected, state, {**hashes, "final.md": digest}
 
 
 def verified_publication_artifacts(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
@@ -102,18 +103,18 @@ def verified_publication_artifacts(root: Path) -> tuple[Path, list[dict[str, Any
     was independently verified. They must not replay the current Markdown
     renderer or checker against an older, already deployed artifact.
     """
-    selected, topics, hashes, _manifest = _verified_publication_artifacts(root)
-    return selected, topics, hashes
+    selected, state, hashes = _verified_publication_artifacts(root)
+    return selected, state.topics, hashes
 
 
 def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
     """Verify newly published Markdown against this revision's exact rendering."""
-    selected, topics, hashes, manifest = _verified_publication_artifacts(root)
+    selected, state, hashes = _verified_publication_artifacts(root)
+    manifest = state.manifest
     final = manifest["final"]
     # Re-render the verified candidate and its code-owned validation footer.
     # A prefix match alone would permit unreviewed prose after the footer.
-    import briefing_config
-    from agent_runner.output import complete_briefing, project_corpus, render_briefing
+    from agent_runner.output import complete_briefing, render_briefing
     from agent_runner.runner import promotion_actions
     from publication_schema import parse_repair_actions
 
@@ -126,17 +127,14 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
         raise ValueError("final attempt is not unique")
     attempt = matches[0]
     actions = [*parse_repair_actions(attempt.get("repair_actions")), *promotion_actions(attempts)]
-    corpus = read_json(selected / "corpus.json")
-    candidate = read_json(selected / attempt["structured_artifact"])
-    config = briefing_config.parse_config(read_json(selected / "briefing-config.json"))
-    rendered = render_briefing(candidate, corpus, config, project_corpus(corpus).citations, actions)
-    expected, _findings, _outcome = complete_briefing(rendered, corpus, config)
+    rendered = render_briefing(state.candidate, state.corpus, state.config, state.projected.citations, actions)
+    expected, _findings, _outcome = complete_briefing(rendered, state.corpus, state.config)
     markdown = _read_bytes(selected / "final.md")
     if hashlib.sha256(markdown).hexdigest() != hashes["final.md"]:
         raise ValueError("public artifact changed during verification")
     if markdown.decode("utf-8") != expected:
         raise ValueError("published Markdown differs from the verified candidate")
-    return selected, topics, hashes
+    return selected, state.topics, hashes
 
 
 def publication_receipt(runs_dir: Path, history_path: Path, workflow_run_id: int,

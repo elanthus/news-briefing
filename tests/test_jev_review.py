@@ -8,11 +8,19 @@ import unittest
 import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from agent_runner.checkpoint import sha256_file, write_json_atomic
 from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
-from agent_runner.jev_review import _payload, build_tasks, load_topics, review_run
+from agent_runner.jev_review import (
+    _payload,
+    build_tasks,
+    load_citation_urls,
+    load_topics,
+    load_verified_run,
+    review_run,
+)
 from agent_runner.models import ProviderError
 from agent_runner.output import project_selected_evidence
 from agent_runner.runner import RunnerSettings, run_workflow
@@ -160,6 +168,20 @@ class JevReviewTests(unittest.TestCase):
             for index, question in enumerate(questions.values()):
                 self.assertIn(f"checks[{index}]", question["instructions"])
 
+    def test_verified_value_reuses_loaded_evidence_but_a_new_consumer_rejects_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = self.make_run(root)
+            state = load_verified_run(run)
+            urls = load_citation_urls(state)
+            (run / "frozen-selection.json").write_text("{}")
+            with patch("agent_runner.jev_review._read_json", side_effect=AssertionError("unexpected artifact read")):
+                self.assertEqual(load_citation_urls(state), urls)
+                report = review_run(run, root / "review", client=FakeJudge(), verified_run=state)
+            self.assertEqual(report["status"], "complete")
+            with self.assertRaisesRegex(ValueError, "artifact hash"):
+                load_topics(run)
+
     def test_hash_mutation_prevents_any_model_call(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -238,7 +260,8 @@ class JevReviewTests(unittest.TestCase):
             topics = [{"included": True, "position": {}, "headline": "Large", "prose": "x" * 30_000,
                        "evidence": [{"title": "x" * 30_000}]}]
             judge = FakeJudge()
-            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})), patch(
+            with patch("agent_runner.jev_review.load_verified_run",
+                       return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
                 "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "review", client=judge)
@@ -248,7 +271,8 @@ class JevReviewTests(unittest.TestCase):
             topics[0]["headline"] = "Short"
             topics[0]["prose"] = "Short"
             topics[0]["evidence"] = [{"title": "Short"}]
-            with patch("agent_runner.jev_review.load_topics", return_value=(topics, {})), patch(
+            with patch("agent_runner.jev_review.load_verified_run",
+                       return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
                 "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "budget", client=judge, cost_ceiling=0.000000001)
