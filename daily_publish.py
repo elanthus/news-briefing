@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 
 from agent_runner.budget import GenerationBudget
 from agent_runner.checkpoint import utc_now
+from publication_schema import parse_workflow_run_id
 from run_daily_briefing import _write_chain_logs
 
 NEW_YORK = ZoneInfo("America/New_York")
@@ -90,7 +91,6 @@ def capture_window(
     window_start = window_end - timedelta(days=1)
     today = window_end.astimezone(NEW_YORK).date()
     values = (
-        ("SNAPSHOT_END_EPOCH", str(snapshot_end_epoch)),
         ("WINDOW_START", window_start.isoformat(timespec="seconds")),
         ("WINDOW_END", window_end.isoformat(timespec="seconds")),
         ("REPORT_TODAY", today.isoformat()),
@@ -99,17 +99,6 @@ def capture_window(
         for key, value in values:
             destination.write(f"{key}={value}\n")
     return 0
-
-
-def _targeted_report_date(
-    *, event_name: str, manual_mode: str, manual_report_date: str, today: date
-) -> tuple[bool, str]:
-    if event_name != "workflow_dispatch" or manual_mode != "single-day":
-        return True, ""
-    if not manual_report_date:
-        return True, today.isoformat()
-    parsed = _validated_target(manual_report_date, today)
-    return (parsed is not None, parsed.isoformat() if parsed is not None else "")
 
 
 def restore_corpus(
@@ -121,13 +110,13 @@ def restore_corpus(
     root: Path = Path("."),
     runner: CommandRunner = _run,
 ) -> int:
-    valid, _target = _targeted_report_date(
+    report_dates = _report_dates(
         event_name=event_name,
         manual_mode=manual_mode,
         manual_report_date=manual_report_date,
         today=today,
     )
-    if not valid:
+    if report_dates is None:
         return 1
     corpora = root / "corpora"
     corpora.mkdir(parents=True, exist_ok=True)
@@ -242,8 +231,9 @@ def generate_reports(
             "--history-dir", str(root / "briefing-history"),
             "--date", report_date,
         ]
-        if type(workflow_run_id) is int and 1 <= workflow_run_id <= 10**18:
-            publication_command.extend(["--workflow-run-id", str(workflow_run_id)])
+        identity = parse_workflow_run_id(workflow_run_id)
+        if identity is not None:
+            publication_command.extend(["--workflow-run-id", str(identity)])
         prepared = _invoke(publication_command, runner)
         if prepared.returncode != 0:
             unsuccessful.append(report_date)
@@ -322,8 +312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         manual_report_date=manual_report_date,
         window_start=os.environ["WINDOW_START"],
         window_end=os.environ["WINDOW_END"],
-        workflow_run_id=(int(value) if (value := os.environ.get("GITHUB_RUN_ID", "")).isascii()
-                         and value.isdecimal() and len(value) <= 19 else None),
+        workflow_run_id=parse_workflow_run_id(os.environ.get("GITHUB_RUN_ID", "")),
     )
 
 

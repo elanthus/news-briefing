@@ -78,7 +78,8 @@ class IntegritySchemaTests(unittest.TestCase):
     def test_every_bound_and_unknown_field_fails_closed(self):
         changes = [
             ("version", True), ("version", 2), ("decision", "published"), ("reasons", ["remote error body"]),
-            ("reasons", ["provider_failure"] * 2), ("workflow_run_id", True), ("workflow_run_id", 0),
+            ("reasons", ["provider_failure"] * 2), ("workflow_run_id", True), ("workflow_run_id", "123"),
+            ("workflow_run_id", 0),
             ("workflow_run_id", 10**18 + 1), ("actions", [integrity_fixture()["actions"][0]] * 513),
             ("phases", [phase(0, "initial_review")] * 129),
         ]
