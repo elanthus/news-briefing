@@ -334,7 +334,7 @@ class JevReviewTests(unittest.TestCase):
             output.write_text("Original ready briefing.")
             argv = ["run_daily_briefing.py", "--output", str(output), "--force", "--run-dir", str(run_dir),
                     "--corpus", str(ROOT / "fixtures/current-corpus.json"),
-                    "--jev-review-dir", str(run_dir / "jev-review"), "--jev-repair-mode", "apply"]
+                    "--jev-review-dir", str(run_dir / "jev-review")]
             result = ChainResult("ready", "test", selected, run_dir)
             for exception in (RuntimeError("secret remote error"), ProviderError("secret", transient=False)):
                 stderr = io.StringIO()
@@ -347,6 +347,16 @@ class JevReviewTests(unittest.TestCase):
                 self.assertNotIn("secret", stderr.getvalue())
                 self.assertEqual(output.read_text(), "Original ready briefing.")
 
+    def test_daily_cli_rejects_removed_mode_flag(self):
+        import run_daily_briefing
+
+        argv = ["run_daily_briefing.py", "--output", "unused.md", "--run-dir", "unused-run",
+                "--corpus", "unused.json", "--jev-repair-mode", "apply"]
+        with patch("sys.argv", argv), redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                run_daily_briefing.main()
+        self.assertEqual(caught.exception.code, 2)
+
     def test_daily_cli_reviews_only_selected_ready_candidate(self):
         import run_daily_briefing
 
@@ -357,7 +367,7 @@ class JevReviewTests(unittest.TestCase):
             review_dir = run_dir / "jev-review"
             argv = ["run_daily_briefing.py", "--output", str(root / "briefing.md"),
                     "--run-dir", str(run_dir), "--corpus", str(ROOT / "fixtures/current-corpus.json"),
-                    "--jev-review-dir", str(review_dir), "--jev-repair-mode", "apply"]
+                    "--jev-review-dir", str(review_dir)]
             for status in ("ready", "failed"):
                 result = ChainResult(status, "test", selected if status == "ready" else None, run_dir)
                 with patch("sys.argv", argv), patch(
@@ -369,7 +379,7 @@ class JevReviewTests(unittest.TestCase):
                     exit_code = run_daily_briefing.main()
                 self.assertEqual(exit_code, 0 if status == "ready" else 1)
                 if status == "ready":
-                    review.assert_called_once_with(selected, review_dir, apply_repairs=True)
+                    review.assert_called_once_with(selected, review_dir)
                 else:
                     review.assert_not_called()
 

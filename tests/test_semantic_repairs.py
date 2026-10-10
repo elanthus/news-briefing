@@ -120,7 +120,7 @@ class SemanticRepairTests(unittest.TestCase):
             topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
             provider = PatchProvider()
             judge = CitationJudge(headline, topic['evidence'][0]['title'])
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=judge, repair_provider=provider)
             rows = [c for c in audit['checks'] if c['check'] == 'irrelevant_citation'
                     and c['positions'] == [topic['position']]]
@@ -160,7 +160,7 @@ class SemanticRepairTests(unittest.TestCase):
             run, headline = make_run(root, grouping=True)
             topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
             judge = CitationJudge(headline, topic['evidence'][0]['title'], after_score=0.65)
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=judge,
                                           repair_provider=PatchProvider())
             self.assertIn('rejected', [t['repair_status'] for t in audit['topics']])
@@ -187,7 +187,7 @@ class SemanticRepairTests(unittest.TestCase):
                 topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
                 provider = PatchProvider()
                 judge = CitationJudge(headline, topic['evidence'][0]['title'], confirmation=confirmation)
-                audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                audit = daily_semantic_review(run, root / 'review',
                                               judge=judge, repair_provider=provider)
                 self.assertFalse(provider.requests)
                 row = next(c for c in audit['checks'] if c['check'] == 'irrelevant_citation'
@@ -216,7 +216,7 @@ class SemanticRepairTests(unittest.TestCase):
             run, headline = make_run(root)
             before = {p.name: p.read_bytes() for p in run.iterdir() if p.is_file()}
             provider = PatchProvider()
-            audit = daily_semantic_review(run, run / '../jev-review', apply_repairs=True,
+            audit = daily_semantic_review(run, run / '../jev-review',
                                           judge=Judge(headline), repair_provider=provider)
             changed = next(t for t in audit['topics'] if t['changed'])
             self.assertEqual(changed['repair_status'], 'applied')
@@ -238,7 +238,7 @@ class SemanticRepairTests(unittest.TestCase):
             root = Path(directory)
             run, headline = make_run(root, grouping=True)
             provider = PatchProvider()
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=Judge(headline, grouping=True), repair_provider=provider)
             changed = next(t for t in audit['topics'] if t['changed'])
             self.assertEqual(changed['repair_status'], 'applied')
@@ -252,7 +252,7 @@ class SemanticRepairTests(unittest.TestCase):
             with self.subTest(options=options), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 run, headline = make_run(root, grouping=True)
-                audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+                audit = daily_semantic_review(run, root / 'review',
                                               judge=Judge(headline, grouping=True),
                                               repair_provider=PatchProvider(**options))
                 self.assertIn('failed', [t['repair_status'] for t in audit['topics']])
@@ -262,7 +262,7 @@ class SemanticRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=Judge(headline, reject_after=True), repair_provider=PatchProvider())
             self.assertIn('rejected', [t['repair_status'] for t in audit['topics']])
             self.assertEqual(load_public_audit(run, root / 'review')[1], run)
@@ -282,7 +282,7 @@ class SemanticRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=Judge(headline, fail_after_repair=True),
                                           repair_provider=PatchProvider())
             self.assertIn(audit['post_status'], ('failed', 'partial'))
@@ -294,7 +294,7 @@ class SemanticRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            daily_semantic_review(run, root / 'review', apply_repairs=True,
+            daily_semantic_review(run, root / 'review',
                                   judge=Judge(headline), repair_provider=PatchProvider())
             path = root / 'review/audit.json'
             envelope = json.loads(path.read_text())
@@ -307,7 +307,7 @@ class SemanticRepairTests(unittest.TestCase):
             with self.subTest(tamper=tamper), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 run, headline = make_run(root)
-                daily_semantic_review(run, root / 'review', apply_repairs=True,
+                daily_semantic_review(run, root / 'review',
                                       judge=Judge(headline), repair_provider=PatchProvider())
                 path = root / ('review/audit.json' if tamper == 'audit-score' else 'review/post-review/report.json')
                 data = json.loads(path.read_text())
@@ -323,7 +323,7 @@ class SemanticRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+            daily_semantic_review(run, root / 'jev-review',
                                   judge=Judge(headline), repair_provider=PatchProvider())
             (root / 'jev-review/repair/run/final.md').write_text('Tampered.')
             (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))

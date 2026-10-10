@@ -341,9 +341,9 @@ def public_audit(report: dict[str, Any]) -> dict[str, Any]:
             **({"citation_threshold": report["citation_threshold"]} if "citation_threshold" in report else {})}
 
 
-def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool = False,
+def daily_semantic_review(run: Path, destination: Path, *,
                           judge: Any = None, repair_provider: ModelProvider | None = None) -> dict[str, Any]:
-    """Produce audit candidates; only fully checked repairs may be applied."""
+    """Apply fully accepted bounded repairs; retain originals on any failed safeguard."""
     try:
         original_state = load_verified_run(run)
     except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError):
@@ -353,7 +353,7 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
     by_position = {position_key(t["position"]): t for t in audit["topics"]}
     targets, grouping, removed, skip_reasons = repair_scope(report)
     metadata: dict[str, Any] = {"schema_version": 2, "input_hashes": report.get("input_hashes", {}),
-                                "applied": False, "apply_repairs": apply_repairs,
+                                "applied": False, "apply_repairs": True,
                                 "targets": sorted(targets), "grouping": sorted(grouping),
                                 "review_sha256": _read_json(destination / "report.json")[1],
                                 "removed_citations": {k: sorted(v) for k, v in removed.items()}}
@@ -399,13 +399,13 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
                         check["after_basis"] = "single_evidence"
             clear = followup_clear(after, targets)
             metadata.update(repaired_hashes=hashes, post_review_status=after["status"], post_review_clear=clear)
-            metadata["applied"] = apply_repairs and clear
+            metadata["applied"] = clear
             for topic in revised:
                 key = position_key(topic["position"])
                 if key in targets:
                     old = by_position[key]
                     old.update(changed={"headline": topic["headline"], "prose": topic["prose"]},
-                               repair_status="applied" if metadata["applied"] else "candidate" if clear else "rejected",
+                               repair_status="applied" if clear else "rejected",
                                removed_evidence_count=len(provider.topics[key]["evidence"]) - len(topic["evidence"]))
         except (ValueError, OSError, ProviderError, KeyError, TypeError, RecursionError, OverflowError) as exc:
             metadata["repair_error_type"] = type(exc).__name__

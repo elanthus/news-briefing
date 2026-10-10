@@ -1895,7 +1895,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            audit = daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'jev-review',
                                           judge=Judge(headline), repair_provider=PatchProvider())
             (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
             record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
@@ -1963,7 +1963,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=Judge(headline), repair_provider=PatchProvider())
             topic = next(t for t in audit['topics'] if t['changed'])
             extra = next(c for c in audit['checks'] if c['check'] == 'strengthened_claim'
@@ -1985,7 +1985,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
             root = Path(directory)
             run, headline = make_run(root, grouping=True)
             original = next(t for t in load_topics(run)[0] if t['headline'] == headline)
-            audit = daily_semantic_review(run, root / 'review', apply_repairs=True,
+            audit = daily_semantic_review(run, root / 'review',
                                           judge=CitationJudge(headline, original['evidence'][0]['title']),
                                           repair_provider=PatchProvider())
             citation = next(c for c in audit['checks'] if c['after_basis'] == 'citation_removed')
@@ -2086,7 +2086,7 @@ class IntegrityReportTests(unittest.TestCase):
                 from agent_runner.jev_review import load_topics
                 topic = next(t for t in load_topics(run)[0] if t["headline"] == headline)
                 judge = CitationJudge(headline, topic["evidence"][0]["title"])
-                daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+                daily_semantic_review(run, root / 'jev-review',
                                       judge=judge,
                                       repair_provider=PatchProvider(incomplete=True))
                 (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
@@ -2192,10 +2192,13 @@ class IntegrityReportTests(unittest.TestCase):
         for rejected in (False, True):
             with self.subTest(rejected=rejected), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                run, headline = make_run(root)
-                daily_semantic_review(run, root / 'jev-review', apply_repairs=rejected,
-                                      judge=NewBlockers(headline) if rejected else Judge(headline),
-                                      repair_provider=PatchProvider())
+                if rejected:
+                    run, headline = make_run(root)
+                    daily_semantic_review(run, root / 'jev-review', judge=NewBlockers(headline),
+                                          repair_provider=PatchProvider())
+                else:
+                    from tests.historical_semantic_candidate import historical_candidate_run
+                    run = historical_candidate_run(root)
                 (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
                 record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
                 entry = site._entry_from_payload(record.payload(), source='fixture')
@@ -2222,7 +2225,7 @@ class IntegrityReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, headline = make_run(root)
-            daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+            daily_semantic_review(run, root / 'jev-review',
                                   judge=Judge(headline), repair_provider=PatchProvider())
             (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
             prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
