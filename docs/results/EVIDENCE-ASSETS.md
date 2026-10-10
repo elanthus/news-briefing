@@ -43,6 +43,27 @@ copies of the in-tree files, go to `.news-briefing/evidence/<bundle>/`, which is
 gitignored, so a fetch leaves the working tree clean. Pass `--asset-dir <dir>` to
 read already-downloaded archives instead of the release.
 
+## Integrity verification and historical regeneration
+
+The current `verify-public-run` command checks declared file names, byte sizes,
+hashes, source metadata, and a ledger rebuilt independently from manifest row
+primitives. It treats report JSON and Markdown as authenticated historical files;
+it does not render them with today's reporter. Authentication comes from the
+pinned release archive and in-tree checksums checked by `fetch`, not from a
+bundle's self-declared checksum file alone.
+
+To regenerate a historical report, read `source_tag` in its `metadata.json`, check
+out that tag in a separate worktree, and run:
+
+```bash
+python3 -S -m evaluator report /absolute/path/to/bundle/manifest.json
+```
+
+Use a copy of the bundle because the report command writes `report.json` and
+`report.md` beside the manifest. Preserve the authenticated original and its
+hashes. Current reporting tests check metric and statistical semantics without
+requiring current presentation to reproduce historical bytes.
+
 ## Repacking
 
 `python3 -S -m evaluator.evidence_assets pack --source-root <dir> --output-dir <dir>`

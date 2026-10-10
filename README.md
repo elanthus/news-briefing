@@ -164,6 +164,11 @@ python3 -S -m evaluator.evidence_assets fetch
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 ```
 
+This authenticates the downloaded assets and verifies their file metadata, hashes,
+and independently rebuilt score ledger. Historical report formatting is frozen;
+regenerate those reports using the recorded source tag and the commands in
+[EVIDENCE-ASSETS.md](docs/results/EVIDENCE-ASSETS.md).
+
 ## Further reading
 
 - [Design notes](docs/design.md) · [ADRs](docs/adr/README.md) · [evaluation methodology](docs/evaluation-methodology.md) · [benchmark guide](evaluator/README.md)

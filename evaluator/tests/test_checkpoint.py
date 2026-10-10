@@ -15,7 +15,7 @@ import evaluator.__main__ as evaluator_cli
 from evaluator.adapters import (
     Generation,
 )
-from evaluator.checkpoint import _checkpoint
+from evaluator.checkpoint import _checkpoint, _reconstruct_observed_cost
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     AlwaysFailAdapter,
@@ -643,6 +643,60 @@ class CheckpointTest(unittest.TestCase):
             self.assertEqual(counter.calls, 0)
 
 
+
+    def test_resume_rejects_changed_and_unsafe_trial_evidence_before_calls(self) -> None:
+        class InterruptSecondCall(FakeAdapter):
+            def __init__(self, model: str):
+                super().__init__(model)
+                self.calls = 0
+
+            def generate(self, request: str) -> Generation:
+                self.calls += 1
+                if self.calls == 2:
+                    raise KeyboardInterrupt
+                return super().generate(request)
+
+        with tempfile.TemporaryDirectory() as directory:
+            suite, prompt, output = _resume_fixture(Path(directory), case_count=2)
+            with self.assertRaises(KeyboardInterrupt):
+                run_evaluation([InterruptSecondCall("fixture")], {"v1": prompt}, output,
+                               suite_path=suite, corpus_path=DEFAULT_CORPUS)
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row_dir = output / manifest["results"][0]["artifact_dir"]
+            for name in ("corpus.json", "request.txt", "final.md", "final-structured.json",
+                         "grounding-adjudication.json"):
+                with self.subTest(artifact=name):
+                    path = row_dir / name
+                    original = path.read_bytes()
+                    path.write_bytes(original + b"changed")
+                    adapter = RecordingFakeAdapter("fixture")
+                    with self.assertRaisesRegex(ValueError, "artifact hash differs"):
+                        run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
+                                       corpus_path=DEFAULT_CORPUS, resume=True)
+                    self.assertEqual(adapter.requests, [])
+                    path.write_bytes(original)
+            artifact = row_dir / "final.md"
+            original = artifact.read_bytes()
+            outside = Path(directory) / "outside.md"
+            outside.write_bytes(original)
+            artifact.unlink()
+            artifact.symlink_to(outside)
+            adapter = RecordingFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "unsafe artifact references"):
+                run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
+                               corpus_path=DEFAULT_CORPUS, resume=True)
+            self.assertEqual(adapter.requests, [])
+
+    def test_cost_reconstruction_preserves_unknown_billing(self) -> None:
+        row = {"provider": "paid", "first": {"cost_usd": None}}
+        with self.assertRaisesRegex(ValueError, "billing is unknown"):
+            _reconstruct_observed_cost([row], "paid")
+        self.assertEqual(_reconstruct_observed_cost([row], "other"), 0)
+        row = {"provider": "paid", "status": "provider_error", "error": {
+            "cost_usd": None, "completed_stage_calls": [{"cost_usd": 0.2}],
+        }}
+        with self.assertRaisesRegex(ValueError, "billing is unknown"):
+            _reconstruct_observed_cost([row], "paid")
 
     def test_run_cli_exposes_explicit_resume_flag(self) -> None:
         result = {
