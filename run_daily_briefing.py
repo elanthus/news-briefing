@@ -226,17 +226,13 @@ def main() -> int:
     parser.add_argument("--output", "-o", type=Path, required=True, help="final Markdown path")
     parser.add_argument("--run-dir", type=Path, required=True, help="fallback-chain artifact directory")
     parser.add_argument("--jev-review-dir", type=Path,
-                        help="write Jev advisory findings for the selected ready candidate")
-    parser.add_argument("--jev-repair-mode", choices=("apply",),
-                        help="confirm Jev flags and apply bounded HY3 repairs")
+                        help="confirm Jev flags and apply accepted bounded repairs to the selected ready candidate")
     parser.add_argument("--corpus", type=Path, required=True, help="existing corpus to replay")
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=3)
     parser.add_argument("--max-tokens", type=fetch_news.positive_int, default=100_000)
     args = parser.parse_args()
 
-    if (args.jev_repair_mode is None) != (args.jev_review_dir is None):
-        parser.error("--jev-repair-mode and --jev-review-dir must be passed together")
     if args.run_dir.exists():
         parser.error(f"run directory already exists: {args.run_dir}")
     if args.output.exists() and not args.force:
@@ -259,8 +255,7 @@ def main() -> int:
         )
         if args.jev_review_dir is not None and result.selected_run_dir is not None:
             try:
-                audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir,
-                                              apply_repairs=True)
+                audit = daily_semantic_review(result.selected_run_dir, args.jev_review_dir)
                 print(f"Jev daily checks: {audit['status']}; audit retained in {args.jev_review_dir}")
             except Exception as exc:
                 print("Jev daily checks could not complete; original generation retained "

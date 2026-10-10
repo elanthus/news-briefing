@@ -22,7 +22,7 @@ def main() -> None:
     root = parser.parse_args().output
     root.mkdir(parents=True, exist_ok=False)
     run, headline = make_run(root)
-    daily_semantic_review(run, root / 'jev-review', apply_repairs=True,
+    daily_semantic_review(run, root / 'jev-review',
                           judge=Judge(headline), repair_provider=PatchProvider())
     (root / 'fallback-log.json').write_text(json.dumps({
         'status': 'ready', 'selected_run_dir': 'run',
