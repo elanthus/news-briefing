@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/historical-semantic-candidate.json.gz"
-DIGEST = "1d39d184181c78d0dce0898c609befe84e5e07096e54d59511deaf3a8ad2b8e3"
+DIGEST = "2ca987fd45d11ae9e3bee73583e4331bbc032c2afc80e9b947a6f028d1de1204"
 FILES = {
     "fallback-log.json", "jev-review/audit.json", "jev-review/report.json",
     "jev-review/post-review/report.json", "jev-review/repair/repair-calls.json",
