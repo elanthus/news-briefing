@@ -79,7 +79,7 @@ class CaptureTests(unittest.TestCase):
                 popen = subprocess.Popen
                 ready = providers._pipe_ready_bytes
 
-                def launch(*args, **kwargs):
+                def launch(*args, popen=popen, release=release, **kwargs):
                     process = popen(*args, **kwargs)
                     process.wait(timeout=3)  # Tiny output fits without a reader.
                     poll = process.poll
@@ -95,7 +95,7 @@ class CaptureTests(unittest.TestCase):
                     process.poll = poll_after_readers
                     return process
 
-                def gated_ready(stream, capacity):
+                def gated_ready(stream, capacity, release=release, broken_pipe=broken_pipe, ready=ready):
                     if not release.wait(timeout=3):
                         raise AssertionError("supervisor never polled the child")
                     if broken_pipe:
