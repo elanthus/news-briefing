@@ -45,8 +45,8 @@ from agent_runner.output import (
 from agent_runner.stages import (
     SELECTION_ATTEMPT_KINDS,
     SELECTION_PROMOTION_KIND,
+    decide_stage,
     evaluate_candidate,
-    stage_repair,
 )
 from agent_runner.stages import (
     selection_findings as check_selection,
@@ -903,13 +903,14 @@ def _select_evidence(
                 config=config,
                 citations=citations,
             )
-        repair = stage_repair(
+        decision = decide_stage(
             "selection", selection, selection_findings,
             config=config, citations=citations,
             last_kind=selection_attempt["kind"],
+            corrections_remaining=settings.max_corrections - _corrections_used(store, "selection_correction"),
         )
-        if repair is not None:
-            repair_kind, selection, repair_actions = repair
+        if decision.repair is not None:
+            repair_kind, selection, repair_actions = decision.repair
             _record_code_attempt(
                 store, repair_kind, selection, repair_actions,
                 lambda recorded, candidate: _validate_selection_attempt(
@@ -917,7 +918,7 @@ def _select_evidence(
                 ),
             )
             continue
-        if not any(f.get("level") == "ERROR" for f in selection_findings):
+        if decision.action == "accept":
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
@@ -930,7 +931,7 @@ def _select_evidence(
             )
             store.checkpoint("selection_frozen")
             return _SelectionResult(selection)
-        if _corrections_used(store, "selection_correction") >= settings.max_corrections:
+        if decision.action == "exhausted":
             return _SelectionResult(
                 selection,
                 _finalize_selection_preview(
@@ -1030,13 +1031,14 @@ def _write_prose(
                 repair_actions=attempt.get("repair_actions") or (),
                 pre_findings=prose_findings,
             )
-        repair = stage_repair(
+        decision = decide_stage(
             "prose", output, findings, corpus=corpus,
             config=config, citations=citations,
             last_kind=attempt["kind"],
+            corrections_remaining=settings.max_corrections - _corrections_used(store, "correction"),
         )
-        if repair is not None:
-            repair_kind, output, repair_actions = repair
+        if decision.repair is not None:
+            repair_kind, output, repair_actions = decision.repair
             # The validator reads the recorded actions: closing over the loop's
             # ``repair_actions`` instead would trip ruff B023.
             _record_code_attempt(
@@ -1047,7 +1049,7 @@ def _write_prose(
                 ),
             )
             continue
-        if not any(f.get("level") == "ERROR" for f in findings):
+        if decision.action == "accept":
             return _finalize_candidate(
                 store,
                 attempt,
@@ -1056,7 +1058,7 @@ def _write_prose(
                 citations=citations,
                 settings=settings,
             )
-        if _corrections_used(store, "correction") >= settings.max_corrections:
+        if decision.action == "exhausted":
             return _finalize_after_deterministic_repair(
                 store,
                 attempt,
