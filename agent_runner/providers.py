@@ -13,6 +13,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -261,28 +262,32 @@ class _CLIOutputLimitError(ValueError):
 
 def _stop_cli(process: subprocess.Popen[bytes]) -> None:
     """Stop the invocation and its ordinary descendants before closing pipes."""
-    if os.name == "posix":
+    try:
+        if os.name == "posix":
+            try:
+                # The session is owned by this invocation, even if its leader has
+                # already exited while a descendant still holds an output pipe.
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        elif os.name == "nt":
+            # Windows pipes cannot be selected. Native taskkill stops descendants
+            # as well as the CLI; its own diagnostics are discarded, not captured.
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, timeout=_CLI_CLEANUP_SECONDS,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
+    finally:
         try:
-            # The session is owned by this invocation, even if its leader has
-            # already exited while a descendant still holds an output pipe.
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    elif os.name == "nt":
-        # Windows pipes cannot be selected. Native taskkill stops descendants
-        # as well as the CLI; its own diagnostics are discarded, not captured.
-        try:
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, timeout=_CLI_CLEANUP_SECONDS,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            pass
-    if process.poll() is None:
-        process.kill()
-    process.wait(timeout=_CLI_CLEANUP_SECONDS)
+            if process.poll() is None:
+                process.kill()
+        finally:
+            process.wait(timeout=_CLI_CLEANUP_SECONDS)
 
 
 def _pipe_ready_bytes(stream: BinaryIO, capacity: int) -> int | None:
@@ -392,6 +397,7 @@ def _capture_cli(
             succeeded = True
             return completed
         finally:
+            failure = sys.exception()
             stop.set()
             # Readiness polling makes these joins independent of pipe EOF,
             # including a descendant that outlives the invocation's leader.
@@ -400,10 +406,20 @@ def _capture_cli(
                     reader.join()
             try:
                 if not succeeded:
-                    _stop_cli(process)
+                    try:
+                        _stop_cli(process)
+                    except (OSError, subprocess.SubprocessError):
+                        if failure is None:
+                            raise
+                        failure.add_note("CLI descendant cleanup failed")
             finally:
                 for stream in streams:
                     stream.close()
+
+
+def _cli_cleanup_suffix(exc: BaseException) -> str:
+    return ("; CLI descendant cleanup failed"
+            if "CLI descendant cleanup failed" in getattr(exc, "__notes__", []) else "")
 
 
 def _run_cli(
@@ -427,18 +443,18 @@ def _run_cli(
             completed = _capture_cli(command, prompt, timeout=remaining, cwd=cwd)
         except _CLIOutputLimitError as exc:
             raise ProviderError(
-                f"{' '.join(command[:2])} exceeded the CLI output capture byte limit",
+                f"{' '.join(command[:2])} exceeded the CLI output capture byte limit" + _cli_cleanup_suffix(exc),
                 transient=False, attempts=attempt, ambiguous_completion=True,
                 output_truncated=True,
             ) from exc
         except OSError as exc:
             raise ProviderError(
-                f"{' '.join(command[:2])} could not complete CLI output collection",
+                f"{' '.join(command[:2])} could not complete CLI output collection" + _cli_cleanup_suffix(exc),
                 transient=False, attempts=attempt, ambiguous_completion=True,
             ) from exc
         except subprocess.TimeoutExpired as exc:
             raise ProviderError(
-                f"{' '.join(command[:2])} exceeded the {timeout}s call deadline",
+                f"{' '.join(command[:2])} exceeded the {timeout}s call deadline" + _cli_cleanup_suffix(exc),
                 transient=True,
                 attempts=attempt,
                 ambiguous_completion=True,

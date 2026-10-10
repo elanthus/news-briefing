@@ -139,6 +139,36 @@ class CaptureTests(unittest.TestCase):
         self.assertNotIn("private prompt", str(error.record()))
         self.assertEqual(run.call_count, 1)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX cleanup error")
+    def test_cleanup_error_preserves_typed_overflow_and_reports_sanitized_failure(self):
+        capture = providers._capture_cli
+
+        def bounded(command, prompt, **kwargs):
+            return self.capture(command, prompt, **kwargs, stdout_limit=128, stderr_limit=64,
+                                collector=capture)
+
+        with (patch.object(providers.os, "killpg", side_effect=PermissionError("private OS detail")),
+              patch.object(providers, "_capture_cli", side_effect=bounded) as run):
+            with self.assertRaises(ProviderError) as raised:
+                providers._run_cli(child("import sys; sys.stdout.buffer.write(b'x'*129)"), "", timeout=3)
+        error = raised.exception
+        self.assertTrue(error.output_truncated)
+        self.assertTrue(error.ambiguous_completion)
+        self.assertEqual(error.failure.code, "output_truncated")
+        self.assertIn("CLI descendant cleanup failed", str(error.record()))
+        self.assertNotIn("private OS detail", str(error.record()))
+        self.assertEqual(run.call_count, 1)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX cleanup error")
+    def test_group_cleanup_error_still_kills_and_reaps_direct_process(self):
+        process = Mock()
+        process.poll.return_value = None
+        with patch.object(providers.os, "killpg", side_effect=PermissionError):
+            with self.assertRaises(PermissionError):
+                providers._stop_cli(process)
+        process.kill.assert_called_once()
+        process.wait.assert_called_once_with(timeout=providers._CLI_CLEANUP_SECONDS)
+
     def test_expired_deadline_does_not_start_a_cli(self):
         with patch.object(providers.subprocess, "Popen") as launch:
             with self.assertRaises(subprocess.TimeoutExpired):
