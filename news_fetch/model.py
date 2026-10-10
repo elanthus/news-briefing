@@ -39,19 +39,24 @@ class SourceStatus(TypedDict):
 
 
 class FetchResult(NamedTuple):
-    """Fetched items plus parsed, dated, and undated entry counts.
+    """Fetched items and entry diagnostics; undated is derived from dates.
 
-    Undated entries never reach category processing, so this separate count is
-    required to distinguish an incompatible date format from an empty source.
+    Malformed entries may overlap the undated count when timestamp parsing
+    fails, or the dated count when a later field is unusable.
     """
 
     items: list[Item]
-    undated: int
     parsed_entries: int
     dated_entries: int
     # In-window entries dropped as removed/deleted or below the score floor;
     # separate from the counts above so an empty result stays diagnosable.
     filtered_entries: int
+    malformed_entries: int = 0
+
+    @property
+    def undated(self) -> int:
+        """Recognized entries lacking a parseable date, counted once."""
+        return self.parsed_entries - self.dated_entries
 
 
 class TimedFetchResult(NamedTuple):

@@ -65,6 +65,15 @@ def source_status(source_type: str, source_id: str, category: str,
         status["status"] = "error"
         status["error_type"] = outcome.error_type or "FetchError"
         status["message"] = outcome.message or "unknown fetch error"
+    elif result.malformed_entries:
+        # v7 already permits an error source to retain dated, valid items.
+        # Preserve that contract instead of adding a new partial-status enum.
+        status["status"] = "error"
+        status["error_type"] = "MalformedEntries"
+        status["message"] = (
+            f"response contained {result.malformed_entries} malformed entries; "
+            f"retained valid entries for category processing ({len(result.items)} items)"
+        )
     elif parsed == 0:
         status["status"] = "empty"
         status["error_type"] = "EmptySource"
@@ -128,12 +137,11 @@ def record_source_health(corpus: dict[str, Any]) -> None:
                         if status["status"] not in ("ok", "quiet")]
 
 
-def _record_outcome(corpus: dict[str, Any], undated: dict[str, int], source_type: str,
+def _record_outcome(corpus: dict[str, Any], source_type: str,
                     source_id: str, category: str, outcome: TimedFetchResult) -> None:
-    """Add one source's items, undated count, and health record to the corpus."""
+    """Add one source's items and health record to the corpus."""
     if outcome.result is not None:
         corpus["categories"][category].extend(outcome.result.items)
-        undated[category] += outcome.result.undated
     corpus["sources"].append(source_status(source_type, source_id, category, outcome))
 
 
@@ -158,8 +166,7 @@ def new_corpus(sources: Sources, window_end: datetime, cutoff: datetime,
 
 
 def fetch_concurrent_sources(corpus: dict[str, Any], sources: Sources,
-                             cutoff: datetime, window_end: datetime,
-                             undated: dict[str, int]) -> None:
+                             cutoff: datetime, window_end: datetime) -> None:
     """Fetch RSS feeds and Hacker News queries in parallel."""
     jobs: list[tuple[Future[TimedFetchResult], str, str, str]] = []
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
@@ -180,12 +187,12 @@ def fetch_concurrent_sources(corpus: dict[str, Any], sources: Sources,
             ))
 
         for future, category, source_type, source_id in jobs:
-            _record_outcome(corpus, undated, source_type, source_id, category, future.result())
+            _record_outcome(corpus, source_type, source_id, category, future.result())
 
 
 def fetch_reddit_sources(corpus: dict[str, Any], sources: Sources,
                          cutoff: datetime, window_end: datetime,
-                         window_hours: int, undated: dict[str, int]) -> None:
+                         window_hours: int) -> None:
     """Fetch each subreddit serially, pausing between requests."""
     # Reddit rate-limits concurrent requests; fetch serially with a pause. The
     # authenticated provider is only reached if both free paths yield no items.
@@ -199,7 +206,7 @@ def fetch_reddit_sources(corpus: dict[str, Any], sources: Sources,
             window_hours,
             scrapecreators_api_key,
         )
-        _record_outcome(corpus, undated, "reddit", sub, sources.reddit_category, outcome)
+        _record_outcome(corpus, "reddit", sub, sources.reddit_category, outcome)
         if index < len(sources.subreddits) - 1:
             time.sleep(REDDIT_PAUSE_SECONDS)
 
@@ -208,8 +215,10 @@ def fetch_all_sources(corpus: dict[str, Any], sources: Sources, cutoff: datetime
                       window_end: datetime, window_hours: int) -> dict[str, int]:
     """Fetch every source into `corpus`; return undated-entry counts per category."""
     fetch_started = time.perf_counter()
+    fetch_concurrent_sources(corpus, sources, cutoff, window_end)
+    fetch_reddit_sources(corpus, sources, cutoff, window_end, window_hours)
     undated = dict.fromkeys(corpus["categories"], 0)
-    fetch_concurrent_sources(corpus, sources, cutoff, window_end, undated)
-    fetch_reddit_sources(corpus, sources, cutoff, window_end, window_hours, undated)
+    for status in corpus["sources"]:
+        undated[status["category"]] += status["parsed_entries"] - status["dated_entries"]
     corpus["fetch_duration_ms"] = round((time.perf_counter() - fetch_started) * 1000)
     return undated

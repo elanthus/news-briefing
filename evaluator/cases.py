@@ -269,7 +269,7 @@ def _fixture_usage(corpus: dict[str, Any]) -> None:
     """Account for authored fixture mutations using the current budget fields."""
     for category, items in corpus["categories"].items():
         stats = corpus["processing"][category]
-        for field in corpus_schema.V5_PROCESSING_FIELDS:
+        for field in corpus_schema.PROCESSING_FIELDS:
             stats.setdefault(field, 0)
         usage = [curation.item_context_usage(item) for item in items]
         stats["context_bytes"] = sum(size for size, _ in usage)

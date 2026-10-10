@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-import re
+import unicodedata
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,12 +24,26 @@ DEFAULT_CATEGORY_CAP = 60
 REDDIT_SOURCE_CAP = 8
 
 
-def dedupe(items: list[Item]) -> list[Item]:
-    """Drop canonical URL duplicates and near-duplicate titles, keep first seen."""
+TITLE_TYPOGRAPHY: dict[str, str | int | None] = {
+    "’": "'", "‘": "'", "“": '"', "”": '"',
+    "–": "-", "—": "-", "…": "...",
+}
+TITLE_TRANSLATION = str.maketrans(TITLE_TYPOGRAPHY)
+
+
+def _title_key(title: str) -> str:
+    normalized = unicodedata.normalize("NFC", title).translate(TITLE_TRANSLATION)
+    return " ".join(normalized.casefold().split())
+
+
+def dedupe(items: list[Item], *,
+           title_keys: Mapping[int, str] | None = None) -> list[Item]:
+    """Drop URL duplicates and complete typography-equivalent titles."""
     seen_urls, seen_titles, out = set(), set(), []
     for item in items:
         url = canonicalize_url(item.get("url", ""))
-        title_key = re.sub(r"\W+", "", item.get("title", "").lower())[:60]
+        title_key = (title_keys[id(item)] if title_keys is not None
+                     else _title_key(item.get("title", "")))
         # An empty url means extraction failed, not that two items match.
         if (url and url in seen_urls) or (title_key and title_key in seen_titles):
             continue
@@ -70,9 +85,12 @@ def _truncate_utf8(value: str, max_bytes: int,
     return bounded, bounded != value
 
 
-def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]:
+def _apply_field_budgets(
+    items: list[Item],
+) -> tuple[list[Item], dict[str, int], dict[int, str]]:
     """Bound model-visible strings and drop URLs that cannot be kept intact."""
     kept: list[Item] = []
+    title_keys: dict[int, str] = {}
     telemetry = {
         "title_truncated": 0,
         "summary_truncated": 0,
@@ -118,8 +136,12 @@ def _apply_field_budgets(items: list[Item]) -> tuple[list[Item], dict[str, int]]
             candidate["summary"], summary_truncated = _truncate_utf8(
                 summary, corpus_schema.ITEM_SUMMARY_MAX_BYTES, corpus_schema.ITEM_SUMMARY_MAX_CHARS)
             telemetry["summary_truncated"] += int(summary_truncated)
+        # Match complete source titles before truncation. Only the bounded
+        # copy enters model-visible evidence, including when distinct suffixes
+        # occur beyond the field ceiling.
+        title_keys[id(candidate)] = _title_key(title)
         kept.append(candidate)
-    return kept, telemetry
+    return kept, telemetry, title_keys
 
 
 def item_context_usage(item: Item) -> tuple[int, int]:
@@ -143,7 +165,6 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
                      category_cap: int = DEFAULT_CATEGORY_CAP,
                      undated_dropped: int = 0,
                      source_byte_budget: int = corpus_schema.SOURCE_CONTEXT_MAX_BYTES,
-                     source_token_budget: int = corpus_schema.SOURCE_CONTEXT_MAX_TOKENS,
                      ) -> tuple[list[Item], dict[str, int]]:
     """Filter, deduplicate, diversify, and bound one category for model input.
 
@@ -161,14 +182,18 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
     wins. Every other source uses `source_cap` unchanged.
     """
     fetched = len(items)
-    bounded, field_telemetry = _apply_field_budgets(items)
+    bounded, field_telemetry, title_keys = _apply_field_budgets(items)
     relevant = [item for item in bounded if is_relevant_item(item)]
     # Dedupe after ordering so a syndicated/updated story keeps its newest
     # occurrence rather than whichever source happened to finish first.
-    unique = dedupe(sort_items(relevant))
+    unique = dedupe(sort_items(relevant), title_keys=title_keys)
     kept: list[Item] = []
     by_source: dict[str, int] = {}
-    source_usage: dict[tuple[str, str], tuple[int, int]] = {}
+    # Round each serialized item to four-byte units. This preserves the v7
+    # ceil(bytes / 4) planning ceiling using one byte ledger, while the report
+    # continues to record the exact serialized bytes and legacy estimates.
+    source_budget = min(source_byte_budget, corpus_schema.SOURCE_CONTEXT_MAX_TOKENS * 4)
+    source_usage: dict[tuple[str, str], int] = {}
     source_cap_dropped = 0
     source_budget_dropped = 0
     category_cap_dropped = 0
@@ -185,14 +210,14 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
             continue
         size, tokens = item_context_usage(item)
         source_key = _source_budget_key(item)
-        used_bytes, used_tokens = source_usage.get(source_key, (0, 0))
-        if (used_bytes + size > source_byte_budget
-                or used_tokens + tokens > source_token_budget):
+        used_bytes = source_usage.get(source_key, 0)
+        budget_bytes = size + (-size % 4)
+        if used_bytes + budget_bytes > source_budget:
             source_budget_dropped += 1
             continue
         kept.append(item)
         by_source[source] = by_source.get(source, 0) + 1
-        source_usage[source_key] = used_bytes + size, used_tokens + tokens
+        source_usage[source_key] = used_bytes + budget_bytes
         context_bytes += size
         estimated_tokens += tokens
     stats = {
@@ -217,9 +242,10 @@ def prepare_category(items: list[Item], source_cap: int = DEFAULT_SOURCE_CAP,
 def apply_global_context_budget(categories: dict[str, list[Item]],
                                 processing: dict[str, dict[str, int]],
                                 byte_budget: int = corpus_schema.GLOBAL_CONTEXT_MAX_BYTES,
-                                token_budget: int = corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS,
                                 ) -> tuple[int, int]:
     """Apply one final budget across every category in configured order."""
+    budget = min(byte_budget, corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS * 4)
+    budget_used = 0
     used_bytes = 0
     used_tokens = 0
     for category, items in categories.items():
@@ -228,11 +254,13 @@ def apply_global_context_budget(categories: dict[str, list[Item]],
         category_tokens = 0
         for item in items:
             size, tokens = item_context_usage(item)
-            if used_bytes + size > byte_budget or used_tokens + tokens > token_budget:
+            budget_bytes = size + (-size % 4)
+            if budget_used + budget_bytes > budget:
                 processing[category]["global_budget_dropped"] += 1
                 processing[category]["kept"] -= 1
                 continue
             retained.append(item)
+            budget_used += budget_bytes
             used_bytes += size
             used_tokens += tokens
             category_bytes += size

@@ -48,8 +48,9 @@ GLOBAL_CONTEXT_MAX_TOKENS = 128_000
 
 # Per-field token ceilings are the dependency-free planning estimate implied
 # by their byte ceilings, not a second rejection criterion. Source and global
-# token budgets remain independently enforced because their decimal token
-# ceilings are lower than one quarter of their binary byte ceilings.
+# token ceilings remain part of v7 storage. The fetcher enforces their byte
+# equivalents with one ledger rounded to four-byte units per serialized item,
+# preserving the old selections without a second internal token-budget path.
 
 CATEGORY_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -74,8 +75,6 @@ PROCESSING_FIELDS = (
     "source_cap_dropped",
     "category_cap_dropped",
     "kept",
-)
-V5_PROCESSING_FIELDS = (
     "field_budget_dropped",
     "source_budget_dropped",
     "global_budget_dropped",
@@ -93,14 +92,8 @@ TOP_LEVEL_TYPES: dict[str, type | tuple[type, ...]] = {
     "categories": dict,
     "processing": dict,
     "errors": list,
-}
-
-V4_TOP_LEVEL_TYPES: dict[str, type] = {
     "sources": list,
     "fetch_duration_ms": int,
-}
-
-V5_TOP_LEVEL_TYPES: dict[str, type] = {
     "context_budget": dict,
 }
 
@@ -222,7 +215,7 @@ def validate_corpus(corpus: Any) -> list[str]:
     version = corpus_version(corpus)
     if version != SCHEMA_VERSION:
         return [f"schema_version must be {SCHEMA_VERSION}, got {corpus.get('schema_version')!r}"]
-    required_types = TOP_LEVEL_TYPES | V4_TOP_LEVEL_TYPES | V5_TOP_LEVEL_TYPES
+    required_types = TOP_LEVEL_TYPES
     for field, expected in required_types.items():
         if field not in corpus:
             problems.append(f"missing top-level field {field!r}")
@@ -725,7 +718,7 @@ def _validate_processing(processing: dict[str, Any],
         if not isinstance(stats, dict):
             problems.append(f"processing[{name!r}] is not an object")
             continue
-        fields = PROCESSING_FIELDS + V5_PROCESSING_FIELDS
+        fields = PROCESSING_FIELDS
         missing = [f for f in fields if f not in stats]
         if missing:
             problems.append(f"processing[{name!r}] is missing {missing}")

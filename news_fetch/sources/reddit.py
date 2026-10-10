@@ -61,7 +61,6 @@ def fetch_reddit_rss(
         _raise_data_error(exc)
 
     items: list[Item] = []
-    undated = 0
     entries = root.findall("atom:entry", ns)
     dated_entries = 0
     filtered = 0
@@ -70,7 +69,6 @@ def fetch_reddit_rss(
             entry.findtext("atom:updated", namespaces=ns)
             or entry.findtext("atom:published", namespaces=ns))
         if published is None:
-            undated += 1
             continue
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
@@ -90,7 +88,7 @@ def fetch_reddit_rss(
             "summary": summary,
             "source": f"r/{subreddit}",
         })
-    return FetchResult(items, undated, len(entries), dated_entries, filtered)
+    return FetchResult(items, len(entries), dated_entries, filtered)
 
 
 def _reddit_json_datetime(post: dict[str, Any]) -> datetime | None:
@@ -167,7 +165,6 @@ def _reddit_json_result(
     items: list[Item] = []
     parsed_entries = 0
     dated_entries = 0
-    undated = 0
     filtered = 0
     encoded_subreddit = urllib.parse.quote(subreddit, safe="")
     for raw_post in posts:
@@ -180,7 +177,6 @@ def _reddit_json_result(
         parsed_entries += 1
         published = _reddit_json_datetime(raw_post)
         if published is None:
-            undated += 1
             continue
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
@@ -200,7 +196,7 @@ def _reddit_json_result(
         if selftext:
             item["summary"] = selftext
         items.append(item)
-    return FetchResult(items, undated, parsed_entries, dated_entries, filtered)
+    return FetchResult(items, parsed_entries, dated_entries, filtered)
 
 
 def _json_object(payload: bytes, provider: str) -> dict[str, Any]:

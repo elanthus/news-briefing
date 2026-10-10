@@ -361,13 +361,55 @@ class DedupeTest(unittest.TestCase):
         ]
         self.assertEqual(len(dedupe(items)), 1)
 
-    def test_drops_near_duplicate_titles(self):
-        """Wire copy differs only in punctuation and case across syndicators."""
+    def test_drops_typography_equivalent_titles(self):
+        """Case and whitespace changes across syndicators do not add a story."""
         items = [
             {"url": "https://npr.org/x", "title": "Senate Confirms New Attorney General"},
-            {"url": "https://thehill.com/y", "title": "senate confirms new attorney general!"},
+            {"url": "https://thehill.com/y", "title": "senate  confirms new attorney general"},
         ]
         self.assertEqual(len(dedupe(items)), 1)
+
+    def test_preserves_complete_titles_and_meaningful_punctuation(self):
+        for first, second in (
+            ("A common headline prefix " * 4 + "launch", "A common headline prefix " * 4 + "recall"),
+            ("New C++ development tools", "New C# development tools"),
+            ("Is this a release?", "Is this a release!"),
+        ):
+            with self.subTest(first=first):
+                items = [{"url": "https://example.com/a", "title": first},
+                         {"url": "https://example.com/b", "title": second}]
+                self.assertEqual(dedupe(items), items)
+
+    def test_complete_title_identity_precedes_field_truncation(self):
+        prefix = "A long shared title " * 40
+        items = [
+            {"title": prefix + suffix, "url": f"https://example.com/{suffix}",
+             "source": "Feed", "published": "2026-08-08T12:00:00+00:00"}
+            for suffix in ("launch", "recall")
+        ]
+        kept, stats = prepare_category(items)
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(stats["duplicates_dropped"], 0)
+        self.assertEqual(stats["title_truncated"], 2)
+
+    def test_normalizes_quote_dash_and_unicode_typography(self):
+        items = [
+            {"url": "https://example.com/a", "title": 'Café — “New tools”…'},
+            {"url": "https://example.com/b", "title": 'CAFE\u0301 - "New tools"...'},
+        ]
+        self.assertEqual(dedupe(items), items[:1])
+
+    def test_canonical_url_duplicates_still_keep_the_newest(self):
+        items = [
+            {"url": "https://example.com/a?utm_source=feed", "title": "Older title",
+             "source": "Feed", "published": "2026-08-08T01:00:00+00:00"},
+            {"url": "https://example.com/a", "title": "Newer title",
+             "source": "Feed", "published": "2026-08-08T02:00:00+00:00"},
+        ]
+        kept, stats = prepare_category(items)
+        self.assertEqual(kept, items[1:])
+        self.assertEqual(stats["duplicates_dropped"], 1)
+        self.assertEqual(stats["fetched"], 2)
 
     def test_keeps_first_occurrence(self):
         items = [
@@ -608,15 +650,14 @@ class PrepareCategoryTest(unittest.TestCase):
         self.assertEqual(kept, [])
         self.assertEqual(stats["field_budget_dropped"], 1)
 
-    def test_enforces_per_source_byte_and_token_budgets(self):
+    def test_enforces_per_source_byte_budget(self):
         items = [
             {**self.item(n), "summary": "x" * 200}
             for n in range(1, 4)
         ]
-        one_size, one_tokens = curation.item_context_usage(items[0])
+        one_size, _ = curation.item_context_usage(items[0])
         kept, stats = prepare_category(
-            items, source_byte_budget=one_size + 10,
-            source_token_budget=one_tokens + 10)
+            items, source_byte_budget=one_size + 10)
         self.assertEqual(len(kept), 1)
         self.assertEqual(stats["source_budget_dropped"], 2)
 
@@ -627,11 +668,46 @@ class PrepareCategoryTest(unittest.TestCase):
         categories = {"first": first, "second": second}
         processing = {"first": first_stats, "second": second_stats}
         used = apply_global_context_budget(
-            categories, processing, byte_budget=size + 1, token_budget=tokens + 1)
+            categories, processing, byte_budget=size + (-size % 4))
         self.assertEqual(used, (size, tokens))
         self.assertEqual(len(categories["first"]), 1)
         self.assertEqual(categories["second"], [])
         self.assertEqual(processing["second"]["global_budget_dropped"], 1)
+
+    def test_byte_ledger_preserves_v7_decimal_source_and_global_ceilings(self):
+        items = [{**self.item(n), "summary": "x" * (390 + n % 4),
+                  "url": f"https://example.com/{n}/" + "x" * 1500,
+                  "published": "2026-08-08T12:00:00+00:00"}
+                 for n in range(1, 100)]
+        expected = []
+        byte_total = token_total = 0
+        for item in items:
+            size, tokens = curation.item_context_usage(item)
+            if (byte_total + size <= corpus_schema.SOURCE_CONTEXT_MAX_BYTES
+                    and token_total + tokens <= corpus_schema.SOURCE_CONTEXT_MAX_TOKENS):
+                expected.append(item)
+                byte_total += size
+                token_total += tokens
+        kept, stats = prepare_category(items, source_cap=100, category_cap=100)
+        self.assertEqual(kept, expected)
+        self.assertEqual((stats["context_bytes"], stats["estimated_tokens"]),
+                         (byte_total, token_total))
+        categories = {f"category_{n}": [dict(item) for item in kept] for n in range(8)}
+        processing = {name: dict(stats) for name in categories}
+        expected_urls = []
+        byte_total = token_total = 0
+        for category in categories.values():
+            for item in category:
+                size, tokens = curation.item_context_usage(item)
+                if (byte_total + size <= corpus_schema.GLOBAL_CONTEXT_MAX_BYTES
+                        and token_total + tokens <= corpus_schema.GLOBAL_CONTEXT_MAX_TOKENS):
+                    expected_urls.append(item["url"])
+                    byte_total += size
+                    token_total += tokens
+        used = apply_global_context_budget(categories, processing)
+        self.assertEqual([item["url"] for category in categories.values() for item in category],
+                         expected_urls)
+        self.assertEqual(used, (byte_total, token_total))
 
     def test_budget_totals_serialize_each_item_once_per_budget_pass(self):
         items = [self.item(n) for n in range(1, 4)]
@@ -688,17 +764,14 @@ class HackerNewsTest(unittest.TestCase):
         for bad in (25.5, "25", True, -1):
             with self.subTest(points=bad):
                 payload = json.dumps({"hits": [hit("1", bad, 1)]}).encode()
-                with (
-                    patch.object(transport, "http_get", return_value=payload),
-                    self.assertRaises(model.SourceDataError),
-                ):
-                    fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+                with patch.object(transport, "http_get", return_value=payload):
+                    result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+                self.assertEqual(result.malformed_entries, 1)
+                self.assertEqual(result.dated_entries, 1)
         payload = json.dumps({"hits": [hit("1", 30, 2.5)]}).encode()
-        with (
-            patch.object(transport, "http_get", return_value=payload),
-            self.assertRaises(model.SourceDataError),
-        ):
-            fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        with patch.object(transport, "http_get", return_value=payload):
+            result = fetch_hn("agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        self.assertEqual(result.malformed_entries, 1)
 
         responses = {
             "agent tools": {"hits": [hit("10", 30, 4)]},
@@ -829,6 +902,88 @@ class HackerNewsTest(unittest.TestCase):
         self.assertEqual(result.items, [])
         self.assertEqual(result.dated_entries, 1)
         self.assertEqual(result.filtered_entries, 1)
+
+    def test_isolates_malformed_hits_and_reports_partial_source_health(self):
+        valid = {"objectID": "1", "title": "AI coding agent release",
+                 "url": "https://example.com/agent", "story_text": "",
+                 "created_at_i": int(utc(2026, 8, 8, 12).timestamp()),
+                 "points": 30, "num_comments": 2}
+        for bad, expected_dated, expected_parsed in (
+            ({**valid, "created_at_i": "not a timestamp"}, 1, 2),
+            ({**valid, "created_at_i": True}, 1, 2),
+            ({**valid, "created_at_i": 1e100}, 1, 2),
+            ({**valid, "points": "30"}, 2, 2),
+            ({**valid, "num_comments": -1}, 2, 2),
+            ({**valid, "story_text": []}, 2, 2),
+            ("not an object", 1, 1),
+        ):
+            with self.subTest(bad=bad):
+                payload = json.dumps({"hits": [valid, bad]}).encode()
+                with patch.object(transport, "http_get", return_value=payload):
+                    outcome = collect.timed_fetch(
+                        fetch_hn, "agent", utc(2026, 8, 8), utc(2026, 8, 9))
+                result = outcome.result
+                self.assertIsNotNone(result)
+                self.assertEqual([item["title"] for item in result.items], [valid["title"]])
+                self.assertEqual(result.dated_entries, expected_dated)
+                self.assertEqual(result.parsed_entries, expected_parsed)
+                self.assertEqual(result.undated, expected_parsed - expected_dated)
+                status = collect.source_status("hacker_news", "agent", "news", outcome)
+                self.assertEqual(status["status"], "error")
+                self.assertEqual(status["error_type"], "MalformedEntries")
+                self.assertIn("1 malformed entries", status["message"])
+                self.assertTrue(status["http_success"])
+
+    def test_partial_response_is_valid_v7_corpus_and_checker_requires_health(self):
+        import eval_briefing
+        from news_fetch.config import Sources
+
+        payload = {"hits": [
+            {"objectID": "1", "title": "AI agent release", "url": "https://example.com/agent",
+             "created_at_i": int(utc(2026, 8, 8, 12).timestamp()), "points": 30},
+            {"created_at_i": "invalid date"},
+            {"objectID": "2", "title": "AI tools", "created_at_i": int(utc(2026, 8, 8).timestamp()),
+             "points": "bad engagement"},
+            "not an object",
+        ]}
+        sources = Sources(("news",), {}, "news", ["agent"], "news", [])
+        corpus = collect.new_corpus(sources, utc(2026, 8, 9), utc(2026, 8, 8), 24, 25, 60, None)
+        with patch.object(transport, "http_get", return_value=json.dumps(payload).encode()):
+            undated = collect.fetch_all_sources(corpus, sources, utc(2026, 8, 8), utc(2026, 8, 9), 24)
+        used_bytes, tokens = curation.curate_categories(corpus, undated, 25, 60)
+        corpus["context_budget"] = curation.context_budget_report(corpus["processing"], used_bytes, tokens)
+        collect.record_source_health(corpus)
+        self.assertEqual(corpus["schema_version"], 7)
+        self.assertEqual(corpus_schema.validate_corpus(corpus), [])
+        self.assertEqual(len(corpus["categories"]["news"]), 1)
+        self.assertEqual(corpus["processing"]["news"]["undated_dropped"], 1)
+        self.assertEqual(corpus["sources"][0]["retained_entries"], 1)
+        self.assertEqual(corpus["errors"][0]["error_type"], "MalformedEntries")
+        self.assertTrue(corpus_schema.corpus_health_degraded(corpus))
+        checks = {finding.check for finding in eval_briefing.check_corpus_health_reported({}, corpus)}
+        self.assertIn("corpus_health_missing", checks)
+        self.assertIn("failed_source_unnamed", checks)
+        self.assertIn("undated_source_unnamed", checks)
+
+    def test_entirely_malformed_hits_are_errors_even_with_no_dates(self):
+        payload = json.dumps({"hits": [[], {"created_at_i": "bad"}]}).encode()
+        with patch.object(transport, "http_get", return_value=payload):
+            outcome = collect.timed_fetch(fetch_hn, "agent", utc(2026, 8, 8), utc(2026, 8, 9))
+        status = collect.source_status("hacker_news", "agent", "news", outcome)
+        self.assertEqual(status["status"], "error")
+        self.assertEqual(status["parsed_entries"], 1)
+        self.assertEqual(status["dated_entries"], 0)
+        self.assertEqual(outcome.result.malformed_entries, 2)
+
+    def test_invalid_envelopes_and_json_remain_whole_source_failures(self):
+        for payload in (b'broken json', b'[]', b'{"hits": {}}'):
+            with self.subTest(payload=payload):
+                with patch.object(transport, "http_get", return_value=payload):
+                    outcome = collect.timed_fetch(
+                        fetch_hn, "agent", utc(2026, 8, 8), utc(2026, 8, 9))
+                self.assertIsNone(outcome.result)
+                self.assertEqual(collect.source_status(
+                    "hacker_news", "agent", "news", outcome)["status"], "error")
 
     def test_counts_hits_with_no_usable_timestamp(self):
         """A hit without created_at_i is counted as undated without raising."""
@@ -1086,7 +1241,7 @@ class RedditFallbackTest(unittest.TestCase):
             "url": "https://www.reddit.com/r/ClaudeCode/comments/abc123/",
             "published": "2026-08-08T12:00:00+00:00",
             "source": "r/ClaudeCode",
-        }], 0, 1, 1, 0)
+        }], 1, 1, 0)
 
     def test_rss_result_skips_both_fallbacks(self):
         with (patch.object(reddit, "fetch_reddit_rss", return_value=self.result("RSS")),
@@ -1116,7 +1271,7 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_fallback_runs_only_after_both_free_paths_are_empty(self):
-        empty = model.FetchResult([], 0, 0, 0, 0)
+        empty = model.FetchResult([], 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=empty),
               patch.object(reddit, "fetch_reddit_scrapecreators",
@@ -1130,8 +1285,8 @@ class RedditFallbackTest(unittest.TestCase):
         )
 
     def test_missing_key_returns_the_last_free_empty_result(self):
-        rss_empty = model.FetchResult([], 2, 3, 1, 0)
-        arctic_empty = model.FetchResult([], 0, 0, 0, 0)
+        rss_empty = model.FetchResult([], 3, 1, 0)
+        arctic_empty = model.FetchResult([], 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
               patch.object(reddit, "fetch_reddit_scrapecreators") as authenticated):
@@ -1142,8 +1297,8 @@ class RedditFallbackTest(unittest.TestCase):
         authenticated.assert_not_called()
 
     def test_authenticated_failure_preserves_a_valid_free_empty_result(self):
-        rss_empty = model.FetchResult([], 2, 3, 1, 0)
-        arctic_empty = model.FetchResult([], 0, 0, 0, 0)
+        rss_empty = model.FetchResult([], 3, 1, 0)
+        arctic_empty = model.FetchResult([], 0, 0, 0)
         with (patch.object(reddit, "fetch_reddit_rss", return_value=rss_empty),
               patch.object(reddit, "fetch_reddit_arctic_shift", return_value=arctic_empty),
               patch.object(reddit, "fetch_reddit_scrapecreators",
@@ -1388,7 +1543,7 @@ class MainFailureModeTest(unittest.TestCase):
                 patch.object(
                     collect,
                     "fetch_hn",
-                    return_value=model.FetchResult([item], 0, 1, 1, 0),
+                    return_value=model.FetchResult([item], 1, 1, 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1437,7 +1592,7 @@ class MainFailureModeTest(unittest.TestCase):
                 patch.object(
                     collect,
                     "fetch_hn",
-                    return_value=model.FetchResult([item], 0, 1, 1, 0),
+                    return_value=model.FetchResult([item], 1, 1, 0),
                 ) as fetch,
                 redirect_stdout(io.StringIO()),
                 redirect_stderr(io.StringIO()),
@@ -1461,7 +1616,7 @@ class MainFailureModeTest(unittest.TestCase):
         # That is a low-cadence source, not a broken one, so it is `quiet`
         # rather than `empty` and stays out of the failed-source contract.
         outcome = model.TimedFetchResult(
-            model.FetchResult([], 0, parsed_entries=25, dated_entries=25, filtered_entries=0),
+            model.FetchResult([], parsed_entries=25, dated_entries=25, filtered_entries=0),
             None,
             None,
             12,
@@ -1474,7 +1629,7 @@ class MainFailureModeTest(unittest.TestCase):
     def test_fully_filtered_source_reports_a_distinct_quiet_reason(self):
         outcome = model.TimedFetchResult(
             model.FetchResult(
-                [], 0, parsed_entries=25, dated_entries=25, filtered_entries=25
+                [], parsed_entries=25, dated_entries=25, filtered_entries=25
             ),
             None,
             None,
@@ -1506,7 +1661,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "query": "agent tools",
                 "points": 32,
                 "comments": 25,
-            }], 0, 1, 1, 0)
+            }], 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "--markdown"]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_hn", return_value=hn_result),
@@ -1590,7 +1745,7 @@ class MainFailureModeTest(unittest.TestCase):
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss",
-                               return_value=model.FetchResult([], 0, 0, 0, 0)),
+                               return_value=model.FetchResult([], 0, 0, 0)),
                   redirect_stdout(io.StringIO()) as stdout,
                   redirect_stderr(io.StringIO()) as stderr):
                 result = fetch_news.main()
@@ -1621,13 +1776,13 @@ class MainFailureModeTest(unittest.TestCase):
                 "published": published,
                 "source": "Hacker News",
                 "query": "agent tools",
-            }], 0, 1, 1, 0)
+            }], 1, 1, 0)
             reddit_result = model.FetchResult([{
                 "title": "Local model release",
                 "url": "https://example.com/reddit",
                 "published": published,
                 "source": "r/LocalLLaMA",
-            }], 0, 1, 1, 0)
+            }], 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_hn", return_value=hn_result),
@@ -1682,13 +1837,13 @@ class MainFailureModeTest(unittest.TestCase):
                     "source": "r/ClaudeAI",
                 }
                 for n in range(curation.REDDIT_SOURCE_CAP + 5)
-            ], 0, curation.REDDIT_SOURCE_CAP + 5, curation.REDDIT_SOURCE_CAP + 5, 0)
+            ], curation.REDDIT_SOURCE_CAP + 5, curation.REDDIT_SOURCE_CAP + 5, 0)
             rss_result = model.FetchResult([{
                 "title": "Vendor release",
                 "url": "https://example.com/vendor",
                 "published": published,
                 "source": "Vendor Feed",
-            }], 0, 1, 1, 0)
+            }], 1, 1, 0)
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss", return_value=rss_result),
@@ -1718,7 +1873,7 @@ class MainFailureModeTest(unittest.TestCase):
                 "subreddits": [],
             }), encoding="utf-8")
             argv = ["fetch_news.py", "--sources", str(sources), "-o", str(output)]
-            quiet_result = model.FetchResult([], 0, parsed_entries=5, dated_entries=5, filtered_entries=0)
+            quiet_result = model.FetchResult([], parsed_entries=5, dated_entries=5, filtered_entries=0)
             with (patch.object(fetch_news.sys, "argv", argv),
                   patch.object(collect, "fetch_rss", return_value=quiet_result),
                   redirect_stdout(io.StringIO()) as stdout,

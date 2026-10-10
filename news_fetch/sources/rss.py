@@ -38,7 +38,6 @@ def fetch_rss(
     shows up, instead of quietly contributing nothing to a healthy-looking run.
     """
     items: list[Item] = []
-    undated = 0
     data = transport.http_get(url)
     try:
         root = parse_feed_xml(data)
@@ -54,7 +53,6 @@ def fetch_rss(
     for item in rss_entries:  # RSS 2.0
         published = parse_feed_date(item.findtext("pubDate"))
         if published is None:
-            undated += 1
             continue
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
@@ -72,7 +70,6 @@ def fetch_rss(
             entry.findtext("atom:published", namespaces=ns)
             or entry.findtext("atom:updated", namespaces=ns))
         if published is None:
-            undated += 1
             continue
         dated_entries += 1
         if not publication_in_window(published, cutoff, window_end):
@@ -97,4 +94,4 @@ def fetch_rss(
             "summary": _feed_summary(entry, "atom:summary", "atom:content"),
             "source": source_name,
         })
-    return FetchResult(items, undated, parsed_entries, dated_entries, 0)
+    return FetchResult(items, parsed_entries, dated_entries, 0)

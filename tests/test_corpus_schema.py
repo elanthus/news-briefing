@@ -9,7 +9,10 @@ Run:
 """
 
 import copy
+import hashlib
+import json
 import unittest
+from pathlib import Path
 
 from corpus_schema import (
     GLOBAL_CONTEXT_MAX_BYTES,
@@ -378,6 +381,21 @@ class CategoryTest(unittest.TestCase):
                 c = corpus()
                 c["categories"]["us_politics"][0][field] = value
                 self.assertTrue(only(validate_corpus(c), field))
+
+
+class RetainedReplayTest(unittest.TestCase):
+    def test_v7_benchmark_inputs_replay_without_rewriting_original_bytes(self):
+        root = Path(__file__).resolve().parents[1]
+        for relative in ("evaluator/fixtures/checker-corpus.json",
+                         "evaluator/fixtures/generation-corpus-production.json"):
+            with self.subTest(path=relative):
+                path = root / relative
+                original = path.read_bytes()
+                digest = hashlib.sha256(original).hexdigest()
+                retained = json.loads(original)
+                self.assertEqual(retained["schema_version"], 7)
+                self.assertEqual(validate_corpus(retained), [])
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
 
 
 class ProcessingTest(unittest.TestCase):
