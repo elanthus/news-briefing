@@ -3,11 +3,14 @@
 import ctypes
 import ctypes.wintypes
 import os
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from agent_runner import providers
@@ -82,6 +85,39 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaises(subprocess.TimeoutExpired):
             self.capture(command, timeout=0.3)
         self.assertLess(time.perf_counter() - started, 3)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX session cleanup")
+    def test_overflow_kills_descendant_after_leader_and_readers_exit(self):
+        class ReadersFinishedOverflow(providers._CLIOutputLimitError):
+            def __init__(self, message):
+                # Force the race: both readers finish before failure cleanup.
+                time.sleep(0.05)
+                super().__init__(message)
+
+        descendant = (
+            "import sys,time; sys.stderr.close(); time.sleep(0.2); "
+            "sys.stdout.buffer.write(b'x'*129); sys.stdout.flush(); time.sleep(30)"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            leader_path = Path(directory) / "leader.pid"
+            command = child(
+                f"import os,subprocess,sys; open({str(leader_path)!r},'w').write(str(os.getpid())); "
+                f"subprocess.Popen([sys.executable,'-S','-c',{descendant!r}])"
+            )
+            try:
+                with (patch.object(providers, "_CLIOutputLimitError", ReadersFinishedOverflow),
+                      patch.object(providers, "_stop_cli", wraps=providers._stop_cli) as stop):
+                    with self.assertRaises(ReadersFinishedOverflow):
+                        self.capture(command, timeout=3, stdout_limit=128, stderr_limit=64)
+                stop.assert_called_once()
+                self.assertIsNotNone(stop.call_args.args[0].returncode)
+            finally:
+                # Also clean up when testing a regression against the old code.
+                if leader_path.exists() and not stop.called:
+                    try:
+                        os.killpg(int(leader_path.read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
     def test_overflow_returns_sanitized_typed_failure_without_retry(self):
         capture = providers._capture_cli

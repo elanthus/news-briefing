@@ -367,6 +367,7 @@ def _capture_cli(
             for index, (stream, limit, target) in enumerate(zip(
                 streams, (stdout_limit, stderr_limit), buffers, strict=True))
         ]
+        succeeded = False
         try:
             for reader in readers:
                 reader.start()
@@ -383,13 +384,14 @@ def _capture_cli(
                 wake.wait(min(remaining, 0.02))
                 wake.clear()
             process.wait(timeout=max(0.001, deadline - time.perf_counter()))
-            return subprocess.CompletedProcess(
+            completed = subprocess.CompletedProcess(
                 command, process.returncode,
                 buffers[0].decode("utf-8", errors="replace"),
                 buffers[1].decode("utf-8", errors="replace"),
             )
+            succeeded = True
+            return completed
         finally:
-            incomplete = process.poll() is None or any(reader.is_alive() for reader in readers)
             stop.set()
             # Readiness polling makes these joins independent of pipe EOF,
             # including a descendant that outlives the invocation's leader.
@@ -397,7 +399,7 @@ def _capture_cli(
                 if reader.ident is not None:
                     reader.join()
             try:
-                if incomplete:
+                if not succeeded:
                     _stop_cli(process)
             finally:
                 for stream in streams:
