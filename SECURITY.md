@@ -35,7 +35,8 @@ configuration, such as:
   without following redirects, when the fetcher's final Reddit fallback runs;
   see [Reddit falls back through three backends](docs/design.md#fetching));
 - bypasses of the runner's OpenRouter or Claude Code action-tool policy, citation
-  projection, checkpoint integrity, or fail-closed provider-event validation; and
+  projection, generation artifact integrity at repair/publication handoffs, evaluator
+  checkpoint integrity, or fail-closed provider-event validation; and
 - prompt-injection paths that cross a boundary the project claims to enforce.
 
 The following are documented limitations rather than vulnerabilities by

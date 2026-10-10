@@ -137,7 +137,7 @@ class JevReviewTests(unittest.TestCase):
         corpus_path.write_text(json.dumps(corpus), encoding="utf-8")
         settings = RunnerSettings(
             config_path=ROOT / "fixtures/briefing-config-2026-08-11.json",
-            sources_path=ROOT / "sources.json", prompt_path=ROOT / "briefing-runner-prompt.md",
+            prompt_path=ROOT / "briefing-runner-prompt.md",
             output_path=root / "briefing.md", corpus_path=corpus_path)
         result = run_workflow(FakeProvider([output]), settings, root / "run")
         self.assertEqual(result.status, "ready")

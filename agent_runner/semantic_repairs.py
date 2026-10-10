@@ -8,7 +8,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-import fetch_news
 from agent_runner.checkpoint import sha256_bytes, write_json_atomic
 from agent_runner.decisions import MAX_REQUEST_BYTES
 from agent_runner.integrity import position_key, repair_scope, semantic_integrity
@@ -358,7 +357,6 @@ def daily_semantic_review(run: Path, destination: Path, *, apply_repairs: bool =
             policy = repair_root / "policy.txt"
             policy.write_text("Repair only confirmed target positions using their own frozen evidence.\n")
             settings = RunnerSettings(config_path=run / "briefing-config.json",
-                                      sources_path=fetch_news.DEFAULT_SOURCES_PATH,
                                       prompt_path=policy, output_path=repair_root / "briefing.md",
                                       corpus_path=run / "corpus.json", timeout_seconds=180, max_corrections=0)
             result = run_workflow(provider, settings, repair_root / "run")

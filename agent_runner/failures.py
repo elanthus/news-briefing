@@ -114,7 +114,7 @@ def final_failure(final: dict[str, Any], manifest: dict[str, Any]) -> FailureRec
     attempts = manifest.get("attempts")
     stage = None
     used = None
-    # Damaged resume metadata must not make finalization itself fail or invent a budget.
+    # Damaged run metadata must not make finalization itself fail or invent a budget.
     if (isinstance(attempts, list) and attempts
             and all(isinstance(row, dict) and isinstance(row.get("kind"), str) for row in attempts)):
         last_kind = attempts[-1]["kind"]
