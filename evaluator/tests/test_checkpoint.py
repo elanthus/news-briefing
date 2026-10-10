@@ -675,6 +675,19 @@ class CheckpointTest(unittest.TestCase):
                                        corpus_path=DEFAULT_CORPUS, resume=True)
                     self.assertEqual(adapter.requests, [])
                     path.write_bytes(original)
+            # Preexisting compatible checkpoints bind corpus/final bytes without
+            # the newer complete file map; keep their narrower resume contract.
+            del manifest["results"][0]["artifact_sha256"]
+            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            path = row_dir / "corpus.json"
+            original_corpus = path.read_bytes()
+            path.write_bytes(original_corpus + b" ")
+            adapter = RecordingFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "frozen generation artifact"):
+                run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
+                               corpus_path=DEFAULT_CORPUS, resume=True)
+            self.assertEqual(adapter.requests, [])
+            path.write_bytes(original_corpus)
             artifact = row_dir / "final.md"
             original = artifact.read_bytes()
             outside = Path(directory) / "outside.md"
@@ -686,6 +699,11 @@ class CheckpointTest(unittest.TestCase):
                 run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
                                corpus_path=DEFAULT_CORPUS, resume=True)
             self.assertEqual(adapter.requests, [])
+            artifact.unlink()
+            artifact.write_bytes(original)
+            run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
+                           corpus_path=DEFAULT_CORPUS, resume=True)
+            self.assertTrue(adapter.requests)
 
     def test_cost_reconstruction_preserves_unknown_billing(self) -> None:
         row = {"provider": "paid", "first": {"cost_usd": None}}

@@ -408,8 +408,9 @@ protocol, prompts and prompt order, generation path, adapter/model order, genera
 run kind, execution order/seed, circuit threshold, and cost-ceiling settings against the checkpoint. It also
 requires saved results to be a unique exact prefix of the original execution plan and verifies their artifact
 files, including recorded hashes for the corpus, requests, generated outputs and adjudications. Symlinks
-and changed evidence are refused. Older checkpoints lacking per-artifact hashes are preserved but cannot
-be resumed as verified evidence. A provider interruption before a row is checkpointed can still leave
+and changed evidence are refused. Older compatible checkpoints without the complete artifact hash map
+retain their recorded corpus/final-output digest checks and required artifact/path validation; request and
+adjudication bytes without recorded hashes cannot receive the newer byte-integrity guarantee. A provider interruption before a row is checkpointed can still leave
 unrecorded billing; the checkpoint cannot infer that charge, and restarting the partial row retains this
 existing limitation. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
 safely reused. Known billed cost and each adapter's consecutive-failure/circuit state are reconstructed from

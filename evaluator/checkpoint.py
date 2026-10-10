@@ -216,13 +216,14 @@ def _validate_checkpoint_artifacts(
     if missing:
         raise ValueError("cannot resume corrupt checkpoint: missing artifact files: " + ", ".join(missing))
     digests = row.get("artifact_sha256")
-    if (not isinstance(digests, dict) or not {path.name for path in required} <= set(digests)
-            or not set(digests) <= set(_RUNNER_ARTIFACT_FILES)):
-        raise ValueError("cannot resume unverifiable checkpoint: missing or invalid artifact hashes")
-    for name, expected in digests.items():
-        path = case_dir / name
-        if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
-            raise ValueError(f"cannot resume corrupt checkpoint: artifact hash differs: {name}")
+    if "artifact_sha256" in row:
+        if (not isinstance(digests, dict) or not {path.name for path in required} <= set(digests)
+                or not set(digests) <= set(_RUNNER_ARTIFACT_FILES)):
+            raise ValueError("cannot resume unverifiable checkpoint: missing or invalid artifact hashes")
+        for name, expected in digests.items():
+            path = case_dir / name
+            if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
+                raise ValueError(f"cannot resume corrupt checkpoint: artifact hash differs: {name}")
     verified_generation_artifact(case_dir / "corpus.json", row, "trial_corpus_sha256")
     if status in {"completed", "completed_with_correction_error"}:
         verified_generation_artifact(case_dir / "final.md", row, "final_output_sha256")
