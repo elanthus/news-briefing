@@ -1,20 +1,12 @@
-"""Shared publication resolution and bounded, hash-bound deployment receipts.
-
-A receipt is produced after deployment; an available ready run alone is never
-publication evidence. Callers obtaining receipts from Actions must additionally
-verify the matching workflow attempt's successful Pages deployment.
-"""
+"""Shared publication resolution and frozen artifact verification."""
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
-from datetime import date
 from pathlib import Path
 from typing import Any
 
-from agent_runner.checkpoint import write_json_atomic
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, load_topics
 from agent_runner.semantic_repairs import load_public_audit
 
@@ -94,18 +86,6 @@ def _verified_publication_artifacts(
     return selected, topics, {**hashes, "final.md": digest}, manifest
 
 
-def verified_publication_artifacts(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
-    """Verify frozen evidence and exact artifact hashes for receipt comparison.
-
-    This establishes diagnostics integrity, not deployment. Historical monitors
-    must additionally match these hashes to a receipt whose Actions deployment
-    was independently verified. They must not replay the current Markdown
-    renderer or checker against an older, already deployed artifact.
-    """
-    selected, topics, hashes, _manifest = _verified_publication_artifacts(root)
-    return selected, topics, hashes
-
-
 def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[str, str]]:
     """Verify newly published Markdown against this revision's exact rendering."""
     selected, topics, hashes, manifest = _verified_publication_artifacts(root)
@@ -137,53 +117,3 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     if markdown.decode("utf-8") != expected:
         raise ValueError("published Markdown differs from the verified candidate")
     return selected, topics, hashes
-
-
-def publication_receipt(runs_dir: Path, history_path: Path, workflow_run_id: int,
-                        run_attempt: int) -> dict[str, Any]:
-    """Bind newly generated ready reports to the exact successfully deployed build."""
-    if type(workflow_run_id) is not int or workflow_run_id <= 0 or type(run_attempt) is not int or run_attempt <= 0:
-        raise ValueError("invalid deployment workflow identity")
-    history = read_json(history_path, max_bytes=50_000_000)
-    entries = history.get("entries") if isinstance(history, dict) else None
-    if not isinstance(entries, list):
-        raise ValueError("invalid built history")
-    reports = []
-    skipped = []
-    for root in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
-        try:
-            day = date.fromisoformat(root.name).isoformat()
-            selected, _topics, hashes = verified_publication(root)
-            matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("date") == day]
-            if len(matches) != 1:
-                raise ValueError("report is absent or duplicated in the deployed build")
-            entry = matches[0]
-            markdown = entry.get("markdown")
-            integrity = entry.get("integrity")
-            if (entry.get("disposition") != "ready" or not isinstance(markdown, str)
-                    or hashlib.sha256(markdown.encode()).hexdigest() != hashes["final.md"]
-                    or not isinstance(integrity, dict) or integrity.get("workflow_run_id") != workflow_run_id):
-                raise ValueError("built report is stale or does not match this workflow's candidate")
-            reports.append({"date": day, "selected_run": selected.relative_to(root).as_posix(),
-                            "artifact_hashes": hashes})
-        except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError) as exc:
-            skipped.append({"date": root.name, "reason": str(exc)})
-    return {"schema_version": 1, "workflow_run_id": workflow_run_id, "run_attempt": run_attempt,
-            "deployment_status": "success", "reports": reports, "skipped": skipped}
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-dir", type=Path, required=True)
-    parser.add_argument("--history", type=Path, required=True)
-    parser.add_argument("--workflow-run-id", type=int, required=True)
-    parser.add_argument("--run-attempt", type=int, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    receipt = publication_receipt(args.runs_dir, args.history, args.workflow_run_id, args.run_attempt)
-    write_json_atomic(args.output, receipt)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

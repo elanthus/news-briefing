@@ -1,5 +1,7 @@
 # Weekly unverified machine grounding monitor
 
+**Retired October 10, 2026.** The scheduled monitor and direct-to-main publication were retired under #249. Historical rows below are frozen; their limitations remain as recorded. Daily Jev integrity reports continue, and explicit benchmark grounding experiments remain supported.
+
 Automated, non-gating measurement of already-published briefings. It never changes a day's publication decision. See [Evaluation methodology](../evaluation-methodology.md#unverified-machine-grounding-monitor) for what this rate can and cannot be used to claim; per-topic verdicts stay in the encrypted review artifact, not this log.
 
 **Judge independence.** The primary judge, `tencent/hy3`, is also the first model in the production fallback
@@ -13,7 +15,7 @@ double-review sample on which the audit judge's grounding verdict matched the pr
 sample is recorded only in the encrypted review artifact, so a 100.0% cell may rest on few topics and should not
 be read as strong evidence of judge reliability.
 
-**Historical artifact limitations (2026-10-02).** The W37–W39 rows were produced before the monitor followed accepted semantic repairs, verified recorded artifact hashes and evidence positions, or required proof of a matching successful deployment. Its previous artifact selection also did not establish seven distinct report dates in the requested ISO week. Those measurements describe the diagnostic candidates reviewed at the time; they cannot establish the grounding of the exact published artifacts. Their values remain unchanged. The [remediation record](remediation-2026-10-02.md) describes the corrected sampling and publication contract. Future repeated assessments append separately labeled rows.
+**Historical artifact limitations (2026-10-02).** The W37–W39 rows were produced before the monitor followed accepted semantic repairs, verified recorded artifact hashes and evidence positions, or required proof of a matching successful deployment. Its previous artifact selection also did not establish seven distinct report dates in the requested ISO week. Those measurements describe the diagnostic candidates reviewed at the time; they cannot establish the grounding of the exact published artifacts. Their values remain unchanged. The [remediation record](remediation-2026-10-02.md) describes the corrected sampling and publication contract. No further scheduled assessments are appended.
 
 | Week | Runs reviewed | Runs skipped | Topics reviewed | Unverified grounding rate (95% CI) | Audit agreement | Primary judge | Cost (USD) |
 |---|---:|---:|---:|---:|---:|---|---:|

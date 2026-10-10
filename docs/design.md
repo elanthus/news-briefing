@@ -123,7 +123,7 @@ flowchart LR
     followup -- Accepted --> publish[Publish selected artifact]
     followup -- Rejected or incomplete --> original[Retain original ready artifact]
     original --> publish
-    publish --> receipt[Successful deployment receipt]
+    publish --> deployment[GitHub Pages deployment]
     gate -- review_required or rejected --> preview[Quarantine preview]
     preview -.->|"daily chain: next model"| corpus
     preview -. chain exhausted .-> noresult[No-result page]
@@ -140,7 +140,6 @@ flowchart LR
 
     candidate -. blinded artifacts .-> judges[Evaluator semantic + grounding judges]
     judges -. evaluator adjudication .-> evaluation[Regression decision]
-    receipt -. diagnostics of deployed runs .-> monitor[Weekly grounding monitor]
 ```
 
 This is orchestration of specialized roles around one generator, not concurrent multi-agent planning. Where a property is checkable—schema shape, citation membership, section limits, duplicate placement, or corpus-health reporting—a deterministic oracle is cheaper, reproducible, and more reliable than asking a second LLM. Model judges are reserved for semantic properties that code cannot honestly settle, and their machine-review status remains explicit.
