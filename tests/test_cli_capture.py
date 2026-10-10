@@ -70,6 +70,45 @@ class CaptureTests(unittest.TestCase):
             self.capture(child("import sys; sys.stdout.buffer.write(b'x'*129)"),
                          timeout=3, stdout_limit=128, stderr_limit=64)
 
+    def test_reader_failure_between_flag_check_and_process_poll_is_rejected(self):
+        # Release collectors from poll(), after the supervisor checks its flags.
+        # Both threads then finish before poll returns an already-exited child.
+        for broken_pipe in (False, True):
+            with self.subTest(broken_pipe=broken_pipe):
+                release = threading.Event()
+                popen = subprocess.Popen
+                ready = providers._pipe_ready_bytes
+
+                def launch(*args, **kwargs):
+                    process = popen(*args, **kwargs)
+                    process.wait(timeout=3)  # Tiny output fits without a reader.
+                    poll = process.poll
+
+                    def poll_after_readers():
+                        release.set()
+                        for reader in threading.enumerate():
+                            if reader.name.startswith(f"cli-capture-{process.pid}-"):
+                                reader.join(timeout=3)
+                                self.assertFalse(reader.is_alive())
+                        return poll()
+
+                    process.poll = poll_after_readers
+                    return process
+
+                def gated_ready(stream, capacity):
+                    if not release.wait(timeout=3):
+                        raise AssertionError("supervisor never polled the child")
+                    if broken_pipe:
+                        raise OSError("synthetic pipe failure")
+                    return ready(stream, capacity)
+
+                with (patch.object(providers.subprocess, "Popen", side_effect=launch),
+                      patch.object(providers, "_pipe_ready_bytes", side_effect=gated_ready)):
+                    expected = OSError if broken_pipe else providers._CLIOutputLimitError
+                    with self.assertRaises(expected):
+                        providers._capture_cli(child("import os; os.write(1, b'x'*9)"), "",
+                                               timeout=3, stdout_limit=8)
+
     def test_timeout_cleans_up_process_and_readers_without_pipe_output(self):
         started = time.perf_counter()
         with self.assertRaises(subprocess.TimeoutExpired):

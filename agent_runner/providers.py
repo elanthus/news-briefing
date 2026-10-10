@@ -377,11 +377,14 @@ def _capture_cli(
             for reader in readers:
                 reader.start()
             while True:
+                # A finished-reader snapshot must precede the flag checks: a
+                # reader can publish a failure immediately before it exits.
+                readers_finished = not any(reader.is_alive() for reader in readers)
                 if overflow.is_set():
                     raise _CLIOutputLimitError("CLI output exceeded its capture byte limit")
                 if failures:
                     raise OSError("CLI output collection failed")
-                if process.poll() is not None and not any(reader.is_alive() for reader in readers):
+                if process.poll() is not None and readers_finished:
                     break
                 remaining = deadline - time.perf_counter()
                 if remaining <= 0:
