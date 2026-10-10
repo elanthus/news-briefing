@@ -33,6 +33,7 @@ from publication_schema import (
     parse_integrity,
     parse_provenance,
     parse_repair_actions,
+    parse_workflow_run_id,
     provenance_payload,
 )
 
@@ -447,8 +448,7 @@ def prepare_publication(
         integrity["generation"] = provenance_payload(provenance) if provenance is not None else None
         if not any(p["phase"] == "publication_verification" for p in integrity["phases"]):
             add_phase(integrity, "publication_verification", "complete")
-    integrity["workflow_run_id"] = (workflow_run_id if type(workflow_run_id) is int
-                                    and 1 <= workflow_run_id <= 10**18 else None)
+    integrity["workflow_run_id"] = parse_workflow_run_id(workflow_run_id)
     verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
                        if original_generation_dir is not None and isinstance(original_manifest, dict) else None)
     integrity["corpus_health"] = corpus_health(verified_corpus)

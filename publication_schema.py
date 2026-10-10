@@ -25,6 +25,15 @@ PROVENANCE_FIELDS = {"provider", "model", "prompt_sha256", *PROVENANCE_INT_FIELD
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
 
+def parse_workflow_run_id(value: object) -> int | None:
+    """Normalize an optional CLI/environment identity within the public integer range."""
+    if isinstance(value, str):
+        if not (value.isascii() and value.isdecimal() and len(value) <= 19):
+            return None
+        value = int(value)
+    return value if type(value) is int and 1 <= value <= 10**18 else None
+
+
 @dataclass(frozen=True)
 class ReviewContext:
     section: str
@@ -684,7 +693,7 @@ def parse_integrity(
     if accepted:
         _integrity_acceptance(record, initial, followup, phases, costs, affected, eligible, followup_rows)
     run_id = record["workflow_run_id"]
-    if run_id is not None and not 1 <= _integrity_int(run_id, 10**18):
+    if run_id is not None and (type(run_id) is not int or parse_workflow_run_id(run_id) is None):
         raise ValueError("invalid workflow run identifier")
     _integrity_health(record["corpus_health"])
     if (decision == "unpublished" or disposition in {"rejected", "no_result", "blocked"}) and (

@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import briefing_config
 import fetch_news
+from agent_runner.budget import DEFAULT_GENERATION_SECONDS, DEFAULT_GENERATION_USD, GenerationBudget
 from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic
 from agent_runner.failures import FailureRecord, run_failure
 from agent_runner.models import ProviderError
@@ -134,7 +136,8 @@ def _is_publishable_ready_result(
         return False
 
 
-def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]]) -> None:
+def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]],
+                      budget: GenerationBudget) -> None:
     selected = next((row for row in attempts if row["status"] == "ready"), None)
     payload = {
         "schema_version": 2,
@@ -150,6 +153,7 @@ def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]
         "selected_model": selected["model"] if selected is not None else None,
         "selected_run_dir": selected["run_dir"] if selected is not None else None,
         "attempts": attempts,
+        "generation_budget": budget.record(),
     }
     write_json_atomic(root / LOG_NAME, payload)
 
@@ -159,12 +163,17 @@ def run_fallback_chain(
     run_dir: Path,
     *,
     max_tokens: int,
+    budget: GenerationBudget | None = None,
 ) -> ChainResult:
     """Run each production model until one produces a ready briefing."""
+    budget = budget if budget is not None else GenerationBudget()
     run_dir.mkdir(parents=True, exist_ok=False)
     started_at = utc_now()
     attempts: list[dict[str, Any]] = []
     for index, candidate in enumerate(PRODUCTION_MODEL_CHAIN, start=1):
+        if not budget.available():
+            _write_chain_logs(run_dir, started_at, attempts, budget)
+            break
         candidate_name = _candidate_dir_name(index, candidate.model)
         candidate_dir = run_dir / candidate_name
         started = utc_now()
@@ -179,7 +188,7 @@ def run_fallback_chain(
                 reasoning_effort=candidate.reasoning_effort,
                 max_tokens=min(max_tokens, candidate.max_tokens_cap),
             )
-            result = run_workflow(provider, settings, candidate_dir)
+            result = run_workflow(provider, settings, candidate_dir, budget=budget)
         except Exception as exc:  # every failed production attempt advances the chain
             failure = exc
 
@@ -197,7 +206,7 @@ def run_fallback_chain(
                 "failure": None,
             }
             attempts.append(row)
-            _write_chain_logs(run_dir, started_at, attempts)
+            _write_chain_logs(run_dir, started_at, attempts, budget)
             print(f"READY model={candidate.model} run_dir={candidate_name}")
             return ChainResult("ready", candidate.model, candidate_dir, run_dir)
 
@@ -215,7 +224,7 @@ def run_fallback_chain(
             ).payload(),
         }
         attempts.append(row)
-        _write_chain_logs(run_dir, started_at, attempts)
+        _write_chain_logs(run_dir, started_at, attempts, budget)
         print(f"FAILED model={candidate.model} failure_reason={reason}", file=sys.stderr)
 
     return ChainResult("failed", None, None, run_dir)
@@ -233,6 +242,9 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=3)
     parser.add_argument("--max-tokens", type=fetch_news.positive_int, default=100_000)
+    parser.add_argument("--generation-budget", type=Path, help="shared allowance state for backfill dates")
+    parser.add_argument("--generation-seconds", type=fetch_news.positive_int, default=DEFAULT_GENERATION_SECONDS)
+    parser.add_argument("--generation-usd", type=float, default=DEFAULT_GENERATION_USD)
     args = parser.parse_args()
 
     if (args.jev_repair_mode is None) != (args.jev_review_dir is None):
@@ -251,7 +263,14 @@ def main() -> int:
         corpus_path=args.corpus.resolve(),
         max_corrections=args.max_corrections,
     )
-    result = run_fallback_chain(settings, args.run_dir.resolve(), max_tokens=args.max_tokens)
+    try:
+        budget = (GenerationBudget.open(args.generation_budget, limit_usd=args.generation_usd,
+                                        seconds=args.generation_seconds) if args.generation_budget is not None
+                  else GenerationBudget(limit_usd=args.generation_usd,
+                                        deadline_epoch=time.time() + args.generation_seconds))
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    result = run_fallback_chain(settings, args.run_dir.resolve(), max_tokens=args.max_tokens, budget=budget)
     if result.status == "ready":
         print(
             f"READY: final output at {settings.output_path} using {result.selected_model} "

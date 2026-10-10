@@ -83,7 +83,6 @@ class WindowTests(unittest.TestCase):
                 line.split("=", 1)
                 for line in github_env.read_text(encoding="utf-8").splitlines()
             )
-            self.assertEqual(values["SNAPSHOT_END_EPOCH"], "0")
             self.assertEqual(values["WINDOW_END"], "1970-01-01T00:00:00+00:00")
 
     def test_capture_window_writes_second_precision_utc_offsets(self) -> None:

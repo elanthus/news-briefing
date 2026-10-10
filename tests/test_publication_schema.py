@@ -1,6 +1,6 @@
 import unittest
 
-from publication_schema import Provenance, parse_provenance, provenance_payload
+from publication_schema import Provenance, parse_provenance, parse_workflow_run_id, provenance_payload
 
 VALID_PAYLOAD = {
     "provider": "openrouter",
@@ -42,6 +42,17 @@ class ProvenanceSchemaTests(unittest.TestCase):
         for raw in cases:
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 parse_provenance(raw)
+
+
+class WorkflowRunIdentityTests(unittest.TestCase):
+    def test_optional_identity_accepts_only_bounded_integers_or_ascii_decimal_text(self):
+        for value in (1, 10**18, "123", "000123"):
+            with self.subTest(value=value):
+                self.assertEqual(parse_workflow_run_id(value), int(value))
+        for value in (None, True, 0, -1, 10**18 + 1, 1.0, "", "0", "-1", "+1",
+                      "1.0", " 123", "１２３", "١٢٣", "1" * 20):
+            with self.subTest(value=value):
+                self.assertIsNone(parse_workflow_run_id(value))
 
 
 if __name__ == "__main__":

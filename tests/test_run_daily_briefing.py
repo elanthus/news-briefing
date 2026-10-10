@@ -29,7 +29,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             root = Path(directory)
             seen: list[str] = []
 
-            def fake_run(provider, run_settings, run_dir):
+            def fake_run(provider, run_settings, run_dir, *, budget):
                 seen.append(provider.model)
                 run_dir.mkdir(parents=True)
                 content = b"ready report with warnings\n"
@@ -67,7 +67,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             settings = self._settings(root)
             seen: list[tuple[str, float | None, str | None, int]] = []
 
-            def fake_run(provider, run_settings, run_dir):
+            def fake_run(provider, run_settings, run_dir, *, budget):
                 seen.append((
                     provider.model,
                     provider.temperature,
@@ -179,7 +179,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             settings = self._settings(root)
             seen: list[str] = []
 
-            def fake_run(provider, run_settings, run_dir):
+            def fake_run(provider, run_settings, run_dir, *, budget):
                 seen.append(provider.model)
                 run_dir.mkdir(parents=True)
                 content = b"ready\n"
@@ -235,7 +235,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             settings = self._settings(root)
             seen: list[str] = []
 
-            def fake_run(provider, run_settings, run_dir):
+            def fake_run(provider, run_settings, run_dir, *, budget):
                 seen.append(provider.model)
                 run_dir.mkdir(parents=True)
                 if provider.model == PRODUCTION_MODEL_CHAIN[0].model:
@@ -296,7 +296,7 @@ class DailyBriefingFallbackTests(unittest.TestCase):
             settings = self._settings(root)
             seen: list[str] = []
 
-            def fake_run(provider, run_settings, run_dir):
+            def fake_run(provider, run_settings, run_dir, *, budget):
                 seen.append(provider.model)
                 run_dir.mkdir(parents=True)
                 if provider.model == "tencent/hy3":
