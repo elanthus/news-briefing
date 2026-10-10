@@ -114,7 +114,10 @@ def read_sums(bundle_dir: Path) -> dict[str, str]:
         digest, separator, name = line.partition("  ")
         if not separator or not _is_sha256(digest):
             raise EvidenceAssetError(f"invalid SHA256SUMS line in {bundle_dir}: {line!r}")
-        sums[_plain_name(name, "SHA256SUMS entry")] = digest
+        name = _plain_name(name, "SHA256SUMS entry")
+        if name in sums:
+            raise EvidenceAssetError(f"duplicate SHA256SUMS entry in {bundle_dir}: {name!r}")
+        sums[name] = digest
     return sums
 
 

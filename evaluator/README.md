@@ -364,9 +364,9 @@ Git tree, source tag, and SHA-256 of every tracked evaluator/runtime Python sour
 ### Exporting public evidence
 
 After review and adjudication, export reviewer-facing evidence with one complete manifest, or with compatible
-split manifests that supply one exact whole completed block for every adapter. A clean interrupted component
-may also contain a strict partial row set for an adapter supplied in full by another component; the exporter
-excludes that set, records the excluded row count, and still rejects missing or duplicate whole blocks:
+split manifests with matching experiment identities, complete components, and disjoint adapter sets.
+Each component must contain the exact frozen prompt/case/trial matrix for every configured adapter.
+Interrupted components, overlapping adapters, duplicate rows, and missing rows are refused:
 
 ```bash
 python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \
@@ -380,6 +380,14 @@ bundle contains the redacted manifest with raw generations, per-row adjudication
 provider request identifiers are removed. Together with the recorded source tag and committed fixtures, this
 supports independent aggregate recalculation and output-level scoring audit without publishing redundant
 per-row copies of the same request and corpus.
+
+`verify-public-run` checks the declared file set, byte sizes, hashes, source metadata, and a score ledger
+rebuilt from the manifest's row primitives. It does not render reports with today's code. Authenticate
+historical bundles first with `evaluator.evidence_assets fetch`, which checks the pinned release archive
+and in-tree checksums. To regenerate a historical report, check out its metadata's `source_tag` and run
+the source reporter on the public manifest's embedded scores using the exact commands in
+[EVIDENCE-ASSETS.md](../docs/results/EVIDENCE-ASSETS.md). Historical reports and release assets stay
+immutable as current presentation evolves; current reporter tests retain semantic and statistical coverage.
 
 ### Resuming an interrupted run
 
@@ -401,9 +409,15 @@ Before another provider call, resume verifies the suite, root and case-specific 
 protocol, prompts and prompt order, generation path, adapter/model order, generation controls, per-adapter timeout, trials,
 run kind, execution order/seed, circuit threshold, and cost-ceiling settings against the checkpoint. It also
 requires saved results to be a unique exact prefix of the original execution plan and verifies their artifact
-files. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
+files, including recorded hashes for the corpus, requests, generated outputs and adjudications. Symlinks
+and changed evidence are refused. Older compatible checkpoints without the complete artifact hash map
+retain their recorded corpus/final-output digest checks and required artifact/path validation; request and
+adjudication bytes without recorded hashes cannot receive the newer byte-integrity guarantee. A provider interruption before a row is checkpointed can still leave
+unrecorded billing; the checkpoint cannot infer that charge, and restarting the partial row retains this
+existing limitation. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
 safely reused. Known billed cost and each adapter's consecutive-failure/circuit state are reconstructed from
-saved rows. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
+saved rows. Unknown billing for a provider covered by the ceiling refuses resume before another call;
+missing cost is never reconstructed as zero. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
 Complete, stopped, completed-with-errors, incompatible, and corrupt manifests are refused without a provider
 call. `--resume` always requires `--output-dir`; it never guesses which run to continue.
 

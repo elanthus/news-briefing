@@ -10,10 +10,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.checkpoint import sha256_file
 from agent_runner.checkpoint import write_json_atomic as _write_json_atomic
 from agent_runner.checkpoint import write_text_atomic as _write_text_atomic
 
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
+from evaluator.judge_io import verified_generation_artifact
 from evaluator.plan import EvaluationPlan, _result_key
 from evaluator.report import _operation_call_records, markdown_report, summarize
 
@@ -50,6 +52,16 @@ def _provider_error(stage: str, exc: Exception) -> dict[str, Any]:
 
 def _checkpoint(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     """Atomically persist every completed or failed trial and its current report."""
+    # Bind each newly recorded row once. Re-checking all historical bytes on each
+    # append would make checkpointing quadratic; resume verifies every saved row.
+    for row in manifest["results"]:
+        if "artifact_sha256" not in row:
+            case_dir = output_dir / row["artifact_dir"]
+            row["artifact_sha256"] = {
+                name: sha256_file(case_dir / name)
+                for name in _RUNNER_ARTIFACT_FILES
+                if (case_dir / name).is_file()
+            }
     manifest["checkpointed_at"] = datetime.now(UTC).isoformat()
     _write_json_atomic(output_dir / "manifest.json", manifest)
     report = summarize(manifest, output_dir)
@@ -197,11 +209,24 @@ def _validate_checkpoint_artifacts(
             required.append(output_dir / semantic_path)
     else:
         raise ValueError(f"cannot resume corrupt checkpoint: invalid result status {status!r}")
+    unsafe = [str(path) for path in [case_dir, *required] if path.is_symlink()]
+    if unsafe:
+        raise ValueError("cannot resume corrupt checkpoint: unsafe artifact references: " + ", ".join(unsafe))
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
-        raise ValueError(
-            "cannot resume corrupt checkpoint: missing artifact files: " + ", ".join(missing)
-        )
+        raise ValueError("cannot resume corrupt checkpoint: missing artifact files: " + ", ".join(missing))
+    digests = row.get("artifact_sha256")
+    if "artifact_sha256" in row:
+        if (not isinstance(digests, dict) or not {path.name for path in required} <= set(digests)
+                or not set(digests) <= set(_RUNNER_ARTIFACT_FILES)):
+            raise ValueError("cannot resume unverifiable checkpoint: missing or invalid artifact hashes")
+        for name, expected in digests.items():
+            path = case_dir / name
+            if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
+                raise ValueError(f"cannot resume corrupt checkpoint: artifact hash differs: {name}")
+    verified_generation_artifact(case_dir / "corpus.json", row, "trial_corpus_sha256")
+    if status in {"completed", "completed_with_correction_error"}:
+        verified_generation_artifact(case_dir / "final.md", row, "final_output_sha256")
 
 
 def _reconstruct_failure_state(
@@ -243,7 +268,7 @@ def _reconstruct_observed_cost(
         for call in _operation_call_records(row):
             cost = call.get("cost_usd")
             if cost is None:
-                continue
+                raise ValueError("cannot resume with a cost ceiling: recorded provider billing is unknown")
             if (
                 not isinstance(cost, (int, float))
                 or isinstance(cost, bool)
@@ -293,10 +318,6 @@ def _validate_resume_row(
 ) -> None:
     from evaluator.scoring import _base_result
 
-    if _result_key(row) != plan.planned_keys[index]:
-        raise ValueError(
-            "cannot resume corrupt checkpoint: recorded results are not an exact execution-plan prefix"
-        )
     adapter, prompt_version, _path, case, variant = plan.planned_units[index]
     expected_base = _base_result(
         adapter,
@@ -374,6 +395,8 @@ def _resume_state(
     results: list[dict[str, Any]] = raw_results
     if len(results) > len(plan.planned_units):
         raise ValueError("cannot resume corrupt checkpoint: more results than planned")
+    if [_result_key(row) for row in results] != plan.planned_keys[:len(results)]:
+        raise ValueError("cannot resume corrupt checkpoint: recorded results are not an exact execution-plan prefix")
     for index, row in enumerate(results):
         _validate_resume_row(row, index, plan, output_dir)
     observed = (

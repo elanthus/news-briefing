@@ -329,7 +329,7 @@ def main() -> int:
 
     verify_public = subparsers.add_parser(
         "verify-public-run",
-        help="verify public evidence hashes and regenerate its aggregate report",
+        help="verify public evidence integrity, source metadata, and score ledger",
     )
     verify_public.add_argument("output_dir", type=Path)
 

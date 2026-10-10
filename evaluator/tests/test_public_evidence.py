@@ -7,9 +7,17 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.runner import ROOT
+
+
+def _refresh_sums(output: Path) -> None:
+    (output / "SHA256SUMS").write_text("".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(output.iterdir()) if path.name != "SHA256SUMS"
+    ), encoding="utf-8")
 
 
 class PublicRunTest(unittest.TestCase):
@@ -18,7 +26,7 @@ class PublicRunTest(unittest.TestCase):
             root = Path(directory)
             source = root / "source"
             source.mkdir()
-            manifest = {
+            manifest: dict[str, Any] = {
                 "schema_version": 9,
                 "generation_path": "markdown",
                 "run_kind": "final",
@@ -106,10 +114,38 @@ class PublicRunTest(unittest.TestCase):
                 if path.is_file() and path.name != "SHA256SUMS"
             )
             (output / "SHA256SUMS").write_text(sums, encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "report.md"):
+            with patch("evaluator.publication.summarize", side_effect=AssertionError("current reporter used")), patch(
+                "evaluator.publication.markdown_report", side_effect=AssertionError("current rendering used")
+            ):
+                self.assertEqual(verify_public_run(output)["status"], "verified")
+
+            # Matching rewritten checksums cannot make contradictory metadata or
+            # changed score primitives agree with the independently rebuilt ledger.
+            metadata["source_tag"] = "other-tag"
+            (output / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+            _refresh_sums(output)
+            with self.assertRaisesRegex(ValueError, "source_tag mismatch"):
+                verify_public_run(output)
+            metadata["source_tag"] = manifest["code"]["source_tag"]
+            metadata["files"]["report.md"]["bytes"] += 1
+            (output / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+            _refresh_sums(output)
+            with self.assertRaisesRegex(ValueError, r"metadata.json \(report.md\)"):
+                verify_public_run(output)
+            metadata["files"]["report.md"]["bytes"] -= 1
+            public_manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            public_manifest["results"][0]["first"]["cost_usd"] = 99
+            (output / "manifest.json").write_text(json.dumps(public_manifest), encoding="utf-8")
+            metadata["files"]["manifest.json"] = {
+                "bytes": (output / "manifest.json").stat().st_size,
+                "sha256": hashlib.sha256((output / "manifest.json").read_bytes()).hexdigest(),
+            }
+            (output / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+            _refresh_sums(output)
+            with self.assertRaisesRegex(ValueError, "row primitive mismatch"):
                 verify_public_run(output)
 
-    def test_export_combines_whole_adapter_split_checkpoints(self) -> None:
+    def test_export_combines_complete_disjoint_adapter_components(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             suite_path = root / "suite.json"
@@ -209,25 +245,21 @@ class PublicRunTest(unittest.TestCase):
             ]
             primary = root / "primary"
             primary.mkdir()
-            primary_manifest = {
+            primary_manifest: dict[str, Any] = {
                 **common,
-                "run_status": "running",
-                "planned_case_trials": 4,
-                "generation_controls": controls,
+                "run_status": "complete",
+                "planned_case_trials": 2,
+                "generation_controls": [controls[0]],
                 "adapter_timeouts_seconds": [
                     {"provider": "openrouter", "model": "model-a", "timeout_seconds": 300},
-                    {"provider": "openrouter", "model": "model-b", "timeout_seconds": 300},
                 ],
                 "observed_ceiling_cost_usd": 0.01,
                 "cost_ceiling_usd": 0.05,
-                "completed_at": None,
+                "completed_at": "2026-01-01T00:00:00+00:00",
                 "checkpointed_at": "2026-01-01T00:00:00+00:00",
                 "results": [
                     row("model-a", 0.01),
                     row("model-a", 0.01, "prompt-2"),
-                    # This interrupted prefix is superseded by supplement's
-                    # exact whole adapter matrix and must not be published.
-                    row("model-b", 0.01),
                 ],
             }
             primary_path = primary / "manifest.json"
@@ -255,6 +287,20 @@ class PublicRunTest(unittest.TestCase):
             supplement_path = supplement / "manifest.json"
             supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
 
+            primary_manifest["run_status"] = "running"
+            primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "complete components"):
+                export_public_run([primary_path, supplement_path], root / "interrupted")
+            primary_manifest["run_status"] = "complete"
+            primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "disjoint adapter sets"):
+                export_public_run([primary_path, primary_path], root / "overlap")
+            primary_manifest["results"].append(primary_manifest["results"][0])
+            primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate rows"):
+                export_public_run([primary_path, supplement_path], root / "duplicate")
+            primary_manifest["results"].pop()
+            primary_path.write_text(json.dumps(primary_manifest), encoding="utf-8")
             output = root / "public"
             export_public_run([primary_path, supplement_path], output)
             published = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
@@ -268,8 +314,7 @@ class PublicRunTest(unittest.TestCase):
                 for component in published["split_run_components"]
                 if component["name"] == "primary"
             )
-            self.assertEqual(primary_component["selected_rows"], 2)
-            self.assertEqual(primary_component["excluded_partial_rows"], 1)
+            self.assertEqual(primary_component["rows"], 2)
             self.assertEqual(
                 {component["cost_ceiling_usd"] for component in published["split_run_components"]},
                 {0.04, 0.05},

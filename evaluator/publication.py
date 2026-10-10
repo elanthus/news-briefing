@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from agent_runner.checkpoint import sha256_file
 
+from evaluator.evidence_assets import read_sums
 from evaluator.report import markdown_report, summarize
 from evaluator.runner import ROOT
 from evaluator.scoring import apply_adjudications
@@ -156,19 +158,11 @@ def _error_row_count(source: dict[str, Any]) -> int:
 def _component_descriptor(
     path: Path,
     source: dict[str, Any],
-    selected_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    selected = source["results"] if selected_rows is None else selected_rows
     return {
         "name": path.parent.name,
         "manifest_sha256": sha256_file(path),
         "rows": len(source["results"]),
-        "selected_rows": len(selected),
-        "excluded_partial_rows": len(source["results"]) - len(selected),
-        "selected_adapters": [
-            {"provider": provider, "model": model}
-            for provider, model in sorted({_adapter_key(row) for row in selected})
-        ],
         "planned_case_trials": source.get("planned_case_trials"),
         "original_run_status": source.get("run_status"),
         "error_rows": _error_row_count(source),
@@ -268,74 +262,41 @@ def _merge_public_sources(
             + ", ".join(mismatches)
         )
 
-    controls: dict[tuple[Any, Any], dict[str, Any]] = {}
-    timeouts: dict[tuple[Any, Any], dict[str, Any]] = {}
-    rows_by_adapter: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
-    per_adapter_units: int | None = None
-    per_adapter_matched_pairs: int | None = None
-    block_candidates: dict[
-        tuple[Any, Any],
-        list[tuple[dict[str, Any], Path, list[dict[str, Any]]]],
-    ] = {}
-    partial_adapters: set[tuple[Any, Any]] = set()
-    adjudicated_sources: list[tuple[dict[str, Any], Path]] = []
+    controls: list[dict[str, Any]] = []
+    timeouts: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
+    adapters: set[tuple[Any, Any]] = set()
     observed_cost = 0.0
-    expected_adapter_rows = _expected_adapter_rows(first)
-    for source, path in loaded:
+    expected_rows = _expected_adapter_rows(first)
+    matched_pairs = len(first.get("matched_pair_case_ids", [])) * len(first["prompt_order"]) * first["trials_per_case"]
+    for source, _path in loaded:
+        if source.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
+            raise ValueError("split public evidence requires complete components")
         source_controls = source.get("generation_controls")
         if not isinstance(source_controls, list) or not source_controls:
             raise ValueError("split final-run manifests require generation controls")
-        source_control_keys = [_adapter_key(control) for control in source_controls]
-        if len(source_control_keys) != len(set(source_control_keys)):
+        source_keys = [_adapter_key(control) for control in source_controls]
+        if len(source_keys) != len(set(source_keys)):
             raise ValueError("split final-run manifest has duplicate generation controls")
-        planned = source.get("planned_case_trials")
-        if (
-            not isinstance(planned, int)
-            or isinstance(planned, bool)
-            or planned <= 0
-            or planned % len(source_controls)
-        ):
-            raise ValueError("split final-run manifest has an invalid planned row count")
-        source_per_adapter = planned // len(source_controls)
-        if per_adapter_units is None:
-            per_adapter_units = source_per_adapter
-        elif source_per_adapter != per_adapter_units:
-            raise ValueError("split final-run manifests disagree on rows per adapter")
-        planned_pairs = source.get("planned_matched_pair_trials", 0)
-        if (
-            not isinstance(planned_pairs, int)
-            or isinstance(planned_pairs, bool)
-            or planned_pairs < 0
-            or planned_pairs % len(source_controls)
-        ):
-            raise ValueError("split final-run manifest has an invalid matched-pair count")
-        source_pairs_per_adapter = planned_pairs // len(source_controls)
-        if per_adapter_matched_pairs is None:
-            per_adapter_matched_pairs = source_pairs_per_adapter
-        elif source_pairs_per_adapter != per_adapter_matched_pairs:
-            raise ValueError("split final-run manifests disagree on matched pairs per adapter")
-
-        for control in source_controls:
-            key = _adapter_key(control)
-            previous = controls.setdefault(key, control)
-            if previous != control:
-                raise ValueError(f"split final-run generation controls differ for {key}")
+        if adapters.intersection(source_keys):
+            raise ValueError("split final-run components require disjoint adapter sets")
         source_timeouts = source.get("adapter_timeouts_seconds")
         if not isinstance(source_timeouts, list):
             raise ValueError("split final-run manifest requires adapter timeouts")
-        source_timeout_keys = [_adapter_key(timeout) for timeout in source_timeouts]
-        if (
-            len(source_timeout_keys) != len(set(source_timeout_keys))
-            or set(source_timeout_keys) != set(source_control_keys)
-        ):
+        timeout_keys = [_adapter_key(timeout) for timeout in source_timeouts]
+        if len(timeout_keys) != len(set(timeout_keys)) or set(timeout_keys) != set(source_keys):
             raise ValueError("split final-run adapter timeouts do not match its controls")
-        for timeout in source_timeouts:
-            key = _adapter_key(timeout)
-            previous = timeouts.setdefault(key, timeout)
-            if previous != timeout:
-                raise ValueError(f"split final-run adapter timeouts differ for {key}")
-
-        source_rows: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+        planned = source.get("planned_case_trials")
+        if (not isinstance(planned, int) or isinstance(planned, bool)
+                or planned != len(expected_rows) * len(source_keys)):
+            raise ValueError("split final-run planned rows differ from the frozen suite matrix")
+        planned_pairs = source.get("planned_matched_pair_trials", 0)
+        if (not isinstance(planned_pairs, int) or isinstance(planned_pairs, bool)
+                or planned_pairs != matched_pairs * len(source_keys)):
+            raise ValueError("split final-run planned matched pairs differ from the frozen suite matrix")
+        source_rows: dict[tuple[Any, Any], set[tuple[Any, Any, Any]]] = {
+            key: set() for key in source_keys
+        }
         for row in source["results"]:
             if not _is_publishable_row(row):
                 raise ValueError(
@@ -343,129 +304,39 @@ def _merge_public_sources(
                     "or to carry a recorded provider failure"
                 )
             adapter = _adapter_key(row)
-            if adapter not in {_adapter_key(control) for control in source_controls}:
+            if adapter not in source_rows:
                 raise ValueError("split final-run row references an unconfigured adapter")
-            source_rows.setdefault(adapter, []).append(row)
-
-        for adapter, rows in source_rows.items():
-            row_keys = [(
-                row.get("prompt_version"),
-                row.get("case_id"),
-                row.get("trial"),
-            ) for row in rows]
-            if len(row_keys) != len(set(row_keys)):
-                raise ValueError(
-                    f"split final-run manifest contains duplicate rows for {adapter}"
-                )
-            if not set(row_keys) <= expected_adapter_rows:
-                raise ValueError(
-                    "split final-run checkpoints may contain only exact whole adapter "
-                    "matrices or strict prefixes superseded by a whole adapter matrix"
-                )
-            if set(row_keys) == expected_adapter_rows:
-                block_candidates.setdefault(adapter, []).append((source, path, rows))
-            else:
-                partial_adapters.add(adapter)
-
-        if source_per_adapter != len(expected_adapter_rows):
-            raise ValueError("split final-run planned rows differ from the frozen suite matrix")
-        if source.get("run_status") in _PUBLISHABLE_RUN_STATUSES:
-            if (
-                len(source["results"]) != planned
-                or set(source_rows) != set(source_control_keys)
-                or any(
-                    len(rows) != source_per_adapter
-                    for rows in source_rows.values()
-                )
-            ):
-                raise ValueError("complete split final-run manifest is missing rows")
-        elif source.get("run_status") != "running":
-            raise ValueError(
-                "split public evidence accepts only complete runs or clean interrupted checkpoints"
-            )
-
-        adjudicated = copy.deepcopy(source)
-        apply_adjudications(adjudicated, path.parent)
-        adjudicated_sources.append((adjudicated, path))
+            key = (row.get("prompt_version"), row.get("case_id"), row.get("trial"))
+            if key in source_rows[adapter]:
+                raise ValueError(f"split final-run manifest contains duplicate rows for {adapter}")
+            source_rows[adapter].add(key)
+        if any(keys != expected_rows for keys in source_rows.values()):
+            raise ValueError("split final-run components require exact whole adapter matrices")
         cost = source.get("observed_ceiling_cost_usd", 0.0)
-        if not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0:
+        if not isinstance(cost, (int, float)) or isinstance(cost, bool) or not math.isfinite(cost) or cost < 0:
             raise ValueError("split final-run manifest has an invalid observed cost")
         observed_cost += float(cost)
-
-    assert per_adapter_units is not None
-    missing = sorted(set(controls) - set(block_candidates))
-    if missing:
-        raise ValueError(f"split final-run manifests are missing adapters: {missing}")
-    duplicates = sorted(
-        adapter for adapter, candidates in block_candidates.items() if len(candidates) != 1
-    )
-    if duplicates:
-        raise ValueError(
-            f"split final-run manifests contain duplicate whole adapter matrices: {duplicates}"
-        )
-    if partial_adapters - set(block_candidates):
-        raise ValueError(
-            "split final-run checkpoints contain partial adapter rows without a "
-            "superseding whole adapter matrix"
-        )
-
-    selected_by_path: dict[Path, list[dict[str, Any]]] = {
-        path: [] for _source, path in adjudicated_sources
-    }
-    for adapter, candidates in block_candidates.items():
-        _source, path, _rows = candidates[0]
-        adjudicated = next(
-            source for source, source_path in adjudicated_sources if source_path == path
-        )
-        selected_by_path[path].extend(
-            row for row in adjudicated["results"] if _adapter_key(row) == adapter
-        )
-    component_rows = []
-    for source, path in adjudicated_sources:
-        selected = selected_by_path[path]
-        if not selected:
-            continue
-        component = copy.deepcopy(source)
-        component["results"] = selected
-        component_rows.append((component, path))
-        for row in selected:
-            rows_by_adapter.setdefault(_adapter_key(row), []).append(row)
-    if any(len(rows) != per_adapter_units for rows in rows_by_adapter.values()):
-        raise ValueError("split final-run manifests do not contain one full row set per adapter")
+        adapters.update(source_keys)
+        controls.extend(source_controls)
+        timeouts.extend(source_timeouts)
+        rows.extend(copy.deepcopy(source["results"]))
 
     merged = copy.deepcopy(first)
-    control_order = list(controls)
-    merged["generation_controls"] = [controls[key] for key in control_order]
-    merged["adapter_timeouts_seconds"] = [
-        timeouts[key] for key in control_order if key in timeouts
-    ]
-    merged["results"] = [
-        row
-        for key in control_order
-        for row in rows_by_adapter[key]
-    ]
-    merged["planned_case_trials"] = len(merged["results"])
-    merged["planned_matched_pair_trials"] = (
-        (per_adapter_matched_pairs or 0) * len(control_order)
-    )
+    merged["generation_controls"] = controls
+    merged["adapter_timeouts_seconds"] = timeouts
+    merged["results"] = rows
+    merged["planned_case_trials"] = len(rows)
+    merged["planned_matched_pair_trials"] = matched_pairs * len(adapters)
     merged["observed_ceiling_cost_usd"] = observed_cost
-    merged["run_status"] = (
-        "completed_with_errors"
-        if any(_error_row_count(source) for source, _path in component_rows)
-        else "complete"
-    )
-    timestamps = [
-        source.get("completed_at") or source.get("checkpointed_at")
-        for source, _path in loaded
-    ]
-    merged["completed_at"] = max(value for value in timestamps if isinstance(value, str))
+    merged["run_status"] = "completed_with_errors" if _error_row_count(merged) else "complete"
+    timestamps = [source.get("completed_at") for source, _path in loaded]
+    if any(not isinstance(value, str) or not value for value in timestamps):
+        raise ValueError("complete split final-run components require completion timestamps")
+    merged["completed_at"] = max(timestamps)
     merged["checkpointed_at"] = merged["completed_at"]
-    descriptors = [
-        _component_descriptor(path, source, selected_by_path[path])
-        for source, path in loaded
-    ]
+    descriptors = [_component_descriptor(path, source) for source, path in loaded]
     merged["split_run_components"] = descriptors
-    return merged, component_rows, descriptors
+    return merged, loaded, descriptors
 
 
 def export_public_run(
@@ -483,8 +354,11 @@ def export_public_run(
         raise ValueError(f"public evidence output already exists: {output_dir}")
 
     manifest = copy.deepcopy(source)
-    if len(components) == 1:
-        apply_adjudications(manifest, components[0][1].parent)
+    manifest["results"] = []
+    for component, path in components:
+        adjudicated = copy.deepcopy(component)
+        apply_adjudications(adjudicated, path.parent)
+        manifest["results"].extend(adjudicated["results"])
     manifest = _redact(manifest)
     manifest["suite"] = _portable_path(manifest["suite"])
     manifest["protocol"] = _portable_path(manifest["protocol"])
@@ -547,54 +421,67 @@ def export_public_run(
 
 
 def verify_public_run(output_dir: Path) -> dict[str, Any]:
-    """Verify evidence hashes and reproduce the committed aggregate report."""
-    metadata = json.loads((output_dir / "metadata.json").read_text(encoding="utf-8"))
+    """Verify declared bundle integrity and score primitives independently of report layout.
+
+    The release archive digest and in-tree checksum files authenticate historical
+    inputs before this check (see evidence_assets.fetch). A self-consistent bundle
+    alone cannot prove the authenticity of its own rewritten checksum file.
+    """
+    try:
+        metadata = json.loads((output_dir / "metadata.json").read_text(encoding="utf-8"))
+        sums = read_sums(output_dir)
+        manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+        ledger = json.loads((output_dir / "ledger.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError(f"public evidence verification failed: {exc}") from exc
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("files"), dict):
+        raise ValueError("public evidence verification failed: invalid metadata")
     failures = []
-    for name, expected in metadata["files"].items():
-        path = output_dir / name
-        if not path.is_file() or sha256_file(path) != expected["sha256"]:
-            failures.append(name)
-    sums_path = output_dir / "SHA256SUMS"
-    try:
-        sums = dict(
-            line.split("  ", 1)
-            for line in sums_path.read_text(encoding="utf-8").splitlines()
-            if line
-        )
-    except (OSError, UnicodeError, ValueError):
-        sums = {}
-        failures.append("SHA256SUMS (invalid)")
-    expected_sum_names = {
-        path.name
-        for path in output_dir.iterdir()
-        if path.is_file() and path.name != "SHA256SUMS"
-    }
-    if set(sums.values()) != expected_sum_names:
+    if (output_dir / "SHA256SUMS").is_symlink():
+        failures.append("SHA256SUMS (unsafe path)")
+    declared = metadata["files"]
+    required = {"manifest.json", "ledger.json", "report.json", "report.md", "adjudications.json"}
+    actual_names = {path.name for path in output_dir.iterdir()}
+    if not required <= set(declared) or set(sums) != set(declared) | {"metadata.json"}:
+        failures.append("metadata.json (file list mismatch)")
+    if actual_names != set(sums) | {"SHA256SUMS"}:
         failures.append("SHA256SUMS (file list mismatch)")
-    for expected_hash, name in sums.items():
+    # read_sums validates all names before they are used as filesystem paths.
+    for name, digest in sums.items():
         path = output_dir / name
-        if not path.is_file() or sha256_file(path) != expected_hash:
+        if path.is_symlink() or not path.is_file() or sha256_file(path) != digest:
             failures.append(f"SHA256SUMS ({name})")
-    manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
-    regenerated = summarize(manifest)
-    published = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
-    regenerated["generated_at"] = published.get("generated_at")
-    if regenerated != published:
-        failures.append("report.json (aggregate mismatch)")
-    expected_markdown = markdown_report(regenerated)
-    try:
-        published_markdown = (output_dir / "report.md").read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        published_markdown = ""
-    if published_markdown != expected_markdown:
-        failures.append("report.md (aggregate mismatch)")
-    ledger = json.loads((output_dir / "ledger.json").read_text(encoding="utf-8"))
+    for name, expected in declared.items():
+        # Only checksum-declared plain names may be read.
+        if name not in sums or not isinstance(expected, dict):
+            failures.append(f"metadata.json ({name})")
+            continue
+        path = output_dir / name
+        if (expected.get("sha256") != sums[name] or not path.is_file()
+                or expected.get("bytes") != path.stat().st_size):
+            failures.append(f"metadata.json ({name})")
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("results"), list):
+        raise ValueError("public evidence verification failed: invalid manifest")
+    if any(not isinstance(row, dict) for row in manifest["results"]):
+        raise ValueError("public evidence verification failed: invalid manifest rows")
+    if ("split_run_components" in manifest and
+            metadata.get("component_manifests") != manifest["split_run_components"]):
+        failures.append("metadata.json (component identity mismatch)")
+    code = manifest.get("code")
+    if not isinstance(code, dict) or code.get("dirty") is not False:
+        failures.append("manifest.json (source identity mismatch)")
+    else:
+        for field, code_field in (("source_tag", "source_tag"), ("source_commit", "commit"), ("source_tree", "tree")):
+            if not metadata.get(field) or metadata[field] != code.get(code_field):
+                failures.append(f"metadata.json ({field} mismatch)")
+    if metadata.get("schema_version") != 1:
+        failures.append("metadata.json (schema mismatch)")
+    if manifest.get("run_kind") != "final" or manifest.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
+        failures.append("manifest.json (incomplete final run)")
     if ledger != _score_ledger(manifest):
         failures.append("ledger.json (row primitive mismatch)")
     if failures:
-        raise ValueError(
-            "public evidence verification failed: " + ", ".join(dict.fromkeys(failures))
-        )
+        raise ValueError("public evidence verification failed: " + ", ".join(dict.fromkeys(failures)))
     return {
         "status": "verified",
         "source_tag": metadata["source_tag"],
