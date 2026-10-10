@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import briefing_config
-import fetch_news
 from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
@@ -21,6 +20,13 @@ def _nonnegative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
     return parsed
 
 
@@ -56,29 +62,20 @@ def main() -> int:
     parser.add_argument("--run-dir", type=Path, help="artifact directory; generated when omitted")
     parser.add_argument("--jev-review-dir", type=Path,
                         help="write a separate Jev advisory review after a ready run; uses OPENROUTER_API_KEY")
-    parser.add_argument(
-        "--resume",
-        type=Path,
-        metavar="RUN_DIR",
-        help="resume an interrupted run after verifying its invocation and artifacts",
-    )
     parser.add_argument("--force", action="store_true", help="replace an existing --output file")
     parser.add_argument("--config", type=Path, default=briefing_config.DEFAULT_CONFIG_PATH)
-    parser.add_argument("--sources", type=Path, default=fetch_news.DEFAULT_SOURCES_PATH)
     parser.add_argument(
         "--corpus",
         type=Path,
-        help="replay an existing corpus instead of fetching live sources",
+        required=True,
+        help="frozen corpus to validate and generate from",
     )
     parser.add_argument("--prompt", type=Path, default=ROOT / "briefing-runner-prompt.md")
-    parser.add_argument("--hours", type=fetch_news.positive_int, default=fetch_news.DEFAULT_WINDOW_HOURS)
-    parser.add_argument("--source-cap", type=fetch_news.positive_int, default=fetch_news.DEFAULT_SOURCE_CAP)
-    parser.add_argument("--category-cap", type=fetch_news.positive_int, default=fetch_news.DEFAULT_CATEGORY_CAP)
     parser.add_argument(
         "--timeout",
-        type=fetch_news.positive_int,
+        type=_positive_int,
         default=600,
-        help="per-fetch and per-model-call deadline in seconds",
+        help="per-model-call deadline in seconds",
     )
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=1)
     parser.add_argument(
@@ -93,7 +90,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--max-tokens",
-        type=fetch_news.positive_int,
+        type=_positive_int,
         help=(
             "output ceiling: openrouter defaults to 100000, openai-compatible to the server's default, "
             "or 16000 with --lean-schema"
@@ -111,15 +108,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.resume and args.run_dir:
-        parser.error("--resume and --run-dir cannot be combined")
-    if args.output.exists() and not args.force and not args.resume:
+    if args.output.exists() and not args.force:
         parser.error(f"output already exists: {args.output}; pass --force to replace it")
-    required_paths = [("config", args.config), ("prompt", args.prompt)]
-    if args.corpus is not None:
-        required_paths.append(("corpus", args.corpus))
-    else:
-        required_paths.append(("sources", args.sources))
+    required_paths = [("config", args.config), ("prompt", args.prompt), ("corpus", args.corpus)]
     for label, path in required_paths:
         if not path.is_file():
             parser.error(f"{label} file does not exist: {path}")
@@ -176,19 +167,15 @@ def main() -> int:
         )
         settings = RunnerSettings(
             config_path=args.config.resolve(),
-            sources_path=args.sources.resolve(),
             prompt_path=args.prompt.resolve(),
             output_path=args.output.resolve(),
-            corpus_path=args.corpus.resolve() if args.corpus is not None else None,
-            hours=args.hours,
-            source_cap=args.source_cap,
-            category_cap=args.category_cap,
+            corpus_path=args.corpus.resolve(),
             timeout_seconds=args.timeout,
             max_corrections=args.max_corrections,
             strict=args.strict,
         )
-        run_dir = (args.resume or args.run_dir or _default_run_dir()).resolve()
-        result = run_workflow(provider, settings, run_dir, resume=bool(args.resume))
+        run_dir = (args.run_dir or _default_run_dir()).resolve()
+        result = run_workflow(provider, settings, run_dir)
     except (OSError, ValueError, RuntimeError, ProviderError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

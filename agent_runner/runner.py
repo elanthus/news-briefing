@@ -1,11 +1,10 @@
-"""Code-owned fetch, generation, validation, correction, and finalization loop."""
+"""Code-owned generation, validation, correction, and finalization loop."""
 
 from __future__ import annotations
 
 import json
 import platform
 import subprocess
-import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,13 +44,12 @@ from agent_runner.output import (
 from agent_runner.stages import (
     SELECTION_ATTEMPT_KINDS,
     SELECTION_PROMOTION_KIND,
+    decide_stage,
     evaluate_candidate,
-    stage_repair,
 )
 from agent_runner.stages import (
     selection_findings as check_selection,
 )
-from news_fetch.curation import DEFAULT_CATEGORY_CAP, DEFAULT_SOURCE_CAP
 from publication_schema import parse_repair_actions
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,23 +64,12 @@ def _portable_path(path: Path) -> str:
         return f"<external>/{resolved.name}"
 
 
-def _sanitize_process_output(text: str, replacements: Sequence[tuple[str, str]]) -> str:
-    """Replace known execution paths before process output becomes an artifact."""
-    for host_path, portable in sorted(replacements, key=lambda row: len(row[0]), reverse=True):
-        text = text.replace(host_path, portable)
-    return text
-
-
 @dataclass(frozen=True)
 class RunnerSettings:
     config_path: Path
-    sources_path: Path
     prompt_path: Path
     output_path: Path
-    corpus_path: Path | None = None
-    hours: int = 24
-    source_cap: int = DEFAULT_SOURCE_CAP
-    category_cap: int = DEFAULT_CATEGORY_CAP
+    corpus_path: Path
     timeout_seconds: int = 600
     max_corrections: int = 1
     strict: bool = False
@@ -109,19 +96,10 @@ class RunnerSettings:
                 for key in ("commit", "python", "source_sha256")
             },
         }
-        if self.corpus_path is not None:
-            if corpus_snapshot is None:
-                raise ValueError("replay identity requires the immutable corpus snapshot")
-            identity["corpus_path"] = _portable_path(self.corpus_path)
-            identity["corpus_sha256"] = sha256_bytes(corpus_snapshot)
-        else:
-            identity.update({
-                "sources_path": _portable_path(self.sources_path),
-                "sources_sha256": sha256_file(self.sources_path),
-                "hours": self.hours,
-                "source_cap": self.source_cap,
-                "category_cap": self.category_cap,
-            })
+        if corpus_snapshot is None:
+            raise ValueError("generation identity requires the immutable corpus snapshot")
+        identity["corpus_path"] = _portable_path(self.corpus_path)
+        identity["corpus_sha256"] = sha256_bytes(corpus_snapshot)
         return identity
 
 
@@ -171,84 +149,6 @@ def _git_provenance() -> dict[str, Any]:
     }
 
 
-def _fetch_corpus(store: RunStore, settings: RunnerSettings) -> dict[str, Any]:
-    corpus_path = store.root / "corpus.json"
-    command = [
-        sys.executable,
-        str(ROOT / "fetch_news.py"),
-        "--sources",
-        str(settings.sources_path),
-        "--hours",
-        str(settings.hours),
-        "--source-cap",
-        str(settings.source_cap),
-        "--category-cap",
-        str(settings.category_cap),
-        "--output",
-        str(corpus_path),
-    ]
-    trace_command = [
-        Path(sys.executable).name,
-        "fetch_news.py",
-        "--sources",
-        _portable_path(settings.sources_path),
-        "--hours",
-        str(settings.hours),
-        "--source-cap",
-        str(settings.source_cap),
-        "--category-cap",
-        str(settings.category_cap),
-        "--output",
-        "corpus.json",
-    ]
-    store.trace("fetch_started", command=trace_command)
-    try:
-        completed = subprocess.run(
-            command,
-            text=True,
-            capture_output=True,
-            check=False,
-            cwd=ROOT,
-            timeout=settings.timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"fetch_news.py exceeded the {settings.timeout_seconds}s fetch deadline"
-        ) from exc
-    replacements = [
-        (str(corpus_path), "corpus.json"),
-        (str(corpus_path.resolve()), "corpus.json"),
-        (str(settings.sources_path), _portable_path(settings.sources_path)),
-        (str(settings.sources_path.resolve()), _portable_path(settings.sources_path)),
-        (str((ROOT / "fetch_news.py").resolve()), "fetch_news.py"),
-        (str(Path(sys.executable).resolve()), Path(sys.executable).name),
-        (str(ROOT), "."),
-    ]
-    store.write_text("fetch.stdout", _sanitize_process_output(completed.stdout, replacements))
-    store.write_text("fetch.stderr", _sanitize_process_output(completed.stderr, replacements))
-    if completed.returncode != 0:
-        sanitized_stderr = _sanitize_process_output(completed.stderr, replacements).strip()
-        raise RuntimeError(
-            "fetch_news.py failed: "
-            + (sanitized_stderr or f"exit status {completed.returncode}")
-        )
-    store.record_artifact("corpus.json")
-    try:
-        corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"fetch_news.py wrote invalid JSON: {exc}") from exc
-    problems = corpus_schema.validate_corpus(corpus)
-    if problems:
-        raise RuntimeError("fetched corpus violates its schema: " + "; ".join(problems))
-    store.trace(
-        "fetch_completed",
-        retained_items=sum(len(items) for items in corpus["categories"].values()),
-        source_issues=corpus_schema.corpus_health_issue_count(corpus),
-    )
-    store.checkpoint("corpus_ready")
-    return corpus
-
-
 def _replay_corpus(
     store: RunStore,
     corpus_path: Path,
@@ -278,14 +178,6 @@ def _replay_corpus(
         source_issues=corpus_schema.corpus_health_issue_count(corpus),
     )
     store.checkpoint("corpus_ready")
-    return corpus
-
-
-def _load_corpus(store: RunStore) -> dict[str, Any]:
-    corpus = json.loads(store.read_verified_text("corpus.json"))
-    problems = corpus_schema.validate_corpus(corpus)
-    if problems:
-        raise ValueError("checkpoint corpus violates its schema: " + "; ".join(problems))
     return corpus
 
 
@@ -393,8 +285,8 @@ def promotion_actions(attempts: list[Any]) -> list[dict[str, str]]:
 
     Promotion happens in the selection stage but is tagged on the rendered
     topic in the prose stage, two different attempts. Reading the manifest
-    rather than threading the actions through keeps a resumed run identical to
-    an unresumed one: the attempt that recorded them is already durable.
+    rather than threading the actions through binds rendering to the durable
+    attempt that recorded them.
 
     Only the newest selection-stage attempt counts. Actions name output
     positions, and the renderer tags by position, so actions from a superseded
@@ -856,34 +748,10 @@ def _select_evidence(
     corpus: dict[str, Any],
     settings: RunnerSettings,
 ) -> _SelectionResult:
-    frozen_path = store.root / "frozen-selection.json"
-    if frozen_path.is_file():
-        selection = json.loads(store.read_verified_text("frozen-selection.json"))
-        store.manifest["citation_cardinality"]["selected_items"] = len(
-            _selected_refs(selection)
-        )
-        return _SelectionResult(selection)
-
-    selection_attempts = [
-        attempt for attempt in store.manifest["attempts"]
-        if attempt.get("kind") in SELECTION_ATTEMPT_KINDS
-    ]
-    if not selection_attempts:
-        selection = _call_provider(
-            store,
-            provider,
-            prompt=selection_request,
-            schema=selection_schema,
-            timeout_seconds=settings.timeout_seconds,
-            kind="selection",
-        )
-    else:
-        selection_attempt = selection_attempts[-1]
-        selection = json.loads(
-            (store.root / selection_attempt["structured_artifact"]).read_text(
-                encoding="utf-8"
-            )
-        )
+    selection = _call_provider(
+        store, provider, prompt=selection_request, schema=selection_schema,
+        timeout_seconds=settings.timeout_seconds, kind="selection",
+    )
 
     while True:
         selection_attempt = store.manifest["attempts"][-1]
@@ -903,13 +771,14 @@ def _select_evidence(
                 config=config,
                 citations=citations,
             )
-        repair = stage_repair(
+        decision = decide_stage(
             "selection", selection, selection_findings,
             config=config, citations=citations,
             last_kind=selection_attempt["kind"],
+            corrections_remaining=settings.max_corrections - _corrections_used(store, "selection_correction"),
         )
-        if repair is not None:
-            repair_kind, selection, repair_actions = repair
+        if decision.repair is not None:
+            repair_kind, selection, repair_actions = decision.repair
             _record_code_attempt(
                 store, repair_kind, selection, repair_actions,
                 lambda recorded, candidate: _validate_selection_attempt(
@@ -917,7 +786,7 @@ def _select_evidence(
                 ),
             )
             continue
-        if not any(f.get("level") == "ERROR" for f in selection_findings):
+        if decision.action == "accept":
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
@@ -930,7 +799,7 @@ def _select_evidence(
             )
             store.checkpoint("selection_frozen")
             return _SelectionResult(selection)
-        if _corrections_used(store, "selection_correction") >= settings.max_corrections:
+        if decision.action == "exhausted":
             return _SelectionResult(
                 selection,
                 _finalize_selection_preview(
@@ -983,25 +852,11 @@ def _write_prose(
     citations: dict[str, Citation],
     settings: RunnerSettings,
 ) -> RunResult:
-    prose_attempts = [
-        attempt for attempt in store.manifest["attempts"]
-        if attempt.get("kind") not in SELECTION_ATTEMPT_KINDS
-    ]
-    if not prose_attempts:
-        output = _call_provider(
-            store,
-            provider,
-            prompt=prose_request,
-            schema=prose_schema,
-            timeout_seconds=settings.timeout_seconds,
-            kind="prose",
-            transform=lambda prose: attach_frozen_selection(selection, prose, config),
-        )
-    else:
-        last = prose_attempts[-1]
-        output = json.loads(
-            (store.root / last["structured_artifact"]).read_text(encoding="utf-8")
-        )
+    output = _call_provider(
+        store, provider, prompt=prose_request, schema=prose_schema,
+        timeout_seconds=settings.timeout_seconds, kind="prose",
+        transform=lambda prose: attach_frozen_selection(selection, prose, config),
+    )
 
     while True:
         attempt = store.manifest["attempts"][-1]
@@ -1025,18 +880,18 @@ def _write_prose(
                 corpus=corpus,
                 config=config,
                 citations=citations,
-                # A resumed repair attempt validated here must render its
-                # recorded swap markers exactly as the unresumed run would.
+                # Render swap markers from the actions recorded by the repair.
                 repair_actions=attempt.get("repair_actions") or (),
                 pre_findings=prose_findings,
             )
-        repair = stage_repair(
+        decision = decide_stage(
             "prose", output, findings, corpus=corpus,
             config=config, citations=citations,
             last_kind=attempt["kind"],
+            corrections_remaining=settings.max_corrections - _corrections_used(store, "correction"),
         )
-        if repair is not None:
-            repair_kind, output, repair_actions = repair
+        if decision.repair is not None:
+            repair_kind, output, repair_actions = decision.repair
             # The validator reads the recorded actions: closing over the loop's
             # ``repair_actions`` instead would trip ruff B023.
             _record_code_attempt(
@@ -1047,7 +902,7 @@ def _write_prose(
                 ),
             )
             continue
-        if not any(f.get("level") == "ERROR" for f in findings):
+        if decision.action == "accept":
             return _finalize_candidate(
                 store,
                 attempt,
@@ -1056,7 +911,7 @@ def _write_prose(
                 citations=citations,
                 settings=settings,
             )
-        if _corrections_used(store, "correction") >= settings.max_corrections:
+        if decision.action == "exhausted":
             return _finalize_after_deterministic_repair(
                 store,
                 attempt,
@@ -1118,15 +973,9 @@ def run_workflow(
     provider: ModelProvider,
     settings: RunnerSettings,
     run_dir: Path,
-    *,
-    resume: bool = False,
 ) -> RunResult:
-    """Run or resume one complete briefing workflow."""
-    corpus_snapshot = (
-        settings.corpus_path.read_bytes()
-        if settings.corpus_path is not None
-        else None
-    )
+    """Run one fresh briefing workflow from an immutable corpus snapshot."""
+    corpus_snapshot = settings.corpus_path.read_bytes()
     provider_info = provider.info()
     code_info = _git_provenance()
     identity = settings.identity(
@@ -1134,33 +983,16 @@ def run_workflow(
         code_info,
         corpus_snapshot=corpus_snapshot,
     )
-    store = (
-        RunStore.resume(run_dir, identity=identity)
-        if resume
-        else RunStore.create(
-            run_dir,
-            identity=identity,
-            provider=provider_info,
-            code=code_info,
-        )
+    store = RunStore.create(
+        run_dir, identity=identity, provider=provider_info, code=code_info,
     )
     corpus: dict[str, Any] | None = None
     try:
-        corpus = (
-            _load_corpus(store)
-            if (store.root / "corpus.json").is_file()
-            else (
-                _replay_corpus(store, settings.corpus_path, corpus_snapshot)
-                if settings.corpus_path is not None and corpus_snapshot is not None
-                else _fetch_corpus(store, settings)
-            )
-        )
+        corpus = _replay_corpus(store, settings.corpus_path, corpus_snapshot)
         config_data = json.loads(settings.config_path.read_text(encoding="utf-8"))
         config = briefing_config.parse_config(config_data)
-        recorded_artifacts = store.manifest.get("artifacts", {})
-        if not isinstance(recorded_artifacts, dict) or "briefing-config.json" not in recorded_artifacts:
-            store.write_json("briefing-config.json", config_data)
-            store.checkpoint("config_ready")
+        store.write_json("briefing-config.json", config_data)
+        store.checkpoint("config_ready")
         category_problems = briefing_config.validate_corpus_categories(
             config, set(corpus["categories"])
         )
@@ -1174,19 +1006,17 @@ def run_workflow(
             "model_visible_handles": len(projected.citations),
             "selected_items": None,
         }
-        if not (store.root / "model-corpus.json").exists():
-            store.write_json("model-corpus.json", projected.document)
-            store.write_json(
-                "citation-map.json",
-                {ref: citation.__dict__ for ref, citation in projected.citations.items()},
-            )
-            store.write_json("selection-schema.json", selection_schema)
-            store.checkpoint("request_ready")
+        store.write_json("model-corpus.json", projected.document)
+        store.write_json(
+            "citation-map.json",
+            {ref: citation.__dict__ for ref, citation in projected.citations.items()},
+        )
+        store.write_json("selection-schema.json", selection_schema)
+        store.checkpoint("request_ready")
         policy = prompt_policy(settings.prompt_path.read_text(encoding="utf-8"))
         selection_request = build_request(policy, config_data, projected)
-        if not (store.root / "selection-request.txt").exists():
-            store.write_text("selection-request.txt", selection_request)
-            store.checkpoint("request_ready")
+        store.write_text("selection-request.txt", selection_request)
+        store.checkpoint("request_ready")
 
         selection_result = _select_evidence(
             store,
@@ -1206,11 +1036,10 @@ def run_workflow(
         selected_evidence = project_selected_evidence(selection, projected)
         prose_schema = build_prose_schema(config, selection)
         prose_request = build_prose_request(policy, config_data, selected_evidence)
-        if not (store.root / "selected-evidence.json").exists():
-            store.write_json("selected-evidence.json", selected_evidence)
-            store.write_json("prose-schema.json", prose_schema)
-            store.write_text("prose-request.txt", prose_request)
-            store.checkpoint("prose_request_ready")
+        store.write_json("selected-evidence.json", selected_evidence)
+        store.write_json("prose-schema.json", prose_schema)
+        store.write_text("prose-request.txt", prose_request)
+        store.checkpoint("prose_request_ready")
 
         return _write_prose(
             store,

@@ -13,11 +13,11 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-import corpus_schema
 from agent_runner.integrity import (
     add_phase,
     blank_integrity,
     corpus_health,
+    degraded_health_records,
     generation_history,
     run_provenance,
 )
@@ -300,17 +300,11 @@ def _source_label(record: Any) -> str:
     return "source:unknown"
 
 
-def _degraded_sources(corpus_path: Path) -> tuple[str, ...]:
-    """Label the records `corpus_schema.degraded_source_records` enumerates."""
-    corpus = _load_json(corpus_path)
-    if not isinstance(corpus, dict):
-        return ()
-    labels: list[str] = []
-    for record in corpus_schema.degraded_source_records(corpus):
-        label = _source_label(record)
-        if label not in labels:
-            labels.append(label)
-    return tuple(labels)
+def _degraded_sources(health: list[dict[str, Any]] | None) -> tuple[str, ...]:
+    """Label the same verified source projection used by the detailed account."""
+    if health is None:
+        return ("source health unavailable",)
+    return tuple(dict.fromkeys(_source_label(row) for row in degraded_health_records(health)))
 
 
 def prepare_publication(
@@ -466,7 +460,7 @@ def prepare_publication(
         disposition=disposition,
         findings_count=findings_count,
         findings=findings,
-        degraded_sources=_degraded_sources(corpus_path),
+        degraded_sources=_degraded_sources(integrity["corpus_health"]),
         repair_actions=repair_actions,
         generation_failures=(
             summarize_failed_chain(_load_json(run_dir / FALLBACK_LOG_NAME))

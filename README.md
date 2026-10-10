@@ -25,17 +25,20 @@ Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS,
 Python 3.11+, no dependencies:
 
 ```bash
+# Collect a frozen corpus first
+python3 -S fetch_news.py --output corpus.json
+
 # Signed-in `claude` session
-python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --output briefing.md
+python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --corpus corpus.json --output briefing.md
 
 # Signed-in `codex` session
-python3 -S run_briefing.py --provider codex-cli --model gpt-5.6-terra --output briefing.md
+python3 -S run_briefing.py --provider codex-cli --model gpt-5.6-terra --corpus corpus.json --output briefing.md
 
 # Needs OPENROUTER_API_KEY
-python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-flash --output briefing.md
+python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-flash --corpus corpus.json --output briefing.md
 
 # Any OpenAI-compatible server (default: local Ollama)
-python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --output briefing.md
+python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --corpus corpus.json --output briefing.md
 ```
 
 A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.

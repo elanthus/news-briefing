@@ -23,7 +23,7 @@ from agent_runner.runner import (
 from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
-from agent_runner.stages import evaluate_candidate, selection_findings, stage_repair
+from agent_runner.stages import decide_stage, evaluate_candidate, selection_findings
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.checkpoint import _write_json_atomic, _write_text_atomic
@@ -239,14 +239,14 @@ def _prose_attempt(
             combined, corpus, config, projected.citations,
             repair_actions=promotion_actions,
         )
-    repair = stage_repair(
+    decision = decide_stage(
         "prose", complete_output, _finding_dicts(findings),
         corpus=corpus, config=config, citations=projected.citations,
-        last_kind="prose",
+        last_kind="prose", corrections_remaining=0,
     )
-    if repair is not None:
+    if decision.repair is not None:
         before_repair = findings
-        _kind, complete_output, repair_actions = repair
+        _kind, complete_output, repair_actions = decision.repair
         prose = detach_prose(complete_output, config)
         combined = _combine_structured_calls(calls, complete_output)
         text, sections, findings = _evaluate_structured_generation(
@@ -297,14 +297,14 @@ def _production_parity_after_selection(
     last_kind = "selection"
     promotion_actions: list[dict[str, str]] = []
     while True:
-        repair = stage_repair(
+        decision = decide_stage(
             "selection", selection, _finding_dicts(selection_findings),
-            config=config, citations=projected.citations, last_kind=last_kind,
+            config=config, citations=projected.citations, last_kind=last_kind, corrections_remaining=0,
         )
-        if repair is None:
+        if decision.repair is None:
             break
         before = selection_findings
-        last_kind, selection, repair_actions = repair
+        last_kind, selection, repair_actions = decision.repair
         selection_findings = _production_selection_findings(selection, config, projected.citations)
         if last_kind == "selection_promotion":
             promotion_actions = repair_actions
@@ -312,7 +312,7 @@ def _production_parity_after_selection(
             "selection" if last_kind == "selection_repair" else last_kind,
             before, selection_findings, repair_actions,
         ))
-    if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
+    if decision.action != "accept":
         text, sections = _empty_structured_result(config)
         return GenerationAttempt(
             generation=_combine_structured_calls(

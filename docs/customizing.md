@@ -71,14 +71,14 @@ python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --
 
 ## Run-time flags
 
-By default a run fetches live sources (`--corpus` replays a saved one instead), generates, validates, repairs what it can, and asks the model to correct what it can't.
+Fetch first with `fetch_news.py`, then pass the saved corpus to `run_briefing.py --corpus`. Generation validates, repairs what it can, and asks the model to correct what it can't. Each generation uses a fresh run directory; interrupted runs remain diagnostics. The benchmark retains its separate resume support.
 
 | Flag | Effect |
 |---|---|
-| `--hours` | Moves the publication window. Items older than the cutoff are never shown to the model. Reddit coverage is tuned for windows of about a day: longer windows request Reddit's top 25 posts of the week, so a multi-day window keeps fewer Reddit posts, and a window over a week can miss some entirely. |
-| `--source-cap` | Bounds how many items any one publisher contributes to the corpus. Reddit's five subreddits use a lower override (`REDDIT_SOURCE_CAP`) capped at whichever value is smaller. |
-| `--category-cap` | Bounds how many items any one category contributes. |
+| `fetch_news.py --hours` | Moves the publication window. Items older than the cutoff are never shown to the model. Reddit coverage is tuned for windows of about a day: longer windows request Reddit's top 25 posts of the week, so a multi-day window keeps fewer Reddit posts, and a window over a week can miss some entirely. |
+| `fetch_news.py --source-cap` | Bounds how many items any one publisher contributes to the corpus. Reddit's five subreddits use a lower override (`REDDIT_SOURCE_CAP`) capped at whichever value is smaller. |
+| `fetch_news.py --category-cap` | Bounds how many items any one category contributes. |
 | `--strict` | Returns nonzero on any checker finding or degraded source, for use in automation. |
-| `--corpus` | Replays a saved corpus instead of fetching. |
+| `run_briefing.py --corpus` | Required frozen corpus for generation; the exact bytes are archived and bound to the manifest hash. |
 
 Provider selection (`--provider claude-code-cli`, `codex-cli`, `openrouter`, or `openai-compatible` for a local server such as Ollama or LM Studio, with `--endpoint` and `--lean-schema` for the latter's MLX engine) is described in the README's [Generate one](../README.md#generate-one) section.

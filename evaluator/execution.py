@@ -15,6 +15,7 @@ import corpus_schema
 from agent_runner.output import ModelCorpus, build_selection_schema, project_corpus
 from agent_runner.runner import build_request as structured_model_request
 from agent_runner.runner import prompt_policy
+from agent_runner.stages import correction_action
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
@@ -264,7 +265,7 @@ def _run_correction(
     first_attempt: GenerationAttempt,
     first: ScoredAttempt,
 ) -> tuple[GenerationAttempt | None, dict[str, Any] | None]:
-    if first.contract_success:
+    if correction_action(first.contract_success, 1) != "correct":
         return None, None
     if (
         context.ceiling_limit is not None

@@ -19,7 +19,6 @@ class DailyBriefingFallbackTests(unittest.TestCase):
     def _settings(root: Path) -> RunnerSettings:
         return RunnerSettings(
             config_path=root / "config.json",
-            sources_path=root / "sources.json",
             prompt_path=root / "prompt.md",
             output_path=root / "briefing.md",
             corpus_path=root / "corpus.json",

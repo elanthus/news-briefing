@@ -1,7 +1,6 @@
 import copy
 import io
 import json
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,10 +15,10 @@ from agent_runner import stages
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.output import promote_excluded_to_underfilled
+from agent_runner.publication import verified_publication
 from agent_runner.runner import (
     RunnerSettings,
     RunResult,
-    _fetch_corpus,
     build_request,
     promotion_actions,
     run_workflow,
@@ -122,11 +121,11 @@ class FakeProvider:
         )
 
 
-def fake_fetch(corpus):
-    def run(store, _settings):
+def fake_corpus(corpus):
+    def run(store, _path, _snapshot):
         store.write_json("corpus.json", corpus)
         store.trace(
-            "fetch_completed",
+            "corpus_replay_completed",
             retained_items=1,
             source_issues=corpus_schema.corpus_health_issue_count(corpus),
         )
@@ -140,7 +139,7 @@ class RunnerTests(unittest.TestCase):
     def settings(self, output):
         return RunnerSettings(
             config_path=ROOT / "fixtures/briefing-config-2026-08-11.json",
-            sources_path=ROOT / "sources.json",
+            corpus_path=ROOT / "fixtures/corpus-2026-08-11.json",
             prompt_path=ROOT / "briefing-runner-prompt.md",
             output_path=output,
             timeout_seconds=30,
@@ -150,7 +149,7 @@ class RunnerTests(unittest.TestCase):
         corpus, _config, projected, output = fixture_contract()
         provider = FakeProvider([output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -240,8 +239,7 @@ class RunnerTests(unittest.TestCase):
                 self.settings(root / "briefing.md"),
                 corpus_path=source,
             )
-            with patch("agent_runner.runner._fetch_corpus") as fetch:
-                result = run_workflow(FakeProvider([output]), settings, root / "run")
+            result = run_workflow(FakeProvider([output]), settings, root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             replayed = (root / "run/corpus.json").read_text(encoding="utf-8")
             trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
@@ -251,7 +249,6 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("sources_path", manifest["identity"])
         self.assertNotIn("hours", manifest["identity"])
         self.assertIn("corpus_replay_completed", trace)
-        fetch.assert_not_called()
 
     def test_replay_identity_and_archive_share_one_immutable_snapshot(self):
         corpus, _config, _projected, output = fixture_contract()
@@ -272,9 +269,7 @@ class RunnerTests(unittest.TestCase):
                 self.settings(root / "briefing.md"),
                 corpus_path=source,
             )
-            with patch.object(Path, "read_bytes", mutate_after_snapshot), patch(
-                "agent_runner.runner._fetch_corpus"
-            ) as fetch:
+            with patch.object(Path, "read_bytes", mutate_after_snapshot):
                 result = run_workflow(FakeProvider([output]), settings, root / "run")
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
             archived = (root / "run/corpus.json").read_bytes()
@@ -282,13 +277,12 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.status, "ready")
         self.assertEqual(archived, original)
         self.assertEqual(manifest["identity"]["corpus_sha256"], sha256_bytes(original))
-        fetch.assert_not_called()
 
     def test_strict_mode_fails_a_ready_candidate_with_findings(self):
         corpus, _config, _projected, output = fixture_contract()
         provider = FakeProvider([output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), strict=True)
@@ -311,7 +305,7 @@ class RunnerTests(unittest.TestCase):
         corpus["processing"][source["category"]]["undated_dropped"] += 1
 
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), strict=True)
@@ -331,7 +325,7 @@ class RunnerTests(unittest.TestCase):
             "figure absent from the bounded feed excerpt",
         )
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
             "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
         ):
@@ -358,7 +352,7 @@ class RunnerTests(unittest.TestCase):
             eval_briefing.ERROR, "category_ineligible", "forced editorial error"
         )
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
             "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
         ):
@@ -384,7 +378,7 @@ class RunnerTests(unittest.TestCase):
         )
         unsafe_render = "# Briefing\n\nhttps://attacker.invalid/rendered\n"
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch(
             "agent_runner.stages.render_briefing", return_value=unsafe_render
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
@@ -409,7 +403,7 @@ class RunnerTests(unittest.TestCase):
             eval_briefing.ERROR, "ungrounded_link", "outside corpus"
         )
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch("agent_runner.runner.eval_briefing.evaluate", return_value=[forced]), patch(
             "agent_runner.stages.eval_briefing.evaluate_parsed", return_value=[forced]
         ):
@@ -445,7 +439,7 @@ class RunnerTests(unittest.TestCase):
         ]
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -469,7 +463,7 @@ class RunnerTests(unittest.TestCase):
             broken["excluded_topics"][name] = []
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -495,7 +489,7 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(set(excluded["citation_refs"]).isdisjoint(reported["citation_refs"]))
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -518,7 +512,7 @@ class RunnerTests(unittest.TestCase):
         )
         provider = FakeProvider([output, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             requested = root / "briefing.md"
@@ -545,7 +539,7 @@ class RunnerTests(unittest.TestCase):
         )
         provider = FakeProvider([broken_selection, broken_prose, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(
@@ -568,7 +562,7 @@ class RunnerTests(unittest.TestCase):
         ]
         provider = FakeProvider([broken, broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(
@@ -598,7 +592,7 @@ class RunnerTests(unittest.TestCase):
         ]
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(
@@ -627,7 +621,7 @@ class RunnerTests(unittest.TestCase):
         )
         broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             requested_output = root / "briefing.md"
@@ -666,7 +660,7 @@ class RunnerTests(unittest.TestCase):
         broken["sections"][section.name]["topics"][0]["citation_refs"] = [ineligible_ref]
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             # Default budget (max_corrections=1) is available, but eager repair
@@ -703,7 +697,7 @@ class RunnerTests(unittest.TestCase):
         promoted_ref = broken["excluded_topics"][section.name][0]["citation_refs"][0]
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             requested_output = root / "briefing.md"
@@ -763,7 +757,7 @@ class RunnerTests(unittest.TestCase):
             topic["citation_refs"] = [ineligible_ref]
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -901,7 +895,7 @@ class RunnerTests(unittest.TestCase):
         broken["excluded_topics"][section.name] = []
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -940,7 +934,7 @@ class RunnerTests(unittest.TestCase):
         entry["summary"] = bloated
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -992,7 +986,7 @@ class RunnerTests(unittest.TestCase):
 
         provider = FakeProvider([broken, broken])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch.object(stages, "repair_structural_output", side_effect=non_converging_repair):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -1012,7 +1006,7 @@ class RunnerTests(unittest.TestCase):
         ]
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -1030,7 +1024,7 @@ class RunnerTests(unittest.TestCase):
         )
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             requested_output = root / "briefing.md"
@@ -1080,7 +1074,7 @@ class RunnerTests(unittest.TestCase):
         })
         provider = FakeProvider([broken])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             settings = replace(self.settings(root / "briefing.md"), max_corrections=0)
@@ -1129,7 +1123,7 @@ class RunnerTests(unittest.TestCase):
 
         provider = FakeProvider([broken, output])
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ), patch.object(eval_briefing, "evaluate_parsed", side_effect=evaluate_with_injected_error):
             root = Path(directory)
             result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
@@ -1156,7 +1150,7 @@ class RunnerTests(unittest.TestCase):
         topic["summary"] += " https://attacker.invalid/instruction"
         topic["citation_refs"] = ["https://attacker.invalid/citation"]
         with tempfile.TemporaryDirectory() as directory, patch(
-            "agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
         ):
             root = Path(directory)
             result = run_workflow(
@@ -1175,200 +1169,69 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("attacker.invalid", structured_preview)
         self.assertIn("[destination omitted; use citation refs]", preview)
 
-    def test_checkpoint_resume_rejects_tampering_and_inflight_calls(self):
+
+    def test_artifact_reads_retain_hash_verification(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "run"
-            identity = {"provider": "fake"}
-            store = RunStore.create(root, identity=identity, provider={}, code={})
-            store.write_text("artifact.txt", "original")
-            store.checkpoint("artifact_ready")
-            resumed = RunStore.resume(root, identity=identity)
-            self.assertEqual(resumed.manifest["phase"], "artifact_ready")
-            trace = (root / "trace.jsonl").read_bytes()
-            (root / "trace.jsonl").write_text("tampered\n", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hash differs for trace.jsonl"):
-                RunStore.resume(root, identity=identity)
-            (root / "trace.jsonl").write_bytes(trace)
-            resumed.trace("trace_restored")
-            (root / "artifact.txt").write_text("tampered", encoding="utf-8")
+            store = RunStore.create(Path(directory) / "run", identity={}, provider={}, code={})
+            store.write_text("evidence.txt", "frozen")
+            self.assertEqual(store.read_verified_text("evidence.txt"), "frozen")
+            (store.root / "evidence.txt").write_text("changed")
             with self.assertRaisesRegex(ValueError, "hash differs"):
-                RunStore.resume(root, identity=identity)
+                store.read_verified_text("evidence.txt")
+            with self.assertRaisesRegex(ValueError, "not recorded"):
+                store.read_verified_text("unrecorded.txt")
 
-            store.write_text("artifact.txt", "original")
-            store.checkpoint("initial_call_started")
-            with self.assertRaisesRegex(ValueError, "in-flight"):
-                RunStore.resume(root, identity=identity)
-
-    def test_resume_rejects_a_manifest_without_trace_commit(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "run"
-            store = RunStore.create(root, identity={}, provider={}, code={})
-            manifest = dict(store.manifest)
-            del manifest["trace_commit"]
-            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "missing trace commit"):
-                RunStore.resume(root, identity={})
-            manifest["trace_commit"] = None
-            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "invalid trace commit"):
-                RunStore.resume(root, identity={})
-
-    def test_resume_discards_trace_suffix_left_before_manifest_commit(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "run"
-            identity = {"provider": "fake"}
-            store = RunStore.create(root, identity=identity, provider={}, code={})
-            store.checkpoint("artifact_ready")
-
-            with patch(
-                "agent_runner.checkpoint.write_json_atomic",
-                side_effect=KeyboardInterrupt,
-            ):
-                with self.assertRaises(KeyboardInterrupt):
-                    store.trace("uncommitted_trace_event")
-
-            resumed = RunStore.resume(root, identity=identity)
-            trace = (root / "trace.jsonl").read_text(encoding="utf-8")
-            self.assertNotIn("uncommitted_trace_event", trace)
-            self.assertIn('"event": "run_resumed"', trace)
-            self.assertEqual(
-                resumed.manifest["trace_commit"]["bytes"],
-                len((root / "trace.jsonl").read_bytes()),
-            )
-
-    def test_resume_after_validation_does_not_call_model_again(self):
+    def test_interrupted_run_remains_inspectable_and_cannot_restart_in_place(self):
         corpus, _config, _projected, output = fixture_contract()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            settings = self.settings(root / "briefing.md")
-            initial_provider = FakeProvider([output])
-            with patch("agent_runner.runner._fetch_corpus", side_effect=fake_fetch(corpus)), patch(
-                "agent_runner.runner._finalize_candidate", side_effect=KeyboardInterrupt
-            ):
+            source = root / "corpus.json"
+            source.write_text(json.dumps(corpus))
+            settings = replace(self.settings(root / "briefing.md"), corpus_path=source)
+            with patch("agent_runner.runner._finalize_candidate", side_effect=KeyboardInterrupt):
                 with self.assertRaises(KeyboardInterrupt):
-                    run_workflow(initial_provider, settings, root / "run")
-            resumed_provider = FakeProvider([])
-            result = run_workflow(
-                resumed_provider,
-                settings,
-                root / "run",
-                resume=True,
-            )
-            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(result.status, "ready")
-            self.assertEqual(manifest["status"], "complete")
-            self.assertGreater(manifest["citation_cardinality"]["selected_items"], 0)
-            self.assertEqual(resumed_provider.requests, [])
-
-    def test_resume_rejects_unrecorded_corpus_file(self):
-        corpus, _config, _projected, _output = fixture_contract()
-
-        def interrupted_fetch(store, _settings):
-            (store.root / "corpus.json").write_text(json.dumps(corpus), encoding="utf-8")
-            raise KeyboardInterrupt
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            settings = self.settings(root / "briefing.md")
+                    run_workflow(FakeProvider([output]), settings, root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text())
+            self.assertEqual(manifest["status"], "running")
+            self.assertIsNone(manifest["final"])
+            with self.assertRaisesRegex(ValueError, "completed run"):
+                verified_publication(root / "run")
+            self.assertFalse(settings.output_path.exists())
             provider = FakeProvider([])
-            with patch("agent_runner.runner._fetch_corpus", side_effect=interrupted_fetch):
-                with self.assertRaises(KeyboardInterrupt):
-                    run_workflow(provider, settings, root / "run")
-            with self.assertRaisesRegex(ValueError, "corpus.json is not recorded"):
-                run_workflow(provider, settings, root / "run", resume=True)
+            with self.assertRaises(FileExistsError):
+                run_workflow(provider, settings, root / "run")
+            self.assertEqual(provider.requests, [])
 
-    def test_resume_identity_includes_provider_generation_controls(self):
-        def interrupt_fetch(_store, _settings):
-            raise KeyboardInterrupt
-
+    def test_invalid_and_missing_corpora_prevent_provider_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            settings = self.settings(root / "briefing.md")
-            initial = FakeProvider([], generation_controls={"temperature": 0})
-            with patch("agent_runner.runner._fetch_corpus", side_effect=interrupt_fetch):
-                with self.assertRaises(KeyboardInterrupt):
-                    run_workflow(initial, settings, root / "run")
-            changed = FakeProvider([], generation_controls={"temperature": 1})
-            with self.assertRaisesRegex(ValueError, "invocation identity differs"):
-                run_workflow(changed, settings, root / "run", resume=True)
+            corpus_path = root / "input.json"
+            settings = replace(self.settings(root / "briefing.md"), corpus_path=corpus_path)
+            provider = FakeProvider([])
+            with self.assertRaises(FileNotFoundError):
+                run_workflow(provider, settings, root / "missing-run")
+            for index, payload in enumerate(("not json", "{}")):
+                corpus_path.write_text(payload)
+                run_dir = root / f"invalid-run-{index}"
+                with self.assertRaisesRegex(RuntimeError, "corpus"):
+                    run_workflow(provider, settings, run_dir)
+                self.assertEqual(json.loads((run_dir / "manifest.json").read_text())["status"], "failed")
+            self.assertEqual(provider.requests, [])
 
-    def test_fetch_timeout_fails_and_is_recorded(self):
-        code_info = {
-            "commit": None,
-            "dirty": None,
-            "python": "test",
-            "platform": "test",
-            "source_sha256": {},
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            settings = self.settings(root / "briefing.md")
-            with patch("agent_runner.runner._git_provenance", return_value=code_info), patch(
-                "agent_runner.runner.subprocess.run",
-                side_effect=subprocess.TimeoutExpired(["fetch_news.py"], 30),
-            ) as run:
-                with self.assertRaisesRegex(RuntimeError, "30s fetch deadline"):
-                    run_workflow(FakeProvider([]), settings, root / "run")
-            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
-            trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
-        self.assertEqual(run.call_args.kwargs["timeout"], 30)
-        self.assertEqual(manifest["status"], "failed")
-        self.assertEqual(manifest["error"]["type"], "RuntimeError")
-        self.assertEqual(manifest["outcome"]["disposition"], "no_result")
-        self.assertEqual(manifest["outcome"]["protocol"], "no_result")
-        self.assertIn('"event": "run_failed"', trace)
-
-    def test_fetch_artifacts_do_not_record_host_paths(self):
-        corpus, _config, _projected, _output = fixture_contract()
-
-        def completed(command, **_kwargs):
-            output = Path(command[command.index("--output") + 1])
-            output.write_text(json.dumps(corpus), encoding="utf-8")
-            return subprocess.CompletedProcess(
-                command,
-                0,
-                stdout=f"Wrote corpus to {output}\n",
-                stderr=f"loaded by {ROOT / 'fetch_news.py'}\n",
-            )
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            store = RunStore.create(root / "run", identity={}, provider={}, code={})
-            with patch("agent_runner.runner.subprocess.run", side_effect=completed):
-                _fetch_corpus(store, self.settings(root / "briefing.md"))
-            trace = (root / "run/trace.jsonl").read_text(encoding="utf-8")
-            stdout = (root / "run/fetch.stdout").read_text(encoding="utf-8")
-            stderr = (root / "run/fetch.stderr").read_text(encoding="utf-8")
-            host_root = str(root)
-
-        self.assertNotIn(host_root, trace + stdout + stderr)
-        self.assertIn('"fetch_news.py"', trace)
-        self.assertIn('"corpus.json"', trace)
-        self.assertIn("corpus.json", stdout)
-        self.assertIn("fetch_news.py", stderr)
-
-    def test_fetch_failure_message_sanitizes_host_paths_and_interpreter(self) -> None:
-        raw_interpreter = str(Path(sys.executable).resolve())
-        raw_fetcher = str((ROOT / "fetch_news.py").resolve())
-        completed = subprocess.CompletedProcess(
-            [raw_interpreter, raw_fetcher],
-            1,
-            stdout="",
-            stderr=f"{raw_interpreter}: cannot run {raw_fetcher}\n",
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            store = RunStore.create(root / "run", identity={}, provider={}, code={})
-            with (
-                patch("agent_runner.runner.subprocess.run", return_value=completed),
-                self.assertRaises(RuntimeError) as raised,
-            ):
-                _fetch_corpus(store, self.settings(root / "briefing.md"))
-        message = str(raised.exception)
-        self.assertNotIn(raw_interpreter, message)
-        self.assertNotIn(raw_fetcher, message)
-        self.assertIn(Path(sys.executable).name, message)
-        self.assertIn("fetch_news.py", message)
+    def test_cli_requires_corpus_and_rejects_removed_flags(self):
+        base = ["run_briefing.py", "--provider", "codex-cli", "--model", "fixture",
+                "--output", "briefing.md"]
+        for extra in ([], ["--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
+                              "--resume", "old-run"],
+                      ["--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
+                       "--hours", "24"]):
+            with self.subTest(extra=extra), patch.object(sys, "argv", base + extra), patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                with self.assertRaises(SystemExit) as exc:
+                    briefing_cli.main()
+                self.assertEqual(exc.exception.code, 2)
+                self.assertTrue("--corpus" in stderr.getvalue() or "unrecognized arguments" in stderr.getvalue())
 
     def test_cli_rejects_explicit_openrouter_options_for_cli_providers(self):
         cases = {
@@ -1383,7 +1246,7 @@ class RunnerTests(unittest.TestCase):
                     provider=provider, option=option
                 ), tempfile.TemporaryDirectory() as directory:
                     argv = [
-                        "run_briefing.py",
+                        "run_briefing.py", "--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
                         "--provider",
                         provider,
                         "--model",
@@ -1413,7 +1276,7 @@ class RunnerTests(unittest.TestCase):
         for provider, option, value, message in cases:
             with self.subTest(provider=provider, option=option), tempfile.TemporaryDirectory() as directory:
                 argv = [
-                    "run_briefing.py",
+                    "run_briefing.py", "--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
                     "--provider",
                     provider,
                     "--model",
@@ -1436,7 +1299,7 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             output = root / "briefing.md"
             argv = [
-                "run_briefing.py",
+                "run_briefing.py", "--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
                 "--provider",
                 "openai-compatible",
                 "--model",
@@ -1475,7 +1338,7 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             output = root / "briefing.md"
             argv = [
-                "run_briefing.py",
+                "run_briefing.py", "--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
                 "--provider",
                 "codex-cli",
                 "--model",
@@ -1509,7 +1372,7 @@ class RunnerTests(unittest.TestCase):
             root = Path(directory)
             output = root / "briefing.md"
             argv = [
-                "run_briefing.py",
+                "run_briefing.py", "--corpus", str(ROOT / "fixtures/corpus-2026-08-11.json"),
                 "--provider",
                 "openrouter",
                 "--model",

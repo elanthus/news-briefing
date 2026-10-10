@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import briefing_config
@@ -117,6 +118,43 @@ def selection_findings(
     if not any(f.level == "ERROR" for f in findings):
         findings.extend(empty_section_findings(selection, config, citations))
     return findings
+
+
+DecisionAction = Literal[
+    "selection_promotion", "selection_repair", "deterministic_repair",
+    "accept", "correct", "exhausted",
+]
+
+
+@dataclass(frozen=True)
+class StageDecision:
+    action: DecisionAction
+    repair: tuple[RepairKind, dict[str, Any], list[dict[str, str]]] | None = None
+
+
+def correction_action(success: bool, corrections_remaining: int) -> Literal["accept", "correct", "exhausted"]:
+    """Share acceptance and paid-correction eligibility across both callers."""
+    return "accept" if success else "correct" if corrections_remaining > 0 else "exhausted"
+
+
+def decide_stage(
+    stage: Literal["selection", "prose"],
+    output: Any,
+    findings: Sequence[Mapping[str, str]],
+    *,
+    config: briefing_config.BriefingConfig,
+    citations: dict[str, Citation],
+    last_kind: str,
+    corrections_remaining: int,
+    corpus: dict[str, Any] | None = None,
+) -> StageDecision:
+    """Choose promotion, repair, acceptance, correction or exhaustion in order."""
+    repair = stage_repair(stage, output, findings, config=config, citations=citations,
+                          last_kind=last_kind, corpus=corpus)
+    if repair is not None:
+        return StageDecision(repair[0], repair)
+    return StageDecision(correction_action(
+        not any(f.get("level") == "ERROR" for f in findings), corrections_remaining))
 
 
 def stage_repair(
