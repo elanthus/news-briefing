@@ -78,4 +78,3 @@ class PublicationArtifactTests(unittest.TestCase):
             write_json_atomic(original / "manifest.json", manifest)
             with self.assertRaisesRegex(ValueError, "Markdown differs"):
                 verified_publication(day)
-

@@ -115,4 +115,3 @@ def verified_publication(root: Path) -> tuple[Path, list[dict[str, Any]], dict[s
     if markdown.decode("utf-8") != expected:
         raise ValueError("published Markdown differs from the verified candidate")
     return selected, state.topics, hashes
-
