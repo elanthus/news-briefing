@@ -55,7 +55,7 @@ def _load_json(path: Path) -> Any:
 
 def resolve_ready_run_dir(day_dir: Path) -> Path | None:
     """Resolve the publication policy's ready generation (not proof of deployment)."""
-    _audit, selected = resolve_publication_run(day_dir)
+    _audit, selected, _original = resolve_publication_run(day_dir)
     if selected is None:
         return None
     manifest = _load_json(selected / "manifest.json")

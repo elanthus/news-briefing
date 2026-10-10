@@ -55,21 +55,27 @@ def selected_generation_run(root: Path) -> Path | None:
         return None
 
 
-def resolve_publication_run(root: Path) -> tuple[dict[str, Any] | None, Path | None]:
-    """Use the publication policy for accepted repairs and retained originals."""
+def resolve_publication_run(
+    root: Path,
+) -> tuple[dict[str, Any] | None, Path | None, Path | None]:
+    """Use the publication policy for accepted repairs and retained originals.
+
+    Returns ``(audit, selected, original)``: the verified public audit or
+    ``None``, the run to publish, and the original generation it came from.
+    """
     original = selected_generation_run(root)
     if original is None:
-        return None, None
+        return None, None, None
     if (root / "jev-review" / "audit.json").is_file():
-        return load_public_audit(original, root / "jev-review")
-    return None, original
+        return (*load_public_audit(original, root / "jev-review"), original)
+    return None, original, original
 
 
 def _verified_publication_artifacts(
     root: Path,
 ) -> tuple[Path, list[dict[str, Any]], dict[str, str], dict[str, Any]]:
     """Verify artifact identity without replaying a potentially newer renderer."""
-    _audit, selected = resolve_publication_run(root)
+    _audit, selected, _original = resolve_publication_run(root)
     if selected is None:
         raise ValueError("no ready publication candidate")
     topics, hashes = load_topics(selected)

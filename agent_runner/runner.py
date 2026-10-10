@@ -45,12 +45,8 @@ from agent_runner.output import (
 from agent_runner.stages import (
     SELECTION_ATTEMPT_KINDS,
     SELECTION_PROMOTION_KIND,
-    CorrectionBudget,
-    decide_stage,
     evaluate_candidate,
-)
-from agent_runner.stages import (
-    deterministic_repair_candidate as deterministic_repair_candidate,
+    stage_repair,
 )
 from agent_runner.stages import (
     selection_findings as check_selection,
@@ -907,23 +903,21 @@ def _select_evidence(
                 config=config,
                 citations=citations,
             )
-        decision = decide_stage(
+        repair = stage_repair(
             "selection", selection, selection_findings,
             config=config, citations=citations,
-            budget=CorrectionBudget(settings.max_corrections,
-                                    _corrections_used(store, "selection_correction")),
             last_kind=selection_attempt["kind"],
         )
-        if decision.repair is not None:
-            selection = decision.repair.output
+        if repair is not None:
+            repair_kind, selection, repair_actions = repair
             _record_code_attempt(
-                store, decision.action, selection, decision.repair.actions,
+                store, repair_kind, selection, repair_actions,
                 lambda recorded, candidate: _validate_selection_attempt(
                     store, recorded, candidate, config=config, citations=citations,
                 ),
             )
             continue
-        if decision.action == "accept":
+        if not any(f.get("level") == "ERROR" for f in selection_findings):
             selected_refs = _selected_refs(selection)
             store.write_json("frozen-selection.json", selection)
             store.manifest["citation_cardinality"]["selected_items"] = len(selected_refs)
@@ -936,7 +930,7 @@ def _select_evidence(
             )
             store.checkpoint("selection_frozen")
             return _SelectionResult(selection)
-        if decision.action == "exhausted":
+        if _corrections_used(store, "selection_correction") >= settings.max_corrections:
             return _SelectionResult(
                 selection,
                 _finalize_selection_preview(
@@ -1036,26 +1030,24 @@ def _write_prose(
                 repair_actions=attempt.get("repair_actions") or (),
                 pre_findings=prose_findings,
             )
-        decision = decide_stage(
+        repair = stage_repair(
             "prose", output, findings, corpus=corpus,
             config=config, citations=citations,
-            budget=CorrectionBudget(settings.max_corrections,
-                                    _corrections_used(store, "correction")),
             last_kind=attempt["kind"],
         )
-        if decision.repair is not None:
-            output = decision.repair.output
+        if repair is not None:
+            repair_kind, output, repair_actions = repair
             # The validator reads the recorded actions: closing over the loop's
-            # ``decision`` instead would trip ruff B023.
+            # ``repair_actions`` instead would trip ruff B023.
             _record_code_attempt(
-                store, decision.action, output, decision.repair.actions,
+                store, repair_kind, output, repair_actions,
                 lambda recorded, candidate: _validate_attempt(
                     store, recorded, candidate, corpus=corpus, config=config,
                     citations=citations, repair_actions=recorded["repair_actions"],
                 ),
             )
             continue
-        if decision.action == "accept":
+        if not any(f.get("level") == "ERROR" for f in findings):
             return _finalize_candidate(
                 store,
                 attempt,
@@ -1064,7 +1056,7 @@ def _write_prose(
                 citations=citations,
                 settings=settings,
             )
-        if decision.action == "exhausted":
+        if _corrections_used(store, "correction") >= settings.max_corrections:
             return _finalize_after_deterministic_repair(
                 store,
                 attempt,

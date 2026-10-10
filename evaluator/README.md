@@ -171,9 +171,11 @@ stage: selection failures receive a replacement selection request,
 while prose or rendered-contract failures receive a prose-only request against
 the frozen evidence.
 
-Production and evaluation share validation and stage decisions in
-`agent_runner/stages.py`: promotion, deterministic repair, acceptance, correction,
-and budget exhaustion. Production persists each transition and permits
+Production and evaluation share validation and the code-repair decision in
+`agent_runner/stages.py`: slot promotion, then deterministic repair, and neither
+twice in a row. A candidate that code cannot repair is accepted when it has no
+blocking findings; otherwise each caller applies its own correction budget.
+Production persists each transition and permits
 `max_corrections` independently for selection and prose. Evaluation records a
 first candidate and at most one corrected candidate across both stages; it does
 not grant a fresh correction after a corrected selection's prose fails. Its cost

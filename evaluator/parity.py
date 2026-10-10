@@ -23,7 +23,7 @@ from agent_runner.runner import (
 from agent_runner.runner import (
     correction_request as structured_correction_request,
 )
-from agent_runner.stages import CorrectionBudget, decide_stage, evaluate_candidate, selection_findings
+from agent_runner.stages import evaluate_candidate, selection_findings, stage_repair
 
 from evaluator.adapters import Adapter, Generation
 from evaluator.checkpoint import _write_json_atomic, _write_text_atomic
@@ -239,14 +239,14 @@ def _prose_attempt(
             combined, corpus, config, projected.citations,
             repair_actions=promotion_actions,
         )
-    repair = decide_stage(
+    repair = stage_repair(
         "prose", complete_output, _finding_dicts(findings),
         corpus=corpus, config=config, citations=projected.citations,
-        budget=CorrectionBudget(0), last_kind="prose",
-    ).repair
+        last_kind="prose",
+    )
     if repair is not None:
         before_repair = findings
-        complete_output = repair.output
+        _kind, complete_output, repair_actions = repair
         prose = detach_prose(complete_output, config)
         combined = _combine_structured_calls(calls, complete_output)
         text, sections, findings = _evaluate_structured_generation(
@@ -254,13 +254,13 @@ def _prose_attempt(
             corpus,
             config,
             projected.citations,
-            repair_actions=[*promotion_actions, *repair.actions],
+            repair_actions=[*promotion_actions, *repair_actions],
         )
         deterministic_repairs.append(_repair_record(
             "prose",
             before_repair,
             findings,
-            repair.actions,
+            repair_actions,
         ))
     return GenerationAttempt(
         generation=combined,
@@ -297,22 +297,20 @@ def _production_parity_after_selection(
     last_kind = "selection"
     promotion_actions: list[dict[str, str]] = []
     while True:
-        decision = decide_stage(
+        repair = stage_repair(
             "selection", selection, _finding_dicts(selection_findings),
-            config=config, citations=projected.citations,
-            budget=CorrectionBudget(0), last_kind=last_kind,
+            config=config, citations=projected.citations, last_kind=last_kind,
         )
-        if decision.repair is None:
+        if repair is None:
             break
         before = selection_findings
-        selection = decision.repair.output
+        last_kind, selection, repair_actions = repair
         selection_findings = _production_selection_findings(selection, config, projected.citations)
-        last_kind = decision.action
         if last_kind == "selection_promotion":
-            promotion_actions = decision.repair.actions
+            promotion_actions = repair_actions
         deterministic_repairs.append(_repair_record(
             "selection" if last_kind == "selection_repair" else last_kind,
-            before, selection_findings, decision.repair.actions,
+            before, selection_findings, repair_actions,
         ))
     if any(finding.level == eval_briefing.ERROR for finding in selection_findings):
         text, sections = _empty_structured_result(config)

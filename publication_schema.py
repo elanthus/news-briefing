@@ -39,36 +39,7 @@ class ReviewFinding:
     check: str
     domain: str
     message: str
-    section: str | None = None
-    headline: str | None = None
-    model_authored: str | None = None
-    path: str | None = None
-
-    @property
-    def context(self) -> ReviewContext | None:
-        if self.section is None or self.headline is None or self.model_authored is None:
-            return None
-        return ReviewContext(
-            self.section,
-            self.headline,
-            self.model_authored,
-            self.path,
-        )
-
-
-def finding_has_fields(raw: object, allowed: set[frozenset[str]]) -> bool:
-    return isinstance(raw, dict) and frozenset(raw) in allowed
-
-
-def finding_strings_are_valid(raw: dict[str, Any]) -> bool:
-    return all(
-        isinstance(raw[field], str) and bool(raw[field].strip())
-        for field in FINDING_FIELDS
-    )
-
-
-def finding_level_is_valid(raw: dict[str, Any]) -> bool:
-    return raw["level"] in {"ERROR", "WARN"}
+    context: ReviewContext | None = None
 
 
 def parse_review_context(raw: object) -> tuple[bool, ReviewContext | None]:
@@ -93,6 +64,26 @@ def parse_review_context(raw: object) -> tuple[bool, ReviewContext | None]:
         model_authored=raw["model_authored"],
         path=path,
     )
+
+
+def parse_finding(raw: object, require_context: bool) -> ReviewFinding | None:
+    """Parse one review finding, or ``None`` when it is malformed.
+
+    A runner manifest row carries exactly ``FINDING_FIELDS``. A publication
+    sidecar row also carries ``context``, which is null or a review context.
+    """
+    fields = FINDING_V3_FIELDS if require_context else FINDING_FIELDS
+    if (
+        not isinstance(raw, dict)
+        or set(raw) != fields
+        or any(not isinstance(raw[field], str) or not raw[field].strip() for field in FINDING_FIELDS)
+        or raw["level"] not in {"ERROR", "WARN"}
+    ):
+        return None
+    valid_context, context = parse_review_context(raw.get("context"))
+    if not valid_context:
+        return None
+    return ReviewFinding(raw["level"], raw["check"], raw["domain"], raw["message"], context)
 
 
 def parse_repair_actions(raw: object) -> tuple[dict[str, str], ...]:
