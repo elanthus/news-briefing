@@ -13,6 +13,7 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
+from agent_runner.budget import GenerationBudget
 from agent_runner.checkpoint import (
     RunStore,
     sha256_bytes,
@@ -380,17 +381,34 @@ def _call_provider(
     schema: dict[str, Any],
     timeout_seconds: int,
     kind: str,
+    budget: GenerationBudget,
     transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     index = len(store.manifest["attempts"]) + 1
+    try:
+        timeout_seconds = budget.reserve(prompt, schema, provider.info().get("max_tokens"), timeout_seconds)
+    except ProviderError:
+        store.manifest["generation_budget"] = budget.record()
+        store.trace("generation_budget_stopped", reason=budget.stop_reason)
+        raise
+    store.manifest["generation_budget"] = budget.record()
     store.trace("provider_call_started", attempt=index, kind=kind, provider=provider.name, model=provider.model)
     store.checkpoint(f"{kind}_call_started")
-    response = provider.generate(GenerationRequest(
-        prompt=prompt,
-        output_schema=schema,
-        timeout_seconds=timeout_seconds,
-        trace_id=store.manifest["trace_id"],
-    ))
+    try:
+        response = provider.generate(GenerationRequest(
+            prompt=prompt, output_schema=schema, timeout_seconds=timeout_seconds,
+            trace_id=store.manifest["trace_id"],
+        ))
+    except ProviderError as exc:
+        budget.settle(exc.cost_usd, ambiguous=exc.ambiguous_completion)
+        store.manifest["generation_budget"] = budget.record()
+        raise
+    except Exception:
+        budget.settle(None, ambiguous=True)
+        store.manifest["generation_budget"] = budget.record()
+        raise
+    budget.settle(response.cost_usd)
+    store.manifest["generation_budget"] = budget.record()
     raw_name, structured_name, events_name, _briefing_name, _findings_name = _attempt_paths(index)
     model_output_name = f"attempt-{index:02d}-model-output.json"
     structured_output = (
@@ -747,10 +765,11 @@ def _select_evidence(
     retained_items: int,
     corpus: dict[str, Any],
     settings: RunnerSettings,
+    budget: GenerationBudget,
 ) -> _SelectionResult:
     selection = _call_provider(
         store, provider, prompt=selection_request, schema=selection_schema,
-        timeout_seconds=settings.timeout_seconds, kind="selection",
+        timeout_seconds=settings.timeout_seconds, kind="selection", budget=budget,
     )
 
     while True:
@@ -822,7 +841,7 @@ def _select_evidence(
                 prompt=correction,
                 schema=selection_schema,
                 timeout_seconds=settings.timeout_seconds,
-                kind="selection_correction",
+                kind="selection_correction", budget=budget,
             )
         except ProviderError as exc:
             store.manifest["correction_error"] = exc.record()
@@ -851,10 +870,11 @@ def _write_prose(
     config: briefing_config.BriefingConfig,
     citations: dict[str, Citation],
     settings: RunnerSettings,
+    budget: GenerationBudget,
 ) -> RunResult:
     output = _call_provider(
         store, provider, prompt=prose_request, schema=prose_schema,
-        timeout_seconds=settings.timeout_seconds, kind="prose",
+        timeout_seconds=settings.timeout_seconds, kind="prose", budget=budget,
         transform=lambda prose: attach_frozen_selection(selection, prose, config),
     )
 
@@ -951,7 +971,7 @@ def _write_prose(
                 prompt=correction,
                 schema=prose_schema,
                 timeout_seconds=settings.timeout_seconds,
-                kind="correction",
+                kind="correction", budget=budget,
                 transform=lambda prose: attach_frozen_selection(selection, prose, config),
             )
         except ProviderError as exc:
@@ -973,8 +993,11 @@ def run_workflow(
     provider: ModelProvider,
     settings: RunnerSettings,
     run_dir: Path,
+    *,
+    budget: GenerationBudget | None = None,
 ) -> RunResult:
     """Run one fresh briefing workflow from an immutable corpus snapshot."""
+    budget = budget if budget is not None else GenerationBudget()
     corpus_snapshot = settings.corpus_path.read_bytes()
     provider_info = provider.info()
     code_info = _git_provenance()
@@ -1027,7 +1050,7 @@ def run_workflow(
             citations=projected.citations,
             retained_items=retained_items,
             corpus=corpus,
-            settings=settings,
+            settings=settings, budget=budget,
         )
         if selection_result.finalized is not None:
             return selection_result.finalized
@@ -1050,7 +1073,7 @@ def run_workflow(
             corpus=corpus,
             config=config,
             citations=projected.citations,
-            settings=settings,
+            settings=settings, budget=budget,
         )
     except Exception as exc:
         error = (

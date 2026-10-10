@@ -12,6 +12,7 @@ import corpus_schema
 import eval_briefing
 import run_briefing as briefing_cli
 from agent_runner import stages
+from agent_runner.budget import GenerationBudget
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.output import promote_excluded_to_underfilled
@@ -546,6 +547,7 @@ class RunnerTests(unittest.TestCase):
                 provider,
                 replace(self.settings(root / "briefing.md"), max_corrections=1),
                 root / "run",
+                budget=GenerationBudget(limit_usd=100),
             )
             manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(result.status, "ready")

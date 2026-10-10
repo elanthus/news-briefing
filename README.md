@@ -43,6 +43,8 @@ python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --corp
 
 A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
 
+Generation shares a 30-minute, $25 allowance across selection, prose, corrections, and fallback models. Daily backfills share that allowance across dates. Missing billing data retains a conservative reservation; ambiguous completion stops additional calls. Override it with `--generation-seconds` and `--generation-usd` on the generation CLIs. These controls cannot guarantee a strict billing cap; [design notes](docs/design.md) explain the accounting.
+
 To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News queries, subreddits) and [`briefing-config.json`](briefing-config.json) (sections and the categories each may draw from). [Customizing the briefing](docs/customizing.md) has complete examples.
 
 ## What code enforces, and what it doesn't

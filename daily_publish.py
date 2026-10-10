@@ -22,6 +22,10 @@ from pathlib import Path
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
+from agent_runner.budget import GenerationBudget
+from agent_runner.checkpoint import utc_now
+from run_daily_briefing import _write_chain_logs
+
 NEW_YORK = ZoneInfo("America/New_York")
 
 
@@ -170,6 +174,8 @@ def generate_reports(
     )
     if report_dates is None:
         return 1
+    budget_path = root / "runs" / "generation-budget.json"
+    GenerationBudget.open(budget_path)
     unsuccessful: list[str] = []
     for value in report_dates:
         report_date = value.isoformat()
@@ -199,7 +205,12 @@ def generate_reports(
             )
             unsuccessful.append(report_date)
             continue
-        if corpus_ready:
+        budget = GenerationBudget.open(budget_path)
+        if corpus_ready and not budget.available():
+            _write_chain_logs(run_dir, utc_now(), [], budget)
+            unsuccessful.append(report_date)
+            print(f"::warning::Generation stopped for {report_date}: {budget.stop_reason}")
+        elif corpus_ready:
             generated = _invoke([
                 sys.executable, "run_daily_briefing.py",
                 "--corpus", str(corpus),
@@ -210,6 +221,7 @@ def generate_reports(
                 "--force",
                 "--max-corrections", "3",
                 "--max-tokens", "100000",
+                "--generation-budget", str(budget_path),
             ], runner)
             if generated.returncode != 0:
                 unsuccessful.append(report_date)

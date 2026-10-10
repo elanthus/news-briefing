@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import secrets
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import briefing_config
+from agent_runner.budget import DEFAULT_GENERATION_SECONDS, DEFAULT_GENERATION_USD, GenerationBudget
 from agent_runner.jev_review import print_advisory_review
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
@@ -77,6 +79,8 @@ def main() -> int:
         default=600,
         help="per-model-call deadline in seconds",
     )
+    parser.add_argument("--generation-seconds", type=_positive_int, default=DEFAULT_GENERATION_SECONDS)
+    parser.add_argument("--generation-usd", type=float, default=DEFAULT_GENERATION_USD)
     parser.add_argument("--max-corrections", type=_nonnegative_int, choices=range(0, 4), default=1)
     parser.add_argument(
         "--strict",
@@ -175,7 +179,8 @@ def main() -> int:
             strict=args.strict,
         )
         run_dir = (args.run_dir or _default_run_dir()).resolve()
-        result = run_workflow(provider, settings, run_dir)
+        result = run_workflow(provider, settings, run_dir, budget=GenerationBudget(
+            limit_usd=args.generation_usd, deadline_epoch=time.time() + args.generation_seconds))
     except (OSError, ValueError, RuntimeError, ProviderError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
