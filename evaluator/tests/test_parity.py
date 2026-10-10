@@ -14,7 +14,7 @@ from evaluator.adapters import (
     Generation,
     ProviderRequestError,
 )
-from evaluator.runner import DEFAULT_CORPUS, ROOT, run_evaluation
+from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     StructuredFakeAdapter,
     _resume_fixture,
@@ -334,7 +334,6 @@ class ParityTest(unittest.TestCase):
                 StructuredAdapterProvider(production_adapter),
                 RunnerSettings(
                     config_path=temporary / "config.json",
-                    sources_path=ROOT / "sources.json",
                     prompt_path=prompt,
                     output_path=temporary / "briefing.md",
                     corpus_path=DEFAULT_CORPUS,
@@ -406,7 +405,6 @@ class ParityTest(unittest.TestCase):
             production_run = temporary / "production-run"
             settings = RunnerSettings(
                 config_path=temporary / "config.json",
-                sources_path=ROOT / "sources.json",
                 prompt_path=prompt,
                 output_path=temporary / "briefing.md",
                 corpus_path=DEFAULT_CORPUS,

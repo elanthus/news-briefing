@@ -246,7 +246,6 @@ def main() -> int:
 
     settings = RunnerSettings(
         config_path=briefing_config.DEFAULT_CONFIG_PATH.resolve(),
-        sources_path=fetch_news.DEFAULT_SOURCES_PATH.resolve(),
         prompt_path=(ROOT / "briefing-runner-prompt.md").resolve(),
         output_path=args.output.resolve(),
         corpus_path=args.corpus.resolve(),

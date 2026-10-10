@@ -105,7 +105,7 @@ def make_run(root, *, grouping=False):
     assert not any(f.level == 'ERROR' for f in validate_output(output, config, projected.citations))
     (root / 'input.json').write_text(json.dumps(corpus))
     settings = RunnerSettings(config_path=ROOT / 'fixtures/briefing-config-2026-08-11.json',
-                              sources_path=ROOT / 'sources.json', prompt_path=ROOT / 'briefing-runner-prompt.md',
+                              prompt_path=ROOT / 'briefing-runner-prompt.md',
                               output_path=root / 'briefing.md', corpus_path=root / 'input.json')
     result = run_workflow(FakeProvider([output]), settings, root / 'run')
     assert result.status == 'ready'
