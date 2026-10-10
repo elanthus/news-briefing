@@ -157,6 +157,31 @@ class GenerationBudgetTests(unittest.TestCase):
         self.assertLessEqual(provider.requests[0].timeout_seconds, 5)
         self.assertEqual(manifest["generation_budget"]["stop_reason"], "elapsed_time")
 
+    def test_exhausted_backfill_preserves_existing_ready_and_failure_logs(self):
+        for status in ("ready", "failed"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run_dir = root / "runs/2026-10-10"
+                run_dir.mkdir(parents=True)
+                log = run_dir / "fallback-log.json"
+                prior = json.dumps({"status": status, "selected_run_dir": "01-model",
+                                    "attempts": [{"status": status}]}).encode()
+                log.write_bytes(prior)
+                budget = GenerationBudget.open(root / "runs/generation-budget.json")
+                budget.known_spend_usd = budget.limit_usd
+                budget._persist()
+                commands = []
+                def run(command, commands=commands):
+                    commands.append(command)
+                    return subprocess.CompletedProcess(command, 0, "", "")
+                result = daily_publish.generate_reports(today=date(2026, 10, 10),
+                    window_start="start", window_end="end", event_name="schedule", manual_mode="",
+                    manual_report_date="", root=root, runner=run)
+                self.assertEqual(result, 1)
+                self.assertFalse(any(command[1] == "run_daily_briefing.py" for command in commands))
+                self.assertTrue(any(command[1] == "prepare_publication.py" for command in commands))
+                self.assertEqual(log.read_bytes(), prior)
+
     def test_backfill_never_resets_spend_time_or_unknown_allowance_per_day(self):
         for exhausted in ("spend", "time", "unknown"):
             with self.subTest(exhausted=exhausted), tempfile.TemporaryDirectory() as directory:

@@ -196,7 +196,13 @@ def generate_reports(
             continue
         budget = GenerationBudget.open(budget_path)
         if corpus_ready and not budget.available():
-            _write_chain_logs(run_dir, utc_now(), [], budget)
+            try:
+                run_dir.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                # A budget stop must not replace earlier ready/failure evidence.
+                pass
+            else:
+                _write_chain_logs(run_dir, utc_now(), [], budget)
             unsuccessful.append(report_date)
             print(f"::warning::Generation stopped for {report_date}: {budget.stop_reason}")
         elif corpus_ready:
