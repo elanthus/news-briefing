@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_runner.checkpoint import sha256_file
-from agent_runner.integrity import corpus_health, generation_history
+from agent_runner.integrity import corpus_health, degraded_health_records, generation_history
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
@@ -108,9 +108,29 @@ class IntegrityPipelineTests(unittest.TestCase):
         self.assertEqual(reasons["outside-window"], "no_window_entries")
         self.assertNotIn("private raw upstream detail", json.dumps(projected))
         self.assertNotIn("EntriesFiltered", json.dumps(projected))
+        degraded = {r["source_id"] for r in degraded_health_records(projected)}
+        self.assertTrue({"undated", "zero-entries"} <= degraded)
+        self.assertNotIn("filtered", degraded)
+        self.assertNotIn("outside-window", degraded)
         rows[2]["error_type"] = "private unknown classification"
         self.assertEqual(corpus_schema.validate_corpus(corpus), [])
         self.assertIsNone(corpus_health(corpus))
+
+    def test_public_health_uses_bound_run_corpus_and_marks_unavailable_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = make_run(root)
+            (root / "input.json").write_text(json.dumps({"errors": [{"source_type": "rss",
+                                                                      "source_id": "unrelated failure"}]}))
+            record = prepare_publication(run, root / "input.json", root / "public", date(2026, 10, 1))
+            expected = tuple(f'{r["source_type"]}:{r["source_id"]}'
+                             for r in degraded_health_records(record.integrity["corpus_health"]))
+            self.assertEqual(record.degraded_sources, expected)
+            self.assertNotIn("unrelated failure", json.dumps(record.payload()))
+            (run / "corpus.json").write_text("{}")
+            record = prepare_publication(run, root / "input.json", root / "public", date(2026, 10, 1))
+            self.assertIsNone(record.integrity["corpus_health"])
+            self.assertEqual(record.degraded_sources, ("source health unavailable",))
 
     def test_complete_no_targets_establishes_no_repair_needed(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -896,11 +896,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("no results today from some sources", index)
+            self.assertIn("source coverage problems", index)
             self.assertIn('<p class="status-chip status-warn"><a href="reports/2026-08-20.html">'
-                          "✓ Contract checks passed · no results today from some sources</a></p>", index)
+                          "✓ Contract checks passed · source coverage problems</a></p>", index)
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("No results today from some sources: reddit:cursor", report)
+            self.assertIn("Source coverage problems: reddit:cursor", report)
 
     def test_status_chip_review_required(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2031,6 +2031,46 @@ class SemanticAuditSiteTests(unittest.TestCase):
 
 
 class IntegrityReportTests(unittest.TestCase):
+    def test_bound_quiet_health_is_consistent_in_summary_and_details(self):
+        import hashlib
+        from datetime import date
+
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = make_run(root)
+            corpus_path = run / 'corpus.json'
+            corpus = json.loads(corpus_path.read_text())
+            source = {**corpus['sources'][0], 'source_id': 'ordinary quiet feed', 'status': 'quiet',
+                      'parsed_entries': 3, 'dated_entries': 3, 'retained_entries': 0, 'retained_bytes': 0,
+                      'estimated_tokens': 0, 'error_type': 'NoWindowEntries', 'message': 'private feed detail'}
+            corpus['sources'] = [row for row in corpus['sources'] if row['status'] == 'ok'] + [source]
+            corpus['errors'] = []
+            corpus_path.write_text(json.dumps(corpus))
+            manifest_path = run / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text())
+            manifest['artifacts']['corpus.json'] = hashlib.sha256(corpus_path.read_bytes()).hexdigest()
+            manifest_path.write_text(json.dumps(manifest))
+            record = prepare_publication(run, root / 'missing.json', root / 'public', date(2026, 9, 30))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertEqual(record.degraded_sources, ())
+            self.assertIn('No source problems reported', page)
+            self.assertIn('No source problems recorded', page)
+            self.assertIn('Quiet sources returned valid dated entries', page)
+            self.assertIn('ordinary quiet feed', page)
+            self.assertNotIn('private feed detail', page)
+            corpus_path.write_text('{}')
+            record = prepare_publication(run, root / 'missing.json', root / 'public', date(2026, 9, 30))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertIn('source health unavailable', page)
+            self.assertNotIn('No source problems reported', page)
+
+
     def test_failed_and_skipped_targets_keep_subjects_and_all_causes(self):
         from datetime import date
 

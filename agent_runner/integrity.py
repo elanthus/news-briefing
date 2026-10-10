@@ -390,3 +390,11 @@ def corpus_health(corpus: Any) -> list[dict[str, Any]] | None:
             return None
         records.append(row)
     return records if len(records) <= 256 else None
+
+
+def degraded_health_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Use the corpus degradation rule on its validated public health projection."""
+    projected = {"sources": records, "errors": [row for row in records if row["status"] in {"error", "empty"}]}
+    identities = {(row["source_type"], row["source_id"])
+                  for row in corpus_schema.degraded_source_records(projected)}
+    return [row for row in records if (row["source_type"], row["source_id"]) in identities]

@@ -12,6 +12,7 @@ import json
 import math
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ from agent_runner.checkpoint import sha256_bytes, utc_now, write_json_atomic
 from agent_runner.decisions import JEV_MODEL, MAX_REQUEST_BYTES, JevClient
 from agent_runner.models import ProviderError
 from agent_runner.output import (
+    ModelCorpus,
     project_corpus,
     project_selected_evidence,
     redact_destinations,
@@ -75,7 +77,23 @@ def _read_json(path: Path) -> tuple[Any, str]:
     return json.loads(raw), sha256_bytes(raw)
 
 
-def load_topics(run_dir: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
+@dataclass(frozen=True)
+class VerifiedRun:
+    """One process's verified frozen inputs; persisted consumers load them afresh."""
+
+    root: Path
+    manifest: dict[str, Any]
+    candidate: dict[str, Any]
+    selection: dict[str, Any]
+    evidence: dict[str, Any]
+    corpus: dict[str, Any]
+    config: briefing_config.BriefingConfig
+    projected: ModelCorpus
+    topics: list[dict[str, Any]]
+    hashes: dict[str, str]
+
+
+def load_verified_run(run_dir: Path) -> VerifiedRun:
     """Verify artifacts and exact reference alignment, including exclusions."""
     root = run_dir.resolve()
     manifest, manifest_hash = _read_json(root / "manifest.json")
@@ -148,7 +166,13 @@ def load_topics(run_dir: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
     if len(topics) > MAX_TOPICS:
         raise ValueError("review exceeds the topic bound")
     public = redact_opaque_references(redact_destinations(topics), include_citations=True)
-    return public, hashes
+    return VerifiedRun(root, manifest, candidate, frozen, evidence, corpus, config, projected, public, hashes)
+
+
+def load_topics(run_dir: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Verify a persisted run at the consumer boundary and return blinded topics."""
+    state = load_verified_run(run_dir)
+    return state.topics, state.hashes
 
 
 def task_key(row: dict[str, Any]) -> str:
@@ -156,11 +180,10 @@ def task_key(row: dict[str, Any]) -> str:
     return json.dumps([row["check"], row["positions"], row.get("evidence_index")], sort_keys=True)
 
 
-def load_citation_urls(run: Path) -> dict[str, list[list[str]]]:
+def load_citation_urls(run: Path | VerifiedRun) -> dict[str, list[list[str]]]:
     """Resolve verified frozen references in code; these destinations never enter model state."""
-    load_topics(run)
-    selection = _read_json(run / "frozen-selection.json")[0]
-    projected = project_corpus(_read_json(run / "corpus.json")[0])
+    state = run if isinstance(run, VerifiedRun) else load_verified_run(run)
+    selection, projected = state.selection, state.projected
     urls = {}
     for bucket in ("sections", "excluded_topics"):
         for section, entries in selection[bucket].items():
@@ -218,7 +241,8 @@ def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any
 
 def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = None,
                threshold: float = 0.8, max_pairs: int = 1000, cost_ceiling: float = 0.10,
-               timeout: int = 30, confirm_flags: bool = False, citation_threshold: float = 0.6) -> dict[str, Any]:
+               timeout: int = 30, confirm_flags: bool = False, citation_threshold: float = 0.6,
+               verified_run: VerifiedRun | None = None) -> dict[str, Any]:
     """Write a separate advisory report, preserving partial and unknown-cost results."""
     if not math.isfinite(threshold) or not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
@@ -246,10 +270,13 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
     path = destination / "report.json"
     write_json_atomic(path, report)
     try:
-        topics, hashes = load_topics(root)
+        source = verified_run or load_verified_run(root)
+        if source.root != root:
+            raise ValueError("verified review inputs belong to another run")
+        topics, hashes = source.topics, source.hashes
         tasks, omitted = build_tasks(topics, max_pairs)
         report.update({"input_hashes": hashes, "topic_count": len(topics), "topics": topics, "rubrics": RUBRICS,
-                       "citation_urls": load_citation_urls(root), "planned_checks": len(tasks),
+                       "citation_urls": load_citation_urls(source), "planned_checks": len(tasks),
                        "omitted_duplicate_pairs": omitted,
                        "skipped_oversized_checks": 0})
         judge = client or JevClient()
