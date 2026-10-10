@@ -61,7 +61,7 @@ python3 -S - /absolute/path/to/bundle /tmp/historical-report <<'PYTHON'
 import json
 import sys
 from pathlib import Path
-from evaluator.report import markdown_report, summarize
+from evaluator.runner import markdown_report, summarize
 
 bundle, destination = map(Path, sys.argv[1:])
 manifest = json.loads((bundle / "manifest.json").read_text())
