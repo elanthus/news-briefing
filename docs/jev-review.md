@@ -39,9 +39,11 @@ To request an advisory-only review immediately after generation, add
 `--jev-review-dir .news-briefing/jev-reviews/RUN` to `run_briefing.py`. Review
 runs only when generation reaches `ready`. Add `--confirm-flags` to the standalone
 review command for isolated confirmation. The daily fallback-chain command
-`run_daily_briefing.py` takes `--jev-review-dir` together with
-`--jev-repair-mode apply`, which confirms flags and applies bounded repairs;
-scheduled publication passes both.
+`run_daily_briefing.py --jev-review-dir DIR` confirms flags and applies bounded
+repairs only after full acceptance; scheduled publication always enables this
+stage. The redundant `--jev-repair-mode` flag is removed. The daily producer has
+one apply policy; historical candidate-only artifacts remain readable through
+frozen compatibility fixtures.
 The standalone review command returns zero for complete coverage and one for partial
 or failed review, regardless of how many findings it flags.
 
@@ -112,7 +114,7 @@ check records rather than duplicating story prose. The publication step verifies
 artifacts and recomputes or cross-checks decisions, coverage, removals, costs, and
 subjects. Invalid or tampered audits retain the original and expose only a safe
 verification-failed explanation. Fixed allowlisted codes explain all applicable
-skip causes, failures, rejections, and candidate mode. Raw exceptions, provider
+skip causes, failures, rejections, and historical candidate mode. Raw exceptions, provider
 bodies, private paths, prompts, and frozen excerpts remain private.
 
 The report leads with publication and review status, then an action ledger,

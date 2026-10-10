@@ -13,6 +13,7 @@ from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
 from prepare_publication import prepare_publication
+from tests.historical_semantic_candidate import historical_candidate_run
 from tests.test_semantic_repairs import CitationJudge, Judge, PatchProvider, make_run
 
 
@@ -68,9 +69,9 @@ class MultipleSkipJudge(Judge):
 
 
 class IntegrityPipelineTests(unittest.TestCase):
-    def run_review(self, root, *, grouping=False, judge=None, provider=None, apply=True):
+    def run_review(self, root, *, grouping=False, judge=None, provider=None):
         run, headline = make_run(root, grouping=grouping)
-        daily_semantic_review(run, root / "jev-review", apply_repairs=apply,
+        daily_semantic_review(run, root / "jev-review",
                               judge=judge(headline, run) if judge else Judge(headline),
                               repair_provider=provider or PatchProvider())
         # A single run's review sits beside it; daily chains store it under their root.
@@ -154,10 +155,12 @@ class IntegrityPipelineTests(unittest.TestCase):
             self.assertNotIn("private exception body", json.dumps(record.payload()))
             self.assertEqual(load_public_audit(run, Path(directory) / "jev-review")[1], run)
 
-    def test_clear_candidate_mode_retains_original_and_separates_paid_calls(self):
+    def test_historical_candidate_retains_original_and_separates_paid_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            run, record, _ = self.run_review(root, apply=False)
+            run = historical_candidate_run(root)
+            record = prepare_publication(root, root / "missing.json", root / "history", date(2026, 10, 1))
+            self.assertEqual(load_public_audit(run, root / "jev-review")[1], run)
             integrity = record.integrity
             self.assertEqual(integrity["decision"], "candidate_retained")
             self.assertTrue(integrity["acceptance_verified"])
@@ -166,6 +169,16 @@ class IntegrityPipelineTests(unittest.TestCase):
             self.assertEqual(calls[0]["status"], "code_preserved")
             self.assertEqual(sum(c["status"] != "code_preserved" for c in calls), 1)
             self.assertEqual((root / "history/2026-10-01.md").read_bytes(), (run / "final.md").read_bytes())
+
+    def test_historical_candidate_mutation_is_rejected_at_reader_handoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = historical_candidate_run(root)
+            audit, selected = load_public_audit(run, root / "jev-review")
+            self.assertIsNotNone(audit)
+            self.assertEqual(selected, run)
+            (root / "jev-review/repair/run/frozen-selection.json").write_text("{}")
+            self.assertEqual(load_public_audit(run, root / "jev-review"), (None, run))
 
     def test_grouping_removal_cause_is_grouping_and_singleton_has_no_invented_score(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -356,7 +369,7 @@ class IntegrityPipelineTests(unittest.TestCase):
             manifest["final"]["output_sha256"] = sha256_file(run / "final.md")
             (run / "manifest.json").write_text(json.dumps(manifest))
             topic = next(t for t in load_topics(run)[0] if t["headline"] == headline)
-            daily_semantic_review(run, root / "jev-review", apply_repairs=True,
+            daily_semantic_review(run, root / "jev-review",
                                   judge=CitationJudge(headline, topic["evidence"][0]["title"]),
                                   repair_provider=PreservingPatch(topic))
             (root / "fallback-log.json").write_text(json.dumps({"status": "ready", "selected_run_dir": "run"}))

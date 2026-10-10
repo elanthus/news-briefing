@@ -96,7 +96,7 @@ class VerifiedProductionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day, original, headline = prepared_day(root)
-            daily_semantic_review(original, day / "jev-review", apply_repairs=True,
+            daily_semantic_review(original, day / "jev-review",
                                   judge=Judge(headline), repair_provider=PatchProvider())
             repaired = day / "jev-review" / "repair" / "run"
             self.assertEqual(resolve_ready_run_dir(day), repaired)
@@ -108,18 +108,17 @@ class VerifiedProductionTests(unittest.TestCase):
             self.assertIn("Repaired headline", [row["public"]["title"] for row in records])
             self.assertNotIn(headline, [row["public"]["title"] for row in records])
 
-    def test_rejected_failed_partial_and_candidate_only_repairs_retain_original(self) -> None:
+    def test_rejected_failed_partial_repairs_retain_original(self) -> None:
         cases = [
-            {"apply_repairs": False},
-            {"apply_repairs": True, "reject_after": True},
-            {"apply_repairs": True, "fail_after_repair": True},
-            {"apply_repairs": True, "incomplete": True},
-            {"apply_repairs": True, "missing_cost": True},
+            {"reject_after": True},
+            {"fail_after_repair": True},
+            {"incomplete": True},
+            {"missing_cost": True},
         ]
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 day, original, headline = prepared_day(Path(directory))
-                daily_semantic_review(original, day / "jev-review", apply_repairs=case["apply_repairs"],
+                daily_semantic_review(original, day / "jev-review",
                                       judge=Judge(headline, reject_after=case.get("reject_after", False),
                                                   fail_after_repair=case.get("fail_after_repair", False),
                                                   missing_cost=case.get("missing_cost", False)),
