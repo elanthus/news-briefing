@@ -1,5 +1,5 @@
 [general]
-base_ref = "codex/backlog-runner"
+base_ref = "main"
 
 [diff]
 max_bytes = 650000
