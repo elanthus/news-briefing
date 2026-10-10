@@ -53,14 +53,30 @@ pinned release archive and in-tree checksums checked by `fetch`, not from a
 bundle's self-declared checksum file alone.
 
 To regenerate a historical report, read `source_tag` in its `metadata.json`, check
-out that tag in a separate worktree, and run:
+out that tag in a separate worktree, and run the source reporter against the
+public manifest's already-adjudicated rows:
 
 ```bash
-python3 -S -m evaluator report /absolute/path/to/bundle/manifest.json
+python3 -S - /absolute/path/to/bundle /tmp/historical-report <<'PYTHON'
+import json
+import sys
+from pathlib import Path
+from evaluator.report import markdown_report, summarize
+
+bundle, destination = map(Path, sys.argv[1:])
+manifest = json.loads((bundle / "manifest.json").read_text())
+report = summarize(manifest)
+report["generated_at"] = json.loads((bundle / "report.json").read_text())["generated_at"]
+destination.mkdir(parents=True, exist_ok=False)
+(destination / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+(destination / "report.md").write_text(markdown_report(report))
+PYTHON
 ```
 
-Use a copy of the bundle because the report command writes `report.json` and
-`report.md` beside the manifest. Preserve the authenticated original and its
+The public manifest embeds adjudicated scores. The ordinary `evaluator report`
+command reloads per-trial adjudication files from a private run tree; those files
+are not distributed in this flattened bundle. Use the snippet above for public
+historical report regeneration and preserve the authenticated original and its
 hashes. Current reporting tests check metric and statistical semantics without
 requiring current presentation to reproduce historical bytes.
 

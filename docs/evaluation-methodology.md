@@ -116,7 +116,7 @@ Further limits on how these numbers may be read:
 - It borrows AgentDojo's matched-twin design without reproducing its methodology: "benign structural utility" concerns output structure rather than user-task completion, and the position ablation varies an item's array index rather than its token offset in the prompt.
 - CI requires every attack against the intentionally vulnerable `compliant` adapter to succeed. If the strategy designed to obey injections doesn't score as compromised, the oracles are broken.
 
-Reviewers can verify an authenticated evidence bundle with no credentials and no provider calls. The verifier checks the declared files, metadata, hashes, and score ledger independently of current report presentation. Regenerate historical reports at their recorded source tag with `python3 -S -m evaluator report <bundle>/manifest.json`; using current reporting code is not a byte-compatibility promise. The large bundle files are GitHub release assets; [EVIDENCE-ASSETS.md](results/EVIDENCE-ASSETS.md) lists them with their SHA-256 hashes:
+Reviewers can verify an authenticated evidence bundle with no credentials and no provider calls. The verifier checks the declared files, metadata, hashes, and score ledger independently of current report presentation. Regenerate historical reports at their recorded source tag using the source-reporter commands in [EVIDENCE-ASSETS.md](results/EVIDENCE-ASSETS.md); using current reporting code is not a byte-compatibility promise. The large bundle files are GitHub release assets; [EVIDENCE-ASSETS.md](results/EVIDENCE-ASSETS.md) lists them with their SHA-256 hashes:
 
 ```bash
 python3 -m evaluator.evidence_assets fetch

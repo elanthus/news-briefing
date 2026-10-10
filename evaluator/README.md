@@ -383,7 +383,8 @@ per-row copies of the same request and corpus.
 rebuilt from the manifest's row primitives. It does not render reports with today's code. Authenticate
 historical bundles first with `evaluator.evidence_assets fetch`, which checks the pinned release archive
 and in-tree checksums. To regenerate a historical report, check out its metadata's `source_tag` and run
-`python3 -S -m evaluator report <bundle>/manifest.json` there. Historical reports and release assets stay
+the source reporter on the public manifest's embedded scores using the exact commands in
+[EVIDENCE-ASSETS.md](../docs/results/EVIDENCE-ASSETS.md). Historical reports and release assets stay
 immutable as current presentation evolves; current reporter tests retain semantic and statistical coverage.
 
 ### Resuming an interrupted run
