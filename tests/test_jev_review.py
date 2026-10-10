@@ -182,6 +182,24 @@ class JevReviewTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "artifact hash"):
                 load_topics(run)
 
+    def test_publication_rejects_manifest_changed_during_verification(self):
+        from agent_runner.publication import verified_publication
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = self.make_run(root)
+
+            def changed_after_load(path):
+                state = load_verified_run(path)
+                manifest = json.loads((path / "manifest.json").read_text())
+                manifest["attempts"] = []
+                write_json_atomic(path / "manifest.json", manifest)
+                return state
+
+            with patch("agent_runner.publication.load_verified_run", side_effect=changed_after_load):
+                with self.assertRaisesRegex(ValueError, "manifest changed during verification"):
+                    verified_publication(run)
+
     def test_hash_mutation_prevents_any_model_call(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
