@@ -15,7 +15,7 @@ from agent_runner import stages
 from agent_runner.checkpoint import RunStore, sha256_bytes, sha256_file
 from agent_runner.models import GenerationRequest, ModelResponse
 from agent_runner.output import promote_excluded_to_underfilled
-from agent_runner.publication import selected_generation_run
+from agent_runner.publication import verified_publication
 from agent_runner.runner import (
     RunnerSettings,
     RunResult,
@@ -1194,7 +1194,8 @@ class RunnerTests(unittest.TestCase):
             manifest = json.loads((root / "run/manifest.json").read_text())
             self.assertEqual(manifest["status"], "running")
             self.assertIsNone(manifest["final"])
-            self.assertIsNone(selected_generation_run(root / "run"))
+            with self.assertRaisesRegex(ValueError, "completed run"):
+                verified_publication(root / "run")
             self.assertFalse(settings.output_path.exists())
             provider = FakeProvider([])
             with self.assertRaises(FileExistsError):
