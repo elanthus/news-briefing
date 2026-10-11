@@ -648,27 +648,27 @@ class ProviderTests(unittest.TestCase):
         ):
             with self.subTest(failure=type(failure).__name__), patch(
                 "shutil.which", return_value="/bin/claude"
-            ), patch("subprocess.run", side_effect=failure):
+            ), patch("agent_runner.providers._capture_cli", side_effect=failure):
                 self.assertIsNone(_command_version("claude"))
 
     def test_cli_retries_transient_failure_before_output(self):
         failed = subprocess.CompletedProcess([], 1, "", "service unavailable")
         succeeded = subprocess.CompletedProcess([], 0, "result", "")
-        with patch("subprocess.run", side_effect=[failed, succeeded]) as run, patch("time.sleep"):
+        with patch("agent_runner.providers._capture_cli", side_effect=[failed, succeeded]) as run, patch("time.sleep"):
             completed, _latency, attempts = _run_cli(["model", "run"], "prompt", timeout=30)
         self.assertEqual(completed.stdout, "result")
         self.assertEqual(attempts, 2)
         self.assertEqual(run.call_count, 2)
 
-    def test_cli_pipes_use_utf8_regardless_of_locale(self):
+    def test_cli_passes_unicode_prompt_to_bounded_collector(self):
         succeeded = subprocess.CompletedProcess([], 0, "result", "")
-        with patch("subprocess.run", return_value=succeeded) as run:
+        with patch("agent_runner.providers._capture_cli", return_value=succeeded) as run:
             _run_cli(["model", "run"], "prompt with hair space", timeout=30)
-        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        self.assertEqual(run.call_args.args[1], "prompt with hair space")
 
     def test_cli_does_not_retry_ambiguous_failure_after_output(self):
         failed = subprocess.CompletedProcess([], 1, "partial output", "service unavailable")
-        with patch("subprocess.run", return_value=failed) as run, self.assertRaises(
+        with patch("agent_runner.providers._capture_cli", return_value=failed) as run, self.assertRaises(
             ProviderError
         ) as raised:
             _run_cli(["model", "run"], "prompt", timeout=30)
