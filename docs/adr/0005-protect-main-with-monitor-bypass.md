@@ -2,10 +2,10 @@
 
 ## Status
 
-Proposed; external setup pending. Read-only GitHub checks on October 2, 2026
-confirmed no rulesets, `protected: false`, legacy protection returning 404,
-no deploy keys, and no `MONITOR_DEPLOY_KEY` secret. The committed workflow
-alone does not activate protection.
+Superseded October 10, 2026 by [ADR 0006](0006-protect-main-without-bypass.md).
+The deploy-key bypass proposal below was withdrawn when the scheduled monitor
+was retired. Its commands and verification procedure are historical and must
+not be used to configure the repository. No monitor deploy key is required.
 
 ## Context
 

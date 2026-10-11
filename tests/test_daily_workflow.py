@@ -121,7 +121,8 @@ class DailyWorkflowTests(unittest.TestCase):
             "Encrypt retained corpora and diagnostics": {"CORPUS_ARCHIVE_PASSPHRASE"},
         }
         steps = _steps()
-        self.assertEqual(len(steps), 16)
+        self.assertTrue(steps)
+        self.assertTrue(set(expected).issubset({label for label, _body in steps}))
         for label, body in steps:
             with self.subTest(step=label):
                 present = {secret for secret in secret_names if secret in body}

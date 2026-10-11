@@ -161,23 +161,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
-      - name: Record successful publication identity
-        if: ${{ !cancelled() && steps.deployment.outcome == 'success' }}
-        run: |
-          python3 -S -m agent_runner.publication \
-            --runs-dir runs --history site/history.json \
-            --workflow-run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --output publication-receipt.json
-
-      - name: Upload publication receipt
-        if: ${{ !cancelled() && steps.deployment.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: briefing-publication-${{ github.run_id }}-${{ github.run_attempt }}
-          path: publication-receipt.json
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Report briefing and deployment outcome
         if: always()
         env:

@@ -71,7 +71,7 @@ run artifacts.
 | [`briefing_config.py`](briefing_config.py) | Loads and validates the trusted editorial configuration used for generation and checking |
 | [`briefing-runner-prompt.md`](briefing-runner-prompt.md) | Production structured-output prompt used by `run_briefing.py` and the daily fallback chain |
 | [`agent_runner/`](agent_runner) | Provider adapters, citation projection, structured-output validation, deterministic repair, checkpoints |
-| [`run_briefing.py`](run_briefing.py) | Code-owned runner entry point: fetch, project, generate, validate, repair, correct, finalize |
+| [`run_briefing.py`](run_briefing.py) | Code-owned runner entry point: read a frozen corpus, project, generate, validate, repair, correct, finalize |
 | [`eval_briefing.py`](eval_briefing.py) | Standalone deterministic policy checker |
 | [`run_daily_briefing.py`](run_daily_briefing.py) | Production fallback chain across three models until one run is `ready` |
 | [`daily_publish.py`](daily_publish.py) | Daily workflow steps: capture the window, restore corpora, generate and prepare scheduled or backfill reports |

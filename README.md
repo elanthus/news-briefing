@@ -61,7 +61,7 @@ To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News qu
 
 ## Architecture
 
-![Runtime pipeline: fetch, then per model in the fallback chain select, check, freeze, write prose and gate; a ready candidate is reviewed, confirmed, repaired, followed up, published and deployed with a receipt](docs/images/runtime-pipeline.svg)
+![Runtime pipeline: fetch, then per model in the fallback chain select, check, freeze, write prose and gate; a ready candidate is reviewed, confirmed, repaired, followed up, published and deployed](docs/images/runtime-pipeline.svg)
 
 ```text
 fetch_news.py          →  corpus.json (schema v7, validated on write)
