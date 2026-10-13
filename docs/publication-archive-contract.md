@@ -42,9 +42,13 @@ public page, with a status chip linking to `reports/<date>.html`. Every status c
 links to its integrity report; ready briefing pages contain no inline review
 panels. Integrity reports lead with the publication decision and review status,
 then actions and changes before statistics. They show concise deterministic
-finding messages and safe subjects without reproducing the briefing or its
-accountability log. Unchanged prose is omitted while repair outcomes remain
-visible; complete finding context remains in public history JSON.
+finding messages and safe subjects without reproducing the briefing. A `ready`
+report also renders the published briefing's accountability log once, in its own
+section; the briefing page links to it instead of repeating it. A
+`review_required` report never renders its withheld preview or that preview's
+accountability log, and runs without a published artifact have no log to show.
+Unchanged prose is omitted while repair outcomes remain visible; complete
+finding context remains in public history JSON.
 
 Nonblocking quality notes do not count toward `findings_count`. The four
 reader-relevant checks (`slots_underfilled`, `exclusion_log_missing`,
