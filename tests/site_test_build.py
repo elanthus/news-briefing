@@ -23,6 +23,7 @@ from build_site import (
     _decorate_briefing,
     _humanize_corpus_health,
     _render_markdown,
+    _render_report,
 )
 from build_site import build_site as _build_site
 from build_site import main as build_site_main
@@ -1236,7 +1237,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn('Summary.', report)
             self.assertNotIn("Action:", report)
 
-    def test_advisory_context_does_not_reprint_briefing_or_accountability_log(self) -> None:
+    def test_advisory_context_does_not_reprint_briefing_and_report_owns_the_log(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1274,10 +1275,12 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('low claim evidence overlap', report)
             self.assertNotIn('<article class="briefing-content">', report)
             self.assertNotIn('Summary.', report)
-            self.assertNotIn('Accountability entry retained.', report)
+            self.assertEqual(report.count('Accountability entry retained.'), 1)
+            log = report.index('<section class="excluded-topics">')
+            self.assertLess(log, report.index('Accountability entry retained.'))
             index = (root / 'site/index.html').read_text()
             self.assertIn('Summary.', index)
-            self.assertIn('Accountability entry retained.', index)
+            self.assertNotIn('Accountability entry retained.', index)
 
     def test_blocked_report_does_not_claim_checks_passed(self) -> None:
         # A blocked run means the checker never accepted a candidate; its
@@ -1833,7 +1836,6 @@ class BriefingDecorationTests(unittest.TestCase):
             ("https://github.com/org/repo/releases/tag/v1.1", "github.com · v1.1"),
             ("https://www.example.com/news/story.html", "example.com"),
             ("https://news.ycombinator.com/item?id=1", "HN discussion"),
-            ("https://example.net/skipped", "example.net"),
         ):
             self.assertIn(f'href="{href}" title="{href}">{label}</a>', page)
         self.assertIn('class="source-chip source-hn"', page)
@@ -1854,9 +1856,37 @@ class BriefingDecorationTests(unittest.TestCase):
         self.assertIn('<a href="#run-notes">Behind this briefing</a>', page)
         notes = page.index('<section class="run-notes"')
         self.assertLess(page.index("Plain story"), notes)
-        self.assertLess(notes, page.index("<h3>Excluded Topics"))
         self.assertLess(notes, page.index("<strong>Disposition: READY</strong>"))
+        self.assertLess(notes, page.index('href="reports/2026-08-20.html#excluded-topics"'))
         self.assertTrue(page.startswith('<p class="dateline">Thursday edition · 2 stories</p>'))
+
+    def test_exclusion_log_moves_from_briefing_to_integrity_report(self) -> None:
+        page = _decorated(self.BRIEFING)
+        self.assertNotIn("Excluded Topics", page)
+        self.assertNotIn("example.net/skipped", page)
+        self.assertNotIn("<hr", page[page.index('<section class="run-notes"'):])
+
+        entry = BriefingEntry(
+            day=date(2026, 8, 20), disposition="ready", findings_count=0, findings=(),
+            degraded_sources=(), markdown=self.BRIEFING,
+        )
+        report = _render_report(entry, [entry])
+        log = report[report.index('<section class="excluded-topics">'):]
+        self.assertTrue(log.startswith(
+            '<section class="excluded-topics">'
+            '<h2 id="excluded-topics">Excluded Topics (accountability log)</h2>'
+        ))
+        self.assertIn(
+            'href="https://example.net/skipped" title="https://example.net/skipped">example.net</a>',
+            log[: log.index("</section>")],
+        )
+        self.assertNotIn("Disposition: READY", log[: log.index("</section>")])
+
+        withheld = BriefingEntry(
+            day=date(2026, 8, 20), disposition="review_required", findings_count=0, findings=(),
+            degraded_sources=(), markdown=self.BRIEFING,
+        )
+        self.assertNotIn('<section class="excluded-topics">', _render_report(withheld, [withheld]))
 
     def test_corpus_window_is_humanized_only_when_it_parses(self) -> None:
         page = _decorated(self.BRIEFING)

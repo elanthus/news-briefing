@@ -172,7 +172,7 @@ p.status-chip { border-radius: 999px; display: inline-block; font-weight: 600; m
 .run-notes > h2 { font-size: 1.2rem; margin: .9rem 0 .2rem; }
 .run-notes h3 { color: var(--muted); font-size: .8rem; letter-spacing: .08em; margin-top: 1.6rem;
   text-transform: uppercase; }
-.run-notes .sources { margin-top: .35rem; }
+.run-notes .sources, .excluded-topics .sources { margin-top: .35rem; }
 .integrity-summary { border: 2px solid var(--rule); padding: .8rem 1rem; border-radius: .4rem; }
 .integrity-summary p { margin: .35rem 0; }
 .integrity-report .site-header { margin-bottom: .5rem; padding-bottom: .5rem; }
@@ -181,7 +181,7 @@ p.status-chip { border-radius: 999px; display: inline-block; font-weight: 600; m
 .integrity-report .verdict { margin: .4rem 0; }
 .integrity-report .integrity-summary h2 { font-size: 1.1rem; margin: 0 0 .3rem; }
 .action-ledger li, .story-change { border-bottom: 1px solid var(--rule); padding: .8rem 0; }
-.semantic-audit, .action-ledger, .corpus-health { overflow-wrap: anywhere; }
+.semantic-audit, .action-ledger, .corpus-health, .excluded-topics { overflow-wrap: anywhere; }
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-weight: 700; padding-bottom: .4rem; }
 th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); padding: .5rem .7rem; }
@@ -812,6 +812,8 @@ _TOPIC_HEADING = re.compile(r"<h2>([^<]*)</h2>")
 _RUN_NOTES_START = re.compile(
     r"(?:<hr ?/?>\s*)?<h3>(?:Excluded Topics|Corpus health|Run outcome)\b"
 )
+_EXCLUDED_TOPICS_START = re.compile(r"(?:<hr ?/?>\s*)?<h3>Excluded Topics\b")
+_RUN_NOTE_HEADING = re.compile(r"(?:<hr ?/?>\s*)?<h3>")
 _LEADING_RULE = re.compile(r"^<hr ?/?>\s*")
 _CORPUS_WINDOW = re.compile(r"<p>Corpus window: (\S+) → (\S+)</p>")
 _SOURCE_HINT_LIMIT = 32
@@ -906,13 +908,28 @@ def _anchor_id(label: str, used: set[str]) -> str:
     return anchor
 
 
+def _split_excluded_topics(notes: str) -> tuple[str, str]:
+    """Separate the exclusion log from the other rendered run notes.
+
+    The log runs from its heading to the next run-note heading. The integrity
+    report shows it; the briefing page keeps the remaining notes.
+    """
+    start = _EXCLUDED_TOPICS_START.search(notes)
+    if start is None:
+        return notes, ""
+    end = _RUN_NOTE_HEADING.search(notes, start.end())
+    stop = end.start() if end is not None else len(notes)
+    excluded = _LEADING_RULE.sub("", notes[start.start():stop], count=1)
+    return notes[: start.start()] + notes[stop:], excluded
+
+
 def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
     """Add story cards, source chips, a section bar, and a run-notes panel."""
     rendered = _CITATION_RUN.sub(_source_chips, rendered)
     rendered = _CORPUS_WINDOW.sub(_corpus_window, rendered, count=1)
     notes_start = _RUN_NOTES_START.search(rendered)
     news = rendered[: notes_start.start()] if notes_start else rendered
-    notes = rendered[notes_start.start():] if notes_start else ""
+    notes, excluded = _split_excluded_topics(rendered[notes_start.start():] if notes_start else "")
     news = _STORY_OPENING.sub(_story_opening, news)
     news = _GROUP_LABEL.sub(_group_label, news)
 
@@ -931,6 +948,11 @@ def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
             f'<span class="count">{count}</span></a></li>'
         )
         sections.append(f'<section class="topic" id="{anchor}">{piece}</section>\n')
+    if excluded:
+        notes += (
+            '<p class="muted">Stories considered and left out are listed in the '
+            f'<a href="reports/{html.escape(entry.slug)}.html#excluded-topics">integrity report</a>.</p>'
+        )
     if notes:
         nav_links.append('<li><a href="#run-notes">Behind this briefing</a></li>')
         notes = (
@@ -1105,6 +1127,24 @@ def _provenance_line(provenance: Provenance) -> str:
             f'<p class="muted provenance">Prompt SHA-256: {html.escape(provenance.prompt_sha256)}</p>')
 
 
+def _excluded_topics(entry: BriefingEntry) -> str:
+    """Render the exclusion log of a published briefing for its integrity report.
+
+    Withheld and failed runs publish no briefing prose, so they show no log.
+    """
+    if entry.disposition == "review_required" or entry.markdown is None:
+        return ""
+    rendered = _CITATION_RUN.sub(_source_chips, _render_markdown(entry.markdown))
+    notes_start = _RUN_NOTES_START.search(rendered)
+    if notes_start is None:
+        return ""
+    _notes, excluded = _split_excluded_topics(rendered[notes_start.start():])
+    if not excluded:
+        return ""
+    heading = excluded.replace("<h3>", '<h2 id="excluded-topics">', 1).replace("</h3>", "</h2>", 1)
+    return f'<section class="excluded-topics">{heading}</section>'
+
+
 def _render_report(
     entry: BriefingEntry,
     entries: list[BriefingEntry],
@@ -1190,6 +1230,9 @@ def _render_report(
             f"<ol>{''.join(items)}</ol>"
             "</section>"
         )
+    excluded_topics = _excluded_topics(entry)
+    if excluded_topics:
+        parts.append(excluded_topics)
     parts.append(
         '<p><a href="../history.json">Full public history and check data (JSON)</a></p>'
     )
