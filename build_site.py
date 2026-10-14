@@ -116,7 +116,6 @@ article { padding: 1rem 0; }
 .weekday { color: var(--muted); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; }
 .history-nav [aria-current] { background: var(--text); border-color: var(--text); color: var(--bg); }
 .history-nav [aria-current] .weekday { color: inherit; opacity: .75; }
-.verdict { font-weight: 700; }
 .muted { color: var(--muted); }
 .briefing-content h1, .briefing-content h2, .briefing-content h3 { line-height: 1.2; }
 .briefing-content h1 { font-family: var(--serif); font-size: clamp(2rem, 7vw, 2.85rem);
@@ -133,7 +132,7 @@ article { padding: 1rem 0; }
   margin: 0; text-transform: uppercase; }
 .status-chip { font-size: .88rem; }
 .status-chip a { text-decoration: underline; }
-p.status-chip { border-radius: 999px; display: inline-block; font-weight: 600; margin: .1rem 0 .4rem;
+p.status-chip { border-radius: .9rem; display: inline-block; font-weight: 600; margin: .1rem 0 .4rem;
   padding: .2rem .75rem; }
 .status-ok { background: var(--ok-bg); color: var(--ok); }
 .status-warn { background: var(--warn-bg); color: var(--warn); }
@@ -175,13 +174,23 @@ p.status-chip { border-radius: 999px; display: inline-block; font-weight: 600; m
 .run-notes .sources, .excluded-topics .sources { margin-top: .35rem; }
 .integrity-summary { border: 2px solid var(--rule); padding: .8rem 1rem; border-radius: .4rem; }
 .integrity-summary p { margin: .35rem 0; }
+.integrity-report { max-width: 52rem; }
 .integrity-report .site-header { margin-bottom: .5rem; padding-bottom: .5rem; }
 .integrity-report .site-header p { display: none; }
 .integrity-report h1 { font-size: 1.65rem; margin: .5rem 0; }
-.integrity-report .verdict { margin: .4rem 0; }
-.integrity-report .integrity-summary h2 { font-size: 1.1rem; margin: 0 0 .3rem; }
+.integrity-report h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; }
+.decision { font-family: var(--serif); font-size: 1.2rem; line-height: 1.45; }
+.decision-facts { color: var(--muted); font-size: .9rem; }
+.flag-list li, .coverage-list li { border-bottom: 1px solid var(--rule); padding: .45rem 0; }
+.flag-list a { text-decoration: none; }
+.diff { border-left: .25rem solid var(--rule); padding-left: .8rem; }
+.diff-label { color: var(--muted); font-size: .75rem; font-weight: 650; letter-spacing: .08em;
+  margin-bottom: 0; text-transform: uppercase; }
+.operator-records { border-top: 2px solid var(--strong-rule); margin-top: 2.5rem; }
+.operator-records > details { border-bottom: 1px solid var(--rule); margin: 0; padding: .55rem 0; }
+.operator-records > details > summary { font-weight: 650; }
 .action-ledger li, .story-change { border-bottom: 1px solid var(--rule); padding: .8rem 0; }
-.semantic-audit, .action-ledger, .corpus-health, .excluded-topics { overflow-wrap: anywhere; }
+.semantic-audit, .action-ledger, .corpus-health, .excluded-topics, .operator-records { overflow-wrap: anywhere; }
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-weight: 700; padding-bottom: .4rem; }
 th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); padding: .5rem .7rem; }
@@ -496,16 +505,136 @@ def _document(title: str, body: str, *, asset_prefix: str = "") -> str:
     )
 
 
-def _verdict(entry: BriefingEntry) -> str:
-    noun = "finding" if entry.findings_count == 1 else "findings"
-    return f"{entry.disposition.replace('_', ' ').upper()} · {entry.findings_count} {noun}"
+# Reader-facing wording. The status chip, the briefing page's "Behind this
+# briefing" panel, and the integrity report all describe source coverage with
+# these labels, so the three surfaces cannot disagree. The operator wording in
+# publication_schema.INTEGRITY_REASON_MESSAGES stays unchanged for history JSON.
+_COVERAGE_LABELS = {
+    "healthy": "All sources healthy",
+    "empty": "Some sources returned nothing usable",
+    "failed": "Some sources failed",
+    "unknown": "Some sources had problems",
+    "unrecorded": "Source health was not recorded",
+}
+_SOURCE_HEALTH_UNAVAILABLE = ("source health unavailable",)
+_HEALTH_REASON_PHRASES = {
+    "fetch_error": "could not be fetched",
+    "empty_source": "returned no items",
+    "no_dated_entries": "returned items, none with a usable date",
+    "no_window_entries": "had nothing new in this day's window",
+    "entries_filtered": "had every item filtered out",
+    "undated_entries": "dropped some items that had no date",
+}
+_HEALTH_STATUS_PHRASES = {
+    "error": "could not be fetched",
+    "empty": "returned no items",
+    "quiet": "had nothing new in this day's window",
+}
+_SOURCE_KIND_LABELS = {"rss": "RSS feed", "hacker_news": "Hacker News search", "reddit": "subreddit"}
+# Short clauses that complete "because …" in the report's decision sentence.
+READER_REASON_PHRASES = {
+    "incomplete_review": "the review did not finish",
+    "unknown_billing": "the cost of some review calls was not reported",
+    "target_limit": "too many stories needed repair",
+    "all_sources_removed": "it would have removed every source from a story",
+    "invalid_candidate": "the repaired version failed validation",
+    "provider_failure": "the repair model call failed",
+    "incomplete_followup": "the second review did not finish",
+    "followup_flag": "a repaired story was flagged again",
+    "candidate_mode": "repairs are only proposed, not applied, in this mode",
+    "no_targets": "no story needed repair",
+    "confirmed_irrelevance": "a second check confirmed an off-topic source",
+    "grouping_subset": "the repair kept a smaller set of sources",
+    "audit_unavailable": "review records were unavailable",
+    "verification_failed": "review records could not be verified",
+    "baseline_unavailable": "the first draft was not recorded",
+    "superseded_correction": "a later correction replaced this one",
+    "deterministic_correction": "code-run checks required a correction",
+    "preserved_selection": "code kept the selected sources",
+    "promoted": "code promoted a selected story",
+    "review_required": "the checker found problems that need a person to review them",
+    "rejected": "the checker rejected the briefing",
+    "no_result": "no model produced a briefing that passed the checks",
+}
+_UNPUBLISHED_PHRASES = {
+    "blocked": "the run stopped before a briefing passed the publication checks",
+    "rejected": READER_REASON_PHRASES["rejected"],
+    "no_result": READER_REASON_PHRASES["no_result"],
+    "degraded": "the run did not produce a publishable briefing",
+}
+_NUMBER_WORDS = ("no","one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
 
 
-def _corpus_health(entry: BriefingEntry) -> str:
-    if not entry.degraded_sources:
-        return "No source problems reported"
-    sources = ", ".join(html.escape(source) for source in entry.degraded_sources)
-    return f"Source coverage problems: {sources}"
+def _number_word(n: int) -> str:
+    return _NUMBER_WORDS[n] if 0 <= n < len(_NUMBER_WORDS) else str(n)
+
+
+@dataclass(frozen=True)
+class SourceCoverage:
+    """One account of source health shared by the chip, the panel, and the report."""
+
+    state: str
+    rows: tuple[tuple[str, str, str], ...] = ()  # (source name, source kind, reason)
+    verified: bool = False  # rows come from the bound per-source health record
+    quiet_rule: bool = False  # some rows are quiet sources listed under the category rule
+
+    @property
+    def label(self) -> str:
+        return _COVERAGE_LABELS[self.state]
+
+
+def _source_name(source_type: str, source_id: str) -> tuple[str, str]:
+    """Return a source's display name and kind, e.g. ("r/ClaudeAI", "subreddit")."""
+    name = {"hacker_news": f"“{source_id}”", "reddit": f"r/{source_id}"}.get(source_type, source_id)
+    return name, _SOURCE_KIND_LABELS.get(source_type, source_type)
+
+
+def _source_coverage(entry: BriefingEntry) -> SourceCoverage:
+    health = entry.integrity["corpus_health"] if entry.integrity is not None else None
+    if health is not None:
+        rows, state, quiet = [], "healthy", False
+        for row in degraded_health_records(health):
+            reason = _HEALTH_REASON_PHRASES.get(row["reason"]) or _HEALTH_STATUS_PHRASES.get(
+                row["status"], "had a problem")
+            rows.append((*_source_name(row["source_type"], row["source_id"]), reason))
+            if row["status"] == "error":
+                state = "failed"
+            elif state != "failed":
+                state = "empty"
+            quiet = quiet or row["status"] == "quiet"
+        return SourceCoverage(state, tuple(rows), verified=True, quiet_rule=quiet)
+    if entry.degraded_sources == _SOURCE_HEALTH_UNAVAILABLE:
+        return SourceCoverage("unrecorded")
+    if entry.degraded_sources:
+        rows = []
+        for label in entry.degraded_sources:
+            source_type, separator, source_id = label.partition(":")
+            if not separator:
+                source_type, source_id = "", label
+            rows.append((*_source_name(source_type, source_id), "reason not recorded"))
+        return SourceCoverage("unknown", tuple(rows))
+    return SourceCoverage("healthy")
+
+
+def _coverage_html(coverage: SourceCoverage) -> str:
+    """Render the coverage state and the affected sources, escaped."""
+    parts = [f'<p class="coverage-state coverage-{coverage.state}">{html.escape(coverage.label)}.</p>']
+    if coverage.rows:
+        items = "".join(
+            f"<li><strong>{html.escape(name)}</strong>"
+            + (f" ({html.escape(kind)})" if kind else "")
+            + f" {html.escape(reason)}</li>"
+            for name, kind, reason in coverage.rows
+        )
+        parts.append(f'<ul class="coverage-list">{items}</ul>')
+    if coverage.quiet_rule:
+        limit = corpus_schema.QUIET_SOURCE_DEGRADED_THRESHOLD
+        parts.append(
+            '<p class="muted">A slow source with nothing new is normal. When more than '
+            f"{_number_word(limit)} sources in one category have nothing new on the same day, "
+            "all of them are listed because that category’s coverage is reduced.</p>"
+        )
+    return "".join(parts)
 
 
 _CORPUS_HEALTH_HEADING = "### Corpus health"
@@ -750,6 +879,39 @@ def _omit_report_only_warnings(markdown: str) -> str:
     return "\n".join(output)
 
 
+_COVERAGE_ROW = re.compile(r"^- Coverage: `[a-z_]+`$")
+_SOURCE_NOTE_GROUPS = frozenset({"**Source issues**", "**Undated source drops**"})
+
+
+def _merge_source_notes(markdown: str, coverage: SourceCoverage) -> str:
+    """Describe coverage in the footer with the page's shared source wording.
+
+    Page rendering only; history.json keeps the code-owned footer verbatim.
+    The Run outcome coverage axis becomes the shared coverage label. When the
+    verified per-source record supplies every affected source and reason, the
+    footer's Corpus health section and its fetch-failure and undated-drop
+    lists are dropped because the panel's Sources list already states them.
+    Only structural lines are matched, so fenced or model text is untouched.
+    """
+    lines = markdown.split("\n")
+    structural = _markdown_structure_mask(lines)
+    output: list[str] = []
+    section: str | None = None
+    dropping = False
+    for index, line in enumerate(lines):
+        if structural[index] and line.startswith("### "):
+            section = line
+            dropping = coverage.verified and line == _CORPUS_HEALTH_HEADING
+        elif structural[index] and section == _RUN_OUTCOME_HEADING and line.startswith("**"):
+            dropping = coverage.verified and line in _SOURCE_NOTE_GROUPS
+        if dropping:
+            continue
+        if structural[index] and section == _RUN_OUTCOME_HEADING and _COVERAGE_ROW.match(line):
+            line = f"- Coverage: {coverage.label}"
+        output.append(line)
+    return "\n".join(output)
+
+
 def _autolink_citation(match: re.Match[str]) -> str:
     """Wrap one 🔗 citation URL, keeping sentence punctuation out of the href.
 
@@ -774,7 +936,7 @@ def _is_web_link(url: str) -> bool:
     return url.lower().startswith(("http://", "https://"))
 
 
-def _render_markdown(markdown: str) -> str:
+def _render_markdown(markdown: str, coverage: SourceCoverage | None = None) -> str:
     """Render untrusted Markdown with only code-owned citation links live."""
     markdown_it = importlib.import_module("markdown_it")
     # linkify is deliberately OFF: it would turn any bare domain a model wrote
@@ -787,6 +949,8 @@ def _render_markdown(markdown: str) -> str:
     parser.validateLink = _is_web_link
     public_markdown = markdown or ""
     public_markdown = _omit_report_only_warnings(public_markdown)
+    if coverage is not None:
+        public_markdown = _merge_source_notes(public_markdown, coverage)
     public_markdown = _humanize_corpus_health(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
     # With html disabled, story anchor comments would otherwise render as text.
@@ -958,6 +1122,7 @@ def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
         notes = (
             '<section class="run-notes" id="run-notes" aria-labelledby="run-notes-title">'
             '<h2 id="run-notes-title">Behind this briefing</h2>'
+            f"<h3>Sources</h3>{_coverage_html(_source_coverage(entry))}"
             f"{_LEADING_RULE.sub('', notes, count=1)}"
             "</section>\n"
         )
@@ -998,31 +1163,35 @@ def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
 
 
 def _status_chip(entry: BriefingEntry) -> str:
-    tone = "status-ok"
-    if entry.disposition == "ready" and entry.repair_actions:
-        n = len(entry.repair_actions)
-        label = f"⚠ Published after automated repair ({n} {'action' if n == 1 else 'actions'})"
-        tone = "status-warn"
-    elif entry.disposition == "ready":
-        label = "✓ Contract checks passed"
-    elif entry.disposition == "review_required":
-        label = "🔍 Review required"
-        tone = "status-bad"
+    """Summarize the publication decision and source coverage in one linked line.
+
+    Uses the same wording as the report's decision sentence and the panel's
+    Sources list, so the three surfaces agree.
+    """
+    coverage = _source_coverage(entry)
+    warnings = []
+    if entry.disposition == "ready":
+        decision = entry.integrity["decision"] if entry.integrity is not None else None
+        repaired = decision == "repaired_applied"
+        label = "Published after automated repair" if repaired else "Passed publication checks"
+        flagged = len(_published_flags(entry))
+        if flagged:
+            warnings.append(f"{_count_label(flagged, 'story')} flagged in review")
+        if entry.repair_actions:
+            warnings.append(_count_label(len(entry.repair_actions), "automatic correction"))
+        if entry.advisory_findings:
+            n = len(entry.advisory_findings)
+            warnings.append(f"{n} advisory {'note' if n == 1 else 'notes'}")
+        warn = repaired or bool(warnings) or coverage.state != "healthy"
+        glyph, tone = ("⚠", "status-warn") if warn else ("✓", "status-ok")
+        parts = [label, *warnings, coverage.label]
     else:
-        label = "✖ Not published"
-        tone = "status-bad"
-    suffixes = []
-    if entry.advisory_findings:
-        n = len(entry.advisory_findings)
-        suffixes.append(f"{n} advisory {'note' if n == 1 else 'notes'}")
-    if entry.degraded_sources:
-        suffixes.append("source coverage problems")
-    if suffixes:
-        label += " · " + " · ".join(suffixes)
-        if tone == "status-ok":
-            tone = "status-warn"
+        glyph, label = ("🔍", "Withheld for review") if entry.disposition == "review_required" else (
+            "✖", "Not published")
+        tone, parts = "status-bad", [label, coverage.label]
     report_href = f"reports/{html.escape(entry.slug)}.html"
-    return f'<p class="status-chip {tone}"><a href="{report_href}">{label}</a></p>'
+    text = html.escape(f"{glyph} " + " · ".join(parts))
+    return f'<p class="status-chip {tone}"><a href="{report_href}">{text}</a></p>'
 
 
 def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
@@ -1073,7 +1242,7 @@ def _entry_body(entry: BriefingEntry) -> str:
             f'<p>See the <a href="{report_href}">integrity report</a> for details.</p>'
         )
     elif entry.markdown is not None:
-        rendered_markdown = _render_markdown(entry.markdown)
+        rendered_markdown = _render_markdown(entry.markdown, _source_coverage(entry))
         briefing = _decorate_briefing(_briefing_layout(rendered_markdown, status_chip), entry)
     else:
         briefing = (
@@ -1150,103 +1319,581 @@ def _render_report(
     entries: list[BriefingEntry],
     manifest_dates: frozenset[str] = frozenset(),
 ) -> str:
+    """Lead with what a reader needs; keep operator records in collapsed blocks.
+
+    Order: the decision sentence; what changed in the published briefing; the
+    stories review flagged; the exclusion log; the sources; then operator
+    records (decision record, action ledger, review statistics, checker notes,
+    provenance and costs) inside <details>.
+    """
     newest = entries[0]
     briefing_href = "index.html" if entry.slug == newest.slug else f"{entry.slug}.html"
+    coverage = _source_coverage(entry)
+    public = entry.disposition in PAGE_DISPOSITIONS
+    lead, detail = _decision_sentence(entry)
     parts = [
         f'<p><a href="../{briefing_href}">← Back to briefing</a></p>',
         f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
-        f'<p class="verdict">{html.escape(_verdict(entry))}</p>',
+        '<section class="integrity-summary" aria-label="Publication decision">'
+        f'<p class="decision"><strong>{html.escape(lead)}</strong>'
+        + (f" {html.escape(detail)}" if detail else "")
+        + "</p>"
+        f'<p class="decision-facts">{html.escape(_checker_line(entry))} '
+        f'Sources: <a href="#sources">{html.escape(coverage.label)}</a>.</p>'
+        "</section>",
     ]
-    parts.append(_render_integrity(entry))
-    if entry.provenance is not None and entry.integrity is None:
-        parts.append(_provenance_line(entry.provenance))
-    if entry.slug in manifest_dates:
-        parts.append(
-            '<p class="audit-artifact"><a href="../manifests/'
-            f'{html.escape(entry.slug)}.json">Download audit manifest (JSON)</a> — '
-            "corpus membership, canonical destinations, provenance, and content hashes; "
-            "source-owned titles and excerpts are not included.</p>"
-        )
     if entry.generation_failures:
         parts.append(_generation_failure_notice(entry))
-    all_clear_note: str | None = None
-    if entry.disposition == "ready":
-        if entry.findings_count == 0:
-            if entry.advisory_findings:
-                n = len(entry.advisory_findings)
-                all_clear_note = (
-                    f"The publication gate passed with {n} advisory {'note' if n == 1 else 'notes'}."
-                )
-            else:
-                all_clear_note = "All deterministic contract checks passed."
-            if entry.semantic_audit is None:
-                all_clear_note += " Semantic faithfulness was not assessed."
-        else:
-            # Reachable only if a future actionable check stays WARN-level
-            # outside review_required.
-            count = entry.findings_count
-            all_clear_note = (
-                f"{count} actionable {'finding was' if count == 1 else 'findings were'} "
-                "recorded."
-            )
-    if all_clear_note is not None:
-        parts.append(f'<p class="muted">{html.escape(all_clear_note)}</p>')
-    elif not entry.findings:
-        parts.append('<p class="muted">No findings details are available for this disposition. '
-                     'A zero count does not mean the checker accepted a candidate.</p>')
-    if entry.findings or entry.advisory_findings:
-        counts: dict[tuple[str, str], int] = {}
-        for label, findings in (("Actionable", entry.findings), ("Advisory", entry.advisory_findings)):
-            for finding in findings:
-                key = (label, finding.check)
-                counts[key] = counts.get(key, 0) + 1
-        parts.append('<table><caption>Recorded deterministic findings</caption><thead><tr>'
-                     '<th>Category</th><th>Check</th><th>Count</th></tr></thead><tbody>')
-        for (label, check), count in counts.items():
-            parts.append(f'<tr><td>{label}</td><td>{html.escape(check.replace("_", " "))}</td>'
-                         f'<td>{count}</td></tr>')
-        parts.append('</tbody></table>')
-        parts.append('<ul>')
-        for finding in (*entry.findings, *entry.advisory_findings):
-            subject = (f'{finding.context.section} — {finding.context.headline}'
-                       if finding.context is not None else '')
-            parts.append(f'<li><strong>{html.escape(finding.check.replace("_", " "))}</strong>: '
-                         f'{html.escape(finding.message)} '
-                         f'{html.escape(subject)}</li>')
-        parts.append('</ul>')
-    if entry.semantic_audit is not None:
-        parts.append(_render_semantic_audit(entry.semantic_audit, entry.integrity))
-    parts.append(_render_integrity_details(entry))
-    if entry.repair_actions and entry.disposition in PAGE_DISPOSITIONS:
-        items = []
-        for action in entry.repair_actions:
-            escaped_action = html.escape(action.get("action", ""))
-            escaped_path = html.escape(action.get("path", ""))
-            escaped_reason = html.escape(action.get("reason", ""))
-            items.append(f"<li><strong>{escaped_action}</strong> {escaped_path} — {escaped_reason}</li>")
-        parts.append(
-            '<section class="repair-log">'
-            f"<h2>Automated repair actions ({len(entry.repair_actions)})</h2>"
-            f"<ol>{''.join(items)}</ol>"
-            "</section>"
-        )
+    if public:
+        parts.append(_what_changed(entry))
+        parts.append(_stories_flagged(entry))
+    if entry.findings:
+        parts.append('<section class="checker-findings"><h2>Checker findings</h2>'
+                     + _findings_html(entry.findings) + "</section>")
     excluded_topics = _excluded_topics(entry)
     if excluded_topics:
         parts.append(excluded_topics)
     parts.append(
-        '<p><a href="../history.json">Full public history and check data (JSON)</a></p>'
+        '<section class="corpus-health" id="sources" aria-labelledby="sources-title">'
+        '<h2 id="sources-title">Sources</h2>'
+        f"{_coverage_html(coverage)}{_source_counts(entry)}</section>"
     )
-    parts.append(
-        '<section class="corpus-health">'
-        "<h2>Corpus health</h2>"
-        f"<p>{_corpus_health(entry)}</p>"
-        "</section>"
-    )
+    operator = [
+        ("Decision record", _decision_record(entry)),
+        ("Action ledger", _action_ledger(entry)),
+        ("Review statistics",
+         _render_semantic_audit(entry.semantic_audit, entry.integrity) if entry.semantic_audit else ""),
+        ("Checker notes", _findings_html(entry.advisory_findings) if entry.advisory_findings else ""),
+        ("Provenance and costs", _provenance_and_costs(entry)),
+    ]
+    parts.append('<section class="operator-records" aria-labelledby="operator-title">'
+                 '<h2 id="operator-title">Records for operators</h2>')
+    for title, body in operator:
+        if body:
+            parts.append(f"<details><summary>{title}</summary>{body}</details>")
+    parts.append("</section>")
+    data_links = ['<a href="../history.json">Full public history and check data (JSON)</a>']
+    if entry.slug in manifest_dates:
+        data_links.insert(0, f'<a href="../manifests/{html.escape(entry.slug)}.json">'
+                             "Download audit manifest (JSON)</a> — corpus membership, canonical "
+                             "destinations, provenance, and content hashes; source-owned titles and "
+                             "excerpts are not included.")
+    parts.extend(f'<p class="audit-artifact">{link}</p>' for link in data_links)
     return _document(
         f"Integrity report — {entry.slug}",
         "\n".join(parts),
         asset_prefix="../",
     )
+
+
+def _checker_line(entry: BriefingEntry) -> str:
+    """State the deterministic checker's result under its own name."""
+    count = entry.findings_count
+    if entry.disposition == "review_required":
+        return (f"Deterministic checker: {_count_label(count, 'finding')} "
+                f"{'requires' if count == 1 else 'require'} review.")
+    if entry.disposition != "ready":
+        return ("Deterministic checker: no findings are recorded for unpublished runs; "
+                "a zero count does not mean a candidate passed.")
+    line = f"Deterministic checker: {_count_label(count, 'finding')}"
+    if entry.advisory_findings:
+        n = len(entry.advisory_findings)
+        line += f", {n} advisory {'note' if n == 1 else 'notes'}"
+    elif count == 0:
+        line += "; all contract checks passed"
+    return line + "."
+
+
+def _findings_html(findings: tuple[ReviewFinding, ...]) -> str:
+    counts: dict[str, int] = {}
+    for finding in findings:
+        counts[finding.check] = counts.get(finding.check, 0) + 1
+    rows = "".join(f'<tr><td>{html.escape(check.replace("_", " "))}</td><td>{count}</td></tr>'
+                   for check, count in counts.items())
+    items = "".join(
+        f'<li><strong>{html.escape(finding.check.replace("_", " "))}</strong>: '
+        f"{html.escape(finding.message)} "
+        + (html.escape(f"{finding.context.section} — {finding.context.headline}")
+           if finding.context is not None else "")
+        + "</li>"
+        for finding in findings
+    )
+    return ('<table><caption>Recorded deterministic findings</caption><thead><tr>'
+            f'<th>Check</th><th>Count</th></tr></thead><tbody>{rows}</tbody></table>'
+            f"<ul>{items}</ul>")
+
+
+_FLAG_LABELS = frozenset({"confirmed", "unconfirmed"})
+_CHECK_PHRASES = {
+    "unsafe_grouping": "unrelated events grouped as one story",
+    "unsupported_claim": "a claim its sources do not support",
+    "strengthened_claim": "a claim stated more strongly than its sources",
+    "reversed_claim": "a claim that reverses what its sources say",
+    "duplicate": "repeats another story",
+}
+
+
+def _flags_by_story(checks: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Group flagged checks by story; a disputed score is not a flag."""
+    flags: dict[str, list[dict[str, Any]]] = {}
+    for check in checks:
+        if check["confirmation_label"] in _FLAG_LABELS:
+            for position in check["positions"]:
+                flags.setdefault(_position_key(position), []).append(check)
+    return flags
+
+
+def _published_story_keys(audit: dict[str, Any]) -> list[str]:
+    return [_position_key(t["position"]) for t in audit["topics"] if t["position"]["bucket"] == "sections"]
+
+
+def _published_flags(entry: BriefingEntry) -> set[str]:
+    """Published stories that still carry a flag in the review of the published text."""
+    audit = entry.semantic_audit
+    if audit is None or entry.disposition not in PAGE_DISPOSITIONS:
+        return set()
+    repaired = entry.integrity is not None and entry.integrity["decision"] == "repaired_applied"
+    checks = audit.get("followup_checks", audit["checks"]) if repaired else audit["checks"]
+    return set(_flags_by_story(checks)) & set(_published_story_keys(audit))
+
+
+def _review_complete(entry: BriefingEntry) -> bool:
+    audit = entry.semantic_audit
+    record = entry.integrity
+    if record is not None and record["initial_review"] is not None:
+        return bool(record["initial_review"]["status"] == "complete")
+    return audit is not None and audit["status"] == "complete"
+
+
+def _withheld_reason(entry: BriefingEntry, reflagged: int) -> str:
+    reasons = entry.integrity["reasons"] if entry.integrity is not None else []
+    if "followup_flag" in reasons and reflagged:
+        story = "story was" if reflagged == 1 else "stories were"
+        return f"{_number_word(reflagged)} {story} re-flagged"
+    return next((READER_REASON_PHRASES[code] for code in reasons), "")
+
+
+def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
+    """Return the report's lead (the decision) and its reason in plain words."""
+    record = entry.integrity
+    decision = record["decision"] if record is not None else None
+    audit = entry.semantic_audit
+    if entry.disposition not in PAGE_DISPOSITIONS:
+        if entry.generation_failures:
+            return "Not published.", "Every model tried failed to produce a briefing that passed the checks."
+        reason = next((READER_REASON_PHRASES[code] for code in (record or {}).get("reasons", [])
+                       if code in {"review_required", "rejected", "no_result"}),
+                      _UNPUBLISHED_PHRASES.get(entry.disposition, READER_REASON_PHRASES["no_result"]))
+        return "Not published.", reason[0].upper() + reason[1:] + "."
+    if entry.disposition == "review_required":
+        return "Withheld for review.", (
+            f"The deterministic checker recorded {_count_label(entry.findings_count, 'finding')} "
+            "that need a person to review them before publication.")
+    topics = {_position_key(t["position"]): t for t in audit["topics"]} if audit else {}
+    applied = [t for t in topics.values() if t["repair_status"] == "applied"]
+    corrections = len(entry.repair_actions)
+    if decision == "repaired_applied":
+        lead = f"Published with automated repairs to {_number_word(len(applied))} " + (
+            "story." if len(applied) == 1 else "stories.")
+    elif decision in ("original_retained", "candidate_retained"):
+        lead = "Published as originally generated." if not corrections else (
+            f"Published as generated, after {_count_label(corrections, 'automatic correction')} by code.")
+    elif decision == "historical_unknown":
+        lead = "Published; how this decision was made was not fully recorded."
+    else:
+        lead = "Published."
+    if audit is None:
+        return lead, "No automated story review was recorded for this day."
+    published = _published_story_keys(audit)
+    initial = _flags_by_story(audit["checks"])
+    flagged = [key for key in published if key in initial]
+    total, count = len(published), len(flagged)
+    complete = _review_complete(entry)
+    unconfirmed = all(c["confirmation_label"] == "unconfirmed" for key in flagged for c in initial[key])
+    if not complete:
+        detail = "Automated review did not finish"
+        detail += (f"; it flagged {count} of {total} stories"
+                   + (" without confirming them" if unconfirmed else "")) if count else (
+            " and flagged none of the stories it checked")
+    elif count:
+        detail = f"Automated review flagged {count} of {total} stories"
+    else:
+        detail = f"Automated review checked all {total} stories and flagged none"
+    followup = _flags_by_story(audit.get("followup_checks", []))
+    if decision is None:
+        return lead, detail + ". Detailed decision records are not available for this day."
+    if count:
+        attempted = [key for key in flagged if topics[key]["repair_status"] in ("rejected", "failed", "candidate")]
+        if decision == "repaired_applied":
+            detail += "; the repair passed a second review" if len(applied) == 1 else (
+                "; the repairs passed a second review")
+        elif decision == "candidate_retained":
+            detail += "; a repaired version passed a second review but was not applied"
+        elif attempted:
+            why = _withheld_reason(entry, sum(key in followup for key in attempted))
+            detail += "; a repair was attempted and withheld" + (f" because {why}" if why else "")
+        else:
+            why = _withheld_reason(entry, 0)
+            skip = not why or (not complete and why == READER_REASON_PHRASES["incomplete_review"])
+            detail += "; no repair was attempted" + ("" if skip else f" because {why}")
+    detail += "."
+    if decision == "repaired_applied":
+        repaired = {_position_key(t["position"]) for t in applied}
+        others = [key for key in published if key in followup and key not in repaired]
+        if others:
+            detail += (f" The second review flagged {_number_word(len(others))} other "
+                       + ("story, which was" if len(others) == 1 else "stories, which were")
+                       + " published unchanged.")
+    return lead, detail
+
+
+def _what_changed(entry: BriefingEntry) -> str:
+    """Show only the changes that reached the published briefing."""
+    parts = ['<section class="what-changed" id="what-changed"><h2>What changed in the published briefing</h2>']
+    audit = entry.semantic_audit
+    applied = [t for t in audit["topics"] if t["repair_status"] == "applied"] if audit else []
+    checks = audit["checks"] if audit else []
+    for topic in applied:
+        old, new = topic["original"], topic["changed"]
+        parts.append(f'<section class="story-change"><h3>{html.escape(old["headline"])}</h3>')
+        removed = [c for c in checks if c["after_basis"] == "citation_removed"
+                   and _position_key(c["positions"][0]) == _position_key(topic["position"])]
+        for check in removed:
+            parts.append("<p>Source removed: " + " · ".join(
+                f"<del>{link}</del>" for link in _citation_links(check)) + "</p>")
+        if topic["removed_evidence_count"] and not removed:
+            parts.append(f"<p>{_count_label(topic['removed_evidence_count'], 'source')} removed.</p>")
+        if new is not None and (new["headline"] != old["headline"] or new["prose"] != old["prose"]):
+            old_head, new_head = _word_diff(old["headline"], new["headline"])
+            old_prose, new_prose = _word_diff(old["prose"], new["prose"])
+            parts.append(
+                '<div class="diff"><p class="diff-label">Before</p>'
+                f"<p><strong>{old_head}</strong></p><p>{old_prose}</p>"
+                '<p class="diff-label">After (published)</p>'
+                f"<p><strong>{new_head}</strong></p><p>{new_prose}</p></div>"
+            )
+        parts.append("</section>")
+    if entry.repair_actions:
+        parts.append(
+            f"<p>Code made {_count_label(len(entry.repair_actions), 'automatic correction')} "
+            "while generating the briefing, before review:</p><ul class=\"correction-list\">"
+            + "".join(
+                f"<li><strong>{html.escape(_story_path_label(a.get('path', '')))}</strong> — "
+                f"{html.escape(a.get('reason', ''))}</li>"
+                for a in entry.repair_actions)
+            + "</ul>"
+        )
+    if not applied and not entry.repair_actions:
+        parts.append("<p>Nothing. Review did not change the briefing; it was published as generated.</p>"
+                     if audit is not None else
+                     "<p>Nothing was recorded as changed after generation.</p>")
+    parts.append("</section>")
+    return "".join(parts)
+
+
+_STORY_PATH = re.compile(r"^(topics|excluded_topics)\.(.+)\[(\d+)\]$")
+
+
+def _story_path_label(path: str) -> str:
+    """Turn "topics.US News[2]" into "US News, story 3"; other paths stay as recorded."""
+    match = _STORY_PATH.match(path)
+    if match is None:
+        return path
+    bucket, section, index = match.groups()
+    noun = "story" if bucket == "topics" else "excluded topic"
+    return f"{section}, {noun} {int(index) + 1}"
+
+
+def _citation_links(check: dict[str, Any]) -> list[str]:
+    links = []
+    for url in check["citation_urls"]:
+        host = urlsplit(url).hostname or "source"
+        label = "HN discussion" if host == "news.ycombinator.com" else f"Article · {host}"
+        links.append(f'<a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>')
+    return links
+
+
+def _problem_phrases(key: str, flags: list[dict[str, Any]], checks: list[dict[str, Any]]) -> list[str]:
+    phrases = []
+    citations = [c for c in flags if c["check"] == "irrelevant_citation"]
+    if citations:
+        flagged = len({c["evidence_index"] for c in citations})
+        total = sum(c["check"] == "irrelevant_citation" and any(_position_key(p) == key for p in c["positions"])
+                    for c in checks)
+        sources = "source" if flagged == 1 and total <= 1 else "sources"
+        scope = f"{_number_word(flagged)} of {_number_word(total)} {sources}" if total > flagged else (
+            f"{_number_word(flagged)} {sources}" if flagged > 1 else "its only source")
+        phrases.append(scope + " judged off-topic"
+                       + (" (not confirmed)" if all(c["confirmation_label"] == "unconfirmed" for c in citations)
+                          else ""))
+    for kind, phrase in _CHECK_PHRASES.items():
+        group = [c for c in flags if c["check"] == kind]
+        if group:
+            phrases.append(phrase + (" (not confirmed)" if all(
+                c["confirmation_label"] == "unconfirmed" for c in group) else ""))
+    return phrases
+
+
+def _story_outcome(topic: dict[str, Any], reflagged: bool) -> str:
+    status = topic["repair_status"]
+    if status == "applied":
+        return "repair published"
+    if status == "rejected":
+        if reflagged:
+            return "repair attempted, re-flagged, not published"
+        return "removal proposed, not published" if topic["removed_evidence_count"] else (
+            "repair attempted, not published")
+    if status == "candidate":
+        return "repair passed a second review but was not applied"
+    if status == "failed":
+        return "repair attempt failed; published unchanged"
+    if status == "skipped":
+        return "repair skipped; published unchanged"
+    if topic["position"]["bucket"] == "excluded_topics":
+        return "no repair attempted"
+    return "no repair attempted; published unchanged"
+
+
+def _stories_flagged(entry: BriefingEntry) -> str:
+    """List each flagged story once, in plain language, with what happened to it."""
+    parts = ['<section class="stories-flagged" id="stories-flagged"><h2>Stories flagged</h2>']
+    audit = entry.semantic_audit
+    if audit is None:
+        parts.append("<p>No automated story review was recorded for this day.</p></section>")
+        return "".join(parts)
+    initial = _flags_by_story(audit["checks"])
+    followup = _flags_by_story(audit.get("followup_checks", []))
+    items = []
+    disputed = sum(c["confirmation_label"] == "disputed" for c in audit["checks"])
+    for topic in audit["topics"]:
+        key = _position_key(topic["position"])
+        if key not in initial and key not in followup and topic["repair_status"] == "unchanged":
+            continue
+        phrases = _problem_phrases(key, initial.get(key, []), audit["checks"])
+        if not phrases and key in followup:
+            phrases = [p + " in the second review"
+                       for p in _problem_phrases(key, followup[key], audit.get("followup_checks", []))]
+        if not phrases:
+            phrases = ["flagged for repair"]
+        tag = ' <span class="story-tag">excluded topic</span>' if topic["position"]["bucket"] != "sections" else ""
+        items.append(
+            f'<li><a href="#{_story_anchor(topic["position"])}"><strong>'
+            f'{html.escape(topic["original"]["headline"])}</strong></a>{tag}: '
+            f"{html.escape('; '.join(phrases))}; {html.escape(_story_outcome(topic, key in followup))}</li>"
+        )
+    if items:
+        parts.append(f'<ul class="flag-list">{"".join(items)}</ul>')
+    else:
+        parts.append("<p>None. Automated review confirmed no problems.</p>" if _review_complete(entry)
+                     else "<p>None among the questions answered; the review did not finish.</p>")
+    if disputed:
+        noun = "other possible problem" if items else "possible problem"
+        parts.append(f'<p class="muted">{_count_label(disputed, noun)} '
+                     f"{'was' if disputed == 1 else 'were'} not confirmed by a second, independent check; "
+                     f"{'it is' if disputed == 1 else 'they are'} counted only in the review statistics.</p>")
+    parts.append('<p class="muted">Flags are automated judgments against short source excerpts; '
+                 "they can be wrong in either direction.</p></section>")
+    return "".join(parts)
+
+
+def _decision_record(entry: BriefingEntry) -> str:
+    record = entry.integrity
+    if record is None:
+        return (
+            '<p class="muted">Historical publication decision and phase records unavailable. '
+            "Legacy scores and repair statuses do not establish a verified publication decision.</p>"
+        )
+    decisions = {
+        "original_retained": "Original briefing published",
+        "repaired_applied": "Accepted repair published",
+        "candidate_retained": "Original published; clear candidate retained without application",
+        "unpublished": "No briefing published",
+        "historical_unknown": "Historical decision unknown",
+    }
+    parts = [
+        f"<p><strong>{decisions[record['decision']]}</strong></p>",
+        f"<p>{html.escape(_reasons(record['reasons']))}</p>",
+    ]
+    if entry.disposition not in PAGE_DISPOSITIONS:
+        return "\n".join(parts)
+    audit = entry.semantic_audit
+    if audit:
+        outcomes: dict[str, int] = {}
+        for topic in audit["topics"]:
+            status = topic["repair_status"]
+            if status != "unchanged":
+                outcomes[status] = outcomes.get(status, 0) + 1
+        if outcomes:
+            parts.append('<p><strong>Repair outcomes by story:</strong> ' + '; '.join(
+                f'{count} {status}' for status, count in outcomes.items()) + '.</p>')
+        applied = [t for t in audit["topics"] if t["repair_status"] == "applied"]
+        changed = sum(t["changed"] != t["original"] or t["removed_evidence_count"] > 0 for t in applied)
+        removed = sum(t["removed_evidence_count"] for t in applied)
+        repair_published = record["decision"] == "repaired_applied"
+        remaining = audit.get("followup_checks", []) if repair_published else audit["checks"]
+        flags = sum(c["confirmation_label"] != "not_flagged" for c in remaining)
+        parts.append('<p>Published since semantic-review baseline: <strong>'
+                     + _count_label(changed, "story") + ' changed; '
+                     + _count_label(removed, "source item") + ' removed</strong>.</p>')
+        scope = "follow-up assessment" if repair_published else "initial assessment"
+        parts.append(f'<p>Published briefing: <strong>{_count_label(flags, "semantic flag")}</strong> '
+                     f'({scope}).</p>')
+        if not repair_published and "followup_checks" in audit:
+            candidate_flags = sum(c["confirmation_label"] != "not_flagged"
+                                  for c in audit["followup_checks"])
+            parts.append(f'<p>Unpublished candidate: {_count_label(candidate_flags, "semantic flag")} '
+                         'in follow-up assessment.</p>')
+    gate = "passed" if entry.disposition == "ready" else "review required"
+    parts.append(f'<p>Deterministic gate: <strong>{gate}</strong>; '
+                 f'{_count_label(entry.findings_count, "actionable finding")} on published artifact.</p>')
+    followup_label = "Follow-up review" if record["decision"] == "repaired_applied" else "Candidate follow-up"
+    for field, label in (("initial_review", "Initial review"), ("followup_review", followup_label)):
+        coverage = record[field]
+        if coverage is None:
+            parts.append(f'<p>{label}: unavailable / not attempted.</p>')
+        else:
+            parts.append(f'<p>{label}: <strong>{coverage["status"]}</strong>; '
+                         f'questions {coverage["returned"]}/{coverage["planned"]}; '
+                         f'confirmations {coverage["confirmation_returned"]}/'
+                         f'{coverage["confirmation_required"]}.</p>')
+    if any(record[field] is not None and record[field]["status"] != "complete"
+           for field in ("initial_review", "followup_review")):
+        parts.append('<p><strong>Unassessed questions / missing confirmations unresolved.</strong></p>')
+    return "\n".join(parts)
+
+
+def _action_ledger(entry: BriefingEntry) -> str:
+    if entry.disposition not in PAGE_DISPOSITIONS:
+        return ""
+    parts: list[str] = []
+    if entry.repair_actions:
+        items = "".join(
+            f"<li><strong>{html.escape(action.get('action', ''))}</strong> "
+            f"{html.escape(action.get('path', ''))} — {html.escape(action.get('reason', ''))}</li>"
+            for action in entry.repair_actions
+        )
+        parts.append('<section class="repair-log">'
+                     f"<h3>Automated repair actions ({len(entry.repair_actions)})</h3>"
+                     f"<ol>{items}</ol></section>")
+    record = entry.integrity
+    if record is None:
+        return "\n".join(parts)
+    if record["actions"]:
+        topics = {
+            _position_key(t["position"]): t for t in (entry.semantic_audit or {}).get("topics", [])
+        }
+        parts.append('<section class="action-ledger"><h3>Action ledger</h3><ol>')
+        for action in record["actions"]:
+            subjects = []
+            for position in action["positions"]:
+                topic = topics.get(_position_key(position))
+                if topic:
+                    subjects.append(
+                        f'<a href="#{_story_anchor(position)}">{html.escape(topic["original"]["headline"])}</a>'
+                    )
+            parts.append(
+                f'<li id="{action["id"]}"><strong>{html.escape(action["actor"])}: '
+                f"{html.escape(action['action'].replace('_', ' '))} — {action['outcome']}</strong> "
+                + " · ".join(subjects)
+                + f"<p>{html.escape(_reasons(action['reasons']))}</p></li>"
+            )
+        parts.append("</ol></section>")
+    artifacts = {a["id"] for a in record["artifacts"]}
+    parts.append('<p>First complete initial prose baseline: '
+                 + ('recorded by hash; earlier corrections appear in the ledger.' if 'initial_prose' in artifacts
+                    else 'unavailable; change counts do not reconstruct all generation corrections.') + '</p>')
+    parts.append('<p>Change counts compare the first ready semantic-review briefing with the published result. '
+                 'Actions include code bookkeeping and validation; they are not paid model requests.</p>')
+    outcomes: dict[str, int] = {}
+    for action in record["actions"]:
+        status = action["outcome"]
+        outcomes[status] = outcomes.get(status, 0) + 1
+    if outcomes:
+        parts.append('<p>Recorded action outcomes: ' + '; '.join(
+            f'{count} {status}' for status, count in outcomes.items()) + '.</p>')
+    return "\n".join(parts)
+
+
+def _provenance_and_costs(entry: BriefingEntry) -> str:
+    record = entry.integrity
+    if record is None:
+        return _provenance_line(entry.provenance) if entry.provenance is not None else ""
+    parts: list[str] = []
+    if entry.disposition in PAGE_DISPOSITIONS:
+        for field, label in (
+            ("generation", "Original generation"),
+            ("repair_generation", "Repair generation"),
+        ):
+            if record[field] is not None:
+                provenance = parse_provenance(record[field])
+                if provenance is not None:
+                    parts.append(f"<h3>{label}</h3>" + _provenance_line(provenance))
+        parts.append("<h3>Recorded phases and costs</h3><ol>")
+        for phase in record["phases"]:
+            times = " — ".join(x for x in (phase["started_at"], phase["completed_at"]) if x)
+            parts.append(
+                f"<li>{phase['sequence']}: {phase['phase'].replace('_', ' ')} — "
+                f"<strong>{phase['status']}</strong> {html.escape(times)} "
+                f"{html.escape(_reasons(phase['reasons']))}</li>"
+            )
+        parts.append(
+            "</ol><p>Phase order records execution; it does not imply measured durations.</p>"
+        )
+        for cost in record["costs"]:
+            spend = (
+                "unavailable"
+                if cost["reported_cost_usd"] is None
+                else f"${cost['reported_cost_usd']:.4f}"
+            )
+            unknown = (
+                "unavailable"
+                if cost["unknown_cost_calls"] is None
+                else str(cost["unknown_cost_calls"])
+            )
+            parts.append(
+                f"<p>{cost['phase'].replace('_', ' ')}: reported {spend}; unknown billing calls: {unknown}.</p>"
+            )
+        if record["artifacts"]:
+            parts.append("<h3>Artifact digests (SHA-256)</h3><ul>" + "".join(
+                f"<li>{html.escape(a['id'].replace('_', ' '))}: <code>{html.escape(a['sha256'])}</code></li>"
+                for a in record["artifacts"]) + "</ul>")
+    if record["workflow_run_id"] is not None:
+        parts.append(
+            f'<p><a href="{PROJECT_URL}/actions/runs/{record["workflow_run_id"]}">Originating workflow</a></p>'
+        )
+    return "\n".join(parts)
+
+
+def _source_counts(entry: BriefingEntry) -> str:
+    """Per-source counts for operators, collapsed under the shared Sources list."""
+    record = entry.integrity
+    if record is None or record["corpus_health"] is None:
+        return ""
+    messages = {
+        "fetch_error": "fetch failed",
+        "empty_source": "empty source",
+        "no_dated_entries": "no dated entries",
+        "no_window_entries": "no entries in date window",
+        "entries_filtered": "entries filtered",
+        "undated_entries": "some entries undated",
+    }
+    health = record["corpus_health"]
+    degraded = degraded_health_records(health)
+    parts = ["<details><summary>All source counts</summary>"]
+    quiet = [row for row in health if row["status"] == "quiet" and row not in degraded]
+    if quiet:
+        parts.append('<p>Quiet sources returned valid dated entries outside the window or filtered by policy: '
+                     + html.escape("; ".join(row["source_id"] for row in quiet)) + '.</p>')
+    parts.append("<ul>")
+    for row in health:
+        parts.append(
+            f"<li>{html.escape(row['source_id'])} ({html.escape(row['category'])}): "
+            f"{row['status']}; {messages.get(row['reason'], 'healthy')}; "
+            f"{row['parsed_entries']} parsed / {row['dated_entries']} dated / "
+            f"{row['retained_entries']} retained.</li>"
+        )
+    parts.append("</ul></details>")
+    return "\n".join(parts)
 
 
 def _position_key(position: dict[str, Any]) -> str:
@@ -1281,191 +1928,6 @@ def _score_text(check: dict[str, Any], prefix: str = "") -> str:
     return f"{probability:.2f} / {second} ({html.escape(label.replace('_', ' '))})"
 
 
-def _render_integrity(entry: BriefingEntry) -> str:
-    record = entry.integrity
-    if record is None:
-        return (
-            '<p class="muted">Historical publication decision and phase records unavailable. '
-            "Legacy scores and repair statuses do not establish a verified publication decision.</p>"
-        )
-    decisions = {
-        "original_retained": "Original briefing published",
-        "repaired_applied": "Accepted repair published",
-        "candidate_retained": "Original published; clear candidate retained without application",
-        "unpublished": "No briefing published",
-        "historical_unknown": "Historical decision unknown",
-    }
-    parts = [
-        '<section class="integrity-summary"><h2>Publication decision</h2>',
-        f"<p><strong>{decisions[record['decision']]}</strong></p>",
-        f"<p>{html.escape(_reasons(record['reasons']))}</p>",
-    ]
-    public = entry.disposition in PAGE_DISPOSITIONS
-    if public:
-        audit = entry.semantic_audit
-        if audit:
-            outcomes: dict[str, int] = {}
-            for topic in audit["topics"]:
-                status = topic["repair_status"]
-                if status != "unchanged":
-                    outcomes[status] = outcomes.get(status, 0) + 1
-            if outcomes:
-                parts.append('<p><strong>Repair outcomes by story:</strong> ' + '; '.join(
-                    f'{count} {status}' for status, count in outcomes.items()) + '.</p>')
-            applied = [t for t in audit["topics"] if t["repair_status"] == "applied"]
-            changed = sum(t["changed"] != t["original"] or t["removed_evidence_count"] > 0 for t in applied)
-            removed = sum(t["removed_evidence_count"] for t in applied)
-            repair_published = record["decision"] == "repaired_applied"
-            remaining = audit.get("followup_checks", []) if repair_published else audit["checks"]
-            flags = sum(c["confirmation_label"] != "not_flagged" for c in remaining)
-            parts.append('<p>Published since semantic-review baseline: <strong>'
-                         + _count_label(changed, "story") + ' changed; '
-                         + _count_label(removed, "source item") + ' removed</strong>.</p>')
-            scope = "follow-up assessment" if repair_published else "initial assessment"
-            parts.append(f'<p>Published briefing: <strong>{_count_label(flags, "semantic flag")}</strong> '
-                         f'({scope}).</p>')
-            if not repair_published and "followup_checks" in audit:
-                candidate_flags = sum(c["confirmation_label"] != "not_flagged"
-                                      for c in audit["followup_checks"])
-                parts.append(f'<p>Unpublished candidate: {_count_label(candidate_flags, "semantic flag")} '
-                             'in follow-up assessment.</p>')
-        gate = "passed" if entry.disposition == "ready" else "review required"
-        parts.append(f'<p>Deterministic gate: <strong>{gate}</strong>; '
-                     f'{_count_label(entry.findings_count, "actionable finding")} on published artifact.</p>')
-        followup_label = "Follow-up review" if record["decision"] == "repaired_applied" else "Candidate follow-up"
-        for field, label in (("initial_review", "Initial review"), ("followup_review", followup_label)):
-            coverage = record[field]
-            if coverage is None:
-                parts.append(f'<p>{label}: unavailable / not attempted.</p>')
-            else:
-                parts.append(f'<p>{label}: <strong>{coverage["status"]}</strong>; '
-                             f'questions {coverage["returned"]}/{coverage["planned"]}; '
-                             f'confirmations {coverage["confirmation_returned"]}/'
-                             f'{coverage["confirmation_required"]}.</p>')
-        if any(record[field] is not None and record[field]["status"] != "complete"
-               for field in ("initial_review", "followup_review")):
-            parts.append('<p><strong>Unassessed questions / missing confirmations unresolved.</strong></p>')
-    parts.append("</section>")
-    if record["actions"] and public:
-        topics = {
-            _position_key(t["position"]): t for t in (entry.semantic_audit or {}).get("topics", [])
-        }
-        parts.append('<section class="action-ledger"><h2>Action ledger</h2><ol>')
-        for action in record["actions"]:
-            subjects = []
-            for position in action["positions"]:
-                topic = topics.get(_position_key(position))
-                if topic:
-                    subjects.append(
-                        f'<a href="#{_story_anchor(position)}">{html.escape(topic["original"]["headline"])}</a>'
-                    )
-            parts.append(
-                f'<li id="{action["id"]}"><strong>{html.escape(action["actor"])}: '
-                f"{html.escape(action['action'].replace('_', ' '))} — {action['outcome']}</strong> "
-                + " · ".join(subjects)
-                + f"<p>{html.escape(_reasons(action['reasons']))}</p></li>"
-            )
-        parts.append("</ol></section>")
-    return "\n".join(parts)
-
-
-def _render_integrity_details(entry: BriefingEntry) -> str:
-    record = entry.integrity
-    if record is None:
-        return ""
-    parts: list[str] = []
-    if entry.disposition in PAGE_DISPOSITIONS:
-        artifacts = {a["id"] for a in record["artifacts"]}
-        parts.append('<p>First complete initial prose baseline: '
-                     + ('recorded by hash; earlier corrections appear in the ledger.' if 'initial_prose' in artifacts
-                        else 'unavailable; change counts do not reconstruct all generation corrections.') + '</p>')
-        parts.append('<p>Change counts compare the first ready semantic-review briefing with the published result. '
-                     'Actions include code bookkeeping and validation; they are not paid model requests.</p>')
-        outcomes: dict[str, int] = {}
-        for action in record["actions"]:
-            status = action["outcome"]
-            outcomes[status] = outcomes.get(status, 0) + 1
-        if outcomes:
-            parts.append('<p>Recorded action outcomes: ' + '; '.join(
-                f'{count} {status}' for status, count in outcomes.items()) + '.</p>')
-        for field, label in (
-            ("generation", "Original generation"),
-            ("repair_generation", "Repair generation"),
-        ):
-            if record[field] is not None:
-                provenance = parse_provenance(record[field])
-                if provenance is not None:
-                    parts.append(f"<h3>{label}</h3>" + _provenance_line(provenance))
-        parts.append("<h2>Recorded phases and costs</h2><ol>")
-        for phase in record["phases"]:
-            times = " — ".join(x for x in (phase["started_at"], phase["completed_at"]) if x)
-            parts.append(
-                f"<li>{phase['sequence']}: {phase['phase'].replace('_', ' ')} — "
-                f"<strong>{phase['status']}</strong> {html.escape(times)} "
-                f"{html.escape(_reasons(phase['reasons']))}</li>"
-            )
-        parts.append(
-            "</ol><p>Phase order records execution; it does not imply measured durations.</p>"
-        )
-        for cost in record["costs"]:
-            spend = (
-                "unavailable"
-                if cost["reported_cost_usd"] is None
-                else f"${cost['reported_cost_usd']:.4f}"
-            )
-            unknown = (
-                "unavailable"
-                if cost["unknown_cost_calls"] is None
-                else str(cost["unknown_cost_calls"])
-            )
-            parts.append(
-                f"<p>{cost['phase'].replace('_', ' ')}: reported {spend}; unknown billing calls: {unknown}.</p>"
-            )
-    if record["workflow_run_id"] is not None:
-        parts.append(
-            f'<p><a href="{PROJECT_URL}/actions/runs/{record["workflow_run_id"]}">Originating workflow</a></p>'
-        )
-    if record["corpus_health"] is None:
-        parts.append("<p>Detailed historical source health unavailable.</p>")
-    else:
-        parts.append('<h2>Verified source health</h2>')
-        messages = {
-            "fetch_error": "fetch failed",
-            "empty_source": "empty source",
-            "no_dated_entries": "no dated entries",
-            "no_window_entries": "no entries in date window",
-            "entries_filtered": "entries filtered",
-            "undated_entries": "some entries undated",
-        }
-        degraded = degraded_health_records(record["corpus_health"])
-        groups: dict[str, list[str]] = {}
-        for row in degraded:
-            label = messages.get(row["reason"], row["status"])
-            groups.setdefault(label, []).append(f'{row["source_type"]}: {row["source_id"]}')
-        if groups:
-            parts.append('<ul>')
-            for label, sources in groups.items():
-                parts.append(f'<li><strong>{html.escape(label)}</strong>: '
-                             f'{html.escape("; ".join(sources))}</li>')
-            parts.append('</ul>')
-        else:
-            parts.append('<p>No source problems recorded.</p>')
-        quiet = [row for row in record["corpus_health"] if row["status"] == "quiet" and row not in degraded]
-        if quiet:
-            parts.append('<p>Quiet sources returned valid dated entries outside the window or filtered by policy: '
-                         + html.escape("; ".join(row["source_id"] for row in quiet)) + '.</p>')
-        parts.append('<details><summary>All verified source counts</summary><ul>')
-        for row in record["corpus_health"]:
-            parts.append(
-                f"<li>{html.escape(row['source_id'])} ({html.escape(row['category'])}): "
-                f"{row['status']}; {messages.get(row['reason'], 'healthy')}; "
-                f"{row['parsed_entries']} parsed / {row['dated_entries']} dated / "
-                f"{row['retained_entries']} retained.</li>"
-            )
-        parts.append("</ul></details>")
-    return "\n".join(parts)
-
-
 def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | None = None) -> str:
     topics = {_position_key(t["position"]): t for t in audit["topics"]}
     checks = audit["checks"]
@@ -1484,8 +1946,9 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         for position in action["positions"]
     }
     parts = [
-        '<section class="semantic-audit"><h2>Jev automated checks and repairs</h2>',
-        "<p>Preliminary judgments against frozen excerpts; agreement does not prove correctness.</p>",
+        '<section class="semantic-audit">',
+        "<p>Jev automated checks and repairs: preliminary judgments against frozen excerpts; "
+        "agreement does not prove correctness. Scores read initial / confirmation probability.</p>",
     ]
     for key, topic in topics.items():
         related = [
@@ -1506,13 +1969,8 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         for check in related:
             parts.append(f"<p>{names[check['check']]}: {_score_text(check)}.</p>")
             if check["check"] == "irrelevant_citation" and check["after_basis"] != "citation_removed":
-                links = []
-                for url in check["citation_urls"]:
-                    host = urlsplit(url).hostname or "source"
-                    label = "HN discussion" if host == "news.ycombinator.com" else f"Article · {host}"
-                    links.append(f'<a href="{html.escape(url, quote=True)}">{html.escape(label)}</a>')
                 parts.append(f'<p>Flagged source item {check["evidence_index"] + 1} (original slot alignment): '
-                             + " · ".join(links) + '. No removal established by this finding.</p>')
+                             + " · ".join(_citation_links(check)) + '. No removal established by this finding.</p>')
             if check["after_basis"] == "single_evidence":
                 parts.append(
                     "<p>Follow-up grouping not in scope: one source item remains; no model score.</p>"
@@ -1554,16 +2012,9 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
                 if causes
                 else "Legacy removal cause unavailable"
             )
-            links = []
-            for url in check["citation_urls"]:
-                host = urlsplit(url).hostname or "source"
-                label = "HN discussion" if host == "news.ycombinator.com" else f"Article · {host}"
-                links.append(
-                    f'<del><a href="{html.escape(url, quote=True)}">{html.escape(label)}</a></del>'
-                )
             parts.append(
                 f"<p>{outcome}: source item {check['evidence_index'] + 1}; "
-                + " · ".join(links)
+                + " · ".join(f"<del>{link}</del>" for link in _citation_links(check))
                 + f" — {html.escape(cause)}.</p>"
             )
         if new is not None and (new["headline"] != old["headline"] or new["prose"] != old["prose"]):
