@@ -354,6 +354,33 @@ class SemanticRepairTests(unittest.TestCase):
                     path.write_text(json.dumps(envelope))
                 self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
 
+    def test_failed_assembly_fails_closed_and_keeps_followup_acceptance(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch('agent_runner.semantic_repairs.assemble_accepted',
+                       side_effect=ValueError('assembly failed')):
+                run, audit, first, _second = split_review(root)
+            self.assertEqual({t['repair_status'] for t in audit['topics'] if t['repair_status'] != 'unchanged'},
+                             {'failed'})
+            self.assertEqual(audit['post_status'], 'complete')
+            self.assertTrue(audit['followup_checks'])
+            path = root / 'jev-review/audit.json'
+            envelope = json.loads(path.read_text())
+            metadata = envelope['metadata']
+            self.assertEqual(metadata['accepted_targets'], [position_key(first['position'])])
+            self.assertEqual((metadata['applied'], metadata['repair_error_type']), (False, 'ValueError'))
+            self.assertNotIn('assembled_hashes', metadata)
+            self.assertEqual(load_public_audit(run, root / 'jev-review'), (audit, run))
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 10, 13))
+            self.assertEqual(record.integrity['decision'], 'original_retained')
+            self.assertIn('invalid_candidate', record.integrity['reasons'])
+            self.assertEqual((root / 'history/2026-10-13.md').read_bytes(), (run / 'final.md').read_bytes())
+            metadata['accepted_targets'] = []
+            path.write_text(json.dumps(envelope))
+            self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
+
     def test_all_reflagged_targets_retain_original(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

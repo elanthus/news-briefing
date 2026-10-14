@@ -488,14 +488,17 @@ def daily_semantic_review(run: Path, destination: Path, *,
                         check["after_basis"] = "single_evidence"
             accepted = accepted_targets(after, targets)
             clear = accepted == targets
-            metadata.update(repaired_hashes=hashes, post_review_status=after["status"], post_review_clear=clear)
+            # Record follow-up acceptance first so a failed assembly still reports which slots cleared.
+            metadata.update(repaired_hashes=hashes, post_review_status=after["status"], post_review_clear=clear,
+                            accepted_targets=sorted(accepted))
             if accepted and not clear:
                 # Mixed outcome: code assembles cleared slots over the frozen original and re-verifies it.
+                # Any failure here fails closed: every target is marked failed and the original is published.
                 assembled = assemble_accepted(run, original_state, repaired_state, accepted,
                                               destination / "assembly")
                 verify_assembly(original_state, repaired_state, assembled, accepted, grouping, removed)
                 metadata["assembled_hashes"] = assembled.hashes
-            metadata.update(applied=bool(accepted), accepted_targets=sorted(accepted))
+            metadata["applied"] = bool(accepted)
             for topic in revised:
                 key = position_key(topic["position"])
                 if key in targets:
@@ -691,8 +694,12 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
                     if metadata["assembled_hashes"] != assembled_state.hashes:
                         raise ValueError("semantic assembly hash mismatch")
                     selected = assembled
-        elif metadata["applied"] or set(metadata) & slot_fields:
+        elif metadata["applied"] or "assembled_hashes" in metadata:
             raise ValueError("semantic repair has no changed prose")
+        elif "accepted_targets" in metadata and (post_report is None or metadata["accepted_targets"] != sorted(
+                accepted_targets(post_report, targets))):
+            # A failed assembly keeps the verified follow-up acceptance it could not apply.
+            raise ValueError("semantic failed repair acceptance mismatch")
         if not changed:
             expected_status = "skipped" if skip_reasons else "failed" if targets else "unchanged"
             if any(t["repair_status"] != (expected_status if position_key(t["position"]) in targets else "unchanged")

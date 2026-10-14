@@ -93,7 +93,9 @@ runner without a model call, revalidates it, and verifies that cleared slots
 match the repaired run exactly and every other topic matches the original byte
 for byte (`partial_applied`). The integrity record then lists the original,
 candidate and published digests, and its action ledger records `apply_repair` or
-`withhold_repair` for each repaired slot. The assembled briefing is not reviewed
+`withhold_repair` for each repaired slot. If assembly or its verification fails,
+every target is recorded as failed and the original is published; the audit
+still keeps the follow-up scores, costs and the slots that had cleared. The assembled briefing is not reviewed
 again: a cleared slot is not compared by a duplicate check with the original prose
 of a withheld one. A singleton source no longer needs a grouping check; the
 audit identifies that code-level scope change without inventing a Jev score.

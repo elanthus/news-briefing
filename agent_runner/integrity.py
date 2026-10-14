@@ -234,6 +234,16 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                 for key in sorted(targets):
                     add_action(record, validation, "code", "prose_repair", "failed", record["reasons"],
                                artifact="original", positions=[json.loads(key)], checks=refs[key])
+            if audit["post_status"] is not None:
+                # A failure after follow-up (such as partial assembly) keeps that review's spend and coverage.
+                after = _read_json(destination / "post-review" / "report.json")[0]
+                if "followup_checks" in audit:
+                    record["followup_review"] = review_coverage(after)
+                record["costs"].append(review_cost(after, "followup_review"))
+                if record["costs"][-1]["unknown_cost_calls"] and "unknown_billing" not in record["reasons"]:
+                    record["reasons"].append("unknown_billing")
+                add_phase(record, "followup_review", after["status"],
+                          [] if after["status"] == "complete" else ["incomplete_followup"], after)
         else:
             after = _read_json(destination / "post-review" / "report.json")[0]
             record["followup_review"] = review_coverage(after)
