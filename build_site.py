@@ -29,8 +29,10 @@ from publication_failures import (
     parse_generation_failures,
 )
 from publication_schema import (
+    APPLIED_DECISIONS,
     CONTEXT_FIELDS,
     FINDING_V3_FIELDS,
+    INTEGRITY_DECISION_MESSAGES,
     INTEGRITY_REASON_MESSAGES,
     Provenance,
     ReviewFinding,
@@ -512,10 +514,12 @@ def _document(title: str, body: str, *, asset_prefix: str = "") -> str:
 _COVERAGE_LABELS = {
     "healthy": "All sources healthy",
     "empty": "Some sources returned nothing usable",
+    "partial": "Some sources dropped undated items",
     "failed": "Some sources failed",
     "unknown": "Some sources had problems",
     "unrecorded": "Source health was not recorded",
 }
+_COVERAGE_RANK = {"healthy": 0, "partial": 1, "empty": 2, "failed": 3}
 _SOURCE_HEALTH_UNAVAILABLE = ("source health unavailable",)
 _HEALTH_REASON_PHRASES = {
     "fetch_error": "could not be fetched",
@@ -597,10 +601,11 @@ def _source_coverage(entry: BriefingEntry) -> SourceCoverage:
             reason = _HEALTH_REASON_PHRASES.get(row["reason"]) or _HEALTH_STATUS_PHRASES.get(
                 row["status"], "had a problem")
             rows.append((*_source_name(row["source_type"], row["source_id"]), reason))
-            if row["status"] == "error":
-                state = "failed"
-            elif state != "failed":
-                state = "empty"
+            # A source still "ok" returned usable dated items and only dropped
+            # undated ones; it lowers coverage without returning nothing.
+            row_state = {"error": "failed", "ok": "partial"}.get(row["status"], "empty")
+            if _COVERAGE_RANK[row_state] > _COVERAGE_RANK[state]:
+                state = row_state
             quiet = quiet or row["status"] == "quiet"
         return SourceCoverage(state, tuple(rows), verified=True, quiet_rule=quiet)
     if entry.degraded_sources == _SOURCE_HEALTH_UNAVAILABLE:
@@ -1172,7 +1177,7 @@ def _status_chip(entry: BriefingEntry) -> str:
     warnings = []
     if entry.disposition == "ready":
         decision = entry.integrity["decision"] if entry.integrity is not None else None
-        repaired = decision == "repaired_applied"
+        repaired = decision in APPLIED_DECISIONS
         label = "Published after automated repair" if repaired else "Passed publication checks"
         flagged = len(_published_flags(entry))
         if flagged:
@@ -1452,9 +1457,16 @@ def _published_flags(entry: BriefingEntry) -> set[str]:
     audit = entry.semantic_audit
     if audit is None or entry.disposition not in PAGE_DISPOSITIONS:
         return set()
-    repaired = entry.integrity is not None and entry.integrity["decision"] == "repaired_applied"
-    checks = audit.get("followup_checks", audit["checks"]) if repaired else audit["checks"]
-    return set(_flags_by_story(checks)) & set(_published_story_keys(audit))
+    published = set(_published_story_keys(audit))
+    initial = set(_flags_by_story(audit["checks"]))
+    if entry.integrity is None or entry.integrity["decision"] not in APPLIED_DECISIONS:
+        return initial & published
+    # The follow-up review assessed the published text, except stories whose
+    # repair was withheld: they kept their original prose, so the initial
+    # review still describes them.
+    withheld = {_position_key(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
+    followup = set(_flags_by_story(audit.get("followup_checks", audit["checks"])))
+    return ((followup - withheld) | (initial & withheld)) & published
 
 
 def _review_complete(entry: BriefingEntry) -> bool:
@@ -1492,7 +1504,8 @@ def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
     topics = {_position_key(t["position"]): t for t in audit["topics"]} if audit else {}
     applied = [t for t in topics.values() if t["repair_status"] == "applied"]
     corrections = len(entry.repair_actions)
-    if decision == "repaired_applied":
+    withheld = [key for key, t in topics.items() if t["repair_status"] == "rejected"]
+    if decision in APPLIED_DECISIONS:
         lead = f"Published with automated repairs to {_number_word(len(applied))} " + (
             "story." if len(applied) == 1 else "stories.")
     elif decision in ("original_retained", "candidate_retained"):
@@ -1524,7 +1537,13 @@ def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
         return lead, detail + ". Detailed decision records are not available for this day."
     if count:
         attempted = [key for key in flagged if topics[key]["repair_status"] in ("rejected", "failed", "candidate")]
-        if decision == "repaired_applied":
+        if decision == "partial_applied":
+            why = _withheld_reason(entry, sum(key in followup for key in withheld))
+            detail += (f"; {_number_word(len(applied))} {'repair' if len(applied) == 1 else 'repairs'} "
+                       f"passed a second review, and {_number_word(len(withheld))} "
+                       f"{'was' if len(withheld) == 1 else 'were'} withheld"
+                       + (f" because {why}" if why else ""))
+        elif decision == "repaired_applied":
             detail += "; the repair passed a second review" if len(applied) == 1 else (
                 "; the repairs passed a second review")
         elif decision == "candidate_retained":
@@ -1537,8 +1556,8 @@ def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
             skip = not why or (not complete and why == READER_REASON_PHRASES["incomplete_review"])
             detail += "; no repair was attempted" + ("" if skip else f" because {why}")
     detail += "."
-    if decision == "repaired_applied":
-        repaired = {_position_key(t["position"]) for t in applied}
+    if decision in APPLIED_DECISIONS:
+        repaired = {_position_key(t["position"]) for t in applied} | set(withheld)
         others = [key for key in published if key in followup and key not in repaired]
         if others:
             detail += (f" The second review flagged {_number_word(len(others))} other "
@@ -1703,15 +1722,8 @@ def _decision_record(entry: BriefingEntry) -> str:
             '<p class="muted">Historical publication decision and phase records unavailable. '
             "Legacy scores and repair statuses do not establish a verified publication decision.</p>"
         )
-    decisions = {
-        "original_retained": "Original briefing published",
-        "repaired_applied": "Accepted repair published",
-        "candidate_retained": "Original published; clear candidate retained without application",
-        "unpublished": "No briefing published",
-        "historical_unknown": "Historical decision unknown",
-    }
     parts = [
-        f"<p><strong>{decisions[record['decision']]}</strong></p>",
+        f"<p><strong>{INTEGRITY_DECISION_MESSAGES[record['decision']]}</strong></p>",
         f"<p>{html.escape(_reasons(record['reasons']))}</p>",
     ]
     if entry.disposition not in PAGE_DISPOSITIONS:
@@ -1729,15 +1741,33 @@ def _decision_record(entry: BriefingEntry) -> str:
         applied = [t for t in audit["topics"] if t["repair_status"] == "applied"]
         changed = sum(t["changed"] != t["original"] or t["removed_evidence_count"] > 0 for t in applied)
         removed = sum(t["removed_evidence_count"] for t in applied)
-        repair_published = record["decision"] == "repaired_applied"
+        repair_published = record["decision"] in APPLIED_DECISIONS
         remaining = audit.get("followup_checks", []) if repair_published else audit["checks"]
         flags = sum(c["confirmation_label"] != "not_flagged" for c in remaining)
         parts.append('<p>Published since semantic-review baseline: <strong>'
                      + _count_label(changed, "story") + ' changed; '
                      + _count_label(removed, "source item") + ' removed</strong>.</p>')
-        scope = "follow-up assessment" if repair_published else "initial assessment"
-        parts.append(f'<p>Published briefing: <strong>{_count_label(flags, "semantic flag")}</strong> '
-                     f'({scope}).</p>')
+        if record["decision"] == "partial_applied":
+            # Withheld stories kept original prose, so their initial assessment still describes them.
+            withheld = {_position_key(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
+
+            def touches(check: dict[str, Any]) -> bool:
+                return any(_position_key(p) in withheld for p in check["positions"])
+            kept = sum(c["confirmation_label"] != "not_flagged" for c in audit["checks"] if touches(c))
+            assessed = sum(c["confirmation_label"] != "not_flagged"
+                           for c in audit.get("followup_checks", []) if not touches(c))
+            withheld_flags = sum(c["confirmation_label"] != "not_flagged"
+                                 for c in audit.get("followup_checks", []) if touches(c))
+            parts.append(f'<p>Published briefing: <strong>{_count_label(assessed, "semantic flag")}</strong> '
+                         'on repaired and unaffected stories (follow-up assessment); '
+                         f'<strong>{_count_label(kept, "semantic flag")}</strong> on stories that kept '
+                         'their original prose (initial assessment).</p>')
+            parts.append(f'<p>Withheld repairs: {_count_label(withheld_flags, "semantic flag")} '
+                         'in follow-up assessment.</p>')
+        else:
+            scope = "follow-up assessment" if repair_published else "initial assessment"
+            parts.append(f'<p>Published briefing: <strong>{_count_label(flags, "semantic flag")}</strong> '
+                         f'({scope}).</p>')
         if not repair_published and "followup_checks" in audit:
             candidate_flags = sum(c["confirmation_label"] != "not_flagged"
                                   for c in audit["followup_checks"])
@@ -1746,7 +1776,7 @@ def _decision_record(entry: BriefingEntry) -> str:
     gate = "passed" if entry.disposition == "ready" else "review required"
     parts.append(f'<p>Deterministic gate: <strong>{gate}</strong>; '
                  f'{_count_label(entry.findings_count, "actionable finding")} on published artifact.</p>')
-    followup_label = "Follow-up review" if record["decision"] == "repaired_applied" else "Candidate follow-up"
+    followup_label = "Follow-up review" if record["decision"] in APPLIED_DECISIONS else "Candidate follow-up"
     for field, label in (("initial_review", "Initial review"), ("followup_review", followup_label)):
         coverage = record[field]
         if coverage is None:
@@ -2038,7 +2068,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
             parts.append("<p>Follow-up statistics unavailable in this historical record.</p>")
             continue
         display_stage = ("Unpublished candidate follow-up" if stage == "Follow-up review"
-                         and integrity is not None and integrity["decision"] != "repaired_applied" else stage)
+                         and integrity is not None and integrity["decision"] not in APPLIED_DECISIONS else stage)
         parts.append(
             f'<h3>{display_stage} statistics</h3><div class="table-scroll" tabindex="0" '
             f'role="region" aria-label="{display_stage} statistics"><table>'

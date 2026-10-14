@@ -8,13 +8,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_runner.checkpoint import sha256_file
-from agent_runner.integrity import corpus_health, degraded_health_records, generation_history
+from agent_runner.integrity import corpus_health, degraded_health_records, generation_history, position_key
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
 from prepare_publication import prepare_publication
+from publication_schema import parse_integrity
 from tests.historical_semantic_candidate import historical_candidate_run
-from tests.test_semantic_repairs import CitationJudge, Judge, PatchProvider, make_run
+from tests.test_semantic_repairs import CitationJudge, Judge, PatchProvider, make_run, split_review
 
 
 class FailingPatch(PatchProvider):
@@ -47,7 +48,9 @@ class PreservingPatch(PatchProvider):
         answer = super().generate(request)
         for key in answer.structured_output:
             if isinstance(answer.structured_output[key], dict):
-                answer.structured_output[key] = {"headline": self.topic["headline"], "summary": self.topic["prose"]}
+                answer.structured_output[key] = {"summary": self.topic["prose"]}
+                if "headline" in request.output_schema["properties"][key]["properties"]:
+                    answer.structured_output[key]["headline"] = self.topic["headline"]
         return answer
 
 
@@ -305,7 +308,7 @@ class IntegrityPipelineTests(unittest.TestCase):
             run, _, envelope = self.run_review(root)
             envelope.pop("integrity")
             envelope["metadata"]["schema_version"] = 1
-            for field in ("apply_repairs", "repair_calls_sha256", "repair_manifest_sha256"):
+            for field in ("apply_repairs", "repair_calls_sha256", "repair_manifest_sha256", "accepted_targets"):
                 envelope["metadata"].pop(field)
             envelope["audit"].pop("followup_checks")
             (root / "jev-review/audit.json").write_text(json.dumps(envelope))
@@ -414,6 +417,90 @@ class IntegrityPipelineTests(unittest.TestCase):
             changed = [t for t in record.semantic_audit["topics"] if t["changed"]]
             self.assertEqual(len(changed), 1)
             self.assertNotEqual(changed[0]["original"], changed[0]["changed"])
+
+    def split_record(self, root, **options):
+        run, audit, first, second = split_review(root, **options)
+        (root / "fallback-log.json").write_text(json.dumps({"status": "ready", "selected_run_dir": "run"}))
+        record = prepare_publication(root, root / "input.json", root / "history", date(2026, 10, 13))
+        return run, record, first, second
+
+    def test_partial_publication_records_per_story_outcomes_and_truthful_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, record, first, second = self.split_record(root)
+            integrity = record.integrity
+            self.assertEqual(integrity["decision"], "partial_applied")
+            self.assertTrue(integrity["acceptance_verified"])
+            self.assertEqual(set(integrity["reasons"]) - {"baseline_unavailable"}, {"followup_flag"})
+            artifacts = {a["id"]: a["sha256"] for a in integrity["artifacts"]}
+            self.assertEqual(artifacts["original"], sha256_file(run / "final.md"))
+            self.assertEqual(artifacts["candidate"], sha256_file(root / "jev-review/repair/run/final.md"))
+            self.assertEqual(artifacts["published"], sha256_file(root / "history/2026-10-13.md"))
+            self.assertEqual(artifacts["published"], sha256_file(root / "jev-review/assembly/run/final.md"))
+            self.assertEqual(len({artifacts["original"], artifacts["candidate"], artifacts["published"]}), 3)
+            outcomes = {}
+            for action in integrity["actions"]:
+                if action["action"] in {"prose_repair", "remove_source", "apply_repair"} or (
+                    action["action"] == "withhold_repair" and action["actor"] == "code"
+                ):
+                    key = position_key(action["positions"][0])
+                    outcomes.setdefault(key, set()).add((action["action"], action["outcome"]))
+            self.assertEqual(outcomes[position_key(first["position"])], {
+                ("prose_repair", "applied"), ("remove_source", "applied"), ("apply_repair", "applied")})
+            self.assertEqual(outcomes[position_key(second["position"])], {
+                ("prose_repair", "rejected"), ("withhold_repair", "rejected")})
+            withheld = next(a for a in integrity["actions"] if a["action"] == "withhold_repair"
+                            and a["actor"] == "code")
+            self.assertEqual((withheld["artifact"], withheld["reasons"]), ("original", ["followup_flag"]))
+            blocker = record.semantic_audit["followup_checks"][withheld["check_refs"][0]["index"]]
+            self.assertEqual((blocker["check"], blocker["positions"], blocker["probability"]),
+                             ("unsupported_claim", [second["position"]], 0.86))
+            phases = [p["phase"] for p in integrity["phases"]]
+            self.assertLess(phases.index("followup_review"), phases.index("partial_assembly"))
+            self.assertLess(phases.index("partial_assembly"), phases.index("publication_verification"))
+            publication = next(a for a in integrity["actions"] if a["action"] == "publication")
+            self.assertEqual(publication["outcome"], "applied")
+
+    def test_all_reflagged_partial_round_retains_original_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, record, *_ = self.split_record(root, after_score=0.65)
+            self.assertEqual(record.integrity["decision"], "original_retained")
+            self.assertFalse(record.integrity["acceptance_verified"])
+            self.assertIn("followup_flag", record.integrity["reasons"])
+            self.assertFalse(any(a["action"] == "apply_repair" for a in record.integrity["actions"]))
+            self.assertEqual((root / "history/2026-10-13.md").read_bytes(), (run / "final.md").read_bytes())
+
+    def test_schema_parses_partial_decision_and_rejects_unknown_or_inconsistent_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _run, record, *_ = self.split_record(Path(directory))
+            audit = record.semantic_audit
+            self.assertEqual(parse_integrity(record.integrity, semantic_audit=audit, disposition="ready"),
+                             record.integrity)
+            withheld = next(a["id"] for a in record.integrity["actions"]
+                            if a["action"] == "withhold_repair" and a["actor"] == "code")
+
+            def drop_withheld(raw):
+                raw["actions"] = [a for a in raw["actions"] if a["id"] != withheld]
+
+            def apply_rejected(raw):
+                next(a for a in raw["actions"] if a["id"] == withheld).update(
+                    action="apply_repair", outcome="applied", artifact="candidate", reasons=[])
+
+            for name, mutate in (
+                ("unknown decision", lambda raw: raw.update(decision="mostly_applied")),
+                ("full decision", lambda raw: raw.update(decision="repaired_applied")),
+                ("unverified acceptance", lambda raw: raw.update(acceptance_verified=False)),
+                ("missing candidate", lambda raw: raw.update(artifacts=[
+                    a for a in raw["artifacts"] if a["id"] != "candidate"])),
+                ("unrecorded slot", drop_withheld),
+                ("rejected slot applied", apply_rejected),
+            ):
+                with self.subTest(name=name):
+                    raw = copy.deepcopy(record.integrity)
+                    mutate(raw)
+                    with self.assertRaises(ValueError):
+                        parse_integrity(raw, semantic_audit=audit, disposition="ready")
 
 
 if __name__ == "__main__":

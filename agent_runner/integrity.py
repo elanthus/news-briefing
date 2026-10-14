@@ -183,9 +183,12 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
     else:
         calls = _read_json(destination / "repair" / "repair-calls.json")[0]
         record["costs"].append(review_cost({"calls": calls}, "repair_generation"))
-        statuses = {t["repair_status"] for t in audit["topics"] if position_key(t["position"]) in targets}
-        outcome = next(iter(statuses))
-        changed = outcome in {"applied", "candidate", "rejected"}
+        # Outcomes are per slot: a partial round applies cleared slots and rejects re-flagged ones.
+        statuses = {position_key(t["position"]): t["repair_status"] for t in audit["topics"]
+                    if position_key(t["position"]) in targets}
+        outcomes = set(statuses.values())
+        changed = bool(outcomes & {"applied", "candidate", "rejected"})
+        partial = outcomes == {"applied", "rejected"}
         repaired = destination / "repair" / "run"
         repaired_manifest = _read_json(repaired / "manifest.json")[0]
         if any(c["status"] != "code_preserved" for c in calls):
@@ -210,6 +213,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
             if call["stage"] == "selection":
                 selection_phase = phase
             for key in sorted(grouping if call["stage"] == "selection" else targets):
+                outcome = statuses[key]
                 add_action(record, phase, "model", stage, outcome, [failure] if outcome == "failed" else [],
                            artifact="candidate" if changed else "original", positions=[json.loads(key)],
                            checks=refs[key])
@@ -230,6 +234,16 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                 for key in sorted(targets):
                     add_action(record, validation, "code", "prose_repair", "failed", record["reasons"],
                                artifact="original", positions=[json.loads(key)], checks=refs[key])
+            if audit["post_status"] is not None:
+                # A failure after follow-up (such as partial assembly) keeps that review's spend and coverage.
+                after = _read_json(destination / "post-review" / "report.json")[0]
+                if "followup_checks" in audit:
+                    record["followup_review"] = review_coverage(after)
+                record["costs"].append(review_cost(after, "followup_review"))
+                if record["costs"][-1]["unknown_cost_calls"] and "unknown_billing" not in record["reasons"]:
+                    record["reasons"].append("unknown_billing")
+                add_phase(record, "followup_review", after["status"],
+                          [] if after["status"] == "complete" else ["incomplete_followup"], after)
         else:
             after = _read_json(destination / "post-review" / "report.json")[0]
             record["followup_review"] = review_coverage(after)
@@ -252,9 +266,23 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                            sources=[row["evidence_index"]] if row["check"] == "irrelevant_citation" else [],
                            checks=[{"stage": "followup", "index": i}])
             record["reasons"] = follow_reasons
-            if outcome == "applied":
+            if outcomes == {"applied"}:
                 record.update(decision="repaired_applied", acceptance_verified=True)
-            elif outcome == "candidate":
+            elif partial:
+                record.update(decision="partial_applied", acceptance_verified=True)
+                assembly = add_phase(record, "partial_assembly", "complete")
+                for key in sorted(targets):
+                    pos = json.loads(key)
+                    if statuses[key] == "applied":
+                        add_action(record, assembly, "code", "apply_repair", "applied", [],
+                                   artifact="candidate", positions=[pos], checks=refs[key])
+                    else:
+                        add_action(record, assembly, "code", "withhold_repair", "rejected", ["followup_flag"],
+                                   artifact="original", positions=[pos], checks=[
+                                       {"stage": "followup", "index": i} for i in blockers
+                                       if any(position_key(p) == key
+                                              for p in audit["followup_checks"][i]["positions"])])
+            elif outcomes == {"candidate"}:
                 record.update(decision="candidate_retained", acceptance_verified=True, reasons=["candidate_mode"])
             old = _read_json(original / "frozen-selection.json")[0]
             new = _read_json(repaired / "frozen-selection.json")[0]
@@ -272,11 +300,15 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                     source_phase = removal_phase if "confirmed_irrelevance" in causes else selection_phase
                     assert source_phase is not None
                     add_action(record, source_phase, "code" if "confirmed_irrelevance" in causes else "model",
-                               "remove_source", outcome, causes, artifact="original", positions=[pos],
+                               "remove_source", statuses[key], causes, artifact="original", positions=[pos],
                                sources=[index], checks=refs[key])
     published_digest = original_digest
     if record["decision"] == "repaired_applied":
         published_digest = next(a["sha256"] for a in record["artifacts"] if a["id"] == "candidate")
+    elif record["decision"] == "partial_applied":
+        assembled = destination / "assembly" / "run"
+        published_digest = sha256_bytes(_bound_bytes(
+            assembled, _read_json(assembled / "manifest.json")[0], "final.md"))
     record["artifacts"].append({"id": "published", "sha256": published_digest})
     record["actions"].sort(key=lambda action: action["phase_sequence"])
     for index, action in enumerate(record["actions"]):

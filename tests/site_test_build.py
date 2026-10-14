@@ -2217,13 +2217,13 @@ class IntegrityReportTests(unittest.TestCase):
         import build_site as site
         from agent_runner.semantic_repairs import daily_semantic_review
         from prepare_publication import prepare_publication
-        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run, repaired
 
         class NewBlockers(Judge):
             def evaluate(self, state, questions, **kwargs):
                 result = super().evaluate(state, questions, **kwargs)
                 for index, (key, question) in enumerate(questions.items()):
-                    if state['checks'][index].get('topic', {}).get('headline') == 'Repaired headline':
+                    if repaired(state['checks'][index].get('topic', {})):
                         result['probabilities'][key] = (
                             0.9 if ('strengthen certainty' in question['instructions']
                                     or 'contradict or reverse' in question['instructions']) else 0.1)
@@ -2252,6 +2252,41 @@ class IntegrityReportTests(unittest.TestCase):
                     self.assertEqual(entry.integrity['decision'], 'original_retained')
                 else:
                     self.assertEqual(entry.integrity['decision'], 'candidate_retained')
+
+    def test_partial_publication_renders_decision_split_flags_and_per_story_ledger(self):
+        from datetime import date
+
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from publication_schema import INTEGRITY_DECISION_MESSAGES
+        from tests.test_semantic_repairs import split_review
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _run, _audit, first, second = split_review(root)
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 10, 13))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertIn(f"<strong>{INTEGRITY_DECISION_MESSAGES['partial_applied']}</strong>", page)
+            self.assertIn('1 rejected; 1 applied', page)
+            self.assertIn('Published briefing: <strong>0 semantic flags</strong> on repaired and unaffected '
+                          'stories (follow-up assessment); <strong>1 semantic flag</strong> on stories that kept '
+                          'their original prose (initial assessment).', page)
+            self.assertIn('Withheld repairs: 1 semantic flag in follow-up assessment.', page)
+            self.assertNotIn('Unpublished candidate', page)
+            self.assertIn('Follow-up review statistics', page)
+            self.assertIn('Changed prose — applied (published)', page)
+            self.assertIn('Changed prose — rejected (proposed)', page)
+            for action, story in (('apply repair — applied', first), ('withhold repair — rejected', second)):
+                anchor = site._story_anchor(story['position'])
+                self.assertIn(f'code: {action}</strong> <a href="#{anchor}">'
+                              f'{html.escape(story["headline"])}</a>', page)
+            build_site(root / 'public', root / 'site')
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
+            self.assertEqual((root / 'site/reports/2026-10-13.html').read_text(),
+                             (root / 'rebuilt/reports/2026-10-13.html').read_text())
 
     def test_integrity_published_digest_rejects_tampering_and_preserves_exact_bytes(self):
         import hashlib
@@ -2545,6 +2580,58 @@ class ReaderFacingReportTests(unittest.TestCase):
             self.assertIn("Deterministic checker: 2 findings require review.", withheld)
             self.assertIn("<h2>Checker findings</h2>", withheld)
             self.assertNotIn("withheld preview", withheld)
+
+    def test_partial_publication_states_both_outcomes(self) -> None:
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import split_review
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _run, _audit, first, second = split_review(root)
+            (root / "fallback-log.json").write_text(json.dumps({"status": "ready", "selected_run_dir": "run"}))
+            record = prepare_publication(root, root / "input.json", root / "public", date(2026, 10, 13))
+            entry = site._entry_from_payload(record.payload(), source="fixture")
+            self.assertEqual(entry.integrity["decision"], "partial_applied")
+            page = site._render_report(entry, [entry])
+
+            self.assertEqual(
+                _text(_between(page, '<p class="decision">', "</p>")),
+                "Published with automated repairs to one story. Automated review flagged 2 of 22 "
+                "stories; one repair passed a second review, and one was withheld because one story "
+                "was re-flagged.",
+            )
+            flagged = _text(_between(page, 'id="stories-flagged"', "</section>"))
+            self.assertIn(f"{first['headline']}: one of two sources judged off-topic; repair published", flagged)
+            self.assertIn(f"{second['headline']}: a claim its sources do not support; repair attempted, "
+                          "re-flagged, not published", flagged)
+            # The withheld story kept its original, still-flagged prose.
+            self.assertIn("· 1 story flagged in review ·", site._status_chip(entry))
+
+    def test_undated_drops_from_a_working_source_are_not_called_empty(self) -> None:
+        from build_site import _source_coverage
+
+        def row(source_id: str, status: str, reason: str | None, parsed: int, dated: int,
+                category: str = "ai_tech") -> dict[str, object]:
+            return {"source_type": "rss", "source_id": source_id, "category": category, "status": status,
+                    "reason": reason, "parsed_entries": parsed, "dated_entries": dated,
+                    "retained_entries": dated}
+
+        def coverage(rows: list[dict[str, object]]) -> tuple[str, str]:
+            integrity = {"corpus_health": [row("Healthy feed", "ok", None, 10, 10), *rows]}
+            entry = BriefingEntry(day=date(2026, 10, 13), disposition="ready", findings_count=0, findings=(),
+                                  degraded_sources=(), markdown="", integrity=integrity)
+            result = _source_coverage(entry)
+            return result.state, result.label
+
+        undated = row("Mostly dated feed", "ok", "undated_entries", 12, 10)
+        quiet = [row(f"Quiet feed {n}", "quiet", "no_window_entries", 5, 5, category="dev") for n in range(4)]
+        failed = row("Broken feed", "error", "fetch_error", 0, 0)
+        # A source that returned usable dated items is not "returned nothing usable".
+        self.assertEqual(coverage([undated]), ("partial", "Some sources dropped undated items"))
+        self.assertEqual(coverage([undated, *quiet]), ("empty", "Some sources returned nothing usable"))
+        self.assertEqual(coverage([*quiet, undated, failed]), ("failed", "Some sources failed"))
+        self.assertEqual(coverage([]), ("healthy", "All sources healthy"))
 
     def test_every_reason_code_has_reader_wording(self) -> None:
         from build_site import READER_REASON_PHRASES
