@@ -70,28 +70,46 @@ exclusion log. No section reranking occurs.
 
 After confirmed citation removals, grouping repair selects a nonempty subset of
 a slot's own source items, using local integer indexes, then writes prose against the refrozen subset.
-Prose-only repair preserves its original references and source order. No model
-receives a URL or opaque citation handle. Each actual repair call is limited to
+Prose-only repair preserves its original references and source order. Code
+keeps each repaired slot's original headline and asks the model only for a
+summary under it. A slot that lost a source item, by confirmed removal or a
+smaller grouping subset, may receive a new headline, which the normal validator
+checks like any other. The verifier rejects a changed headline on a slot whose
+sources are unchanged. No model receives a URL or opaque citation handle. Each actual repair call is limited to
 10,000 output tokens and 180 seconds; the round makes at most two calls through
 the existing provider adapter. A prose-only round preserves selection in code,
 so it needs just one paid call.
 
 The normal runner validates and renders the complete candidate. A separate Jev
 review then repeats citation, grouping and prose checks and duplicate comparisons
-for the candidate. Its coverage must be complete, costs known, and all checks involving
-an affected position must be below its respective threshold before the repaired
-run becomes the publication input. A singleton source no longer needs a grouping check; the
+for the candidate. Its coverage must be complete and its costs known; otherwise no
+slot is applied. Acceptance is then decided per slot: a repaired slot is applied
+when every returned check involving its position is below its respective
+threshold, and a re-flagged slot keeps its original prose and sources. A check
+that names two positions blocks both. When every slot clears, the repaired run is
+the publication input (`repaired_applied`). When only some clear, code assembles
+a new run from the frozen original and the cleared slots through the normal
+runner without a model call, revalidates it, and verifies that cleared slots
+match the repaired run exactly and every other topic matches the original byte
+for byte (`partial_applied`). The integrity record then lists the original,
+candidate and published digests, and its action ledger records `apply_repair` or
+`withhold_repair` for each repaired slot. The assembled briefing is not reviewed
+again: a cleared slot is not compared by a duplicate check with the original prose
+of a withheld one. A singleton source no longer needs a grouping check; the
 audit identifies that code-level scope change without inventing a Jev score.
 Removed citations likewise have a removal outcome, not an invented follow-up
 score. Retained citations are matched back to their original frozen indexes so
 removing one cannot attach the next source's score to it.
 Unrelated findings remain visible and do not prevent an otherwise cleared repair.
 
-One round is the limit: a rejected candidate is retained in the audit, with the
-original ready briefing published. Failed or skipped repairs retain the original
-as well. Applying an accepted candidate does not change the original fallback
-run or its checkpoints. Publication revalidates input hashes, exact before/after
-prose, unchanged topics, source subsets and the ready repaired run before using it.
+One round is the limit: rejected slots are retained in the audit with their
+proposed prose, and the original ready briefing is published when no slot clears.
+Failed or skipped repairs retain the original as well. Applying cleared slots
+does not change the original fallback run or its checkpoints. Publication
+revalidates input hashes, exact before/after prose, unchanged topics, source
+subsets, per-slot acceptance and the ready repaired or assembled run before using
+it. Audits written before per-slot acceptance (metadata versions 1 and 2) are
+still verified under their all-or-nothing rule.
 An invalid audit is ignored and cannot replace the original publication input.
 
 The repair instructions ask for concise complete sentences and forbid copying

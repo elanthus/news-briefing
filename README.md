@@ -87,12 +87,16 @@ existing `OPENROUTER_API_KEY`:
    [Jev checks and repairs](docs/jev-review.md#confirmation-and-repair-policy).
 3. Code removes confirmed irrelevant citations, then HY3 rewrites affected slots
    against their remaining frozen evidence. Grouping repairs may retain a further
-   subset; prose-only repairs keep their sources. All unaffected topics retain
+   subset; prose-only repairs keep their sources. Code keeps each original
+   headline unless the slot lost a source item. All unaffected topics retain
    their positions and prose. The normal validator checks the candidate.
-4. Publish a repaired candidate only with complete follow-up coverage, known costs,
-   and all returned checks involving affected slots below their respective
-   thresholds. Otherwise retain the original ready briefing. A repair that would
-   remove every source from a slot is skipped rather than publish an uncited story.
+4. Follow-up review must have complete coverage and known costs. Each repaired
+   slot whose returned checks are all below their respective thresholds is
+   applied; a re-flagged slot keeps its original prose and sources. When only
+   some slots clear, code assembles the published briefing from the original and
+   the cleared slots, then validates and hashes it again. If no slot clears, retain
+   the original ready briefing. A repair that would remove every source from a
+   slot is skipped rather than publish an uncited story.
 
 The integrity report leads with the **publication decision**, review coverage,
 unresolved flags, and changes that reached the published briefing. An action

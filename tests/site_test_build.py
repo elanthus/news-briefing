@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import io
 import json
 import sys
@@ -2207,13 +2208,13 @@ class IntegrityReportTests(unittest.TestCase):
         import build_site as site
         from agent_runner.semantic_repairs import daily_semantic_review
         from prepare_publication import prepare_publication
-        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run, repaired
 
         class NewBlockers(Judge):
             def evaluate(self, state, questions, **kwargs):
                 result = super().evaluate(state, questions, **kwargs)
                 for index, (key, question) in enumerate(questions.items()):
-                    if state['checks'][index].get('topic', {}).get('headline') == 'Repaired headline':
+                    if repaired(state['checks'][index].get('topic', {})):
                         result['probabilities'][key] = (
                             0.9 if ('strengthen certainty' in question['instructions']
                                     or 'contradict or reverse' in question['instructions']) else 0.1)
@@ -2242,6 +2243,41 @@ class IntegrityReportTests(unittest.TestCase):
                     self.assertEqual(entry.integrity['decision'], 'original_retained')
                 else:
                     self.assertEqual(entry.integrity['decision'], 'candidate_retained')
+
+    def test_partial_publication_renders_decision_split_flags_and_per_story_ledger(self):
+        from datetime import date
+
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from publication_schema import INTEGRITY_DECISION_MESSAGES
+        from tests.test_semantic_repairs import split_review
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _run, _audit, first, second = split_review(root)
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 10, 13))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertIn(f"<strong>{INTEGRITY_DECISION_MESSAGES['partial_applied']}</strong>", page)
+            self.assertIn('1 rejected; 1 applied', page)
+            self.assertIn('Published briefing: <strong>0 semantic flags</strong> on repaired and unaffected '
+                          'stories (follow-up assessment); <strong>1 semantic flag</strong> on stories that kept '
+                          'their original prose (initial assessment).', page)
+            self.assertIn('Withheld repairs: 1 semantic flag in follow-up assessment.', page)
+            self.assertNotIn('Unpublished candidate', page)
+            self.assertIn('Follow-up review statistics', page)
+            self.assertIn('Changed prose — applied (published)', page)
+            self.assertIn('Changed prose — rejected (proposed)', page)
+            for action, story in (('apply repair — applied', first), ('withhold repair — rejected', second)):
+                anchor = site._story_anchor(story['position'])
+                self.assertIn(f'code: {action}</strong> <a href="#{anchor}">'
+                              f'{html.escape(story["headline"])}</a>', page)
+            build_site(root / 'public', root / 'site')
+            (root / 'empty').mkdir()
+            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
+            self.assertEqual((root / 'site/reports/2026-10-13.html').read_text(),
+                             (root / 'rebuilt/reports/2026-10-13.html').read_text())
 
     def test_integrity_published_digest_rejects_tampering_and_preserves_exact_bytes(self):
         import hashlib
