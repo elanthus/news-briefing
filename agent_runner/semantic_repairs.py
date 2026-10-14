@@ -29,6 +29,14 @@ from publication_schema import parse_integrity, parse_semantic_audit
 
 MAX_REPAIR_TOPICS = 4
 REPAIR_MODEL = "tencent/hy3"
+# Version 3 adds per-slot acceptance and code-owned headlines; versions 1 and 2 stay readable.
+AUDIT_SCHEMA_VERSION = 3
+REPAIR_POLICY = (
+    "Repair only confirmed target positions using their own frozen evidence. Code keeps each original "
+    "headline unless the slot lost a source item; slots that clear follow-up review are applied one by one, "
+    "and re-flagged slots keep their original prose and sources.\n"
+)
+ASSEMBLY_POLICY = "Code assembles cleared repair slots over the frozen original. No model is called.\n"
 
 
 def _check_key(row: dict[str, Any]) -> str:
@@ -36,13 +44,21 @@ def _check_key(row: dict[str, Any]) -> str:
                        row.get("evidence_index")])
 
 
+def accepted_targets(report: dict[str, Any], targets: set[str]) -> set[str]:
+    """Return targets with no blocking follow-up score; incomplete or cost-unknown follow-up clears none."""
+    if report["status"] != "complete" or report["unknown_cost_calls"]:
+        return set()
+    blocked = {position_key(position) for row in report["results"]
+               if row["probability"] >= (report.get("citation_threshold", report["threshold"])
+                                         if row["check"] == "irrelevant_citation" else report["threshold"])
+               for position in row["positions"]}
+    return targets - blocked
+
+
 def followup_clear(report: dict[str, Any], targets: set[str]) -> bool:
     """Accept only complete, cost-known follow-up without a blocking target score."""
-    return report["status"] == "complete" and not report["unknown_cost_calls"] and not any(
-        row["probability"] >= (report.get("citation_threshold", report["threshold"])
-                               if row["check"] == "irrelevant_citation" else report["threshold"])
-        and any(position_key(position) in targets for position in row["positions"])
-        for row in report["results"])
+    return (report["status"] == "complete" and not report["unknown_cost_calls"]
+            and accepted_targets(report, targets) == targets)
 
 
 def _verified(run: Path | VerifiedRun) -> VerifiedRun:
@@ -50,8 +66,11 @@ def _verified(run: Path | VerifiedRun) -> VerifiedRun:
 
 
 def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, targets: set[str], grouping: set[str],
-                  removed: dict[str, set[int]] | None = None) -> None:
-    """Verify normal contracts, exact untouched output, and nonempty source subsets."""
+                  removed: dict[str, set[int]] | None = None, *, preserve_headlines: bool = False) -> None:
+    """Verify normal contracts, exact untouched output, and nonempty source subsets.
+
+    With ``preserve_headlines``, a target keeps its original headline unless it lost a source item.
+    """
     before_run, after_run = _verified(original), _verified(repaired)
     manifest = after_run.manifest
     with (after_run.root / "final.md").open("rb") as stream:
@@ -90,8 +109,25 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
                 raise ValueError("semantic repair retained a confirmed irrelevant citation")
             if key not in grouping and new_refs != allowed:
                 raise ValueError("prose repair changed frozen references")
+            if preserve_headlines and new_refs == old_refs and new[index]["headline"] != entry["headline"]:
+                raise ValueError("semantic repair changed a headline without removing a source")
     if visited != targets:
         raise ValueError("semantic repair has invalid target positions")
+
+
+def verify_assembly(original: Path | VerifiedRun, repaired: Path | VerifiedRun, assembled: Path | VerifiedRun,
+                    accepted: set[str], grouping: set[str], removed: dict[str, set[int]]) -> None:
+    """Accepted slots equal the repaired run exactly; every other slot equals the frozen original."""
+    before, after, published = _verified(original), _verified(repaired), _verified(assembled)
+    verify_repair(before, published, accepted, grouping & accepted,
+                  {key: indexes for key, indexes in removed.items() if key in accepted}, preserve_headlines=True)
+    for key in accepted:
+        pos = json.loads(key)
+        section, index = pos["section"], pos["index"]
+        for field in ("candidate", "selection"):
+            if (getattr(published, field)["sections"][section]["topics"][index]
+                    != getattr(after, field)["sections"][section]["topics"][index]):
+                raise ValueError("assembled repair differs from the cleared repair slot")
 
 
 class RepairProvider:
@@ -154,13 +190,17 @@ class RepairProvider:
                 state[label] = {"section": section, "evidence": [
                     e for i, e in enumerate(topic["evidence"]) if i not in self.removed.get(key, set())]}
             else:
-                properties[label] = {"type": "object", "properties": {
-                    "headline": {"type": "string", "minLength": 1, "maxLength": 300},
-                    "summary": {"type": "string", "minLength": 1, "maxLength": 1500}},
-                    "required": ["headline", "summary"], "additionalProperties": False}
                 assert frozen is not None
-                state[label] = {"section": section,
-                                "evidence": frozen["sections"][section]["topics"][index]["evidence"]}
+                evidence = frozen["sections"][section]["topics"][index]["evidence"]
+                fields: dict[str, Any] = {"summary": {"type": "string", "minLength": 1, "maxLength": 1500}}
+                state[label] = {"section": section, "evidence": evidence}
+                # Code owns the headline unless this slot lost a source item it may have depended on.
+                if len(evidence) < len(topic["evidence"]):
+                    fields = {"headline": {"type": "string", "minLength": 1, "maxLength": 300}, **fields}
+                else:
+                    state[label]["headline"] = self.candidate["sections"][section]["topics"][index]["headline"]
+                properties[label] = {"type": "object", "properties": fields, "required": list(fields),
+                                     "additionalProperties": False}
         if selection_stage and not active:
             # Preserve the normal two-pass runner without a needless selection model call.
             self.calls.append({"stage": "selection", "status": "code_preserved", "cost_usd": 0})
@@ -171,7 +211,9 @@ class RepairProvider:
             "of that event; remove distinct developments. Keep the most important event appropriate to its section."
             if selection_stage else
             "Write concise, complete sentences using ONLY each slot's frozen evidence. Preserve the substantive "
-            "event. Correct unsupported facts, overstated certainty and reversed meaning. Do not copy truncated "
+            "event. Where a slot supplies its headline, that headline is fixed: write only a summary consistent "
+            "with it. Write a headline only where the schema asks for one. "
+            "Correct unsupported facts, overstated certainty and reversed meaning. Do not copy truncated "
             "sentences or trailing ellipses: paraphrase supported complete facts. If an excerpt is incomplete, omit "
             "its unsupported fragment. Do not output URLs, references or commentary."
         )
@@ -213,9 +255,9 @@ class RepairProvider:
                 # Code retains corpus order even when the model returns indexes out of order.
                 merged["sections"][section]["topics"][index] = {"citation_refs": [refs[v] for v in sorted(value)]}
             else:
-                if (not isinstance(value, dict) or set(value) != {"headline", "summary"}
+                if (not isinstance(value, dict) or set(value) != set(properties[f"repair_{n}"]["properties"])
                         or any(not isinstance(v, str) or not v.strip() for v in value.values())
-                        or len(value["headline"]) > 300 or len(value["summary"]) > 1500):
+                        or len(value.get("headline", "")) > 300 or len(value["summary"]) > 1500):
                     raise ValueError("semantic repair prose is invalid")
                 incomplete = any(v.rstrip().endswith(("…", "...")) for v in value.values())
                 if incomplete or not value["summary"].rstrip().endswith(
@@ -225,10 +267,57 @@ class RepairProvider:
                 cleaned = redact_opaque_references(redact_destinations(value), include_citations=True)
                 if cleaned != value:
                     raise ValueError("semantic repair prose contains destinations or references")
-                merged["sections"][section]["topics"][index] = value
+                headline = value.get("headline", self.candidate["sections"][section]["topics"][index]["headline"])
+                merged["sections"][section]["topics"][index] = {"headline": headline, "summary": value["summary"]}
         call["validated"] = True
         write_json_atomic(self.destination / "repair-calls.json", self.calls)
         return replace(answer, structured_output=merged)
+
+
+class AssemblyProvider:
+    """Replays cleared repaired slots over the frozen original without calling a model."""
+
+    name = "code"
+    model = "semantic-assembly"
+
+    def __init__(self, original: VerifiedRun, repaired: VerifiedRun, accepted: set[str]) -> None:
+        selection, prose = copy.deepcopy(original.selection), copy.deepcopy(original.candidate)
+        for key in accepted:
+            pos = json.loads(key)
+            section, index = pos["section"], pos["index"]
+            selection["sections"][section]["topics"][index] = copy.deepcopy(
+                repaired.selection["sections"][section]["topics"][index])
+            prose["sections"][section]["topics"][index] = copy.deepcopy(
+                repaired.candidate["sections"][section]["topics"][index])
+        for bucket in ("sections", "excluded_topics"):
+            for entries in prose[bucket].values():
+                for entry in entries["topics"] if bucket == "sections" else entries:
+                    del entry["citation_refs"]
+        self.outputs = [selection, prose]
+        self.record = {"provider": self.name, "model": self.model, "semantic_assembly": {
+            "original_hashes": original.hashes, "repaired_hashes": repaired.hashes, "accepted": sorted(accepted)}}
+
+    def info(self) -> dict[str, Any]:
+        return copy.deepcopy(self.record)
+
+    def generate(self, request: GenerationRequest) -> ModelResponse:
+        if not self.outputs:
+            raise ProviderError("semantic assembly has no further output", transient=False)
+        return ModelResponse("", self.outputs.pop(0), 0, cost_usd=0)
+
+
+def assemble_accepted(run: Path, original: VerifiedRun, repaired: VerifiedRun, accepted: set[str],
+                      root: Path) -> VerifiedRun:
+    """Build the published artifact through the normal runner, validator, and hash-bound manifest."""
+    root.mkdir()
+    policy = root / "policy.txt"
+    policy.write_text(ASSEMBLY_POLICY)
+    settings = RunnerSettings(config_path=run / "briefing-config.json", prompt_path=policy,
+                              output_path=root / "briefing.md", corpus_path=run / "corpus.json",
+                              timeout_seconds=180, max_corrections=0)
+    if run_workflow(AssemblyProvider(original, repaired, accepted), settings, root / "run").status != "ready":
+        raise ValueError("semantic assembly failed normal validation")
+    return load_verified_run(root / "run")
 
 
 def aligned_post_checks(original: Path | VerifiedRun, repaired: Path | VerifiedRun, after: dict[str, Any]
@@ -343,7 +432,7 @@ def public_audit(report: dict[str, Any]) -> dict[str, Any]:
 
 def daily_semantic_review(run: Path, destination: Path, *,
                           judge: Any = None, repair_provider: ModelProvider | None = None) -> dict[str, Any]:
-    """Apply fully accepted bounded repairs; retain originals on any failed safeguard."""
+    """Apply each repaired slot that clears follow-up; retain originals for re-flagged or failed slots."""
     try:
         original_state = load_verified_run(run)
     except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError):
@@ -352,7 +441,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
     audit = public_audit(report)
     by_position = {position_key(t["position"]): t for t in audit["topics"]}
     targets, grouping, removed, skip_reasons = repair_scope(report)
-    metadata: dict[str, Any] = {"schema_version": 2, "input_hashes": report.get("input_hashes", {}),
+    metadata: dict[str, Any] = {"schema_version": AUDIT_SCHEMA_VERSION, "input_hashes": report.get("input_hashes", {}),
                                 "applied": False, "apply_repairs": True,
                                 "targets": sorted(targets), "grouping": sorted(grouping),
                                 "review_sha256": _read_json(destination / "report.json")[1],
@@ -367,7 +456,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
             "openrouter", REPAIR_MODEL, temperature=0.2, reasoning_effort="high", max_tokens=10000), removed=removed)
         try:
             policy = repair_root / "policy.txt"
-            policy.write_text("Repair only confirmed target positions using their own frozen evidence.\n")
+            policy.write_text(REPAIR_POLICY)
             settings = RunnerSettings(config_path=run / "briefing-config.json",
                                       prompt_path=policy, output_path=repair_root / "briefing.md",
                                       corpus_path=run / "corpus.json", timeout_seconds=180, max_corrections=0)
@@ -375,7 +464,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
             if result.status != "ready":
                 raise ValueError("semantic repair failed normal validation")
             repaired_state = load_verified_run(repair_root / "run")
-            verify_repair(original_state, repaired_state, targets, grouping, removed)
+            verify_repair(original_state, repaired_state, targets, grouping, removed, preserve_headlines=True)
             revised, hashes = repaired_state.topics, repaired_state.hashes
             after = review_run(repaired_state.root, destination / "post-review", client=judge,
                                confirm_flags=True, verified_run=repaired_state)
@@ -397,15 +486,25 @@ def daily_semantic_review(run: Path, destination: Path, *,
                     new_topic = next(t for t in revised if t["position"] == check["positions"][0])
                     if len(new_topic["evidence"]) == 1:
                         check["after_basis"] = "single_evidence"
-            clear = followup_clear(after, targets)
-            metadata.update(repaired_hashes=hashes, post_review_status=after["status"], post_review_clear=clear)
-            metadata["applied"] = clear
+            accepted = accepted_targets(after, targets)
+            clear = accepted == targets
+            # Record follow-up acceptance first so a failed assembly still reports which slots cleared.
+            metadata.update(repaired_hashes=hashes, post_review_status=after["status"], post_review_clear=clear,
+                            accepted_targets=sorted(accepted))
+            if accepted and not clear:
+                # Mixed outcome: code assembles cleared slots over the frozen original and re-verifies it.
+                # Any failure here fails closed: every target is marked failed and the original is published.
+                assembled = assemble_accepted(run, original_state, repaired_state, accepted,
+                                              destination / "assembly")
+                verify_assembly(original_state, repaired_state, assembled, accepted, grouping, removed)
+                metadata["assembled_hashes"] = assembled.hashes
+            metadata["applied"] = bool(accepted)
             for topic in revised:
                 key = position_key(topic["position"])
                 if key in targets:
                     old = by_position[key]
                     old.update(changed={"headline": topic["headline"], "prose": topic["prose"]},
-                               repair_status="applied" if clear else "rejected",
+                               repair_status="applied" if key in accepted else "rejected",
                                removed_evidence_count=len(provider.topics[key]["evidence"]) - len(topic["evidence"]))
         except (ValueError, OSError, ProviderError, KeyError, TypeError, RecursionError, OverflowError) as exc:
             metadata["repair_error_type"] = type(exc).__name__
@@ -440,11 +539,16 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
         optional = {"post_review_sha256", "repaired_hashes", "post_review_status", "post_review_clear",
                     "repair_error_type"}
         new_fields = {"apply_repairs", "repair_calls_sha256", "repair_manifest_sha256"}
-        if (not isinstance(metadata, dict) or metadata.get("schema_version") not in {1, 2}
-                or not base <= set(metadata) or set(metadata) - base - optional - new_fields
+        slot_fields = {"accepted_targets", "assembled_hashes"}
+        if (not isinstance(metadata, dict) or metadata.get("schema_version") not in {1, 2, 3}
+                or not base <= set(metadata) or set(metadata) - base - optional - new_fields - slot_fields
                 or (metadata["schema_version"] == 1 and set(metadata) & new_fields)
-                or (metadata["schema_version"] == 2 and type(metadata.get("apply_repairs")) is not bool)):
+                or (metadata["schema_version"] < 3 and set(metadata) & slot_fields)
+                or (metadata["schema_version"] == 2 and type(metadata.get("apply_repairs")) is not bool)
+                # Per-slot audits are always produced in apply mode.
+                or (metadata["schema_version"] == 3 and metadata.get("apply_repairs") is not True)):
             raise ValueError("invalid semantic audit metadata")
+        per_slot = metadata["schema_version"] == 3
         before, review_hash = _read_json(destination / "report.json")
         if metadata["review_sha256"] != review_hash:
             raise ValueError("semantic review artifact hash mismatch")
@@ -536,7 +640,7 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if removed != confirmed_removals:
                 raise ValueError("semantic citation removals are not confirmed")
             repaired_state = repaired_state or load_verified_run(repaired)
-            verify_repair(original_state, repaired_state, targets, grouping, removed)
+            verify_repair(original_state, repaired_state, targets, grouping, removed, preserve_headlines=per_slot)
             revised, repaired_hashes = repaired_state.topics, repaired_state.hashes
             if metadata.get("repaired_hashes") != repaired_hashes:
                 raise ValueError("semantic audit repair hash mismatch")
@@ -551,35 +655,57 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if post_report is None:
                 raise ValueError("semantic candidate has no post-review")
             clear = followup_clear(post_report, targets)
-            expected_status = "applied" if metadata["applied"] else "candidate" if clear else "rejected"
-            if any(t["repair_status"] != expected_status for t in changed):
-                raise ValueError("semantic candidate outcome mismatch")
+            # Legacy audits accept all targets or none; per-slot audits accept each cleared target.
+            accepted = accepted_targets(post_report, targets) if per_slot else targets if clear else set()
+            for topic in changed:
+                key = position_key(topic["position"])
+                expected_status = ("applied" if key in accepted else "rejected") if per_slot else (
+                    "applied" if metadata["applied"] else "candidate" if clear else "rejected")
+                if topic["repair_status"] != expected_status:
+                    raise ValueError("semantic candidate outcome mismatch")
             if (metadata.get("post_review_clear") != clear
-                    or metadata.get("post_review_status") != post_report["status"]):
+                    or metadata.get("post_review_status") != post_report["status"]
+                    or (per_slot and metadata.get("accepted_targets") != sorted(accepted))):
                 raise ValueError("semantic candidate acceptance metadata mismatch")
             if metadata["schema_version"] == 2 and metadata["applied"] != (metadata["apply_repairs"] and clear):
                 raise ValueError("semantic candidate application mode mismatch")
+            partial = per_slot and bool(accepted) and not clear
+            if partial != ("assembled_hashes" in metadata):
+                raise ValueError("semantic assembly metadata mismatch")
             if metadata["applied"]:
                 confirmed = {position_key(c["positions"][0]) for c in audit["checks"]
                              if c["confirmation_label"] == "confirmed" and c["check"] != "duplicate"}
-                if not targets <= confirmed or any(t["repair_status"] != "applied" for t in changed):
+                if not targets <= confirmed or {position_key(t["position"]) for t in changed
+                                                if t["repair_status"] == "applied"} != accepted:
                     raise ValueError("only confirmed target repairs may be applied")
                 if post_report is None:
                     raise ValueError("semantic repair has no post-review")
                 after = post_report
                 post = public_audit(after)
                 parse_semantic_audit(post)
-                if not followup_clear(after, targets) or after["input_hashes"] != repaired_hashes:
+                if (not accepted or accepted_targets(after, targets) != accepted
+                        or after["input_hashes"] != repaired_hashes):
                     raise ValueError("semantic repair post-review was not clear")
                 selected = repaired
-        elif metadata["applied"]:
+                if partial:
+                    assembled = destination / "assembly" / "run"
+                    assembled_state = load_verified_run(assembled)
+                    verify_assembly(original_state, repaired_state, assembled_state, accepted, grouping, removed)
+                    if metadata["assembled_hashes"] != assembled_state.hashes:
+                        raise ValueError("semantic assembly hash mismatch")
+                    selected = assembled
+        elif metadata["applied"] or "assembled_hashes" in metadata:
             raise ValueError("semantic repair has no changed prose")
+        elif "accepted_targets" in metadata and (post_report is None or metadata["accepted_targets"] != sorted(
+                accepted_targets(post_report, targets))):
+            # A failed assembly keeps the verified follow-up acceptance it could not apply.
+            raise ValueError("semantic failed repair acceptance mismatch")
         if not changed:
             expected_status = "skipped" if skip_reasons else "failed" if targets else "unchanged"
             if any(t["repair_status"] != (expected_status if position_key(t["position"]) in targets else "unchanged")
                    or t["removed_evidence_count"] != 0 for t in audit["topics"]):
                 raise ValueError("semantic audit unchanged outcomes mismatch")
-        if metadata["schema_version"] == 2:
+        if metadata["schema_version"] >= 2:
             calls: list[dict[str, Any]] = []
             if targets and not skip_reasons:
                 calls, calls_hash = _read_json(destination / "repair" / "repair-calls.json")

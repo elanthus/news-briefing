@@ -374,15 +374,25 @@ INTEGRITY_FIELDS = {
 }
 INTEGRITY_PHASES = {
     "generation_preparation", "initial_validation", "initial_review", "confirmation", "code_removal",
-    "selection_repair", "prose_repair", "candidate_validation", "followup_review", "publication_verification",
+    "selection_repair", "prose_repair", "candidate_validation", "followup_review", "partial_assembly",
+    "publication_verification",
 }
 INTEGRITY_ACTIONS = {
     "selection_correction", "prose_correction", "remove_source", "selection_repair", "prose_repair",
-    "promotion", "publication", "withhold_repair",
+    "promotion", "publication", "withhold_repair", "apply_repair",
 }
-INTEGRITY_DECISIONS = {
-    "original_retained", "repaired_applied", "candidate_retained", "unpublished", "historical_unknown",
+INTEGRITY_DECISION_MESSAGES = {
+    "original_retained": "Original briefing published",
+    "repaired_applied": "Accepted repair published",
+    "partial_applied": ("Cleared repairs published; re-flagged stories kept their original prose and "
+                        "sources"),
+    "candidate_retained": "Original published; clear candidate retained without application",
+    "unpublished": "No briefing published",
+    "historical_unknown": "Historical decision unknown",
 }
+INTEGRITY_DECISIONS = set(INTEGRITY_DECISION_MESSAGES)
+# Decisions that publish model-repaired prose for at least one story.
+APPLIED_DECISIONS = {"repaired_applied", "partial_applied"}
 
 
 def _integrity_object(value: object, fields: set[str], name: str) -> dict[str, Any]:
@@ -519,7 +529,7 @@ def parse_integrity(
     decision = _integrity_enum(record["decision"], INTEGRITY_DECISIONS)
     reasons = _integrity_reasons(record["reasons"])
     accepted = record["acceptance_verified"]
-    if type(accepted) is not bool or accepted != (decision in {"repaired_applied", "candidate_retained"}):
+    if type(accepted) is not bool or accepted != (decision in APPLIED_DECISIONS | {"candidate_retained"}):
         raise ValueError("integrity acceptance disagrees with decision")
     if disposition is not None:
         _integrity_enum(disposition, {"ready", "review_required", "rejected", "no_result", "blocked"})
@@ -548,6 +558,8 @@ def parse_integrity(
             raise ValueError("integrity published artifact disagrees with decision")
     if accepted and "candidate" not in artifacts:
         raise ValueError("accepted integrity candidate has no artifact")
+    if decision == "partial_applied" and not {"original", "candidate", "published"} <= set(artifacts):
+        raise ValueError("partial integrity publication requires original, candidate and published artifacts")
     phases: dict[int, dict[str, Any]] = {}
     previous = -1
     for value in _integrity_list(record["phases"], 128, "phases"):
@@ -582,6 +594,7 @@ def parse_integrity(
     previous = -1
     actions = _integrity_list(record["actions"], 512, "actions")
     affected: set[tuple[str, str, int]] = set()
+    assembled: dict[str, list[tuple[str, str, int]]] = {"applied": [], "rejected": []}
     removals: dict[tuple[str, str, int], set[int]] = {}
     for value in actions:
         action = _integrity_object(value, {
@@ -645,7 +658,7 @@ def parse_integrity(
         if (semantic_phase and outcome == "applied"
                 and action["action"] in {"selection_repair", "prose_repair"} and scope != "candidate"):
             raise ValueError("applied semantic repair requires candidate artifact")
-        if semantic_phase and decision != "repaired_applied" and outcome == "applied" and action["action"] in {
+        if semantic_phase and decision not in APPLIED_DECISIONS and outcome == "applied" and action["action"] in {
             "remove_source", "selection_repair", "prose_repair",
         }:
             raise ValueError("retained original cannot contain applied semantic repairs")
@@ -653,6 +666,17 @@ def parse_integrity(
             "applied", "candidate",
         }:
             affected.update(subjects)
+        assembly_phase = phases[action["phase_sequence"]]["phase"] == "partial_assembly"
+        if action["action"] == "apply_repair" and (
+            not assembly_phase or outcome != "applied" or scope != "candidate" or len(subjects) != 1
+        ):
+            raise ValueError("integrity slot application requires partial assembly of one candidate story")
+        if assembly_phase:
+            if decision != "partial_applied" or len(subjects) != 1 or (action["action"], outcome, scope) not in {
+                ("apply_repair", "applied", "candidate"), ("withhold_repair", "rejected", "original"),
+            }:
+                raise ValueError("integrity partial assembly action is invalid")
+            assembled[outcome].append(subjects[0])
     costs: dict[str, dict[str, Any]] = {}
     for value in _integrity_list(record["costs"], 3, "costs"):
         cost = _integrity_object(value, {"phase", "reported_cost_usd", "unknown_cost_calls"}, "cost")
@@ -678,10 +702,19 @@ def parse_integrity(
     if audit is not None:
         applied_topics = {_integrity_position(t["position"]) for t in audit["topics"]
                           if t["repair_status"] == "applied"}
-        if applied_topics and decision != "repaired_applied":
+        if applied_topics and decision not in APPLIED_DECISIONS:
             raise ValueError("integrity retained decision disagrees with applied semantic topics")
+        if decision == "partial_applied":
+            rejected_topics = {_integrity_position(t["position"]) for t in audit["topics"]
+                               if t["repair_status"] == "rejected"}
+            # Every repaired story is explicitly applied or withheld exactly once.
+            if (not applied_topics or not rejected_topics
+                    or sorted(assembled["applied"]) != sorted(applied_topics)
+                    or sorted(assembled["rejected"]) != sorted(rejected_topics)
+                    or any(t["repair_status"] not in {"applied", "rejected", "unchanged"} for t in audit["topics"])):
+                raise ValueError("integrity partial publication disagrees with per-story outcomes")
         if accepted:
-            expected_status = "applied" if decision == "repaired_applied" else "candidate"
+            expected_status = "applied" if decision in APPLIED_DECISIONS else "candidate"
             accepted_topics = {_integrity_position(t["position"]) for t in audit["topics"]
                                if t["repair_status"] == expected_status}
             if affected != accepted_topics:
@@ -735,10 +768,12 @@ def _integrity_acceptance(
     complete = {p["phase"] for p in phases.values() if p["status"] == "complete"}
     if not {"candidate_validation", "publication_verification"} <= complete:
         raise ValueError("accepted integrity repair requires verified acceptance phases")
-    if record["decision"] == "repaired_applied" and not any(
+    if record["decision"] in APPLIED_DECISIONS and not any(
         action["outcome"] == "applied" for action in record["actions"]
     ):
         raise ValueError("applied integrity publication has no applied actions")
+    if record["decision"] == "partial_applied" and "partial_assembly" not in complete:
+        raise ValueError("partial integrity publication requires verified assembly")
     if any(row["confirmation_label"] != "not_flagged" and affected.intersection(
         _integrity_position(p) for p in row["positions"]
     ) for row in followup_rows):

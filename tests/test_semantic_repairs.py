@@ -5,15 +5,23 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from agent_runner.jev_review import load_topics
+from agent_runner.integrity import position_key
+from agent_runner.jev_review import load_topics, load_verified_run
 from agent_runner.models import ModelResponse, ProviderError
 from agent_runner.output import validate_output
 from agent_runner.runner import RunnerSettings, run_workflow
-from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
+from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit, verify_repair
 from prepare_publication import prepare_publication
 from publication_schema import parse_semantic_audit
 from tests.test_briefing_output import ROOT, fixture_contract, used_item_refs
 from tests.test_run_briefing import FakeProvider
+
+REPAIRED_PROSE = 'A supported complete sentence.'
+
+
+def repaired(topic):
+    """Code keeps headlines on prose-only repairs, so fakes recognize repaired slots by prose."""
+    return topic.get('prose', '').startswith('A supported complete sentence')
 
 
 class Judge:
@@ -29,16 +37,15 @@ class Judge:
 
     def evaluate(self, state, questions, *, timeout=30):
         self.calls.append((copy.deepcopy(state), copy.deepcopy(questions)))
-        if self.fail_after_repair and any(c.get('topic', {}).get('headline') == 'Repaired headline'
-                                          for c in state['checks']):
+        if self.fail_after_repair and any(repaired(c.get('topic', {})) for c in state['checks']):
             raise ProviderError('remote private body', transient=False, ambiguous_completion=True)
         probabilities = {}
         for i, (key, question) in enumerate(questions.items()):
             topic = state['checks'][i].get('topic', {})
             instructions = question['instructions']
             relevant = ('combine distinct' if self.grouping else 'material fact unsupported') in instructions
-            flagged = relevant and topic.get('headline') == self.headline
-            if topic.get('headline') == 'Repaired headline' and self.reject_after:
+            flagged = relevant and topic.get('headline') == self.headline and not repaired(topic)
+            if repaired(topic) and self.reject_after:
                 flagged = relevant
             # Confirmation requests contain exactly one question.
             probabilities[key] = 0.2 if flagged and len(questions) == 1 and self.dispute else 0.9 if flagged else 0.1
@@ -62,8 +69,7 @@ class CitationJudge(Judge):
             relevant = ('citation_evidence' in question['instructions']
                         and check['topic']['headline'] == self.headline
                         and check['citation_evidence']['title'] == self.bad_title)
-            after = ('citation_evidence' in question['instructions']
-                     and check['topic']['headline'] == 'Repaired headline')
+            after = 'citation_evidence' in question['instructions'] and repaired(check['topic'])
             probabilities[key] = (self.confirmation if len(questions) == 1 else self.score) if relevant else (
                 self.after_score if after else 0.1)
         return {'probabilities': probabilities, 'model': 'typesafe/jev-test', 'cost_usd': 0.00001, 'latency_ms': 1}
@@ -73,10 +79,11 @@ class PatchProvider:
     name = 'fake'
     model = 'patch'
 
-    def __init__(self, *, bad_subset=False, incomplete=False):
+    def __init__(self, *, bad_subset=False, incomplete=False, force_headline=False):
         self.requests = []
         self.bad_subset = bad_subset
         self.incomplete = incomplete
+        self.force_headline = force_headline
 
     def info(self):
         return {'provider': self.name, 'model': self.model}
@@ -88,9 +95,41 @@ class PatchProvider:
             if schema['type'] == 'array':
                 output[key] = [10000] if self.bad_subset else [0]
             else:
-                output[key] = {'headline': 'Repaired headline',
-                               'summary': 'A supported complete sentence.' if not self.incomplete else 'An unfinished…'}
+                # Distinct prose per slot keeps multi-target candidates free of duplicate summaries.
+                summary = REPAIRED_PROSE if key == 'repair_0' else f'A supported complete sentence {key}.'
+                output[key] = {'summary': summary if not self.incomplete else 'An unfinished…'}
+                if 'headline' in schema['properties'] or self.force_headline:
+                    output[key]['headline'] = 'Repaired headline'
+
         return ModelResponse('', output, 1, cost_usd=0.00001)
+
+
+class SplitJudge(CitationJudge):
+    """Confirms a citation target and a prose target; the prose target stays flagged after repair."""
+
+    def __init__(self, headline, bad_title, second, *, after_score=0.1):
+        super().__init__(headline, bad_title, after_score=after_score)
+        self.second = second
+
+    def evaluate(self, state, questions, *, timeout=30):
+        result = super().evaluate(state, questions, timeout=timeout)
+        for i, (key, question) in enumerate(questions.items()):
+            if ('material fact unsupported' in question['instructions']
+                    and state['checks'][i].get('topic', {}).get('headline') == self.second):
+                result['probabilities'][key] = 0.86
+        return result
+
+
+def split_review(root, *, after_score=0.1):
+    """Two confirmed targets: a citation removal in US Politics and a prose flag in AI Dev Tools."""
+    run, headline = make_run(root, grouping=True)
+    topics = load_topics(run)[0]
+    first = next(t for t in topics if t['headline'] == headline)
+    second = next(t for t in topics if t['position'] == {'bucket': 'sections', 'section': 'AI Dev Tools',
+                                                         'index': 0})
+    judge = SplitJudge(headline, first['evidence'][0]['title'], second['headline'], after_score=after_score)
+    audit = daily_semantic_review(run, root / 'jev-review', judge=judge, repair_provider=PatchProvider())
+    return run, audit, first, second
 
 
 def make_run(root, *, grouping=False):
@@ -224,6 +263,10 @@ class SemanticRepairTests(unittest.TestCase):
             self.assertEqual(len(provider.requests), 1)
             self.assertEqual(before, {p.name: p.read_bytes() for p in run.iterdir() if p.is_file()})
             self.assertNotRegex(json.dumps(provider.requests[0].prompt), r'https?://|\b(?:citation|item)_\d+\b')
+            # Prose-only repairs never ask for a headline; code keeps the original one.
+            self.assertEqual(set(provider.requests[0].output_schema['properties']['repair_0']['properties']),
+                             {'summary'})
+            self.assertEqual(changed['changed'], {'headline': headline, 'prose': REPAIRED_PROSE})
             bound, selected = load_public_audit(run, root / 'jev-review')
             self.assertEqual(bound, audit)
             self.assertNotEqual(selected, run)
@@ -231,7 +274,122 @@ class SemanticRepairTests(unittest.TestCase):
             (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
             record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
             self.assertEqual(record.semantic_audit, audit)
-            self.assertIn('Repaired headline', (root / 'history/2026-09-30.md').read_text())
+            self.assertIn(f'**{headline}** — {REPAIRED_PROSE}', (root / 'history/2026-09-30.md').read_text())
+
+    def test_headline_change_without_source_removal_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            audit = daily_semantic_review(run, root / 'review', judge=Judge(headline),
+                                          repair_provider=PatchProvider(force_headline=True))
+            self.assertIn('failed', [t['repair_status'] for t in audit['topics']])
+            self.assertFalse(any(t['changed'] for t in audit['topics']))
+            self.assertEqual(load_public_audit(run, root / 'review')[1], run)
+            # The verifier enforces the same rule on any persisted candidate, independent of the provider.
+            corpus, config, projected, output = fixture_contract()
+            section = next(iter(output['sections']))
+            output['sections'][section]['topics'][0]['headline'] = 'Changed headline'
+            settings = RunnerSettings(config_path=ROOT / 'fixtures/briefing-config-2026-08-11.json',
+                                      prompt_path=ROOT / 'briefing-runner-prompt.md',
+                                      output_path=root / 'other.md', corpus_path=root / 'input.json')
+            self.assertEqual(run_workflow(FakeProvider([output]), settings, root / 'other').status, 'ready')
+            key = position_key({'bucket': 'sections', 'section': section, 'index': 0})
+            with self.assertRaisesRegex(ValueError, 'headline without removing a source'):
+                verify_repair(run, root / 'other', {key}, set(), preserve_headlines=True)
+            verify_repair(run, root / 'other', {key}, set())
+
+    def test_cleared_slot_is_applied_while_reflagged_slot_keeps_original(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, audit, first, second = split_review(root)
+            statuses = {position_key(t['position']): t['repair_status'] for t in audit['topics']}
+            first_key, second_key = position_key(first['position']), position_key(second['position'])
+            self.assertEqual(statuses.pop(first_key), 'applied')
+            self.assertEqual(statuses.pop(second_key), 'rejected')
+            self.assertEqual(set(statuses.values()), {'unchanged'})
+            # The re-flagged slot kept its headline even though its prose was rewritten.
+            rejected = next(t for t in audit['topics'] if position_key(t['position']) == second_key)
+            self.assertEqual(rejected['changed']['headline'], second['headline'])
+            bound, selected = load_public_audit(run, root / 'jev-review')
+            self.assertEqual(bound, audit)
+            self.assertEqual(selected, root / 'jev-review/assembly/run')
+            original = load_verified_run(run)
+            repaired = load_verified_run(root / 'jev-review/repair/run')
+            assembled = load_verified_run(selected)
+            for section, data in original.candidate['sections'].items():
+                for index in range(len(data['topics'])):
+                    key = position_key({'bucket': 'sections', 'section': section, 'index': index})
+                    expected = repaired.candidate if key == first_key else original.candidate
+                    self.assertEqual(assembled.candidate['sections'][section]['topics'][index],
+                                     expected['sections'][section]['topics'][index])
+            self.assertEqual(assembled.candidate['excluded_topics'], original.candidate['excluded_topics'])
+            metadata = json.loads((root / 'jev-review/audit.json').read_text())['metadata']
+            self.assertEqual(metadata['schema_version'], 3)
+            self.assertEqual(metadata['accepted_targets'], [first_key])
+            self.assertFalse(metadata['post_review_clear'])
+            self.assertTrue(metadata['applied'])
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 10, 13))
+            markdown = (root / 'history/2026-10-13.md').read_text()
+            self.assertEqual(markdown.encode(), (selected / 'final.md').read_bytes())
+            self.assertIn('**Repaired headline** — A supported complete sentence repair_1.', markdown)
+            self.assertNotIn(REPAIRED_PROSE, markdown)
+            self.assertIn(f"**{second['headline']}** — {second['prose']}", markdown)
+            removed = next(c for c in audit['checks'] if c['after_basis'] == 'citation_removed')
+            self.assertNotIn(removed['citation_urls'][0], markdown)
+            self.assertEqual(record.integrity['decision'], 'partial_applied')
+
+    def test_tampered_assembly_falls_back_to_original(self):
+        for tamper in ('markdown', 'accepted'):
+            with self.subTest(tamper=tamper), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                run, _audit, _first, second = split_review(root)
+                if tamper == 'markdown':
+                    (root / 'jev-review/assembly/run/final.md').write_text('Tampered.')
+                else:
+                    path = root / 'jev-review/audit.json'
+                    envelope = json.loads(path.read_text())
+                    envelope['metadata']['accepted_targets'].append(position_key(second['position']))
+                    envelope['metadata']['accepted_targets'].sort()
+                    path.write_text(json.dumps(envelope))
+                self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
+
+    def test_failed_assembly_fails_closed_and_keeps_followup_acceptance(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch('agent_runner.semantic_repairs.assemble_accepted',
+                       side_effect=ValueError('assembly failed')):
+                run, audit, first, _second = split_review(root)
+            self.assertEqual({t['repair_status'] for t in audit['topics'] if t['repair_status'] != 'unchanged'},
+                             {'failed'})
+            self.assertEqual(audit['post_status'], 'complete')
+            self.assertTrue(audit['followup_checks'])
+            path = root / 'jev-review/audit.json'
+            envelope = json.loads(path.read_text())
+            metadata = envelope['metadata']
+            self.assertEqual(metadata['accepted_targets'], [position_key(first['position'])])
+            self.assertEqual((metadata['applied'], metadata['repair_error_type']), (False, 'ValueError'))
+            self.assertNotIn('assembled_hashes', metadata)
+            self.assertEqual(load_public_audit(run, root / 'jev-review'), (audit, run))
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 10, 13))
+            self.assertEqual(record.integrity['decision'], 'original_retained')
+            self.assertIn('invalid_candidate', record.integrity['reasons'])
+            self.assertEqual((root / 'history/2026-10-13.md').read_bytes(), (run / 'final.md').read_bytes())
+            metadata['accepted_targets'] = []
+            path.write_text(json.dumps(envelope))
+            self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
+
+    def test_all_reflagged_targets_retain_original(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, audit, _first, _second = split_review(root, after_score=0.65)
+            self.assertEqual({t['repair_status'] for t in audit['topics'] if t['changed']}, {'rejected'})
+            self.assertFalse((root / 'jev-review/assembly').exists())
+            self.assertEqual(load_public_audit(run, root / 'jev-review')[1], run)
+            metadata = json.loads((root / 'jev-review/audit.json').read_text())['metadata']
+            self.assertEqual((metadata['accepted_targets'], metadata['applied']), ([], False))
 
     def test_grouping_repair_uses_subset_then_only_refrozen_evidence_for_prose(self):
         with tempfile.TemporaryDirectory() as directory:
