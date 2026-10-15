@@ -439,7 +439,7 @@ class BuildSiteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "advisory findings require a published disposition"):
                 build_site(briefings, root / "site")
 
-    def test_current_fixture_shape_and_legacy_sidecar_remain_readable(self) -> None:
+    def test_current_fixture_shape_and_retired_sidecar_rejection(self) -> None:
         from build_site import SIDECAR_FIELDS
 
         with tempfile.TemporaryDirectory() as directory:
@@ -462,10 +462,8 @@ class BuildSiteTests(unittest.TestCase):
             for field in ("integrity", "semantic_audit"):
                 payload.pop(field)
             sidecar.write_text(json.dumps(payload))
-            build_site(briefings, root / "legacy")
-            legacy = json.loads((root / "legacy/history.json").read_text())["entries"][0]
-            self.assertIsNone(legacy["integrity"])
-            self.assertEqual(legacy["markdown"], current["markdown"])
+            with self.assertRaises(ValueError):
+                build_site(briefings, root / "legacy")
 
     def test_page_bearing_entry_requires_matching_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1145,10 +1143,10 @@ class BuildSiteTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.json"
-            for version in (True, 1, 2, 3, 4, 5, 6, 10):
+            for version in (True, 1, 2, 3, 4, 5, 6, 7, 8, 10):
                 with self.subTest(version=version):
                     path.write_text(json.dumps({"schema_version": version, "entries": []}))
-                    with self.assertRaisesRegex(ValueError, "schema_version 7"):
+                    with self.assertRaisesRegex(ValueError, "schema_version 9"):
                         _load_history(path)
 
     def test_history_rejects_provenance_without_a_public_artifact(self) -> None:
@@ -1955,7 +1953,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
             build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'site/history.json')
             self.assertEqual(page, (root / 'rebuilt/reports/2026-09-30.html').read_text())
 
-    def test_summary_only_without_corrections_including_legacy_audit(self):
+    def test_summary_only_without_corrections_and_out_of_scope_checks(self):
         import build_site as build_site_module
         from agent_runner.semantic_repairs import daily_semantic_review
         from publication_schema import parse_semantic_audit
@@ -1976,7 +1974,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
             self.assertIn('<th scope="row">Citation irrelevance probability</th><td>0.60</td>', page)
             audit['checks'] = [c for c in audit['checks'] if c['check'] != 'irrelevant_citation']
             audit['planned_checks'] = len(audit['checks'])
-            del audit['citation_threshold']
+            audit['citation_threshold'] = 0.8
             parse_semantic_audit(audit)
             page = build_site_module._render_semantic_audit(audit)
             self.assertIn('<th scope="row">Citation irrelevance probability</th><td>0.80</td>'
@@ -2036,7 +2034,7 @@ class SemanticAuditSiteTests(unittest.TestCase):
                 self.assertNotIn('Original prose', unchanged)
                 topic['changed'] = {'headline': 'Repaired headline', 'prose': 'A supported complete sentence.'}
 
-    def test_live_schema_seven_history_migrates_without_losing_prose(self):
+    def test_schema_seven_history_is_rejected_without_rebuilding_or_losing_source(self):
         from datetime import date
 
         from prepare_publication import prepare_publication
@@ -2054,11 +2052,10 @@ class SemanticAuditSiteTests(unittest.TestCase):
                 del entry['integrity']
             (root / 'legacy.json').write_text(json.dumps(old))
             (root / 'empty').mkdir()
-            build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'legacy.json')
-            current = json.loads((root / 'rebuilt/history.json').read_text())
-            self.assertEqual(current['schema_version'], 9)
-            self.assertIsNone(current['entries'][0]['semantic_audit'])
-            self.assertEqual(current['entries'][0]['markdown'], old['entries'][0]['markdown'])
+            with self.assertRaises(ValueError):
+                build_site(root / 'empty', root / 'rebuilt', prior_history=root / 'legacy.json')
+            self.assertEqual(json.loads((root / 'legacy.json').read_text()), old)
+
 
 
 class IntegrityReportTests(unittest.TestCase):
@@ -2135,7 +2132,7 @@ class IntegrityReportTests(unittest.TestCase):
                 self.assertLess(page.index('Action ledger'), page.index('Initial review statistics'))
                 self.assertIn('remove every source item' if skipped else 'failed validation', page)
 
-    def test_schema_eight_migration_preserves_audit_and_schema_nine_integrity(self):
+    def test_current_history_roundtrip_preserves_integrity_and_rejects_old_inputs(self):
         from datetime import date
 
         import build_site as site
@@ -2156,15 +2153,13 @@ class IntegrityReportTests(unittest.TestCase):
             legacy_sidecar = json.loads(sidecar.read_text())
             del legacy_sidecar['integrity']
             sidecar.write_text(json.dumps(legacy_sidecar))
-            build_site(root / 'public', root / 'merged', prior_history=root / 'site/history.json')
-            self.assertEqual(current, json.loads((root / 'merged/history.json').read_text()))
+            with self.assertRaises(ValueError):
+                build_site(root / 'public', root / 'merged', prior_history=root / 'site/history.json')
             current['schema_version'] = 8
             del current['entries'][0]['integrity']
             (root / 'legacy.json').write_text(json.dumps(current))
-            legacy = site._load_history(root / 'legacy.json')[0]
-            self.assertIsNone(legacy.integrity)
-            self.assertEqual(legacy.markdown, current['entries'][0]['markdown'])
-            self.assertIn('Historical publication decision', site._render_report(legacy, [legacy]))
+            with self.assertRaises(ValueError):
+                site._load_history(root / 'legacy.json')
 
     def test_word_diff_escapes_both_sides_and_marks_changed_words(self):
         import build_site as site
@@ -2220,29 +2215,21 @@ class IntegrityReportTests(unittest.TestCase):
                                     or 'contradict or reverse' in question['instructions']) else 0.1)
                 return result
 
-        for rejected in (False, True):
-            with self.subTest(rejected=rejected), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                if rejected:
-                    run, headline = make_run(root)
-                    daily_semantic_review(run, root / 'jev-review', judge=NewBlockers(headline),
-                                          repair_provider=PatchProvider())
-                else:
-                    from tests.historical_semantic_candidate import historical_candidate_run
-                    run = historical_candidate_run(root)
-                (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
-                record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
-                entry = site._entry_from_payload(record.payload(), source='fixture')
-                page = site._render_report(entry, [entry])
-                self.assertIn('Published briefing: <strong>1 semantic flag</strong> (initial assessment)', page)
-                self.assertIn(f'Unpublished candidate: {2 if rejected else 0} semantic flags', page)
-                self.assertIn('Candidate follow-up', page)
-                if rejected:
-                    self.assertIn('Follow-up blocker</strong> — Overstated claims', page)
-                    self.assertIn('Follow-up blocker</strong> — Reversed meaning', page)
-                    self.assertEqual(entry.integrity['decision'], 'original_retained')
-                else:
-                    self.assertEqual(entry.integrity['decision'], 'candidate_retained')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            daily_semantic_review(run, root / 'jev-review', judge=NewBlockers(headline),
+                                  repair_provider=PatchProvider())
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertIn('Published briefing: <strong>1 semantic flag</strong> (initial assessment)', page)
+            self.assertIn('Unpublished candidate: 2 semantic flags', page)
+            self.assertIn('Candidate follow-up', page)
+            self.assertIn('Follow-up blocker</strong> — Overstated claims', page)
+            self.assertIn('Follow-up blocker</strong> — Reversed meaning', page)
+            self.assertEqual(entry.integrity['decision'], 'original_retained')
 
     def test_partial_publication_renders_decision_split_flags_and_per_story_ledger(self):
         from datetime import date

@@ -49,7 +49,7 @@ def accepted_targets(report: dict[str, Any], targets: set[str]) -> set[str]:
     if report["status"] != "complete" or report["unknown_cost_calls"]:
         return set()
     blocked = {position_key(position) for row in report["results"]
-               if row["probability"] >= (report.get("citation_threshold", report["threshold"])
+               if row["probability"] >= (report["citation_threshold"]
                                          if row["check"] == "irrelevant_citation" else report["threshold"])
                for position in row["positions"]}
     return targets - blocked
@@ -376,7 +376,7 @@ def _verify_review(report: dict[str, Any], topics: list[dict[str, Any]], hashes:
             or not 0 <= report["skipped_oversized_checks"] <= len(tasks) - len(returned)):
         raise ValueError("semantic review coverage mismatch")
     for row in report["results"]:
-        cutoff = report.get("citation_threshold", report["threshold"]) if row["check"] == "irrelevant_citation" else (
+        cutoff = report["citation_threshold"] if row["check"] == "irrelevant_citation" else (
             report["threshold"])
         if row["flagged"] != (row["probability"] >= cutoff):
             raise ValueError("semantic review flag mismatch")
@@ -427,7 +427,7 @@ def public_audit(report: dict[str, Any]) -> dict[str, Any]:
                 "omitted_duplicate_pairs", 0), "skipped_oversized_checks": report.get("skipped_oversized_checks", 0),
             "reported_cost_usd": report["reported_cost_usd"], "unknown_cost_calls": report["unknown_cost_calls"],
             "topics": topics, "checks": checks,
-            **({"citation_threshold": report["citation_threshold"]} if "citation_threshold" in report else {})}
+            "citation_threshold": report["citation_threshold"]}
 
 
 def daily_semantic_review(run: Path, destination: Path, *,
@@ -527,7 +527,7 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
     try:
         envelope, _ = _read_json(destination / "audit.json")
         if (not isinstance(envelope, dict)
-                or set(envelope) not in ({"metadata", "audit"}, {"metadata", "audit", "integrity"})):
+                or set(envelope) != {"metadata", "audit", "integrity"}):
 
             raise ValueError("invalid semantic audit envelope")
         audit = parse_semantic_audit(envelope["audit"])
@@ -540,15 +540,11 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
                     "repair_error_type"}
         new_fields = {"apply_repairs", "repair_calls_sha256", "repair_manifest_sha256"}
         slot_fields = {"accepted_targets", "assembled_hashes"}
-        if (not isinstance(metadata, dict) or metadata.get("schema_version") not in {1, 2, 3}
+        if (not isinstance(metadata, dict) or type(metadata.get("schema_version")) is not int
+                or metadata["schema_version"] != 3
                 or not base <= set(metadata) or set(metadata) - base - optional - new_fields - slot_fields
-                or (metadata["schema_version"] == 1 and set(metadata) & new_fields)
-                or (metadata["schema_version"] < 3 and set(metadata) & slot_fields)
-                or (metadata["schema_version"] == 2 and type(metadata.get("apply_repairs")) is not bool)
-                # Per-slot audits are always produced in apply mode.
-                or (metadata["schema_version"] == 3 and metadata.get("apply_repairs") is not True)):
+                or metadata.get("apply_repairs") is not True):
             raise ValueError("invalid semantic audit metadata")
-        per_slot = metadata["schema_version"] == 3
         before, review_hash = _read_json(destination / "report.json")
         if metadata["review_sha256"] != review_hash:
             raise ValueError("semantic review artifact hash mismatch")
@@ -564,8 +560,6 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
         parse_semantic_audit(initial)
         for field in ("status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
                       "skipped_oversized_checks", "citation_threshold"):
-            if field not in initial and field not in audit:
-                continue
             if audit[field] != initial[field]:
                 raise ValueError("semantic audit review metadata mismatch")
         if "citation_urls" in before and before["citation_urls"] != load_citation_urls(original_state):
@@ -640,7 +634,7 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if removed != confirmed_removals:
                 raise ValueError("semantic citation removals are not confirmed")
             repaired_state = repaired_state or load_verified_run(repaired)
-            verify_repair(original_state, repaired_state, targets, grouping, removed, preserve_headlines=per_slot)
+            verify_repair(original_state, repaired_state, targets, grouping, removed, preserve_headlines=True)
             revised, repaired_hashes = repaired_state.topics, repaired_state.hashes
             if metadata.get("repaired_hashes") != repaired_hashes:
                 raise ValueError("semantic audit repair hash mismatch")
@@ -655,21 +649,17 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if post_report is None:
                 raise ValueError("semantic candidate has no post-review")
             clear = followup_clear(post_report, targets)
-            # Legacy audits accept all targets or none; per-slot audits accept each cleared target.
-            accepted = accepted_targets(post_report, targets) if per_slot else targets if clear else set()
+            accepted = accepted_targets(post_report, targets)
             for topic in changed:
                 key = position_key(topic["position"])
-                expected_status = ("applied" if key in accepted else "rejected") if per_slot else (
-                    "applied" if metadata["applied"] else "candidate" if clear else "rejected")
+                expected_status = "applied" if key in accepted else "rejected"
                 if topic["repair_status"] != expected_status:
                     raise ValueError("semantic candidate outcome mismatch")
             if (metadata.get("post_review_clear") != clear
                     or metadata.get("post_review_status") != post_report["status"]
-                    or (per_slot and metadata.get("accepted_targets") != sorted(accepted))):
+                    or metadata.get("accepted_targets") != sorted(accepted)):
                 raise ValueError("semantic candidate acceptance metadata mismatch")
-            if metadata["schema_version"] == 2 and metadata["applied"] != (metadata["apply_repairs"] and clear):
-                raise ValueError("semantic candidate application mode mismatch")
-            partial = per_slot and bool(accepted) and not clear
+            partial = bool(accepted) and not clear
             if partial != ("assembled_hashes" in metadata):
                 raise ValueError("semantic assembly metadata mismatch")
             if metadata["applied"]:
@@ -705,25 +695,22 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
             if any(t["repair_status"] != (expected_status if position_key(t["position"]) in targets else "unchanged")
                    or t["removed_evidence_count"] != 0 for t in audit["topics"]):
                 raise ValueError("semantic audit unchanged outcomes mismatch")
-        if metadata["schema_version"] >= 2:
-            calls: list[dict[str, Any]] = []
-            if targets and not skip_reasons:
-                calls, calls_hash = _read_json(destination / "repair" / "repair-calls.json")
-                if metadata.get("repair_calls_sha256") != calls_hash:
-                    raise ValueError("semantic repair call artifact mismatch")
-                repair_manifest, manifest_hash = _read_json(destination / "repair" / "run" / "manifest.json")
-                if metadata.get("repair_manifest_sha256") != manifest_hash:
-                    raise ValueError("semantic repair manifest mismatch")
-                _verify_repair_calls(calls, repair_manifest)
-            costs = [before["calls"], calls, post_report["calls"] if post_report is not None else []]
-            if (abs(audit["reported_cost_usd"] - sum(c.get("cost_usd") or 0 for group in costs for c in group)) > 1e-8
-                    or audit["unknown_cost_calls"] != sum(c.get("cost_usd") is None for group in costs for c in group)):
-                raise ValueError("semantic audit costs mismatch")
-            reconstructed = semantic_integrity(original, destination, audit, metadata)
-            if parse_integrity(envelope.get("integrity"), semantic_audit=audit) != reconstructed:
-                raise ValueError("semantic integrity evidence mismatch")
-        elif "integrity" in envelope:
-            raise ValueError("legacy semantic audit cannot carry unverified integrity")
+        calls: list[dict[str, Any]] = []
+        if targets and not skip_reasons:
+            calls, calls_hash = _read_json(destination / "repair" / "repair-calls.json")
+            if metadata.get("repair_calls_sha256") != calls_hash:
+                raise ValueError("semantic repair call artifact mismatch")
+            repair_manifest, manifest_hash = _read_json(destination / "repair" / "run" / "manifest.json")
+            if metadata.get("repair_manifest_sha256") != manifest_hash:
+                raise ValueError("semantic repair manifest mismatch")
+            _verify_repair_calls(calls, repair_manifest)
+        costs = [before["calls"], calls, post_report["calls"] if post_report is not None else []]
+        if (abs(audit["reported_cost_usd"] - sum(c.get("cost_usd") or 0 for group in costs for c in group)) > 1e-8
+                or audit["unknown_cost_calls"] != sum(c.get("cost_usd") is None for group in costs for c in group)):
+            raise ValueError("semantic audit costs mismatch")
+        reconstructed = semantic_integrity(original, destination, audit, metadata)
+        if parse_integrity(envelope.get("integrity"), semantic_audit=audit) != reconstructed:
+            raise ValueError("semantic integrity evidence mismatch")
         return audit, selected
     except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError, StopIteration):
         return None, original

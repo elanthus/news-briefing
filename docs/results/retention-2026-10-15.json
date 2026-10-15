@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-15",
+  "github_preservation": {
+    "artifacts": 52,
+    "inspection": "Downloaded wrappers only; authenticated encrypted inner schemas not inspected.",
+    "manifest_sha256": "63071e83e909b8ef587594b57b4305c3661d239751bcb23e4b022026796be8ad",
+    "path": ".news-briefing/portfolio-preservation-2026-10-15/github"
+  },
+  "limits": [
+    "No paid generation or judging.",
+    "Capture hashes do not replace missing generation-time identities.",
+    "No retrospective historical policy is relabeled as current."
+  ],
+  "original_archive": {
+    "bytes": 523022524,
+    "files": 102566,
+    "member_hashes_verified": true,
+    "path": ".news-briefing/portfolio-preservation-2026-10-15/originals.tar.gz",
+    "sha256": "75fadb430c6d5403bb30b63505876b852e65befb2010f0929b8aaf51ec4aad0a"
+  },
+  "public_bundles": {
+    "parity-v1-evidence": "verified unchanged",
+    "parity-v2-evidence": "verified unchanged",
+    "portfolio-v2-evidence": "verified unchanged"
+  },
+  "public_history": {
+    "entries": 7,
+    "schema_version": 9,
+    "sha256": "eadc75fdea9d135aabae402fac90f01bb2c80afc03167d18a8c0e47d502d292d",
+    "strict_reader_verification": "passed; no Markdown changed and no history cleared"
+  },
+  "research_dataset": {
+    "bytes": 32331215,
+    "files": 608,
+    "manifest_sha256": "7f6141c9c5aae2f0299986221f12708de3b8f37b2ba8391794658ce6d9a58e1e",
+    "path": ".news-briefing/portfolio-retained-v1-final",
+    "ready_records": 17,
+    "records": 17,
+    "repair_pairs": 7,
+    "schema_version": 1,
+    "unavailable_records": 0,
+    "unique_blobs": 398
+  },
+  "retired_working_copies": {
+    "paths": 56,
+    "recovery": "Verified original archive and private member inventory."
+  },
+  "schema_version": 1,
+  "source_revision": "d76a990d913c954501a7f09e88228069bde6374d"
+}

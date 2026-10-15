@@ -42,8 +42,9 @@ review command for isolated confirmation. The daily fallback-chain command
 `run_daily_briefing.py --jev-review-dir DIR` confirms flags and applies bounded
 repairs only after full acceptance; scheduled publication always enables this
 stage. The redundant `--jev-repair-mode` flag is removed. The daily producer has
-one apply policy; historical candidate-only artifacts remain readable through
-frozen compatibility fixtures.
+one apply policy; historical candidate-only artifacts are archived as research
+evidence under the [retention contract](research-retention.md). Current publication
+accepts only schema-3 per-slot audits.
 The standalone review command returns zero for complete coverage and one for partial
 or failed review, regardless of how many findings it flags.
 

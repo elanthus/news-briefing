@@ -184,7 +184,7 @@ SEMANTIC_CHECKS = {"duplicate", "unsafe_grouping", "unsupported_claim", "strengt
 SEMANTIC_AUDIT_FIELDS = {
     "status", "post_status", "model", "threshold", "planned_checks", "omitted_duplicate_pairs",
     "skipped_oversized_checks",
-    "reported_cost_usd", "unknown_cost_calls", "topics", "checks",
+    "reported_cost_usd", "unknown_cost_calls", "topics", "checks", "citation_threshold",
 }
 
 
@@ -195,8 +195,7 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
     if raw is None:
         return None
     if (not isinstance(raw, dict)
-            or set(raw) not in tuple(SEMANTIC_AUDIT_FIELDS | extra for extra in (
-                set(), {"citation_threshold"}, {"followup_checks"}, {"citation_threshold", "followup_checks"}))):
+            or set(raw) not in (SEMANTIC_AUDIT_FIELDS, SEMANTIC_AUDIT_FIELDS | {"followup_checks"})):
         raise ValueError("invalid semantic audit fields")
 
     def probability(value: object, *, optional: bool = False) -> None:
@@ -226,8 +225,8 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
     if not isinstance(raw["model"], str) or not 1 <= len(raw["model"]) <= 100:
         raise ValueError("invalid semantic audit model")
     probability(raw["threshold"])
-    probability(raw.get("citation_threshold", raw["threshold"]))
-    if raw.get("citation_threshold", raw["threshold"]) == 0:
+    probability(raw["citation_threshold"])
+    if raw["citation_threshold"] == 0:
         raise ValueError("invalid citation threshold")
     if raw["threshold"] == 0:
         raise ValueError("invalid semantic audit threshold")
@@ -254,10 +253,10 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
         if topic["changed"] is not None:
             prose(topic["changed"])
         if topic["repair_status"] not in (
-            "unchanged", "candidate", "applied", "rejected", "failed", "skipped",
+            "unchanged", "applied", "rejected", "failed", "skipped",
         ):
             raise ValueError("invalid semantic repair status")
-        if (topic["repair_status"] in ("candidate", "applied", "rejected")) != (topic["changed"] is not None):
+        if (topic["repair_status"] in ("applied", "rejected")) != (topic["changed"] is not None):
             raise ValueError("semantic repair prose does not match its status")
         if type(topic["removed_evidence_count"]) is not int or not 0 <= topic["removed_evidence_count"] <= 64:
             raise ValueError("invalid semantic removed-evidence count")
@@ -300,7 +299,7 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
             raise ValueError("single evidence proves only grouping scope")
         if check["after_basis"] == "citation_removed" and check["check"] != "irrelevant_citation":
             raise ValueError("citation removal proves only citation scope")
-        cutoff = raw.get("citation_threshold", raw["threshold"]) if extra else raw["threshold"]
+        cutoff = raw["citation_threshold"] if extra else raw["threshold"]
         probability(check["probability"])
         probability(check["confirmation_probability"], optional=True)
         probability(check["after_probability"], optional=True)
@@ -321,6 +320,10 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
         or raw["skipped_oversized_checks"] or any(c["confirmation_label"] == "unconfirmed" for c in checks)
     ):
         raise ValueError("complete semantic audit has incomplete coverage")
+    if (raw["post_status"] is not None) != ("followup_checks" in raw):
+        raise ValueError("semantic follow-up status requires its recorded checks")
+    if raw["post_status"] is None and any(c["after_basis"] is not None for c in checks):
+        raise ValueError("semantic after scores require a recorded follow-up")
     if "followup_checks" in raw:
         followup = raw["followup_checks"]
         if raw["post_status"] is None or not isinstance(followup, list) or len(followup) > 5000:
@@ -353,7 +356,6 @@ INTEGRITY_REASON_MESSAGES = {
     "provider_failure": "The provider call failed.",
     "incomplete_followup": "Follow-up review or confirmation was incomplete.",
     "followup_flag": "Follow-up review flagged an affected story.",
-    "candidate_mode": "The cleared candidate was retained without applying it.",
     "no_targets": "Complete assessment found no eligible repair targets.",
     "confirmed_irrelevance": "Isolated confirmation found citation irrelevance.",
     "grouping_subset": "Grouping repair selected a smaller source subset.",
@@ -386,9 +388,7 @@ INTEGRITY_DECISION_MESSAGES = {
     "repaired_applied": "Accepted repair published",
     "partial_applied": ("Cleared repairs published; re-flagged stories kept their original prose and "
                         "sources"),
-    "candidate_retained": "Original published; clear candidate retained without application",
     "unpublished": "No briefing published",
-    "historical_unknown": "Historical decision unknown",
 }
 INTEGRITY_DECISIONS = set(INTEGRITY_DECISION_MESSAGES)
 # Decisions that publish model-repaired prose for at least one story.
@@ -529,13 +529,11 @@ def parse_integrity(
     decision = _integrity_enum(record["decision"], INTEGRITY_DECISIONS)
     reasons = _integrity_reasons(record["reasons"])
     accepted = record["acceptance_verified"]
-    if type(accepted) is not bool or accepted != (decision in APPLIED_DECISIONS | {"candidate_retained"}):
+    if type(accepted) is not bool or accepted != (decision in APPLIED_DECISIONS):
         raise ValueError("integrity acceptance disagrees with decision")
     if disposition is not None:
         _integrity_enum(disposition, {"ready", "review_required", "rejected", "no_result", "blocked"})
-        if decision != "historical_unknown" and (
-            (decision == "unpublished") != (disposition in {"rejected", "no_result", "blocked"})
-        ):
+        if (decision == "unpublished") != (disposition in {"rejected", "no_result", "blocked"}):
             raise ValueError("integrity decision disagrees with disposition")
     for field in ("generation", "repair_generation"):
         identity = parse_provenance(record[field])
@@ -552,7 +550,7 @@ def parse_integrity(
         if key in artifacts or not isinstance(digest, str) or not _SHA256_HEX.fullmatch(digest):
             raise ValueError("invalid or duplicate integrity artifact")
         artifacts[key] = digest
-    if decision in {"original_retained", "candidate_retained", "repaired_applied"}:
+    if decision in {"original_retained", "repaired_applied"}:
         selected = "candidate" if decision == "repaired_applied" else "original"
         if selected not in artifacts or artifacts.get("published") != artifacts[selected]:
             raise ValueError("integrity published artifact disagrees with decision")
@@ -614,7 +612,7 @@ def parse_integrity(
         _integrity_enum(action["actor"], {"code", "model", "judge"})
         _integrity_enum(action["action"], INTEGRITY_ACTIONS)
         outcome = _integrity_enum(action["outcome"], {
-            "applied", "candidate", "rejected", "failed", "skipped", "superseded", "recorded",
+            "applied", "rejected", "failed", "skipped", "superseded", "recorded",
         })
         action_reasons = _integrity_reasons(action["reasons"])
         scope = action["artifact"]
@@ -645,7 +643,7 @@ def parse_integrity(
                     or not set(action_reasons) & {"confirmed_irrelevance", "grouping_subset"}):
                 raise ValueError("integrity removal requires original sources and a cause")
             _integrity_removal_matches(action, initial_rows)
-            if outcome in {"applied", "candidate"}:
+            if outcome == "applied":
                 previous_sources = removals.setdefault(subjects[0], set())
                 if previous_sources.intersection(source_indexes):
                     raise ValueError("integrity repeats the same source removal")
@@ -662,9 +660,8 @@ def parse_integrity(
             "remove_source", "selection_repair", "prose_repair",
         }:
             raise ValueError("retained original cannot contain applied semantic repairs")
-        if semantic_phase and action["action"] in {"remove_source", "selection_repair", "prose_repair"} and outcome in {
-            "applied", "candidate",
-        }:
+        if (semantic_phase and action["action"] in {"remove_source", "selection_repair", "prose_repair"}
+                and outcome == "applied"):
             affected.update(subjects)
         assembly_phase = phases[action["phase_sequence"]]["phase"] == "partial_assembly"
         if action["action"] == "apply_repair" and (
@@ -714,9 +711,8 @@ def parse_integrity(
                     or any(t["repair_status"] not in {"applied", "rejected", "unchanged"} for t in audit["topics"])):
                 raise ValueError("integrity partial publication disagrees with per-story outcomes")
         if accepted:
-            expected_status = "applied" if decision in APPLIED_DECISIONS else "candidate"
             accepted_topics = {_integrity_position(t["position"]) for t in audit["topics"]
-                               if t["repair_status"] == expected_status}
+                               if t["repair_status"] == "applied"}
             if affected != accepted_topics:
                 raise ValueError("integrity accepted actions disagree with semantic repair topics")
             for topic in audit["topics"]:

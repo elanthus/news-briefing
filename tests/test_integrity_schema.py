@@ -64,16 +64,12 @@ class IntegritySchemaTests(unittest.TestCase):
         self.assertEqual(parse_integrity(raw, semantic_audit=audit, disposition="ready"), raw)
         self.assertIsNone(audit["checks"][0]["after_probability"])
 
-    def test_original_and_candidate_publication_hashes_are_distinct_decisions(self):
-        raw, audit = integrity_fixture(), audit_fixture()
-        raw.update(decision="candidate_retained", reasons=["candidate_mode"])
-        raw["artifacts"][2]["sha256"] = "a" * 64
-        raw["actions"][0]["outcome"] = "candidate"
-        audit["topics"][0]["repair_status"] = "candidate"
-        self.assertIsNotNone(parse_integrity(raw, semantic_audit=audit))
-        raw["artifacts"][2]["sha256"] = "b" * 64
-        with self.assertRaises(ValueError):
-            parse_integrity(raw, semantic_audit=audit)
+    def test_retired_candidate_and_unknown_decisions_are_rejected(self):
+        for decision in ("candidate_retained", "historical_unknown"):
+            raw = integrity_fixture()
+            raw["decision"] = decision
+            with self.subTest(decision=decision), self.assertRaises(ValueError):
+                parse_integrity(raw, semantic_audit=audit_fixture())
 
     def test_every_bound_and_unknown_field_fails_closed(self):
         changes = [
@@ -186,12 +182,11 @@ class IntegritySchemaTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 parse_integrity(raw, semantic_audit=audit_fixture())
 
-    def test_status_only_privacy_also_applies_to_historical_unknown(self):
-        for decision in ("unpublished", "historical_unknown"):
-            raw = integrity_fixture()
-            raw.update(decision=decision, acceptance_verified=False)
-            with self.subTest(decision=decision), self.assertRaises(ValueError):
-                parse_integrity(raw, semantic_audit=audit_fixture(), disposition="rejected")
+    def test_status_only_privacy_remains_enforced(self):
+        raw = integrity_fixture()
+        raw.update(decision="unpublished", acceptance_verified=False)
+        with self.assertRaises(ValueError):
+            parse_integrity(raw, semantic_audit=audit_fixture(), disposition="rejected")
         raw.update(generation=None, repair_generation=None, artifacts=[], phases=[], actions=[],
                    initial_review=None, followup_review=None, costs=[])
         self.assertIsNotNone(parse_integrity(raw, disposition="no_result"))
@@ -269,11 +264,19 @@ class IntegritySchemaTests(unittest.TestCase):
 
 
 class SemanticFollowupSchemaTests(unittest.TestCase):
-    def test_known_legacy_exact_shapes_remain_accepted(self):
+    def test_missing_threshold_and_missing_performed_followup_are_rejected(self):
+        for field in ("followup_checks", "citation_threshold"):
+            audit = audit_fixture()
+            del audit[field]
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                parse_semantic_audit(audit)
         audit = audit_fixture()
+        audit["post_status"] = None
         del audit["followup_checks"]
-        self.assertIsNotNone(parse_semantic_audit(audit))
-        del audit["citation_threshold"]
+        for row in audit["checks"]:
+            for field in ("after_probability", "after_confirmation_probability",
+                          "after_confirmation_label", "after_basis"):
+                row[field] = None
         self.assertIsNotNone(parse_semantic_audit(audit))
         audit["unknown_extension"] = []
         with self.assertRaises(ValueError):

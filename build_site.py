@@ -48,12 +48,9 @@ SIDECAR_FIELDS = {
     "date", "disposition", "findings_count", "degraded_sources", "findings",
     "repair_actions", "generation_failures", "advisory_findings", "provenance",
 }
-LEGACY_SIDECAR_FIELDS = SIDECAR_FIELDS.copy()
 SIDECAR_FIELDS |= {"semantic_audit"}
-AUDIT_SIDECAR_FIELDS = SIDECAR_FIELDS.copy()
 SIDECAR_FIELDS |= {"integrity"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
-LEGACY_HISTORY_FIELDS = LEGACY_SIDECAR_FIELDS | {"markdown"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -281,9 +278,7 @@ def _entry_from_payload(
     source: str,
     expected_slug: str | None = None,
 ) -> BriefingEntry:
-    if not isinstance(payload, dict) or set(payload) not in (
-        SIDECAR_FIELDS, AUDIT_SIDECAR_FIELDS, LEGACY_SIDECAR_FIELDS,
-    ):
+    if not isinstance(payload, dict) or set(payload) != SIDECAR_FIELDS:
         raise ValueError(f"{source} must contain exactly {sorted(SIDECAR_FIELDS)}")
 
     raw_date = payload["date"]
@@ -368,16 +363,15 @@ def _load_history(path: Path) -> list[BriefingEntry]:
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
         or type(payload.get("schema_version")) is not int
-        or payload["schema_version"] not in (7, 8, 9)
+        or payload["schema_version"] != 9
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 7, 8 or 9 with an entries array")
+        raise ValueError(f"history {path} must use schema_version 9 with an entries array")
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
         source = f"history {path} entry {index}"
-        fields = {7: LEGACY_HISTORY_FIELDS, 8: AUDIT_SIDECAR_FIELDS | {"markdown"},
-                  9: HISTORY_FIELDS}[payload["schema_version"]]
+        fields = HISTORY_FIELDS
         if not isinstance(raw_entry, dict) or set(raw_entry) != fields:
             raise ValueError(f"{source} must contain exactly {sorted(HISTORY_FIELDS)}")
         metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS if key in raw_entry}
@@ -1529,8 +1523,6 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
                 parts.append(
                     "<p>Follow-up grouping not in scope: one source item remains; no model score.</p>"
                 )
-            elif check["after_probability"] is not None and "followup_checks" not in audit:
-                parts.append(f"<p>Recorded legacy follow-up: {_score_text(check, 'after_')}.</p>")
         followup = [
             c
             for c in audit.get("followup_checks", [])
@@ -1612,7 +1604,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         for kind, label in categories:
             group = [c for c in rows if c["check"] == kind]
             threshold = (
-                audit.get("citation_threshold", audit["threshold"])
+                audit["citation_threshold"]
                 if kind == "irrelevant_citation"
                 else audit["threshold"]
             )
@@ -1759,7 +1751,7 @@ def build_site(
         entry_rank = PUBLICATION_RANK.get(entry.disposition, 0)
         replace_page = replace_existing and entry.disposition in PAGE_DISPOSITIONS
         if replace_page or entry_rank >= prior_rank:
-            # A legacy sidecar can re-present the same published artifact during
+            # A sidecar can re-present the same published artifact during
             # a rebuild. Retain its verified report metadata only when both the
             # artifact and all non-report publication metadata are unchanged.
             if (prior is not None and entry.integrity is None and prior.integrity is not None

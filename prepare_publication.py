@@ -410,7 +410,6 @@ def prepare_publication(
     else:
         markdown_path.write_bytes(public_content)
 
-    legacy_semantic = False
     if public_content is None:
         integrity = blank_integrity("unpublished", [disposition] if disposition in {
             "review_required", "rejected", "no_result"} else ["verification_failed"])
@@ -420,12 +419,9 @@ def prepare_publication(
                                     semantic_audit is None else ["audit_unavailable"])
         if semantic_audit is not None:
             envelope = _load_json(run_dir / "jev-review" / "audit.json")
-            if isinstance(envelope, dict) and "integrity" in envelope:
-                integrity = envelope["integrity"]
-            else:
-                # Legacy scores remain visible; operational history was not recorded.
-                legacy_semantic = True
-                integrity = blank_integrity("historical_unknown", ["audit_unavailable"])
+            if not isinstance(envelope, dict) or "integrity" not in envelope:
+                raise ValueError("verified semantic audit disappeared before publication")
+            integrity = envelope["integrity"]
         if not integrity["artifacts"]:
             digest = hashlib.sha256(public_content).hexdigest()
             original_digest = digest
@@ -452,8 +448,8 @@ def prepare_publication(
     verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
                        if original_generation_dir is not None and isinstance(original_manifest, dict) else None)
     integrity["corpus_health"] = corpus_health(verified_corpus)
-    verified_integrity = (None if legacy_semantic else parse_integrity(
-        integrity, semantic_audit=semantic_audit if public_content is not None else None, disposition=disposition))
+    verified_integrity = parse_integrity(
+        integrity, semantic_audit=semantic_audit if public_content is not None else None, disposition=disposition)
 
     record = PublicationRecord(
         date=day.isoformat(),

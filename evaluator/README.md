@@ -591,3 +591,13 @@ The completed-checkpoint refusal is a separate test from interrupted-checkpoint
 corruption, so splitting them retired no coverage.
 Export/tamper/verification scenarios remain integrated because they check the same
 saved evidence through successive trust boundaries.
+
+## Retained portfolio research
+
+`python3 -S -m evaluator.research migrate --root . --output .news-briefing/portfolio-retained-v1-final`
+captures the selected local Jev studies into a private version-1 dataset. It does
+not rewrite historical audits or manufacture missing generation-time provenance.
+Verify it with `python3 -S -m evaluator.research verify .news-briefing/portfolio-retained-v1-final`.
+See [research retention](../docs/research-retention.md) for the fixed collections,
+retained source bytes, extracted run views, exclusions from scoring, and recovery.
+The public historical evidence bundles keep their existing release contract.
