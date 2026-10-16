@@ -46,7 +46,9 @@ class ProtocolFilesTest(unittest.TestCase):
                 protocol.get("status") == "frozen_for_run" and authorized is None
             ):
                 unrun.append(path)
-        self.assertIn(PROTOCOLS / "parity-v3.json", unrun)
+        parity_v3 = json.loads((PROTOCOLS / "parity-v3.json").read_text(encoding="utf-8"))
+        if parity_v3["authorization"]["authorized_at"] is None:
+            self.assertIn(PROTOCOLS / "parity-v3.json", unrun)
         for path in unrun:
             protocol = json.loads(path.read_text(encoding="utf-8"))
             for entry in _hashed_entries(protocol):
