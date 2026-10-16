@@ -141,11 +141,25 @@ def _is_publishable_row(row: dict[str, Any]) -> bool:
     status = row.get("status")
     if status == "completed":
         return True
+    if status == "completed_with_correction_error":
+        # The first attempt was scored and stands as the final result; the failed
+        # correction is disclosed in the row rather than hidden or scored.
+        return (
+            isinstance(row.get("first"), dict)
+            and isinstance(row.get("final"), dict)
+            and isinstance(row.get("correction_error"), dict)
+        )
     return (
         status in _UNSCORED_ROW_STATUSES
         and isinstance(row.get("error"), dict)
         and row.get("first") is None
         and row.get("final") is None
+    )
+
+
+def _correction_error_row_count(source: dict[str, Any]) -> int:
+    return sum(
+        1 for row in source["results"] if row.get("status") == "completed_with_correction_error"
     )
 
 
@@ -166,6 +180,7 @@ def _component_descriptor(
         "planned_case_trials": source.get("planned_case_trials"),
         "original_run_status": source.get("run_status"),
         "error_rows": _error_row_count(source),
+        "correction_error_rows": _correction_error_row_count(source),
         "observed_cost_usd": source.get("observed_ceiling_cost_usd"),
         "cost_ceiling_usd": source.get("cost_ceiling_usd"),
         "cost_ceiling_provider": source.get("cost_ceiling_provider"),
@@ -239,9 +254,10 @@ def _merge_public_sources(
         if first.get("run_status") not in _PUBLISHABLE_RUN_STATUSES:
             raise ValueError("public evidence requires a complete final run")
         # A completed_with_errors run is publishable, so every row must be
-        # completed, a recorded provider_error, or a skipped_circuit_open row
-        # with a recorded error; the aggregates depend on that shape, and the
-        # split path checks the same rule.
+        # completed (with or without a disclosed correction error), a recorded
+        # provider_error, or a skipped_circuit_open row with a recorded error;
+        # the aggregates depend on that shape, and the split path checks the
+        # same rule.
         for row in first["results"]:
             if not _is_publishable_row(row):
                 raise ValueError(

@@ -1,6 +1,6 @@
 # Parity v3 plan
 
-Status: frozen for run, not run. No model call has been made for this plan. Protocol:
+Status: run on 2026-10-16 and reported in [`parity-v3.md`](parity-v3.md). Protocol:
 [`parity-v3.json`](../../evaluator/protocols/parity-v3.json) (status
 `frozen_for_run`, frozen 2026-10-16, required tag `parity-v3-source-20261016`,
 authorized 2026-10-16). Read the [evaluation methodology](../evaluation-methodology.md)
@@ -128,7 +128,7 @@ python3 -m evaluator compare \
 Family breakdown and public export, as for Parity v2:
 
 ```bash
-python3 -S -m evaluator.family_rates evaluator/results/parity-v3-final-YYYYMMDD/ledger.json
+python3 -S -m evaluator.family_rates docs/results/parity-v3-evidence/ledger.json
 python3 -m evaluator export-public-run evaluator/results/parity-v3-final-YYYYMMDD/manifest.json \
   --output-dir docs/results/parity-v3-evidence \
   --ledger-output docs/results/parity-v3-evidence/ledger.json
@@ -142,7 +142,9 @@ These commands were rehearsed on the fetched Parity v2 bundle before the freeze.
 `compare` accepts the bundle's `manifest.json` as either argument; without
 `--allow-descriptive` it refuses Parity v2 because that run is
 `completed_with_errors`, which is the same refusal an unclean Parity v3 run would
-meet on the within-run comparison. `family_rates` reads the bundle's `ledger.json`.
+meet on the within-run comparison. `family_rates` reads the bundle's `ledger.json`; the ledger is written by
+`export-public-run`, not by `run`, so the family breakdown follows the export
+(the first draft of this plan pointed it at the run directory).
 `export-public-run` takes a raw run manifest; re-exporting an already public
 bundle produces a different component identity and does not re-verify, so the
 export runs once, from `evaluator/results/parity-v3-final-YYYYMMDD/manifest.json`.

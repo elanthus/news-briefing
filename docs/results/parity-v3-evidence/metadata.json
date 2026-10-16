@@ -1,0 +1,47 @@
+{
+  "component_manifests": [
+    {
+      "circuit_breaker_threshold": 3,
+      "correction_error_rows": 1,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 5.0,
+      "error_rows": 24,
+      "manifest_sha256": "c5e50c2a85a86555178da3537a8926bbade2536696303758cad29b07aaa0711c",
+      "name": "parity-v3-final-20261016",
+      "observed_cost_usd": 2.1636104676456336,
+      "original_run_status": "completed_with_errors",
+      "planned_case_trials": 1200,
+      "rows": 1200
+    }
+  ],
+  "files": {
+    "adjudications.json": {
+      "bytes": 181774,
+      "sha256": "68a7a04056449bbc808dec0b87dc0767a6d3e020269536b0ae47c95a71c382b7"
+    },
+    "ledger.json": {
+      "bytes": 28726529,
+      "sha256": "7036540c8baeae3558ce58727ba33577782afe5431a834e57e2af7ff9109e3fb"
+    },
+    "manifest.json": {
+      "bytes": 33795685,
+      "sha256": "17e270e621446ce813a9661a2884c61f4b0fa5508b825b76b7af6fc92bf49b7d"
+    },
+    "report.json": {
+      "bytes": 234427,
+      "sha256": "a85663ebe6418ed797d00e49bbb9b8c9ea377eae745fd8c28de70ab44986737f"
+    },
+    "report.md": {
+      "bytes": 24727,
+      "sha256": "886ca0d512d60f435807bb0b5b4fc751c4a5141b851faf6f52f63199b18c78c7"
+    }
+  },
+  "redactions": [
+    "provider_request_id"
+  ],
+  "regeneration_command": "python3 -m evaluator verify-public-run docs/results/parity-v3-evidence",
+  "schema_version": 1,
+  "source_commit": "8e0c586580a6f1eedb72a390dac5bf73f7ad29d4",
+  "source_tag": "parity-v3-source-20261016",
+  "source_tree": "c74e3aca59e5e82bc934df073ddfedc10cef5d5d"
+}
