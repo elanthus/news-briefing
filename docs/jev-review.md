@@ -230,3 +230,33 @@ deterministic gate remains mandatory.
 - [`agent_runner/decisions.py`](../agent_runner/decisions.py): bounded Decisions API client.
 - [`agent_runner/jev_review.py`](../agent_runner/jev_review.py): frozen-evidence verification, batching, isolated confirmation and reports.
 - [`agent_runner/semantic_repairs.py`](../agent_runner/semantic_repairs.py): bounded repair patches and public audit projection.
+
+## Aggregate current daily audits
+
+Keep one `YYYY-MM-DD` directory for every sampled day under a private root,
+including days with no ready generation or incomplete review. Each has `run/`
+(the ready run or daily fallback chain) and `review/` or `jev-review/` from
+`run_daily_briefing.py --jev-review-dir`. Exactly one review directory is allowed.
+For example:
+
+```bash
+python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
+  --output .news-briefing/jev-stage-metrics.json
+```
+
+The aggregator verifies schema-3 envelopes through `load_public_audit`; an invalid
+envelope aborts the export. Metric calculation consumes only the public audit
+projection and parsed integrity record. The verifier alone reads the private
+binding artifacts. Output contains no prose, destinations, model identity,
+excerpts, requests, private metadata, or paths.
+
+Every rate includes successes, trials and a two-sided 95% Wilson interval (null
+for zero trials). Partial or failed initial/follow-up days and missing reviews
+remain in the coverage denominator and in per-day counts and costs, but never in
+conditioned rates. A failed fallback chain without review is a generation-failure
+row. Slot cause denominators are slots with that outcome; causes can overlap.
+Follow-up blocker counts distinguish checks from affected slots, so a two-slot
+check blocks both. Initial review costs include isolated confirmation; repair
+and follow-up costs and unknown-cost calls remain separate per day. Reported
+spend is never an estimate of unreported billing. Day counts support subsequent
+clustered analysis; Wilson intervals alone do not account for within-day clustering.
