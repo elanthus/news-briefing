@@ -56,11 +56,12 @@ class StaticOpener:
 
 
 class RestorePrivateCorporaTests(unittest.TestCase):
-    def _artifact_zip(self, root: Path, passphrase: str) -> bytes:
+    def _artifact_zip(self, root: Path, passphrase: str, *, title_suffix="") -> bytes:
         corpora = root / "corpora"
         corpora.mkdir()
         corpus, _config, _projected, _output = fixture_contract()
         corpus["report_date"] = "2026-08-20"
+        next(iter(corpus["categories"].values()))[0]["title"] += title_suffix
         expected = (json.dumps(corpus, ensure_ascii=False) + "\n").encode("utf-8")
         (corpora / "2026-08-20.json").write_bytes(expected)
         encrypted = root / restore_private_corpora.ENCRYPTED_MEMBER
@@ -96,7 +97,8 @@ class RestorePrivateCorporaTests(unittest.TestCase):
         (wrappers / "manifest.json").write_text(json.dumps({"artifacts": [
             {"name": "github-pages", "id": 20},
             {"name": restore_private_corpora.DEFAULT_ARTIFACT_NAME, "id": 10,
-             "sha256": hashlib.sha256(artifact).hexdigest(), "bytes": len(artifact)}]}))
+             "sha256": hashlib.sha256(artifact).hexdigest(), "bytes": len(artifact),
+             "workflow_run": self._workflow_run()}]}))
         return wrappers
 
     def test_local_restore_authenticates_without_network_or_token(self):
@@ -134,6 +136,50 @@ class RestorePrivateCorporaTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     restore_private_corpora.restore_local(wrappers, root / "output", "secret", date(2026, 8, 20))
                 self.assertFalse((root / "output").exists())
+
+    def test_local_restore_rejects_missing_branch_and_fork_provenance(self):
+        for provenance in (None, self._workflow_run(branch="feature"), self._workflow_run(head_repository_id=8)):
+            with self.subTest(provenance=provenance), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                wrappers = self._local_wrapper(root, self._artifact_zip(root, "secret"))
+                path = wrappers / "manifest.json"
+                value = json.loads(path.read_text())
+                value["artifacts"][1]["workflow_run"] = provenance
+                path.write_text(json.dumps(value))
+                with self.assertRaisesRegex(ValueError, "workflow provenance"):
+                    restore_private_corpora.restore_local(wrappers, root / "output", "secret", date(2026, 8, 20))
+                self.assertFalse((root / "output").exists())
+
+    def test_local_restore_merges_identical_dates_and_refuses_conflicts(self):
+        for conflicting in (False, True):
+            with self.subTest(conflicting=conflicting), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                first, second = root / "first", root / "second"
+                first.mkdir()
+                second.mkdir()
+                artifact = self._artifact_zip(first, "secret")
+                other = self._artifact_zip(second, "secret", title_suffix=" changed" if conflicting else "")
+                wrappers = self._local_wrapper(root, artifact)
+                (wrappers / "11.zip").write_bytes(other)
+                path = wrappers / "manifest.json"
+                value = json.loads(path.read_text())
+                value["artifacts"].append({"name": restore_private_corpora.DEFAULT_ARTIFACT_NAME, "id": 11,
+                    "sha256": hashlib.sha256(other).hexdigest(), "bytes": len(other),
+                    "workflow_run": self._workflow_run()})
+                # A supplemented copy leaves the preservation manifest unchanged.
+                supplement = root / "supplement.json"
+                supplement.write_text(json.dumps(value))
+                original = path.read_bytes()
+                if conflicting:
+                    with self.assertRaisesRegex(ValueError, "conflicting preserved corpora"):
+                        restore_private_corpora.restore_local(wrappers, root / "output", "secret", date(2026, 8, 20),
+                                                             manifest_path=supplement)
+                    self.assertFalse((root / "output").exists())
+                else:
+                    paths = restore_private_corpora.restore_local(
+                        wrappers, root / "output", "secret", date(2026, 8, 20), manifest_path=supplement)
+                    self.assertEqual([p.name for p in paths], ["2026-08-20.json"])
+                self.assertEqual(path.read_bytes(), original)
 
     def test_restore_downloads_decrypts_and_validates_corpus_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

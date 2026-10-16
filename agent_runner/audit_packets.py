@@ -8,6 +8,7 @@ import json
 import os
 import random
 import secrets
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -31,17 +32,16 @@ def _version(topic: dict[str, Any]) -> dict[str, Any]:
             "evidence": [{"title": e["title"], "excerpt": e.get("summary")} for e in topic["evidence"]]}
 
 
-def _records(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _records(root: Path, *, start: date, end: date
+             ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     pairs, controls, coverage = [], [], []
-    for row in load_days(root):
+    for row in load_days(root, start=start, end=end):
         audit = row["audit"]
         coverage.append({"report_date": row["report_date"], "status": row["status"],
                          "audit_sha256": row["audit_sha256"]})
         if audit is None:
             continue
         source = load_verified_run(row["run"])
-        if source.corpus.get("report_date") != row["report_date"]:
-            raise ValueError("packet date does not match the frozen corpus")
         original = {position_key(t["position"]): t for t in source.topics}
         changed = [t for t in audit["topics"] if t["changed"] is not None]
         candidate = None
@@ -84,7 +84,8 @@ def _packet(records: list[dict[str, Any]], rng: random.Random, reviewer: str
     return packet, mapping
 
 
-def export_packets(root: Path, output_dir: Path, key_path: Path, *, seed: int | None = None) -> dict[str, int]:
+def export_packets(root: Path, output_dir: Path, key_path: Path, *, start: date, end: date,
+                   seed: int | None = None) -> dict[str, int]:
     """Validate before writing; keep correspondence and shuffle seed private."""
     source, destination, private = root.resolve(), output_dir.resolve(), key_path.resolve()
     if (destination.is_relative_to(source) or source.is_relative_to(destination)
@@ -93,13 +94,14 @@ def export_packets(root: Path, output_dir: Path, key_path: Path, *, seed: int | 
         raise ValueError("packet directory and private key must be separate from each other and the input tree")
     if output_dir.exists() or output_dir.is_symlink() or key_path.exists() or key_path.is_symlink():
         raise ValueError("packet directory and private key must be new")
-    pairs, controls, coverage = _records(source)
+    pairs, controls, coverage = _records(source, start=start, end=end)
     seed = secrets.randbits(256) if seed is None else seed
     rng = random.Random(seed)
     primary, primary_map = _packet(pairs + controls, random.Random(rng.getrandbits(256)), "r1")
     secondary, secondary_map = _packet(pairs + [c for c in controls if c["double_review"]],
                                        random.Random(rng.getrandbits(256)), "r2")
-    key = {"schema_version": 1, "protocol_id": PROTOCOL_ID, "seed": seed, "coverage": coverage,
+    key = {"schema_version": 1, "protocol_id": PROTOCOL_ID, "seed": seed,
+           "start": start.isoformat(), "end": end.isoformat(), "coverage": coverage,
            "mapping": primary_map + secondary_map}
     # Exclusive creation and owner-only access; never place correspondence beside packets.
     key_path.parent.mkdir(parents=True, exist_ok=True)
@@ -116,11 +118,13 @@ def export_packets(root: Path, output_dir: Path, key_path: Path, *, seed: int | 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
+    parser.add_argument("--start", type=date.fromisoformat, required=True)
+    parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
     args = parser.parse_args()
     try:
-        result = export_packets(args.root, args.output_dir, args.private_key)
+        result = export_packets(args.root, args.output_dir, args.private_key, start=args.start, end=args.end)
     except (OSError, ValueError, KeyError, TypeError, RecursionError, OverflowError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, sort_keys=True))

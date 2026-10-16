@@ -120,9 +120,9 @@ class SplitJudge(CitationJudge):
         return result
 
 
-def split_review(root, *, after_score=0.1):
+def split_review(root, *, after_score=0.1, report_date=None):
     """Two confirmed targets: a citation removal in US Politics and a prose flag in AI Dev Tools."""
-    run, headline = make_run(root, grouping=True)
+    run, headline = make_run(root, grouping=True, report_date=report_date)
     topics = load_topics(run)[0]
     first = next(t for t in topics if t['headline'] == headline)
     second = next(t for t in topics if t['position'] == {'bucket': 'sections', 'section': 'AI Dev Tools',
@@ -132,8 +132,10 @@ def split_review(root, *, after_score=0.1):
     return run, audit, first, second
 
 
-def make_run(root, *, grouping=False):
+def make_run(root, *, grouping=False, report_date=None):
     corpus, config, projected, output = fixture_contract()
+    if report_date is not None:
+        corpus["report_date"] = report_date
     section = next(iter(output['sections']))
     target = output['sections'][section]['topics'][0]
     if grouping:

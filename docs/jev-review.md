@@ -234,19 +234,23 @@ deterministic gate remains mandatory.
 ## Aggregate current daily audits
 
 Keep one `YYYY-MM-DD` directory for every sampled day under a private root,
-including days with no ready generation or incomplete review. Each has `run/`
-(the ready run or daily fallback chain) and `review/` or `jev-review/` from
+including days with no ready generation or incomplete review. Declare the frozen
+first and last sample dates with required `--start` and `--end` options. Absent
+folders become `missing_day` rows; folders outside that range are rejected.
+Each available day has `run/` (the ready run or daily fallback chain) and `review/` or `jev-review/` from
 `run_daily_briefing.py --jev-review-dir`. Exactly one review directory is allowed.
 For example:
 
 ```bash
 python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
+  --start YYYY-MM-DD --end YYYY-MM-DD \
   --output .news-briefing/jev-stage-metrics.json
 ```
 
-The aggregator verifies schema-3 envelopes through `load_public_audit`; an invalid
-envelope aborts the export. Metric calculation consumes only the public audit
-projection and parsed integrity record. The verifier alone reads the private
+Replace the date placeholders with the study's frozen sampling frame. The
+aggregator verifies schema-3 envelopes and corpus dates through `load_public_audit`;
+an invalid envelope, mismatched corpus date or duplicated audit aborts the export.
+Metric calculation consumes only the public audit projection and parsed integrity record. The verifier alone reads the private
 binding artifacts. Output contains no prose, destinations, model identity,
 excerpts, requests, private metadata, or paths.
 
@@ -254,7 +258,9 @@ Every rate includes successes, trials and a two-sided 95% Wilson interval (null
 for zero trials). Partial or failed initial/follow-up days and missing reviews
 remain in the coverage denominator and in per-day counts and costs, but never in
 conditioned rates. A failed fallback chain without review is a generation-failure
-row. Slot cause denominators are slots with that outcome; causes can overlap.
+row. Per-slot acceptance is conditional on complete initial and follow-up review;
+show coverage and excluded-day status counts alongside it. Slot cause denominators
+are slots with that outcome; causes can overlap.
 Follow-up blocker counts distinguish checks from affected slots, so a two-slot
 check blocks both. Initial review costs include isolated confirmation; repair
 and follow-up costs and unknown-cost calls remain separate per day. Reported
@@ -267,6 +273,7 @@ Use the same private day tree as the aggregator:
 
 ```bash
 python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage \
+  --start YYYY-MM-DD --end YYYY-MM-DD \
   --output-dir .news-briefing/jev-stage-packets \
   --private-key .news-briefing/jev-stage-correspondence.json
 ```
@@ -291,7 +298,8 @@ Per day with complete initial review, controls are the first three unflagged
 included topics ordered by SHA256(`jev-stage-v1` + report date + section +
 zero-based position), without separators. The second reviewer receives the first
 third of that day's selected controls, rounded up. Partial initial reviews supply
-no controls. The private key records missing, partial and failed days. Dates must
+no controls. The private key records the declared frame and missing, partial and
+failed days, including dates with no folder at all. Dates must
 match the verified frozen corpus. An invalid audit aborts before any output.
 
 Both reviewers assess every pair for material-claim support, lost/added/changed

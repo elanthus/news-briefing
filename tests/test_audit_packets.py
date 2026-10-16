@@ -1,16 +1,24 @@
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 from agent_runner.audit_metrics import flagged
-from agent_runner.audit_packets import control_order, export_packets
+from agent_runner.audit_packets import control_order
+from agent_runner.audit_packets import export_packets as export_daily_packets
 from agent_runner.integrity import position_key
 from agent_runner.jev_review import load_verified_run
 from agent_runner.semantic_repairs import daily_semantic_review
 from tests.test_briefing_output import fixture_contract
 from tests.test_semantic_repairs import Judge, PatchProvider, make_run, split_review
+
+
+def export_packets(root, output, key, *, seed=None):
+    dates = sorted(p.name for p in root.iterdir())
+    return export_daily_packets(root, output, key, start=date.fromisoformat(dates[0]),
+                                end=date.fromisoformat(dates[-1]), seed=seed)
 
 
 def dated_fixture(day):
@@ -107,6 +115,17 @@ class AuditPacketTests(unittest.TestCase):
             self.assertFalse((root / 'invalid-packets').exists())
             self.assertFalse((root / 'invalid-key.json').exists())
 
+    def test_absent_sampled_day_is_recorded_in_private_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            frame = root / 'days'
+            frame.mkdir()
+            self.make_day(frame)
+            export_daily_packets(frame, root / 'packets', root / 'key.json',
+                                 start=date(2026, 8, 10), end=date(2026, 8, 12))
+            key = json.loads((root / 'key.json').read_text())
+            self.assertEqual([r['status'] for r in key['coverage']], ['missing_day', 'complete', 'missing_day'])
+
     def test_private_key_cannot_leak_into_packets_or_overwrite_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -134,5 +153,5 @@ class AuditPacketTests(unittest.TestCase):
             key = json.loads((root / 'key.json').read_text())
             self.assertEqual(key['coverage'][1]['status'], 'missing_review')
             day.rename(frame / '2026-08-13')
-            with self.assertRaisesRegex(ValueError, 'date does not match'):
+            with self.assertRaisesRegex(ValueError, 'corpus date binding'):
                 export_packets(frame, root / 'other-packets', root / 'other-key.json')

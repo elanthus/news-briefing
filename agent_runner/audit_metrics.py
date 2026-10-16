@@ -1,6 +1,6 @@
 """Aggregate verified schema-3 daily audits without consuming private review fields.
 
-Run ``python3 -S -m agent_runner.audit_metrics ROOT --output metrics.json``.
+Run ``python3 -S -m agent_runner.audit_metrics ROOT --start YYYY-MM-DD --end YYYY-MM-DD --output metrics.json``.
 ROOT contains YYYY-MM-DD/{run,review} (or jev-review); run may be a daily
 fallback chain. Missing reviews stay in the coverage frame. Invalid audits abort.
 Only the existing verification boundary reads private binding artifacts; metric
@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import math
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -59,20 +59,31 @@ def selected_run(day: Path) -> Path:
     return run
 
 
-def load_days(root: Path) -> list[dict[str, Any]]:
-    """Validate every envelope before returning any rows; omit private fields."""
-    days: list[dict[str, Any]] = []
-    for child in sorted(root.iterdir()):
-        if not child.is_dir():
+def load_days(root: Path, *, start: date, end: date) -> list[dict[str, Any]]:
+    """Validate an explicit sampling frame and every envelope before returning rows."""
+    span = (end - start).days + 1
+    if not 1 <= span <= MAX_DAYS:
+        raise ValueError("invalid or excessive daily audit frame")
+    directories: dict[str, Path] = {}
+    for child in root.iterdir():
+        if not child.is_dir() or date.fromisoformat(child.name).isoformat() != child.name:
             raise ValueError("audit root must contain only dated day directories")
-        if len(days) >= MAX_DAYS or date.fromisoformat(child.name).isoformat() != child.name:
-            raise ValueError("invalid or excessive daily audit frame")
-        day = _within(child, root)
+        if not start <= date.fromisoformat(child.name) <= end:
+            raise ValueError("day directory is outside the declared sampling frame")
+        directories[child.name] = _within(child, root)
+    days: list[dict[str, Any]] = []
+    seen_audits: set[str] = set()
+    for offset in range(span):
+        report_date = (start + timedelta(days=offset)).isoformat()
+        day = directories.get(report_date)
+        if day is None:
+            days.append({"report_date": report_date, "status": "missing_day", "audit": None,
+                         "integrity": None, "review": None, "run": None, "audit_sha256": None})
+            continue
         reviews = [day / name for name in ("review", "jev-review") if (day / name).exists()]
         if len(reviews) > 1:
             raise ValueError("ambiguous daily review directories")
         if not reviews or not (reviews[0] / "audit.json").exists():
-            # An absent review is visible coverage loss, never an implicit success.
             status = "missing_review"
             log = day / "run" / "fallback-log.json"
             if log.exists():
@@ -80,24 +91,25 @@ def load_days(root: Path) -> list[dict[str, Any]]:
                 if (isinstance(chain, dict) and chain.get("status") == "failed"
                         and chain.get("selected_run_dir") is None):
                     status = "generation_failure"
-            days.append({"report_date": child.name, "status": status, "audit": None,
+            days.append({"report_date": report_date, "status": status, "audit": None,
                          "integrity": None, "review": None, "run": None, "audit_sha256": None})
             continue
         review = _within(reviews[0], day)
         envelope, digest = _read_json(_within(review / "audit.json", day))
+        if digest in seen_audits:
+            raise ValueError("duplicate daily audit in the sampling frame")
+        seen_audits.add(digest)
         run = selected_run(day)
-        audit, _ = load_public_audit(run, review)
+        audit, _ = load_public_audit(run, review, expected_report_date=report_date)
         if audit is None:
-            raise ValueError(f"daily audit verification failed for {child.name}")
+            raise ValueError(f"daily audit verification or corpus date binding failed for {report_date}")
         integrity = parse_integrity(envelope["integrity"], semantic_audit=audit, disposition="ready")
         if integrity is None:
             raise ValueError("daily audit has no verified integrity")
         status = (audit["status"] if audit["status"] != "complete" else
                   audit["post_status"] if audit["post_status"] in {"partial", "failed"} else "complete")
-        days.append({"report_date": child.name, "status": status, "audit": audit, "integrity": integrity,
+        days.append({"report_date": report_date, "status": status, "audit": audit, "integrity": integrity,
                      "review": review, "run": run, "audit_sha256": digest})
-    if not days:
-        raise ValueError("daily audit frame is empty")
     return days
 
 
@@ -150,8 +162,8 @@ def observations(audit: dict[str, Any], integrity: dict[str, Any]) -> dict[str, 
             "blocked_slots": {k: len(v) for k, v in blocked_slots.items()}, "estimated_spending_guard": budget_stop}
 
 
-def aggregate(root: Path) -> dict[str, Any]:
-    rows = load_days(root)
+def aggregate(root: Path, *, start: date, end: date) -> dict[str, Any]:
+    rows = load_days(root, start=start, end=end)
     per_day = []
     for row in rows:
         audit, integrity = row["audit"], row["integrity"]
@@ -177,7 +189,9 @@ def aggregate(root: Path) -> dict[str, Any]:
                                  total("slot_outcomes", outcome))
                         for code in sorted({code for c in counts for code in c["slot_causes"].get(outcome, {})})}
               for outcome in outcomes}
-    return {"schema_version": 1, "coverage": rate(len(complete), len(rows)),
+    return {"schema_version": 1,
+            "sampling_frame": {"start": start.isoformat(), "end": end.isoformat(), "planned_days": len(rows)},
+            "coverage": rate(len(complete), len(rows)),
             "status_counts": dict(Counter(r["status"] for r in per_day)),
             "flag_rate_by_kind": flag_rates,
             "days_with_flags": rate(sum(bool(c["flags"]) for c in counts), len(complete)),
@@ -201,10 +215,12 @@ def aggregate(root: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
+    parser.add_argument("--start", type=date.fromisoformat, required=True)
+    parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        result = aggregate(args.root)
+        result = aggregate(args.root, start=args.start, end=args.end)
         write_json_atomic(args.output, result)
     except (OSError, ValueError, KeyError, TypeError, RecursionError, OverflowError) as exc:
         parser.error(str(exc))

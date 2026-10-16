@@ -522,7 +522,8 @@ def daily_semantic_review(run: Path, destination: Path, *,
     return audit
 
 
-def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any] | None, Path]:
+def load_public_audit(original: Path, destination: Path, *,
+                      expected_report_date: str | None = None) -> tuple[dict[str, Any] | None, Path]:
     """Bind public before/after prose to verified runs; invalid audit never replaces publication."""
     try:
         envelope, _ = _read_json(destination / "audit.json")
@@ -549,6 +550,8 @@ def load_public_audit(original: Path, destination: Path) -> tuple[dict[str, Any]
         if metadata["review_sha256"] != review_hash:
             raise ValueError("semantic review artifact hash mismatch")
         original_state = load_verified_run(original)
+        if expected_report_date is not None and original_state.corpus.get("report_date") != expected_report_date:
+            raise ValueError("daily audit corpus date does not match its sampling frame")
         original_topics, original_hashes = original_state.topics, original_state.hashes
         repaired_state = None
         _verify_review(before, original_topics, original_hashes)

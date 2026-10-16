@@ -218,7 +218,8 @@ def restore(
     )
 
 
-def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest: date) -> tuple[Path, ...]:
+def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest: date, *,
+                  manifest_path: Path | None = None) -> tuple[Path, ...]:
     """Restore one date window from digest-checked, authenticated preserved wrappers.
 
     The manifest identifies wrappers, not trustworthy plaintext. Stage every
@@ -229,7 +230,7 @@ def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest:
         raise ValueError("archive passphrase must be a non-empty single-line value")
     if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
         raise ValueError(f"corpus output directory must be absent or empty: {output_dir}")
-    manifest_path = artifact_dir / "manifest.json"
+    manifest_path = manifest_path or artifact_dir / "manifest.json"
     if manifest_path.is_symlink():
         raise ValueError("local artifact manifest must not be a symlink")
     with manifest_path.open("rb") as stream:
@@ -245,6 +246,8 @@ def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest:
     with tempfile.TemporaryDirectory(prefix="news-briefing-local-restore-") as directory:
         root = Path(directory)
         for row in candidates:
+            if not _is_main_repository_run(row.get("workflow_run")):
+                raise ValueError("local corpus archive requires main-repository workflow provenance")
             artifact_id, digest, size = row.get("id"), row.get("sha256"), row.get("bytes")
             if (type(artifact_id) is not int or artifact_id <= 0 or artifact_id in seen
                     or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
@@ -276,6 +279,7 @@ def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-dir", type=Path, help="preserved wrappers and manifest.json; no network")
+    parser.add_argument("--artifact-manifest", type=Path, help="manifest with recorded workflow-run provenance")
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--output-dir", type=Path, default=Path("corpora"))
     parser.add_argument("--newest", type=date.fromisoformat, required=True)
@@ -283,8 +287,11 @@ def main() -> int:
     try:
         if args.artifact_dir is not None:
             restored = restore_local(args.artifact_dir, args.output_dir,
-                                     os.environ.get("CORPUS_ARCHIVE_PASSPHRASE", ""), args.newest)
+                                     os.environ.get("CORPUS_ARCHIVE_PASSPHRASE", ""), args.newest,
+                                     manifest_path=args.artifact_manifest)
         else:
+            if args.artifact_manifest is not None:
+                raise ValueError("--artifact-manifest requires --artifact-dir")
             if not args.repository:
                 raise ValueError("--repository or GITHUB_REPOSITORY is required")
             restored = restore(

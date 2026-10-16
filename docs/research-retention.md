@@ -118,10 +118,31 @@ benchmark or establish a prompt-only baseline.
 reads `DIR/manifest.json` and the preserved `ID.zip` wrappers for
 `briefing-corpus-archive`, without a GitHub token or network request. For example,
 `DIR` can be `.news-briefing/portfolio-preservation-2026-10-15/github`.
+The manifest must also record `workflow_run.head_branch`, `head_repository_id`
+and `repository_id` for each corpus wrapper. The same main-branch, same-repository
+check as the API path is required; missing or branch/fork provenance fails closed.
 It checks wrapper sizes and SHA-256 values, extracts the same bounded encrypted
 member as the API path, authenticates it with `CORPUS_ARCHIVE_PASSPHRASE`, and
 uses the existing strict corpus restoration checks. Conflicting copies of a date
 fail closed. Output must be absent or empty.
+
+The original preservation manifest lacks workflow provenance. Keep its recorded
+bytes and digest unchanged. Use `--artifact-manifest PATH` to supply a separate
+copy with those fields added from authenticated GitHub run metadata for each
+row's `run_id`, preserving its wrapper ID, size, digest and source revision.
+For a run's provenance fields, the read-only metadata command is:
+
+```bash
+gh api repos/OWNER/REPO/actions/runs/RUN_ID \
+  --jq '{head_branch, head_repository_id: .head_repository.id, repository_id: .repository.id}'
+```
+
+Check the run's `head_sha` against the row's `source_revision` before recording
+its provenance. The private supplemented copy prepared for the preserved wrappers
+is `.news-briefing/portfolio-preservation-2026-10-15/github-corpus-main-manifest.json`;
+the original manifest remains the receipt's integrity anchor. This one-time
+provenance capture is separate from restoration, which remains fully offline and
+never reads a token. Origin metadata does not authenticate encrypted contents.
 
 Preserved wrappers can supply corpus days beyond one API retention window.
 Each invocation still restores only the fourteen-date window ending at `--newest`;

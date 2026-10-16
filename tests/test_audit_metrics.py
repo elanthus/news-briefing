@@ -1,16 +1,24 @@
 import copy
 import json
+import shutil
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_runner.audit_metrics import aggregate, observations, rate
+from agent_runner.audit_metrics import aggregate as aggregate_daily
+from agent_runner.audit_metrics import observations, rate
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review
 from evaluator.metrics import wilson_interval
 from tests.test_semantic_repairs import CitationJudge, Judge, PatchProvider, make_run, split_review
+
+
+def aggregate(root):
+    dates = sorted(p.name for p in root.iterdir())
+    return aggregate_daily(root, start=date.fromisoformat(dates[0]), end=date.fromisoformat(dates[-1]))
 
 
 class UnknownOnFlagJudge(Judge):
@@ -36,7 +44,7 @@ class AuditMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day = self.day(root)
-            run, headline = make_run(day)
+            run, headline = make_run(day, report_date=day.name)
             audit = daily_semantic_review(run, day / 'review', judge=Judge(headline), repair_provider=PatchProvider())
             result = aggregate(root)
             self.assertEqual(result['coverage'], rate(1, 1))
@@ -62,7 +70,7 @@ class AuditMetricsTests(unittest.TestCase):
             for name, judge in [('2026-08-11', Judge('never', missing_cost=True)),
                                 ('2026-08-12', FailedJudge()), ('2026-08-13', Judge('never'))]:
                 day = self.day(root, name)
-                run, _ = make_run(day)
+                run, _ = make_run(day, report_date=day.name)
                 daily_semantic_review(run, day / 'review', judge=judge)
             day = self.day(root, '2026-08-14')
             (day / 'run').mkdir()
@@ -79,7 +87,7 @@ class AuditMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day = self.day(root)
-            run, headline = make_run(day)
+            run, headline = make_run(day, report_date=day.name)
             daily_semantic_review(run, day / 'review', judge=Judge(headline, fail_after_repair=True),
                                   repair_provider=PatchProvider())
             result = aggregate(root)
@@ -91,9 +99,9 @@ class AuditMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day = self.day(root)
-            split_review(day)
+            split_review(day, report_date=day.name)
             day2 = self.day(root, '2026-08-12')
-            run, headline = make_run(day2)
+            run, headline = make_run(day2, report_date=day2.name)
             daily_semantic_review(run, day2 / 'review', judge=Judge(headline, dispute=True))
             result = aggregate(root)
             self.assertEqual(result['per_slot_acceptance']['apply_repair'], rate(1, 2))
@@ -108,7 +116,7 @@ class AuditMetricsTests(unittest.TestCase):
             root = Path(directory)
             day = self.day(root)
             with patch('agent_runner.semantic_repairs.assemble_accepted', side_effect=ValueError('private')):
-                split_review(day)
+                split_review(day, report_date=day.name)
             result = aggregate(root)
             self.assertEqual(result['per_slot_acceptance']['failed'], rate(2, 2))
             self.assertEqual(result['slot_causes']['failed']['invalid_candidate'], rate(2, 2))
@@ -118,11 +126,11 @@ class AuditMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day = self.day(root)
-            run, headline = make_run(day)
+            run, headline = make_run(day, report_date=day.name)
             topic = next(t for t in load_topics(run)[0] if t['headline'] == headline)
             daily_semantic_review(run, day / 'review', judge=CitationJudge(headline, topic['evidence'][0]['title']))
             day2 = self.day(root, '2026-08-12')
-            run, headline = make_run(day2)
+            run, headline = make_run(day2, report_date=day2.name)
             daily_semantic_review(run, day2 / 'review', judge=UnknownOnFlagJudge(headline))
             result = aggregate(root)
             self.assertEqual(result['per_slot_acceptance']['skipped'], rate(1, 1))
@@ -135,7 +143,7 @@ class AuditMetricsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             day = self.day(root)
-            run, _ = make_run(day)
+            run, _ = make_run(day, report_date=day.name)
             with patch('agent_runner.jev_review.MAX_CALLS', 0):
                 daily_semantic_review(run, day / 'review', judge=Judge('never'))
             result = aggregate(root)
@@ -159,7 +167,7 @@ class AuditMetricsTests(unittest.TestCase):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 day = self.day(root)
-                run, _ = make_run(day)
+                run, _ = make_run(day, report_date=day.name)
                 daily_semantic_review(run, day / 'review', judge=Judge('never'))
                 path = day / 'review/audit.json'
                 value = json.loads(path.read_text())
@@ -174,6 +182,38 @@ class AuditMetricsTests(unittest.TestCase):
                 path.write_text(json.dumps(value))
                 with self.assertRaises(ValueError):
                     aggregate(root)
+
+    def test_corpus_date_mismatch_and_duplicated_day_are_rejected(self):
+        for duplicate in (False, True):
+            with self.subTest(duplicate=duplicate), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                day = self.day(root)
+                run, _ = make_run(day, report_date=day.name)
+                daily_semantic_review(run, day / 'review', judge=Judge('never'))
+                if duplicate:
+                    shutil.copytree(day, root / '2026-08-12')
+                else:
+                    day.rename(root / '2026-08-12')
+                with self.assertRaisesRegex(ValueError, 'duplicate daily audit|corpus date binding'):
+                    aggregate(root)
+
+    def test_explicit_frame_keeps_absent_dates_and_rejects_outside_directories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('2026-08-11', '2026-08-13'):
+                day = self.day(root, name)
+                run, _ = make_run(day, report_date=day.name)
+                daily_semantic_review(run, day / 'review', judge=Judge('never'))
+            result = aggregate_daily(root, start=date(2026, 8, 11), end=date(2026, 8, 14))
+            self.assertEqual(result['coverage'], rate(2, 4))
+            self.assertEqual(result['status_counts'], {'complete': 2, 'missing_day': 2})
+            self.assertEqual(result['days'][1]['status'], 'missing_day')
+            self.assertEqual(result['days'][-1]['status'], 'missing_day')
+            self.assertEqual(result['repair_round_rate'], rate(0, 2))
+            with self.assertRaisesRegex(ValueError, 'outside the declared'):
+                aggregate_daily(root, start=date(2026, 8, 12), end=date(2026, 8, 14))
+            with self.assertRaisesRegex(ValueError, 'invalid or excessive'):
+                aggregate_daily(root, start=date(2026, 8, 14), end=date(2026, 8, 11))
 
     def test_wilson_matches_evaluator_including_empty_and_boundaries(self):
         for successes, trials in ((0, 0), (0, 14), (14, 14), (7, 10), (12, 220)):
