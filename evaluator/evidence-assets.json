@@ -21,6 +21,12 @@
       "name": "portfolio-v2-evidence.tar.gz",
       "sha256": "1688d1fe830020a86a2b3e96a0e5f771c10e8f9583a2dd88663869a72b412bd8",
       "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
+    },
+    {
+      "bundle": "parity-v3-evidence",
+      "name": "parity-v3-evidence.tar.gz",
+      "sha256": "c4747e940a0d708280bc7ebbe33edb2dd78b237029a3cc5720ad1aeba337b821",
+      "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
     }
   ]
 }

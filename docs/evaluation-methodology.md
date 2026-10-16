@@ -119,6 +119,7 @@ python3 -m evaluator.evidence_assets fetch
 python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
 python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
+python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
 ```
 
 The Portfolio v2 bundle's checker score family is frozen at the 2026-08-19 run and predates the 2026-08-25 repair of two fixtures, so its regenerated report shows the older 42/49 precision, 42/56 recall, and 7/12 heuristic figures rather than the table above.
