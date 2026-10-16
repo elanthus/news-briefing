@@ -112,7 +112,7 @@ does not change the original fallback run or its checkpoints. Publication
 revalidates input hashes, exact before/after prose, unchanged topics, source
 subsets, per-slot acceptance and the ready repaired or assembled run before using
 it. Audits written before per-slot acceptance (metadata versions 1 and 2) are
-still verified under their all-or-nothing rule.
+retired historical attachments; current publication rejects them.
 An invalid audit is ignored and cannot replace the original publication input.
 
 The repair instructions ask for concise complete sentences and forbid copying
@@ -135,7 +135,7 @@ check records rather than duplicating story prose. The publication step verifies
 artifacts and recomputes or cross-checks decisions, coverage, removals, costs, and
 subjects. Invalid or tampered audits retain the original and expose only a safe
 verification-failed explanation. Fixed allowlisted codes explain all applicable
-skip causes, failures, rejections, and historical candidate mode. Raw exceptions, provider
+skip causes, failures, and rejections. Raw exceptions, provider
 bodies, private paths, prompts, and frozen excerpts remain private.
 
 The report leads with publication and review status, then an action ledger,
@@ -148,9 +148,9 @@ probability thresholds, disputed/unconfirmed flags, missing confirmation, and
 excerpt-only scope.
 
 History schema 9 preserves valid integrity metadata through merges, replacement,
-and rebuilds. Schemas 7 and 8 migrate with `integrity: null`; existing prose,
-audit data, and provenance remain intact. Older reports explicitly identify
-unavailable operational history and are never enriched by rerunning models.
+and rebuilds. Only schema 9 is accepted; schemas 7 and 8 are rejected. Current
+entries may explicitly record `integrity: null` or `semantic_audit: null` when
+unavailable. Missing operational history is never enriched by rerunning models.
 Non-public dispositions remain status-only. Raw reports and failed traces stay
 in encrypted diagnostics under `runs/DATE/jev-review/`.
 
