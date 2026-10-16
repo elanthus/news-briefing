@@ -1,0 +1,121 @@
+{
+  "authorization": {
+    "authorized_at": null,
+    "component_cost_ceiling_usd": 5.0,
+    "generation_cost_ceiling_usd": 4.0,
+    "remaining_budget_applies_to_semantic_and_grounding_review": true,
+    "total_openrouter_cost_ceiling_usd": 5.0
+  },
+  "baseline": {
+    "bundle": "docs/results/parity-v2-evidence",
+    "model_card": "docs/results/parity-v2.md",
+    "protocol": "evaluator/protocols/parity-v1.json",
+    "release_asset": "parity-v2-evidence.tar.gz",
+    "source_commit": "87db491cdf259d4089a40e27cada340cf1517c84",
+    "source_tag": "parity-v2-source-20260904"
+  },
+  "comparability": {
+    "citation_fabrication_is_structurally_unreachable": true,
+    "expected_comparator_outcome_against_baseline": "not_gate_eligible_descriptive_comparison",
+    "note": "This protocol pins the parity-v2 matrix: the same two models, generation controls, prompt version names, version 8 suite, five trials, final run kind, and clean-tag source convention. It cannot pin the parity-v2 bytes. Since tag parity-v2-source-20260904, the version 8 suite file, both corpus fixtures, and briefing-runner-prompt.md changed bytes (schema v7 metadata refresh and runner prompt revisions), and this file's own SHA-256 differs from parity-v1.json. evaluator/regression-policy.json requires same_suite_sha256, same_corpus_sha256, same_protocol_sha256, and shared_prompt_versions_have_same_sha256, so `evaluator compare` against the parity-v2 bundle must run with --allow-descriptive and will record the same descriptive-only outcome parity v2 recorded against parity v1. The gate-eligible comparison this protocol does support is the within-run prompt comparison (production-runner versus runner-deepseek-v4-flash in one matrix) and any later rerun that reuses this exact protocol, suite, corpus, and prompt bytes.",
+    "pooled_with_baseline_rows": false
+  },
+  "controls": {
+    "generation_path": "production-parity",
+    "planned_rows": 1200,
+    "provider_schema": {
+      "citation_refs_max_items": "len(eligible_refs)",
+      "known_asymmetry": "tencent/hy3 answers the selection schema with uniqueItems removed, as in parity v1 and v2; its utility and attack rates are not cell-for-cell comparable with deepseek/deepseek-v4-flash and must be reported with this note.",
+      "unique_items_stripped_for": [
+        "tencent/hy3"
+      ]
+    },
+    "reasoning": "disabled",
+    "run_kind": "final",
+    "seed": null,
+    "seed_note": "The production-parity path rejects --seed; sampling determinism rests on temperature 0 alone. Execution ordering is seeded with --execution-seed 20260901, the parity-v2 value, and recorded in the manifest.",
+    "execution_seed": 20260901,
+    "temperature": 0.0,
+    "timeout_seconds": 300,
+    "trials_per_case": 5
+  },
+  "frozen_at": null,
+  "inputs": [
+    {
+      "path": "evaluator/fixtures/generation-corpus.json",
+      "sha256": "5a3299e59c9a23eb72c44559fa5b5b4f7f6d63939466b6c1503c44a9688f478b"
+    },
+    {
+      "path": "evaluator/fixtures/generation-corpus-production.json",
+      "sha256": "27a908a775a21848536ac97b7b0b208e3d28b37de929724967ead4bcd108e735"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-1.json",
+      "sha256": "a9fc12dfa355fe3c950f4158ff3935643c585ea8b16eb4a13618324a795c6447"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-2.json",
+      "sha256": "855c7a47577673c8de699c43485ec911c1f375b49bb014d100271e8933d47388"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-3.json",
+      "sha256": "afec844144b923a3460f9b7c924d3536e8e9e92c4c412509bf99e1bfcef6a46d"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-production.json",
+      "sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9"
+    }
+  ],
+  "models": [
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    {
+      "model": "tencent/hy3",
+      "provider": "openrouter"
+    }
+  ],
+  "objective": "Rerun the parity-v2 generation matrix on the production-parity two-pass path at the current source revision, so the repository has a current-revision generation measurement paired descriptively against the frozen parity-v2 bundle. Parity v2 remains the citable prior baseline; its rows are never pooled with this run.",
+  "prompts": [
+    {
+      "id": "production-runner",
+      "path": "briefing-runner-prompt.md",
+      "sha256": "077116a84cea305f38e34145222ca325aed342275144a67d6a428e9caeea71c6"
+    },
+    {
+      "id": "runner-deepseek-v4-flash",
+      "path": "evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md",
+      "sha256": "f8cf8b0a023a9f707f52948b6160c850efdfc5d4b29dc43d5895c18b3c5993f1"
+    }
+  ],
+  "protocol_id": "parity-v3",
+  "publication": {
+    "aggregate_regeneration_must_be_verified": true,
+    "provider_request_ids_must_be_redacted": true,
+    "raw_generated_outputs_required_in_release_bundle": true
+  },
+  "review": {
+    "machine_labels_are_not_human_approval": true
+  },
+  "schema_version": 1,
+  "source": {
+    "clean_worktree_required": true,
+    "public_evidence_required": true,
+    "reachable_commit_required": true,
+    "required_tag": "parity-v3-source-YYYYMMDD",
+    "required_tag_note": "Replace YYYYMMDD with the UTC date of the frozen commit when this protocol is frozen, following parity-v1-source-20260901c and parity-v2-source-20260904. The tag must point at the clean HEAD that `evaluator run --run-kind final` records.",
+    "runtime_source_sha256_required": true
+  },
+  "status": "draft_pending_freeze",
+  "status_note": "Hashes above are the committed bytes at the revision that introduced this file. Before the run: re-hash every listed input and prompt, set frozen_at and authorization.authorized_at, replace required_tag, set status to frozen_for_run, commit, then tag. evaluator/tests/test_protocols.py fails when the listed hashes drift from the committed fixtures.",
+  "suite": {
+    "authored_cases": 55,
+    "derived_clean_cases": 5,
+    "path": "evaluator/fixtures/generation-cases.json",
+    "rows_per_model_prompt_trial": 60,
+    "sha256": "8a73890ae7b2311be78e87b358f6a9e8ac024472e0315c1ba5f3a0d10e752e7f",
+    "version": 8,
+    "version_note": "Version 8 is pinned because it is the parity-v2 suite; its selection-promotion oracle and scarcity case keep their parity-v2 interpretation. The active default suite is version 9 (generation-cases-v9.json); a version 9 rerun would be a different experiment with different oracles and is not this protocol."
+  }
+}
