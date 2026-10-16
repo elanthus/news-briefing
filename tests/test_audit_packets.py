@@ -54,7 +54,9 @@ class AuditPacketTests(unittest.TestCase):
             primary_pairs, secondary_pairs = {}, {}
             for file, pair_map in [('reviewer-primary.json', primary_pairs), ('reviewer-double.json', secondary_pairs)]:
                 packet = json.loads((root / 'packets' / file).read_text())
-                self.assertEqual(set(packet), {'schema_version', 'items'})
+                self.assertEqual(set(packet), {'schema_version', 'rubric', 'items'})
+                self.assertEqual(set(packet['rubric']['labels']),
+                                 {'support', 'meaning_preservation', 'citations', 'readability'})
                 for item in packet['items']:
                     self.assertEqual(set(item), {'packet_id', 'versions'})
                     private = mapping[item['packet_id']]

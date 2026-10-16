@@ -1,8 +1,11 @@
 # Jev-stage evaluation plan
 
-Status: planned, not run. No model call has been made for this plan. Protocol:
+Status: frozen for run, not run. No model call has been made for this plan. Protocol:
 [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json) (status
-`draft_pending_freeze`). The stage under test is described in
+`frozen_for_run`, frozen 2026-10-16). The committed sample is
+[`jev-stage-sample.json`](jev-stage-sample.json) and the runner is
+[`run_jev_stage.py`](../../run_jev_stage.py); the model card skeleton is
+[`jev-stage-v1.md`](jev-stage-v1.md). The stage under test is described in
 [daily Jev checks and repairs](../jev-review.md).
 
 ## Goal
@@ -21,12 +24,37 @@ One real dated corpus, run once through the current daily command with the revie
 stage enabled, at a frozen revision:
 
 ```bash
-python3 -S restore_private_corpora.py --newest YYYY-MM-DD --output-dir corpora
+python3 -S restore_private_corpora.py \
+  --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github \
+  --newest YYYY-MM-DD --output-dir .news-briefing/jev-stage/YYYY-MM-DD/corpora
 python3 -S run_daily_briefing.py \
-  --corpus corpora/YYYY-MM-DD.json \
+  --corpus .news-briefing/jev-stage/YYYY-MM-DD/corpora/YYYY-MM-DD.json \
   --run-dir .news-briefing/jev-stage/YYYY-MM-DD/run \
   --jev-review-dir .news-briefing/jev-stage/YYYY-MM-DD/review \
-  --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md
+  --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md \
+  --generation-usd 1.0
+```
+
+The code constrains these commands in three ways the first draft of this plan did
+not state, so the plan was corrected rather than the code. The restore refuses a
+non-empty output directory and, without `--artifact-dir`, would call GitHub with
+a token, so every day restores from the preserved local wrappers into its own
+`corpora` directory. The daily runner exits 0 even when the review stage raises
+and retains the original, so a ready chain without `review/audit.json` is a
+failure, not a reviewed day. `--generation-usd` bounds each day's generation
+spend; the runner's default allowance is USD 25 per invocation.
+[`run_jev_stage.py`](../../run_jev_stage.py) executes both commands for every
+date in the committed sample, in order, records each day's artifact SHA-256
+values and reported costs, skips days that already have a record, continues past
+a generation-failure row, and stops on any other failure:
+
+```bash
+python3 -S run_jev_stage.py \
+  --sample docs/results/jev-stage-sample.json \
+  --root .news-briefing/jev-stage \
+  --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github \
+  --generation-usd 1.0 \
+  --ledger docs/results/jev-stage-v1-ledger.json
 ```
 
 Only `schema_version: 3` audits (per-slot acceptance) are read. Audits written
@@ -110,15 +138,45 @@ labels and cohort are not reused.
   disagreements from the blinded evidence and rationales only. Raw agreement and
   adjudicated outcomes are reported separately with exact denominators.
 
-A packet exporter for the semantic audit does not exist yet; the evaluator's
-`export-grounding-review` serves evaluator runs, not daily audits. Writing one is
-a follow-up deliverable, as is an aggregator that reads each review directory's
-schema 3 metadata and `public_audit` projection into the metrics above.
+The aggregator ([`agent_runner.audit_metrics`](../../agent_runner/audit_metrics.py))
+and the packet exporter ([`agent_runner.audit_packets`](../../agent_runner/audit_packets.py))
+implement the metrics and packets above over a declared `--start`/`--end` frame;
+[daily Jev checks and repairs](../jev-review.md#aggregate-current-daily-audits)
+documents both. Pooled check-, flag- and slot-level rates carry a day-clustered
+bootstrap interval beside their Wilson interval. Each packet carries the label
+rubric; reviewers return labels and rationales per item.
+
+## Sample
+
+[`jev-stage-sample.json`](jev-stage-sample.json) records the inventory and the
+selection rule. The preserved encrypted wrappers under
+`.news-briefing/portfolio-preservation-2026-10-15/github` were created daily from
+2026-10-01 through 2026-10-15 and each supplies at most the fourteen dates ending
+at its creation date; the live unexpired GitHub artifacts are the same wrappers
+from 2026-10-02 onward. Nothing was decrypted for the inventory. The union of
+those windows on or after the schema v7 cutover (2026-09-06) is 28 dates,
+2026-09-18 through 2026-10-15, which is the primary frame. If a date in the
+frame has no restorable corpus it stays in the frame as a `missing_day` row and
+in the coverage denominator; the minimum reportable fallback is the fourteen
+dates 2026-10-02 through 2026-10-15.
+
+## Expected cost
+
+Per day, generation is bounded at USD 1.00 by `--generation-usd`, the initial
+review with confirmation and the follow-up review each stop at an estimated USD
+0.10, and HY3 repair stops at USD 0.10 reported spend, so one day's ceiling is
+about USD 1.30 and 28 days about USD 36. The September 30 study paid about USD
+0.05 per generation and USD 0.68 for ten generations with review, confirmation
+and repair, so the planning estimate is USD 0.15 to 0.35 per day and USD 4 to 10
+for 28 days. The guards are estimated spending stops, not provider-enforced caps;
+the aggregate reports observed cost and unknown-cost calls per day.
 
 ## Before the run
 
 1. Freeze `jev-stage-v1.json`: set `status` to `frozen_for_run`, record the
-   revision, and commit before the first day runs.
+   revision, and commit before the first day runs. Done on 2026-10-16; the
+   protocol's `revision` block names the freeze base commit and the rule for the
+   run commit, which the runner records per day.
 2. Confirm `OPENROUTER_API_KEY` in the environment; the review and repair models
    use the same key. No other credential is needed.
 3. Confirm the archive passphrase is available. The October 2 assessment had to

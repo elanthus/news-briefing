@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
@@ -23,6 +24,8 @@ from agent_runner.semantic_repairs import load_public_audit
 from publication_schema import SEMANTIC_CHECKS, parse_integrity
 
 MAX_DAYS = 3660
+BOOTSTRAP_SAMPLES = 10_000
+BOOTSTRAP_SEED = 1729
 
 
 def rate(successes: int, trials: int) -> dict[str, Any]:
@@ -37,6 +40,38 @@ def rate(successes: int, trials: int) -> dict[str, Any]:
         interval = [max(0.0, center - margin), min(1.0, center + margin)]
     return {"successes": successes, "trials": trials,
             "rate": successes / trials if trials else None, "ci95_wilson": interval}
+
+
+def clustered_rate(per_day: list[tuple[int, int]], *, samples: int = BOOTSTRAP_SAMPLES,
+                   seed: int = BOOTSTRAP_SEED) -> dict[str, Any]:
+    """Pooled rate with a Wilson interval and a day-clustered percentile bootstrap interval.
+
+    Topics and checks within a day are not independent, so the bootstrap
+    resamples whole days with replacement and recomputes the pooled ratio. The
+    draw order is fixed by ``seed`` so a committed aggregate reproduces. A resample
+    whose denominator is zero is dropped and counted; the interval is null when no
+    resample has a denominator or there are no contributing days.
+    """
+    result = rate(sum(n for n, _ in per_day), sum(d for _, d in per_day))
+    days = [(n, d) for n, d in per_day if d]
+    ratios: list[float] = []
+    dropped = 0
+    if days:
+        rng = random.Random(seed)
+        for _ in range(samples):
+            drawn = [rng.choice(days) for _ in days]
+            denominator = sum(d for _, d in drawn)
+            if denominator:
+                ratios.append(sum(n for n, _ in drawn) / denominator)
+            else:
+                dropped += 1
+    ratios.sort()
+    def percentile(fraction: float) -> float:
+        return ratios[min(len(ratios) - 1, max(0, math.ceil(fraction * len(ratios)) - 1))]
+    result["ci95_day_cluster_bootstrap"] = [percentile(0.025), percentile(0.975)] if ratios else None
+    result["bootstrap"] = {"contributing_days": len(days), "samples": samples, "seed": seed,
+                           "dropped_zero_denominator_resamples": dropped}
+    return result
 
 
 def _within(path: Path, root: Path) -> Path:
@@ -176,17 +211,18 @@ def aggregate(root: Path, *, start: date, end: date) -> dict[str, Any]:
     counts = [r["counts"] for r in complete]
     def total(field: str, key: str) -> int:
         return sum(c[field].get(key, 0) for c in counts)
+    # Check-, flag- and slot-level rates pool observations across days, so they carry a
+    # day-clustered bootstrap interval beside the Wilson interval. Day-level rates do not.
     flag_rates, confirmation_rates = {}, {}
     for kind in sorted(SEMANTIC_CHECKS):
-        flags = total("flags", kind)
-        flag_rates[kind] = rate(flags, total("checks", kind))
-        confirmation_rates[kind] = {label: rate(sum(c["confirmations"][kind].get(label, 0) for c in counts), flags)
-                                    for label in ("confirmed", "disputed", "unconfirmed")}
-    targets = sum(c["repair_targets"] for c in counts)
-    outcomes = {outcome: rate(total("slot_outcomes", outcome), targets)
+        flag_rates[kind] = clustered_rate([(c["flags"].get(kind, 0), c["checks"].get(kind, 0)) for c in counts])
+        confirmation_rates[kind] = {
+            label: clustered_rate([(c["confirmations"][kind].get(label, 0), c["flags"].get(kind, 0)) for c in counts])
+            for label in ("confirmed", "disputed", "unconfirmed")}
+    outcomes = {outcome: clustered_rate([(c["slot_outcomes"].get(outcome, 0), c["repair_targets"]) for c in counts])
                 for outcome in ("apply_repair", "withhold_repair", "failed", "skipped")}
-    causes = {outcome: {code: rate(sum(c["slot_causes"].get(outcome, {}).get(code, 0) for c in counts),
-                                 total("slot_outcomes", outcome))
+    causes = {outcome: {code: clustered_rate([(c["slot_causes"].get(outcome, {}).get(code, 0),
+                                               c["slot_outcomes"].get(outcome, 0)) for c in counts])
                         for code in sorted({code for c in counts for code in c["slot_causes"].get(outcome, {})})}
               for outcome in outcomes}
     return {"schema_version": 1,
@@ -196,9 +232,9 @@ def aggregate(root: Path, *, start: date, end: date) -> dict[str, Any]:
             "flag_rate_by_kind": flag_rates,
             "days_with_flags": rate(sum(bool(c["flags"]) for c in counts), len(complete)),
             "confirmation_rate_by_kind": confirmation_rates,
-            "confirmation_rates": {label: rate(sum(c["confirmations"][kind].get(label, 0)
-                                                   for c in counts for kind in SEMANTIC_CHECKS),
-                                               sum(sum(c["flags"].values()) for c in counts))
+            "confirmation_rates": {label: clustered_rate([(sum(c["confirmations"][kind].get(label, 0)
+                                                               for kind in SEMANTIC_CHECKS),
+                                                           sum(c["flags"].values())) for c in counts])
                                    for label in ("confirmed", "disputed", "unconfirmed")},
             "repair_round_rate": rate(sum(c["repair_targets"] > 0 for c in counts), len(complete)),
             "per_slot_acceptance": outcomes, "slot_causes": causes,

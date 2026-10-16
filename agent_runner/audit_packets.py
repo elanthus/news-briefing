@@ -18,6 +18,26 @@ from agent_runner.integrity import position_key
 from agent_runner.jev_review import load_verified_run
 
 PROTOCOL_ID = "jev-stage-v1"
+# The rubric travels with every packet so each reviewer labels against the same
+# definitions. It names neither side of a pair nor any outcome. Reviewers add a
+# "labels" object per item with these fields plus a free-text "rationale".
+RUBRIC = {
+    "support": "For each version: is every material factual claim supported by that version's own supplied "
+               "title/excerpt evidence? Label supported, unsupported, strengthened, or reversed; cite the claim.",
+    "meaning_preservation": "For a two-version item only: do both versions carry the same supported material "
+                            "claims? Label preserved, lost, added, or changed, and name each affected claim.",
+    "citations": "For each version: is every listed source relevant to the prose? Name irrelevant listed sources, "
+                 "and any source present in only one version that the other version's prose still relies on.",
+    "readability": "For each version: complete sentences, no copied truncated fragments. Label readable or not.",
+    "labels": {
+        "support": ["supported", "unsupported", "strengthened", "reversed"],
+        "meaning_preservation": ["preserved", "lost", "added", "changed", "not_applicable"],
+        "citations": ["all_relevant", "irrelevant_listed", "needed_source_absent"],
+        "readability": ["readable", "fragment_or_incomplete"],
+    },
+    "instructions": "Judge only from the supplied evidence; do not consult the articles or outside knowledge. "
+                    "Label every item; leave no item blank.",
+}
 
 
 def control_order(report_date: str, position: dict[str, Any], protocol_id: str = PROTOCOL_ID) -> str:
@@ -109,8 +129,8 @@ def export_packets(root: Path, output_dir: Path, key_path: Path, *, start: date,
         json.dump(key, stream, ensure_ascii=True, sort_keys=True, indent=2)
         stream.write("\n")
     output_dir.mkdir(parents=True, exist_ok=False)
-    write_json_atomic(output_dir / "reviewer-primary.json", {"schema_version": 1, "items": primary})
-    write_json_atomic(output_dir / "reviewer-double.json", {"schema_version": 1, "items": secondary})
+    write_json_atomic(output_dir / "reviewer-primary.json", {"schema_version": 1, "rubric": RUBRIC, "items": primary})
+    write_json_atomic(output_dir / "reviewer-double.json", {"schema_version": 1, "rubric": RUBRIC, "items": secondary})
     return {"pairs": len(pairs), "controls": len(controls),
             "primary_items": len(primary), "double_items": len(secondary)}
 

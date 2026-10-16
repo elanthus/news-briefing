@@ -1,6 +1,6 @@
 {
   "protocol_id": "jev-stage-v1",
-  "status": "draft_pending_freeze",
+  "status": "frozen_for_run",
   "frozen_before_run": true,
   "objective": "Measure the daily semantic review and repair stage (Jev review, isolated confirmation, bounded HY3 repair, follow-up review, per-slot acceptance) on real corpus days at the current revision, with a blind human adjudication subset for meaning preservation and grounding.",
   "sample_unit": {
@@ -40,10 +40,44 @@
     "disagreements": "retain both labels; adjudicate from blinded evidence and rationales only; report raw agreement and adjudicated outcomes separately with exact denominators"
   },
   "commands": {
-    "restore": "python3 -S restore_private_corpora.py --newest YYYY-MM-DD --output-dir corpora",
-    "run": "python3 -S run_daily_briefing.py --corpus corpora/YYYY-MM-DD.json --run-dir .news-briefing/jev-stage/YYYY-MM-DD/run --jev-review-dir .news-briefing/jev-stage/YYYY-MM-DD/review --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md",
-    "aggregate": "no committed aggregator yet; aggregation reads each review directory's schema 3 metadata and the public_audit projection and is a follow-up deliverable"
+    "runner": "python3 -S run_jev_stage.py --sample docs/results/jev-stage-sample.json --root .news-briefing/jev-stage --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github --generation-usd 1.0 --ledger docs/results/jev-stage-v1-ledger.json",
+    "restore": "python3 -S restore_private_corpora.py --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github --newest YYYY-MM-DD --output-dir .news-briefing/jev-stage/YYYY-MM-DD/corpora",
+    "run": "python3 -S run_daily_briefing.py --corpus .news-briefing/jev-stage/YYYY-MM-DD/corpora/YYYY-MM-DD.json --run-dir .news-briefing/jev-stage/YYYY-MM-DD/run --jev-review-dir .news-briefing/jev-stage/YYYY-MM-DD/review --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md --generation-usd 1.0",
+    "aggregate": "python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage --start 2026-09-18 --end 2026-10-15 --output docs/results/jev-stage-v1-metrics.json",
+    "packets": "python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage --start 2026-09-18 --end 2026-10-15 --output-dir .news-briefing/jev-stage-packets --private-key .news-briefing/jev-stage-correspondence.json",
+    "command_notes": "The restore refuses a non-empty output directory and, without --artifact-dir, would contact GitHub with a token; each day therefore restores from the preserved wrappers into its own corpora directory. The daily runner exits 0 even when the review stage raises, so the runner script requires review/audit.json after a ready chain and stops otherwise. --generation-usd bounds each day's generation spend below the daily default of USD 25."
   },
   "privacy": "commit the protocol, aggregate counts, per-day artifact SHA-256 values, and reviewer agreement only; corpora, frozen excerpts, prompts, raw judgments and packets stay in ignored directories",
-  "limits": "Jev judges feed excerpts, not articles. Confirmation is repeat agreement from one judge. Human labels cover repaired slots and a small control sample, not every topic, so no overall miss rate is claimed. Days drawn from one retention window are consecutive and share source health. HY3 repair behavior at temperature 0.2 is not deterministic across reruns of the same day."
+  "limits": "Jev judges feed excerpts, not articles. Confirmation is repeat agreement from one judge. Human labels cover repaired slots and a small control sample, not every topic, so no overall miss rate is claimed. Days drawn from one retention window are consecutive and share source health. HY3 repair behavior at temperature 0.2 is not deterministic across reruns of the same day.",
+  "frozen_at": "2026-10-16T03:40:00Z",
+  "revision": {
+    "frozen_from_commit": "a7dc2e4a65ddc1c7afe3cb3e24eb682fcfc19938",
+    "rule": "The run revision is the clean HEAD of the branch at the first day run; it must be a descendant of frozen_from_commit that changes no file under agent_runner/, news_fetch/, or the root pipeline modules except through the commits that freeze this protocol and its documents. run_jev_stage.py records `git rev-parse HEAD` in every day record and ledger row; the model card reports that commit and this freeze commit.",
+    "run_commit": null
+  },
+  "sample": {
+    "file": "docs/results/jev-stage-sample.json",
+    "frame": {
+      "start": "2026-09-18",
+      "end": "2026-10-15",
+      "planned_days": 28
+    },
+    "minimum_fallback_frame": {
+      "start": "2026-10-02",
+      "end": "2026-10-15",
+      "planned_days": 14
+    },
+    "note": "Dates were inventoried from preserved wrapper creation dates without decryption; the frame is an upper bound on obtainable days and missing days remain in the coverage denominator."
+  },
+  "cost": {
+    "per_day_guards_usd": {
+      "generation_limit": 1.0,
+      "initial_review_and_confirmation_estimate_guard": 0.1,
+      "followup_review_estimate_guard": 0.1,
+      "hy3_repair_reported_stop": 0.1
+    },
+    "per_day_ceiling_usd_approx": 1.3,
+    "planning_estimate_usd": "roughly 0.15 to 0.35 per day from the September 30 study (about 0.05 per generation plus review, confirmation and repair), so 4 to 10 for 28 days; the ceiling is about 36 for 28 days and the guards are estimates, not provider-enforced caps"
+  },
+  "status_note": "Frozen on 2026-10-16 before any day ran. The aggregator (agent_runner.audit_metrics) and blind packet exporter (agent_runner.audit_packets) exist and are tested against fixture review directories; both read schema-3 audits only."
 }

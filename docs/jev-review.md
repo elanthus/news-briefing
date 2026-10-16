@@ -264,8 +264,14 @@ are slots with that outcome; causes can overlap.
 Follow-up blocker counts distinguish checks from affected slots, so a two-slot
 check blocks both. Initial review costs include isolated confirmation; repair
 and follow-up costs and unknown-cost calls remain separate per day. Reported
-spend is never an estimate of unreported billing. Day counts support subsequent
-clustered analysis; Wilson intervals alone do not account for within-day clustering.
+spend is never an estimate of unreported billing. Rates that pool checks, flags or
+slots across days (flag rate by kind, confirmation rates, per-slot acceptance and
+slot causes) also carry `ci95_day_cluster_bootstrap`: a percentile interval from
+10,000 resamples of whole days with replacement under a fixed seed, with the
+contributing day count and dropped zero-denominator resamples recorded beside
+it. Wilson intervals alone do not account for within-day clustering; day-level
+rates (coverage, days with flags, repair round rate, publication outcomes) carry
+Wilson intervals only.
 
 ## Blind human packets for daily audits
 
@@ -305,6 +311,10 @@ match the verified frozen corpus. An invalid audit aborts before any output.
 Both reviewers assess every pair for material-claim support, lost/added/changed
 meaning, relevance of retained and removed citations, and readable complete
 sentences. Controls receive the same support, relevance and readability review.
+Each packet file carries the `rubric` block with those four questions, the
+allowed label values, and the instruction to judge only from the supplied
+evidence; it names neither side of a pair nor any outcome. Reviewers return the
+packet with a `labels` object and a free-text `rationale` on every item.
 Retain both reviewers' labels and rationales before unblinding. A third human
 adjudicates material disagreements from blinded evidence and rationales; report
 raw agreement and adjudicated outcomes separately with their denominators. These
