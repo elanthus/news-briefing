@@ -35,11 +35,16 @@ python3 -S run_daily_briefing.py \
   --generation-usd 1.0
 ```
 
-The code constrains these commands in three ways the first draft of this plan did
+The code constrains these commands in four ways the first draft of this plan did
 not state, so the plan was corrected rather than the code. The restore refuses a
 non-empty output directory and, without `--artifact-dir`, would call GitHub with
 a token, so every day restores from the preserved local wrappers into its own
-`corpora` directory. The daily runner exits 0 even when the review stage raises
+`corpora` directory. The restore also requires each wrapper's main-repository
+`workflow_run` provenance, which the preservation `manifest.json` does not carry
+but the preserved `inventory.json` does; the runner joins the two into
+`.news-briefing/jev-stage/artifact-manifest.json` before the first restore and
+passes it with `--artifact-manifest`, failing closed on any wrapper without
+provenance and modifying neither preserved file. The daily runner exits 0 even when the review stage raises
 and retains the original, so a ready chain without `review/audit.json` is a
 failure, not a reviewed day. `--generation-usd` bounds each day's generation
 spend; the runner's default allowance is USD 25 per invocation.

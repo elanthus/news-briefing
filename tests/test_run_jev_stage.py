@@ -4,7 +4,22 @@ import unittest
 from pathlib import Path
 
 import run_jev_stage
-from run_jev_stage import DAY_RECORD, DayFailure, load_sample, run_sample, write_ledger
+from run_jev_stage import DAY_RECORD, DayFailure, load_sample, provenance_manifest, run_sample, write_ledger
+
+
+def preserved_wrappers(directory, ids=(11, 12), *, drop_inventory_for=()):
+    """A preservation directory shaped like portfolio-preservation-*/github."""
+    directory.mkdir(parents=True, exist_ok=True)
+    rows = [{'id': i, 'name': 'briefing-corpus-archive', 'sha256': 'a' * 64, 'bytes': 10,
+             'created_at': f'2026-10-{i:02d}T18:00:00Z', 'run_id': i * 7, 'state': 'preserved_uninspected'}
+            for i in ids] + [{'id': 99, 'name': 'github-pages', 'sha256': 'b' * 64, 'bytes': 5, 'created_at': 'x'}]
+    (directory / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'artifacts': rows}))
+    inventory = [{'total_count': len(ids), 'artifacts': [
+        {'id': i, 'name': 'briefing-corpus-archive',
+         'workflow_run': {'id': i * 7, 'repository_id': 1, 'head_repository_id': 1, 'head_branch': 'main'}}
+        for i in ids if i not in drop_inventory_for]}]
+    (directory / 'inventory.json').write_text(json.dumps(inventory))
+    return directory
 
 
 class FakeCommands:
@@ -75,8 +90,14 @@ class RunJevStageTests(unittest.TestCase):
             commands = FakeCommands(failing_days={'2026-10-02'})
             messages = []
             dates = ['2026-10-01', '2026-10-02', '2026-10-03']
-            records = run_sample(dates, root, Path(directory) / 'wrappers', generation_usd=1.0,
+            wrappers = preserved_wrappers(Path(directory) / 'wrappers')
+            records = run_sample(dates, root, wrappers, generation_usd=1.0,
                                  execute=commands, commit='abc', report=messages.append)
+            restore = next(c for c in commands.calls if c[2].endswith('restore_private_corpora.py'))
+            self.assertEqual(restore[restore.index('--artifact-manifest') + 1], str(root / 'artifact-manifest.json'))
+            merged = json.loads((root / 'artifact-manifest.json').read_text())
+            self.assertEqual([a['id'] for a in merged['artifacts']], [11, 12])
+            self.assertTrue(all(a['workflow_run']['head_branch'] == 'main' for a in merged['artifacts']))
             self.assertEqual([r['status'] for r in records], ['reviewed', 'generation_failure', 'reviewed'])
             record = json.loads((root / '2026-10-01' / DAY_RECORD).read_text())
             self.assertEqual(set(record['artifact_sha256']), {'run/fallback-log.json', 'corpora/2026-10-01.json',
@@ -89,7 +110,7 @@ class RunJevStageTests(unittest.TestCase):
             self.assertIn('cumulative reported cost USD 0.3200', messages[-1])
             # A second pass makes no further calls for completed days.
             count = len(commands.calls)
-            again = run_sample(dates, root, Path(directory) / 'wrappers', generation_usd=1.0,
+            again = run_sample(dates, root, wrappers, generation_usd=1.0,
                                execute=commands, report=messages.append)
             self.assertEqual(len(commands.calls), count)
             self.assertEqual([r['status'] for r in again], [r['status'] for r in records])
@@ -109,11 +130,26 @@ class RunJevStageTests(unittest.TestCase):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory) / 'stage'
                 with self.assertRaises(DayFailure):
-                    run_sample(['2026-10-01', '2026-10-02', '2026-10-03'], root, Path(directory) / 'w',
+                    run_sample(['2026-10-01', '2026-10-02', '2026-10-03'], root,
+                               preserved_wrappers(Path(directory) / 'w'),
                                generation_usd=1.0, execute=commands, report=lambda _: None)
                 self.assertTrue((root / '2026-10-01' / DAY_RECORD).exists())
                 self.assertFalse((root / '2026-10-02' / DAY_RECORD).exists())
                 self.assertFalse((root / '2026-10-03').exists())
+
+    def test_provenance_manifest_joins_digests_with_workflow_runs_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wrappers = preserved_wrappers(Path(directory) / 'w', ids=(11, 12, 13))
+            output = Path(directory) / 'out' / 'artifact-manifest.json'
+            self.assertEqual(provenance_manifest(wrappers, output), 3)
+            merged = json.loads(output.read_text())
+            self.assertEqual({a['name'] for a in merged['artifacts']}, {'briefing-corpus-archive'})
+            self.assertEqual(set(merged['artifacts'][0]),
+                             {'id', 'name', 'sha256', 'bytes', 'created_at', 'workflow_run'})
+            broken = preserved_wrappers(Path(directory) / 'broken', ids=(11, 12), drop_inventory_for=(12,))
+            with self.assertRaises(ValueError):
+                provenance_manifest(broken, Path(directory) / 'broken-out.json')
+            self.assertFalse((Path(directory) / 'broken-out.json').exists())
 
     def test_sample_validation_rejects_disorder_and_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:

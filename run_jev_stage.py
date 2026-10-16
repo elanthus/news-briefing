@@ -71,9 +71,47 @@ def _default_executor(command: list[str]) -> int:
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
-def restore_command(day: str, artifact_dir: Path, corpora: Path) -> list[str]:
-    return [sys.executable, "-S", str(ROOT / "restore_private_corpora.py"), "--artifact-dir", str(artifact_dir),
-            "--newest", day, "--output-dir", str(corpora)]
+def provenance_manifest(artifact_dir: Path, output: Path) -> int:
+    """Write a restore manifest that joins preserved wrapper digests with their workflow provenance.
+
+    The preservation ``manifest.json`` records each wrapper's id, name, digest and
+    size; the raw ``inventory.json`` pages record the ``workflow_run`` the restore
+    needs to prove main-repository provenance. Neither preserved file is modified.
+    A corpus wrapper without an inventory entry is an error, never silently skipped.
+    """
+    manifest = _read_json(artifact_dir / "manifest.json")
+    inventory = _read_json(artifact_dir / "inventory.json")
+    rows = manifest.get("artifacts") if isinstance(manifest, dict) else None
+    if not isinstance(rows, list) or not isinstance(inventory, list):
+        raise ValueError("preserved manifest.json and inventory.json have unexpected shapes")
+    runs: dict[int, Any] = {}
+    for page in inventory:
+        for artifact in page.get("artifacts", []) if isinstance(page, dict) else []:
+            if isinstance(artifact, dict) and isinstance(artifact.get("id"), int):
+                runs[artifact["id"]] = artifact.get("workflow_run")
+    merged = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("name") != "briefing-corpus-archive":
+            continue
+        identifier = row.get("id")
+        run = runs.get(identifier) if isinstance(identifier, int) else None
+        if not isinstance(run, dict):
+            raise ValueError(f"preserved wrapper {row.get('id')} has no workflow provenance in inventory.json")
+        kept = {key: row[key] for key in ("id", "name", "sha256", "bytes", "created_at")}
+        merged.append(kept | {"workflow_run": run})
+    if not merged:
+        raise ValueError("no preserved corpus archive wrappers to restore")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps({"schema_version": 1, "artifacts": merged}, indent=2, sort_keys=True) + "\n",
+                      encoding="utf-8")
+    return len(merged)
+
+
+def restore_command(day: str, artifact_dir: Path, corpora: Path, manifest: Path | None = None) -> list[str]:
+    command = [sys.executable, "-S", str(ROOT / "restore_private_corpora.py"), "--artifact-dir", str(artifact_dir)]
+    if manifest is not None:
+        command += ["--artifact-manifest", str(manifest)]
+    return command + ["--newest", day, "--output-dir", str(corpora)]
 
 
 def run_command(day: str, day_dir: Path, generation_usd: float) -> list[str]:
@@ -121,13 +159,13 @@ def _day_costs(day_dir: Path, chain: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_day(day: str, root: Path, artifact_dir: Path, *, generation_usd: float, execute: Executor,
-            commit: str | None) -> dict[str, Any]:
+            commit: str | None, manifest: Path | None = None) -> dict[str, Any]:
     """Restore and run one day; return its record. Raises DayFailure on any non-generation failure."""
     day_dir = root / day
     corpus = day_dir / "corpora" / f"{day}.json"
     started = datetime.now(UTC).isoformat()
     if not corpus.exists():
-        code = execute(restore_command(day, artifact_dir, day_dir / "corpora"))
+        code = execute(restore_command(day, artifact_dir, day_dir / "corpora", manifest))
         if code != 0:
             raise DayFailure(f"restore exited {code} for {day}")
         if not corpus.is_file():
@@ -162,6 +200,8 @@ def run_sample(dates: list[str], root: Path, artifact_dir: Path, *, generation_u
                report: Callable[[str], None] = print) -> list[dict[str, Any]]:
     """Run every listed day in order, skipping completed days and stopping on the first failure."""
     root.mkdir(parents=True, exist_ok=True)
+    manifest = root / "artifact-manifest.json"
+    provenance_manifest(artifact_dir, manifest)
     records: list[dict[str, Any]] = []
     known = 0.0
     unknown_calls = 0
@@ -171,7 +211,8 @@ def run_sample(dates: list[str], root: Path, artifact_dir: Path, *, generation_u
             record = _read_json(record_path)
             report(f"{day}: already complete ({record.get('status')}); skipping")
         else:
-            record = run_day(day, root, artifact_dir, generation_usd=generation_usd, execute=execute, commit=commit)
+            record = run_day(day, root, artifact_dir, generation_usd=generation_usd, execute=execute, commit=commit,
+                             manifest=manifest)
             report(f"{day}: {record['status']}")
         records.append(record)
         costs = record.get("costs", {})
@@ -207,8 +248,9 @@ def main() -> int:
     missing = [name for name in REQUIRED_ENVIRONMENT if not os.environ.get(name)]
     if missing:
         parser.error("missing environment: " + ", ".join(missing))
-    if not (args.artifact_dir / "manifest.json").is_file():
-        parser.error(f"no artifact manifest under {args.artifact_dir}")
+    for name in ("manifest.json", "inventory.json"):
+        if not (args.artifact_dir / name).is_file():
+            parser.error(f"no {name} under {args.artifact_dir}")
     try:
         dates = load_sample(args.sample)
         records = run_sample(dates, args.root, args.artifact_dir, generation_usd=args.generation_usd,
