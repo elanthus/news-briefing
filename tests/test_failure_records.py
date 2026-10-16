@@ -83,10 +83,11 @@ class FailureRecordTests(unittest.TestCase):
         self.assertEqual(summarize_failed_chain(raw), summarize_failed_chain(changed))
         self.assertEqual(summarize_failed_chain(raw)[0].reason, "rate_limited")
 
-    def test_versioned_and_original_records_have_an_explicit_read_contract(self):
+    def test_only_versioned_records_have_a_read_contract(self):
         current = FailureRecord("rate_limited", status_code=429).payload()
         original = {key: value for key, value in current.items() if key != "schema_version"}
-        self.assertEqual(parse_failure(original), parse_failure(current))
+        self.assertIsNone(parse_failure(original))
+        self.assertIsNotNone(parse_failure(current))
         for version in (0, 2, True, "1", None):
             with self.subTest(version=version):
                 self.assertIsNone(parse_failure({**current, "schema_version": version}))

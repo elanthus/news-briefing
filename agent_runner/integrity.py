@@ -93,13 +93,6 @@ def review_coverage(report: dict[str, Any]) -> dict[str, Any] | None:
         return None
     rows = report["results"]
     stop = report.get("stop_code")
-    if stop is None:
-        old = report.get("stop_reason", "")
-        stop = ("unknown_billing" if "cost" in old and "report" in old else
-                "deadline" if old == "review deadline reached" else
-                "budget" if "budget" in old else
-                "provider_failure" if old == "ProviderError" else
-                "invalid_result" if old else None)
     required = sum(bool(r["flagged"]) for r in rows)
     returned = sum(r.get("confirmation_probability") is not None for r in rows if r["flagged"])
     return {"status": report["status"], "planned": report["planned_checks"], "returned": len(rows),
@@ -187,7 +180,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
         statuses = {position_key(t["position"]): t["repair_status"] for t in audit["topics"]
                     if position_key(t["position"]) in targets}
         outcomes = set(statuses.values())
-        changed = bool(outcomes & {"applied", "candidate", "rejected"})
+        changed = bool(outcomes & {"applied", "rejected"})
         partial = outcomes == {"applied", "rejected"}
         repaired = destination / "repair" / "run"
         repaired_manifest = _read_json(repaired / "manifest.json")[0]
@@ -249,7 +242,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
             record["followup_review"] = review_coverage(after)
             record["costs"].append(review_cost(after, "followup_review"))
             blockers = [i for i, row in enumerate(audit["followup_checks"]) if row["probability"] >= (
-                audit.get("citation_threshold", audit["threshold"]) if row["check"] == "irrelevant_citation"
+                audit["citation_threshold"] if row["check"] == "irrelevant_citation"
                 else audit["threshold"]) and any(position_key(p) in targets for p in row["positions"])]
             follow_reasons = []
             if after["status"] != "complete":
@@ -282,8 +275,6 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                                        {"stage": "followup", "index": i} for i in blockers
                                        if any(position_key(p) == key
                                               for p in audit["followup_checks"][i]["positions"])])
-            elif outcomes == {"candidate"}:
-                record.update(decision="candidate_retained", acceptance_verified=True, reasons=["candidate_mode"])
             old = _read_json(original / "frozen-selection.json")[0]
             new = _read_json(repaired / "frozen-selection.json")[0]
             # Source indexes always refer to the original selection, regardless of subset order.

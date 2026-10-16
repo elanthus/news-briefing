@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import statistics
 from collections import defaultdict
@@ -233,7 +234,9 @@ def _cost_summary(
     def side(rows: list[dict[str, Any]]) -> dict[str, Any]:
         calls = [call for row in rows for call in _calls(row)]
         known = [float(call["cost_usd"]) for call in calls if call.get("cost_usd") is not None]
-        total = sum(known) if len(known) == len(calls) else None
+        # Python 3.11 and newer sum floats differently. Frozen evidence must
+        # reproduce the same billed total on every supported interpreter.
+        total = math.fsum(known) if len(known) == len(calls) else None
         return {
             "completed_calls": len(calls),
             "known_cost_calls": len(known),

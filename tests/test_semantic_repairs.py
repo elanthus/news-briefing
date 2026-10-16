@@ -120,9 +120,9 @@ class SplitJudge(CitationJudge):
         return result
 
 
-def split_review(root, *, after_score=0.1):
+def split_review(root, *, after_score=0.1, report_date=None):
     """Two confirmed targets: a citation removal in US Politics and a prose flag in AI Dev Tools."""
-    run, headline = make_run(root, grouping=True)
+    run, headline = make_run(root, grouping=True, report_date=report_date)
     topics = load_topics(run)[0]
     first = next(t for t in topics if t['headline'] == headline)
     second = next(t for t in topics if t['position'] == {'bucket': 'sections', 'section': 'AI Dev Tools',
@@ -132,8 +132,10 @@ def split_review(root, *, after_score=0.1):
     return run, audit, first, second
 
 
-def make_run(root, *, grouping=False):
+def make_run(root, *, grouping=False, report_date=None):
     corpus, config, projected, output = fixture_contract()
+    if report_date is not None:
+        corpus["report_date"] = report_date
     section = next(iter(output['sections']))
     target = output['sections'][section]['topics'][0]
     if grouping:
@@ -260,6 +262,9 @@ class SemanticRepairTests(unittest.TestCase):
             changed = next(t for t in audit['topics'] if t['changed'])
             self.assertEqual(changed['repair_status'], 'applied')
             self.assertEqual(changed['removed_evidence_count'], 0)
+            calls = json.loads((root / 'jev-review/repair/repair-calls.json').read_text())
+            self.assertEqual((calls[0]['status'], sum(c['status'] != 'code_preserved' for c in calls)),
+                             ('code_preserved', 1))
             self.assertEqual(len(provider.requests), 1)
             self.assertEqual(before, {p.name: p.read_bytes() for p in run.iterdir() if p.is_file()})
             self.assertNotRegex(json.dumps(provider.requests[0].prompt), r'https?://|\b(?:citation|item)_\d+\b')

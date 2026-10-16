@@ -41,12 +41,9 @@ class FailureRecord:
 
 
 def parse_failure(raw: Any) -> FailureRecord | None:
-    """Read v1 and the original unversioned shape; reject unknown schemas/fields."""
+    """Read only versioned v1 records; reject unknown schemas and fields."""
     if not isinstance(raw, dict):
         return None
-    # Records written before versioning retain their original strict field contract.
-    if set(raw) == _V1_FIELDS - {"schema_version"}:
-        raw = {**raw, "schema_version": 1}
     if (set(raw) != _V1_FIELDS or type(raw["schema_version"]) is not int
             or raw["schema_version"] != 1):
         return None

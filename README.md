@@ -106,7 +106,8 @@ summary differences once, regardless of which check triggered the repair. Source
 removals identify their cause and distinguish published changes from proposals;
 an article and its Hacker News discussion count as one source item. Initial and
 follow-up statistics and phase costs follow. Full check data remains in public
-history JSON; legacy entries identify unavailable operational history.
+history JSON; unavailable operational facts remain explicitly missing.
+Historical research is preserved through the [retention contract](docs/research-retention.md).
 Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
 excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
 

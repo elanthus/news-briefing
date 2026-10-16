@@ -42,8 +42,9 @@ review command for isolated confirmation. The daily fallback-chain command
 `run_daily_briefing.py --jev-review-dir DIR` confirms flags and applies bounded
 repairs only after full acceptance; scheduled publication always enables this
 stage. The redundant `--jev-repair-mode` flag is removed. The daily producer has
-one apply policy; historical candidate-only artifacts remain readable through
-frozen compatibility fixtures.
+one apply policy; historical candidate-only artifacts are archived as research
+evidence under the [retention contract](research-retention.md). Current publication
+accepts only schema-3 per-slot audits.
 The standalone review command returns zero for complete coverage and one for partial
 or failed review, regardless of how many findings it flags.
 
@@ -111,7 +112,7 @@ does not change the original fallback run or its checkpoints. Publication
 revalidates input hashes, exact before/after prose, unchanged topics, source
 subsets, per-slot acceptance and the ready repaired or assembled run before using
 it. Audits written before per-slot acceptance (metadata versions 1 and 2) are
-still verified under their all-or-nothing rule.
+retired historical attachments; current publication rejects them.
 An invalid audit is ignored and cannot replace the original publication input.
 
 The repair instructions ask for concise complete sentences and forbid copying
@@ -134,7 +135,7 @@ check records rather than duplicating story prose. The publication step verifies
 artifacts and recomputes or cross-checks decisions, coverage, removals, costs, and
 subjects. Invalid or tampered audits retain the original and expose only a safe
 verification-failed explanation. Fixed allowlisted codes explain all applicable
-skip causes, failures, rejections, and historical candidate mode. Raw exceptions, provider
+skip causes, failures, and rejections. Raw exceptions, provider
 bodies, private paths, prompts, and frozen excerpts remain private.
 
 The report leads with publication and review status, then an action ledger,
@@ -147,9 +148,9 @@ probability thresholds, disputed/unconfirmed flags, missing confirmation, and
 excerpt-only scope.
 
 History schema 9 preserves valid integrity metadata through merges, replacement,
-and rebuilds. Schemas 7 and 8 migrate with `integrity: null`; existing prose,
-audit data, and provenance remain intact. Older reports explicitly identify
-unavailable operational history and are never enriched by rerunning models.
+and rebuilds. Only schema 9 is accepted; schemas 7 and 8 are rejected. Current
+entries may explicitly record `integrity: null` or `semantic_audit: null` when
+unavailable. Missing operational history is never enriched by rerunning models.
 Non-public dispositions remain status-only. Raw reports and failed traces stay
 in encrypted diagnostics under `runs/DATE/jev-review/`.
 
@@ -229,3 +230,83 @@ deterministic gate remains mandatory.
 - [`agent_runner/decisions.py`](../agent_runner/decisions.py): bounded Decisions API client.
 - [`agent_runner/jev_review.py`](../agent_runner/jev_review.py): frozen-evidence verification, batching, isolated confirmation and reports.
 - [`agent_runner/semantic_repairs.py`](../agent_runner/semantic_repairs.py): bounded repair patches and public audit projection.
+
+## Aggregate current daily audits
+
+Keep one `YYYY-MM-DD` directory for every sampled day under a private root,
+including days with no ready generation or incomplete review. Declare the frozen
+first and last sample dates with required `--start` and `--end` options. Absent
+folders become `missing_day` rows; folders outside that range are rejected.
+Each available day has `run/` (the ready run or daily fallback chain) and `review/` or `jev-review/` from
+`run_daily_briefing.py --jev-review-dir`. Exactly one review directory is allowed.
+For example:
+
+```bash
+python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
+  --start YYYY-MM-DD --end YYYY-MM-DD \
+  --output .news-briefing/jev-stage-metrics.json
+```
+
+Replace the date placeholders with the study's frozen sampling frame. The
+aggregator verifies schema-3 envelopes and corpus dates through `load_public_audit`;
+an invalid envelope, mismatched corpus date or duplicated audit aborts the export.
+Metric calculation consumes only the public audit projection and parsed integrity record. The verifier alone reads the private
+binding artifacts. Output contains no prose, destinations, model identity,
+excerpts, requests, private metadata, or paths.
+
+Every rate includes successes, trials and a two-sided 95% Wilson interval (null
+for zero trials). Partial or failed initial/follow-up days and missing reviews
+remain in the coverage denominator and in per-day counts and costs, but never in
+conditioned rates. A failed fallback chain without review is a generation-failure
+row. Per-slot acceptance is conditional on complete initial and follow-up review;
+show coverage and excluded-day status counts alongside it. Slot cause denominators
+are slots with that outcome; causes can overlap.
+Follow-up blocker counts distinguish checks from affected slots, so a two-slot
+check blocks both. Initial review costs include isolated confirmation; repair
+and follow-up costs and unknown-cost calls remain separate per day. Reported
+spend is never an estimate of unreported billing. Day counts support subsequent
+clustered analysis; Wilson intervals alone do not account for within-day clustering.
+
+## Blind human packets for daily audits
+
+Use the same private day tree as the aggregator:
+
+```bash
+python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage \
+  --start YYYY-MM-DD --end YYYY-MM-DD \
+  --output-dir .news-briefing/jev-stage-packets \
+  --private-key .news-briefing/jev-stage-correspondence.json
+```
+
+Both destinations must be new and outside the input tree; the key must also be
+outside the packet directory. It is created with owner-only permissions. Share
+only `reviewer-primary.json` and `reviewer-double.json` with their respective
+reviewers. The key contains source correspondence, outcomes, coverage gaps and
+the private random seed. Keep it private until labels are frozen.
+
+Following the partitioning and blinding of
+[`independent-production-2026-10-02.json`](../evaluator/protocols/independent-production-2026-10-02.json),
+every verified changed slot (applied or withheld) is a pair in both packets.
+Record order and the two sides of each pair are independently shuffled for each
+reviewer. Each side carries only generated headline/prose and its own frozen
+source titles/excerpts, so removed sources remain identifiable by comparison.
+No model/provider identity, scores, labels, repair status, paths, original-side
+marker, or shuffle seed is exported. News text itself is preserved; model names
+that are part of a news story are not metadata and are not censored.
+
+Per day with complete initial review, controls are the first three unflagged
+included topics ordered by SHA256(`jev-stage-v1` + report date + section +
+zero-based position), without separators. The second reviewer receives the first
+third of that day's selected controls, rounded up. Partial initial reviews supply
+no controls. The private key records the declared frame and missing, partial and
+failed days, including dates with no folder at all. Dates must
+match the verified frozen corpus. An invalid audit aborts before any output.
+
+Both reviewers assess every pair for material-claim support, lost/added/changed
+meaning, relevance of retained and removed citations, and readable complete
+sentences. Controls receive the same support, relevance and readability review.
+Retain both reviewers' labels and rationales before unblinding. A third human
+adjudicates material disagreements from blinded evidence and rationales; report
+raw agreement and adjudicated outcomes separately with their denominators. These
+commands export evidence, not labels or human approval. All packets, excerpts,
+labels and correspondence remain private and ignored.
