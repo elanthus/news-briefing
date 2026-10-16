@@ -97,3 +97,21 @@ are not inputs to current publication or counted as migrated research samples.
 Scheduled corpus restoration remains governed by its separate current-corpus
 validation and retention contract. This change does not run a new quality
 benchmark or establish a prompt-only baseline.
+
+### Restoring preserved local wrappers
+
+`restore_private_corpora.py --artifact-dir DIR --newest YYYY-MM-DD --output-dir OUT`
+reads `DIR/manifest.json` and the preserved `ID.zip` wrappers for
+`briefing-corpus-archive`, without a GitHub token or network request. For example,
+`DIR` can be `.news-briefing/portfolio-preservation-2026-10-15/github`.
+It checks wrapper sizes and SHA-256 values, extracts the same bounded encrypted
+member as the API path, authenticates it with `CORPUS_ARCHIVE_PASSPHRASE`, and
+uses the existing strict corpus restoration checks. Conflicting copies of a date
+fail closed. Output must be absent or empty.
+
+Preserved wrappers can supply corpus days beyond one API retention window.
+Each invocation still restores only the fourteen-date window ending at `--newest`;
+use separate empty output directories and earlier end dates for earlier windows.
+The preserved manifest and ciphertext alone do not establish inner schemas,
+usable corpus dates, source quality, or suitability for either planned eval.
+Authentication and current-schema validation must succeed before counting a day.
