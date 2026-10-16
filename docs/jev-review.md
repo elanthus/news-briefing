@@ -260,3 +260,45 @@ check blocks both. Initial review costs include isolated confirmation; repair
 and follow-up costs and unknown-cost calls remain separate per day. Reported
 spend is never an estimate of unreported billing. Day counts support subsequent
 clustered analysis; Wilson intervals alone do not account for within-day clustering.
+
+## Blind human packets for daily audits
+
+Use the same private day tree as the aggregator:
+
+```bash
+python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage \
+  --output-dir .news-briefing/jev-stage-packets \
+  --private-key .news-briefing/jev-stage-correspondence.json
+```
+
+Both destinations must be new and outside the input tree; the key must also be
+outside the packet directory. It is created with owner-only permissions. Share
+only `reviewer-primary.json` and `reviewer-double.json` with their respective
+reviewers. The key contains source correspondence, outcomes, coverage gaps and
+the private random seed. Keep it private until labels are frozen.
+
+Following the partitioning and blinding of
+[`independent-production-2026-10-02.json`](../evaluator/protocols/independent-production-2026-10-02.json),
+every verified changed slot (applied or withheld) is a pair in both packets.
+Record order and the two sides of each pair are independently shuffled for each
+reviewer. Each side carries only generated headline/prose and its own frozen
+source titles/excerpts, so removed sources remain identifiable by comparison.
+No model/provider identity, scores, labels, repair status, paths, original-side
+marker, or shuffle seed is exported. News text itself is preserved; model names
+that are part of a news story are not metadata and are not censored.
+
+Per day with complete initial review, controls are the first three unflagged
+included topics ordered by SHA256(`jev-stage-v1` + report date + section +
+zero-based position), without separators. The second reviewer receives the first
+third of that day's selected controls, rounded up. Partial initial reviews supply
+no controls. The private key records missing, partial and failed days. Dates must
+match the verified frozen corpus. An invalid audit aborts before any output.
+
+Both reviewers assess every pair for material-claim support, lost/added/changed
+meaning, relevance of retained and removed citations, and readable complete
+sentences. Controls receive the same support, relevance and readability review.
+Retain both reviewers' labels and rationales before unblinding. A third human
+adjudicates material disagreements from blinded evidence and rationales; report
+raw agreement and adjudicated outcomes separately with their denominators. These
+commands export evidence, not labels or human approval. All packets, excerpts,
+labels and correspondence remain private and ignored.
