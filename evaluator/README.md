@@ -435,8 +435,11 @@ adjudication bytes without recorded hashes cannot receive the newer byte-integri
 unrecorded billing; the checkpoint cannot infer that charge, and restarting the partial row retains this
 existing limitation. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
 safely reused. Known billed cost and each adapter's consecutive-failure/circuit state are reconstructed from
-saved rows. Unknown billing for a provider covered by the ceiling refuses resume before another call;
-missing cost is never reconstructed as zero. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
+saved rows. A call whose billing is unknown stays unknown in the record and is charged against the ceiling
+at the mean known cost per call observed so far (zero before any known cost), both live and when a resume
+reconstructs the charge; the manifest reports `ceiling_known_cost_usd`, `ceiling_known_cost_calls`,
+`ceiling_unknown_cost_calls`, and `ceiling_estimated_unknown_cost_usd` beside `observed_ceiling_cost_usd`.
+Missing cost is never reconstructed as zero and never blocks a resume. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
 Complete, stopped, completed-with-errors, incompatible, and corrupt manifests are refused without a provider
 call. `--resume` always requires `--output-dir`; it never guesses which run to continue.
 

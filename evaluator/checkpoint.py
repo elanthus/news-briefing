@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from agent_runner.checkpoint import sha256_file
 from agent_runner.checkpoint import write_json_atomic as _write_json_atomic
@@ -28,6 +28,48 @@ class RunState:
     results: list[dict[str, Any]]
     observed_ceiling_cost_usd: float
     completed_report: dict[str, Any] | None = None
+    ceiling_known_cost_usd: float = 0.0
+    ceiling_known_calls: int = 0
+    ceiling_unknown_calls: int = 0
+
+
+class CeilingCosts(NamedTuple):
+    """Calls charged against the cost ceiling, known billing and unknown billing apart."""
+
+    known_cost_usd: float
+    known_calls: int
+    unknown_calls: int
+
+    @property
+    def estimated_unknown_cost_usd(self) -> float:
+        """An unknown-cost call is charged the mean known cost per call so far; zero before any known cost."""
+        if not self.unknown_calls or not self.known_calls:
+            return 0.0
+        return self.unknown_calls * self.known_cost_usd / self.known_calls
+
+    @property
+    def observed_usd(self) -> float:
+        return self.known_cost_usd + self.estimated_unknown_cost_usd
+
+    def charged(self, costs: list[float | None]) -> CeilingCosts:
+        known = [float(cost) for cost in costs if cost is not None]
+        return CeilingCosts(
+            self.known_cost_usd + sum(known),
+            self.known_calls + len(known),
+            self.unknown_calls + (len(costs) - len(known)),
+        )
+
+
+def _apply_ceiling_costs(state: RunState, costs: CeilingCosts) -> None:
+    state.ceiling_known_cost_usd = costs.known_cost_usd
+    state.ceiling_known_calls = costs.known_calls
+    state.ceiling_unknown_calls = costs.unknown_calls
+    state.observed_ceiling_cost_usd = costs.observed_usd
+    state.manifest["observed_ceiling_cost_usd"] = costs.observed_usd
+    state.manifest["ceiling_known_cost_usd"] = costs.known_cost_usd
+    state.manifest["ceiling_known_cost_calls"] = costs.known_calls
+    state.manifest["ceiling_unknown_cost_calls"] = costs.unknown_calls
+    state.manifest["ceiling_estimated_unknown_cost_usd"] = costs.estimated_unknown_cost_usd
 
 
 def _provider_error(stage: str, exc: Exception) -> dict[str, Any]:
@@ -260,24 +302,30 @@ def _reconstruct_failure_state(
 
 def _reconstruct_observed_cost(
     rows: list[dict[str, Any]], cost_ceiling_provider: str | None
-) -> float:
-    observed = 0.0
+) -> CeilingCosts:
+    """Rebuild the ceiling charge from saved call records.
+
+    Known billing is summed; a call with unknown billing is kept as unknown and
+    charged the mean known cost per call, exactly as the live run charged it, so
+    an unknown-cost row neither blocks a resume nor is reconstructed as zero.
+    """
+    costs = CeilingCosts(0.0, 0, 0)
     for row in rows:
         if cost_ceiling_provider is not None and row.get("provider") != cost_ceiling_provider:
             continue
+        charges: list[float | None] = []
         for call in _operation_call_records(row):
             cost = call.get("cost_usd")
-            if cost is None:
-                raise ValueError("cannot resume with a cost ceiling: recorded provider billing is unknown")
-            if (
+            if cost is not None and (
                 not isinstance(cost, (int, float))
                 or isinstance(cost, bool)
                 or not math.isfinite(cost)
                 or cost < 0
             ):
                 raise ValueError("cannot resume corrupt checkpoint: invalid observed call cost")
-            observed += float(cost)
-    return observed
+            charges.append(None if cost is None else float(cost))
+        costs = costs.charged(charges)
+    return costs
 
 
 def _validate_resume_identity(
@@ -399,11 +447,12 @@ def _resume_state(
         raise ValueError("cannot resume corrupt checkpoint: recorded results are not an exact execution-plan prefix")
     for index, row in enumerate(results):
         _validate_resume_row(row, index, plan, output_dir)
-    observed = (
+    costs = (
         _reconstruct_observed_cost(results, cost_ceiling_provider)
         if cost_ceiling_usd is not None
-        else 0.0
+        else CeilingCosts(0.0, 0, 0)
     )
+    observed = costs.observed_usd
     saved_observed = manifest.get("observed_ceiling_cost_usd")
     if (
         not isinstance(saved_observed, (int, float))
@@ -419,7 +468,8 @@ def _resume_state(
     if not isinstance(history, list):
         raise ValueError("cannot resume corrupt checkpoint: resume_history must be a list")
     history.append(datetime.now(UTC).isoformat())
-    manifest["observed_ceiling_cost_usd"] = observed
+    state = RunState(manifest, results, observed)
+    _apply_ceiling_costs(state, costs)
     completed_report = None
     if len(results) == len(plan.planned_units):
         manifest["run_status"] = (
@@ -427,7 +477,8 @@ def _resume_state(
         )
         manifest["completed_at"] = datetime.now(UTC).isoformat()
         completed_report = checkpoint(manifest, output_dir)
-    return RunState(manifest, results, observed, completed_report)
+    state.completed_report = completed_report
+    return state
 
 
 def initialize_run(
@@ -468,6 +519,10 @@ def initialize_run(
         "started_at": datetime.now(UTC).isoformat(),
         "completed_at": None,
         "observed_ceiling_cost_usd": 0.0,
+        "ceiling_known_cost_usd": 0.0,
+        "ceiling_known_cost_calls": 0,
+        "ceiling_unknown_cost_calls": 0,
+        "ceiling_estimated_unknown_cost_usd": 0.0,
         "suite": str(suite_path),
         "protocol": str(protocol_path),
         "grounding_measure": (

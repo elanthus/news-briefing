@@ -153,7 +153,10 @@ Parity v2's two components reported $1.863904276212 in generation cost for 1,200
 rows across 2,461 calls, under a $5 DeepSeek ceiling and a $3 HY3 ceiling. Parity v3
 is the same matrix on the same providers, so the planning figure is roughly $2 with a
 $5 ceiling, as the protocol's `authorization` block records. Provider prices can
-change; the manifest records observed billed cost and counts unknown-cost calls.
+change; the manifest records observed billed cost and counts unknown-cost calls. A
+call with unknown billing is charged against the ceiling at the mean known cost per
+call so far and does not block `--resume`; the card reports known, estimated, and
+unknown-call figures separately.
 
 ## Pass criteria
 
