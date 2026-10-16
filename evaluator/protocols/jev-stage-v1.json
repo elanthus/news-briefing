@@ -1,0 +1,49 @@
+{
+  "protocol_id": "jev-stage-v1",
+  "status": "draft_pending_freeze",
+  "status_note": "Set status to frozen_for_run and commit before the first sampled day runs; status alone carries the protocol state.",
+  "objective": "Measure the daily semantic review and repair stage (Jev review, isolated confirmation, bounded HY3 repair, follow-up review, per-slot acceptance) on real corpus days at the current revision, with a blind human adjudication subset for meaning preservation and grounding.",
+  "sample_unit": {
+    "unit": "one real dated corpus run once through run_daily_briefing.py --jev-review-dir at the frozen revision",
+    "readers": "schema_version 3 semantic audits only; audits at schema 1 or 2 are excluded, never migrated",
+    "corpus_source": "corpora restored with restore_private_corpora.py from the authenticated encrypted archive, or the day's fresh fetch_news.py corpus; the fourteen-date private retention window bounds how many dates one restore can supply",
+    "exclusions": "a day whose fallback chain reaches no ready candidate contributes a generation-failure row and no review metrics; a day whose review status is partial or failed, or whose review directory holds no schema 3 audit because run_daily_briefing.py caught a review exception and retained the original, contributes to the coverage denominator as a review-failure row and to no rate conditioned on complete review"
+  },
+  "sample_size": {
+    "primary_days": 28,
+    "minimum_days": 14,
+    "sizing_prior": "docs/results/jev-preliminary-2026-09-30.md: 7 of 10 same-day HY3 reports had at least one confirmed included finding and received a repair round; 12 of 220 included topics carried a confirmed included grouping finding; 17 of 21 initial flags were confirmed in isolation. These are a single-day pilot's observations, used only to choose n.",
+    "interval_rule": "two-sided 95% Wilson interval, computed with evaluator.metrics.wilson_interval, reported with successes and trials for every rate",
+    "clustering": "topics and checks within a day are not independent; topic-level and check-level rates are reported with day-clustered bootstrap intervals alongside their Wilson intervals"
+  },
+  "metrics": [
+    "flag_rate: initial flags over returned checks, and days with at least one flag over days with complete initial review",
+    "confirmation_rate: confirmed over initial flags; disputed and unconfirmed reported separately",
+    "repair_round_rate: days with at least one repair target over days with complete review",
+    "per_slot_acceptance: apply_repair over repaired slots, with withhold_repair, failed and skipped causes by allowlisted code",
+    "publication_outcome: original_retained, repaired_applied, partial_applied per day",
+    "followup_blockers: re-flagged checks on repaired slots by check kind, including two-position checks that block both slots",
+    "cost: reported USD per phase per day, unknown-cost calls, days stopped by an estimated spending guard"
+  ],
+  "human_adjudication": {
+    "modeled_on": "evaluator/protocols/independent-production-2026-10-02.json",
+    "reviewers": "two human reviewers independent of the run, plus a third human adjudicator for material disagreements; no model review substitutes for a human label",
+    "repair_pairs": "every repaired slot (applied or withheld) as an original/repaired pair; both sides independently shuffled; both reviewers label every pair",
+    "control_topics": "per day, order unflagged included topics by SHA256(protocol_id + report_date + section + position) and take the first three; one reviewer labels all, the second labels the first third rounded up",
+    "blindness": "packets carry frozen title/excerpt evidence and prose only; they omit model and provider names, Jev scores and labels, repair status, file paths, and which side of a pair is the original",
+    "rubric": {
+      "support": "every material claim supported by the supplied frozen excerpts; identify unsupported, strengthened, or reversed claims",
+      "meaning_preservation": "for a pair, whether the repaired prose preserves the original's supported meaning; identify lost, added, or changed material claims",
+      "citations": "each retained source relevant to the prose; identify irrelevant retained sources and relevant removed sources",
+      "readability": "complete sentences, no copied truncated fragments"
+    },
+    "disagreements": "retain both labels; adjudicate from blinded evidence and rationales only; report raw agreement and adjudicated outcomes separately with exact denominators"
+  },
+  "commands": {
+    "restore": "python3 -S restore_private_corpora.py --newest YYYY-MM-DD --output-dir corpora",
+    "run": "python3 -S run_daily_briefing.py --corpus corpora/YYYY-MM-DD.json --run-dir .news-briefing/jev-stage/YYYY-MM-DD/run --jev-review-dir .news-briefing/jev-stage/YYYY-MM-DD/review --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md",
+    "aggregate": "no committed aggregator yet; aggregation reads each review directory's schema 3 metadata and the public_audit projection and is a follow-up deliverable"
+  },
+  "privacy": "commit the protocol, aggregate counts, per-day artifact SHA-256 values, and reviewer agreement only; corpora, frozen excerpts, prompts, raw judgments and packets stay in ignored directories",
+  "limits": "Jev judges feed excerpts, not articles. Confirmation is repeat agreement from one judge. Human labels cover repaired slots and a small control sample, not every topic, so no overall miss rate is claimed. Days drawn from one retention window are consecutive and share source health. HY3 repair behavior at temperature 0.2 is not deterministic across reruns of the same day."
+}

@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import email.message
+import hashlib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import urllib.error
@@ -216,16 +218,83 @@ def restore(
     )
 
 
+def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest: date, *,
+                  manifest_path: Path | None = None) -> tuple[Path, ...]:
+    """Restore one date window from digest-checked, authenticated preserved wrappers.
+
+    The manifest identifies wrappers, not trustworthy plaintext. Stage every
+    eligible archive before writing output; conflicting copies of a date fail closed.
+    No GitHub credential is read or used in this mode.
+    """
+    if not passphrase or "\n" in passphrase or "\r" in passphrase:
+        raise ValueError("archive passphrase must be a non-empty single-line value")
+    if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
+        raise ValueError(f"corpus output directory must be absent or empty: {output_dir}")
+    manifest_path = manifest_path or artifact_dir / "manifest.json"
+    if manifest_path.is_symlink():
+        raise ValueError("local artifact manifest must not be a symlink")
+    with manifest_path.open("rb") as stream:
+        manifest = json.loads(_read_bounded(stream, MAX_API_BYTES))
+    entries = manifest.get("artifacts") if isinstance(manifest, dict) else None
+    if not isinstance(entries, list) or len(entries) > 1000:
+        raise ValueError("local artifact manifest must contain a bounded artifacts array")
+    candidates = [row for row in entries if isinstance(row, dict) and row.get("name") == DEFAULT_ARTIFACT_NAME]
+    if not candidates:
+        raise NoArchiveError("no preserved corpus archive wrappers in manifest")
+    seen: set[int] = set()
+    restored: dict[str, bytes] = {}
+    with tempfile.TemporaryDirectory(prefix="news-briefing-local-restore-") as directory:
+        root = Path(directory)
+        for row in candidates:
+            if not _is_main_repository_run(row.get("workflow_run")):
+                raise ValueError("local corpus archive requires main-repository workflow provenance")
+            artifact_id, digest, size = row.get("id"), row.get("sha256"), row.get("bytes")
+            if (type(artifact_id) is not int or artifact_id <= 0 or artifact_id in seen
+                    or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                    or type(size) is not int or not 0 < size <= MAX_ARTIFACT_BYTES):
+                raise ValueError("invalid local corpus archive manifest entry")
+            seen.add(artifact_id)
+            wrapper = artifact_dir / f"{artifact_id}.zip"
+            if wrapper.is_symlink() or not wrapper.is_file():
+                raise ValueError("local corpus archive wrapper must be a regular file")
+            with wrapper.open("rb") as stream:
+                payload = _read_bounded(stream, MAX_ARTIFACT_BYTES)
+            if len(payload) != size or hashlib.sha256(payload).hexdigest() != digest:
+                raise ValueError("local corpus archive wrapper digest or size mismatch")
+            encrypted = root / ENCRYPTED_MEMBER
+            plaintext = root / "corpus-archive.tar.gz"
+            encrypted.write_bytes(_encrypted_member(payload))
+            decrypt_archive(encrypted, plaintext, passphrase)
+            for path in restore_corpora_from_tar(plaintext, root / str(artifact_id), newest):
+                data = path.read_bytes()
+                if path.name in restored and restored[path.name] != data:
+                    raise ValueError("conflicting preserved corpora for the same date")
+                restored[path.name] = data
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for name, data in sorted(restored.items()):
+            (output_dir / name).write_bytes(data)
+    return tuple(output_dir / name for name in sorted(restored))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--artifact-dir", type=Path, help="preserved wrappers and manifest.json; no network")
+    parser.add_argument("--artifact-manifest", type=Path, help="manifest with recorded workflow-run provenance")
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--output-dir", type=Path, default=Path("corpora"))
     parser.add_argument("--newest", type=date.fromisoformat, required=True)
     args = parser.parse_args()
     try:
-        if not args.repository:
-            raise ValueError("--repository or GITHUB_REPOSITORY is required")
-        restored = restore(
+        if args.artifact_dir is not None:
+            restored = restore_local(args.artifact_dir, args.output_dir,
+                                     os.environ.get("CORPUS_ARCHIVE_PASSPHRASE", ""), args.newest,
+                                     manifest_path=args.artifact_manifest)
+        else:
+            if args.artifact_manifest is not None:
+                raise ValueError("--artifact-manifest requires --artifact-dir")
+            if not args.repository:
+                raise ValueError("--repository or GITHUB_REPOSITORY is required")
+            restored = restore(
             args.repository,
             args.output_dir,
             os.environ.get("GITHUB_TOKEN", ""),

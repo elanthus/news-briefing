@@ -208,7 +208,7 @@ causes a nonzero command exit.
 
 ### Comparing prompt versions after a run
 
-The following command is a provenance record from the maintainer's machine. It references the ignored `evaluator/results/portfolio-v1-final-20260815/` directory, which is absent from clones, so it is not runnable in a clone:
+The following command is a historical provenance record. Its `evaluator/results/portfolio-v1-final-20260815/` tree now exists only in the verified originals archive recorded in [the retention receipt](../docs/results/retention-2026-10-15.json). Restore it with the recorded source revision before reproducing the command:
 
 ```bash
 python3 -m evaluator compare \
@@ -228,7 +228,7 @@ gated outcome.
 
 ### Grounding review packets
 
-The following export command is also a provenance record from the maintainer's machine. It depends on the same ignored local directory and is not runnable in a clone:
+The following export command is also a historical provenance record. Its input tree now lives only in that originals archive; the former ignored local directory has been removed:
 
 ```bash
 python3 -m evaluator export-grounding-review \
@@ -236,7 +236,7 @@ python3 -m evaluator export-grounding-review \
   --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review
 ```
 
-The following judging command is likewise a provenance record from the maintainer's machine. It depends on the same ignored local directory and is not runnable in a clone:
+The following judging command is likewise a historical provenance record. Its input and packet trees now live only in that originals archive:
 
 ```bash
 python3 -m evaluator judge-grounding \
@@ -265,7 +265,12 @@ for the distinction between historical monitoring and current daily integrity re
 
 ### What is retained and where
 
-Raw generations and review mappings stay local and ignored. Versioned aggregates for the superseded
+Historical `evaluator/results/portfolio-*` and `evaluator/results/parity-*` trees,
+including raw generations and review mappings, now live only in the verified
+originals archive recorded in [the retention receipt](../docs/results/retention-2026-10-15.json).
+Commands referencing those trees are historical records, not active local inputs.
+Restore into a separate checkout at the recorded revision when reproducing them.
+New runs and their private mappings remain local and ignored. Versioned aggregates for the superseded
 portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the historical portfolio-v2
 aggregates are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/). The current
 production-parity aggregates are in [`docs/results/parity-v2-evidence/`](../docs/results/parity-v2-evidence/).
@@ -483,7 +488,11 @@ The default version is named `production` and hashes the root `briefing-runner-p
 
 ## Historical portfolio runs
 
-Dated records of the completed portfolio runs, retained for provenance. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **[Parity v2](../docs/results/parity-v2.md) is a citable historical experiment.** It predates version 9 and the publication/provenance remediation; see the [current assessment status](../docs/results/remediation-2026-10-02.md). Portfolio v2 comes first below as the direct-Markdown record; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
+Dated records of the completed portfolio runs, retained for provenance. The
+`evaluator/results/portfolio-*` and `evaluator/results/parity-*` trees named by
+historical commands now live only in the verified originals archive in
+[the retention receipt](../docs/results/retention-2026-10-15.json), not in active
+local working directories. Restore historical inputs separately before use. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **[Parity v2](../docs/results/parity-v2.md) is a citable historical experiment.** It predates version 9 and the publication/provenance remediation; see the [current assessment status](../docs/results/remediation-2026-10-02.md). Portfolio v2 comes first below as the direct-Markdown record; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
 
 ### Portfolio v2 (historical, direct-Markdown)
 
@@ -533,7 +542,8 @@ python3 -m evaluator run \
   --cost-ceiling-usd 3 --cost-ceiling-provider openrouter
 ```
 
-Export the compatible whole-adapter components and verify the result with:
+The historical component export and verification commands were (their input
+trees now exist only in the originals archive):
 
 ```bash
 python3 -m evaluator export-public-run \
@@ -591,3 +601,18 @@ The completed-checkpoint refusal is a separate test from interrupted-checkpoint
 corruption, so splitting them retired no coverage.
 Export/tamper/verification scenarios remain integrated because they check the same
 saved evidence through successive trust boundaries.
+
+## Retained portfolio research
+
+`python3 -S -m evaluator.research migrate --root . --output .news-briefing/portfolio-retained-v1-final`
+was the one-time migration command used before the selected working trees were
+removed. It captured local Jev studies into a private version-1 dataset without
+rewriting historical audits or manufacturing missing generation-time provenance.
+Verification with `python3 -S -m evaluator.research verify .news-briefing/portfolio-retained-v1-final`
+depends on the readers at the retention receipt's `source_revision`. Use this
+extractor together with those readers in a separate verification checkout; the
+extractor itself was introduced after that revision. Current-reader compatibility
+is not a preservation guarantee.
+See [research retention](../docs/research-retention.md) for the fixed collections,
+retained source bytes, extracted run views, exclusions from scoring, and recovery.
+The public historical evidence bundles keep their existing release contract.

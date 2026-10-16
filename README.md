@@ -112,6 +112,7 @@ digests. Source removals identify their cause and distinguish published changes
 from proposals; an article and its Hacker News discussion count as one source
 item. Full check data remains in public history JSON; legacy entries identify
 unavailable operational history.
+Historical research is preserved through the [retention contract](docs/research-retention.md).
 Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
 excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
 

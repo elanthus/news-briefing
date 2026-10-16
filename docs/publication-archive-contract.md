@@ -69,7 +69,7 @@ superseded by a later model correction did not produce the published content.
 The integrity ledger distinguishes superseded generation actions from actions
 bound to the published candidate, without publishing earlier private prose.
 
-`rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. Fallback logs use schema v2 and carry structured failure records from the originating provider or checker. Records carry their own schema version 1; the original unversioned structured shape remains readable. A finalized checker outcome takes precedence over earlier recoverable provider errors. Public projection ignores private `failure_reason` text and allowlists only model identifiers and fixed codes. Unknown or malformed records use the generic explanation; old string-only chain logs are not classified. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
+`rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. Fallback logs use schema v2 and carry structured failure records from the originating provider or checker. Records carry their own schema version 1; unversioned records are no longer accepted. A finalized checker outcome takes precedence over earlier recoverable provider errors. Public projection ignores private `failure_reason` text and allowlists only model identifiers and fixed codes. Unknown or malformed records use the generic explanation; old string-only chain logs are not classified. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
 
 ## Site rendering and retention
 
@@ -79,20 +79,21 @@ The site and its machine-readable history retain up to seven report dates. When 
 
 Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
 
-## Legacy reader retirement
+## Reader retirement and research evidence
 
-Legacy sidecar/history and semantic-audit readers remain supported pending
-issue #242. The earliest removal date is October 15, 2026; reaching that date
-alone does not authorize removal. Before retiring a reader, inspect the actual
-published history, retained operational artifacts, and active benchmark
-consumers, and record the format evidence in the removal PR. Seven retained
-public entries can span more than seven days when publication has gaps.
-Preserve any still-needed narrow reader or provide an explicit lossless
-migration. Do not clear history with `--allow-empty-history` to satisfy this gate.
+Production readers now require history schema 9, the complete current sidecar
+shape, semantic-audit metadata schema 3, and versioned failure records. The
+October 15, 2026 cutover preserves the inspected public history without changing
+its Markdown. It never clears history with `--allow-empty-history`.
 
-Site fixture helpers now emit the current sidecar fields and hash-bound
-integrity records. Targeted legacy cases remain separate so current publication
-coverage does not depend on compatibility fallbacks.
+Retained research is extracted into a private, source-bound dataset rather than
+replaying old candidate-only or all-or-none audits through current publication.
+Original bytes, repair correspondence, failures, costs, and missing facts are
+preserved. Frozen public benchmark bundles remain unchanged and use their
+recorded source revisions. Archived encrypted operational artifacts are cold
+source evidence, not newly verified current research samples. See the
+[retention and migration guide](research-retention.md) and its recorded receipt
+for the supported consumer boundary, verification, and recovery procedure.
 
 ## Private operational artifacts
 
@@ -145,14 +146,13 @@ Semantic repair work is separate from original generation correction counters.
 
 ## Machine-readable history
 
-The generated `history.json` uses `schema_version: 9`. The builder accepts schemas
-7 and 8, adding `integrity: null` while preserving existing fields; schema 7 also
-receives its missing `semantic_audit: null`. Other versions are rejected. Every
+The generated `history.json` uses `schema_version: 9`. The builder accepts only
+schema 9; older and unknown versions are rejected. Every
 schema-9 entry requires `date`, `disposition`, `findings_count`, `findings`,
 `degraded_sources`, `repair_actions`, `generation_failures`, `advisory_findings`,
 `provenance`, `semantic_audit`, `integrity`, and `markdown`. Current sidecars use
-the same metadata fields. Known legacy sidecars without integrity or semantic
-audit remain accepted as explicit shapes; arbitrary extra fields are rejected.
+the same metadata fields, including explicit nullable integrity and semantic
+audit fields. Missing fields and arbitrary extra fields are rejected.
 Missing historical facts remain unavailable, and rebuilding never calls a model
 to populate them. Legacy provenance is retained as recorded; when an older entry
 does not separate original generation from repair generation, the builder does
@@ -187,7 +187,7 @@ consistency, but structural validity does not authorize a repair. Publication
 reconstructs or cross-checks operational claims from hash-bound artifacts and
 reports. The site loader also checks the published artifact digest against exact
 sidecar Markdown bytes and stored history Markdown before rendering or replacing
-an entry. Legacy null integrity does not invent an artifact digest. An invalid
+an entry. Null integrity does not invent an artifact digest. An invalid
 audit retains the original and does not expose its unverified
 prose, scores, actions, or destinations as applied. Fixed reason codes replace
 raw exception messages. Optional workflow links are constructed from the configured

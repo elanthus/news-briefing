@@ -14,7 +14,6 @@ from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
 from prepare_publication import prepare_publication
 from publication_schema import parse_integrity
-from tests.historical_semantic_candidate import historical_candidate_run
 from tests.test_semantic_repairs import CitationJudge, Judge, PatchProvider, make_run, split_review
 
 
@@ -158,29 +157,22 @@ class IntegrityPipelineTests(unittest.TestCase):
             self.assertNotIn("private exception body", json.dumps(record.payload()))
             self.assertEqual(load_public_audit(run, Path(directory) / "jev-review")[1], run)
 
-    def test_historical_candidate_retains_original_and_separates_paid_calls(self):
+    def test_retired_audit_versions_cannot_select_a_repair(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            run = historical_candidate_run(root)
-            record = prepare_publication(root, root / "missing.json", root / "history", date(2026, 10, 1))
-            self.assertEqual(load_public_audit(run, root / "jev-review")[1], run)
-            integrity = record.integrity
-            self.assertEqual(integrity["decision"], "candidate_retained")
-            self.assertTrue(integrity["acceptance_verified"])
-            self.assertIn("candidate_mode", integrity["reasons"])
-            calls = json.loads((root / "jev-review/repair/repair-calls.json").read_text())
-            self.assertEqual(calls[0]["status"], "code_preserved")
-            self.assertEqual(sum(c["status"] != "code_preserved" for c in calls), 1)
-            self.assertEqual((root / "history/2026-10-01.md").read_bytes(), (run / "final.md").read_bytes())
+            run, _, envelope = self.run_review(root)
+            for version in (1, 2, True, 4):
+                envelope["metadata"]["schema_version"] = version
+                (root / "jev-review/audit.json").write_text(json.dumps(envelope))
+                with self.subTest(version=version):
+                    self.assertEqual(load_public_audit(run, root / "jev-review"), (None, run))
 
-    def test_historical_candidate_mutation_is_rejected_at_reader_handoff(self):
+    def test_current_audit_mutation_is_rejected_at_reader_handoff(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            run = historical_candidate_run(root)
-            audit, selected = load_public_audit(run, root / "jev-review")
-            self.assertIsNotNone(audit)
-            self.assertEqual(selected, run)
-            (root / "jev-review/repair/run/frozen-selection.json").write_text("{}")
+            run, _, envelope = self.run_review(root)
+            envelope["audit"]["reported_cost_usd"] += 0.1
+            (root / "jev-review/audit.json").write_text(json.dumps(envelope))
             self.assertEqual(load_public_audit(run, root / "jev-review"), (None, run))
 
     def test_grouping_removal_cause_is_grouping_and_singleton_has_no_invented_score(self):
@@ -302,23 +294,17 @@ class IntegrityPipelineTests(unittest.TestCase):
             self.assertEqual(next(a["sha256"] for a in record["artifacts"] if a["id"] == "initial_prose"),
                              sha256_file(run / final["briefing_artifact"]))
 
-    def test_legacy_applied_audit_keeps_content_and_original_provenance_with_unknown_history(self):
+    def test_old_applied_audit_never_substitutes_for_verified_current_history(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, _, envelope = self.run_review(root)
             envelope.pop("integrity")
             envelope["metadata"]["schema_version"] = 1
-            for field in ("apply_repairs", "repair_calls_sha256", "repair_manifest_sha256", "accepted_targets"):
-                envelope["metadata"].pop(field)
-            envelope["audit"].pop("followup_checks")
             (root / "jev-review/audit.json").write_text(json.dumps(envelope))
             record = prepare_publication(root, root / "input.json", root / "history", date(2026, 10, 1))
-            self.assertIsNone(record.integrity)
-            self.assertEqual(record.semantic_audit, envelope["audit"])
-            self.assertEqual((root / "history/2026-10-01.md").read_bytes(),
-                             (root / "jev-review/repair/run/final.md").read_bytes())
-            self.assertEqual(record.provenance.model, "deterministic")
-            self.assertNotEqual(sha256_file(run / "final.md"), sha256_file(root / "jev-review/repair/run/final.md"))
+            self.assertIsNone(record.semantic_audit)
+            self.assertEqual(record.integrity["decision"], "original_retained")
+            self.assertEqual((root / "history/2026-10-01.md").read_bytes(), (run / "final.md").read_bytes())
 
     def test_target_limit_and_all_sources_removal_both_withhold_the_same_round(self):
         from agent_runner.integrity import repair_scope
