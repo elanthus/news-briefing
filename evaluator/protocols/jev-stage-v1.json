@@ -1,13 +1,13 @@
 {
   "protocol_id": "jev-stage-v1",
   "status": "draft_pending_freeze",
-  "frozen_before_run": true,
+  "status_note": "Set status to frozen_for_run and commit before the first sampled day runs; status alone carries the protocol state.",
   "objective": "Measure the daily semantic review and repair stage (Jev review, isolated confirmation, bounded HY3 repair, follow-up review, per-slot acceptance) on real corpus days at the current revision, with a blind human adjudication subset for meaning preservation and grounding.",
   "sample_unit": {
     "unit": "one real dated corpus run once through run_daily_briefing.py --jev-review-dir at the frozen revision",
     "readers": "schema_version 3 semantic audits only; audits at schema 1 or 2 are excluded, never migrated",
     "corpus_source": "corpora restored with restore_private_corpora.py from the authenticated encrypted archive, or the day's fresh fetch_news.py corpus; the fourteen-date private retention window bounds how many dates one restore can supply",
-    "exclusions": "a day whose fallback chain reaches no ready candidate contributes a generation-failure row and no review metrics; a day whose review status is partial or failed contributes to the coverage denominator and to no rate conditioned on complete review"
+    "exclusions": "a day whose fallback chain reaches no ready candidate contributes a generation-failure row and no review metrics; a day whose review status is partial or failed, or whose review directory holds no schema 3 audit because run_daily_briefing.py caught a review exception and retained the original, contributes to the coverage denominator as a review-failure row and to no rate conditioned on complete review"
   },
   "sample_size": {
     "primary_days": 28,

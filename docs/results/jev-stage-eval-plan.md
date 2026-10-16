@@ -35,7 +35,12 @@ archive supplies at most the fourteen-date retention window, so a sample larger
 than fourteen days spans two or more restore windows or adds fresh daily fetches.
 A day whose fallback chain reaches no ready candidate is a generation-failure row
 with no review metrics. A day whose review ends `partial` or `failed` counts in the
-coverage denominator and in no rate conditioned on complete review.
+coverage denominator and in no rate conditioned on complete review. So does a day
+whose review directory holds no schema 3 audit at all: when the review raises,
+the daily runner prints the exception type, retains the original briefing, and
+writes no audit. The coverage denominator is therefore every day with a ready
+candidate, read from the run directory, and the aggregator must record a missing
+audit as a review-failure row rather than skip the day.
 
 ## Sample size
 
@@ -113,7 +118,8 @@ labels and cohort are not reused.
 A packet exporter for the semantic audit does not exist yet; the evaluator's
 `export-grounding-review` serves evaluator runs, not daily audits. Writing one is
 a follow-up deliverable, as is an aggregator that reads each review directory's
-schema 3 metadata and `public_audit` projection into the metrics above.
+schema 3 metadata and `public_audit` projection into the metrics above and
+records days with a ready candidate but no audit as review failures.
 
 ## Before the run
 
