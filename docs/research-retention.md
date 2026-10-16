@@ -16,6 +16,12 @@ original policies are evidence, not current operating inputs or judge caches.
 | Recent Actions artifacts | Preserve ciphertext and deployment receipts separately. A downloaded encrypted wrapper does not establish its inner schema or quality. |
 | Historical development and raw benchmark working trees | Exclude from the active portfolio dataset. Preserve a verified original archive before removing redundant working copies. |
 
+The retained September review files have no in-repo reader. They are historical
+attachments, not inputs to either planned eval: Parity v3 uses its frozen
+generation fixtures and Parity v2 baseline; the Jev-stage evaluation uses new
+schema-3 daily audits and verified current-schema corpora. Neither reuses the
+September reviews as judge labels or caches.
+
 The raw archive also preserves uncertain review-provenance records. Conflicting
 human-review claims do not become validated human assessments through migration.
 Failures, rejected repairs, partial reviews, and missing information remain visible;
@@ -46,6 +52,14 @@ reconstructs the captured file tree in a temporary directory, and re-derives run
 views from the original frozen selections, evidence, corpus, configuration, and
 hash-bound Markdown. Altered derived topics fail verification. Symlinks, escaping
 paths, overlapping collection roots, and oversized inputs fail closed.
+
+`verify()` of the research dataset depends on the readers at the recorded
+`source_revision` in the [retention receipt](results/retention-2026-10-15.json).
+It reconstructs the captured tree and calls those readers to re-derive run views;
+blob integrity alone does not make current readers compatible with old inputs.
+Run verification with this extractor and the recorded revision's reader modules
+in a separate checkout. The extractor was introduced after that revision, so an
+unmodified checkout of `source_revision` alone does not contain the command.
 
 An unavailable run stays in the sampling frame with null extracted topics and a
 fixed reason; its original files remain available for investigation. Migration
