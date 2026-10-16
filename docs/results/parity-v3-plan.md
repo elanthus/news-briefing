@@ -3,7 +3,7 @@
 Status: frozen for run, not run. No model call has been made for this plan. Protocol:
 [`parity-v3.json`](../../evaluator/protocols/parity-v3.json) (status
 `frozen_for_run`, frozen 2026-10-16, required tag `parity-v3-source-20261016`,
-authorization pending). Read the [evaluation methodology](../evaluation-methodology.md)
+authorized 2026-10-16). Read the [evaluation methodology](../evaluation-methodology.md)
 before quoting any number this run eventually produces.
 
 ## Goal

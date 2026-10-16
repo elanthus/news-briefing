@@ -1,10 +1,12 @@
 {
   "authorization": {
-    "authorized_at": null,
+    "authorized_at": "2026-10-16T04:03:43Z",
     "component_cost_ceiling_usd": 5.0,
     "generation_cost_ceiling_usd": 4.0,
     "remaining_budget_applies_to_semantic_and_grounding_review": true,
-    "total_openrouter_cost_ceiling_usd": 5.0
+    "total_openrouter_cost_ceiling_usd": 5.0,
+    "authorized_by": "repository owner, written go-ahead in chat on 2026-10-16",
+    "unknown_cost_rule": "an unknown-cost call is charged at the mean known cost per call so far and does not block resume"
   },
   "baseline": {
     "bundle": "docs/results/parity-v2-evidence",
@@ -108,7 +110,7 @@
     "runtime_source_sha256_required": true
   },
   "status": "frozen_for_run",
-  "status_note": "Frozen on 2026-10-16T03:32:41Z: every listed input and prompt hash was re-verified against the committed bytes and the plan command passed `evaluator preflight --before-tag`. authorization.authorized_at stays null until the paid run is authorized; the run then records it, the clean HEAD is tagged with required_tag, and the preflight is rerun without --before-tag. evaluator/tests/test_protocols.py fails when the listed hashes drift from the committed fixtures while this status stands.",
+  "status_note": "Frozen on 2026-10-16T03:32:41Z and authorized on 2026-10-16T04:03:43Z. Every listed input and prompt hash was re-verified against the committed bytes before the freeze and again at the tag. The tag parity-v3-source-20261016 points at the clean HEAD that `evaluator run --run-kind final` records. From authorization on, these hashes are the historical record of the run; evaluator/tests/test_protocols.py binds only unauthorized protocols to current bytes.",
   "suite": {
     "authored_cases": 55,
     "derived_clean_cases": 5,
