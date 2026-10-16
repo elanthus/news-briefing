@@ -2132,6 +2132,42 @@ class IntegrityReportTests(unittest.TestCase):
                 self.assertLess(page.index('Action ledger'), page.index('Initial review statistics'))
                 self.assertIn('remove every source item' if skipped else 'failed validation', page)
 
+    def test_no_targets_states_no_followup_and_nullable_sidecar_does_not_inherit_history(self):
+        from datetime import date
+
+        import build_site as site
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import Judge, make_run
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = make_run(root)
+            daily_semantic_review(run, root / 'jev-review', judge=Judge('never flagged'))
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'public', date(2026, 9, 30))
+            entry = site._entry_from_payload(record.payload(), source='fixture')
+            page = site._render_report(entry, [entry])
+            self.assertIn('No follow-up review ran.', page)
+            self.assertNotIn('Follow-up statistics unavailable', page)
+            build_site(root / 'public', root / 'site')
+            prior = root / 'site/history.json'
+            stored = json.loads(prior.read_text())['entries'][0]
+            self.assertIsNotNone(stored['integrity'])
+            self.assertIsNotNone(stored['semantic_audit'])
+            sidecar = root / 'public/2026-09-30.json'
+            nullable = json.loads(sidecar.read_text())
+            nullable.update(integrity=None, semantic_audit=None)
+            sidecar.write_text(json.dumps(nullable))
+            for replace_existing in (False, True):
+                with self.subTest(replace_existing=replace_existing):
+                    output = root / f'rebuilt-{replace_existing}'
+                    build_site(root / 'public', output, prior_history=prior, replace_existing=replace_existing)
+                    rebuilt = json.loads((output / 'history.json').read_text())['entries'][0]
+                    self.assertIsNone(rebuilt['integrity'])
+                    self.assertIsNone(rebuilt['semantic_audit'])
+                    self.assertEqual(rebuilt['markdown'], stored['markdown'])
+
     def test_current_history_roundtrip_preserves_integrity_and_rejects_old_inputs(self):
         from datetime import date
 

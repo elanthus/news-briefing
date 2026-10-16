@@ -11,7 +11,7 @@ import importlib
 import json
 import re
 import shutil
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -1588,7 +1588,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         ("Follow-up review", audit.get("followup_checks")),
     ):
         if rows is None:
-            parts.append("<p>Follow-up statistics unavailable in this historical record.</p>")
+            parts.append("<p>No follow-up review ran.</p>")
             continue
         display_stage = ("Unpublished candidate follow-up" if stage == "Follow-up review"
                          and integrity is not None and integrity["decision"] not in APPLIED_DECISIONS else stage)
@@ -1751,21 +1751,6 @@ def build_site(
         entry_rank = PUBLICATION_RANK.get(entry.disposition, 0)
         replace_page = replace_existing and entry.disposition in PAGE_DISPOSITIONS
         if replace_page or entry_rank >= prior_rank:
-            # A sidecar can re-present the same published artifact during
-            # a rebuild. Retain its verified report metadata only when both the
-            # artifact and all non-report publication metadata are unchanged.
-            if (prior is not None and entry.integrity is None and prior.integrity is not None
-                    and entry.disposition in PAGE_DISPOSITIONS
-                    and entry.markdown == prior.markdown
-                    and entry.disposition == prior.disposition
-                    and entry.findings == prior.findings
-                    and entry.findings_count == prior.findings_count
-                    and entry.advisory_findings == prior.advisory_findings
-                    and entry.provenance == prior.provenance
-                    and entry.repair_actions == prior.repair_actions
-                    and entry.degraded_sources == prior.degraded_sources
-                    and entry.semantic_audit in (None, prior.semantic_audit)):
-                entry = replace(entry, integrity=prior.integrity, semantic_audit=prior.semantic_audit)
             by_date[entry.slug] = entry
     entries = sorted(by_date.values(), key=lambda entry: entry.day, reverse=True)
     entries = entries[:7]
