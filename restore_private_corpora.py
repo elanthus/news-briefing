@@ -243,6 +243,7 @@ def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest:
         raise NoArchiveError("no preserved corpus archive wrappers in manifest")
     seen: set[int] = set()
     restored: dict[str, bytes] = {}
+    supplied_by: dict[str, int] = {}
     with tempfile.TemporaryDirectory(prefix="news-briefing-local-restore-") as directory:
         root = Path(directory)
         for row in candidates:
@@ -268,8 +269,12 @@ def restore_local(artifact_dir: Path, output_dir: Path, passphrase: str, newest:
             for path in restore_corpora_from_tar(plaintext, root / str(artifact_id), newest):
                 data = path.read_bytes()
                 if path.name in restored and restored[path.name] != data:
-                    raise ValueError("conflicting preserved corpora for the same date")
+                    raise ValueError(
+                        f"conflicting preserved corpora for {path.stem}: wrappers "
+                        f"{supplied_by[path.name]} and {artifact_id} differ"
+                    )
                 restored[path.name] = data
+                supplied_by.setdefault(path.name, artifact_id)
         output_dir.mkdir(parents=True, exist_ok=True)
         for name, data in sorted(restored.items()):
             (output_dir / name).write_bytes(data)

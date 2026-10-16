@@ -142,7 +142,13 @@
           "window_end": "2026-10-15"
         }
       ],
-      "note": "Each wrapper is an encrypted corpus archive produced by the main-branch daily workflow. restore_private_corpora.py --artifact-dir restores at most the fourteen dates ending at --newest from every wrapper in the manifest, after digest, provenance and authentication checks. Nothing was decrypted for this inventory; each window is the upper bound of dates that wrapper can supply."
+      "note": "Each wrapper is an encrypted corpus archive produced by the main-branch daily workflow. restore_private_corpora.py --artifact-dir restores at most the fourteen dates ending at --newest from every wrapper in the manifest, after digest, provenance and authentication checks. Nothing was decrypted for this inventory; each window is the upper bound of dates that wrapper can supply.",
+      "superseded_same_day_wrappers": [
+        11212654830,
+        11242700175,
+        11430109063,
+        11573283194
+      ]
     },
     "live_window": {
       "artifact_name": "briefing-corpus-archive",
@@ -186,7 +192,7 @@
       "note": "The unexpired GitHub artifacts on 2026-10-16 are the preserved wrappers created 2026-10-02 through 2026-10-15; the 2026-10-01 wrapper has expired on GitHub and survives only locally. The live fourteen-date window ends at the newest artifact."
     }
   },
-  "selection_rule": "Candidate dates are the union of the fourteen-date retention windows ending at each preserved wrapper's creation date, restricted to dates on or after 2026-09-06, when corpus schema v7 landed (older members are skipped by the restore as obsolete). The sample is the 28 most recent candidate dates, consecutive, so the primary 28-day frame is two retention windows as the plan sizes it. The runner restores each date from the preserved wrappers with --newest set to that date, so a date is supplied by every wrapper whose window contains it and conflicting copies fail closed.",
+  "selection_rule": "Candidate dates are the union of the fourteen-date retention windows ending at each preserved wrapper's creation date, restricted to dates on or after 2026-09-06, when corpus schema v7 landed (older members are skipped by the restore as obsolete). The sample is the 28 most recent candidate dates, consecutive, so the primary 28-day frame is two retention windows as the plan sizes it. The runner restores each date from the preserved wrappers with --newest set to that date. Days with several daily runs (2026-10-02, 2026-10-06, 2026-10-08) have several wrappers, each archiving a fresh fetch of that day, and the restore fails closed when two wrappers disagree about a date; the runner therefore keeps only the newest wrapper per creation day (the run whose corpus the published briefing used and later wrappers carry forward) and lists the superseded wrappers in its merged manifest. Within the kept set, a date is supplied by every wrapper whose window contains it and any remaining conflict still fails closed.",
   "candidate_dates_obtainable_upper_bound": [
     "2026-09-18",
     "2026-09-19",

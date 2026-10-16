@@ -11,7 +11,8 @@ def preserved_wrappers(directory, ids=(11, 12), *, drop_inventory_for=()):
     """A preservation directory shaped like portfolio-preservation-*/github."""
     directory.mkdir(parents=True, exist_ok=True)
     rows = [{'id': i, 'name': 'briefing-corpus-archive', 'sha256': 'a' * 64, 'bytes': 10,
-             'created_at': f'2026-10-{i:02d}T18:00:00Z', 'run_id': i * 7, 'state': 'preserved_uninspected'}
+             'created_at': f'2026-10-{i % 100:02d}T{i // 100 + 18:02d}:00:00Z', 'run_id': i * 7,
+             'state': 'preserved_uninspected'}
             for i in ids] + [{'id': 99, 'name': 'github-pages', 'sha256': 'b' * 64, 'bytes': 5, 'created_at': 'x'}]
     (directory / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'artifacts': rows}))
     inventory = [{'total_count': len(ids), 'artifacts': [
@@ -146,6 +147,13 @@ class RunJevStageTests(unittest.TestCase):
             self.assertEqual({a['name'] for a in merged['artifacts']}, {'briefing-corpus-archive'})
             self.assertEqual(set(merged['artifacts'][0]),
                              {'id', 'name', 'sha256', 'bytes', 'created_at', 'workflow_run'})
+            # Two wrappers on day 12 (ids 12 at 18:00 and 112 at 19:00): only the newest is kept.
+            reruns = preserved_wrappers(Path(directory) / 'reruns', ids=(11, 12, 112, 13))
+            output = Path(directory) / 'reruns-out.json'
+            self.assertEqual(provenance_manifest(reruns, output), 3)
+            merged = json.loads(output.read_text())
+            self.assertEqual([a['id'] for a in merged['artifacts']], [11, 112, 13])
+            self.assertEqual(merged['superseded_same_day_wrappers'], [12])
             broken = preserved_wrappers(Path(directory) / 'broken', ids=(11, 12), drop_inventory_for=(12,))
             with self.assertRaises(ValueError):
                 provenance_manifest(broken, Path(directory) / 'broken-out.json')

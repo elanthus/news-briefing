@@ -44,7 +44,12 @@ a token, so every day restores from the preserved local wrappers into its own
 but the preserved `inventory.json` does; the runner joins the two into
 `.news-briefing/jev-stage/artifact-manifest.json` before the first restore and
 passes it with `--artifact-manifest`, failing closed on any wrapper without
-provenance and modifying neither preserved file. The daily runner exits 0 even when the review stage raises
+provenance and modifying neither preserved file. Days with more than one daily
+run have more than one wrapper, each archiving a fresh fetch of that day's
+corpus, and the restore fails closed when two wrappers disagree about a date;
+the merged manifest keeps only the newest wrapper per creation day, the run whose
+corpus the published briefing used and later wrappers carry forward, and records
+the superseded wrapper ids. The daily runner exits 0 even when the review stage raises
 and retains the original, so a ready chain without `review/audit.json` is a
 failure, not a reviewed day. `--generation-usd` bounds each day's generation
 spend; the runner's default allowance is USD 25 per invocation.

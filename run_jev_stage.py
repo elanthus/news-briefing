@@ -78,6 +78,13 @@ def provenance_manifest(artifact_dir: Path, output: Path) -> int:
     size; the raw ``inventory.json`` pages record the ``workflow_run`` the restore
     needs to prove main-repository provenance. Neither preserved file is modified.
     A corpus wrapper without an inventory entry is an error, never silently skipped.
+
+    One wrapper is kept per creation day: the newest. A day with several daily
+    runs has several wrappers, each archiving a fresh fetch of that day's corpus,
+    and the restore fails closed when two wrappers disagree about a date. The
+    newest run's corpus is the one the published briefing used and the one later
+    wrappers carry forward, so it is the canonical copy; the dropped wrappers are
+    listed in the manifest for the record.
     """
     manifest = _read_json(artifact_dir / "manifest.json")
     inventory = _read_json(artifact_dir / "inventory.json")
@@ -101,10 +108,19 @@ def provenance_manifest(artifact_dir: Path, output: Path) -> int:
         merged.append(kept | {"workflow_run": run})
     if not merged:
         raise ValueError("no preserved corpus archive wrappers to restore")
+    newest: dict[str, dict[str, Any]] = {}
+    for row in merged:
+        created = str(row["created_at"])
+        day = created[:10]
+        if day not in newest or created > str(newest[day]["created_at"]):
+            newest[day] = row
+    selected = sorted(newest.values(), key=lambda row: str(row["created_at"]))
+    superseded = sorted(row["id"] for row in merged if row not in selected)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps({"schema_version": 1, "artifacts": merged}, indent=2, sort_keys=True) + "\n",
-                      encoding="utf-8")
-    return len(merged)
+    output.write_text(json.dumps({"schema_version": 1, "selection": "newest wrapper per creation day",
+                                  "superseded_same_day_wrappers": superseded, "artifacts": selected},
+                                 indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return len(selected)
 
 
 def restore_command(day: str, artifact_dir: Path, corpora: Path, manifest: Path | None = None) -> list[str]:
