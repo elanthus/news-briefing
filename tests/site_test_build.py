@@ -2547,10 +2547,10 @@ class ReaderFacingReportTests(unittest.TestCase):
 
     def test_day_without_review_or_verified_health_still_renders(self) -> None:
         entry = _live_entry("2026-10-13")
-        del entry["semantic_audit"]
-        del entry["integrity"]
+        entry["semantic_audit"] = None
+        entry["integrity"] = None
         with tempfile.TemporaryDirectory() as directory:
-            site = _build_from_entries(Path(directory), [entry], schema_version=7)
+            site = _build_from_entries(Path(directory), [entry])
             report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
             index = (site / "index.html").read_text(encoding="utf-8")
 

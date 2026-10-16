@@ -539,7 +539,6 @@ READER_REASON_PHRASES = {
     "provider_failure": "the repair model call failed",
     "incomplete_followup": "the second review did not finish",
     "followup_flag": "a repaired story was flagged again",
-    "candidate_mode": "repairs are only proposed, not applied, in this mode",
     "no_targets": "no story needed repair",
     "confirmed_irrelevance": "a second check confirmed an off-topic source",
     "grouping_subset": "the repair kept a smaller set of sources",
