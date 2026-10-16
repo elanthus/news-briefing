@@ -1,8 +1,9 @@
 # Parity v3 plan
 
-Status: planned, not run. No model call has been made for this plan. Protocol:
+Status: frozen for run, not run. No model call has been made for this plan. Protocol:
 [`parity-v3.json`](../../evaluator/protocols/parity-v3.json) (status
-`draft_pending_freeze`). Read the [evaluation methodology](../evaluation-methodology.md)
+`frozen_for_run`, frozen 2026-10-16, required tag `parity-v3-source-20261016`,
+authorization pending). Read the [evaluation methodology](../evaluation-methodology.md)
 before quoting any number this run eventually produces.
 
 ## Goal
@@ -61,9 +62,14 @@ Two comparisons under this plan are gate-eligible:
    committed bytes (`python3 -S -m unittest evaluator.tests.test_protocols`).
 2. Set `frozen_at`, `authorization.authorized_at`, and `required_tag`
    (`parity-v3-source-YYYYMMDD`), change `status` to `frozen_for_run`, commit.
-3. Tag the clean HEAD with that name. `evaluator run --run-kind final` refuses a
-   dirty worktree or a tag that does not point at HEAD.
-4. Copy `evaluator/.env.example` to the ignored `evaluator/.env` with
+3. Rehearse the run command without credentials: replace `run` with `preflight`
+   in the command below and add `--before-tag`. It must report every protocol
+   hash, control, model, prompt, and planned-row check as passing, with only the
+   source tag deferred and `authorization.authorized_at` outstanding.
+4. Tag the clean HEAD with that name. `evaluator run --run-kind final` refuses a
+   dirty worktree or a tag that does not point at HEAD. Rerun the preflight
+   without `--before-tag`; it must exit 0.
+5. Copy `evaluator/.env.example` to the ignored `evaluator/.env` with
    `OPENROUTER_API_KEY`. No other credential is needed.
 
 ## Run command
@@ -131,6 +137,15 @@ python3 -m evaluator verify-public-run docs/results/parity-v3-evidence
 
 Large bundle files go to a release asset listed in [EVIDENCE-ASSETS.md](EVIDENCE-ASSETS.md),
 following the existing bundles.
+
+These commands were rehearsed on the fetched Parity v2 bundle before the freeze.
+`compare` accepts the bundle's `manifest.json` as either argument; without
+`--allow-descriptive` it refuses Parity v2 because that run is
+`completed_with_errors`, which is the same refusal an unclean Parity v3 run would
+meet on the within-run comparison. `family_rates` reads the bundle's `ledger.json`.
+`export-public-run` takes a raw run manifest; re-exporting an already public
+bundle produces a different component identity and does not re-verify, so the
+export runs once, from `evaluator/results/parity-v3-final-YYYYMMDD/manifest.json`.
 
 ## Expected cost
 

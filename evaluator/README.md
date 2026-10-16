@@ -341,6 +341,37 @@ The CLI displays a progress bar labeled with the exact provider and model. API c
 
 Three consecutive provider failures open a circuit for that exact provider/model. Its remaining case-trials are recorded as circuit-open skips, while other models continue. Any successful case-trial resets the consecutive-failure count.
 
+### Preflight without credentials
+
+`preflight` takes exactly the `run` options and rehearses everything `run` checks
+before its first provider call, without loading `evaluator/.env` or making a call:
+
+```bash
+python3 -S -m evaluator preflight \
+  --provider openrouter=deepseek/deepseek-v4-flash \
+  --prompt production-runner=briefing-runner-prompt.md \
+  --suite evaluator/fixtures/generation-cases.json \
+  --protocol evaluator/protocols/parity-v3.json \
+  --trials 5 --run-kind final --source-tag parity-v3-source-YYYYMMDD \
+  --output-dir evaluator/results/parity-v3-final-YYYYMMDD --before-tag
+```
+
+It builds each production-parity adapter, resolves the evaluation plan (suite
+validation, planned rows, prompt and fixture hashes, execution order and seed),
+and reports, as pass/fail checks, every protocol binding it can read: input,
+prompt, and suite hashes against the committed bytes; the suite path, prompt
+versions and paths, provider/model set, trials, timeout, temperature,
+reasoning, run kind, execution seed, planned row count, and cost ceiling against
+the protocol's `suite`, `prompts`, `models`, `controls`, and `authorization`
+blocks; `status` (`frozen_for_run` is required for a final run) and
+`authorization.authorized_at`. The output directory must be new, or with
+`--resume` must hold a `running` checkpoint whose immutable identity matches.
+Credential presence is reported, never required. For a final run the clean,
+tagged source is checked like `run` does; `--before-tag` reports a missing tag
+as deferred so a frozen protocol can be rehearsed before the tag exists, and
+resolves the plan as if the clean HEAD carried that tag. The exit code is 0
+only when every non-deferred check passes.
+
 ### Run outputs and final-run requirements
 
 Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts to its output directory. When `--output-dir` is omitted, that directory is `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
