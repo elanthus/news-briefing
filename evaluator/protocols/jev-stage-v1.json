@@ -53,7 +53,22 @@
   "revision": {
     "frozen_from_commit": "a7dc2e4a65ddc1c7afe3cb3e24eb682fcfc19938",
     "rule": "The run revision is the clean HEAD of the branch at the first day run; it must be a descendant of frozen_from_commit that changes no file under agent_runner/, news_fetch/, or the root pipeline modules except through the commits that freeze this protocol and its documents. run_jev_stage.py records `git rev-parse HEAD` in every day record and ledger row; the model card reports that commit and this freeze commit.",
-    "run_commit": null
+    "run_commit": null,
+    "post_freeze_pipeline_commits": [
+      {
+        "commit": "f52a2cf",
+        "scope": "freeze commit: agent_runner.audit_metrics clustered intervals, agent_runner.audit_packets rubric, run_jev_stage.py"
+      },
+      {
+        "commit": "f6666a6",
+        "scope": "run_jev_stage.py builds the provenance manifest for restore_private_corpora.py; no change to the review or repair stage"
+      },
+      {
+        "commit": "41fc815",
+        "scope": "restore_private_corpora.py conflict error names the date and wrappers; run_jev_stage.py keeps the newest wrapper per day; no change to the review or repair stage"
+      }
+    ],
+    "note": "The review and repair stage under test (agent_runner.jev_review, agent_runner.semantic_repairs, agent_runner.decisions, run_daily_briefing.py) is byte-identical to frozen_from_commit; the commits above touch only the restore path and the evaluation runner, and are listed so the run commit's ancestry is explicit."
   },
   "sample": {
     "file": "docs/results/jev-stage-sample.json",
