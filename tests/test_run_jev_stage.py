@@ -26,9 +26,10 @@ def preserved_wrappers(directory, ids=(11, 12), *, drop_inventory_for=()):
 class FakeCommands:
     """Simulate the restore and daily commands by writing the files they would write."""
 
-    def __init__(self, *, obtainable=None, failing_days=(), review_crash_days=(), run_exit_days=()):
+    def __init__(self, *, obtainable=None, failing_days=(), review_crash_days=(), run_exit_days=(), refused_days=()):
         self.obtainable = obtainable
         self.failing_days = set(failing_days)
+        self.refused_days = set(refused_days)
         self.review_crash_days = set(review_crash_days)
         self.run_exit_days = set(run_exit_days)
         self.calls = []
@@ -54,7 +55,13 @@ class FakeCommands:
             return 1
         if day in self.failing_days:
             (run / 'fallback-log.json').write_text(json.dumps(
-                {'status': 'failed', 'selected_run_dir': None, 'generation_budget': {'known_spend_usd': 0.02}}))
+                {'status': 'failed', 'selected_run_dir': None,
+                 'generation_budget': {'known_spend_usd': 0.02, 'calls': 3, 'stop_reason': None}}))
+            return 1
+        if day in self.refused_days:
+            (run / 'fallback-log.json').write_text(json.dumps(
+                {'status': 'failed', 'selected_run_dir': None,
+                 'generation_budget': {'known_spend_usd': 0.0, 'calls': 0, 'stop_reason': 'spending_allowance'}}))
             return 1
         (run / 'hy3').mkdir()
         (run / 'hy3' / 'manifest.json').write_text('{"status": "complete"}')
@@ -126,6 +133,7 @@ class RunJevStageTests(unittest.TestCase):
             'unobtainable date': FakeCommands(obtainable={'2026-10-01'}),
             'review stage did not complete': FakeCommands(review_crash_days={'2026-10-02'}),
             'nonzero exit with ready chain': FakeCommands(run_exit_days={'2026-10-02'}),
+            'chain failed before any provider call': FakeCommands(refused_days={'2026-10-02'}),
         }
         for label, commands in cases.items():
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:

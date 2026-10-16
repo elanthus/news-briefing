@@ -27,6 +27,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from agent_runner.budget import DEFAULT_GENERATION_USD
+
 ROOT = Path(__file__).resolve().parent
 DAY_RECORD = "jev-stage-day.json"
 DEFAULT_SAMPLE = ROOT / "docs" / "results" / "jev-stage-sample.json"
@@ -198,6 +200,13 @@ def run_day(day: str, root: Path, artifact_dir: Path, *, generation_usd: float, 
                              "the review stage did not complete")
         status = "reviewed"
     elif chain.get("status") == "failed" and chain.get("selected_run_dir") is None:
+        budget = chain.get("generation_budget")
+        calls = budget.get("calls") if isinstance(budget, dict) else None
+        if not isinstance(calls, int) or calls < 1:
+            # No provider was ever called: a refused allowance, missing credential, or
+            # configuration fault, not an observation about generation.
+            reason = budget.get("stop_reason") if isinstance(budget, dict) else None
+            raise DayFailure(f"{day} failed before any provider call (budget stop_reason={reason!r})")
         status = "generation_failure"
     else:
         raise DayFailure(f"daily run exited {code} for {day} with chain status {chain.get('status')!r}")
@@ -257,8 +266,9 @@ def main() -> int:
     parser.add_argument("--sample", type=Path, default=DEFAULT_SAMPLE)
     parser.add_argument("--root", type=Path, default=ROOT / ".news-briefing" / "jev-stage")
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
-    parser.add_argument("--generation-usd", type=float, default=1.0,
-                        help="per-day generation spending limit passed to the daily runner")
+    parser.add_argument("--generation-usd", type=float, default=DEFAULT_GENERATION_USD,
+                        help="per-day generation allowance passed to the daily runner; it reserves a full "
+                             "input/output estimate (about USD 10) before each call, so small values refuse every call")
     parser.add_argument("--ledger", type=Path, help="write per-day digests and statuses here after the run")
     args = parser.parse_args()
     missing = [name for name in REQUIRED_ENVIRONMENT if not os.environ.get(name)]

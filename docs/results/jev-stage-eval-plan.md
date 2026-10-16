@@ -31,8 +31,7 @@ python3 -S run_daily_briefing.py \
   --corpus .news-briefing/jev-stage/YYYY-MM-DD/corpora/YYYY-MM-DD.json \
   --run-dir .news-briefing/jev-stage/YYYY-MM-DD/run \
   --jev-review-dir .news-briefing/jev-stage/YYYY-MM-DD/review \
-  --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md \
-  --generation-usd 1.0
+  --output .news-briefing/jev-stage/YYYY-MM-DD/briefing.md
 ```
 
 The code constrains these commands in four ways the first draft of this plan did
@@ -51,8 +50,15 @@ the merged manifest keeps only the newest wrapper per creation day, the run whos
 corpus the published briefing used and later wrappers carry forward, and records
 the superseded wrapper ids. The daily runner exits 0 even when the review stage raises
 and retains the original, so a ready chain without `review/audit.json` is a
-failure, not a reviewed day. `--generation-usd` bounds each day's generation
-spend; the runner's default allowance is USD 25 per invocation.
+failure, not a reviewed day. The daily runner's generation allowance reserves a
+full input/output estimate (about USD 10 at its deliberate USD 20/60 per million
+token rates) before every call and releases it on settlement, so an allowance
+below that refuses every call before any provider IO: the first attempt at this
+run, with `--generation-usd 1.0`, produced 28 zero-call chain failures and spent
+nothing, and the runner now stops on a chain that made no call instead of
+recording it as a generation-failure row. The run uses the daily default
+allowance of USD 25; it is a nominal reservation ceiling, and the aggregate
+reports the cents actually billed.
 [`run_jev_stage.py`](../../run_jev_stage.py) executes both commands for every
 date in the committed sample, in order, records each day's artifact SHA-256
 values and reported costs, skips days that already have a record, continues past
@@ -63,7 +69,6 @@ python3 -S run_jev_stage.py \
   --sample docs/results/jev-stage-sample.json \
   --root .news-briefing/jev-stage \
   --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github \
-  --generation-usd 1.0 \
   --ledger docs/results/jev-stage-v1-ledger.json
 ```
 
@@ -172,10 +177,13 @@ dates 2026-10-02 through 2026-10-15.
 
 ## Expected cost
 
-Per day, generation is bounded at USD 1.00 by `--generation-usd`, the initial
+Per day, generation runs under the daily USD 25 allowance (a per-call reservation
+guard, not a spending cap; a smaller allowance refuses every call), the initial
 review with confirmation and the follow-up review each stop at an estimated USD
-0.10, and HY3 repair stops at USD 0.10 reported spend, so one day's ceiling is
-about USD 1.30 and 28 days about USD 36. The September 30 study paid about USD
+0.10, and HY3 repair stops at USD 0.10 reported spend. The nominal per-day
+ceiling is therefore about USD 25.30, but generation has cost about USD 0.05 per
+briefing in every prior run, so the realistic per-day ceiling is the three-model
+chain with corrections plus the review guards, under USD 1. The September 30 study paid about USD
 0.05 per generation and USD 0.68 for ten generations with review, confirmation
 and repair, so the planning estimate is USD 0.15 to 0.35 per day and USD 4 to 10
 for 28 days. The guards are estimated spending stops, not provider-enforced caps;

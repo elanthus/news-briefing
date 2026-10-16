@@ -92,7 +92,7 @@ A check that names two positions blocks both slots and is counted once as a chec
 | Reported follow-up review cost (USD) | unrun |
 | Unknown-cost calls | unrun |
 | Days stopped by an estimated spending guard | unrun |
-| Per-day guards (USD) | generation 1.00; initial review 0.10; follow-up review 0.10; HY3 repair 0.10 |
+| Per-day guards (USD) | generation allowance 25 (per-call reservation guard, not a cap); initial review 0.10; follow-up review 0.10; HY3 repair 0.10 |
 
 Reported spend is provider-reported cost for this run and never an estimate of
 unreported billing.
