@@ -1,0 +1,509 @@
+{
+  "days": [
+    {
+      "artifact_sha256": {
+        "briefing.md": "6a1407d13e13645bd48a933767bdc1bd6de486f84e980f9e98664193ab47fbad",
+        "corpora/2026-09-18.json": "440120418c13eefb5c1a1514533e3a3ed4eb7abf14bfcd1bed10fcc132491c63",
+        "review/audit.json": "9b8e024a90650e95c3f4937477499759c5beb9334b6490fd87704bda07fb8fdf",
+        "run/01-tencent-hy3/manifest.json": "842b758a8659adb3d3734ced1e584604107ed78d0094f6b169faca9cfa6f2baf",
+        "run/fallback-log.json": "7e5a9b6af794a0e7705aebda0581c79c1686c327f6d8ffba92c1a34c5b5ff1f0"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.01974122,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.06299824,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-18",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "cbd9f96184177d56ef83d59c44cc3271fe2231218ccf1867257e1c1a10b7d590",
+        "corpora/2026-09-19.json": "6fb3d3c6c41332d105d4fbc40ce4ce2e612dfcf156ac59c1d06b731b7dd20857",
+        "review/audit.json": "19ccdc7e0f1ce5c03b817eaeb8342a623f7df6af69c5bea5182f00bf418ea70f",
+        "run/01-tencent-hy3/manifest.json": "050ebc80ad13738e3036a9de26f2b509f817a82f8a51ec58bd3395dd444f21bc",
+        "run/fallback-log.json": "24f9ac6a19f31a2afbabf62b0ce6d5f661a67645d7a1feeceabdc06a9b18e511"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.032761399999999996,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.035848386,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-19",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "2e6718331e9dcfe6898b83d967182c22988fb13c6f95cde04e613483aa2202c3",
+        "corpora/2026-09-20.json": "f434fac74d19a3c2cd639d9815cb83a86dc4485098f00a9fd3d887ca3d07cc40",
+        "review/audit.json": "7699b8c5ec1b9404af85be39b5f054dd3f4af606b984213ecb9efc866bcabea9",
+        "run/01-tencent-hy3/manifest.json": "1f7ad607d6177789e53f388865f2a1c3d1ce9c3b7b3b76de7a2a27fd32a61f29",
+        "run/fallback-log.json": "6be24130c4647e8862a12c87136309aa59ba49bede0939ff95e72b629259b053"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.030002,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.062831282,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-20",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "55633065c1b9a4cf229e72a2f964a3e895eade4f9da76188c0235402c64b1ba7",
+        "corpora/2026-09-21.json": "536a405df3c5021027063e31da1253302cd618dfc3415a18c95a5b9eed9cceb1",
+        "review/audit.json": "6ff8df84a2d32d3bc90e6e164dbedf17bd7fee92c3b6930f64092cd6fc8d78f6",
+        "run/01-tencent-hy3/manifest.json": "bf1c446d4e2f50f15e71732f8f9d6b88f865171250f803e82e74c15c2391d65e",
+        "run/fallback-log.json": "36f8226086dfa37f222af384d9022dcd788d84d89bd097d495506521ea1e2023"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0363468,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.03566367,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-21",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "0ce5d6a6aaecc172762d637deec1a824d0bc6bf59763c2d30791eb32c75d8a8a",
+        "corpora/2026-09-22.json": "467b4671623d269c3ba23dc3f9ecbae3e211d9e4fb49b5dca8de986351d0fff0",
+        "review/audit.json": "23ef0bb0fb8bdfc90d784123c8598c06ffce6324862532e5b1a60a06b1b22b4b",
+        "run/01-tencent-hy3/manifest.json": "2f2dbabbc957b4ec5c2b54069617902a4d8543d5c54defdc59c45dc19e047023",
+        "run/fallback-log.json": "102c0ec4e64917b96fc218491a2fed17757e127fe5c7c7140f2ca1ea3cb91af0"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.033490400000000003,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.037941372,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-22",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "60d14583744c2f7cf804987378059c2e26113ca23d8518214169d3b975303f05",
+        "corpora/2026-09-23.json": "66e4f343caff3f204e31ecb83e6f1241ad34e3f70b1be6b59a18f6aa1595e4a2",
+        "review/audit.json": "85fad008ff78400f017cd6a40240a818e2fbaa6cd55d3dc771fbe3b32d7d0978",
+        "run/02-deepseek-deepseek-v4-flash-0731/manifest.json": "de2f1c4a3ac818b8faecb5aa90505476aaf84d2f3bab6fbd491888bf698868fb",
+        "run/fallback-log.json": "862bbb97e9918cb3809a5847c94e78368678e96aa754eb34c763642c0931ecac"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0740319392,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.034727238,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-23",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "9ab867cdc53a8c9c463ad1e93646f8cce6128a84c86b877555c7607972993b3b",
+        "corpora/2026-09-24.json": "45a9284ab82466c3b90d13a321fde9ab84d7f3349225059b256c861157fedc7c",
+        "review/audit.json": "eeb31ab28c726af710c7bdaca7617181e460a460e0ad7417bb73b64822aac22c",
+        "run/01-tencent-hy3/manifest.json": "2a8c508c90221b32e404e6ff45f6237d18c14009aa86798d0046d4906b105adb",
+        "run/fallback-log.json": "dba2f0dca6aa6e9e0585793d606e3111b2d79d84f89f106c20493944535232b0"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0328296,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.038638982,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-24",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "b476e6b194dd7cdf0a4b8af39f8f5dc851ba6d17514b0545d55ecbeb903d0b2c",
+        "corpora/2026-09-25.json": "2037d55cdb238bcf7e82a5ee523fd58090610734ff69040021711b05bbf186f5",
+        "review/audit.json": "45679f6b42d6e4a632e8e0f002a5a9ff7183cef9d9effea82e8996bfb786281f",
+        "run/01-tencent-hy3/manifest.json": "f5b35d9220cff943e81a8296acb6852ec09434744b1541d7ce1aabe94b3e81ef",
+        "run/fallback-log.json": "93e1c00d8f164a6c84214cecd4d03189f5d4768acf561e6f03610003df3a4698"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.027024799999999998,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.034240416,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-25",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "c4f9659267f3982a83c7b698550242bb45861e10f0b7681ebc92c9e8684e4b58",
+        "corpora/2026-09-26.json": "f705d0e20793dc93e33369d9ba4d72ce1d69f6706ce894bd455e3c3e1f137c7b",
+        "review/audit.json": "10659a8adc4a4a4e4c5cbbb978342ed8d4e5fa51f6ed2a50663d62604cfe6613",
+        "run/01-tencent-hy3/manifest.json": "b589a3119005d3c81d859b584f230f6a44294f982619358ccf411dcd086e8f10",
+        "run/fallback-log.json": "89c6c31ecb836802347b7eab489b8d52f2f92db710948618ce84bb01f78fb416"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0291756,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.060179256,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-26",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3fc3cf52c0194f61b60f7ba3ed14539217bc0e6b03cea9fefa3ad65082b9c6db",
+        "corpora/2026-09-27.json": "8605fcc806ff838b56e3dc784f4cbecdd9334a6c759e91af1d21a6e62ca42bfb",
+        "review/audit.json": "4913a48bb02a09686deb9f05e7c5973b1079843f8aa7508842c41934b797d749",
+        "run/01-tencent-hy3/manifest.json": "29ddb5ff3a0d371d4e59541b513937f317600acf1fc5d9bf7a92cc45c4b58624",
+        "run/fallback-log.json": "40e42c500a29fe2592b6772ddc3964b17598094c1341a1e04cdd532618c1a424"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.025642400000000003,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.068060144,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-27",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3876233326a4a52c43ac99c47f7d3563ea07c8ec2213a20a5e3b8f6624617e8d",
+        "corpora/2026-09-28.json": "ed103f3baef38f0aad3ffa6f5b60dd331bd126cec298428f45e5523ed3d1752d",
+        "review/audit.json": "6a49ef0f54f4b7cc38a7f0fd82836a6067ad02ae1b490abe4b80183eb420d75a",
+        "run/01-tencent-hy3/manifest.json": "65a0423df7b2b26a499949ae34b3b0ef744232725a1a49bd66e55e6e3a1a39e9",
+        "run/fallback-log.json": "74637dcbe5022a63c75dc5350bcc6e4e9a24c4dcb84c1c82d8235e839452c374"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.028072399999999997,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.030314214,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-28",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3266a5da0612a88140a0a3d8f6944a9f726baeab42a6f3c1a97058fbc3f2fa55",
+        "corpora/2026-09-29.json": "89fc0af326914679e924f66a712fbfaf8dfb03667cfe0c580cb2aac2a0330260",
+        "review/audit.json": "c2dcd17dac1f308abf45dbfd76b5e2d3803810f14ddcdde6d744a693ef25a242",
+        "run/01-tencent-hy3/manifest.json": "7a7e8b63160202b4dc33fadd4b070cab8f9f26a174c97677ca026d55888375cd",
+        "run/fallback-log.json": "09af90d7a1d611a6e55c08d89360ba497ac00003ab250d6673200a7cd44dcf7c"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0291634,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.03746043,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-29",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "48dacb76eae39d719ef5ca977e452989e865e33f88a62d9372b2501188512c3c",
+        "corpora/2026-09-30.json": "d0aa441ae1cf1a6a8f3264cc2bf2ecdc1d214abdee880bc3d2c96e0305b8a969",
+        "review/audit.json": "cb9f54db0f72d1a4847740f31d2140b770c137aeabdafc8509ed93744b47cc9b",
+        "run/01-tencent-hy3/manifest.json": "311531d2d4085997dfed348aab30089f13aff1ae781048c7467be3a3782041d9",
+        "run/fallback-log.json": "c4279b47e159bd3bc39d5f0d81d83c5d2f019e36974e1f605d308a0eede81dd8"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0313558,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.071972152,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-09-30",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "c269424bd58069cb5dbcb87d6f617c67cf066898f3e37678b08f9788e0b2a65c",
+        "corpora/2026-10-01.json": "d00b202e2e89a17dedeb292cdd62c1b9d476c92452b1d5c9cbff67e8f913ccb8",
+        "review/audit.json": "8f1c8a757fabbd6cc17e2c885db77980d1bec1a8857c61fee97672ee764a540e",
+        "run/01-tencent-hy3/manifest.json": "a19ef93f5449f54ad3ac4d1805df987f7c5480589bb0411562b2206b29ed64a8",
+        "run/fallback-log.json": "4e577b835edc7d45606796569a9f1fd75193b90cba7d07d1a3a07b08c12cd211"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.029288599999999998,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.036164982,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-01",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "6d9e6ec995317afe15d2a3605b7b8393d419aad74217f2b0d222dad9bd377d45",
+        "corpora/2026-10-02.json": "5f9476594c23f3b2d08819f01dfdc3ee9b96c1401fc5be8522a58cbe21071d6a",
+        "review/audit.json": "f1b1cc40e7446341fd9039e5e2ddbf9853f6a5511e5f0cf5ff23ac9ded623840",
+        "run/01-tencent-hy3/manifest.json": "46cace724889feae39a6af70136ac7390a7c6fbd9929f5ae84186e7c591a2870",
+        "run/fallback-log.json": "7c9f80dd4374b4e7ac959256baa5828f23d4090e13e8b4c8973099da38eb68a9"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.029705799999999997,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.070145256,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-02",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "c788f72ef0be7373d926c80654b53bb5714628048ff11475432265c89fe769cf",
+        "corpora/2026-10-03.json": "19134ac751bee546025d098d11575804946b32075907602f686953aaaffb64d4",
+        "review/audit.json": "35c652baefbceb803b68070be74f474cbf9dbe83ca95b04f7be35640248594d2",
+        "run/01-tencent-hy3/manifest.json": "1b4d2579ff93e29bb2f58a99e5aad7086534ac1528657aba0ea2cb05cbcc9d67",
+        "run/fallback-log.json": "155dc656ba30aca3dafe74bc3363c471d7baa87dd1914f6a087643bb4247b164"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.031647800000000004,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.03510885,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-03",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3b8f1e95aebb6945ddcf6dc0d4514efd946b600d1afcddcf7e92f425131776c2",
+        "corpora/2026-10-04.json": "5431fc899c35af5cc0d0b519148783b20d15ccf34277aa078781272b8b3607ac",
+        "review/audit.json": "769ec83ea2e872c4b2c47d2ebf1ec8b42ce2e46c6d705f7badd98f4004bc98ee",
+        "run/01-tencent-hy3/manifest.json": "4d396c951241c1c4af5de861a9f29dc49c7e506e9e48cd7d37f1e51afe13c28c",
+        "run/fallback-log.json": "89a71239ddf06d8e70a0c9fac2d91adf1a4b28ba0c70b23130133e3604681543"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0273216,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.03059511,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-04",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "62c192049aa1b5aa7109ae63eb9013b3167dd377f2381c4d3e7e99f19d4fc52b",
+        "corpora/2026-10-05.json": "3520714921580d00c08b4cfd4a2d5006edd1b157ee74b3d2cd5280bb29c18d6e",
+        "review/audit.json": "a2b0e89d5ddcf89d09e98b65b4e3ef0692b01fe82bef6fe4235963b092cbc93b",
+        "run/01-tencent-hy3/manifest.json": "11c70ee71ab1802fa99bcda6afe48bb5f1e9d44902d1409bd4c01a95d3d80446",
+        "run/fallback-log.json": "c8d82f3d17dd17fe05c15f94d2c66e554f02f6fc324aac5b493e601d64b6c83e"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.025429,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.030736482,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-05",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "2c39891aaf461a25cacaa587077999af0f5d542d51777f9110697c9552807cf7",
+        "corpora/2026-10-06.json": "9f932e19c496ebc40a799df30a93d8078abad43f08c3313e8a767ddd2194548c",
+        "review/audit.json": "9a0f48cbc11552472b252eb37e4a6ace22639b3604e9695b1e0cf487cc94df8b",
+        "run/01-tencent-hy3/manifest.json": "b89bb6b73dca4d81932e7aa0dc48e32784a3a902a036d75658a0197ada26d919",
+        "run/fallback-log.json": "1c5c6a80a73bf9c953bf4f82b18aaa4f553b92b3b0df8ac123eca4eb893f3225"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0337306,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.036232728,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-06",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3d264262e77601341ff5af5eab6807c761b33a9ade0df4bc366be666c0c8803c",
+        "corpora/2026-10-07.json": "eb087a9e9ba18eb2d44c25f0c060707560d132e74101e4c832010a9cfe2ee7ee",
+        "review/audit.json": "35669f26bc4c2746212ee22be5e80c570de2e183daee68c6fcb4312e16a980d8",
+        "run/01-tencent-hy3/manifest.json": "b3cd7a8a2ea07eb1ae4ea70bd016a69fea03f8f6ee11907a77e6d52d8bc8c853",
+        "run/fallback-log.json": "d6a3bc0b53009f85f8c515d862dac9ec225fd945b0c1a22bd5baf725b347f14e"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0331414,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.035142408,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-07",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "6487f61e08b604388aa74a989fb8374d8e02f305a6bf97744a4755369bde3554",
+        "corpora/2026-10-08.json": "fcf52d9ec1fa59cb9e24633b020ef860bbfecf4fae5bb192e394f80bc56af66d",
+        "review/audit.json": "88a727893cab26315a370762dfcfa0032338beb14bada96e694ec7c45bce0730",
+        "run/01-tencent-hy3/manifest.json": "6b78fb64bc68e7b1ce6db12355ff0722b3d792f257037007a946cc10959a77b6",
+        "run/fallback-log.json": "c9ae7af08f43ee012073bb1358f261f377235c0b4aa9b972987cbacb50f5093f"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0281384,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.07002185400000001,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-08",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "cb042cec7016232f12da0014c3ed2976f44f31e146fc674d6abe0d7fd9c039d3",
+        "corpora/2026-10-09.json": "cb14ac1a38eabcbf629da0871cded82b250604bf6c11255854d68d280a98fc41",
+        "review/audit.json": "584bc359ef3f469712103de30fcd1b45954b4f9be6cb245851eafc408d2ab4d9",
+        "run/01-tencent-hy3/manifest.json": "2cbc85e0a4daa841838bbc7d0963af7825d5cbbcee9c0c065146b0de746b8617",
+        "run/fallback-log.json": "dcc083d2b3c90c1d80bf3a5a3327b619a31a95dee21657411739f80ba0be911e"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0299064,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.036812664,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-09",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3ee4a0adca04c9881188deeda724261abaed8c60ec864b971bed84fefab37433",
+        "corpora/2026-10-10.json": "6ea5130bca3e9f91eca9455ccb1b4b77a940eddf1bdc98187ec711614eb058c8",
+        "review/audit.json": "38e2262a96db8a56ac2abbee3fc5772e79f9b2e44e093e32b463cef1ebb7a6ea",
+        "run/01-tencent-hy3/manifest.json": "2916615ff879e79fa01007016b56396f6f5b8c6be07e30626145f95d6b458bcc",
+        "run/fallback-log.json": "e5e7d1c20a9303c020d6611fe4d6af4989cb25a59e7e22537d518bfa6ac9f01f"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0293296,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.033503484,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-10",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "615ae091b42817563c932b9a764b5d5fa6241de839d2d35119c4cdaa452d160a",
+        "corpora/2026-10-11.json": "ba3f1392a2eee2ef4258641a8d7319c38dda3daed0b389ec8b4a1e997f857a79",
+        "review/audit.json": "1842f2c367a21ea8be4abc880a924409af41019fdb8015f48f939e019ecfc3f2",
+        "run/01-tencent-hy3/manifest.json": "d8eb2609ddc7432b42e1f948a2ea09179435e652279fc253e80b3e7b744792c9",
+        "run/fallback-log.json": "10771fdc3f3c67e5edf81b8fb28186a074607b179513734ec2c1c844d20a979e"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0295548,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.030120594,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-11",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "071eea2db6527f3b07dc2677d1c36577943be27a20e4dcf78def4cdd8b00e667",
+        "corpora/2026-10-12.json": "035b150bb98a608b44cccec9d31637a5deb8719235177049d115bcabe6dc3211",
+        "review/audit.json": "d598eb81073ef3e47de6dee296c3b1905ec13dbf3aaa00b7144a40b95d895f14",
+        "run/01-tencent-hy3/manifest.json": "bc6d13841c4be69a2258ad555b543a7be1dcd23217234ae80f547da2c8d55d0a",
+        "run/fallback-log.json": "9623f16036f1158965d26279af4b585a432eadb716e96ace5b956773769b9625"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.030268200000000002,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.034667724,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-12",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "3383c599c0571c1564e94cf247a9d9ea76610ced37a8ae005621b4c44f69d7b4",
+        "corpora/2026-10-13.json": "d4d153d93e5e375cf2b244e17b3582165c7ce09f41462df462e150d5a852b0f8",
+        "review/audit.json": "8fbee0040269acf5cdb102ea1fdd6b1c43be0e7f165bca78cb3cc08e05b43b6c",
+        "run/01-tencent-hy3/manifest.json": "e25222f1daefd2b5f818c2f6944cf8879ae13f1b4c3b7a00e6424a3dd60151ab",
+        "run/fallback-log.json": "96202d1c367a2cad58dd4a9731698a54437ca4d65da20d8e05d11a1ac06e0a27"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.028457,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.036101772,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-13",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "e19baf7cea1afb1ec1a36563fcf1df45e850f9460d7ea8262e77a2562992d97d",
+        "corpora/2026-10-14.json": "2e1fc5eaf87d15edaac725e13172824dbca0124bfd1385d5861d34f509aebdcf",
+        "review/audit.json": "4ccd910add0d6e0c7f49c41076980f1b505fd878518e33b480448c666d750bc5",
+        "run/01-tencent-hy3/manifest.json": "ad2c5e75fd1444a1dbee7a873d20428b6eac3ca826fe9188bea5207a8aaa90cd",
+        "run/fallback-log.json": "bf6009e5191e068030515d46e8f553a3c205d0dd72897baf0a49a8be418c3bab"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.025266,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.030803388,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-14",
+      "status": "reviewed"
+    },
+    {
+      "artifact_sha256": {
+        "briefing.md": "f3c3c87e12598bcaade9ce087888ba010b061a39bc52385c3438e8ac9fe027b5",
+        "corpora/2026-10-15.json": "acfe7980ec5acd0386f2547157459425ef54b345cce2c30258deaefc9d6fe73c",
+        "review/audit.json": "52784e827b27c6978fac5eb4deaf2c22abd9bbbbf64b1fcc9e2c07f09bae6142",
+        "run/01-tencent-hy3/manifest.json": "ca9334222b8130e1202fa0273cc2662b255d73eddc7e4c54e73c5a60cf860ce4",
+        "run/fallback-log.json": "96545c2ba046774bad933036a070ad9e9f0896498d1cc22da6838e63a19a2c62"
+      },
+      "code_commit": "0a06089822a35e4777b6b77b9386eb5700522710",
+      "costs": {
+        "generation_known_spend_usd": 0.0282878,
+        "generation_unknown_reserved_usd": 0.0,
+        "review_reported_cost_usd": 0.07084723,
+        "review_unknown_cost_calls": 0
+      },
+      "report_date": "2026-10-15",
+      "status": "reviewed"
+    }
+  ],
+  "schema_version": 1
+}

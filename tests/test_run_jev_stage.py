@@ -102,8 +102,11 @@ class RunJevStageTests(unittest.TestCase):
             records = run_sample(dates, root, wrappers, generation_usd=1.0,
                                  execute=commands, commit='abc', report=messages.append)
             restore = next(c for c in commands.calls if c[2].endswith('restore_private_corpora.py'))
-            self.assertEqual(restore[restore.index('--artifact-manifest') + 1], str(root / 'artifact-manifest.json'))
-            merged = json.loads((root / 'artifact-manifest.json').read_text())
+            manifest = root.parent / 'stage-artifact-manifest.json'
+            self.assertEqual(restore[restore.index('--artifact-manifest') + 1], str(manifest))
+            merged = json.loads(manifest.read_text())
+            # The audit root holds only dated day directories for the aggregator.
+            self.assertTrue(all(child.name.startswith('2026-') for child in root.iterdir()))
             self.assertEqual([a['id'] for a in merged['artifacts']], [11, 12])
             self.assertTrue(all(a['workflow_run']['head_branch'] == 'main' for a in merged['artifacts']))
             self.assertEqual([r['status'] for r in records], ['reviewed', 'generation_failure', 'reviewed'])

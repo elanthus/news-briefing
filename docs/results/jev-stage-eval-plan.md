@@ -1,6 +1,6 @@
 # Jev-stage evaluation plan
 
-Status: frozen for run, not run. No model call has been made for this plan. Protocol:
+Status: run on 2026-10-16; human adjudication pending. Protocol:
 [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json) (status
 `frozen_for_run`, frozen 2026-10-16). The committed sample is
 [`jev-stage-sample.json`](jev-stage-sample.json) and the runner is
@@ -26,6 +26,7 @@ stage enabled, at a frozen revision:
 ```bash
 python3 -S restore_private_corpora.py \
   --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github \
+  --artifact-manifest .news-briefing/jev-stage-artifact-manifest.json \
   --newest YYYY-MM-DD --output-dir .news-briefing/jev-stage/YYYY-MM-DD/corpora
 python3 -S run_daily_briefing.py \
   --corpus .news-briefing/jev-stage/YYYY-MM-DD/corpora/YYYY-MM-DD.json \
@@ -41,7 +42,7 @@ a token, so every day restores from the preserved local wrappers into its own
 `corpora` directory. The restore also requires each wrapper's main-repository
 `workflow_run` provenance, which the preservation `manifest.json` does not carry
 but the preserved `inventory.json` does; the runner joins the two into
-`.news-briefing/jev-stage/artifact-manifest.json` before the first restore and
+`.news-briefing/jev-stage-artifact-manifest.json` before the first restore and
 passes it with `--artifact-manifest`, failing closed on any wrapper without
 provenance and modifying neither preserved file. Days with more than one daily
 run have more than one wrapper, each archiving a fresh fetch of that day's
@@ -69,8 +70,13 @@ python3 -S run_jev_stage.py \
   --sample docs/results/jev-stage-sample.json \
   --root .news-briefing/jev-stage \
   --artifact-dir .news-briefing/portfolio-preservation-2026-10-15/github \
-  --ledger docs/results/jev-stage-v1-ledger.json
+  --ledger docs/results/jev-stage-v1-ledger.json \
+  > .news-briefing/jev-stage-run.log 2>&1
 ```
+
+The stage root must hold only dated day directories, which the aggregator and
+packet exporter enforce; the runner writes its merged manifest beside the root
+and its log must go outside it.
 
 Only `schema_version: 3` audits (per-slot acceptance) are read. Audits written
 under schema 1 or 2 are excluded, not migrated. Restoring from the encrypted

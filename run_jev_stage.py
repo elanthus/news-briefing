@@ -6,7 +6,9 @@ preserved encrypted wrappers into ``ROOT/DATE/corpora``, runs the daily fallback
 chain with the review stage into ``ROOT/DATE/run``, ``ROOT/DATE/review`` and
 ``ROOT/DATE/briefing.md``, records the SHA-256 of every artifact the aggregator
 will read in ``ROOT/DATE/jev-stage-day.json``, and prints cumulative reported
-cost. Days that already have that record are skipped. A day whose fallback
+cost. ROOT holds only dated day directories; the merged restore manifest is
+written beside it as ``ROOT-artifact-manifest.json``. Redirect stdout to a log
+outside ROOT. Days that already have that record are skipped. A day whose fallback
 chain reaches no ready candidate is recorded as a generation-failure row and the
 run continues; any other failure stops the script before the next day.
 
@@ -225,7 +227,9 @@ def run_sample(dates: list[str], root: Path, artifact_dir: Path, *, generation_u
                report: Callable[[str], None] = print) -> list[dict[str, Any]]:
     """Run every listed day in order, skipping completed days and stopping on the first failure."""
     root.mkdir(parents=True, exist_ok=True)
-    manifest = root / "artifact-manifest.json"
+    # The aggregator and packet exporter require the root to hold only dated day
+    # directories, so the merged manifest lives beside the root, not inside it.
+    manifest = root.parent / f"{root.name}-artifact-manifest.json"
     provenance_manifest(artifact_dir, manifest)
     records: list[dict[str, Any]] = []
     known = 0.0
