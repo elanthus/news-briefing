@@ -60,9 +60,22 @@ Write a one- or two-sentence `rationale` for every item naming the claim or
 source that decided your label, even when everything is `supported` and
 `all_relevant`. The adjudicator reads rationales, not your name.
 
+## The easiest way to work
+
+Open [`jev-stage-review.html`](jev-stage-review.html) in any current browser
+(double-click the file; no server or installation is needed). Use **Load packet**
+to pick your packet file. The page shows one item at a time with its versions,
+evidence, and the four questions as buttons, keeps a progress bar and a jump
+list, remembers your work in that browser between sessions, and **Save label
+file** writes `labels-<reviewer>.json` in exactly the format below. If you stop
+part way, save anyway; the file is named `-partial` until every item is labeled,
+and **Resume from label file** restores it later, in any browser. The page makes
+no network requests and embeds no data; everything stays on your machine.
+
 ## What to return
 
-Return a separate file; do not edit the packet. Name it
+Return a separate file; do not edit the packet. The page produces this format
+for you; the rest of this section is for anyone labeling by hand. Name it
 `labels-<reviewer>.json`, where `<reviewer>` is `r1` for `reviewer-primary.json`
 and `r2` for `reviewer-double.json`. Its shape:
 

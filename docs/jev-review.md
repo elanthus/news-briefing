@@ -316,7 +316,8 @@ allowed label values, and the instruction to judge only from the supplied
 evidence; it names neither side of a pair nor any outcome. Reviewers return a
 separate label file with a `labels` object and a free-text `rationale` for every
 item, in the format given in the
-[reviewer instructions](results/jev-stage-reviewer-instructions.md), and check it
+[reviewer instructions](results/jev-stage-reviewer-instructions.md), typically
+through the offline [review page](results/jev-stage-review.html), and check it
 with `python3 -S -m agent_runner.audit_labels PACKET LABELS`, which validates
 coverage, per-version label counts, rubric values and rationales without the
 correspondence key and without writing anything.
