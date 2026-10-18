@@ -165,7 +165,9 @@ implement the metrics and packets above over a declared `--start`/`--end` frame;
 [daily Jev checks and repairs](../jev-review.md#aggregate-current-daily-audits)
 documents both. Pooled check-, flag- and slot-level rates carry a day-clustered
 bootstrap interval beside their Wilson interval. Each packet carries the label
-rubric; reviewers return labels and rationales per item.
+rubric; reviewers return labels and rationales per item in the format given in
+the [reviewer instructions](jev-stage-reviewer-instructions.md) and validate
+the file with `agent_runner.audit_labels`.
 
 ## Sample
 

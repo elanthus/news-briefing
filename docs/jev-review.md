@@ -313,8 +313,13 @@ meaning, relevance of retained and removed citations, and readable complete
 sentences. Controls receive the same support, relevance and readability review.
 Each packet file carries the `rubric` block with those four questions, the
 allowed label values, and the instruction to judge only from the supplied
-evidence; it names neither side of a pair nor any outcome. Reviewers return the
-packet with a `labels` object and a free-text `rationale` on every item.
+evidence; it names neither side of a pair nor any outcome. Reviewers return a
+separate label file with a `labels` object and a free-text `rationale` for every
+item, in the format given in the
+[reviewer instructions](results/jev-stage-reviewer-instructions.md), and check it
+with `python3 -S -m agent_runner.audit_labels PACKET LABELS`, which validates
+coverage, per-version label counts, rubric values and rationales without the
+correspondence key and without writing anything.
 Retain both reviewers' labels and rationales before unblinding. A third human
 adjudicates material disagreements from blinded evidence and rationales; report
 raw agreement and adjudicated outcomes separately with their denominators. These
