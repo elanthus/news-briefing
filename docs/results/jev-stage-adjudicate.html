@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev-stage adjudication</title>
+<meta name="description" content="Offline adjudication tool for the Jev-stage blinded review: loads the adjudication packet, shows both reviewers' labels and rationales, records final decisions, and saves a decisions file. No network, no embedded data.">
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1b19; --muted: #5d5a53; --line: #d9d6cf;
+    --accent: #1f5f8b; --accent-ink: #ffffff; --warn: #9a4b00; --ok: #2d6a4f; --soft: #eef2f6;
+    --evidence: #f3f1ea; --a: #c7dced; --b: #f0dcc0; --conflict: #fff3e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15161a; --panel: #1f2126; --ink: #ebe9e3; --muted: #a5a299; --line: #3a3d45;
+      --accent: #7db3d8; --accent-ink: #0f1a24; --warn: #f0a35c; --ok: #7fc8a0; --soft: #262a33;
+      --evidence: #24272e; --a: #27415a; --b: #5a4327; --conflict: #3a2f22;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15161a; --panel: #1f2126; --ink: #ebe9e3; --muted: #a5a299; --line: #3a3d45;
+    --accent: #7db3d8; --accent-ink: #0f1a24; --warn: #f0a35c; --ok: #7fc8a0; --soft: #262a33;
+    --evidence: #24272e; --a: #27415a; --b: #5a4327; --conflict: #3a2f22;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Georgia, "Iowan Old Style", "Times New Roman", serif; }
+  header, main, footer { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 20px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; font-family: system-ui, sans-serif; }
+  h3 { font-size: .85rem; margin: 0 0 6px; font-family: system-ui, sans-serif; color: var(--muted); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+  .lede { color: var(--muted); margin: 0 0 16px; font-family: system-ui, sans-serif; font-size: .95rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label.file { display: inline-block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-family: system-ui, sans-serif; font-size: .95rem; background: var(--soft); }
+  label.file input { display: none; }
+  button { font: inherit; font-family: system-ui, sans-serif; font-size: .95rem; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-family: system-ui, sans-serif; font-size: .9rem; color: var(--muted); }
+  .status.warn { color: var(--warn); }
+  .status.ok { color: var(--ok); }
+  details summary { cursor: pointer; font-family: system-ui, sans-serif; font-weight: 600; }
+  .rubric dt { font-weight: 600; font-family: system-ui, sans-serif; margin-top: 8px; }
+  .rubric dd { margin: 2px 0 0 0; color: var(--muted); }
+  .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .progress { height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden; margin: 8px 0 0; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; }
+  .versions { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 820px) { .versions.pair { grid-template-columns: 1fr 1fr; } }
+  .version { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--panel); }
+  .version .headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 8px; }
+  .version .prose { margin: 0 0 12px; white-space: pre-wrap; }
+  .evidence { background: var(--evidence); border-radius: 8px; padding: 10px 12px; }
+  .evidence li { margin: 6px 0; }
+  .evidence .title { font-weight: 600; font-family: system-ui, sans-serif; font-size: .92rem; }
+  .evidence .excerpt { color: var(--muted); font-size: .95rem; white-space: pre-wrap; }
+  .evidence .none { color: var(--muted); font-style: italic; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; min-width: 480px; border-collapse: collapse; font-family: system-ui, sans-serif; font-size: .92rem; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; }
+  tr.conflict td { background: var(--conflict); }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .85rem; }
+  .tag.a { background: var(--a); }
+  .tag.b { background: var(--b); }
+  .rationales { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+  @media (min-width: 820px) { .rationales { grid-template-columns: 1fr 1fr; } }
+  .rationale-box { border-radius: 8px; padding: 10px 12px; }
+  .rationale-box.a { background: var(--a); }
+  .rationale-box.b { background: var(--b); }
+  .rationale-box p { margin: 4px 0 0; white-space: pre-wrap; }
+  fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+  legend { font-family: system-ui, sans-serif; font-weight: 600; font-size: .9rem; padding: 0; margin-bottom: 4px; }
+  .choices { display: flex; flex-wrap: wrap; gap: 6px 12px; font-family: system-ui, sans-serif; font-size: .92rem; }
+  .choices label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .choices input { margin: 0; }
+  .choices label:has(input:checked) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  textarea { width: 100%; min-height: 90px; font: inherit; font-size: .98rem; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
+  .missing { color: var(--warn); font-family: system-ui, sans-serif; font-size: .88rem; }
+  .jump { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .jump button { padding: 2px 7px; font-size: .78rem; border-radius: 6px; }
+  .jump button.done { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .jump button.current { outline: 2px solid var(--accent); }
+  footer { color: var(--muted); font-family: system-ui, sans-serif; font-size: .85rem; padding: 16px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Jev-stage adjudication</h1>
+  <p class="lede">Load the adjudication packet. Each item shows the evidence, both reviewers' labels (A and B, assigned at random per item) and their rationales. Decide only the questions they disagreed on, judging from the evidence alone. Everything stays in this browser.</p>
+</header>
+<main>
+  <section class="panel" id="setup">
+    <div class="row">
+      <label class="file">Load adjudication packet <input type="file" id="packet-input" accept="application/json,.json"></label>
+      <label class="file">Resume from decisions file <input type="file" id="decisions-input" accept="application/json,.json" disabled></label>
+      <span class="status" id="setup-status">No packet loaded.</span>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="rubric-panel">
+    <details>
+      <summary>Rubric and instructions</summary>
+      <p class="status" id="instructions"></p>
+      <dl class="rubric" id="rubric"></dl>
+    </details>
+  </section>
+
+  <section class="panel hidden" id="work">
+    <div class="nav">
+      <div>
+        <h2 id="item-title">Item</h2>
+        <span class="status" id="item-kind"></span>
+      </div>
+      <div class="row">
+        <button id="prev">Previous</button>
+        <button id="next">Next</button>
+        <button id="next-incomplete">Next undecided</button>
+      </div>
+    </div>
+    <div class="progress"><div id="progress-bar"></div></div>
+    <div class="status" id="progress-text"></div>
+    <div class="jump" id="jump"></div>
+    <hr style="border: 0; border-top: 1px solid var(--line); margin: 16px 0;">
+    <div class="versions" id="versions"></div>
+    <h3 style="margin-top:16px">Reviewer labels (disagreements highlighted)</h3>
+    <div class="table-wrap"><table id="labels-table"></table></div>
+    <div class="rationales" id="rationales"></div>
+    <div id="decisions"></div>
+    <fieldset>
+      <legend>Your rationale (which evidence settled each decision)</legend>
+      <textarea id="rationale" placeholder="One or two sentences."></textarea>
+    </fieldset>
+    <div class="missing" id="missing"></div>
+  </section>
+
+  <section class="panel hidden" id="finish">
+    <div class="row">
+      <label class="status">Your identifier <input id="adjudicator" value="adj" style="margin-left:6px;width:8em"></label>
+      <button class="primary" id="save">Save decisions file</button>
+      <span class="status" id="save-status"></span>
+    </div>
+  </section>
+</main>
+<footer>Judge only from the evidence shown. Do not open the articles or search the web. Treat the packet as confidential.</footer>
+
+<script>
+(function () {
+  "use strict";
+  const PER_VERSION = ["support", "citations", "readability"];
+  const QUESTION_TEXT = {
+    support: "Support", citations: "Citations", readability: "Readability", meaning_preservation: "Meaning preservation"
+  };
+  const state = { packet: null, packetName: null, key: null, index: 0, decisions: {} };
+  const $ = (id) => document.getElementById(id);
+  const setStatus = (id, textValue, kind) => { const el = $(id); el.textContent = textValue; el.className = "status" + (kind ? " " + kind : ""); };
+  function storageGet(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
+  function storageSet(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* unavailable */ } }
+  async function digest(textValue) {
+    try {
+      const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(textValue));
+      return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) { return "nodigest-" + textValue.length; }
+  }
+  function text(tag, className, content) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (content !== undefined) el.textContent = content;
+    return el;
+  }
+  function validPacket(value) {
+    if (!value || value.kind !== "adjudication" || !Array.isArray(value.items) || !value.items.length) return "not an adjudication packet";
+    if (!value.rubric || typeof value.rubric.labels !== "object") return "packet has no rubric";
+    for (const item of value.items) {
+      if (typeof item.adjudication_id !== "string" || !Array.isArray(item.versions) || !item.labels || !item.labels.A || !item.labels.B || !Array.isArray(item.disagreements)) return "malformed item";
+    }
+    return null;
+  }
+  function decisionKey(d) { return d.question + ":" + (d.version === null || d.version === undefined ? "pair" : d.version); }
+  function entryFor(item) {
+    if (!state.decisions[item.adjudication_id]) state.decisions[item.adjudication_id] = { labels: {}, rationale: "" };
+    return state.decisions[item.adjudication_id];
+  }
+  function missingFor(item) {
+    const e = entryFor(item);
+    const missing = item.disagreements.filter((d) => !e.labels[decisionKey(d)]).map((d) => QUESTION_TEXT[d.question] + (d.version === null || d.version === undefined ? "" : " (version " + (d.version + 1) + ")"));
+    if (!e.rationale || !e.rationale.trim()) missing.push("rationale");
+    return missing;
+  }
+  function persist() { if (state.key) storageSet(state.key, { decisions: state.decisions, index: state.index }); }
+
+  function renderRubric() {
+    $("instructions").textContent = state.packet.instructions || "";
+    const dl = $("rubric"); dl.replaceChildren();
+    const r = state.packet.rubric;
+    for (const key of Object.keys(r)) {
+      if (key === "labels") continue;
+      dl.appendChild(text("dt", null, key.replace(/_/g, " ")));
+      dl.appendChild(text("dd", null, String(r[key])));
+    }
+  }
+  function renderJump() {
+    const jump = $("jump"); jump.replaceChildren();
+    state.packet.items.forEach((item, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = String(i + 1); b.title = item.adjudication_id;
+      if (!missingFor(item).length) b.classList.add("done");
+      if (i === state.index) b.classList.add("current");
+      b.addEventListener("click", () => { state.index = i; render(); });
+      jump.appendChild(b);
+    });
+  }
+  function renderProgress() {
+    const total = state.packet.items.length;
+    const done = state.packet.items.filter((it) => !missingFor(it).length).length;
+    $("progress-bar").style.width = Math.round(100 * done / total) + "%";
+    $("progress-text").textContent = done + " of " + total + " items decided";
+  }
+  function choiceGroup(labelText, options, current, onPick) {
+    const fs = document.createElement("fieldset");
+    fs.appendChild(text("legend", null, labelText));
+    const wrap = text("div", "choices");
+    const name = "q-" + Math.random().toString(36).slice(2);
+    for (const option of options) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = name; input.value = option; input.checked = current === option;
+      input.addEventListener("change", () => onPick(option));
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(option.replace(/_/g, " ")));
+      wrap.appendChild(label);
+    }
+    fs.appendChild(wrap);
+    return fs;
+  }
+  function render() {
+    const items = state.packet.items;
+    const item = items[state.index];
+    const e = entryFor(item);
+    const pair = item.versions.length === 2;
+    $("item-title").textContent = "Item " + (state.index + 1) + " of " + items.length + " · " + item.adjudication_id;
+    $("item-kind").textContent = (pair ? "Two versions of one story slot (order is random)." : "Single version.") + " " + item.disagreements.length + " question(s) to decide.";
+    renderProgress(); renderJump();
+
+    const versions = $("versions"); versions.replaceChildren();
+    versions.className = "versions" + (pair ? " pair" : "");
+    item.versions.forEach((v, vi) => {
+      const card = text("section", "version");
+      card.appendChild(text("h3", null, pair ? "Version " + (vi + 1) : "Version"));
+      card.appendChild(text("p", "headline", String(v.headline)));
+      card.appendChild(text("p", "prose", String(v.prose)));
+      const ev = text("div", "evidence");
+      ev.appendChild(text("h3", null, "Evidence (" + v.evidence.length + ")"));
+      if (!v.evidence.length) ev.appendChild(text("p", "none", "No sources listed for this version."));
+      const ul = document.createElement("ul");
+      for (const src of v.evidence) {
+        const li = document.createElement("li");
+        li.appendChild(text("div", "title", String(src && src.title != null ? src.title : "(untitled)")));
+        li.appendChild(text("div", src && src.excerpt ? "excerpt" : "none", src && src.excerpt ? String(src.excerpt) : "No excerpt supplied; only the title is evidence."));
+        ul.appendChild(li);
+      }
+      ev.appendChild(ul);
+      card.appendChild(ev);
+      versions.appendChild(card);
+    });
+
+    const table = $("labels-table"); table.replaceChildren();
+    const head = document.createElement("tr");
+    for (const h of ["Question", "Version", "A", "B", "Status"]) head.appendChild(text("th", null, h));
+    table.appendChild(head);
+    const conflicts = new Set(item.disagreements.map(decisionKey));
+    const rows = [];
+    for (const q of PER_VERSION) item.versions.forEach((_, vi) => rows.push({ q, vi, a: item.labels.A[q][vi], b: item.labels.B[q][vi], key: q + ":" + vi }));
+    if (pair) rows.push({ q: "meaning_preservation", vi: null, a: item.labels.A.meaning_preservation, b: item.labels.B.meaning_preservation, key: "meaning_preservation:pair" });
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      if (conflicts.has(r.key)) tr.className = "conflict";
+      tr.appendChild(text("td", null, QUESTION_TEXT[r.q]));
+      tr.appendChild(text("td", null, r.vi === null ? "both" : String(r.vi + 1)));
+      const ta = text("td"); ta.appendChild(text("span", "tag a", String(r.a).replace(/_/g, " "))); tr.appendChild(ta);
+      const tb = text("td"); tb.appendChild(text("span", "tag b", String(r.b).replace(/_/g, " "))); tr.appendChild(tb);
+      tr.appendChild(text("td", null, conflicts.has(r.key) ? "disagree: decide below" : "agreed"));
+      table.appendChild(tr);
+    }
+
+    const rats = $("rationales"); rats.replaceChildren();
+    for (const side of ["A", "B"]) {
+      const box = text("div", "rationale-box " + side.toLowerCase());
+      box.appendChild(text("h3", null, "Reviewer " + side + " rationale"));
+      box.appendChild(text("p", null, String(item.rationales[side] || "")));
+      rats.appendChild(box);
+    }
+
+    const dec = $("decisions"); dec.replaceChildren();
+    for (const d of item.disagreements) {
+      const key = decisionKey(d);
+      const options = d.question === "meaning_preservation" ? state.packet.rubric.labels.meaning_preservation.filter((o) => o !== "not_applicable") : state.packet.rubric.labels[d.question];
+      const labelText = "Final " + QUESTION_TEXT[d.question].toLowerCase() + (d.version === null || d.version === undefined ? " (pair)" : " for version " + (d.version + 1));
+      dec.appendChild(choiceGroup(labelText, options, e.labels[key], (option) => { e.labels[key] = option; persist(); renderMissing(item); renderJump(); renderProgress(); }));
+    }
+    const ta = $("rationale");
+    ta.value = e.rationale || "";
+    ta.oninput = () => { e.rationale = ta.value; persist(); renderMissing(item); renderJump(); renderProgress(); };
+    renderMissing(item);
+    $("prev").disabled = state.index === 0;
+    $("next").disabled = state.index === items.length - 1;
+    persist();
+    window.scrollTo({ top: $("work").offsetTop - 8 });
+  }
+  function renderMissing(item) {
+    const missing = missingFor(item);
+    $("missing").textContent = missing.length ? "Still needed on this item: " + missing.join(", ") : "";
+  }
+  function buildDecisionsFile() {
+    return {
+      schema_version: 1,
+      adjudicator: ($("adjudicator").value || "adj").trim() || "adj",
+      packet: state.packetName,
+      items: state.packet.items.map((item) => {
+        const e = entryFor(item);
+        return {
+          adjudication_id: item.adjudication_id,
+          decisions: item.disagreements.filter((d) => e.labels[decisionKey(d)]).map((d) => ({ question: d.question, version: d.version === undefined ? null : d.version, label: e.labels[decisionKey(d)] })),
+          rationale: e.rationale || ""
+        };
+      })
+    };
+  }
+  function download(name, content) {
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+  }
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+  $("packet-input").addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    let value;
+    try { value = JSON.parse(await readFile(file)); } catch (e) { setStatus("setup-status", "That file is not valid JSON.", "warn"); return; }
+    const problem = validPacket(value);
+    if (problem) { setStatus("setup-status", "Not an adjudication packet: " + problem + ".", "warn"); return; }
+    state.packet = value; state.packetName = file.name; state.index = 0; state.decisions = {};
+    state.key = "jev-stage-adjudicate:" + await digest(JSON.stringify(value.items.map((i) => i.adjudication_id)));
+    const saved = storageGet(state.key);
+    if (saved && saved.decisions) {
+      state.decisions = saved.decisions; state.index = Math.min(saved.index || 0, value.items.length - 1);
+      setStatus("setup-status", "Loaded " + file.name + " (" + value.items.length + " items) and restored your earlier work from this browser.", "ok");
+    } else {
+      setStatus("setup-status", "Loaded " + file.name + " (" + value.items.length + " items).", "ok");
+    }
+    $("decisions-input").disabled = false;
+    renderRubric();
+    $("rubric-panel").classList.remove("hidden"); $("work").classList.remove("hidden"); $("finish").classList.remove("hidden");
+    render();
+  });
+  $("decisions-input").addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !state.packet) return;
+    let value;
+    try { value = JSON.parse(await readFile(file)); } catch (e) { setStatus("setup-status", "That decisions file is not valid JSON.", "warn"); return; }
+    if (!value || !Array.isArray(value.items)) { setStatus("setup-status", "That is not a decisions file.", "warn"); return; }
+    const byId = new Map(state.packet.items.map((item) => [item.adjudication_id, item]));
+    let restored = 0;
+    for (const entry of value.items) {
+      const item = entry && byId.get(entry.adjudication_id);
+      if (!item) continue;
+      const e = { labels: {}, rationale: typeof entry.rationale === "string" ? entry.rationale : "" };
+      for (const d of Array.isArray(entry.decisions) ? entry.decisions : []) {
+        if (d && d.label) e.labels[decisionKey(d)] = d.label;
+      }
+      state.decisions[item.adjudication_id] = e; restored += 1;
+    }
+    if (typeof value.adjudicator === "string") $("adjudicator").value = value.adjudicator;
+    persist();
+    setStatus("setup-status", "Restored decisions for " + restored + " of " + state.packet.items.length + " items from " + file.name + ".", "ok");
+    render();
+  });
+  $("prev").addEventListener("click", () => { if (state.index > 0) { state.index -= 1; render(); } });
+  $("next").addEventListener("click", () => { if (state.index < state.packet.items.length - 1) { state.index += 1; render(); } });
+  $("next-incomplete").addEventListener("click", () => {
+    const items = state.packet.items;
+    for (let step = 1; step <= items.length; step += 1) {
+      const i = (state.index + step) % items.length;
+      if (missingFor(items[i]).length) { state.index = i; render(); return; }
+    }
+    setStatus("save-status", "Every item is decided.", "ok");
+  });
+  $("save").addEventListener("click", () => {
+    const incomplete = state.packet.items.filter((it) => missingFor(it).length).length;
+    const who = ($("adjudicator").value || "adj").trim() || "adj";
+    const name = "decisions-" + who + (incomplete ? "-partial" : "") + ".json";
+    download(name, JSON.stringify(buildDecisionsFile(), null, 2) + "\n");
+    setStatus("save-status", incomplete ? "Saved " + name + " with " + incomplete + " undecided item(s). Finish them and save again." : "Saved " + name + ". All " + state.packet.items.length + " items are decided; return this file.", incomplete ? "warn" : "ok");
+  });
+})();
+</script>
+</body>
+</html>

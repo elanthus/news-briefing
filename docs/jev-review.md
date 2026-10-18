@@ -323,6 +323,15 @@ coverage, per-version label counts, rubric values and rationales without the
 correspondence key and without writing anything.
 Retain both reviewers' labels and rationales before unblinding. A third human
 adjudicates material disagreements from blinded evidence and rationales; report
-raw agreement and adjudicated outcomes separately with their denominators. These
+raw agreement and adjudicated outcomes separately with their denominators.
+`python3 -S -m agent_runner.audit_adjudication export PACKET_R1 LABELS_R1
+PACKET_R2 LABELS_R2 --output-dir DIR --private-key KEY` validates both label
+files, matches the shared items by their blinded content (never by the
+correspondence key), records raw agreement per question, and writes an
+adjudication packet holding only the items with a support, citation, or
+meaning-preservation disagreement, with the two label sets and rationales shown
+as A and B in a per-item random order; the private key maps each item back. The
+adjudicator works in the offline [adjudication page](results/jev-stage-adjudicate.html)
+and returns a decisions file that `audit_adjudication validate` checks. These
 commands export evidence, not labels or human approval. All packets, excerpts,
 labels and correspondence remain private and ignored.

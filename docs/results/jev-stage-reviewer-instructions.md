@@ -141,3 +141,47 @@ differ on a material question go to a third person, who sees only the blinded
 evidence and both rationales. The study reports raw agreement and adjudicated
 outcomes with their exact denominators, and names the date on which labels were
 frozen and the correspondence was opened.
+
+## For the adjudicator
+
+You receive `adjudication-packet.json`: the items on which the two reviewers
+disagreed on support, citations, or meaning preservation (readability-only
+disagreements are not adjudicated). Each item shows the evidence, both label
+sets as **A** and **B**, and both rationales. A and B are assigned at random per
+item, so neither letter is one reviewer throughout. Decide only the listed
+questions, from the evidence alone; agreed questions are shown for context and
+stay as they are.
+
+Open [`jev-stage-adjudicate.html`](jev-stage-adjudicate.html) in a browser,
+load the packet, decide each highlighted question, write a rationale per item,
+and **Save decisions file**. It writes `decisions-<you>.json`:
+
+```json
+{
+  "schema_version": 1,
+  "adjudicator": "adj",
+  "packet": "adjudication-packet.json",
+  "items": [
+    {
+      "adjudication_id": "adj-00001",
+      "decisions": [
+        {"question": "support", "version": 0, "label": "unsupported"},
+        {"question": "meaning_preservation", "version": null, "label": "lost"}
+      ],
+      "rationale": "The figure in version 1 is not in its excerpt; version 2 drops it."
+    }
+  ]
+}
+```
+
+Every listed disagreement needs exactly one decision with a label from the
+rubric; `version` is the zero-based version index, or `null` for the pair-level
+meaning question. Check the file with:
+
+```bash
+python3 -S -m agent_runner.audit_adjudication validate adjudication-packet.json decisions-adj.json
+```
+
+Both reviewers' label files were frozen by SHA-256 before the packet was
+built, and the packet was built from blinded content without the
+correspondence key, which stays sealed until your decisions are returned.
