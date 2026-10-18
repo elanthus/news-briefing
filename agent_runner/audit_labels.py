@@ -38,7 +38,9 @@ def validate_labels(packet_path: Path, labels_path: Path) -> dict[str, Any]:
     if not isinstance(labels.get("reviewer"), str) or not labels["reviewer"]:
         raise ValueError("labels file must name its reviewer")
     expected = {item["packet_id"]: len(item["versions"]) for item in packet["items"]}
-    seen: Counter[str] = Counter(entry.get("packet_id") for entry in labels["items"] if isinstance(entry, dict))
+    seen: Counter[str] = Counter(
+        str(entry.get("packet_id")) for entry in labels["items"] if isinstance(entry, dict)
+    )
     missing = sorted(set(expected) - set(seen))
     extra = sorted(set(seen) - set(expected))
     duplicates = sorted(key for key, count in seen.items() if count > 1)
