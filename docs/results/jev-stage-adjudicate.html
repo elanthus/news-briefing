@@ -78,6 +78,9 @@
   .choices input { margin: 0; }
   .choices label:has(input:checked) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   textarea { width: 100%; min-height: 90px; font: inherit; font-size: .98rem; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
+  .label-help { list-style: none; margin: 6px 0 0; padding: 0; font-family: system-ui, sans-serif; font-size: .82rem; color: var(--muted); }
+  .label-help li { margin: 2px 0; }
+  .label-help li.note { font-style: italic; margin-top: 4px; }
   .missing { color: var(--warn); font-family: system-ui, sans-serif; font-size: .88rem; }
   .jump { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .jump button { padding: 2px 7px; font-size: .78rem; border-radius: 6px; }
@@ -154,6 +157,23 @@
   const QUESTION_TEXT = {
     support: "Support", citations: "Citations", readability: "Readability", meaning_preservation: "Meaning preservation"
   };
+  const LABEL_HELP = {
+    supported: "Every material claim in the headline and prose is backed by this version's own evidence.",
+    unsupported: "A material claim (who, what, how many, when, cause) has no basis in the evidence shown.",
+    strengthened: "The text raises certainty, scope, magnitude, or causality beyond what the evidence says.",
+    reversed: "The text contradicts the evidence.",
+    all_relevant: "Every listed source has to do with this version's prose.",
+    irrelevant_listed: "At least one listed source has nothing to do with the prose.",
+    needed_source_absent: "This version's prose still relies on a source that appears only in the other version's list.",
+    readable: "Complete sentences; no copied truncated fragments or dangling ellipsis.",
+    fragment_or_incomplete: "A sentence fragment, a cut-off excerpt, or an unfinished thought.",
+    preserved: "Both versions carry the same supported material claims.",
+    lost: "A supported claim present in one version is missing from the other.",
+    added: "One version asserts a material claim the other does not.",
+    changed: "The same claim says something different in the two versions.",
+    not_applicable: "Only one version; there is nothing to compare."
+  };
+  const PRIORITY_NOTE = { support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened." };
   const state = { packet: null, packetName: null, key: null, index: 0, decisions: {} };
   const $ = (id) => document.getElementById(id);
   const setStatus = (id, textValue, kind) => { const el = $(id); el.textContent = textValue; el.className = "status" + (kind ? " " + kind : ""); };
@@ -231,9 +251,26 @@
       input.addEventListener("change", () => onPick(option));
       label.appendChild(input);
       label.appendChild(document.createTextNode(option.replace(/_/g, " ")));
+      label.title = LABEL_HELP[option] || "";
       wrap.appendChild(label);
     }
     fs.appendChild(wrap);
+    const help = document.createElement("ul");
+    help.className = "label-help";
+    for (const option of options) {
+      const li = document.createElement("li");
+      li.appendChild(text("strong", null, option.replace(/_/g, " ") + ": "));
+      li.appendChild(document.createTextNode(LABEL_HELP[option] || ""));
+      help.appendChild(li);
+    }
+    const base = labelText.replace(/^Final /i, "").split(" ")[0].toLowerCase();
+    if (PRIORITY_NOTE[base]) {
+      const li = document.createElement("li");
+      li.className = "note";
+      li.textContent = PRIORITY_NOTE[base];
+      help.appendChild(li);
+    }
+    fs.appendChild(help);
     return fs;
   }
   function render() {
