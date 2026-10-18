@@ -332,6 +332,12 @@
     }
 
     const dec = $("decisions"); dec.replaceChildren();
+    const agreedRows = rows.filter((r) => !conflicts.has(r.key));
+    const agreedNote = text("p", "status");
+    agreedNote.textContent = "Decide only the " + item.disagreements.length + " highlighted question(s). The other "
+      + agreedRows.length + " question(s), including " + (pair ? "everything the reviewers agreed on for either version" : "everything they agreed on")
+      + ", keep the agreed label and are not re-decided" + (pair ? "; both versions are shown because they are the same story slot and the pair-level meaning question compares them." : ".");
+    dec.appendChild(agreedNote);
     for (const d of item.disagreements) {
       const key = decisionKey(d);
       const options = d.question === "meaning_preservation" ? state.packet.rubric.labels.meaning_preservation.filter((o) => o !== "not_applicable") : state.packet.rubric.labels[d.question];
