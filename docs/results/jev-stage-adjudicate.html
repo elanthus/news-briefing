@@ -460,6 +460,11 @@
       setStatus("setup-status", "Loaded " + file.name + " (" + value.items.length + " items).", "ok");
     }
     $("decisions-input").disabled = false;
+    const outlets = value.items.reduce((n, it) => n + it.versions.reduce((m, v) => m + v.evidence.filter((e) => e && e.source).length, 0), 0);
+    const evidenceCount = value.items.reduce((n, it) => n + it.versions.reduce((m, v) => m + v.evidence.length, 0), 0);
+    const el = $("setup-status");
+    el.textContent += outlets ? " Evidence carries outlet names for " + outlets + " of " + evidenceCount + " sources." : " This packet has no outlet names; load the enriched packet if one was issued.";
+    if (!outlets) el.className = "status warn";
     renderRubric();
     $("rubric-panel").classList.remove("hidden"); $("work").classList.remove("hidden"); $("finish").classList.remove("hidden");
     render();
