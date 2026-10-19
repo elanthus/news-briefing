@@ -186,6 +186,8 @@ def validate_adjudication(packet_path: Path, decisions_path: Path) -> dict[str, 
         raise ValueError(f"item coverage: {missing} missing, {unknown} unknown, "
                          f"{sum(count > 1 for count in seen.values())} duplicated")
     counts: Counter[str] = Counter()
+    flag_counts: Counter[str] = Counter()
+    flagged_items = 0
     for entry in decisions["items"]:
         item = expected[entry["adjudication_id"]]
         wanted = {(d["question"], d["version"]) for d in item["disagreements"]}
@@ -211,9 +213,46 @@ def validate_adjudication(packet_path: Path, decisions_path: Path) -> dict[str, 
         rationale = entry.get("rationale")
         if not isinstance(rationale, str) or not rationale.strip():
             raise ValueError(f"{item['adjudication_id']}: rationale must be a non-empty string")
+        # Optional flags: the adjudicator may mark an agreed label as wrong. Flags never
+        # replace the frozen labels; they are reported separately as a sensitivity line.
+        agreed = question_slots(item) - wanted
+        seen_flags: set[tuple[Any, Any]] = set()
+        raw_flags = entry.get("flags", [])
+        if not isinstance(raw_flags, list):
+            raise ValueError(f"{item['adjudication_id']}: flags must be a list")
+        for flag in raw_flags:
+            if not isinstance(flag, dict):
+                raise ValueError(f"{item['adjudication_id']}: malformed flag")
+            key = (flag.get("question"), flag.get("version"))
+            if key not in agreed or key in seen_flags:
+                raise ValueError(f"{item['adjudication_id']}: flag for {key!r} is not an agreed question "
+                                 "or repeats")
+            question = str(key[0])
+            if flag.get("label") not in allowed[question]:
+                raise ValueError(f"{item['adjudication_id']}: flag label {flag.get('label')!r} is not in the rubric")
+            agreed_label = (item["labels"]["A"][question] if key[1] is None
+                            else item["labels"]["A"][question][int(key[1])])
+            if flag["label"] == agreed_label:
+                raise ValueError(f"{item['adjudication_id']}: flag for {key!r} repeats the agreed label")
+            note = flag.get("note")
+            if not isinstance(note, str) or not note.strip():
+                raise ValueError(f"{item['adjudication_id']}: flag for {key!r} needs a note")
+            seen_flags.add(key)
+            flag_counts[f"{question}:{flag['label']}"] += 1
+        flagged_items += bool(seen_flags)
     return {"adjudicator": decisions["adjudicator"], "items": len(expected),
             "decisions": sum(len(item["disagreements"]) for item in expected.values()),
-            "label_counts": dict(sorted(counts.items()))}
+            "label_counts": dict(sorted(counts.items())),
+            "flags": sum(flag_counts.values()), "flagged_items": flagged_items,
+            "flag_counts": dict(sorted(flag_counts.items()))}
+
+
+def question_slots(item: dict[str, Any]) -> set[tuple[Any, Any]]:
+    """Every question/version slot an item carries, agreed or disputed."""
+    slots: set[tuple[Any, Any]] = {(q, i) for q in PER_VERSION for i in range(len(item["versions"]))}
+    if len(item["versions"]) == 2:
+        slots.add(("meaning_preservation", None))
+    return slots
 
 
 def main() -> int:

@@ -25,7 +25,8 @@ RUBRIC = {
     "support": "For each version: is every material factual claim supported by that version's own supplied "
                "title/excerpt evidence? Label supported, unsupported, strengthened, or reversed; cite the claim.",
     "meaning_preservation": "For a two-version item only: do both versions carry the same supported material "
-                            "claims? Label preserved, lost, added, or changed, and name each affected claim.",
+                            "claims? Label preserved, lost, added, or changed, and name each affected claim. If more "
+                            "than one applies, choose in this order: changed, then added, then lost.",
     "citations": "For each version: is every listed source relevant to the prose? Name irrelevant listed sources, "
                  "and any source present in only one version that the other version's prose still relies on.",
     "readability": "For each version: complete sentences, no copied truncated fragments. Label readable or not.",

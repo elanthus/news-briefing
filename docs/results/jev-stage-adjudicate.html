@@ -82,6 +82,9 @@
   .label-help li { margin: 2px 0; }
   .label-help li.note { font-style: italic; margin-top: 4px; }
   .missing { color: var(--warn); font-family: system-ui, sans-serif; font-size: .88rem; }
+  button.flag { padding: 1px 8px; font-size: .78rem; border-radius: 6px; margin-left: 4px; }
+  #flags { margin-top: 12px; padding: 12px; border: 1px dashed var(--warn); border-radius: 10px; }
+  #flags:empty { display: none; }
   .jump { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .jump button { padding: 2px 7px; font-size: .78rem; border-radius: 6px; }
   .jump button.done { background: var(--ok); color: #fff; border-color: var(--ok); }
@@ -132,6 +135,7 @@
     <h3 style="margin-top:16px">Reviewer labels (disagreements highlighted)</h3>
     <div class="table-wrap"><table id="labels-table"></table></div>
     <div class="rationales" id="rationales"></div>
+    <div id="flags"></div>
     <div id="decisions"></div>
     <fieldset>
       <legend>Your rationale (which evidence settled each decision)</legend>
@@ -173,7 +177,11 @@
     changed: "The same claim says something different in the two versions.",
     not_applicable: "Only one version; there is nothing to compare."
   };
-  const PRIORITY_NOTE = { support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened." };
+  const PRIORITY_NOTE = {
+    support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened.",
+    meaning: "If more than one applies, choose in this order: changed, then added, then lost; name the others in your rationale."
+  };
+  PRIORITY_NOTE.meaning_preservation = PRIORITY_NOTE.meaning;
   const state = { packet: null, packetName: null, key: null, index: 0, decisions: {} };
   const $ = (id) => document.getElementById(id);
   const setStatus = (id, textValue, kind) => { const el = $(id); el.textContent = textValue; el.className = "status" + (kind ? " " + kind : ""); };
@@ -201,14 +209,22 @@
   }
   function decisionKey(d) { return d.question + ":" + (d.version === null || d.version === undefined ? "pair" : d.version); }
   function entryFor(item) {
-    if (!state.decisions[item.adjudication_id]) state.decisions[item.adjudication_id] = { labels: {}, rationale: "" };
+    if (!state.decisions[item.adjudication_id]) state.decisions[item.adjudication_id] = { labels: {}, rationale: "", flags: {} };
+    if (!state.decisions[item.adjudication_id].flags) state.decisions[item.adjudication_id].flags = {};
     return state.decisions[item.adjudication_id];
   }
   function missingFor(item) {
     const e = entryFor(item);
     const missing = item.disagreements.filter((d) => !e.labels[decisionKey(d)]).map((d) => QUESTION_TEXT[d.question] + (d.version === null || d.version === undefined ? "" : " (version " + (d.version + 1) + ")"));
     if (!e.rationale || !e.rationale.trim()) missing.push("rationale");
+    for (const [key, flag] of Object.entries(e.flags || {})) {
+      if (!flag.label || !flag.note || !flag.note.trim()) missing.push("flag on " + key.replace(":pair", " (pair)").replace(/:(\d+)$/, (m, n) => " (version " + (Number(n) + 1) + ")") + " needs a label and a note");
+    }
     return missing;
+  }
+  function parseKey(key) {
+    const [question, rest] = key.split(":");
+    return { question, version: rest === "pair" ? null : Number(rest) };
   }
   function persist() { if (state.key) storageSet(state.key, { decisions: state.decisions, index: state.index }); }
 
@@ -319,9 +335,23 @@
       tr.appendChild(text("td", null, r.vi === null ? "both" : String(r.vi + 1)));
       const ta = text("td"); ta.appendChild(text("span", "tag a", String(r.a).replace(/_/g, " "))); tr.appendChild(ta);
       const tb = text("td"); tb.appendChild(text("span", "tag b", String(r.b).replace(/_/g, " "))); tr.appendChild(tb);
-      tr.appendChild(text("td", null, conflicts.has(r.key) ? "disagree: decide below" : "agreed"));
+      const statusCell = text("td", null, conflicts.has(r.key) ? "disagree: decide below" : "agreed");
+      if (!conflicts.has(r.key)) {
+        const flagButton = document.createElement("button");
+        flagButton.type = "button"; flagButton.className = "flag";
+        flagButton.textContent = e.flags[r.key] ? "Flagged" : "Flag";
+        flagButton.title = "Mark this agreed label as wrong; it is reported separately and never replaces the agreed label.";
+        flagButton.addEventListener("click", () => {
+          if (e.flags[r.key]) delete e.flags[r.key]; else e.flags[r.key] = { label: null, note: "", agreed: r.a };
+          persist(); render();
+        });
+        statusCell.appendChild(document.createTextNode(" "));
+        statusCell.appendChild(flagButton);
+      }
+      tr.appendChild(statusCell);
       table.appendChild(tr);
     }
+    renderFlags(item, e, rows);
 
     const rats = $("rationales"); rats.replaceChildren();
     for (const side of ["A", "B"]) {
@@ -353,6 +383,27 @@
     persist();
     window.scrollTo({ top: $("work").offsetTop - 8 });
   }
+  function renderFlags(item, e, rows) {
+    const box = $("flags"); box.replaceChildren();
+    const keys = Object.keys(e.flags || {});
+    if (!keys.length) return;
+    box.appendChild(text("h3", null, "Flagged agreed labels (reported separately; the agreed label stays in the record)"));
+    for (const key of keys) {
+      const row = rows.find((r) => r.key === key);
+      const { question, version } = parseKey(key);
+      const flag = e.flags[key];
+      const agreedLabel = row ? row.a : flag.agreed;
+      const options = (state.packet.rubric.labels[question] || []).filter((o) => o !== agreedLabel && o !== "not_applicable");
+      const labelText = "Flag: " + QUESTION_TEXT[question].toLowerCase() + (version === null ? " (pair)" : " for version " + (version + 1)) + ", agreed label was \"" + String(agreedLabel).replace(/_/g, " ") + "\". Your corrected label:";
+      box.appendChild(choiceGroup(labelText, options, flag.label, (option) => { flag.label = option; persist(); renderMissing(item); renderJump(); renderProgress(); }));
+      const note = document.createElement("textarea");
+      note.placeholder = "Why the agreed label is wrong (required).";
+      note.value = flag.note || "";
+      note.style.minHeight = "60px";
+      note.addEventListener("input", () => { flag.note = note.value; persist(); renderMissing(item); renderJump(); renderProgress(); });
+      box.appendChild(note);
+    }
+  }
   function renderMissing(item) {
     const missing = missingFor(item);
     $("missing").textContent = missing.length ? "Still needed on this item: " + missing.join(", ") : "";
@@ -367,7 +418,8 @@
         return {
           adjudication_id: item.adjudication_id,
           decisions: item.disagreements.filter((d) => e.labels[decisionKey(d)]).map((d) => ({ question: d.question, version: d.version === undefined ? null : d.version, label: e.labels[decisionKey(d)] })),
-          rationale: e.rationale || ""
+          rationale: e.rationale || "",
+          flags: Object.entries(e.flags || {}).filter(([, f]) => f.label).map(([key, f]) => ({ ...parseKey(key), label: f.label, note: f.note || "" }))
         };
       })
     };
@@ -419,9 +471,12 @@
     for (const entry of value.items) {
       const item = entry && byId.get(entry.adjudication_id);
       if (!item) continue;
-      const e = { labels: {}, rationale: typeof entry.rationale === "string" ? entry.rationale : "" };
+      const e = { labels: {}, rationale: typeof entry.rationale === "string" ? entry.rationale : "", flags: {} };
       for (const d of Array.isArray(entry.decisions) ? entry.decisions : []) {
         if (d && d.label) e.labels[decisionKey(d)] = d.label;
+      }
+      for (const f of Array.isArray(entry.flags) ? entry.flags : []) {
+        if (f && f.question) e.flags[decisionKey(f)] = { label: f.label || null, note: typeof f.note === "string" ? f.note : "" };
       }
       state.decisions[item.adjudication_id] = e; restored += 1;
     }

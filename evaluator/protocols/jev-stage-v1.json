@@ -99,5 +99,16 @@
     "per_day_ceiling_usd_approx": 25.3,
     "planning_estimate_usd": "roughly 0.15 to 0.35 per day from the September 30 study (about 0.05 per generation plus review, confirmation and repair), so 4 to 10 for 28 days; the nominal ceiling is about 25.30 per day because the generation allowance is a reservation guard, while the realistic per-day ceiling (three-model chain with corrections plus the review guards) is under 1"
   },
-  "status_note": "Run on 2026-10-16 at commit 0a06089 over the frozen 28-day frame: 28 of 28 days produced a ready briefing and a retained schema-3 audit (17 complete reviews, 11 partial; 0 generation-failure rows; USD 2.097 reported, 0 unknown-cost calls). Aggregate in docs/results/jev-stage-v1-metrics.json, per-day digests in docs/results/jev-stage-v1-ledger.json. Blind packets (14 repair pairs, 51 controls) are exported privately and await two human reviewers and an adjudicator. Both reviewers returned complete label files on 2026-10-17; they were validated and frozen by SHA-256 (docs/results/jev-stage-v1-labels-frozen.json) before the adjudication packet was built from blinded content: 31 shared items, 23 with a material disagreement, 29 decisions for the adjudicator. The correspondence key stays sealed."
+  "status_note": "Run on 2026-10-16 at commit 0a06089 over the frozen 28-day frame: 28 of 28 days produced a ready briefing and a retained schema-3 audit (17 complete reviews, 11 partial; 0 generation-failure rows; USD 2.097 reported, 0 unknown-cost calls). Aggregate in docs/results/jev-stage-v1-metrics.json, per-day digests in docs/results/jev-stage-v1-ledger.json. Blind packets (14 repair pairs, 51 controls) are exported privately and await two human reviewers and an adjudicator. Both reviewers returned complete label files on 2026-10-17; they were validated and frozen by SHA-256 (docs/results/jev-stage-v1-labels-frozen.json) before the adjudication packet was built from blinded content: 31 shared items, 23 with a material disagreement, 29 decisions for the adjudicator. The correspondence key stays sealed.",
+  "amendments": [
+    {
+      "date": "2026-10-19",
+      "stage": "after both reviewers' labels were frozen, before adjudication decisions were returned",
+      "changes": [
+        "meaning_preservation tie-break: when more than one of changed, added, lost applies, choose changed, then added, then lost; the reviewers labeled without this rule, which may account for part of their 3/14 agreement on that question",
+        "adjudicator flags: the adjudicator may flag an agreed label as wrong with a corrected label and a note; flags never replace the frozen labels; the card reports raw agreement unchanged, adjudicated outcomes without flags, and a separate sensitivity line with flags applied and flag counts by question"
+      ],
+      "reason": "During adjudication the owner found a version whose listed source was unrelated to its prose while both reviewers had labeled its citations all_relevant, and a pair where more than one meaning label applied."
+    }
+  ]
 }

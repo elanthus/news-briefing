@@ -45,7 +45,10 @@ Four questions, from the packet's `rubric`:
    supported material claims? Label `preserved`, `lost` (a supported claim present
    in one version is missing from the other), `added` (one version asserts a claim
    the other does not), or `changed` (the same claim says something different). For
-   a one-version item use `not_applicable`.
+   a one-version item use `not_applicable`. If more than one applies, choose in
+   this order: `changed`, then `added`, then `lost`, and name the others in your
+   rationale. (This tie-break was added on 2026-10-19, after both reviewers had
+   returned their labels; the card says so.)
 3. **Citations** (every version). Is each listed source relevant to that
    version's prose? Label `all_relevant`, `irrelevant_listed` (a listed source has
    nothing to do with the prose), or `needed_source_absent` (in a pair, the prose
@@ -185,3 +188,25 @@ python3 -S -m agent_runner.audit_adjudication validate adjudication-packet.json 
 Both reviewers' label files were frozen by SHA-256 before the packet was
 built, and the packet was built from blinded content without the
 correspondence key, which stays sealed until your decisions are returned.
+
+### Flagging an agreed label
+
+Sometimes both reviewers agreed on a label you believe is wrong, for example a
+version citing a source unrelated to its prose that both called `all_relevant`.
+You cannot re-decide an agreed question; raw agreement is already frozen. You
+can **flag** it: in the page, press *Flag* on that row of the label table,
+choose the label you believe is right, and write a note. Flags go into the
+decisions file under `flags`:
+
+```json
+"flags": [
+  {"question": "citations", "version": 0, "label": "irrelevant_listed",
+   "note": "The second listed source is about a different event."}
+]
+```
+
+A flag is allowed only on an agreed question, must differ from the agreed
+label, and needs a note. Flags never replace the frozen labels. The card reports
+raw agreement unchanged, adjudicated outcomes from the agreed labels plus your
+decisions, and, as a separate sensitivity line, the outcomes with your flags
+applied and the count of flagged labels by question.

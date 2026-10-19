@@ -157,7 +157,11 @@
     changed: "The same claim says something different in the two versions.",
     not_applicable: "Only one version; there is nothing to compare."
   };
-  const PRIORITY_NOTE = { support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened." };
+  const PRIORITY_NOTE = {
+    support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened.",
+    meaning: "If more than one applies, choose in this order: changed, then added, then lost; name the others in your rationale."
+  };
+  PRIORITY_NOTE.meaning_preservation = PRIORITY_NOTE.meaning;
   const state = { packet: null, packetName: null, reviewer: null, key: null, index: 0, labels: {} };
 
   const $ = (id) => document.getElementById(id);

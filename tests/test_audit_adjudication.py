@@ -120,6 +120,42 @@ class AdjudicationTests(unittest.TestCase):
                 export_adjudication(paths['p1'], paths['l1'], paths['p2'], paths['l2'],
                                     root / 'adjudication', root / 'private' / 'key2.json')
 
+    def test_flags_on_agreed_labels_are_validated_and_counted_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, second = packets()
+            paths = {}
+            for name, value in (('p1', first), ('l1', labels_first()), ('p2', second), ('l2', labels_second())):
+                paths[name] = root / f'{name}.json'
+                paths[name].write_text(json.dumps(value))
+            export_adjudication(paths['p1'], paths['l1'], paths['p2'], paths['l2'],
+                                root / 'adjudication', root / 'key.json', seed=3)
+            packet_path = root / 'adjudication' / 'adjudication-packet.json'
+            item = json.loads(packet_path.read_text())['items'][0]
+            base = {'schema_version': 1, 'adjudicator': 'adj', 'items': [
+                {'adjudication_id': item['adjudication_id'],
+                 'decisions': [{'question': 'support', 'version': 0, 'label': 'unsupported'}],
+                 'rationale': 'No basis in the excerpt.',
+                 'flags': [{'question': 'citations', 'version': 0, 'label': 'irrelevant_listed',
+                            'note': 'The listed source is about something else.'}]}]}
+            decisions_path = root / 'decisions.json'
+            decisions_path.write_text(json.dumps(base))
+            result = validate_adjudication(packet_path, decisions_path)
+            self.assertEqual((result['flags'], result['flagged_items']), (1, 1))
+            self.assertEqual(result['flag_counts'], {'citations:irrelevant_listed': 1})
+            self.assertEqual(result['label_counts'], {'support:unsupported': 1})
+            for broken, message in (
+                ({'question': 'support', 'version': 0, 'label': 'supported', 'note': 'x'}, 'not an agreed'),
+                ({'question': 'citations', 'version': 0, 'label': 'all_relevant', 'note': 'x'}, 'repeats the agreed'),
+                ({'question': 'citations', 'version': 0, 'label': 'bogus', 'note': 'x'}, 'not in the rubric'),
+                ({'question': 'citations', 'version': 0, 'label': 'irrelevant_listed', 'note': ' '}, 'needs a note'),
+            ):
+                value = json.loads(json.dumps(base))
+                value['items'][0]['flags'] = [broken]
+                decisions_path.write_text(json.dumps(value))
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    validate_adjudication(packet_path, decisions_path)
+
 
 if __name__ == '__main__':
     unittest.main()
