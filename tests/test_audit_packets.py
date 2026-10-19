@@ -66,14 +66,16 @@ class AuditPacketTests(unittest.TestCase):
                     for side, version in zip(private['sides'], item['versions'], strict=True):
                         self.assertEqual(set(version), {'headline', 'prose', 'evidence'})
                         for evidence in version['evidence']:
-                            self.assertEqual(set(evidence), {'title', 'excerpt'})
+                            self.assertEqual(set(evidence), {'title', 'excerpt', 'source', 'published'})
                         source = run if side == 'original' else day / 'jev-review/repair/run'
                         topic = next(t for t in load_verified_run(source).topics
                                      if t['position'] == private['position'])
                         self.assertEqual(version['headline'], topic['headline'])
                         self.assertEqual(version['prose'], topic['prose'])
-                        self.assertEqual(version['evidence'], [{'title': e['title'], 'excerpt': e.get('summary')}
-                                                               for e in topic['evidence']])
+                        expected_evidence = [{'title': e['title'], 'excerpt': e.get('summary'),
+                                              'source': e.get('source'), 'published': e.get('published')}
+                                             for e in topic['evidence']]
+                        self.assertEqual(version['evidence'], expected_evidence)
                 text = json.dumps(packet)
                 for forbidden in ('typesafe/', 'openrouter', 'repair_status', 'probability', 'confirmation_label',
                                   'applied', 'rejected', str(root), 'original', 'repaired', 'protocol_id', 'seed'):

@@ -48,9 +48,12 @@ def control_order(report_date: str, position: dict[str, Any], protocol_id: str =
 
 
 def _version(topic: dict[str, Any]) -> dict[str, Any]:
-    # Explicit field selection: source/provider metadata is never forwarded.
+    # Explicit field selection. The news outlet name and publication date are
+    # evidence a reviewer needs to name a source in a rationale; model and
+    # provider identity, scores, labels, and paths are never forwarded.
     return {"headline": topic["headline"], "prose": topic["prose"],
-            "evidence": [{"title": e["title"], "excerpt": e.get("summary")} for e in topic["evidence"]]}
+            "evidence": [{"title": e["title"], "excerpt": e.get("summary"), "source": e.get("source"),
+                          "published": e.get("published")} for e in topic["evidence"]]}
 
 
 def _records(root: Path, *, start: date, end: date

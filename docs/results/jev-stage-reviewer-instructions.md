@@ -22,8 +22,12 @@ Each item has a `packet_id` (for example `r1-00017`) and a `versions` list.
   version may have dropped a source; the order of the two versions is random.
 
 Each version has `headline`, `prose`, and `evidence`, where `evidence` is a list
-of `{title, excerpt}` objects. An excerpt can be null when the feed supplied only
-a title.
+of `{title, excerpt, source, published}` objects: the outlet name and
+publication date are there so a rationale can name the source it relies on. An
+excerpt can be null when the feed supplied only a title. (The packets the two
+reviewers labeled on 2026-10-17 carried only title and excerpt; the adjudication
+packet was enriched with outlet names and dates on 2026-10-19 so the
+adjudicator can check rationales that name an outlet.)
 
 ## How to judge
 

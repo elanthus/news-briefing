@@ -295,10 +295,16 @@ Following the partitioning and blinding of
 every verified changed slot (applied or withheld) is a pair in both packets.
 Record order and the two sides of each pair are independently shuffled for each
 reviewer. Each side carries only generated headline/prose and its own frozen
-source titles/excerpts, so removed sources remain identifiable by comparison.
-No model/provider identity, scores, labels, repair status, paths, original-side
-marker, or shuffle seed is exported. News text itself is preserved; model names
-that are part of a news story are not metadata and are not censored.
+source titles, excerpts, outlet names and publication dates, so removed sources
+remain identifiable by comparison and a rationale can name the outlet it relies
+on. No model/provider identity, scores, labels, repair status, paths,
+original-side marker, or shuffle seed is exported. News text itself is
+preserved; model names that are part of a news story are not metadata and are
+not censored. Packets exported before 2026-10-19 omitted the outlet name and
+date; `python3 -S -m agent_runner.audit_adjudication enrich PACKET ROOT --start
+... --end ...` adds them to an adjudication packet in place by matching each
+item's frozen title and excerpt against the verified runs, without the
+correspondence key and without changing item ids or the A/B assignment.
 
 Per day with complete initial review, controls are the first three unflagged
 included topics ordered by SHA256(`jev-stage-v1` + report date + section +

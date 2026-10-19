@@ -157,5 +157,59 @@ class AdjudicationTests(unittest.TestCase):
                     validate_adjudication(packet_path, decisions_path)
 
 
+class EnrichTests(unittest.TestCase):
+    def test_enrich_adds_outlets_by_content_and_fails_closed_on_unknown_evidence(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        from agent_runner.audit_adjudication import enrich_evidence
+        from agent_runner.audit_packets import export_packets
+        from agent_runner.semantic_repairs import daily_semantic_review
+        from tests.test_audit_packets import dated_fixture
+        from tests.test_semantic_repairs import Judge, PatchProvider, make_run
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            frame = root / 'days'
+            day = frame / '2026-08-11'
+            day.mkdir(parents=True)
+            with patch('tests.test_semantic_repairs.fixture_contract', side_effect=lambda: dated_fixture(day.name)):
+                run, headline = make_run(day)
+                daily_semantic_review(run, day / 'review', judge=Judge(headline), repair_provider=PatchProvider())
+            # Two reviewer packets over the same day, then labels that disagree on every pair's support.
+            for reviewer in ('r1', 'r2'):
+                export_packets(frame, root / f'packets-{reviewer}', root / f'key-{reviewer}.json',
+                               start=date(2026, 8, 11), end=date(2026, 8, 11), seed=1 if reviewer == 'r1' else 2)
+            packets, labels = {}, {}
+            for reviewer in ('r1', 'r2'):
+                packet = json.loads((root / f'packets-{reviewer}' / 'reviewer-primary.json').read_text())
+                packets[reviewer] = packet
+                labels[reviewer] = {'schema_version': 1, 'reviewer': reviewer, 'packet': 'x', 'items': [
+                    {'packet_id': it['packet_id'],
+                     'labels': {'support': ['supported' if reviewer == 'r1' else 'unsupported'] * len(it['versions']),
+                                'meaning_preservation': 'changed' if len(it['versions']) == 2 else 'not_applicable',
+                                'citations': ['all_relevant'] * len(it['versions']),
+                                'readability': ['readable'] * len(it['versions'])}, 'rationale': 'r'}
+                    for it in packet['items']]}
+                (root / f'p-{reviewer}.json').write_text(json.dumps(packet))
+                (root / f'l-{reviewer}.json').write_text(json.dumps(labels[reviewer]))
+            export_adjudication(root / 'p-r1.json', root / 'l-r1.json', root / 'p-r2.json', root / 'l-r2.json',
+                                root / 'adjudication', root / 'adj-key.json', seed=4)
+            packet_path = root / 'adjudication' / 'adjudication-packet.json'
+            before = json.loads(packet_path.read_text())
+            self.assertTrue(before['items'])
+            result = enrich_evidence(packet_path, frame, start=date(2026, 8, 11), end=date(2026, 8, 11))
+            after = json.loads(packet_path.read_text())
+            self.assertEqual([i['adjudication_id'] for i in after['items']],
+                             [i['adjudication_id'] for i in before['items']])
+            self.assertEqual(after['items'][0]['labels'], before['items'][0]['labels'])
+            self.assertGreater(result['evidence_enriched'], 0)
+            self.assertTrue(all('source' in e and 'published' in e
+                                for it in after['items'] for v in it['versions'] for e in v['evidence']))
+            after['items'][0]['versions'][0]['evidence'][0]['title'] = 'not in any run'
+            packet_path.write_text(json.dumps(after))
+            with self.assertRaisesRegex(ValueError, 'resolves to 0'):
+                enrich_evidence(packet_path, frame, start=date(2026, 8, 11), end=date(2026, 8, 11))
+
+
 if __name__ == '__main__':
     unittest.main()

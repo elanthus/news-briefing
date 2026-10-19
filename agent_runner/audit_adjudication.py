@@ -19,6 +19,7 @@ import os
 import random
 import secrets
 from collections import Counter
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -255,9 +256,53 @@ def question_slots(item: dict[str, Any]) -> set[tuple[Any, Any]]:
     return slots
 
 
+def enrich_evidence(packet_path: Path, stage_root: Path, *, start: date, end: date) -> dict[str, Any]:
+    """Add each evidence item's outlet name and publication date to an existing adjudication packet.
+
+    Items are matched by their frozen title and excerpt against every verified
+    run in the stage tree, so no correspondence key is read and the packet's
+    item ids, version order, and A/B assignment are unchanged. An evidence item
+    that matches no run, or matches runs that disagree about its outlet, fails
+    closed. The packet is rewritten in place only after every item resolves.
+    """
+    from agent_runner.audit_metrics import load_days
+    from agent_runner.jev_review import load_verified_run
+
+    packet = _read(packet_path)
+    if not isinstance(packet, dict) or packet.get("kind") != "adjudication":
+        raise ValueError("not an adjudication packet")
+    lookup: dict[tuple[str, str | None], set[tuple[str | None, str | None]]] = {}
+    for day in load_days(stage_root, start=start, end=end):
+        if day["run"] is None:
+            continue
+        for topic in load_verified_run(day["run"]).topics:
+            for evidence in topic["evidence"]:
+                key = (str(evidence["title"]), evidence.get("summary"))
+                lookup.setdefault(key, set()).add((evidence.get("source"), evidence.get("published")))
+    enriched = 0
+    for item in packet["items"]:
+        for version in item["versions"]:
+            for evidence in version["evidence"]:
+                matches = lookup.get((str(evidence["title"]), evidence.get("excerpt")), set())
+                if len(matches) != 1:
+                    raise ValueError(f"{item['adjudication_id']}: evidence resolves to {len(matches)} outlet record(s)")
+                source, published = next(iter(matches))
+                evidence["source"], evidence["published"] = source, published
+                enriched += 1
+    packet["evidence_enriched"] = {"fields": ["source", "published"], "matched_by": "frozen title and excerpt",
+                                   "frame": {"start": start.isoformat(), "end": end.isoformat()}}
+    write_json_atomic(packet_path, packet)
+    return {"items": len(packet["items"]), "evidence_enriched": enriched}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
+    enrich = commands.add_parser("enrich", help="add outlet names and dates to an adjudication packet in place")
+    enrich.add_argument("packet", type=Path)
+    enrich.add_argument("stage_root", type=Path)
+    enrich.add_argument("--start", type=date.fromisoformat, required=True)
+    enrich.add_argument("--end", type=date.fromisoformat, required=True)
     export = commands.add_parser("export")
     for name in ("packet_first", "labels_first", "packet_second", "labels_second"):
         export.add_argument(name, type=Path)
@@ -271,6 +316,8 @@ def main() -> int:
         if args.command == "export":
             result = export_adjudication(args.packet_first, args.labels_first, args.packet_second, args.labels_second,
                                          args.output_dir, args.private_key)
+        elif args.command == "enrich":
+            result = enrich_evidence(args.packet, args.stage_root, start=args.start, end=args.end)
         else:
             result = validate_adjudication(args.packet, args.decisions)
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:

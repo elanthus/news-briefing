@@ -49,5 +49,11 @@
   "items_with_any_disagreement": 23,
   "items_sent_to_adjudication": 23,
   "adjudication_packet_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96",
-  "correspondence_opened_at": null
+  "correspondence_opened_at": null,
+  "adjudication_packet_enriched": {
+    "date": "2026-10-19",
+    "sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
+    "change": "outlet name and publication date added to every evidence item (84 items across 23 adjudication items) by matching frozen title and excerpt against the verified runs; no correspondence key read; adjudication ids, version order, labels, rationales and A/B assignment unchanged",
+    "original_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96"
+  }
 }

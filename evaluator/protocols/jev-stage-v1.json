@@ -106,7 +106,8 @@
       "stage": "after both reviewers' labels were frozen, before adjudication decisions were returned",
       "changes": [
         "meaning_preservation tie-break: when more than one of changed, added, lost applies, choose changed, then added, then lost; the reviewers labeled without this rule, which may account for part of their 3/14 agreement on that question",
-        "adjudicator flags: the adjudicator may flag an agreed label as wrong with a corrected label and a note; flags never replace the frozen labels; the card reports raw agreement unchanged, adjudicated outcomes without flags, and a separate sensitivity line with flags applied and flag counts by question"
+        "adjudicator flags: the adjudicator may flag an agreed label as wrong with a corrected label and a note; flags never replace the frozen labels; the card reports raw agreement unchanged, adjudicated outcomes without flags, and a separate sensitivity line with flags applied and flag counts by question",
+        "evidence outlet names: reviewer packets carried only each source's title and excerpt, so rationales naming an outlet could not be checked; packet evidence now also carries the outlet name and publication date, and the already exported adjudication packet was enriched in place by matching frozen title and excerpt against the verified runs (no correspondence key, ids and A/B assignment unchanged)"
       ],
       "reason": "During adjudication the owner found a version whose listed source was unrelated to its prose while both reviewers had labeled its citations all_relevant, and a pair where more than one meaning label applied."
     }

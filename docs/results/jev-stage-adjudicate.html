@@ -55,6 +55,7 @@
   .evidence { background: var(--evidence); border-radius: 8px; padding: 10px 12px; }
   .evidence li { margin: 6px 0; }
   .evidence .title { font-weight: 600; font-family: system-ui, sans-serif; font-size: .92rem; }
+  .evidence .origin { color: var(--muted); font-family: system-ui, sans-serif; font-size: .82rem; }
   .evidence .excerpt { color: var(--muted); font-size: .95rem; white-space: pre-wrap; }
   .evidence .none { color: var(--muted); font-style: italic; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -312,6 +313,9 @@
       for (const src of v.evidence) {
         const li = document.createElement("li");
         li.appendChild(text("div", "title", String(src && src.title != null ? src.title : "(untitled)")));
+        if (src && (src.source || src.published)) {
+          li.appendChild(text("div", "origin", [src.source, src.published].filter(Boolean).map(String).join(" · ")));
+        }
         li.appendChild(text("div", src && src.excerpt ? "excerpt" : "none", src && src.excerpt ? String(src.excerpt) : "No excerpt supplied; only the title is evidence."));
         ul.appendChild(li);
       }
