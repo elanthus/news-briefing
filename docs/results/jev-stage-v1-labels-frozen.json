@@ -55,5 +55,32 @@
     "sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
     "change": "outlet name and publication date added to every evidence item (84 items across 23 adjudication items) by matching frozen title and excerpt against the verified runs; no correspondence key read; adjudication ids, version order, labels, rationales and A/B assignment unchanged",
     "original_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96"
+  },
+  "adjudication_decisions_returned": {
+    "date": "2026-10-19",
+    "adjudicator": "adj",
+    "file": "decisions-adj.json",
+    "validated_against_packet_sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
+    "items": 23,
+    "decisions": 29,
+    "label_counts": {
+      "citations:irrelevant_listed": 1,
+      "meaning_preservation:added": 10,
+      "meaning_preservation:changed": 1,
+      "support:strengthened": 3,
+      "support:supported": 13,
+      "support:unsupported": 1
+    },
+    "flags": 0,
+    "sha256": "a7631eec5e50a061a122af789a8bd90f980ebffb69c79b34aacbf6019758b0dc",
+    "bytes": 11771,
+    "initial_return": {
+      "file": "decisions-adj-initial-2026-10-19.json",
+      "sha256": "7c5e1c4981669dd3ec231b7e3f4a4e49bc03a13639c96dd78cd399b8a0b3d07c",
+      "bytes": 8577,
+      "flags": 1
+    },
+    "revision": "The adjudicator's first return was reviewed against the rubric before the correspondence key was opened: 13 labels on 12 items were changed, one flag was withdrawn, and every rationale was rewritten to name the deciding evidence. The main corrections were meaning labels decided on story grouping, which the rubric does not ask about, two decisions that used knowledge outside the packet, and one attribution ruling inconsistent with the others. Outlet names in the enriched packet evidence were treated as evidence, so an attribution matching a listed outlet is supported. Both returns are retained privately; adjudicated outcomes are not yet computed.",
+    "correspondence_opened_at": null
   }
 }

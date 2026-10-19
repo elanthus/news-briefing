@@ -1,9 +1,10 @@
 # Jev-stage evaluation v1 model card
 
-Status: **execution complete; human adjudication pending**. The frozen 28-day
+Status: **execution complete; adjudication decisions returned; outcomes pending**. The frozen 28-day
 frame ran on 2026-10-16: all days produced ready briefings and retained schema-3
 audits, with 17 complete reviews and 11 partial reviews. Both reviewers' labels
-are frozen; adjudication decisions and unblinding remain pending. Automated
+are frozen; adjudication decisions were returned on 2026-10-19 and recorded by
+digest; adjudicated outcomes and unblinding remain pending. Automated
 metrics below come from the committed aggregate and per-day ledger.
 Plan: [`jev-stage-eval-plan.md`](jev-stage-eval-plan.md).
 Protocol: [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json)
@@ -136,13 +137,16 @@ preservation. Raw agreement is retained before adjudication.
 
 ### Adjudicated outcomes
 
-Adjudication is pending for 23 shared items with material disagreements; both
-original labels are retained. The 2026-10-19 protocol amendments add a meaning
+Adjudication decisions for the 23 shared items with material disagreements were
+returned on 2026-10-19 and validated against the enriched packet; both original
+labels are retained, and the [freeze record](jev-stage-v1-labels-frozen.json)
+holds the decision file's digest, its label counts, and a note on the revision
+made before the correspondence key was opened. The 2026-10-19 protocol amendments add a meaning
 label tie-break, allow separate adjudicator flags on agreed labels, and enrich
 the adjudication evidence with outlet names and publication dates. Reviewers
-labeled without the tie-break. Report outcomes without flags and a separate
-sensitivity result with flags after decisions are returned; no adjudicated
-outcome is available yet.
+labeled without the tie-break. The returned file carries no flags, so the flag
+sensitivity line will be empty. Adjudicated outcomes have not yet been computed;
+the table stays pending until they are.
 
 | Question | Repair pairs | Controls |
 |---|---:|---:|
