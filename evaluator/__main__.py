@@ -17,6 +17,7 @@ from evaluator.cases import run_deterministic_suite
 from evaluator.comparison import compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
+from evaluator.preflight import preflight_run
 from evaluator.publication import export_public_run, verify_public_run
 from evaluator.quality import run_quality_judging
 from evaluator.report import markdown_report, summarize
@@ -181,7 +182,8 @@ def main() -> int:
     machine_grounding.add_argument("--output-dir", type=Path, required=True)
     machine_grounding.add_argument("--env-file", type=Path, default=EVALUATOR_DIR / ".env")
 
-    run = subparsers.add_parser("run", help="run the generation suite against live models")
+    run_options = argparse.ArgumentParser(add_help=False)
+    run = run_options
     run.add_argument("--provider", action="append", default=[], help="PROVIDER=MODEL; repeatable")
     run.add_argument(
         "--all-providers",
@@ -239,6 +241,20 @@ def main() -> int:
     run.add_argument(
         "--cost-ceiling-provider",
         help="apply the cost ceiling only to this provider (for example, openrouter)",
+    )
+    subparsers.add_parser(
+        "run", parents=[run_options], help="run the generation suite against live models"
+    )
+    preflight = subparsers.add_parser(
+        "preflight",
+        parents=[run_options],
+        help="validate a planned run's protocol, suite, fixtures, prompts, providers, and output "
+             "directory without credentials or a provider call",
+    )
+    preflight.add_argument(
+        "--before-tag",
+        action="store_true",
+        help="report a missing final-run source tag as deferred instead of failing",
     )
 
     report_parser = subparsers.add_parser("report", help="rebuild reports from a saved manifest")
@@ -426,6 +442,29 @@ def main() -> int:
                 "report": str(args.output_dir / "machine-grounding-review.json"),
             }, indent=2, sort_keys=True))
             return 0
+        if args.command == "preflight":
+            result = preflight_run(
+                providers=_provider_values(args.provider, args.all_providers),
+                prompt_versions=_prompt_values(args.prompt),
+                trials=args.trials,
+                timeout=args.timeout,
+                temperature=args.temperature,
+                reasoning=args.reasoning,
+                reasoning_effort=args.reasoning_effort,
+                suite_path=args.suite,
+                corpus_path=args.corpus,
+                protocol_path=args.protocol,
+                output_dir=args.output_dir,
+                resume=args.resume,
+                run_kind=args.run_kind,
+                execution_seed=args.execution_seed,
+                source_tag=args.source_tag,
+                cost_ceiling_usd=args.cost_ceiling_usd,
+                cost_ceiling_provider=args.cost_ceiling_provider,
+                before_tag=args.before_tag,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0 if result["ok"] else 1
         if args.command == "run":
             if args.resume and args.output_dir is None:
                 raise ValueError("--resume requires --output-dir")

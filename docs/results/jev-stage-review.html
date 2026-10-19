@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev-stage review</title>
+<meta name="description" content="Offline labeling tool for the Jev-stage blinded reviewer packets. Loads a packet from disk, records labels and rationales, and saves a label file. No network, no embedded data.">
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1b19; --muted: #5d5a53; --line: #d9d6cf;
+    --accent: #1f5f8b; --accent-ink: #ffffff; --warn: #9a4b00; --ok: #2d6a4f; --soft: #eef2f6;
+    --evidence: #f3f1ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15161a; --panel: #1f2126; --ink: #ebe9e3; --muted: #a5a299; --line: #3a3d45;
+      --accent: #7db3d8; --accent-ink: #0f1a24; --warn: #f0a35c; --ok: #7fc8a0; --soft: #262a33;
+      --evidence: #24272e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15161a; --panel: #1f2126; --ink: #ebe9e3; --muted: #a5a299; --line: #3a3d45;
+    --accent: #7db3d8; --accent-ink: #0f1a24; --warn: #f0a35c; --ok: #7fc8a0; --soft: #262a33;
+    --evidence: #24272e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Georgia, "Iowan Old Style", "Times New Roman", serif; }
+  header, main, footer { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 20px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; font-family: system-ui, sans-serif; }
+  h3 { font-size: 1rem; margin: 0 0 6px; font-family: system-ui, sans-serif; color: var(--muted); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+  .lede { color: var(--muted); margin: 0 0 16px; font-family: system-ui, sans-serif; font-size: .95rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label.file { display: inline-block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-family: system-ui, sans-serif; font-size: .95rem; background: var(--soft); }
+  label.file input { display: none; }
+  button { font: inherit; font-family: system-ui, sans-serif; font-size: .95rem; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-family: system-ui, sans-serif; font-size: .9rem; color: var(--muted); }
+  .status.warn { color: var(--warn); }
+  .status.ok { color: var(--ok); }
+  details summary { cursor: pointer; font-family: system-ui, sans-serif; font-weight: 600; }
+  .rubric dt { font-weight: 600; font-family: system-ui, sans-serif; margin-top: 8px; }
+  .rubric dd { margin: 2px 0 0 0; color: var(--muted); }
+  .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .progress { height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden; margin: 8px 0 0; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; }
+  .versions { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 820px) { .versions.pair { grid-template-columns: 1fr 1fr; } }
+  .version { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--panel); }
+  .version .headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 8px; }
+  .version .prose { margin: 0 0 12px; white-space: pre-wrap; }
+  .evidence { background: var(--evidence); border-radius: 8px; padding: 10px 12px; }
+  .evidence li { margin: 6px 0; }
+  .evidence .title { font-weight: 600; font-family: system-ui, sans-serif; font-size: .92rem; }
+  .evidence .origin { color: var(--muted); font-family: system-ui, sans-serif; font-size: .82rem; }
+  .evidence .excerpt { color: var(--muted); font-size: .95rem; white-space: pre-wrap; }
+  .evidence .none { color: var(--muted); font-style: italic; }
+  fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+  legend { font-family: system-ui, sans-serif; font-weight: 600; font-size: .9rem; padding: 0; margin-bottom: 4px; }
+  .choices { display: flex; flex-wrap: wrap; gap: 6px 12px; font-family: system-ui, sans-serif; font-size: .92rem; }
+  .choices label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .choices input { margin: 0; }
+  .choices label:has(input:checked) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  textarea { width: 100%; min-height: 90px; font: inherit; font-size: .98rem; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
+  .label-help { list-style: none; margin: 6px 0 0; padding: 0; font-family: system-ui, sans-serif; font-size: .82rem; color: var(--muted); }
+  .label-help li { margin: 2px 0; }
+  .label-help li.note { font-style: italic; margin-top: 4px; }
+  .missing { color: var(--warn); font-family: system-ui, sans-serif; font-size: .88rem; }
+  .jump { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .jump button { padding: 2px 7px; font-size: .78rem; border-radius: 6px; }
+  .jump button.done { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .jump button.current { outline: 2px solid var(--accent); }
+  footer { color: var(--muted); font-family: system-ui, sans-serif; font-size: .85rem; padding: 16px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Jev-stage review</h1>
+  <p class="lede">Load your packet, label every item from the evidence shown, and save the label file. Everything stays in this browser; nothing is sent anywhere. Your work is kept in this browser between sessions, and you can also save a partial file and resume from it later.</p>
+</header>
+<main>
+  <section class="panel" id="setup">
+    <div class="row">
+      <label class="file">Load packet <input type="file" id="packet-input" accept="application/json,.json"></label>
+      <label class="file">Resume from label file <input type="file" id="labels-input" accept="application/json,.json" disabled></label>
+      <span class="status" id="setup-status">No packet loaded.</span>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="rubric-panel">
+    <details>
+      <summary>Rubric</summary>
+      <dl class="rubric" id="rubric"></dl>
+    </details>
+  </section>
+
+  <section class="panel hidden" id="work">
+    <div class="nav">
+      <div>
+        <h2 id="item-title">Item</h2>
+        <span class="status" id="item-kind"></span>
+      </div>
+      <div class="row">
+        <button id="prev">Previous</button>
+        <button id="next">Next</button>
+        <button id="next-incomplete">Next unlabeled</button>
+      </div>
+    </div>
+    <div class="progress"><div id="progress-bar"></div></div>
+    <div class="status" id="progress-text"></div>
+    <div class="jump" id="jump"></div>
+    <hr style="border: 0; border-top: 1px solid var(--line); margin: 16px 0;">
+    <div class="versions" id="versions"></div>
+    <div id="pair-question"></div>
+    <fieldset>
+      <legend>Rationale (name the claim or source that decided your labels)</legend>
+      <textarea id="rationale" placeholder="One or two sentences."></textarea>
+    </fieldset>
+    <div class="missing" id="missing"></div>
+  </section>
+
+  <section class="panel hidden" id="finish">
+    <div class="row">
+      <button class="primary" id="save">Save label file</button>
+      <span class="status" id="save-status"></span>
+    </div>
+  </section>
+</main>
+<footer>Judge only from the evidence shown for each version. Do not open the articles or search the web. Treat the packet as confidential.</footer>
+
+<script>
+(function () {
+  "use strict";
+  const PER_VERSION = ["support", "citations", "readability"];
+  const QUESTION_TEXT = {
+    support: "Support: every material claim backed by this version's own evidence?",
+    citations: "Citations: every listed source relevant to this version's prose?",
+    readability: "Readability: complete sentences, no copied fragments?",
+    meaning_preservation: "Meaning preservation: do both versions carry the same supported material claims?"
+  };
+  const LABEL_HELP = {
+    supported: "Every material claim in the headline and prose is backed by this version's own evidence.",
+    unsupported: "A material claim (who, what, how many, when, cause) has no basis in the evidence shown.",
+    strengthened: "The text raises certainty, scope, magnitude, or causality beyond what the evidence says.",
+    reversed: "The text contradicts the evidence.",
+    all_relevant: "Every listed source has to do with this version's prose.",
+    irrelevant_listed: "At least one listed source has nothing to do with the prose.",
+    needed_source_absent: "This version's prose still relies on a source that appears only in the other version's list.",
+    readable: "Complete sentences; no copied truncated fragments or dangling ellipsis.",
+    fragment_or_incomplete: "A sentence fragment, a cut-off excerpt, or an unfinished thought.",
+    preserved: "Both versions carry the same supported material claims.",
+    lost: "A supported claim present in one version is missing from the other.",
+    added: "One version asserts a material claim the other does not.",
+    changed: "The same claim says something different in the two versions.",
+    not_applicable: "Only one version; there is nothing to compare."
+  };
+  const PRIORITY_NOTE = {
+    support: "If more than one applies, choose the most serious: reversed, then unsupported, then strengthened.",
+    meaning: "If more than one applies, choose in this order: changed, then added, then lost; name the others in your rationale."
+  };
+  PRIORITY_NOTE.meaning_preservation = PRIORITY_NOTE.meaning;
+  const state = { packet: null, packetName: null, reviewer: null, key: null, index: 0, labels: {} };
+
+  const $ = (id) => document.getElementById(id);
+  const setStatus = (id, text, kind) => { const el = $(id); el.textContent = text; el.className = "status" + (kind ? " " + kind : ""); };
+
+  function storageGet(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
+  function storageSet(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage may be unavailable */ } }
+
+  async function digest(text) {
+    try {
+      const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+      return "nodigest-" + text.length;
+    }
+  }
+
+  function validPacket(value) {
+    if (!value || typeof value !== "object" || !Array.isArray(value.items) || !value.items.length) return "packet has no items";
+    if (!value.rubric || typeof value.rubric.labels !== "object") return "packet has no rubric";
+    for (const q of PER_VERSION.concat(["meaning_preservation"])) {
+      if (!Array.isArray(value.rubric.labels[q])) return "rubric lacks " + q;
+    }
+    for (const item of value.items) {
+      if (typeof item.packet_id !== "string" || !Array.isArray(item.versions) || item.versions.length < 1 || item.versions.length > 2) return "malformed item";
+      for (const v of item.versions) {
+        if (typeof v.headline !== "string" || typeof v.prose !== "string" || !Array.isArray(v.evidence)) return "malformed version in " + item.packet_id;
+      }
+    }
+    return null;
+  }
+
+  function emptyLabels(item) {
+    const n = item.versions.length;
+    return {
+      support: Array(n).fill(null), citations: Array(n).fill(null), readability: Array(n).fill(null),
+      meaning_preservation: n === 1 ? "not_applicable" : null, rationale: ""
+    };
+  }
+
+  function entryFor(item) {
+    if (!state.labels[item.packet_id]) state.labels[item.packet_id] = emptyLabels(item);
+    return state.labels[item.packet_id];
+  }
+
+  function missingFor(item) {
+    const e = entryFor(item);
+    const missing = [];
+    for (const q of PER_VERSION) e[q].forEach((v, i) => { if (!v) missing.push(q + " (version " + (i + 1) + ")"); });
+    if (!e.meaning_preservation) missing.push("meaning_preservation");
+    if (!e.rationale || !e.rationale.trim()) missing.push("rationale");
+    return missing;
+  }
+
+  function persist() {
+    if (state.key) storageSet(state.key, { labels: state.labels, index: state.index });
+  }
+
+  function text(tag, className, content) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (content !== undefined) el.textContent = content;
+    return el;
+  }
+
+  function choiceGroup(question, options, current, onPick, suffix) {
+    const fs = document.createElement("fieldset");
+    fs.appendChild(text("legend", null, QUESTION_TEXT[question] || question));
+    const wrap = text("div", "choices");
+    const name = question + "-" + suffix + "-" + Math.random().toString(36).slice(2);
+    for (const option of options) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = name; input.value = option; input.checked = current === option;
+      input.addEventListener("change", () => onPick(option));
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(option.replace(/_/g, " ")));
+      label.title = LABEL_HELP[option] || "";
+      wrap.appendChild(label);
+    }
+    fs.appendChild(wrap);
+    const help = document.createElement("ul");
+    help.className = "label-help";
+    for (const option of options) {
+      const li = document.createElement("li");
+      li.appendChild(text("strong", null, option.replace(/_/g, " ") + ": "));
+      li.appendChild(document.createTextNode(LABEL_HELP[option] || ""));
+      help.appendChild(li);
+    }
+    const base = question.replace(/^Final /i, "").split(" ")[0].toLowerCase();
+    if (PRIORITY_NOTE[base]) {
+      const li = document.createElement("li");
+      li.className = "note";
+      li.textContent = PRIORITY_NOTE[base];
+      help.appendChild(li);
+    }
+    fs.appendChild(help);
+    return fs;
+  }
+
+  function renderRubric() {
+    const dl = $("rubric"); dl.replaceChildren();
+    const r = state.packet.rubric;
+    for (const key of Object.keys(r)) {
+      if (key === "labels") continue;
+      dl.appendChild(text("dt", null, key.replace(/_/g, " ")));
+      dl.appendChild(text("dd", null, String(r[key])));
+    }
+    dl.appendChild(text("dt", null, "labels"));
+    const labels = Object.entries(r.labels).map(([q, vals]) => q + ": " + vals.join(", ")).join(" · ");
+    dl.appendChild(text("dd", null, labels));
+  }
+
+  function renderJump() {
+    const jump = $("jump"); jump.replaceChildren();
+    state.packet.items.forEach((item, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = String(i + 1); b.title = item.packet_id;
+      if (!missingFor(item).length) b.classList.add("done");
+      if (i === state.index) b.classList.add("current");
+      b.addEventListener("click", () => { state.index = i; render(); });
+      jump.appendChild(b);
+    });
+  }
+
+  function render() {
+    const items = state.packet.items;
+    const item = items[state.index];
+    const e = entryFor(item);
+    const pair = item.versions.length === 2;
+    $("item-title").textContent = "Item " + (state.index + 1) + " of " + items.length + " · " + item.packet_id;
+    $("item-kind").textContent = pair ? "Two versions of the same story slot (order is random). Label each version, then compare them." : "Single version. Label it from its own evidence.";
+    const done = items.filter((it) => !missingFor(it).length).length;
+    $("progress-bar").style.width = Math.round(100 * done / items.length) + "%";
+    $("progress-text").textContent = done + " of " + items.length + " items complete";
+    renderJump();
+
+    const versions = $("versions"); versions.replaceChildren();
+    versions.className = "versions" + (pair ? " pair" : "");
+    item.versions.forEach((v, vi) => {
+      const card = text("section", "version");
+      card.appendChild(text("h3", null, pair ? "Version " + (vi + 1) : "Version"));
+      card.appendChild(text("p", "headline", v.headline));
+      card.appendChild(text("p", "prose", v.prose));
+      const ev = text("div", "evidence");
+      ev.appendChild(text("h3", null, "Evidence (" + v.evidence.length + ")"));
+      if (!v.evidence.length) ev.appendChild(text("p", "none", "No sources listed for this version."));
+      const ul = document.createElement("ul");
+      for (const src of v.evidence) {
+        const li = document.createElement("li");
+        li.appendChild(text("div", "title", String(src && src.title != null ? src.title : "(untitled)")));
+        if (src && (src.source || src.published)) {
+          li.appendChild(text("div", "origin", [src.source, src.published].filter(Boolean).map(String).join(" · ")));
+        }
+        li.appendChild(text("div", src && src.excerpt ? "excerpt" : "none", src && src.excerpt ? String(src.excerpt) : "No excerpt supplied; only the title is evidence."));
+        ul.appendChild(li);
+      }
+      ev.appendChild(ul);
+      card.appendChild(ev);
+      for (const q of PER_VERSION) {
+        card.appendChild(choiceGroup(q, state.packet.rubric.labels[q], e[q][vi], (option) => { e[q][vi] = option; persist(); renderMissing(item); renderJump(); }, "v" + vi));
+      }
+      versions.appendChild(card);
+    });
+
+    const pq = $("pair-question"); pq.replaceChildren();
+    if (pair) {
+      const options = state.packet.rubric.labels.meaning_preservation.filter((o) => o !== "not_applicable");
+      pq.appendChild(choiceGroup("meaning_preservation", options, e.meaning_preservation, (option) => { e.meaning_preservation = option; persist(); renderMissing(item); renderJump(); }, "pair"));
+    }
+    const ta = $("rationale");
+    ta.value = e.rationale || "";
+    ta.oninput = () => { e.rationale = ta.value; persist(); renderMissing(item); renderJump(); };
+    renderMissing(item);
+    $("prev").disabled = state.index === 0;
+    $("next").disabled = state.index === items.length - 1;
+    persist();
+    window.scrollTo({ top: $("work").offsetTop - 8, behavior: "instant" in window ? "instant" : "auto" });
+  }
+
+  function renderMissing(item) {
+    const missing = missingFor(item);
+    $("missing").textContent = missing.length ? "Still needed on this item: " + missing.join(", ") : "";
+    const total = state.packet.items.length;
+    const done = state.packet.items.filter((it) => !missingFor(it).length).length;
+    $("progress-bar").style.width = Math.round(100 * done / total) + "%";
+    $("progress-text").textContent = done + " of " + total + " items complete";
+  }
+
+  function buildLabelFile() {
+    return {
+      schema_version: 1,
+      reviewer: state.reviewer,
+      packet: state.packetName,
+      items: state.packet.items.map((item) => {
+        const e = entryFor(item);
+        return {
+          packet_id: item.packet_id,
+          labels: { support: e.support.slice(), meaning_preservation: e.meaning_preservation, citations: e.citations.slice(), readability: e.readability.slice() },
+          rationale: e.rationale || ""
+        };
+      })
+    };
+  }
+
+  function download(name, content) {
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+  }
+
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
+  $("packet-input").addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    let value;
+    try { value = JSON.parse(await readFile(file)); } catch (e) { setStatus("setup-status", "That file is not valid JSON.", "warn"); return; }
+    const problem = validPacket(value);
+    if (problem) { setStatus("setup-status", "Not a reviewer packet: " + problem + ".", "warn"); return; }
+    state.packet = value; state.packetName = file.name; state.index = 0; state.labels = {};
+    const prefix = String(value.items[0].packet_id).split("-")[0];
+    state.reviewer = /^r\d+$/.test(prefix) ? prefix : "reviewer";
+    state.key = "jev-stage-review:" + await digest(JSON.stringify(value.items.map((i) => i.packet_id)));
+    const saved = storageGet(state.key);
+    if (saved && saved.labels) {
+      state.labels = saved.labels;
+      state.index = Math.min(saved.index || 0, value.items.length - 1);
+      setStatus("setup-status", "Loaded " + file.name + " (" + value.items.length + " items) and restored your earlier work from this browser.", "ok");
+    } else {
+      setStatus("setup-status", "Loaded " + file.name + " (" + value.items.length + " items) as reviewer " + state.reviewer + ".", "ok");
+    }
+    $("labels-input").disabled = false;
+    const outlets = value.items.reduce((n, it) => n + it.versions.reduce((m, v) => m + v.evidence.filter((e) => e && e.source).length, 0), 0);
+    const evidenceCount = value.items.reduce((n, it) => n + it.versions.reduce((m, v) => m + v.evidence.length, 0), 0);
+    const el = $("setup-status");
+    el.textContent += outlets ? " Evidence carries outlet names for " + outlets + " of " + evidenceCount + " sources." : " This packet has no outlet names; load the enriched packet if one was issued.";
+    if (!outlets) el.className = "status warn";
+    renderRubric();
+    $("rubric-panel").classList.remove("hidden");
+    $("work").classList.remove("hidden");
+    $("finish").classList.remove("hidden");
+    render();
+  });
+
+  $("labels-input").addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !state.packet) return;
+    let value;
+    try { value = JSON.parse(await readFile(file)); } catch (e) { setStatus("setup-status", "That label file is not valid JSON.", "warn"); return; }
+    if (!value || !Array.isArray(value.items)) { setStatus("setup-status", "That is not a label file.", "warn"); return; }
+    const byId = new Map(state.packet.items.map((item) => [item.packet_id, item]));
+    let restored = 0;
+    for (const entry of value.items) {
+      const item = entry && byId.get(entry.packet_id);
+      if (!item || !entry.labels) continue;
+      const e = emptyLabels(item);
+      for (const q of PER_VERSION) {
+        if (Array.isArray(entry.labels[q])) entry.labels[q].slice(0, item.versions.length).forEach((v, i) => { e[q][i] = v || null; });
+      }
+      if (item.versions.length === 2 && entry.labels.meaning_preservation) e.meaning_preservation = entry.labels.meaning_preservation;
+      e.rationale = typeof entry.rationale === "string" ? entry.rationale : "";
+      state.labels[item.packet_id] = e;
+      restored += 1;
+    }
+    persist();
+    setStatus("setup-status", "Restored labels for " + restored + " of " + state.packet.items.length + " items from " + file.name + ".", "ok");
+    render();
+  });
+
+  $("prev").addEventListener("click", () => { if (state.index > 0) { state.index -= 1; render(); } });
+  $("next").addEventListener("click", () => { if (state.index < state.packet.items.length - 1) { state.index += 1; render(); } });
+  $("next-incomplete").addEventListener("click", () => {
+    const items = state.packet.items;
+    for (let step = 1; step <= items.length; step += 1) {
+      const i = (state.index + step) % items.length;
+      if (missingFor(items[i]).length) { state.index = i; render(); return; }
+    }
+    setStatus("save-status", "Every item is complete.", "ok");
+  });
+
+  $("save").addEventListener("click", () => {
+    const incomplete = state.packet.items.filter((it) => missingFor(it).length).length;
+    const name = "labels-" + state.reviewer + (incomplete ? "-partial" : "") + ".json";
+    download(name, JSON.stringify(buildLabelFile(), null, 2) + "\n");
+    if (incomplete) {
+      setStatus("save-status", "Saved " + name + " with " + incomplete + " incomplete item(s). Finish them and save again before returning the file.", "warn");
+    } else {
+      setStatus("save-status", "Saved " + name + ". All " + state.packet.items.length + " items are labeled; return this file.", "ok");
+    }
+  });
+})();
+</script>
+</body>
+</html>

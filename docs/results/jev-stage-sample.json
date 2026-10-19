@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "protocol_id": "jev-stage-v1",
+  "inventoried_at": "2026-10-16",
+  "sources": {
+    "preserved_wrappers": {
+      "directory": ".news-briefing/portfolio-preservation-2026-10-15/github",
+      "manifest": ".news-briefing/portfolio-preservation-2026-10-15/github/manifest.json",
+      "artifact_name": "briefing-corpus-archive",
+      "wrappers": [
+        {
+          "artifact_id": 11191332050,
+          "created_at": "2026-10-01T20:06:52Z",
+          "wrapper_sha256": "b1a6a9e75f522758396ad72c44a90f86885041a089722fc858c5072fb5eb9659",
+          "window_start": "2026-09-18",
+          "window_end": "2026-10-01"
+        },
+        {
+          "artifact_id": 11212654830,
+          "created_at": "2026-10-02T07:07:42Z",
+          "wrapper_sha256": "4d833304605bf045a1a09d86a581b3843d65d5a743a3046fd278464a6a0c2c6d",
+          "window_start": "2026-09-19",
+          "window_end": "2026-10-02"
+        },
+        {
+          "artifact_id": 11242700175,
+          "created_at": "2026-10-02T17:19:37Z",
+          "wrapper_sha256": "0ce4b4d663efe62b49242c26c7bcbb9178fd7b3e4e5d45449766aac5b13b2bb5",
+          "window_start": "2026-09-19",
+          "window_end": "2026-10-02"
+        },
+        {
+          "artifact_id": 11245143874,
+          "created_at": "2026-10-02T18:43:00Z",
+          "wrapper_sha256": "43cabeb352fcea1f406d609a321243c3a8237a0ebbf5d446772ad3d9809425ed",
+          "window_start": "2026-09-19",
+          "window_end": "2026-10-02"
+        },
+        {
+          "artifact_id": 11280427049,
+          "created_at": "2026-10-03T17:37:22Z",
+          "wrapper_sha256": "cdf118758f20efcb4a1020ed65d8d202746dd53dd56d642eabc6b68d85bf357f",
+          "window_start": "2026-09-20",
+          "window_end": "2026-10-03"
+        },
+        {
+          "artifact_id": 11310920785,
+          "created_at": "2026-10-04T17:51:14Z",
+          "wrapper_sha256": "ec003cac615a8cb160effdc7c3bf5c012b4f4cfed30ea96004405fc4af487781",
+          "window_start": "2026-09-21",
+          "window_end": "2026-10-04"
+        },
+        {
+          "artifact_id": 11371756630,
+          "created_at": "2026-10-05T21:26:25Z",
+          "wrapper_sha256": "8c5490f17f99f32e9554620cc10c414283ec4dfe4d36257730130c320f898c71",
+          "window_start": "2026-09-22",
+          "window_end": "2026-10-05"
+        },
+        {
+          "artifact_id": 11430109063,
+          "created_at": "2026-10-06T17:24:28Z",
+          "wrapper_sha256": "2de5e5c438c76224aa9d7eed1a694b4154671dadbe90f07917c0a3d5ea555a3c",
+          "window_start": "2026-09-23",
+          "window_end": "2026-10-06"
+        },
+        {
+          "artifact_id": 11436819093,
+          "created_at": "2026-10-06T19:05:34Z",
+          "wrapper_sha256": "7834d3df117ed571e2d2ee7af483aaf562d0f11f5741f4061d17f75e6d2bfb2f",
+          "window_start": "2026-09-23",
+          "window_end": "2026-10-06"
+        },
+        {
+          "artifact_id": 11505908132,
+          "created_at": "2026-10-07T19:33:36Z",
+          "wrapper_sha256": "e6846a8b9edc779fa2c036272e2012b155bb4ff99b031cfc527979681759807a",
+          "window_start": "2026-09-24",
+          "window_end": "2026-10-07"
+        },
+        {
+          "artifact_id": 11573283194,
+          "created_at": "2026-10-08T19:26:49Z",
+          "wrapper_sha256": "1536c3a02cd8bad8f4b6582d418c93ae0a87aa8c4de5b82eff79e569f2294d2c",
+          "window_start": "2026-09-25",
+          "window_end": "2026-10-08"
+        },
+        {
+          "artifact_id": 11581248830,
+          "created_at": "2026-10-08T22:01:33Z",
+          "wrapper_sha256": "aee5cc469523c18c5bfc68b7d58835939146d449ab7fa9f0a7b66580136e7389",
+          "window_start": "2026-09-25",
+          "window_end": "2026-10-08"
+        },
+        {
+          "artifact_id": 11638708768,
+          "created_at": "2026-10-09T19:02:09Z",
+          "wrapper_sha256": "5b31de041f40e9ce0867a0c3612595d5329860c60d9d1d7c59a7fd010567c4b6",
+          "window_start": "2026-09-26",
+          "window_end": "2026-10-09"
+        },
+        {
+          "artifact_id": 11677547696,
+          "created_at": "2026-10-10T18:01:47Z",
+          "wrapper_sha256": "de7b799545f8327684263feb0f16f7bb6b97bd4813cb00d90f82570e3e77331b",
+          "window_start": "2026-09-27",
+          "window_end": "2026-10-10"
+        },
+        {
+          "artifact_id": 11711501389,
+          "created_at": "2026-10-11T18:26:01Z",
+          "wrapper_sha256": "58d5077d2fe73c989afbd32e91e09cabd00cb47d6b704c48ad07b1406c7d0f47",
+          "window_start": "2026-09-28",
+          "window_end": "2026-10-11"
+        },
+        {
+          "artifact_id": 11776225172,
+          "created_at": "2026-10-12T21:54:25Z",
+          "wrapper_sha256": "18b7e5df20373bd1b90c7230c96c9eed4f4b96202f13a4d16ebe2420f379d2e0",
+          "window_start": "2026-09-29",
+          "window_end": "2026-10-12"
+        },
+        {
+          "artifact_id": 11844224752,
+          "created_at": "2026-10-13T20:01:46Z",
+          "wrapper_sha256": "527b132e6c0274558e73241dc17ff16619dff6dad05ec023cf00c7559e658fbc",
+          "window_start": "2026-09-30",
+          "window_end": "2026-10-13"
+        },
+        {
+          "artifact_id": 11919105945,
+          "created_at": "2026-10-14T18:13:35Z",
+          "wrapper_sha256": "1d6734251fed0713a08d57447cffc5dd45b2caf2cbf8f6f043b2455728bd5901",
+          "window_start": "2026-10-01",
+          "window_end": "2026-10-14"
+        },
+        {
+          "artifact_id": 11996586302,
+          "created_at": "2026-10-15T17:55:21Z",
+          "wrapper_sha256": "f955b01b135038ad4d40ccee9161f074d7478184e003445dd87255d34144b024",
+          "window_start": "2026-10-02",
+          "window_end": "2026-10-15"
+        }
+      ],
+      "note": "Each wrapper is an encrypted corpus archive produced by the main-branch daily workflow. restore_private_corpora.py --artifact-dir restores at most the fourteen dates ending at --newest from every wrapper in the manifest, after digest, provenance and authentication checks. Nothing was decrypted for this inventory; each window is the upper bound of dates that wrapper can supply.",
+      "superseded_same_day_wrappers": [
+        11212654830,
+        11242700175,
+        11430109063,
+        11573283194
+      ]
+    },
+    "live_window": {
+      "artifact_name": "briefing-corpus-archive",
+      "unexpired_wrappers_created": [
+        "2026-10-02T07:07:42Z",
+        "2026-10-02T17:19:37Z",
+        "2026-10-02T18:43:00Z",
+        "2026-10-03T17:37:22Z",
+        "2026-10-04T17:51:14Z",
+        "2026-10-05T21:26:25Z",
+        "2026-10-06T17:24:28Z",
+        "2026-10-06T19:05:34Z",
+        "2026-10-07T19:33:36Z",
+        "2026-10-08T19:26:49Z",
+        "2026-10-08T22:01:33Z",
+        "2026-10-09T19:02:09Z",
+        "2026-10-10T18:01:47Z",
+        "2026-10-11T18:26:01Z",
+        "2026-10-12T21:54:25Z",
+        "2026-10-13T20:01:46Z",
+        "2026-10-14T18:13:35Z",
+        "2026-10-15T17:55:21Z"
+      ],
+      "newest_created": "2026-10-15",
+      "dates": [
+        "2026-10-02",
+        "2026-10-03",
+        "2026-10-04",
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07",
+        "2026-10-08",
+        "2026-10-09",
+        "2026-10-10",
+        "2026-10-11",
+        "2026-10-12",
+        "2026-10-13",
+        "2026-10-14",
+        "2026-10-15"
+      ],
+      "note": "The unexpired GitHub artifacts on 2026-10-16 are the preserved wrappers created 2026-10-02 through 2026-10-15; the 2026-10-01 wrapper has expired on GitHub and survives only locally. The live fourteen-date window ends at the newest artifact."
+    }
+  },
+  "selection_rule": "Candidate dates are the union of the fourteen-date retention windows ending at each preserved wrapper's creation date, restricted to dates on or after 2026-09-06, when corpus schema v7 landed (older members are skipped by the restore as obsolete). The sample is the 28 most recent candidate dates, consecutive, so the primary 28-day frame is two retention windows as the plan sizes it. The runner restores each date from the preserved wrappers with --newest set to that date. Days with several daily runs (2026-10-02, 2026-10-06, 2026-10-08) have several wrappers, each archiving a fresh fetch of that day, and the restore fails closed when two wrappers disagree about a date; the runner therefore keeps only the newest wrapper per creation day (the run whose corpus the published briefing used and later wrappers carry forward) and lists the superseded wrappers in its merged manifest. Within the kept set, a date is supplied by every wrapper whose window contains it and any remaining conflict still fails closed.",
+  "candidate_dates_obtainable_upper_bound": [
+    "2026-09-18",
+    "2026-09-19",
+    "2026-09-20",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-26",
+    "2026-09-27",
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02",
+    "2026-10-03",
+    "2026-10-04",
+    "2026-10-05",
+    "2026-10-06",
+    "2026-10-07",
+    "2026-10-08",
+    "2026-10-09",
+    "2026-10-10",
+    "2026-10-11",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15"
+  ],
+  "sample_dates": [
+    "2026-09-18",
+    "2026-09-19",
+    "2026-09-20",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-26",
+    "2026-09-27",
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02",
+    "2026-10-03",
+    "2026-10-04",
+    "2026-10-05",
+    "2026-10-06",
+    "2026-10-07",
+    "2026-10-08",
+    "2026-10-09",
+    "2026-10-10",
+    "2026-10-11",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15"
+  ],
+  "frame": {
+    "start": "2026-09-18",
+    "end": "2026-10-15",
+    "planned_days": 28
+  },
+  "shortfall": {
+    "distinct_candidate_days": 28,
+    "primary_days": 28,
+    "minimum_days": 14,
+    "status": "no shortfall in the upper bound; actual availability is known only after decryption in Phase 4",
+    "risk": "Dates 2026-09-18 through 2026-10-01 are supplied only by wrappers whose windows reach back to them (created 2026-10-01 through 2026-10-14). A day on which the daily fetch did not run, or whose member fails validation, becomes a missing_day row in the frozen frame; the aggregator keeps it in the coverage denominator. If fewer than 28 days restore, the minimum reportable fallback is the fourteen-date frame below.",
+    "minimum_fallback_frame": {
+      "start": "2026-10-02",
+      "end": "2026-10-15",
+      "dates": [
+        "2026-10-02",
+        "2026-10-03",
+        "2026-10-04",
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07",
+        "2026-10-08",
+        "2026-10-09",
+        "2026-10-10",
+        "2026-10-11",
+        "2026-10-12",
+        "2026-10-13",
+        "2026-10-14",
+        "2026-10-15"
+      ]
+    }
+  }
+}

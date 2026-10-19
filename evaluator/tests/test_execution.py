@@ -17,6 +17,7 @@ from evaluator.adapters import (
     ProviderRequestError,
 )
 from evaluator.cases import run_deterministic_suite
+from evaluator.checkpoint import _reconstruct_observed_cost
 from evaluator.report import summarize
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.scoring import _oracle, apply_adjudications
@@ -59,6 +60,27 @@ class FailCorrectionAdapter(FakeAdapter):
             provider_request_id="billed-correction-error-1",
         )
 
+
+
+class UnknownCostAdapter(FakeAdapter):
+    """Known cost on the first call, unknown billing afterwards."""
+
+    provider = "unknown-cost-fixture"
+
+    def __init__(self, model: str):
+        super().__init__(model)
+        self.calls = 0
+
+    def generate(self, prompt: str) -> Generation:
+        self.calls += 1
+        generation = super().generate(prompt)
+        return Generation(
+            text=generation.text,
+            latency_ms=generation.latency_ms,
+            input_tokens=generation.input_tokens,
+            output_tokens=generation.output_tokens,
+            cost_usd=0.004 if self.calls == 1 else None,
+        )
 
 
 class CostedFailureAdapter(FakeAdapter):
@@ -271,6 +293,46 @@ class ExecutionTest(unittest.TestCase):
             self.assertEqual(cost["unreported_calls"], 0)
             self.assertEqual(cost["total_usd"], 0.001)
 
+
+    def test_unknown_cost_calls_are_charged_at_the_mean_known_cost_and_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            suite, prompt, output = _resume_fixture(Path(directory), case_count=3)
+            adapter = UnknownCostAdapter("fixture")
+            run_evaluation(
+                [adapter], {"v1": prompt}, output, suite_path=suite, corpus_path=DEFAULT_CORPUS,
+                cost_ceiling_usd=1.0, cost_ceiling_provider="unknown-cost-fixture",
+            )
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["run_status"], "complete")
+            # Three selection calls report zero cost and the first prose call reports 0.004;
+            # the two later prose calls have unknown billing and are charged the mean known cost.
+            self.assertEqual(manifest["ceiling_known_cost_calls"], 4)
+            self.assertEqual(manifest["ceiling_known_cost_usd"], 0.004)
+            self.assertEqual(manifest["ceiling_unknown_cost_calls"], 2)
+            unknown = manifest["ceiling_unknown_cost_calls"]
+            self.assertAlmostEqual(manifest["ceiling_estimated_unknown_cost_usd"], unknown * 0.004 / 4)
+            self.assertAlmostEqual(manifest["observed_ceiling_cost_usd"], 0.004 + unknown * 0.001)
+            report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+            cost = report["operations"]["groups"][0]["cost"]
+            self.assertEqual(cost["reported_calls"], 4)
+            self.assertEqual(cost["unreported_calls"], unknown)
+            # An interrupted checkpoint with unknown billing resumes and reconstructs the same charge.
+            manifest["run_status"] = "running"
+            manifest["completed_at"] = None
+            manifest["results"] = manifest["results"][:2]
+            prefix = _reconstruct_observed_cost(manifest["results"], "unknown-cost-fixture")
+            self.assertEqual(prefix.unknown_calls, 1)
+            manifest["observed_ceiling_cost_usd"] = prefix.observed_usd
+            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            resumed = run_evaluation(
+                [UnknownCostAdapter("fixture")], {"v1": prompt}, output, suite_path=suite,
+                corpus_path=DEFAULT_CORPUS, cost_ceiling_usd=1.0, cost_ceiling_provider="unknown-cost-fixture",
+                resume=True,
+            )
+            self.assertEqual(resumed["operations"]["run_status"], "complete")
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(manifest["results"]), 3)
+            self.assertGreaterEqual(manifest["ceiling_unknown_cost_calls"], 1)
 
     def test_billed_provider_error_counts_toward_the_cost_ceiling(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

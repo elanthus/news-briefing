@@ -72,9 +72,11 @@ These notes qualify the [parity v2](results/parity-v2.md) table summarized in th
 
 **Historical runs.** [Parity v1](results/parity-v1.md) preserves the earlier two-pass run before the repair-path correction. [Portfolio v2](results/portfolio-v2.md) records the direct-Markdown experiment and the candidate prompt that failed the promotion thresholds in [`regression-policy.json`](../evaluator/regression-policy.json) as they stood for that run; the non-inferiority rule changed afterward in #161 and #164. Those historical results are kept separate from parity v2.
 
-## Planned evals
+## Current evaluation results
 
-Two evaluations are planned and not yet run; neither has made a model call. [Parity v3](results/parity-v3-plan.md), protocol [`parity-v3.json`](../evaluator/protocols/parity-v3.json), reruns the Parity v2 matrix on the production-parity path at the current revision and pairs it descriptively against the frozen Parity v2 bundle; the policy's byte-identity requirements make that pairing descriptive, while the within-run prompt comparison is gate-eligible. The [Jev-stage evaluation](results/jev-stage-eval-plan.md), protocol [`jev-stage-v1.json`](../evaluator/protocols/jev-stage-v1.json), runs real corpus days through the current daily review command and adds a blind human adjudication subset for meaning preservation and grounding. Once they run, Parity v2 becomes the prior baseline in this document and the README, and the [September 30 study](results/jev-preliminary-2026-09-30.md) is cited only as the pilot that sized the Jev sample.
+[Parity v3](results/parity-v3.md), protocol [`parity-v3.json`](../evaluator/protocols/parity-v3.json), completed all 1,200 planned rows with errors. Both its comparison against the frozen Parity v2 bundle and its within-run prompt comparison are descriptive and not gate-eligible. Parity v2 is the prior baseline; neither comparison supports a promotion or regression decision.
+
+The [Jev-stage evaluation](results/jev-stage-v1.md), protocol [`jev-stage-v1.json`](../evaluator/protocols/jev-stage-v1.json), ran the committed [28-day sample](results/jev-stage-sample.json) on 2026-10-16. All days produced ready briefings and retained schema-3 audits: 17 complete reviews, 11 partial, no generation-failure or missing-day rows, USD 2.097 reported cost, and no unknown-cost calls. Automated rates are conditioned on complete review. Both human reviewers' labels are frozen, but adjudication and unblinding remain pending; the model card reports raw agreement without claiming adjudicated support or meaning preservation. The [September 30 study](results/jev-preliminary-2026-09-30.md) is the pilot that sized this sample. Both evaluations made model calls; their protocols were frozen before execution on 2026-10-16.
 
 ## Unverified machine grounding monitor
 
@@ -119,6 +121,7 @@ python3 -m evaluator.evidence_assets fetch
 python3 -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
 python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
+python3 -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
 ```
 
 The Portfolio v2 bundle's checker score family is frozen at the 2026-08-19 run and predates the 2026-08-25 repair of two fixtures, so its regenerated report shows the older 42/49 precision, 42/56 recall, and 7/12 heuristic figures rather than the table above.

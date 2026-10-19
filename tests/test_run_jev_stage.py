@@ -1,0 +1,237 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import run_jev_stage
+from run_jev_stage import DAY_RECORD, DayFailure, load_sample, provenance_manifest, run_sample, write_ledger
+
+
+def preserved_wrappers(directory, ids=(11, 12), *, drop_inventory_for=()):
+    """A preservation directory shaped like portfolio-preservation-*/github."""
+    directory.mkdir(parents=True, exist_ok=True)
+    rows = [{'id': i, 'name': 'briefing-corpus-archive', 'sha256': 'a' * 64, 'bytes': 10,
+             'created_at': f'2026-10-{i % 100:02d}T{i // 100 + 18:02d}:00:00Z', 'run_id': i * 7,
+             'state': 'preserved_uninspected'}
+            for i in ids] + [{'id': 99, 'name': 'github-pages', 'sha256': 'b' * 64, 'bytes': 5, 'created_at': 'x'}]
+    (directory / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'artifacts': rows}))
+    inventory = [{'total_count': len(ids), 'artifacts': [
+        {'id': i, 'name': 'briefing-corpus-archive',
+         'workflow_run': {'id': i * 7, 'repository_id': 1, 'head_repository_id': 1, 'head_branch': 'main'}}
+        for i in ids if i not in drop_inventory_for]}]
+    (directory / 'inventory.json').write_text(json.dumps(inventory))
+    return directory
+
+
+class FakeCommands:
+    """Simulate the restore and daily commands by writing the files they would write."""
+
+    def __init__(self, *, obtainable=None, failing_days=(), review_crash_days=(), run_exit_days=(), refused_days=()):
+        self.obtainable = obtainable
+        self.failing_days = set(failing_days)
+        self.refused_days = set(refused_days)
+        self.review_crash_days = set(review_crash_days)
+        self.run_exit_days = set(run_exit_days)
+        self.calls = []
+
+    def __call__(self, command):
+        self.calls.append(command)
+        script = Path(command[2]).name
+        options = dict(zip(command[3::2], command[4::2], strict=True))
+        if script == 'restore_private_corpora.py':
+            day = options['--newest']
+            if self.obtainable is not None and day not in self.obtainable:
+                return 4
+            out = Path(options['--output-dir'])
+            out.mkdir(parents=True)
+            (out / f'{day}.json').write_text(json.dumps({'report_date': day}))
+            return 0
+        assert script == 'run_daily_briefing.py'
+        run = Path(options['--run-dir'])
+        day = run.parent.name
+        run.mkdir(parents=True)
+        if day in self.run_exit_days:
+            (run / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'x'}))
+            return 1
+        if day in self.failing_days:
+            (run / 'fallback-log.json').write_text(json.dumps(
+                {'status': 'failed', 'selected_run_dir': None,
+                 'generation_budget': {'known_spend_usd': 0.02, 'calls': 3, 'stop_reason': None}}))
+            return 1
+        if day in self.refused_days:
+            (run / 'fallback-log.json').write_text(json.dumps(
+                {'status': 'failed', 'selected_run_dir': None,
+                 'generation_budget': {'known_spend_usd': 0.0, 'calls': 0, 'stop_reason': 'spending_allowance'}}))
+            return 1
+        (run / 'hy3').mkdir()
+        (run / 'hy3' / 'manifest.json').write_text('{"status": "complete"}')
+        (run / 'fallback-log.json').write_text(json.dumps(
+            {'status': 'ready', 'selected_run_dir': 'hy3', 'generation_budget': {'known_spend_usd': 0.05,
+                                                                                 'unknown_reserved_usd': 0.0}}))
+        Path(options['--output']).write_text('# briefing\n')
+        if day not in self.review_crash_days:
+            review = Path(options['--jev-review-dir'])
+            review.mkdir(parents=True)
+            (review / 'audit.json').write_text(json.dumps(
+                {'metadata': {}, 'audit': {'reported_cost_usd': 0.1, 'unknown_cost_calls': 0}, 'integrity': {}}))
+        return 0
+
+
+class RunJevStageTests(unittest.TestCase):
+    def test_sample_file_is_well_formed_and_runner_commands_match_the_plan(self):
+        dates = load_sample(run_jev_stage.DEFAULT_SAMPLE)
+        self.assertEqual(len(dates), 28)
+        self.assertEqual(dates, sorted(dates))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            restore = run_jev_stage.restore_command('2026-10-15', root / 'wrappers', root / 'd' / 'corpora')
+            self.assertEqual(restore[1], '-S')
+            self.assertIn('--artifact-dir', restore)
+            run = run_jev_stage.run_command('2026-10-15', root / '2026-10-15', 1.0)
+            self.assertEqual(run[1], '-S')
+            self.assertEqual(run[run.index('--jev-review-dir') + 1], str(root / '2026-10-15' / 'review'))
+            self.assertEqual(run[run.index('--corpus') + 1], str(root / '2026-10-15' / 'corpora' / '2026-10-15.json'))
+
+    def test_runs_in_order_records_digests_and_skips_complete_days(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'stage'
+            commands = FakeCommands(failing_days={'2026-10-02'})
+            messages = []
+            dates = ['2026-10-01', '2026-10-02', '2026-10-03']
+            wrappers = preserved_wrappers(Path(directory) / 'wrappers')
+            records = run_sample(dates, root, wrappers, generation_usd=1.0,
+                                 execute=commands, commit='abc', report=messages.append)
+            restore = next(c for c in commands.calls if c[2].endswith('restore_private_corpora.py'))
+            manifest = root.parent / 'stage-artifact-manifest.json'
+            self.assertEqual(restore[restore.index('--artifact-manifest') + 1], str(manifest))
+            merged = json.loads(manifest.read_text())
+            # The audit root holds only dated day directories for the aggregator.
+            self.assertTrue(all(child.name.startswith('2026-') for child in root.iterdir()))
+            self.assertEqual([a['id'] for a in merged['artifacts']], [11, 12])
+            self.assertTrue(all(a['workflow_run']['head_branch'] == 'main' for a in merged['artifacts']))
+            self.assertEqual([r['status'] for r in records], ['reviewed', 'generation_failure', 'reviewed'])
+            record = json.loads((root / '2026-10-01' / DAY_RECORD).read_text())
+            self.assertEqual(set(record['artifact_sha256']), {'run/fallback-log.json', 'corpora/2026-10-01.json',
+                                                              'run/hy3/manifest.json', 'briefing.md',
+                                                              'review/audit.json'})
+            self.assertEqual(record['code_commit'], 'abc')
+            self.assertAlmostEqual(record['costs']['review_reported_cost_usd'], 0.1)
+            failed = json.loads((root / '2026-10-02' / DAY_RECORD).read_text())
+            self.assertEqual(set(failed['artifact_sha256']), {'run/fallback-log.json', 'corpora/2026-10-02.json'})
+            self.assertIn('cumulative reported cost USD 0.3200', messages[-1])
+            # A second pass makes no further calls for completed days.
+            count = len(commands.calls)
+            again = run_sample(dates, root, wrappers, generation_usd=1.0,
+                               execute=commands, report=messages.append)
+            self.assertEqual(len(commands.calls), count)
+            self.assertEqual([r['status'] for r in again], [r['status'] for r in records])
+            ledger = Path(directory) / 'ledger.json'
+            write_ledger(records, ledger)
+            text = ledger.read_text()
+            self.assertNotIn(str(root), text)
+            self.assertEqual(len(json.loads(text)['days']), 3)
+
+    def test_stops_on_non_generation_failures(self):
+        cases = {
+            'review stage did not complete': FakeCommands(review_crash_days={'2026-10-02'}),
+            'nonzero exit with ready chain': FakeCommands(run_exit_days={'2026-10-02'}),
+            'chain failed before any provider call': FakeCommands(refused_days={'2026-10-02'}),
+        }
+        for label, commands in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'stage'
+                with self.assertRaises(DayFailure):
+                    run_sample(['2026-10-01', '2026-10-02', '2026-10-03'], root,
+                               preserved_wrappers(Path(directory) / 'w'),
+                               generation_usd=1.0, execute=commands, report=lambda _: None)
+                self.assertTrue((root / '2026-10-01' / DAY_RECORD).exists())
+                self.assertFalse((root / '2026-10-02' / DAY_RECORD).exists())
+                self.assertFalse((root / '2026-10-03').exists())
+
+    def test_missing_archive_is_recorded_and_later_days_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'stage'
+            commands = FakeCommands(obtainable={'2026-10-01', '2026-10-03'})
+            dates = ['2026-10-01', '2026-10-02', '2026-10-03']
+            wrappers = preserved_wrappers(Path(directory) / 'w')
+            records = run_sample(dates, root, wrappers, generation_usd=1.0,
+                                 execute=commands, report=lambda _: None)
+            self.assertEqual([r['status'] for r in records], ['reviewed', 'missing_day', 'reviewed'])
+            missing = json.loads((root / dates[1] / DAY_RECORD).read_text())
+            self.assertEqual(missing['artifact_sha256'], {})
+            self.assertFalse((root / dates[1] / 'run').exists())
+            count = len(commands.calls)
+            run_sample(dates, root, wrappers, generation_usd=1.0, execute=commands, report=lambda _: None)
+            self.assertEqual(len(commands.calls), count)
+
+    def test_other_restore_failures_and_absent_corpus_are_fatal(self):
+        for code in (0, 1, 2, 3, 5):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'stage'
+                with self.assertRaises(DayFailure):
+                    run_sample(['2026-10-01', '2026-10-02'], root,
+                               preserved_wrappers(Path(directory) / 'w'), generation_usd=1.0,
+                               execute=lambda _, code=code: code, report=lambda _: None)
+                self.assertFalse((root / '2026-10-01' / DAY_RECORD).exists())
+                self.assertFalse((root / '2026-10-02').exists())
+
+    def test_invalid_resume_records_fail_with_the_day_identified(self):
+        for content in ('{', '[]', 'null', '42'):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'stage'
+                day = root / '2026-10-01'
+                day.mkdir(parents=True)
+                (day / DAY_RECORD).write_text(content)
+                commands = FakeCommands()
+                with self.assertRaisesRegex(DayFailure, '2026-10-01'):
+                    run_sample(['2026-10-01'], root, preserved_wrappers(Path(directory) / 'w'),
+                               generation_usd=1.0, execute=commands, report=lambda _: None)
+                self.assertEqual(commands.calls, [])
+                self.assertEqual((day / DAY_RECORD).read_text(), content)
+
+    def test_interrupted_record_replacement_preserves_existing_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'stage'
+            record = root / '2026-10-01' / DAY_RECORD
+            record.parent.mkdir(parents=True)
+            record.write_text('{"status": "previous"}')
+            with patch('agent_runner.checkpoint.os.replace', side_effect=OSError('interrupted')):
+                with self.assertRaisesRegex(OSError, 'interrupted'):
+                    run_jev_stage.run_day('2026-10-01', root, Path(directory) / 'w',
+                                          generation_usd=1.0, execute=FakeCommands(), commit='abc')
+            self.assertEqual(json.loads(record.read_text()), {'status': 'previous'})
+            self.assertEqual(list(record.parent.glob('.*.tmp')), [])
+
+    def test_provenance_manifest_joins_digests_with_workflow_runs_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wrappers = preserved_wrappers(Path(directory) / 'w', ids=(11, 12, 13))
+            output = Path(directory) / 'out' / 'artifact-manifest.json'
+            self.assertEqual(provenance_manifest(wrappers, output), 3)
+            merged = json.loads(output.read_text())
+            self.assertEqual({a['name'] for a in merged['artifacts']}, {'briefing-corpus-archive'})
+            self.assertEqual(set(merged['artifacts'][0]),
+                             {'id', 'name', 'sha256', 'bytes', 'created_at', 'workflow_run'})
+            # Two wrappers on day 12 (ids 12 at 18:00 and 112 at 19:00): only the newest is kept.
+            reruns = preserved_wrappers(Path(directory) / 'reruns', ids=(11, 12, 112, 13))
+            output = Path(directory) / 'reruns-out.json'
+            self.assertEqual(provenance_manifest(reruns, output), 3)
+            merged = json.loads(output.read_text())
+            self.assertEqual([a['id'] for a in merged['artifacts']], [11, 112, 13])
+            self.assertEqual(merged['superseded_same_day_wrappers'], [12])
+            broken = preserved_wrappers(Path(directory) / 'broken', ids=(11, 12), drop_inventory_for=(12,))
+            with self.assertRaises(ValueError):
+                provenance_manifest(broken, Path(directory) / 'broken-out.json')
+            self.assertFalse((Path(directory) / 'broken-out.json').exists())
+
+    def test_sample_validation_rejects_disorder_and_duplicates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'sample.json'
+            for dates in (['2026-10-02', '2026-10-01'], ['2026-10-01', '2026-10-01'], []):
+                path.write_text(json.dumps({'sample_dates': dates}))
+                with self.subTest(dates=dates), self.assertRaises(ValueError):
+                    load_sample(path)
+
+
+if __name__ == '__main__':
+    unittest.main()

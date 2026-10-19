@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "protocol_id": "jev-stage-v1",
+  "frozen_at": "2026-10-18T01:10:19Z",
+  "note": "Both reviewers' label files were validated against their packets and frozen by SHA-256 before any adjudication and before the correspondence key was opened. The adjudication packet was built from blinded content only.",
+  "label_files": {
+    "r1": {
+      "packet": "reviewer-primary.json",
+      "items": 65,
+      "pairs": 14,
+      "controls": 51,
+      "sha256": "04615cbb45dc868b20fabc770ae1408a5165b6963ad0621f9cb4e44873fe8102",
+      "bytes": 40437
+    },
+    "r2": {
+      "packet": "reviewer-double.json",
+      "items": 31,
+      "pairs": 14,
+      "controls": 17,
+      "sha256": "6b429b216f536dd5db18f9038239aa0a037859d2848a7d2dc8d744c1a7d9811f",
+      "bytes": 21262
+    }
+  },
+  "packet_files": {
+    "reviewer-primary.json": "55941de46341012a77089ec382d9d1835cfe0082bd11efdb8f1ba247bf08884d",
+    "reviewer-double.json": "55d7248757deab8a7811e7ae10c31684ef32e7de7c7aaa67ad57b756160c7276"
+  },
+  "raw_agreement": {
+    "citations": {
+      "agreements": 44,
+      "compared": 45
+    },
+    "meaning_preservation": {
+      "agreements": 3,
+      "compared": 14
+    },
+    "readability": {
+      "agreements": 45,
+      "compared": 45
+    },
+    "support": {
+      "agreements": 28,
+      "compared": 45
+    }
+  },
+  "shared_items": 31,
+  "shared_pairs": 14,
+  "shared_controls": 17,
+  "items_with_any_disagreement": 23,
+  "items_sent_to_adjudication": 23,
+  "adjudication_packet_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96",
+  "correspondence_opened_at": null,
+  "adjudication_packet_enriched": {
+    "date": "2026-10-19",
+    "sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
+    "change": "outlet name and publication date added to every evidence item (84 items across 23 adjudication items) by matching frozen title and excerpt against the verified runs; no correspondence key read; adjudication ids, version order, labels, rationales and A/B assignment unchanged",
+    "original_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96"
+  }
+}

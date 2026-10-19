@@ -1,6 +1,6 @@
 # Evidence release assets
 
-The three public evidence bundles are split between the repository and a GitHub release.
+The public evidence bundles are split between the repository and a GitHub release.
 
 Each bundle directory in `docs/results/` keeps its small, reviewable files:
 `SHA256SUMS`, `metadata.json`, and `report.md`. The large files (`manifest.json`,
@@ -14,12 +14,7 @@ Git history before that release still contains the files.
 | [`parity-v1-evidence/`](parity-v1-evidence/) | `parity-v1-evidence.tar.gz` | 3,850,373 | `ce95660dddfcf3862cb506c3a84d830b924b98ff6f4e294cf4482cd711aa7000` |
 | [`parity-v2-evidence/`](parity-v2-evidence/) | `parity-v2-evidence.tar.gz` | 4,599,011 | `c219cac45494c7d582de12143c8da491c842fc3229ca77f4ab7863051ca63b2f` |
 | [`portfolio-v2-evidence/`](portfolio-v2-evidence/) | `portfolio-v2-evidence.tar.gz` | 2,461,937 | `1688d1fe830020a86a2b3e96a0e5f771c10e8f9583a2dd88663869a72b412bd8` |
-
-[`evaluator/evidence-assets.json`](../../evaluator/evidence-assets.json) pins the tag, asset
-names, archive hashes, and member lists. CI and the commands below read that file.
-
-The former `docs/results/data/portfolio-v2-ledger.json` was a byte-identical copy of
-`portfolio-v2-evidence/ledger.json` and is not published separately.
+| [`parity-v3-evidence/`](parity-v3-evidence/) | `parity-v3-evidence.tar.gz` | 6,223,463 | `c4747e940a0d708280bc7ebbe33edb2dd78b237029a3cc5720ad1aeba337b821` |
 
 ## Fetch and verify
 
@@ -28,6 +23,7 @@ python3 -S -m evaluator.evidence_assets fetch
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
 python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
 ```
 

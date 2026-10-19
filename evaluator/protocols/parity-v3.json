@@ -1,10 +1,12 @@
 {
   "authorization": {
-    "authorized_at": null,
+    "authorized_at": "2026-10-16T04:03:43Z",
     "component_cost_ceiling_usd": 5.0,
     "generation_cost_ceiling_usd": 4.0,
     "remaining_budget_applies_to_semantic_and_grounding_review": true,
-    "total_openrouter_cost_ceiling_usd": 5.0
+    "total_openrouter_cost_ceiling_usd": 5.0,
+    "authorized_by": "repository owner, written go-ahead in chat on 2026-10-16",
+    "unknown_cost_rule": "an unknown-cost call is charged at the mean known cost per call so far and does not block resume"
   },
   "baseline": {
     "bundle": "docs/results/parity-v2-evidence",
@@ -39,7 +41,7 @@
     "timeout_seconds": 300,
     "trials_per_case": 5
   },
-  "frozen_at": null,
+  "frozen_at": "2026-10-16T03:32:41Z",
   "inputs": [
     {
       "path": "evaluator/fixtures/generation-corpus.json",
@@ -103,12 +105,12 @@
     "clean_worktree_required": true,
     "public_evidence_required": true,
     "reachable_commit_required": true,
-    "required_tag": "parity-v3-source-YYYYMMDD",
-    "required_tag_note": "Replace YYYYMMDD with the UTC date of the frozen commit when this protocol is frozen, following parity-v1-source-20260901c and parity-v2-source-20260904. The tag must point at the clean HEAD that `evaluator run --run-kind final` records.",
+    "required_tag": "parity-v3-source-20261016",
+    "required_tag_note": "The tag follows parity-v1-source-20260901c and parity-v2-source-20260904 and names the UTC date of the freeze. It must point at the clean HEAD that `evaluator run --run-kind final` records; it is created only when the run is authorized.",
     "runtime_source_sha256_required": true
   },
-  "status": "draft_pending_freeze",
-  "status_note": "Hashes above are the committed bytes at the revision that introduced this file. Before the run: re-hash every listed input and prompt, set frozen_at and authorization.authorized_at, replace required_tag, set status to frozen_for_run, commit, then tag. evaluator/tests/test_protocols.py fails when the listed hashes drift from the committed fixtures.",
+  "status": "frozen_for_run",
+  "status_note": "Frozen on 2026-10-16T03:32:41Z and authorized on 2026-10-16T04:03:43Z. Every listed input and prompt hash was re-verified against the committed bytes before the freeze and again at the tag. The tag parity-v3-source-20261016 points at the clean HEAD that `evaluator run --run-kind final` records. From authorization on, these hashes are the historical record of the run; evaluator/tests/test_protocols.py binds only unauthorized protocols to current bytes.",
   "suite": {
     "authored_cases": 55,
     "derived_clean_cases": 5,

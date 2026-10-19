@@ -353,6 +353,22 @@ class PublicRunTest(unittest.TestCase):
             self.assertIsNone(preserved["first"])
             self.assertIsNone(preserved["final"])
 
+            # A scored correction failure alone must also keep the merged error status.
+            correction_failed = row("model-b", 0.02)
+            correction_failed.update({
+                "status": "completed_with_correction_error",
+                "correction_error": {"type": "ProviderRequestError", "message": "invalid JSON"},
+            })
+            supplement_manifest["results"][0] = correction_failed
+            supplement_path.write_text(json.dumps(supplement_manifest), encoding="utf-8")
+            correction_output = root / "with-correction-error"
+            export_public_run([primary_path, supplement_path], correction_output)
+            correction_public = json.loads((correction_output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(correction_public["run_status"], "completed_with_errors")
+            self.assertEqual(sum(c["error_rows"] for c in correction_public["split_run_components"]), 0)
+            self.assertEqual(sum(c["correction_error_rows"] for c in correction_public["split_run_components"]), 1)
+            self.assertEqual(verify_public_run(correction_output)["status"], "verified")
+
             # A run that recorded failures but whose rows do not carry them is
             # rejected, in the single-manifest path as well as the split one.
             malformed = {**failed, "error": None}
@@ -389,3 +405,54 @@ class PublicRunTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exact whole adapter matrices"):
                 export_public_run([primary_path, supplement_path], root / "wrong-matrix")
 
+
+
+class CorrectionErrorRowTest(unittest.TestCase):
+    def _manifest(self, row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema_version": 9, "generation_path": "production-parity", "run_kind": "final",
+            "run_status": "completed_with_errors", "planned_case_trials": 1, "trials_per_case": 1,
+            "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
+            "protocol": str(ROOT / "evaluator/protocols/parity-v3.json"),
+            "code": {"commit": "abc", "tree": "def", "dirty": False, "source_tag": "parity-test-source",
+                     "runtime_source_sha256": {"evaluator/runner.py": "123"}},
+            "generation_controls": [], "grounding_measure": "test", "deterministic_summary": None,
+            "results": [row],
+        }
+
+    def test_scored_row_with_disclosed_correction_error_is_published(self) -> None:
+        scored = {"contract_success": True, "latency_ms": 1, "cost_usd": 0.01, "findings": [],
+                  "grounding_error_topics": 0, "generated_topics": 1, "oracle": {}}
+        row = {
+            "provider": "openrouter", "model": "model", "prompt_version": "prompt", "prompt_sha256": "prompt-sha",
+            "case_id": "case", "case_family": "utility", "case_kind": "utility", "trial": 1,
+            "status": "completed_with_correction_error", "artifact_dir": "row", "correction_attempted": True,
+            "correction": None, "error": None,
+            "correction_error": {"stage": "correction", "type": "ProviderRequestError", "cost_usd": 0.0,
+                                 "message": "openrouter returned invalid JSON"},
+            "first": {"text": "generated output", "provider_request_id": "secret-id", **scored},
+            "final": dict(scored),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source").mkdir()
+            (root / "source" / "manifest.json").write_text(json.dumps(self._manifest(row)), encoding="utf-8")
+            export_public_run(root / "source" / "manifest.json", root / "public", ledger_output=root / "ledger.json")
+            self.assertEqual(verify_public_run(root / "public")["rows"], 1)
+            metadata = json.loads((root / "public" / "metadata.json").read_text(encoding="utf-8"))
+            component = metadata["component_manifests"][0]
+            self.assertEqual((component["error_rows"], component["correction_error_rows"]), (0, 1))
+            self.assertNotIn("secret-id", (root / "public" / "manifest.json").read_text(encoding="utf-8"))
+            # Without a scored result or a recorded correction error the row is not publishable.
+            broken_rows: list[dict[str, Any]] = [{"final": None}, {"correction_error": None}]
+            for field, changed in (
+                ("contract_success", False), ("findings", [{"code": "mismatch"}]),
+                ("deterministic_repairs", ["mismatch"]), ("oracle", {"mismatch": True}),
+                ("generated_topics", 2), ("grounding_error_topics", 1),
+            ):
+                broken_rows.append({"final": {**scored, field: changed}})
+            for broken in broken_rows:
+                (root / "source" / "manifest.json").write_text(json.dumps(self._manifest({**row, **broken})),
+                                                               encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "every recorded row"):
+                    export_public_run(root / "source" / "manifest.json", root / f"public-{list(broken)[0]}")

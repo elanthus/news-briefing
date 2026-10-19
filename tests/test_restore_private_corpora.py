@@ -171,7 +171,8 @@ class RestorePrivateCorporaTests(unittest.TestCase):
                 supplement.write_text(json.dumps(value))
                 original = path.read_bytes()
                 if conflicting:
-                    with self.assertRaisesRegex(ValueError, "conflicting preserved corpora"):
+                    conflict = r"conflicting preserved corpora for 2026-08-\d\d: wrappers \d+ and 11 differ"
+                    with self.assertRaisesRegex(ValueError, conflict):
                         restore_private_corpora.restore_local(wrappers, root / "output", "secret", date(2026, 8, 20),
                                                              manifest_path=supplement)
                     self.assertFalse((root / "output").exists())

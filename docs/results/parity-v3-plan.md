@@ -1,8 +1,9 @@
 # Parity v3 plan
 
-Status: planned, not run. No model call has been made for this plan. Protocol:
+Status: run on 2026-10-16 and reported in [`parity-v3.md`](parity-v3.md). Protocol:
 [`parity-v3.json`](../../evaluator/protocols/parity-v3.json) (status
-`draft_pending_freeze`). Read the [evaluation methodology](../evaluation-methodology.md)
+`frozen_for_run`, frozen 2026-10-16, required tag `parity-v3-source-20261016`,
+authorized 2026-10-16). Read the [evaluation methodology](../evaluation-methodology.md)
 before quoting any number this run eventually produces.
 
 ## Goal
@@ -57,13 +58,20 @@ Two comparisons under this plan are gate-eligible:
 
 ## Before the run
 
-1. Confirm the fixture and prompt hashes in `parity-v3.json` still match the
-   committed bytes (`python3 -S -m unittest evaluator.tests.test_protocols`).
+1. Run the protocol tests for unauthorized protocols
+   (`python3 -S -m unittest evaluator.tests.test_protocols`). The preflight in
+   step 3 checks the fixture and prompt hashes in `parity-v3.json`, including
+   the authorized protocol, against the current bytes.
 2. Set `frozen_at`, `authorization.authorized_at`, and `required_tag`
    (`parity-v3-source-YYYYMMDD`), change `status` to `frozen_for_run`, commit.
-3. Tag the clean HEAD with that name. `evaluator run --run-kind final` refuses a
-   dirty worktree or a tag that does not point at HEAD.
-4. Copy `evaluator/.env.example` to the ignored `evaluator/.env` with
+3. Rehearse the run command without credentials: replace `run` with `preflight`
+   in the command below and add `--before-tag`. It must report every protocol
+   hash, control, model, prompt, and planned-row check as passing, with only the
+   source tag deferred and `authorization.authorized_at` outstanding.
+4. Tag the clean HEAD with that name. `evaluator run --run-kind final` refuses a
+   dirty worktree or a tag that does not point at HEAD. Rerun the preflight
+   without `--before-tag`; it must exit 0.
+5. Copy `evaluator/.env.example` to the ignored `evaluator/.env` with
    `OPENROUTER_API_KEY`. No other credential is needed.
 
 ## Run command
@@ -122,15 +130,26 @@ python3 -m evaluator compare \
 Family breakdown and public export, as for Parity v2:
 
 ```bash
-python3 -S -m evaluator.family_rates evaluator/results/parity-v3-final-YYYYMMDD/ledger.json
 python3 -m evaluator export-public-run evaluator/results/parity-v3-final-YYYYMMDD/manifest.json \
   --output-dir docs/results/parity-v3-evidence \
   --ledger-output docs/results/parity-v3-evidence/ledger.json
+python3 -S -m evaluator.family_rates docs/results/parity-v3-evidence/ledger.json
 python3 -m evaluator verify-public-run docs/results/parity-v3-evidence
 ```
 
 Large bundle files go to a release asset listed in [EVIDENCE-ASSETS.md](EVIDENCE-ASSETS.md),
 following the existing bundles.
+
+These commands were rehearsed on the fetched Parity v2 bundle before the freeze.
+`compare` accepts the bundle's `manifest.json` as either argument; without
+`--allow-descriptive` it refuses Parity v2 because that run is
+`completed_with_errors`, which is the same refusal an unclean Parity v3 run would
+meet on the within-run comparison. `family_rates` reads the bundle's `ledger.json`; the ledger is written by
+`export-public-run`, not by `run`, so the family breakdown follows the export
+(the first draft of this plan pointed it at the run directory).
+`export-public-run` takes a raw run manifest; re-exporting an already public
+bundle produces a different component identity and does not re-verify, so the
+export runs once, from `evaluator/results/parity-v3-final-YYYYMMDD/manifest.json`.
 
 ## Expected cost
 
@@ -138,7 +157,10 @@ Parity v2's two components reported $1.863904276212 in generation cost for 1,200
 rows across 2,461 calls, under a $5 DeepSeek ceiling and a $3 HY3 ceiling. Parity v3
 is the same matrix on the same providers, so the planning figure is roughly $2 with a
 $5 ceiling, as the protocol's `authorization` block records. Provider prices can
-change; the manifest records observed billed cost and counts unknown-cost calls.
+change; the manifest records observed billed cost and counts unknown-cost calls. A
+call with unknown billing is charged against the ceiling at the mean known cost per
+call so far and does not block `--resume`; the card reports known, estimated, and
+unknown-call figures separately.
 
 ## Pass criteria
 

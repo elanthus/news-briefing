@@ -20,7 +20,9 @@ from agent_runner.stages import correction_action
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
     CIRCUIT_BREAKER_THRESHOLD,
+    CeilingCosts,
     RunState,
+    _apply_ceiling_costs,
     _prepare_artifact_dir,
     _provider_error,
     _reconstruct_failure_state,
@@ -30,8 +32,6 @@ from evaluator.checkpoint import (
 from evaluator.parity import (
     GenerationAttempt,
     _ProductionParityProviderError,
-    _reported_generation_cost,
-    _reported_stage_cost,
     _stage_call_records,
     _write_production_attempt_artifacts,
     run_correction_attempt,
@@ -98,9 +98,23 @@ class TrialContext:
     ceiling_limit: float | None
 
 
-def _set_observed_cost(state: RunState, value: float) -> None:
-    state.observed_ceiling_cost_usd = value
-    state.manifest["observed_ceiling_cost_usd"] = value
+def _generation_call_costs(generation: Generation) -> list[float | None]:
+    """One entry per provider call; None keeps unknown billing visible."""
+    usage = generation.usage
+    staged = usage.get("production_parity_calls") if isinstance(usage, dict) else None
+    if isinstance(staged, list):
+        return [
+            float(cost) if isinstance((cost := record.get("cost_usd")), (int, float))
+            and not isinstance(cost, bool) else None
+            for record in staged if isinstance(record, dict)
+        ]
+    return [generation.cost_usd]
+
+
+def _charge_ceiling(state: RunState, costs: list[float | None]) -> None:
+    """Charge calls against the ceiling: known cost as billed, unknown cost at the mean known cost so far."""
+    current = CeilingCosts(state.ceiling_known_cost_usd, state.ceiling_known_calls, state.ceiling_unknown_calls)
+    _apply_ceiling_costs(state, current.charged(costs))
 
 
 def _write_trial_inputs(
@@ -230,13 +244,12 @@ def _charge_provider_failure(
     provider_exc: Exception,
     completed_calls: list[tuple[str, Generation]],
 ) -> None:
-    charge = 0.0
-    if isinstance(provider_exc, ProviderRequestError) and provider_exc.cost_usd is not None:
-        charge += provider_exc.cost_usd
-    if completed_calls:
-        charge += _reported_stage_cost(completed_calls)
-    if context.ceiling_applies and charge:
-        _set_observed_cost(state, state.observed_ceiling_cost_usd + charge)
+    # Mirror the saved record: completed stage calls, then the failed call itself,
+    # whose billing is unknown unless the provider error reported it.
+    costs: list[float | None] = [generation.cost_usd for _stage, generation in completed_calls]
+    costs.append(provider_exc.cost_usd if isinstance(provider_exc, ProviderRequestError) else None)
+    if context.ceiling_applies:
+        _charge_ceiling(state, costs)
 
 
 def _provider_failure_record(
@@ -300,11 +313,7 @@ def _run_correction(
             stage="correction", exc=exc, context=context, state=state
         )
     if context.ceiling_applies:
-        _set_observed_cost(
-            state,
-            state.observed_ceiling_cost_usd
-            + _reported_generation_cost(corrected.generation),
-        )
+        _charge_ceiling(state, _generation_call_costs(corrected.generation))
     return corrected, None
 
 
@@ -405,11 +414,7 @@ def _run_case_trial(
             f"{CIRCUIT_BREAKER_THRESHOLD}"
         )
     if context.ceiling_applies:
-        _set_observed_cost(
-            state,
-            state.observed_ceiling_cost_usd
-            + _reported_generation_cost(first_attempt.generation),
-        )
+        _charge_ceiling(state, _generation_call_costs(first_attempt.generation))
     _write_production_attempt_artifacts(context.case_dir, "first", first_attempt)
     first = score_attempt(context.case, context.corpus, context.config, first_attempt)
     corrected_attempt, correction_error = _run_correction(

@@ -33,13 +33,23 @@ class ProtocolFilesTest(unittest.TestCase):
                     self.assertIsInstance(entry.get("path"), str)
                     self.assertRegex(entry.get("sha256", ""), SHA256)
 
-    def test_draft_protocols_bind_current_fixture_bytes(self) -> None:
-        drafts = [
-            path for path in sorted(PROTOCOLS.glob("*.json"))
-            if json.loads(path.read_text(encoding="utf-8")).get("status") == "draft_pending_freeze"
-        ]
-        self.assertIn(PROTOCOLS / "parity-v3.json", drafts)
-        for path in drafts:
+    def test_unrun_protocols_bind_current_fixture_bytes(self) -> None:
+        # A protocol that has not run yet must bind the bytes a run would use. Once a
+        # run is authorized, its hashes become the historical record of that run; the
+        # run itself verifies the tagged source. Historical protocols such as
+        # parity-v1.json keep status frozen_for_run with a recorded authorized_at.
+        unrun = []
+        for path in sorted(PROTOCOLS.glob("*.json")):
+            protocol = json.loads(path.read_text(encoding="utf-8"))
+            authorized = (protocol.get("authorization") or {}).get("authorized_at")
+            if protocol.get("status") == "draft_pending_freeze" or (
+                protocol.get("status") == "frozen_for_run" and authorized is None
+            ):
+                unrun.append(path)
+        parity_v3 = json.loads((PROTOCOLS / "parity-v3.json").read_text(encoding="utf-8"))
+        if parity_v3["authorization"]["authorized_at"] is None:
+            self.assertIn(PROTOCOLS / "parity-v3.json", unrun)
+        for path in unrun:
             protocol = json.loads(path.read_text(encoding="utf-8"))
             for entry in _hashed_entries(protocol):
                 with self.subTest(protocol=path.name, path=entry["path"]):

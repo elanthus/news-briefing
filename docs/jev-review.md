@@ -264,8 +264,14 @@ are slots with that outcome; causes can overlap.
 Follow-up blocker counts distinguish checks from affected slots, so a two-slot
 check blocks both. Initial review costs include isolated confirmation; repair
 and follow-up costs and unknown-cost calls remain separate per day. Reported
-spend is never an estimate of unreported billing. Day counts support subsequent
-clustered analysis; Wilson intervals alone do not account for within-day clustering.
+spend is never an estimate of unreported billing. Rates that pool checks, flags or
+slots across days (flag rate by kind, confirmation rates, per-slot acceptance and
+slot causes) also carry `ci95_day_cluster_bootstrap`: a percentile interval from
+10,000 resamples of whole days with replacement under a fixed seed, with the
+contributing day count and dropped zero-denominator resamples recorded beside
+it. Wilson intervals alone do not account for within-day clustering; day-level
+rates (coverage, days with flags, repair round rate, publication outcomes) carry
+Wilson intervals only.
 
 ## Blind human packets for daily audits
 
@@ -289,10 +295,16 @@ Following the partitioning and blinding of
 every verified changed slot (applied or withheld) is a pair in both packets.
 Record order and the two sides of each pair are independently shuffled for each
 reviewer. Each side carries only generated headline/prose and its own frozen
-source titles/excerpts, so removed sources remain identifiable by comparison.
-No model/provider identity, scores, labels, repair status, paths, original-side
-marker, or shuffle seed is exported. News text itself is preserved; model names
-that are part of a news story are not metadata and are not censored.
+source titles, excerpts, outlet names and publication dates, so removed sources
+remain identifiable by comparison and a rationale can name the outlet it relies
+on. No model/provider identity, scores, labels, repair status, paths,
+original-side marker, or shuffle seed is exported. News text itself is
+preserved; model names that are part of a news story are not metadata and are
+not censored. Packets exported before 2026-10-19 omitted the outlet name and
+date; `python3 -S -m agent_runner.audit_adjudication enrich PACKET ROOT --start
+... --end ...` adds them to an adjudication packet in place by matching each
+item's frozen title and excerpt against the verified runs, without the
+correspondence key and without changing item ids or the A/B assignment.
 
 Per day with complete initial review, controls are the first three unflagged
 included topics ordered by SHA256(`jev-stage-v1` + report date + section +
@@ -305,8 +317,27 @@ match the verified frozen corpus. An invalid audit aborts before any output.
 Both reviewers assess every pair for material-claim support, lost/added/changed
 meaning, relevance of retained and removed citations, and readable complete
 sentences. Controls receive the same support, relevance and readability review.
+Each packet file carries the `rubric` block with those four questions, the
+allowed label values, and the instruction to judge only from the supplied
+evidence; it names neither side of a pair nor any outcome. Reviewers return a
+separate label file with a `labels` object and a free-text `rationale` for every
+item, in the format given in the
+[reviewer instructions](results/jev-stage-reviewer-instructions.md), typically
+through the offline [review page](results/jev-stage-review.html), and check it
+with `python3 -S -m agent_runner.audit_labels PACKET LABELS`, which validates
+coverage, per-version label counts, rubric values and rationales without the
+correspondence key and without writing anything.
 Retain both reviewers' labels and rationales before unblinding. A third human
 adjudicates material disagreements from blinded evidence and rationales; report
-raw agreement and adjudicated outcomes separately with their denominators. These
+raw agreement and adjudicated outcomes separately with their denominators.
+`python3 -S -m agent_runner.audit_adjudication export PACKET_R1 LABELS_R1
+PACKET_R2 LABELS_R2 --output-dir DIR --private-key KEY` validates both label
+files, matches the shared items by their blinded content (never by the
+correspondence key), records raw agreement per question, and writes an
+adjudication packet holding only the items with a support, citation, or
+meaning-preservation disagreement, with the two label sets and rationales shown
+as A and B in a per-item random order; the private key maps each item back. The
+adjudicator works in the offline [adjudication page](results/jev-stage-adjudicate.html)
+and returns a decisions file that `audit_adjudication validate` checks. These
 commands export evidence, not labels or human approval. All packets, excerpts,
 labels and correspondence remain private and ignored.

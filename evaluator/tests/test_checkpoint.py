@@ -705,16 +705,26 @@ class CheckpointTest(unittest.TestCase):
                            corpus_path=DEFAULT_CORPUS, resume=True)
             self.assertTrue(adapter.requests)
 
-    def test_cost_reconstruction_preserves_unknown_billing(self) -> None:
+    def test_cost_reconstruction_estimates_unknown_billing_at_the_mean_known_cost(self) -> None:
+        # Unknown billing stays unknown in the record; the ceiling charge estimates it
+        # from the mean known cost per call, which is zero before any known cost.
         row = {"provider": "paid", "first": {"cost_usd": None}}
-        with self.assertRaisesRegex(ValueError, "billing is unknown"):
-            _reconstruct_observed_cost([row], "paid")
-        self.assertEqual(_reconstruct_observed_cost([row], "other"), 0)
+        costs = _reconstruct_observed_cost([row], "paid")
+        self.assertEqual((costs.known_calls, costs.unknown_calls, costs.observed_usd), (0, 1, 0.0))
+        self.assertEqual(_reconstruct_observed_cost([row], "other").observed_usd, 0)
         row = {"provider": "paid", "status": "provider_error", "error": {
             "cost_usd": None, "completed_stage_calls": [{"cost_usd": 0.2}],
         }}
-        with self.assertRaisesRegex(ValueError, "billing is unknown"):
-            _reconstruct_observed_cost([row], "paid")
+        costs = _reconstruct_observed_cost([row], "paid")
+        self.assertEqual((costs.known_cost_usd, costs.known_calls, costs.unknown_calls), (0.2, 1, 1))
+        self.assertAlmostEqual(costs.estimated_unknown_cost_usd, 0.2)
+        self.assertAlmostEqual(costs.observed_usd, 0.4)
+        rows = [{"provider": "paid", "first": {"cost_usd": 0.1}}, {"provider": "paid", "first": {"cost_usd": 0.3}},
+                {"provider": "paid", "first": {"cost_usd": None}}, {"provider": "paid", "first": {"cost_usd": None}}]
+        costs = _reconstruct_observed_cost(rows, "paid")
+        self.assertAlmostEqual(costs.observed_usd, 0.4 + 2 * 0.2)
+        with self.assertRaisesRegex(ValueError, "invalid observed call cost"):
+            _reconstruct_observed_cost([{"provider": "paid", "first": {"cost_usd": -1}}], "paid")
 
     def test_run_cli_exposes_explicit_resume_flag(self) -> None:
         result = {
