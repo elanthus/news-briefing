@@ -279,7 +279,7 @@
       li.appendChild(document.createTextNode(LABEL_HELP[option] || ""));
       help.appendChild(li);
     }
-    const base = labelText.replace(/^Final /i, "").split(" ")[0].toLowerCase();
+    const base = labelText.replace(/^(Final|Flag:) /i, "").split(" ")[0].toLowerCase();
     if (PRIORITY_NOTE[base]) {
       const li = document.createElement("li");
       li.className = "note";
