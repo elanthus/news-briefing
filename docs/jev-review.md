@@ -338,6 +338,16 @@ adjudication packet holding only the items with a support, citation, or
 meaning-preservation disagreement, with the two label sets and rationales shown
 as A and B in a per-item random order; the private key maps each item back. The
 adjudicator works in the offline [adjudication page](results/jev-stage-adjudicate.html)
-and returns a decisions file that `audit_adjudication validate` checks. These
-commands export evidence, not labels or human approval. All packets, excerpts,
+and returns a decisions file that `audit_adjudication validate` checks.
+`python3 -S -m agent_runner.audit_adjudication outcomes PACKET_R1 LABELS_R1
+PACKET_R2 LABELS_R2 ADJUDICATION_PACKET DECISIONS --key KEY --freeze-record
+RECORD` then computes the adjudicated outcomes: it validates every input, checks
+each digest against the committed freeze record, recomputes the shared items by
+blinded content, reads the key (the unblinding step, recorded as
+`correspondence_opened_at`), refuses any key entry that disagrees with the
+adjudication packet, keeps every agreed label, applies the adjudicator's
+decision to each disputed question, and writes per-question counts with exact
+denominators for repair pairs and controls into the record. Flags never change
+those counts; when present, the counts with flags applied are recorded beside
+them. These commands export evidence, not labels or human approval. All packets, excerpts,
 labels and correspondence remain private and ignored.

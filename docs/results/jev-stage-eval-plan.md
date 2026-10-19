@@ -1,6 +1,6 @@
 # Jev-stage evaluation plan
 
-Status: run on 2026-10-16; human adjudication pending. Protocol:
+Status: run on 2026-10-16; human adjudication complete on 2026-10-19. Protocol:
 [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json) (status
 `labels_frozen_pending_adjudication`, frozen before execution on 2026-10-16). The committed sample is
 [`jev-stage-sample.json`](jev-stage-sample.json) and the runner is

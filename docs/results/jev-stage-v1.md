@@ -1,10 +1,11 @@
 # Jev-stage evaluation v1 model card
 
-Status: **execution complete; adjudication decisions returned; outcomes pending**. The frozen 28-day
+Status: **execution complete; adjudication complete; adjudicated outcomes recorded**. The frozen 28-day
 frame ran on 2026-10-16: all days produced ready briefings and retained schema-3
 audits, with 17 complete reviews and 11 partial reviews. Both reviewers' labels
 are frozen; adjudication decisions were returned on 2026-10-19 and recorded by
-digest; adjudicated outcomes and unblinding remain pending. Automated
+digest; the adjudication key was opened at 2026-10-19T22:40:56Z and the
+adjudicated outcomes below were computed and recorded by counts. Automated
 metrics below come from the committed aggregate and per-day ledger.
 Plan: [`jev-stage-eval-plan.md`](jev-stage-eval-plan.md).
 Protocol: [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json)
@@ -113,7 +114,11 @@ Packets were exported with `agent_runner.audit_packets` over the frozen frame;
 both reviewers' labels and rationales were validated and frozen before adjudication
 on 2026-10-18 UTC (2026-10-17 Pacific). The
 [freeze record](jev-stage-v1-labels-frozen.json) retains the file digests. The
-correspondence key remains sealed; unblinding is pending.
+adjudication key, which maps each adjudicated item back to its two packet ids and
+the A/B reviewer order, was opened at 2026-10-19T22:40:56Z to compute the
+outcomes below, after every input digest was checked against the freeze record.
+The packet correspondence key, which names each pair's original side, has not
+been read, so pair counts pool both sides.
 
 | Field | Value |
 |---|---:|
@@ -144,34 +149,57 @@ holds the decision file's digest, its label counts, and a note on the revision
 made before the correspondence key was opened. The 2026-10-19 protocol amendments add a meaning
 label tie-break, allow separate adjudicator flags on agreed labels, and enrich
 the adjudication evidence with outlet names and publication dates. Reviewers
-labeled without the tie-break. The returned file carries no flags, so the flag
-sensitivity line will be empty. Adjudicated outcomes have not yet been computed;
-the table stays pending until they are.
+labeled without the tie-break.
+
+Final labels were computed with `agent_runner.audit_adjudication outcomes` over
+the 31 double-labeled items: an agreed label stays as both reviewers gave it, and
+each disputed question takes the adjudicator's decision. Denominators are the
+version labels of the shared pairs (two per pair, both sides pooled) and of the
+shared controls, and the shared pairs for meaning preservation. The
+[freeze record](jev-stage-v1-labels-frozen.json) holds the same counts with every
+label value and the digests of the inputs used.
 
 | Question | Repair pairs | Controls |
 |---|---:|---:|
-| Material claims supported | pending | pending |
-| Meaning preserved (pairs) | pending | not applicable |
-| Retained citations relevant | pending | pending |
-| Readable complete sentences | pending | pending |
+| Material claims supported | 21/28 | 13/17 |
+| Meaning preserved (pairs) | 0/14 | not applicable |
+| Retained citations relevant | 25/28 | 17/17 |
+| Readable complete sentences | 24/28 | 17/17 |
 
-Adjudicated items: pending. Items whose labels were left blank or returned invalid: pending.
+Labels other than the favorable one, pairs: support 3 unsupported, 3 strengthened,
+1 reversed; meaning 11 added, 2 changed, 1 lost; citations 3 irrelevant listed;
+readability 4 fragments or incomplete. Controls: support 2 unsupported, 2
+strengthened. A meaning label of added, changed or lost says the two sides of a
+pair do not carry the same supported material claims; it does not say which
+side is the original or which side is better supported.
+
+Adjudicated items: 23 of 31, with 29 decisions applied. Items whose labels were
+left blank or returned invalid: 0 (both label files and the decisions file
+validate completely). Disputed questions without a decision: 0. Flag
+sensitivity: the returned file carries 0 flags, so the outcomes with flags
+applied are identical to the table.
+
+The first reviewer also labeled 34 controls that the second reviewer did not see.
+They were not adjudicated and are reported apart from the table: material claims
+supported 27/34 (5 strengthened, 1 unsupported, 1 reversed); retained citations
+relevant 34/34; readable complete sentences 33/34.
 
 ## Evidence
 
 Committed: the protocol, [`jev-stage-sample.json`](jev-stage-sample.json), the per-day
 artifact digest [ledger](jev-stage-v1-ledger.json), the
 [aggregate metrics](jev-stage-v1-metrics.json), and the
-[label freeze and raw agreement counts](jev-stage-v1-labels-frozen.json). Private and ignored:
-corpora, run trees, review directories with frozen excerpts, prompts, raw judgments,
-packets, labels and the correspondence key.
+[label freeze, raw agreement and adjudicated outcome counts](jev-stage-v1-labels-frozen.json).
+Private and ignored: corpora, run trees, review directories with frozen excerpts, prompts,
+raw judgments, packets, labels, adjudication decisions and both keys.
 
 ## Claims boundary
 
 This card may claim: observed flag, confirmation, repair, acceptance, blocker and cost
 rates for the daily stage at the frozen revision on the sampled days, with intervals;
-raw human reviewer agreement. Human-adjudicated support and meaning-preservation
-outcomes for repaired slots and the control sample remain pending.
+raw human reviewer agreement; human-adjudicated support, meaning-preservation,
+citation and readability outcomes for the double-labeled repair pairs (both sides
+pooled) and controls, with the exact denominators above.
 
 This card may not claim: Jev precision or recall against ground truth (controls are a
 small sample, so no overall miss rate); calibrated probabilities; factual accuracy

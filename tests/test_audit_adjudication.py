@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_runner.audit_adjudication import compare, export_adjudication, validate_adjudication
+from agent_runner.audit_adjudication import (
+    adjudicated_outcomes,
+    compare,
+    export_adjudication,
+    record_outcomes,
+    validate_adjudication,
+    verify_frozen_inputs,
+)
 from agent_runner.audit_packets import RUBRIC
 
 
@@ -209,6 +216,206 @@ class EnrichTests(unittest.TestCase):
             packet_path.write_text(json.dumps(after))
             with self.assertRaisesRegex(ValueError, 'resolves to 0'):
                 enrich_evidence(packet_path, frame, start=date(2026, 8, 11), end=date(2026, 8, 11))
+
+
+def labels_second_disputed_pair():
+    """The second reviewer also disagrees on the pair's meaning label, which is material."""
+    value = labels_second()
+    value['items'][1]['labels']['meaning_preservation'] = 'added'
+    return value
+
+
+def exported(root, second_labels, *, seed=3):
+    """Write both packets and label files, export the adjudication packet, return the paths."""
+    first, second = packets()
+    paths = {}
+    for name, value in (('p1', first), ('l1', labels_first()), ('p2', second), ('l2', second_labels)):
+        paths[name] = root / f'{name}.json'
+        paths[name].write_text(json.dumps(value))
+    export_adjudication(paths['p1'], paths['l1'], paths['p2'], paths['l2'],
+                        root / 'adjudication', root / 'private' / 'key.json', seed=seed)
+    paths['adj'] = root / 'adjudication' / 'adjudication-packet.json'
+    paths['key'] = root / 'private' / 'key.json'
+    return paths
+
+
+def decide(packet, by_first_version_order):
+    """A decisions file deciding every listed disagreement from a {(question, version): label} map."""
+    items = []
+    for item in packet['items']:
+        chosen = [{'question': d['question'], 'version': d['version'],
+                   'label': by_first_version_order[(d['question'], d['version'])]} for d in item['disagreements']]
+        items.append({'adjudication_id': item['adjudication_id'], 'decisions': chosen, 'rationale': 'Decided.'})
+    return {'schema_version': 1, 'adjudicator': 'adj', 'items': items}
+
+
+def run_outcomes(paths, decisions, **kwargs):
+    paths['dec'] = paths['dec'] if 'dec' in paths else paths['adj'].parent.parent / 'decisions.json'
+    paths['dec'].write_text(json.dumps(decisions))
+    return adjudicated_outcomes(paths['p1'], paths['l1'], paths['p2'], paths['l2'], paths['adj'], paths['dec'],
+                                paths['key'], **kwargs)
+
+
+class OutcomesTests(unittest.TestCase):
+    def test_agreed_labels_stay_and_each_disputed_question_takes_the_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second_disputed_pair())
+            packet = json.loads(paths['adj'].read_text())
+            # Both shared items are adjudicated: the control on support, the pair on meaning and readability.
+            self.assertEqual(len(packet['items']), 2)
+            decisions = decide(packet, {('support', 0): 'unsupported', ('meaning_preservation', None): 'preserved',
+                                        ('readability', 0): 'fragment_or_incomplete'})
+            result = run_outcomes(paths, decisions, opened_at='2026-10-19T20:00:00Z')
+            self.assertEqual(result['correspondence_opened_at'], '2026-10-19T20:00:00Z')
+            self.assertEqual((result['shared_items'], result['shared_pairs'], result['shared_controls']), (2, 1, 1))
+            self.assertEqual((result['adjudicated_items'], result['decisions_applied']), (2, 3))
+            self.assertEqual(result['unresolved_slots'], 0)
+            pairs, controls = result['outcomes']['pairs'], result['outcomes']['controls']
+            # r1 labeled the pair's support [supported, unsupported] and r2 agreed after alignment.
+            self.assertEqual((pairs['support']['count'], pairs['support']['of']), (1, 2))
+            self.assertEqual(pairs['support']['labels'], {'supported': 1, 'unsupported': 1})
+            self.assertEqual((pairs['meaning_preservation']['count'], pairs['meaning_preservation']['of']), (1, 1))
+            self.assertEqual((pairs['citations']['count'], pairs['citations']['of']), (2, 2))
+            self.assertEqual((pairs['readability']['count'], pairs['readability']['of']), (1, 2))
+            self.assertEqual(pairs['readability']['labels'], {'fragment_or_incomplete': 1, 'readable': 1})
+            self.assertEqual((controls['support']['count'], controls['support']['of']), (0, 1))
+            self.assertEqual(controls['support']['labels'], {'unsupported': 1})
+            self.assertNotIn('meaning_preservation', controls)
+            self.assertEqual((controls['citations']['count'], controls['readability']['count']), (1, 1))
+            self.assertEqual((result['flags'], result['outcomes_with_flags']), (0, None))
+            # r1-00003 was labeled by the first reviewer only and is reported apart from the shared items.
+            self.assertEqual(set(result['single_labeled']), {'r1'})
+            single = result['single_labeled']['r1']
+            self.assertEqual((single['items'], single['pairs'], single['controls']), (1, 0, 1))
+            self.assertEqual(single['outcomes']['controls']['support'], {
+                'favorable': 'supported', 'count': 1, 'of': 1, 'unresolved': 0, 'labels': {'supported': 1}})
+            self.assertEqual(set(result['inputs_sha256']), {'packets', 'labels', 'adjudication_packet',
+                                                            'decisions', 'key'})
+            # Outlet enrichment of the adjudication packet does not break the content match.
+            for item in packet['items']:
+                for version in item['versions']:
+                    for evidence in version['evidence']:
+                        evidence.update({'source': 'Outlet', 'published': '2026-08-11'})
+            paths['adj'].write_text(json.dumps(packet))
+            self.assertEqual(run_outcomes(paths, decisions)['outcomes'], result['outcomes'])
+
+    def test_flags_change_only_the_sensitivity_outcomes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            packet = json.loads(paths['adj'].read_text())
+            decisions = decide(packet, {('support', 0): 'supported'})
+            decisions['items'][0]['flags'] = [{'question': 'citations', 'version': 0, 'label': 'irrelevant_listed',
+                                               'note': 'The listed source is about another event.'}]
+            result = run_outcomes(paths, decisions)
+            self.assertEqual((result['flags'], result['flag_counts']), (1, {'citations:irrelevant_listed': 1}))
+            self.assertEqual(result['outcomes']['controls']['citations']['count'], 1)
+            self.assertEqual(result['outcomes_with_flags']['controls']['citations']['count'], 0)
+            self.assertEqual(result['outcomes_with_flags']['controls']['citations']['labels'],
+                             {'irrelevant_listed': 1})
+            self.assertEqual(result['outcomes_with_flags']['pairs'], result['outcomes']['pairs'])
+
+    def test_non_material_disagreement_without_a_decision_is_counted_as_unresolved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # The pair differs only on readability, so it never reached the adjudicator.
+            paths = exported(root, labels_second())
+            result = run_outcomes(paths, decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'}))
+            self.assertEqual(result['unresolved_slots'], 1)
+            readability = result['outcomes']['pairs']['readability']
+            self.assertEqual((readability['count'], readability['of'], readability['unresolved']), (1, 2, 1))
+            # Both reviewers agreed the pair's meaning changed, so nothing counts as preserved.
+            self.assertEqual(result['outcomes']['pairs']['meaning_preservation'],
+                             {'favorable': 'preserved', 'count': 0, 'of': 1, 'unresolved': 0,
+                              'labels': {'changed': 1}})
+
+    def test_outcomes_fail_closed_when_the_key_or_packet_does_not_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            packet = json.loads(paths['adj'].read_text())
+            decisions = decide(packet, {('support', 0): 'supported'})
+            key = json.loads(paths['key'].read_text())
+            cases = []
+            swapped = json.loads(json.dumps(key))
+            swapped['mapping'][0]['reviewer_A'], swapped['mapping'][0]['reviewer_B'] = (
+                key['mapping'][0]['reviewer_B'], key['mapping'][0]['reviewer_A'])
+            cases.append((swapped, packet, 'are not reviewer'))
+            foreign = json.loads(json.dumps(key))
+            foreign['summary']['label_files_sha256']['r2'] = '0' * 64
+            cases.append((foreign, packet, 'not built from these label files'))
+            unmapped = json.loads(json.dumps(key))
+            unmapped['mapping'][0]['adjudication_id'] = 'adj-99999'
+            cases.append((unmapped, packet, 'exactly once'))
+            misnamed = json.loads(json.dumps(key))
+            misnamed['mapping'][0]['first_packet_id'] = 'r1-00003'
+            cases.append((misnamed, packet, 'does not name a shared item'))
+            edited = json.loads(json.dumps(packet))
+            edited['items'][0]['versions'][0]['prose'] = 'Something else.'
+            cases.append((key, edited, 'content differs'))
+            for broken_key, broken_packet, message in cases:
+                paths['key'].write_text(json.dumps(broken_key))
+                paths['adj'].write_text(json.dumps(broken_packet))
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    run_outcomes(paths, decisions)
+
+    def test_freeze_record_digests_are_checked_and_outcomes_recorded_once_opened(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            decisions = decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'})
+            paths['dec'] = root / 'decisions.json'
+            paths['dec'].write_text(json.dumps(decisions))
+            digest = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items()}
+            record = {'schema_version': 1, 'correspondence_opened_at': None,
+                      'label_files': {'r1': {'sha256': digest['l1']}, 'r2': {'sha256': digest['l2']}},
+                      'packet_files': {'p1.json': digest['p1'], 'p2.json': digest['p2']},
+                      'adjudication_decisions_returned': {'sha256': digest['dec'],
+                                                          'validated_against_packet_sha256': digest['adj'],
+                                                          'correspondence_opened_at': None}}
+            check = dict(packets=[paths['p1'], paths['p2']], labels=[paths['l1'], paths['l2']],
+                         adjudication_path=paths['adj'], decisions_path=paths['dec'])
+            verify_frozen_inputs(record, **check)
+            superseded = root / 'decisions-initial.json'
+            superseded.write_text(json.dumps({**decisions, 'adjudicator': 'draft'}))
+            with self.assertRaisesRegex(ValueError, 'decisions-initial.json: digest is not in the freeze record'):
+                verify_frozen_inputs(record, **{**check, 'decisions_path': superseded})
+            record_path = root / 'record.json'
+            record_path.write_text(json.dumps(record))
+            result = run_outcomes(paths, decisions, opened_at='2026-10-19T20:00:00Z')
+            written = record_outcomes(record_path, result)
+            self.assertEqual(written['correspondence_opened_at'], '2026-10-19T20:00:00Z')
+            self.assertEqual(written['adjudication_decisions_returned']['correspondence_opened_at'],
+                             '2026-10-19T20:00:00Z')
+            self.assertEqual(written['adjudicated_outcomes']['outcomes'], result['outcomes'])
+            self.assertEqual(written['adjudicated_outcomes']['date'], '2026-10-19')
+            self.assertEqual(json.loads(record_path.read_text()), written)
+            # A second run keeps the first opening time and refreshes the counts.
+            later = run_outcomes(paths, decisions, opened_at='2026-10-20T09:00:00Z')
+            again = record_outcomes(record_path, later)
+            self.assertEqual(again['correspondence_opened_at'], '2026-10-19T20:00:00Z')
+            self.assertEqual(later['correspondence_opened_at'], '2026-10-19T20:00:00Z')
+
+    def test_command_line_outcomes_writes_the_record(self):
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            decisions = decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'})
+            paths['dec'] = root / 'decisions.json'
+            paths['dec'].write_text(json.dumps(decisions))
+            completed = subprocess.run(
+                [sys.executable, '-S', '-m', 'agent_runner.audit_adjudication', 'outcomes',
+                 str(paths['p1']), str(paths['l1']), str(paths['p2']), str(paths['l2']),
+                 str(paths['adj']), str(paths['dec']), '--key', str(paths['key'])],
+                capture_output=True, text=True, cwd=Path(__file__).resolve().parent.parent)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            printed = json.loads(completed.stdout)
+            self.assertEqual(printed['outcomes']['controls']['support']['count'], 1)
+            self.assertRegex(printed['correspondence_opened_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
 
 
 if __name__ == '__main__':
