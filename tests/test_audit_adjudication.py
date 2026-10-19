@@ -491,6 +491,38 @@ class OutcomesTests(unittest.TestCase):
                              r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
             self.assertEqual(printed['outcomes']['pairs_by_side']['original']['support']['count'], 0)
 
+    def test_record_rerun_rejects_changed_or_omitted_keys_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            decisions = decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'})
+            result = run_outcomes(paths, decisions, correspondence_path=correspondence(root))
+            record = root / 'record.json'
+            record.write_text(json.dumps({'schema_version': 1}))
+            record_outcomes(record, result)
+            frozen = record.read_bytes()
+            # Optional correspondence is valid initially, but cannot discard an existing split.
+            pooled_only = run_outcomes(paths, decisions)
+            with self.assertRaisesRegex(ValueError, 'packet_correspondence: recorded key digest'):
+                record_outcomes(record, pooled_only)
+            self.assertEqual(record.read_bytes(), frozen)
+            for name in ('key', 'packet_correspondence'):
+                for replacement in (None, '0' * 64):
+                    changed = json.loads(json.dumps(result))
+                    if replacement is None:
+                        del changed['inputs_sha256'][name]
+                    else:
+                        changed['inputs_sha256'][name] = replacement
+                    with self.subTest(key=name, replacement=replacement), self.assertRaisesRegex(
+                            ValueError, f'{name}: recorded key digest'):
+                        record_outcomes(record, changed)
+                    self.assertEqual(record.read_bytes(), frozen)
+            missing_time = json.loads(json.dumps(result))
+            del missing_time['packet_correspondence_opened_at']
+            with self.assertRaisesRegex(ValueError, 'rerun with --correspondence'):
+                record_outcomes(record, missing_time)
+            self.assertEqual(record.read_bytes(), frozen)
+
 
 if __name__ == '__main__':
     unittest.main()

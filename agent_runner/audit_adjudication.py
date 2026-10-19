@@ -519,6 +519,12 @@ def verify_frozen_inputs(record: dict[str, Any], *, packets: list[Path], labels:
 def record_outcomes(record_path: Path, outcomes: dict[str, Any]) -> dict[str, Any]:
     """Write the counts and the unblinding time into the freeze record; the first opening time is kept."""
     record = _read(record_path)
+    previous = record.get("adjudicated_outcomes", {}).get("inputs_sha256", {})
+    for name in ("key", "packet_correspondence"):
+        if name in previous and previous[name] != outcomes["inputs_sha256"].get(name):
+            raise ValueError(f"{name}: recorded key digest changed or key omitted")
+    if record.get("packet_correspondence_opened_at") and "packet_correspondence_opened_at" not in outcomes:
+        raise ValueError("packet correspondence was already opened; rerun with --correspondence")
     opened = record.get("correspondence_opened_at") or outcomes["correspondence_opened_at"]
     outcomes["correspondence_opened_at"] = opened
     record["correspondence_opened_at"] = opened

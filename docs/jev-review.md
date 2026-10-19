@@ -355,5 +355,7 @@ with the shared-pair denominator. Every shared pair must map to exactly one
 original and one repaired side in both packets, consistent after version
 alignment. The record retains the key's SHA-256 and first
 `packet_correspondence_opened_at` UTC timestamp on reruns.
+Reruns fail closed if either recorded key digest changes or a previously supplied
+key is omitted, so an optional correspondence argument cannot erase a recorded split.
 These commands export evidence, not labels or human approval. All packets, excerpts,
 labels and correspondence remain private and ignored.
