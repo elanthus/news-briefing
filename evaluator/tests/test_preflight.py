@@ -62,11 +62,26 @@ class ParityV3PreflightTest(unittest.TestCase):
         self.assertEqual(result["plan"]["execution_seed"], 20260901)
         self.assertEqual(result["plan"]["execution_order"], "prompt_interleaved_randomized")
 
-    def test_untagged_final_source_is_fatal_without_before_tag(self) -> None:
+    @patch("evaluator.preflight.final_source_provenance", side_effect=ValueError("untagged source"))
+    def test_untagged_final_source_is_fatal_without_before_tag(self, _provenance: Any) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             result = preflight_run(**PARITY_V3_ARGS, output_dir=Path(temporary) / "out", before_tag=False)
         self.assertFalse(result["ok"])
         self.assertTrue(_failed(result)["source"])
+
+    def test_unreadable_protocol_is_a_failed_check(self) -> None:
+        original = Path.read_text
+
+        def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+            if path == PARITY_V3:
+                raise PermissionError("protocol denied")
+            return original(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(Path, "read_text", read_text):
+            result = preflight_run(**PARITY_V3_ARGS, output_dir=Path(temporary) / "out", before_tag=True)
+        self.assertFalse(result["ok"])
+        self.assertTrue(_failed(result)["protocol_parse"])
+        self.assertEqual(result["provider_calls"], 0)
 
     def test_control_drift_from_the_protocol_is_reported(self) -> None:
         drifted = {**PARITY_V3_ARGS, "trials": 3, "temperature": 0.2, "cost_ceiling_usd": 6.0,

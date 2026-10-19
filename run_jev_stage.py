@@ -10,7 +10,8 @@ cost. ROOT holds only dated day directories; the merged restore manifest is
 written beside it as ``ROOT-artifact-manifest.json``. Redirect stdout to a log
 outside ROOT. Days that already have that record are skipped. A day whose fallback
 chain reaches no ready candidate is recorded as a generation-failure row and the
-run continues; any other failure stops the script before the next day.
+run continues. Restore exit 4 (no eligible archive) records a missing_day row;
+any other failure stops the script before the next day.
 
 Credentials are read by the child commands from the environment and are never
 printed. The script runs every child with ``python3 -S``.
@@ -30,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.budget import DEFAULT_GENERATION_USD
+from agent_runner.checkpoint import write_json_atomic
 
 ROOT = Path(__file__).resolve().parent
 DAY_RECORD = "jev-stage-day.json"
@@ -180,12 +182,20 @@ def _day_costs(day_dir: Path, chain: dict[str, Any]) -> dict[str, Any]:
 
 def run_day(day: str, root: Path, artifact_dir: Path, *, generation_usd: float, execute: Executor,
             commit: str | None, manifest: Path | None = None) -> dict[str, Any]:
-    """Restore and run one day; return its record. Raises DayFailure on any non-generation failure."""
+    """Record one day; only unavailable archives and generation failures permit continuation."""
     day_dir = root / day
     corpus = day_dir / "corpora" / f"{day}.json"
     started = datetime.now(UTC).isoformat()
     if not corpus.exists():
         code = execute(restore_command(day, artifact_dir, day_dir / "corpora", manifest))
+        if code == 4:
+            record = {
+                "schema_version": 1, "report_date": day, "status": "missing_day", "started_at": started,
+                "completed_at": datetime.now(UTC).isoformat(), "code_commit": commit,
+                "generation_usd_limit": generation_usd, "costs": {}, "artifact_sha256": {},
+            }
+            write_json_atomic(day_dir / DAY_RECORD, record)
+            return record
         if code != 0:
             raise DayFailure(f"restore exited {code} for {day}")
         if not corpus.is_file():
@@ -218,7 +228,7 @@ def run_day(day: str, root: Path, artifact_dir: Path, *, generation_usd: float, 
         "generation_usd_limit": generation_usd, "costs": _day_costs(day_dir, chain),
         "artifact_sha256": _artifact_digests(day_dir, chain),
     }
-    (day_dir / DAY_RECORD).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_atomic(day_dir / DAY_RECORD, record)
     return record
 
 
@@ -237,7 +247,12 @@ def run_sample(dates: list[str], root: Path, artifact_dir: Path, *, generation_u
     for index, day in enumerate(dates, start=1):
         record_path = root / day / DAY_RECORD
         if record_path.exists():
-            record = _read_json(record_path)
+            try:
+                record = _read_json(record_path)
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise DayFailure(f"cannot read day record for {day}; inspect {record_path}: {exc}") from exc
+            if not isinstance(record, dict):
+                raise DayFailure(f"day record for {day} is not an object; inspect {record_path}")
             report(f"{day}: already complete ({record.get('status')}); skipping")
         else:
             record = run_day(day, root, artifact_dir, generation_usd=generation_usd, execute=execute, commit=commit,

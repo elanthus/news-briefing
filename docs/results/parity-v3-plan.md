@@ -58,8 +58,10 @@ Two comparisons under this plan are gate-eligible:
 
 ## Before the run
 
-1. Confirm the fixture and prompt hashes in `parity-v3.json` still match the
-   committed bytes (`python3 -S -m unittest evaluator.tests.test_protocols`).
+1. Run the protocol tests for unauthorized protocols
+   (`python3 -S -m unittest evaluator.tests.test_protocols`). The preflight in
+   step 3 checks the fixture and prompt hashes in `parity-v3.json`, including
+   the authorized protocol, against the current bytes.
 2. Set `frozen_at`, `authorization.authorized_at`, and `required_tag`
    (`parity-v3-source-YYYYMMDD`), change `status` to `frozen_for_run`, commit.
 3. Rehearse the run command without credentials: replace `run` with `preflight`
@@ -128,10 +130,10 @@ python3 -m evaluator compare \
 Family breakdown and public export, as for Parity v2:
 
 ```bash
-python3 -S -m evaluator.family_rates docs/results/parity-v3-evidence/ledger.json
 python3 -m evaluator export-public-run evaluator/results/parity-v3-final-YYYYMMDD/manifest.json \
   --output-dir docs/results/parity-v3-evidence \
   --ledger-output docs/results/parity-v3-evidence/ledger.json
+python3 -S -m evaluator.family_rates docs/results/parity-v3-evidence/ledger.json
 python3 -m evaluator verify-public-run docs/results/parity-v3-evidence
 ```
 

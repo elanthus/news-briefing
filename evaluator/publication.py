@@ -148,6 +148,13 @@ def _is_publishable_row(row: dict[str, Any]) -> bool:
             isinstance(row.get("first"), dict)
             and isinstance(row.get("final"), dict)
             and isinstance(row.get("correction_error"), dict)
+            and all(
+                row["first"].get(field) == row["final"].get(field)
+                for field in (
+                    "contract_success", "findings", "deterministic_repairs", "oracle",
+                    "generated_topics", "grounding_error_topics",
+                )
+            )
         )
     return (
         status in _UNSCORED_ROW_STATUSES
@@ -344,7 +351,11 @@ def _merge_public_sources(
     merged["planned_case_trials"] = len(rows)
     merged["planned_matched_pair_trials"] = matched_pairs * len(adapters)
     merged["observed_ceiling_cost_usd"] = observed_cost
-    merged["run_status"] = "completed_with_errors" if _error_row_count(merged) else "complete"
+    merged["run_status"] = (
+        "completed_with_errors"
+        if _error_row_count(merged) or _correction_error_row_count(merged)
+        else "complete"
+    )
     timestamps = [source.get("completed_at") for source, _path in loaded]
     if any(not isinstance(value, str) or not value for value in timestamps):
         raise ValueError("complete split final-run components require completion timestamps")

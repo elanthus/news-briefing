@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import run_jev_stage
 from run_jev_stage import DAY_RECORD, DayFailure, load_sample, provenance_manifest, run_sample, write_ledger
@@ -133,7 +134,6 @@ class RunJevStageTests(unittest.TestCase):
 
     def test_stops_on_non_generation_failures(self):
         cases = {
-            'unobtainable date': FakeCommands(obtainable={'2026-10-01'}),
             'review stage did not complete': FakeCommands(review_crash_days={'2026-10-02'}),
             'nonzero exit with ready chain': FakeCommands(run_exit_days={'2026-10-02'}),
             'chain failed before any provider call': FakeCommands(refused_days={'2026-10-02'}),
@@ -148,6 +148,60 @@ class RunJevStageTests(unittest.TestCase):
                 self.assertTrue((root / '2026-10-01' / DAY_RECORD).exists())
                 self.assertFalse((root / '2026-10-02' / DAY_RECORD).exists())
                 self.assertFalse((root / '2026-10-03').exists())
+
+    def test_missing_archive_is_recorded_and_later_days_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'stage'
+            commands = FakeCommands(obtainable={'2026-10-01', '2026-10-03'})
+            dates = ['2026-10-01', '2026-10-02', '2026-10-03']
+            wrappers = preserved_wrappers(Path(directory) / 'w')
+            records = run_sample(dates, root, wrappers, generation_usd=1.0,
+                                 execute=commands, report=lambda _: None)
+            self.assertEqual([r['status'] for r in records], ['reviewed', 'missing_day', 'reviewed'])
+            missing = json.loads((root / dates[1] / DAY_RECORD).read_text())
+            self.assertEqual(missing['artifact_sha256'], {})
+            self.assertFalse((root / dates[1] / 'run').exists())
+            count = len(commands.calls)
+            run_sample(dates, root, wrappers, generation_usd=1.0, execute=commands, report=lambda _: None)
+            self.assertEqual(len(commands.calls), count)
+
+    def test_other_restore_failures_and_absent_corpus_are_fatal(self):
+        for code in (0, 1, 2, 3, 5):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'stage'
+                with self.assertRaises(DayFailure):
+                    run_sample(['2026-10-01', '2026-10-02'], root,
+                               preserved_wrappers(Path(directory) / 'w'), generation_usd=1.0,
+                               execute=lambda _, code=code: code, report=lambda _: None)
+                self.assertFalse((root / '2026-10-01' / DAY_RECORD).exists())
+                self.assertFalse((root / '2026-10-02').exists())
+
+    def test_invalid_resume_records_fail_with_the_day_identified(self):
+        for content in ('{', '[]', 'null', '42'):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'stage'
+                day = root / '2026-10-01'
+                day.mkdir(parents=True)
+                (day / DAY_RECORD).write_text(content)
+                commands = FakeCommands()
+                with self.assertRaisesRegex(DayFailure, '2026-10-01'):
+                    run_sample(['2026-10-01'], root, preserved_wrappers(Path(directory) / 'w'),
+                               generation_usd=1.0, execute=commands, report=lambda _: None)
+                self.assertEqual(commands.calls, [])
+                self.assertEqual((day / DAY_RECORD).read_text(), content)
+
+    def test_interrupted_record_replacement_preserves_existing_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'stage'
+            record = root / '2026-10-01' / DAY_RECORD
+            record.parent.mkdir(parents=True)
+            record.write_text('{"status": "previous"}')
+            with patch('agent_runner.checkpoint.os.replace', side_effect=OSError('interrupted')):
+                with self.assertRaisesRegex(OSError, 'interrupted'):
+                    run_jev_stage.run_day('2026-10-01', root, Path(directory) / 'w',
+                                          generation_usd=1.0, execute=FakeCommands(), commit='abc')
+            self.assertEqual(json.loads(record.read_text()), {'status': 'previous'})
+            self.assertEqual(list(record.parent.glob('.*.tmp')), [])
 
     def test_provenance_manifest_joins_digests_with_workflow_runs_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:

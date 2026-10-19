@@ -201,7 +201,7 @@ def preflight_run(
     if protocol_path.is_file():
         try:
             loaded = json.loads(protocol_path.read_text(encoding="utf-8"))
-        except (UnicodeError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             checks.add("protocol_parse", False, f"protocol is not valid JSON: {exc}")
         else:
             if isinstance(loaded, dict) and isinstance(loaded.get("protocol_id"), str):
