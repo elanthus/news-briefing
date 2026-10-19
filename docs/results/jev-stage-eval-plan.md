@@ -2,9 +2,9 @@
 
 Status: run on 2026-10-16; human adjudication pending. Protocol:
 [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json) (status
-`frozen_for_run`, frozen 2026-10-16). The committed sample is
+`labels_frozen_pending_adjudication`, frozen before execution on 2026-10-16). The committed sample is
 [`jev-stage-sample.json`](jev-stage-sample.json) and the runner is
-[`run_jev_stage.py`](../../run_jev_stage.py); the model card skeleton is
+[`run_jev_stage.py`](../../run_jev_stage.py); the model card is
 [`jev-stage-v1.md`](jev-stage-v1.md). The stage under test is described in
 [daily Jev checks and repairs](../jev-review.md).
 
@@ -63,7 +63,9 @@ reports the cents actually billed.
 [`run_jev_stage.py`](../../run_jev_stage.py) executes both commands for every
 date in the committed sample, in order, records each day's artifact SHA-256
 values and reported costs, skips days that already have a record, continues past
-a generation-failure row, and stops on any other failure:
+a generation-failure row or restore exit 4 (`missing_day`, no eligible archive),
+and stops on any other failure. A successful restore without the requested corpus
+is an error requiring inspection:
 
 ```bash
 python3 -S run_jev_stage.py \
@@ -84,7 +86,12 @@ archive supplies at most the fourteen-date retention window, so a sample larger
 than fourteen days spans two or more restore windows or adds fresh daily fetches.
 A day whose fallback chain reaches no ready candidate is a generation-failure row
 with no review metrics. A day whose review ends `partial` or `failed` counts in the
-coverage denominator and in no rate conditioned on complete review.
+coverage denominator and in no rate conditioned on complete review. So does a day
+whose review directory holds no schema 3 audit at all: when the review raises,
+the daily runner prints the exception type, retains the original briefing, and
+writes no audit. Every planned day stays in the coverage frame; the aggregator
+records a ready candidate with a missing audit as a review-failure row rather
+than skipping the day.
 
 ## Sample size
 

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import html
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
 from datetime import date
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest.mock import patch
 
@@ -711,7 +714,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertEqual(by_date["2026-08-20"]["repair_actions"], [])
             # The restored entry's chip and report keep the repair provenance.
             restored_page = (second_site / "2026-08-19.html").read_text(encoding="utf-8")
-            self.assertIn("Published after automated repair (1 action)", restored_page)
+            self.assertIn("1 automatic correction", restored_page)
             restored_report = (second_site / "reports/2026-08-19.html").read_text(
                 encoding="utf-8"
             )
@@ -730,8 +733,8 @@ class BuildSiteTests(unittest.TestCase):
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
             self.assertIn("status-chip", index)
-            self.assertIn("✓", index)
-            self.assertIn("Contract checks passed", index)
+            self.assertIn('<p class="status-chip status-ok"><a href="reports/2026-08-20.html">'
+                          "✓ Passed publication checks · All sources healthy</a></p>", index)
             self.assertIn("reports/2026-08-20.html", index)
             self.assertNotIn("Checker verdict:", index)
             self.assertNotIn("Corpus health:", index)
@@ -758,8 +761,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("Contract checks passed", index)
-            self.assertIn("1 advisory note", index)
+            self.assertIn("⚠ Passed publication checks · 1 advisory note", index)
 
     def test_status_chip_repair_count_for_repaired_ready_entry(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -780,9 +782,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("⚠", index)
-            self.assertIn("automated repair", index)
-            self.assertIn("2 actions", index)
+            self.assertIn("⚠ Passed publication checks · 2 automatic corrections", index)
 
     def test_ready_page_places_linked_status_and_dividers_below_daily_title(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -810,7 +810,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertNotIn("Briefing for 2026-08-20", index)
             title = index.index("<h1>Daily Briefing — August 20, 2026</h1>")
             first_rule = index.index("<hr>", title)
-            status = index.index("Published after automated repair", first_rule)
+            status = index.index("1 automatic correction", first_rule)
             corpus = index.index("Corpus window: start → end", status)
             second_rule = index.index("<hr>", corpus)
             news = index.index("<h2>AI/Tech</h2>", second_rule)
@@ -838,7 +838,7 @@ class BuildSiteTests(unittest.TestCase):
             index = (root / "site/index.html").read_text(encoding="utf-8")
             title = index.index("<h1>Daily Briefing — August 20, 2026</h1>")
             first_rule = index.index("<hr>", title)
-            status = index.index("Contract checks passed", first_rule)
+            status = index.index("Passed publication checks", first_rule)
             corpus = index.index("Corpus window: start → end", status)
             second_rule = index.index("<hr>", corpus)
             self.assertLess(title, first_rule)
@@ -896,11 +896,13 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("source coverage problems", index)
+            # Without the verified per-source record, the label admits the
+            # reason is unknown rather than guessing failed or empty.
             self.assertIn('<p class="status-chip status-warn"><a href="reports/2026-08-20.html">'
-                          "✓ Contract checks passed · source coverage problems</a></p>", index)
+                          "⚠ Passed publication checks · Some sources had problems</a></p>", index)
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("Source coverage problems: reddit:cursor", report)
+            self.assertIn("Sources: <a href=\"#sources\">Some sources had problems</a>", report)
+            self.assertIn("<strong>r/cursor</strong> (subreddit) reason not recorded", report)
 
     def test_status_chip_review_required(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -920,8 +922,7 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             index = (root / "site/index.html").read_text(encoding="utf-8")
-            self.assertIn("🔍", index)
-            self.assertIn("Review required", index)
+            self.assertIn("🔍 Withheld for review · All sources healthy", index)
 
     def test_review_required_renders_stub_without_briefing_prose(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -950,7 +951,7 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("reports/2026-08-20.html", index)
             title = index.index("<h1>Daily briefing — 2026-08-20</h1>")
             first_rule = index.index("<hr>", title)
-            status = index.index("Review required", first_rule)
+            status = index.index("Withheld for review", first_rule)
             second_rule = index.index("<hr>", status)
             stub = index.index("did not pass automated checks", second_rule)
             self.assertLess(title, first_rule)
@@ -1038,9 +1039,9 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("drop_entry", report)
             self.assertIn("topics.AI News[1]", report)
             self.assertIn("duplicate", report)
-            self.assertIn("reddit:cursor", report)
+            self.assertIn("r/cursor", report)
 
-    def test_report_page_shows_provenance_line_under_the_verdict(self) -> None:
+    def test_report_page_keeps_provenance_line_in_operator_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             briefings = root / "briefings"
@@ -1061,9 +1062,11 @@ class BuildSiteTests(unittest.TestCase):
                 "1 selection correction, 0 prose corrections, 0 total repair actions.",
                 report,
             )
-            verdict_pos = report.index('<p class="verdict">')
+            decision_pos = report.index('<p class="decision">')
+            details_pos = report.index("<details><summary>Provenance and costs</summary>")
             provenance_pos = report.index("Generated by")
-            self.assertLess(verdict_pos, provenance_pos)
+            self.assertLess(decision_pos, details_pos)
+            self.assertLess(details_pos, provenance_pos)
             # The reader-facing page never shows provenance (issue #174).
             index = (root / "site/index.html").read_text(encoding="utf-8")
             self.assertNotIn("provenance", index)
@@ -1200,9 +1203,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("All deterministic contract checks passed", report)
-            self.assertIn("Semantic faithfulness was not assessed", report)
-            self.assertTrue((root / "site/reports/2026-08-20.html").is_file())
+            # A day with no semantic review says so in the decision sentence.
+            self.assertIn('<p class="decision"><strong>Published as originally generated.</strong> '
+                          "No automated story review was recorded for this day.</p>", report)
+            self.assertIn("Deterministic checker: 0 findings; all contract checks passed.", report)
+            self.assertIn("Nothing was recorded as changed after generation.", report)
 
     def test_ready_report_with_advisory_findings_states_gate_passed_with_notes(self) -> None:
         # A passed gate still names and counts its nonblocking notes.
@@ -1229,10 +1234,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertNotIn("All deterministic contract checks passed", report)
-            self.assertIn("The publication gate passed with 1 advisory note", report)
-            self.assertIn("Semantic faithfulness was not assessed", report)
-            self.assertIn('<td>Advisory</td><td>slots underfilled</td><td>1</td>', report)
+            self.assertNotIn("all contract checks passed", report)
+            self.assertIn("Deterministic checker: 0 findings, 1 advisory note.", report)
+            self.assertIn("No automated story review was recorded for this day.", report)
+            notes = report.index("<details><summary>Checker notes</summary>")
+            self.assertLess(notes, report.index('<td>slots underfilled</td><td>1</td>'))
             self.assertNotIn('Summary.', report)
             self.assertNotIn("Action:", report)
 
@@ -1293,9 +1299,11 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("BLOCKED · 0 findings", report)
-            self.assertNotIn("All deterministic contract checks passed", report)
-            self.assertIn("does not mean the checker accepted", report)
+            self.assertIn('<p class="decision"><strong>Not published.</strong> The run stopped before '
+                          "a briefing passed the publication checks.</p>", report)
+            self.assertNotIn("all contract checks passed", report)
+            self.assertIn("a zero count does not mean a candidate passed", report)
+            self.assertNotIn("What changed in the published briefing", report)
 
     def test_rejected_report_notes_unpublished_details(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1309,9 +1317,10 @@ class BuildSiteTests(unittest.TestCase):
             build_site(briefings, root / "site")
 
             report = (root / "site/reports/2026-08-20.html").read_text(encoding="utf-8")
-            self.assertIn("REJECTED · 1 finding", report)
-            self.assertNotIn("All deterministic contract checks passed", report)
-            self.assertIn("No findings details are available", report)
+            self.assertIn('<p class="decision"><strong>Not published.</strong> '
+                          "The checker rejected the briefing.</p>", report)
+            self.assertNotIn("all contract checks passed", report)
+            self.assertIn("no findings are recorded for unpublished runs", report)
     @staticmethod
     def _corpus_health_markdown(payload: str) -> str:
         return (
@@ -2086,8 +2095,8 @@ class IntegrityReportTests(unittest.TestCase):
             entry = site._entry_from_payload(record.payload(), source='fixture')
             page = site._render_report(entry, [entry])
             self.assertEqual(record.degraded_sources, ())
-            self.assertIn('No source problems reported', page)
-            self.assertIn('No source problems recorded', page)
+            self.assertIn('Sources: <a href="#sources">All sources healthy</a>', page)
+            self.assertIn('<p class="coverage-state coverage-healthy">All sources healthy.</p>', page)
             self.assertIn('Quiet sources returned valid dated entries', page)
             self.assertIn('ordinary quiet feed', page)
             self.assertNotIn('private feed detail', page)
@@ -2095,8 +2104,8 @@ class IntegrityReportTests(unittest.TestCase):
             record = prepare_publication(run, root / 'missing.json', root / 'public', date(2026, 9, 30))
             entry = site._entry_from_payload(record.payload(), source='fixture')
             page = site._render_report(entry, [entry])
-            self.assertIn('source health unavailable', page)
-            self.assertNotIn('No source problems reported', page)
+            self.assertIn('Source health was not recorded', page)
+            self.assertNotIn('All sources healthy', page)
 
 
     def test_failed_and_skipped_targets_keep_subjects_and_all_causes(self):
@@ -2356,6 +2365,325 @@ class IntegrityReportTests(unittest.TestCase):
             self.assertEqual(exact.markdown.encode('utf-8'), crlf_bytes)
             history.write_text(json.dumps(site._history_payload([exact])))
             self.assertEqual(site._load_history(history)[0].markdown.encode('utf-8'), crlf_bytes)
+
+
+# Single entries copied unchanged from the live site's history.json. 2026-10-13
+# retained its original after a withheld repair; 2026-10-12 published a repair.
+LIVE_FIXTURES = {
+    "2026-10-12": "12b5ec4b0adfebac5a599c3c1a7cd7af53a5b8cfaeffe80e946ce7d0dc137226",
+    "2026-10-13": "b64e5db861856c23e3d586a1a67a160fe56fcb010d52fa280df48290c95bdb69",
+}
+
+
+def _live_entry(day: str) -> dict[str, object]:
+    path = Path(__file__).resolve().parents[1] / f"fixtures/history-{day}.json.gz"
+    compressed = path.read_bytes()
+    if hashlib.sha256(compressed).hexdigest() != LIVE_FIXTURES[day]:
+        raise ValueError(f"live history fixture digest mismatch: {day}")
+    with gzip.open(path, "rb") as stream:
+        raw = stream.read(2_000_001)
+    if len(raw) > 2_000_000:
+        raise ValueError(f"live history fixture exceeds bound: {day}")
+    payload = json.loads(raw)
+    if payload["schema_version"] != 9 or [e["date"] for e in payload["entries"]] != [day]:
+        raise ValueError(f"live history fixture shape changed: {day}")
+    entry: dict[str, object] = payload["entries"][0]
+    return entry
+
+
+def _build_from_entries(root: Path, entries: list[dict[str, object]], schema_version: int = 9) -> Path:
+    (root / "prior.json").write_text(json.dumps({"schema_version": schema_version, "entries": entries}))
+    (root / "empty").mkdir()
+    build_site(root / "empty", root / "site", prior_history=root / "prior.json")
+    return root / "site"
+
+
+def _text(fragment: str) -> str:
+    return html.unescape(re.sub(r"<[^>]+>", "", fragment))
+
+
+def _between(page: str, start: str, end: str) -> str:
+    begin = page.index(start)
+    return page[begin:page.index(end, begin)]
+
+
+class _LayoutScan(HTMLParser):
+    """Record where each table sits: inside <details>, inside a scroll region, and its width."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.details = 0
+        self.scroll: list[bool] = []
+        self.tables: list[dict[str, object]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "details":
+            self.details += 1
+        elif tag == "div":
+            self.scroll.append("table-scroll" in (dict(attrs).get("class") or ""))
+        elif tag == "table":
+            self.tables.append({"in_details": self.details > 0, "scrolls": any(self.scroll), "columns": 0})
+        elif tag == "th" and self.tables and dict(attrs).get("scope") != "row":
+            columns = self.tables[-1]["columns"]
+            assert isinstance(columns, int)
+            self.tables[-1]["columns"] = columns + 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "details":
+            self.details -= 1
+        elif tag == "div" and self.scroll:
+            self.scroll.pop()
+
+
+class ReaderFacingReportTests(unittest.TestCase):
+    def test_live_retained_original_states_the_decision_in_one_sentence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-13")])
+            report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
+
+            self.assertEqual(
+                _text(_between(report, '<p class="decision">', "</p>")),
+                "Published as originally generated. Automated review flagged 2 of 22 stories; "
+                "a repair was attempted and withheld because one story was re-flagged.",
+            )
+            self.assertIn("Deterministic checker: 0 findings; all contract checks passed.", report)
+            self.assertNotIn("READY · 0 findings", report)
+            changed = _text(_between(report, 'id="what-changed"', 'id="stories-flagged"'))
+            self.assertIn("Nothing. Review did not change the briefing", changed)
+            flagged = [_text(item) for item in re.findall(
+                r"<li>(.*?)</li>", _between(report, 'id="stories-flagged"', "</section>"))]
+            self.assertEqual(flagged, [
+                "GitHub Copilot adds Gemini 4 Argon and expands enterprise controls and metrics: "
+                "one of four sources judged off-topic; removal proposed, not published",
+                "Federal agents search Rep. Ilhan Omar's home in immigration probe; pro-Trump ad "
+                "spending questioned: unrelated events grouped as one story; repair attempted, "
+                "re-flagged, not published",
+            ])
+            # Section order: decision, changes, flags, exclusion log, sources, operator records.
+            order = [report.index(marker) for marker in (
+                'class="decision"', 'id="what-changed"', 'id="stories-flagged"',
+                'id="excluded-topics"', 'id="sources"', 'id="operator-title"')]
+            self.assertEqual(order, sorted(order))
+
+    def test_live_reader_sections_use_words_and_operator_records_keep_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-13")])
+            report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
+
+            operator = report.index('id="operator-title"')
+            self.assertNotIn("0.78 / 0.65", report[:operator])
+            self.assertIn("0.78 / 0.65 (confirmed)", report[operator:])
+            self.assertNotIn("typesafe/jev-1.13", report[:operator])
+            self.assertIn("Judge: typesafe/jev-1.13", report[operator:])
+            for title in ("Decision record", "Action ledger", "Review statistics", "Provenance and costs"):
+                self.assertIn(f"<details><summary>{title}</summary>", report[operator:])
+            scan = _LayoutScan()
+            scan.feed(report)
+            self.assertTrue(scan.tables)
+            self.assertTrue(all(table["in_details"] for table in scan.tables), scan.tables)
+            self.assertIn("Initial review statistics", report[operator:])
+
+    def test_live_chip_panel_and_report_share_one_coverage_account(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-13")])
+            index = (site / "index.html").read_text(encoding="utf-8")
+            report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
+
+            label = "Some sources returned nothing usable"
+            chip = _text(_between(index, '<p class="status-chip', "</p>"))
+            self.assertEqual(chip, f"⚠ Passed publication checks · 2 stories flagged in review · {label}")
+            panel = _between(index, '<section class="run-notes"', "</section>")
+            self.assertIn(f'<p class="coverage-state coverage-empty">{label}.</p>', panel)
+            self.assertIn(f"<li>Coverage: {label}</li>", panel)
+            self.assertNotIn("Coverage: <code>degraded</code>", panel)
+            self.assertNotIn("Source issues", panel)
+            self.assertNotIn("Undated source drops", panel)
+            sources = _between(report, 'id="sources"', "<details>")
+            self.assertIn(f"Sources: <a href=\"#sources\">{label}</a>", report)
+            for name, reason in (
+                ("Claude Code Releases</strong> (RSS feed)", "had nothing new in this day's window"),
+                ("MCP Servers Releases</strong> (RSS feed)", "had nothing new in this day's window"),
+                ("“claude”</strong> (Hacker News search)", "had every item filtered out"),
+                ("“cursor”</strong> (Hacker News search)", "had every item filtered out"),
+                ("“codex”</strong> (Hacker News search)", "had every item filtered out"),
+            ):
+                row = f"<li><strong>{name} {html.escape(reason)}</li>"
+                self.assertIn(row, panel)
+                self.assertIn(row, sources)
+            self.assertNotIn("Verified source health", report)
+            self.assertNotIn("Corpus health", report)
+            # Page rendering only: the stored footer keeps its checked wording.
+            stored = json.loads((site / "history.json").read_text())["entries"][0]["markdown"]
+            self.assertIn("- Coverage: `degraded`", stored)
+            self.assertIn("**Source issues**", stored)
+
+    def test_live_applied_repair_shows_the_published_change(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-12")])
+            report = (site / "reports/2026-10-12.html").read_text(encoding="utf-8")
+            index = (site / "index.html").read_text(encoding="utf-8")
+
+            self.assertEqual(
+                _text(_between(report, '<p class="decision">', "</p>")),
+                "Published with automated repairs to one story. Automated review flagged 1 of 22 "
+                "stories; the repair passed a second review.",
+            )
+            changed = _between(report, 'id="what-changed"', 'id="stories-flagged"')
+            self.assertIn("<h3>Federal agents search Rep. Ilhan Omar&#x27;s home in immigration probe</h3>",
+                          changed)
+            self.assertIn("Source removed: <del><a href=", changed)
+            self.assertIn('<p class="diff-label">After (published)</p>', changed)
+            self.assertIn("<del>", changed)
+            self.assertIn("<ins>", changed)
+            self.assertIn("one of six sources judged off-topic; repair published", _text(report))
+            # A fetch failure outranks quiet sources in the shared three-state wording.
+            self.assertIn("· Some sources failed</a></p>", index)
+            self.assertIn("<li><strong>Google DeepMind</strong> (RSS feed) could not be fetched</li>", index)
+            self.assertIn("<li><strong>Google DeepMind</strong> (RSS feed) could not be fetched</li>", report)
+            self.assertIn("Published after automated repair", index)
+            scan = _LayoutScan()
+            scan.feed(report)
+            self.assertTrue(all(table["in_details"] for table in scan.tables), scan.tables)
+
+    def test_day_without_review_or_verified_health_still_renders(self) -> None:
+        entry = _live_entry("2026-10-13")
+        entry["semantic_audit"] = None
+        entry["integrity"] = None
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [entry])
+            report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
+            index = (site / "index.html").read_text(encoding="utf-8")
+
+            self.assertEqual(_text(_between(report, '<p class="decision">', "</p>")),
+                             "Published. No automated story review was recorded for this day.")
+            self.assertIn("No automated story review was recorded for this day.</p></section>", report)
+            self.assertIn("Historical publication decision and phase records unavailable", report)
+            label = "Some sources had problems"
+            self.assertIn(f"⚠ Passed publication checks · {label}</a></p>", index)
+            panel = _between(index, '<section class="run-notes"', "</section>")
+            self.assertIn(f"<li>Coverage: {label}</li>", panel)
+            # Without verified reasons, the footer's own source lists stay visible.
+            self.assertIn("<strong>Source issues</strong>", panel)
+            self.assertIn("<strong>“claude”</strong> (Hacker News search) reason not recorded", report)
+
+    def test_failed_and_withheld_days_state_the_decision(self) -> None:
+        from datetime import date
+
+        from prepare_publication import prepare_publication
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            chain.mkdir()
+            (chain / "fallback-log.json").write_text(json.dumps({
+                "schema_version": 2, "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
+                "attempts": [{"model": "google/gemini-3.7-flash", "status": "failed",
+                              "failure": FailureRecord("invalid_request", status_code=400).payload(),
+                              "failure_reason": "private"}],
+            }))
+            prepare_publication(chain, root / "missing.json", root / "briefings", date(2026, 9, 6))
+            (root / "briefings/2026-09-07.md").write_text("withheld preview", encoding="utf-8")
+            BuildSiteTests._write_sidecar(
+                root / "briefings", date="2026-09-07", disposition="review_required",
+                findings=[BuildSiteTests._finding("unsupported_figure", "fig check"),
+                          BuildSiteTests._finding("claim_exceeds_evidence", "too much detail")],
+            )
+            build_site(root / "briefings", root / "site")
+
+            failed = (root / "site/reports/2026-09-06.html").read_text(encoding="utf-8")
+            self.assertEqual(_text(_between(failed, '<p class="decision">', "</p>")),
+                             "Not published. Every model tried failed to produce a briefing that "
+                             "passed the checks.")
+            self.assertIn("Every model in the fallback chain failed", failed)
+            self.assertNotIn('id="stories-flagged"', failed)
+            withheld = (root / "site/reports/2026-09-07.html").read_text(encoding="utf-8")
+            self.assertEqual(_text(_between(withheld, '<p class="decision">', "</p>")),
+                             "Withheld for review. The deterministic checker recorded 2 findings that "
+                             "need a person to review them before publication.")
+            self.assertIn("Deterministic checker: 2 findings require review.", withheld)
+            self.assertIn("<h2>Checker findings</h2>", withheld)
+            self.assertNotIn("withheld preview", withheld)
+
+    def test_partial_publication_states_both_outcomes(self) -> None:
+        import build_site as site
+        from prepare_publication import prepare_publication
+        from tests.test_semantic_repairs import split_review
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _run, _audit, first, second = split_review(root)
+            (root / "fallback-log.json").write_text(json.dumps({"status": "ready", "selected_run_dir": "run"}))
+            record = prepare_publication(root, root / "input.json", root / "public", date(2026, 10, 13))
+            entry = site._entry_from_payload(record.payload(), source="fixture")
+            self.assertEqual(entry.integrity["decision"], "partial_applied")
+            page = site._render_report(entry, [entry])
+
+            self.assertEqual(
+                _text(_between(page, '<p class="decision">', "</p>")),
+                "Published with automated repairs to one story. Automated review flagged 2 of 22 "
+                "stories; one repair passed a second review, and one was withheld because one story "
+                "was re-flagged.",
+            )
+            flagged = _text(_between(page, 'id="stories-flagged"', "</section>"))
+            self.assertIn(f"{first['headline']}: one of two sources judged off-topic; repair published", flagged)
+            self.assertIn(f"{second['headline']}: a claim its sources do not support; repair attempted, "
+                          "re-flagged, not published", flagged)
+            # The withheld story kept its original, still-flagged prose.
+            self.assertIn("· 1 story flagged in review ·", site._status_chip(entry))
+
+    def test_undated_drops_from_a_working_source_are_not_called_empty(self) -> None:
+        from build_site import _source_coverage
+
+        def row(source_id: str, status: str, reason: str | None, parsed: int, dated: int,
+                category: str = "ai_tech") -> dict[str, object]:
+            return {"source_type": "rss", "source_id": source_id, "category": category, "status": status,
+                    "reason": reason, "parsed_entries": parsed, "dated_entries": dated,
+                    "retained_entries": dated}
+
+        def coverage(rows: list[dict[str, object]]) -> tuple[str, str]:
+            integrity = {"corpus_health": [row("Healthy feed", "ok", None, 10, 10), *rows]}
+            entry = BriefingEntry(day=date(2026, 10, 13), disposition="ready", findings_count=0, findings=(),
+                                  degraded_sources=(), markdown="", integrity=integrity)
+            result = _source_coverage(entry)
+            return result.state, result.label
+
+        undated = row("Mostly dated feed", "ok", "undated_entries", 12, 10)
+        quiet = [row(f"Quiet feed {n}", "quiet", "no_window_entries", 5, 5, category="dev") for n in range(4)]
+        failed = row("Broken feed", "error", "fetch_error", 0, 0)
+        # A source that returned usable dated items is not "returned nothing usable".
+        self.assertEqual(coverage([undated]), ("partial", "Some sources dropped undated items"))
+        self.assertEqual(coverage([undated, *quiet]), ("empty", "Some sources returned nothing usable"))
+        self.assertEqual(coverage([*quiet, undated, failed]), ("failed", "Some sources failed"))
+        self.assertEqual(coverage([]), ("healthy", "All sources healthy"))
+
+    def test_every_reason_code_has_reader_wording(self) -> None:
+        from build_site import READER_REASON_PHRASES
+        from publication_schema import INTEGRITY_REASON_MESSAGES
+
+        self.assertEqual(set(READER_REASON_PHRASES), set(INTEGRITY_REASON_MESSAGES))
+
+    def test_pages_fit_phone_width_in_both_themes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-13")])
+            pages = [(site / name).read_text(encoding="utf-8")
+                     for name in ("index.html", "reports/2026-10-13.html")]
+            for page in pages:
+                self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', page)
+                self.assertIn("@media (max-width: 40rem)", page)
+                self.assertIn("@media (prefers-color-scheme: dark)", page)
+                self.assertIn("overflow-wrap: anywhere", page)
+                self.assertNotIn("<script", page)
+                self.assertNotIn('rel="stylesheet"', page)
+            self.assertIn(".table-scroll { overflow-x: auto; }", pages[1])
+            # Wide tables scroll inside their own region; only narrow ones may sit in the flow.
+            scan = _LayoutScan()
+            scan.feed(pages[1])
+            for table in scan.tables:
+                columns = table["columns"]
+                assert isinstance(columns, int)
+                self.assertTrue(table["scrolls"] or columns <= 3, table)
+            # The chip wraps as a rounded box rather than a pill when it runs to two lines.
+            self.assertIn("p.status-chip { border-radius: .9rem;", pages[0])
 
 
 if __name__ == "__main__":

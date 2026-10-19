@@ -98,15 +98,20 @@ existing `OPENROUTER_API_KEY`:
    the original ready briefing. A repair that would remove every source from a
    slot is skipped rather than publish an uncited story.
 
-The integrity report leads with the **publication decision**, review coverage,
-unresolved flags, and changes that reached the published briefing. An action
-ledger identifies code and model work, including skipped, failed, and rejected
-repairs with fixed explanations. Each changed story shows its headline and
-summary differences once, regardless of which check triggered the repair. Source
-removals identify their cause and distinguish published changes from proposals;
-an article and its Hacker News discussion count as one source item. Initial and
-follow-up statistics and phase costs follow. Full check data remains in public
-history JSON; unavailable operational facts remain explicitly missing.
+The integrity report opens with one plain sentence stating the **publication
+decision** and its reason, followed by the deterministic checker's count under
+its own name. Next come the changes that reached the published briefing, each
+as a before/after difference; the flagged stories, one line each in plain
+words; the exclusion log; and the affected sources. The briefing page's status
+chip and "Behind this briefing" panel describe source coverage with the same
+wording as the report. Operator records follow in collapsed sections: the
+decision record, an action ledger of code and model work (including skipped,
+failed, and rejected repairs with fixed explanations), initial and follow-up
+review statistics with their scores, and provenance, phase costs, and artifact
+digests. Source removals identify their cause and distinguish published changes
+from proposals; an article and its Hacker News discussion count as one source
+item. Full check data remains in public history JSON; legacy entries identify
+unavailable operational history.
 Historical research is preserved through the [retention contract](docs/research-retention.md).
 Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
 excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
@@ -127,7 +132,7 @@ The [live site](https://elanthus.github.io/news-briefing/) publishes daily with 
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Current integrity report from an offline fixture](docs/images/auditor-report-current.jpg) |
 
-The reader screenshot is the current site renderer applied locally to [`docs/sample-briefing.md`](docs/sample-briefing.md); the earlier dates in its strip are placeholders. The auditor screenshot uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
+The reader screenshot is the current site renderer applied locally to [`docs/sample-briefing.md`](docs/sample-briefing.md); the earlier dates in its strip are placeholders. The auditor screenshot shows the top of a report for a day whose repair was published: the decision sentence, the before/after change, and the flagged story. It uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
 
 ## Watch it catch an injection
 
