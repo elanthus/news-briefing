@@ -236,7 +236,8 @@ def preflight_run(
 
     plan_summary: dict[str, Any] | None = None
     identity: dict[str, Any] | None = None
-    if all(path.is_file() for path in (suite_path, corpus_path, protocol_path)) and len(adapters) == len(providers):
+    if (protocol is not None and all(path.is_file() for path in (suite_path, corpus_path, protocol_path))
+            and len(adapters) == len(providers)):
         try:
             plan = resolve_evaluation_plan(
                 adapters=adapters, prompt_versions=prompt_versions, trials=trials,

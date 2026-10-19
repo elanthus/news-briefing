@@ -77,11 +77,14 @@ class ParityV3PreflightTest(unittest.TestCase):
                 raise PermissionError("protocol denied")
             return original(path, *args, **kwargs)
 
-        with tempfile.TemporaryDirectory() as temporary, patch.object(Path, "read_text", read_text):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(Path, "read_text", read_text), \
+                patch("evaluator.preflight.resolve_evaluation_plan") as resolve:
             result = preflight_run(**PARITY_V3_ARGS, output_dir=Path(temporary) / "out", before_tag=True)
+        resolve.assert_not_called()
         self.assertFalse(result["ok"])
         self.assertTrue(_failed(result)["protocol_parse"])
         self.assertEqual(result["provider_calls"], 0)
+        self.assertIsNone(result["plan"])
 
     def test_control_drift_from_the_protocol_is_reported(self) -> None:
         drifted = {**PARITY_V3_ARGS, "trials": 3, "temperature": 0.2, "cost_ceiling_usd": 6.0,
