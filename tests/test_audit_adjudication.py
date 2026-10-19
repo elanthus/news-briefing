@@ -11,7 +11,7 @@ from agent_runner.audit_adjudication import (
     validate_adjudication,
     verify_frozen_inputs,
 )
-from agent_runner.audit_packets import RUBRIC
+from agent_runner.audit_packets import PROTOCOL_ID, RUBRIC
 
 
 def version(tag, evidence=1):
@@ -256,7 +256,67 @@ def run_outcomes(paths, decisions, **kwargs):
                                 paths['key'], **kwargs)
 
 
+def correspondence(root, sides=None):
+    sides = ['repaired', 'original'] if sides is None else sides
+    path = root / 'packet-correspondence.json'
+    path.write_text(json.dumps({'schema_version': 1, 'protocol_id': PROTOCOL_ID, 'mapping': [
+        {'packet_id': 'r1-00001', 'kind': 'pair', 'sides': sides},
+        {'packet_id': 'r2-00002', 'kind': 'pair', 'sides': list(reversed(sides))},
+    ]}))
+    return path
+
+
 class OutcomesTests(unittest.TestCase):
+    def test_pairs_by_side_follow_first_packet_order_after_adjudication(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second_disputed_pair())
+            decisions = decide(json.loads(paths['adj'].read_text()), {
+                ('support', 0): 'unsupported', ('meaning_preservation', None): 'preserved',
+                ('readability', 0): 'fragment_or_incomplete'})
+            pooled = run_outcomes(paths, decisions)
+            for sides in (['repaired', 'original'], ['original', 'repaired']):
+                key = correspondence(root, sides)
+                result = run_outcomes(paths, decisions, correspondence_path=key)
+                split = result['outcomes']['pairs_by_side']
+                self.assertEqual(result['outcomes']['pairs'], pooled['outcomes']['pairs'])
+                self.assertEqual(result['outcomes']['controls'], pooled['outcomes']['controls'])
+                self.assertEqual(result['unresolved_slots'], pooled['unresolved_slots'])
+                self.assertEqual(result['inputs_sha256']['packet_correspondence'],
+                                 hashlib.sha256(key.read_bytes()).hexdigest())
+                for index, side in enumerate(sides):
+                    self.assertEqual(split[side]['support'], {
+                        'favorable': 'supported', 'count': int(index == 0), 'of': 1, 'unresolved': 0,
+                        'labels': {'supported' if index == 0 else 'unsupported': 1}})
+                    self.assertEqual(split[side]['readability']['count'], int(index == 1))
+                    self.assertEqual(split[side]['citations'], {
+                        'favorable': 'all_relevant', 'count': 1, 'of': 1, 'unresolved': 0,
+                        'labels': {'all_relevant': 1}})
+                    self.assertEqual(set(split[side]), {'support', 'citations', 'readability'})
+
+    def test_packet_correspondence_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = exported(root, labels_second())
+            decisions = decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'})
+            key = correspondence(root)
+            valid = json.loads(key.read_text())
+            cases = [None, {**valid, 'schema_version': 2}, {**valid, 'protocol_id': 'foreign'},
+                     {**valid, 'mapping': {}}, {**valid, 'mapping': [None]},
+                     {**valid, 'mapping': valid['mapping'][:1]},
+                     {**valid, 'mapping': valid['mapping'] * 2}]
+            for sides in (['original', 'original'], ['repaired', 'repaired'], [], ['original'],
+                          ['original', 'repaired', 'original'], ['original', 'foreign'], 'original', [None, {}]):
+                cases.append({**valid, 'mapping': [{**valid['mapping'][0], 'sides': sides}, valid['mapping'][1]]})
+            cases.append({**valid, 'mapping': [{**valid['mapping'][0], 'kind': 'control'}, valid['mapping'][1]]})
+            cases.append({**valid, 'mapping': [valid['mapping'][0],
+                                               {**valid['mapping'][1], 'sides': ['repaired', 'original']}]})
+            for index, value in enumerate(cases):
+                key.write_text(json.dumps(value))
+                with self.subTest(case=index), self.assertRaises(ValueError):
+                    run_outcomes(paths, decisions, correspondence_path=key)
+
     def test_agreed_labels_stay_and_each_disputed_question_takes_the_decision(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -384,19 +444,29 @@ class OutcomesTests(unittest.TestCase):
                 verify_frozen_inputs(record, **{**check, 'decisions_path': superseded})
             record_path = root / 'record.json'
             record_path.write_text(json.dumps(record))
-            result = run_outcomes(paths, decisions, opened_at='2026-10-19T20:00:00Z')
+            key = correspondence(root)
+            result = run_outcomes(paths, decisions, opened_at='2026-10-19T20:00:00Z',
+                                  correspondence_path=key, packet_opened_at='2026-10-19T21:00:00Z')
             written = record_outcomes(record_path, result)
             self.assertEqual(written['correspondence_opened_at'], '2026-10-19T20:00:00Z')
             self.assertEqual(written['adjudication_decisions_returned']['correspondence_opened_at'],
                              '2026-10-19T20:00:00Z')
             self.assertEqual(written['adjudicated_outcomes']['outcomes'], result['outcomes'])
             self.assertEqual(written['adjudicated_outcomes']['date'], '2026-10-19')
+            self.assertEqual(written['packet_correspondence_opened_at'], '2026-10-19T21:00:00Z')
+            self.assertEqual(written['adjudicated_outcomes']['packet_correspondence_opened_at'],
+                             '2026-10-19T21:00:00Z')
             self.assertEqual(json.loads(record_path.read_text()), written)
             # A second run keeps the first opening time and refreshes the counts.
-            later = run_outcomes(paths, decisions, opened_at='2026-10-20T09:00:00Z')
+            later = run_outcomes(paths, decisions, opened_at='2026-10-20T09:00:00Z',
+                                 correspondence_path=key, packet_opened_at='2026-10-20T10:00:00Z')
             again = record_outcomes(record_path, later)
             self.assertEqual(again['correspondence_opened_at'], '2026-10-19T20:00:00Z')
             self.assertEqual(later['correspondence_opened_at'], '2026-10-19T20:00:00Z')
+            self.assertEqual(again['packet_correspondence_opened_at'], '2026-10-19T21:00:00Z')
+            self.assertEqual(again['adjudicated_outcomes']['packet_correspondence_opened_at'],
+                             '2026-10-19T21:00:00Z')
+            self.assertEqual(later['packet_correspondence_opened_at'], '2026-10-19T21:00:00Z')
 
     def test_command_line_outcomes_writes_the_record(self):
         import subprocess
@@ -407,15 +477,19 @@ class OutcomesTests(unittest.TestCase):
             decisions = decide(json.loads(paths['adj'].read_text()), {('support', 0): 'supported'})
             paths['dec'] = root / 'decisions.json'
             paths['dec'].write_text(json.dumps(decisions))
+            key = correspondence(root)
             completed = subprocess.run(
                 [sys.executable, '-S', '-m', 'agent_runner.audit_adjudication', 'outcomes',
                  str(paths['p1']), str(paths['l1']), str(paths['p2']), str(paths['l2']),
-                 str(paths['adj']), str(paths['dec']), '--key', str(paths['key'])],
+                 str(paths['adj']), str(paths['dec']), '--key', str(paths['key']), '--correspondence', str(key)],
                 capture_output=True, text=True, cwd=Path(__file__).resolve().parent.parent)
             self.assertEqual(completed.returncode, 0, completed.stderr)
             printed = json.loads(completed.stdout)
             self.assertEqual(printed['outcomes']['controls']['support']['count'], 1)
             self.assertRegex(printed['correspondence_opened_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+            self.assertRegex(printed['packet_correspondence_opened_at'],
+                             r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+            self.assertEqual(printed['outcomes']['pairs_by_side']['original']['support']['count'], 0)
 
 
 if __name__ == '__main__':

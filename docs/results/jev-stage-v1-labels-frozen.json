@@ -85,7 +85,7 @@
   },
   "adjudicated_outcomes": {
     "date": "2026-10-19",
-    "computed_at": "2026-10-19T22:40:56Z",
+    "computed_at": "2026-10-19T22:57:16Z",
     "method": "agreed labels kept; each disputed question takes the adjudicator's decision; shared items recomputed by blinded content and every key entry checked against the adjudication packet before use",
     "adjudicator": "adj",
     "shared_items": 31,
@@ -170,6 +170,73 @@
             "readable": 17
           }
         }
+      },
+      "pairs_by_side": {
+        "original": {
+          "support": {
+            "favorable": "supported",
+            "count": 8,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "reversed": 1,
+              "strengthened": 2,
+              "supported": 8,
+              "unsupported": 3
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 12,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 12,
+              "irrelevant_listed": 2
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 10,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "fragment_or_incomplete": 4,
+              "readable": 10
+            }
+          }
+        },
+        "repaired": {
+          "support": {
+            "favorable": "supported",
+            "count": 13,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "strengthened": 1,
+              "supported": 13
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 13,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 13,
+              "irrelevant_listed": 1
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 14,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "readable": 14
+            }
+          }
+        }
       }
     },
     "flags": 0,
@@ -229,7 +296,10 @@
       },
       "adjudication_packet": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
       "decisions": "a7631eec5e50a061a122af789a8bd90f980ebffb69c79b34aacbf6019758b0dc",
-      "key": "0c861d4e3edea3757a3a2ec878296a61a65836e2d6dc36cd45194e679329f6ae"
-    }
-  }
+      "key": "0c861d4e3edea3757a3a2ec878296a61a65836e2d6dc36cd45194e679329f6ae",
+      "packet_correspondence": "c01582516582a4f988e20eab0b05d12174a32ec2043f6c465c4c837c2a1140bc"
+    },
+    "packet_correspondence_opened_at": "2026-10-19T22:57:16Z"
+  },
+  "packet_correspondence_opened_at": "2026-10-19T22:57:16Z"
 }

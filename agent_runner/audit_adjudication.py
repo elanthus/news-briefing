@@ -10,11 +10,13 @@ blinded content, so no correspondence key is read. Run ``... validate
 ADJUDICATION_PACKET DECISIONS`` to check an adjudicator's returned file.
 
 Run ``... outcomes PACKET_R1 LABELS_R1 PACKET_R2 LABELS_R2 ADJUDICATION_PACKET
-DECISIONS --key KEY [--freeze-record RECORD]`` to compute adjudicated outcomes:
+DECISIONS --key KEY [--correspondence KEY] [--freeze-record RECORD]`` to compute adjudicated outcomes:
 every shared item keeps its agreed labels and takes the adjudicator's decision
 on each disputed question. Reading the key is the unblinding step; with
 ``--freeze-record`` the inputs are checked against the committed digests first,
 and the record then receives the counts and ``correspondence_opened_at``.
+The optional packet correspondence key splits shared pairs by original/repaired
+side and records its digest and separate ``packet_correspondence_opened_at``.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.audit_labels import PER_VERSION, validate_labels
+from agent_runner.audit_packets import PROTOCOL_ID
 from agent_runner.checkpoint import write_json_atomic, write_text_atomic
 
 QUESTIONS = (*PER_VERSION, "meaning_preservation")
@@ -359,9 +362,44 @@ def _tally(finals: list[tuple[bool, Final]]) -> dict[str, dict[str, dict[str, An
     return tallies
 
 
+def _pairs_by_side(rows: list[dict[str, Any]], finals: list[tuple[bool, Final]],
+                   correspondence: Any) -> dict[str, dict[str, dict[str, Any]]]:
+    """Resolve both packet orders before tallying each shared pair once per side."""
+    if (not isinstance(correspondence, dict) or correspondence.get("schema_version") != 1
+            or correspondence.get("protocol_id") != PROTOCOL_ID
+            or not isinstance(correspondence.get("mapping"), list)):
+        raise ValueError("not a packet correspondence key")
+    mapping = {}
+    for entry in correspondence["mapping"]:
+        if not isinstance(entry, dict) or not isinstance(entry.get("packet_id"), str):
+            raise ValueError("malformed packet correspondence entry")
+        packet_id = entry["packet_id"]
+        if packet_id in mapping:
+            raise ValueError("packet correspondence repeats a packet id")
+        mapping[packet_id] = entry
+    grouped: dict[str, list[tuple[bool, Final]]] = {"original": [], "repaired": []}
+    for row, (pair, final) in zip(rows, finals, strict=True):
+        if not pair:
+            continue
+        orders = []
+        for packet in ("first", "second"):
+            entry = mapping.get(row[packet]["packet_id"], {})
+            sides = entry.get("sides")
+            if (entry.get("kind") != "pair" or not isinstance(sides, list)
+                    or sides not in (["original", "repaired"], ["repaired", "original"])):
+                raise ValueError("each shared pair must map to exactly one original and one repaired side")
+            orders.append(sides)
+        if orders[0] != [orders[1][index] for index in row["order"]]:
+            raise ValueError("packet correspondence sides disagree after version alignment")
+        for index, side in enumerate(orders[0]):
+            grouped[side].append((True, {q: [final[q][index]] for q in PER_VERSION}))
+    return {side: _tally(values)["pairs"] for side, values in grouped.items()}
+
+
 def adjudicated_outcomes(packet_first: Path, labels_first: Path, packet_second: Path, labels_second: Path,
                          adjudication_path: Path, decisions_path: Path, key_path: Path, *,
-                         opened_at: str | None = None) -> dict[str, Any]:
+                         opened_at: str | None = None, correspondence_path: Path | None = None,
+                         packet_opened_at: str | None = None) -> dict[str, Any]:
     """Final labels per shared item and their counts per question, for repair pairs and controls separately.
 
     Both label files and the decisions file are validated first. Shared items
@@ -434,21 +472,30 @@ def adjudicated_outcomes(packet_first: Path, labels_first: Path, packet_second: 
         if own:
             single[labels["reviewer"]] = {"items": len(own), "pairs": sum(p for p, _ in own),
                                           "controls": sum(not p for p, _ in own), "outcomes": _tally(own)}
-    outcomes = _tally(finals)
+    outcomes: dict[str, Any] = _tally(finals)
+    unresolved = sum(cell["unresolved"] for group in outcomes.values() for cell in group.values())
+    packet_opening = {}
+    if correspondence_path is not None:
+        packet_opened_at = packet_opened_at or datetime.now(UTC).strftime(RECORD_TIME)
+        outcomes["pairs_by_side"] = _pairs_by_side(list(rows.values()), finals, _read(correspondence_path))
+        packet_opening["packet_correspondence_opened_at"] = packet_opened_at
     return {
         "correspondence_opened_at": opened_at,
+        **packet_opening,
         "adjudicator": checked["adjudicator"],
         "shared_items": result["shared_items"], "shared_pairs": result["shared_pairs"],
         "shared_controls": result["shared_controls"],
         "adjudicated_items": checked["items"], "decisions_applied": checked["decisions"],
-        "unresolved_slots": sum(cell["unresolved"] for group in outcomes.values() for cell in group.values()),
+        "unresolved_slots": unresolved,
         "outcomes": outcomes,
         "flags": checked["flags"], "flag_counts": checked["flag_counts"],
         "outcomes_with_flags": _tally(with_flags) if checked["flags"] else None,
         "single_labeled": single,
         "inputs_sha256": {"packets": {path.name: _sha256(path) for path in (packet_first, packet_second)},
                           "labels": digests, "adjudication_packet": _sha256(adjudication_path),
-                          "decisions": _sha256(decisions_path), "key": _sha256(key_path)},
+                          "decisions": _sha256(decisions_path), "key": _sha256(key_path),
+                          **({"packet_correspondence": _sha256(correspondence_path)}
+                             if correspondence_path is not None else {})},
     }
 
 
@@ -475,6 +522,10 @@ def record_outcomes(record_path: Path, outcomes: dict[str, Any]) -> dict[str, An
     opened = record.get("correspondence_opened_at") or outcomes["correspondence_opened_at"]
     outcomes["correspondence_opened_at"] = opened
     record["correspondence_opened_at"] = opened
+    if "packet_correspondence_opened_at" in outcomes:
+        packet_opened = record.get("packet_correspondence_opened_at") or outcomes["packet_correspondence_opened_at"]
+        outcomes["packet_correspondence_opened_at"] = packet_opened
+        record["packet_correspondence_opened_at"] = packet_opened
     if isinstance(record.get("adjudication_decisions_returned"), dict):
         record["adjudication_decisions_returned"]["correspondence_opened_at"] = opened
     record["adjudicated_outcomes"] = {
@@ -486,6 +537,8 @@ def record_outcomes(record_path: Path, outcomes: dict[str, Any]) -> dict[str, An
                                     "adjudicated_items", "decisions_applied", "unresolved_slots", "outcomes",
                                     "flags", "flag_counts", "outcomes_with_flags", "single_labeled")},
         "inputs_sha256": outcomes["inputs_sha256"],
+        **({"packet_correspondence_opened_at": outcomes["packet_correspondence_opened_at"]}
+           if "packet_correspondence_opened_at" in outcomes else {}),
     }
     write_text_atomic(record_path, json.dumps(record, indent=2, ensure_ascii=True) + "\n")
     return record
@@ -511,21 +564,26 @@ def main() -> int:
     for name in ("packet_first", "labels_first", "packet_second", "labels_second", "adjudication", "decisions"):
         outcomes.add_argument(name, type=Path)
     outcomes.add_argument("--key", type=Path, required=True, help="private key written by export")
+    outcomes.add_argument("--correspondence", type=Path,
+                          help="private packet correspondence key; split shared pairs by original/repaired side")
     outcomes.add_argument("--freeze-record", type=Path,
                           help="check inputs against this record's digests, then write the counts into it")
     args = parser.parse_args()
     try:
         if args.command == "outcomes":
             opened_at = None
+            packet_opened_at = None
             if args.freeze_record is not None:
                 record = _read(args.freeze_record)
                 verify_frozen_inputs(record, packets=[args.packet_first, args.packet_second],
                                      labels=[args.labels_first, args.labels_second],
                                      adjudication_path=args.adjudication, decisions_path=args.decisions)
                 opened_at = record.get("correspondence_opened_at")
+                packet_opened_at = record.get("packet_correspondence_opened_at")
             result = adjudicated_outcomes(args.packet_first, args.labels_first, args.packet_second,
                                           args.labels_second, args.adjudication, args.decisions, args.key,
-                                          opened_at=opened_at)
+                                          opened_at=opened_at, correspondence_path=args.correspondence,
+                                          packet_opened_at=packet_opened_at)
             if args.freeze_record is not None:
                 record_outcomes(args.freeze_record, result)
         elif args.command == "export":

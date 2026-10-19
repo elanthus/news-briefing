@@ -1,15 +1,16 @@
 # Jev-stage evaluation v1 model card
 
-Status: **execution complete; adjudication complete; adjudicated outcomes recorded**. The frozen 28-day
+Status: **execution and adjudication complete; pooled and per-side outcomes recorded**. The frozen 28-day
 frame ran on 2026-10-16: all days produced ready briefings and retained schema-3
 audits, with 17 complete reviews and 11 partial reviews. Both reviewers' labels
 are frozen; adjudication decisions were returned on 2026-10-19 and recorded by
 digest; the adjudication key was opened at 2026-10-19T22:40:56Z and the
-adjudicated outcomes below were computed and recorded by counts. Automated
+packet correspondence key was opened at 2026-10-19T22:57:16Z to split the
+adjudicated outcomes below by original and repaired side. Automated
 metrics below come from the committed aggregate and per-day ledger.
 Plan: [`jev-stage-eval-plan.md`](jev-stage-eval-plan.md).
 Protocol: [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json)
-(`labels_frozen_pending_adjudication`, frozen before execution on 2026-10-16).
+(`complete_adjudicated`, frozen before execution on 2026-10-16).
 Sample: [`jev-stage-sample.json`](jev-stage-sample.json).
 The stage under test is described in [daily Jev checks and repairs](../jev-review.md).
 Read the [evaluation methodology](../evaluation-methodology.md) before quoting any
@@ -117,8 +118,9 @@ on 2026-10-18 UTC (2026-10-17 Pacific). The
 adjudication key, which maps each adjudicated item back to its two packet ids and
 the A/B reviewer order, was opened at 2026-10-19T22:40:56Z to compute the
 outcomes below, after every input digest was checked against the freeze record.
-The packet correspondence key, which names each pair's original side, has not
-been read, so pair counts pool both sides.
+The packet correspondence key, which names each pair's original side, was opened
+at 2026-10-19T22:57:16Z after adjudication. The pooled counts remain unchanged;
+the per-side table separates original and repaired versions.
 
 | Field | Value |
 |---|---:|
@@ -166,6 +168,18 @@ label value and the digests of the inputs used.
 | Retained citations relevant | 25/28 | 17/17 |
 | Readable complete sentences | 24/28 | 17/17 |
 
+Each side contributes one version per shared repair pair, with 14 pairs as its
+denominator. Side assignments follow the first packet's version order and are
+checked against the second packet after alignment. These are human-adjudicated
+outcomes from each version's frozen title-and-excerpt evidence; the repair pairs
+include applied and withheld repairs.
+
+| Question | Original | Repaired |
+|---|---:|---:|
+| Material claims supported | 8/14 | 13/14 |
+| Retained citations relevant | 12/14 | 13/14 |
+| Readable complete sentences | 10/14 | 14/14 |
+
 Labels other than the favorable one, pairs: support 3 unsupported, 3 strengthened,
 1 reversed; meaning 11 added, 2 changed, 1 lost; citations 3 irrelevant listed;
 readability 4 fragments or incomplete. Controls: support 2 unsupported, 2
@@ -198,11 +212,12 @@ raw judgments, packets, labels, adjudication decisions and both keys.
 This card may claim: observed flag, confirmation, repair, acceptance, blocker and cost
 rates for the daily stage at the frozen revision on the sampled days, with intervals;
 raw human reviewer agreement; human-adjudicated support, meaning-preservation,
-citation and readability outcomes for the double-labeled repair pairs (both sides
-pooled) and controls, with the exact denominators above.
+citation and readability outcomes for the double-labeled repair pairs, pooled and
+separately for original and repaired slots, and the shared controls, with the exact
+denominators above. Meaning preservation is a pair-level outcome.
 
 This card may not claim: Jev precision or recall against ground truth (controls are a
-small sample, so no overall miss rate); calibrated probabilities; factual accuracy
+small sample, so no overall miss rate); ground-truth accuracy; calibrated probabilities; factual accuracy
 beyond the frozen excerpts (full articles are not reviewed); editorial completeness or
 ranking quality (repairs remove sources); deployment reliability of the published
 archive (these are replays at a frozen revision, and HY3 at temperature 0.2 is not

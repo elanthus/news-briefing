@@ -349,5 +349,11 @@ adjudication packet, keeps every agreed label, applies the adjudicator's
 decision to each disputed question, and writes per-question counts with exact
 denominators for repair pairs and controls into the record. Flags never change
 those counts; when present, the counts with flags applied are recorded beside
-them. These commands export evidence, not labels or human approval. All packets, excerpts,
+them. Add `--correspondence PACKET_KEY` to open the packet correspondence key and
+also record `outcomes.pairs_by_side` for original and repaired versions, each
+with the shared-pair denominator. Every shared pair must map to exactly one
+original and one repaired side in both packets, consistent after version
+alignment. The record retains the key's SHA-256 and first
+`packet_correspondence_opened_at` UTC timestamp on reruns.
+These commands export evidence, not labels or human approval. All packets, excerpts,
 labels and correspondence remain private and ignored.
