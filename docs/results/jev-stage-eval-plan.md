@@ -1,8 +1,9 @@
 # Jev-stage evaluation plan
 
-Status: run on 2026-10-16; human adjudication pending. Protocol:
+Status: run on 2026-10-16; human adjudication complete on 2026-10-19;
+both keys opened and pooled and per-side outcomes recorded. Protocol:
 [`jev-stage-v1.json`](../../evaluator/protocols/jev-stage-v1.json) (status
-`labels_frozen_pending_adjudication`, frozen before execution on 2026-10-16). The committed sample is
+`complete_adjudicated`, frozen before execution on 2026-10-16). The committed sample is
 [`jev-stage-sample.json`](jev-stage-sample.json) and the runner is
 [`run_jev_stage.py`](../../run_jev_stage.py); the model card is
 [`jev-stage-v1.md`](jev-stage-v1.md). The stage under test is described in

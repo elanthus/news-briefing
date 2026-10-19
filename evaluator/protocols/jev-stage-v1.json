@@ -1,6 +1,6 @@
 {
   "protocol_id": "jev-stage-v1",
-  "status": "labels_frozen_pending_adjudication",
+  "status": "complete_adjudicated",
   "frozen_before_run": true,
   "objective": "Measure the daily semantic review and repair stage (Jev review, isolated confirmation, bounded HY3 repair, follow-up review, per-slot acceptance) on real corpus days at the current revision, with a blind human adjudication subset for meaning preservation and grounding.",
   "sample_unit": {
@@ -99,7 +99,7 @@
     "per_day_ceiling_usd_approx": 25.3,
     "planning_estimate_usd": "roughly 0.15 to 0.35 per day from the September 30 study (about 0.05 per generation plus review, confirmation and repair), so 4 to 10 for 28 days; the nominal ceiling is about 25.30 per day because the generation allowance is a reservation guard, while the realistic per-day ceiling (three-model chain with corrections plus the review guards) is under 1"
   },
-  "status_note": "Run on 2026-10-16 at commit 0a06089 over the frozen 28-day frame: 28 of 28 days produced a ready briefing and a retained schema-3 audit (17 complete reviews, 11 partial; 0 generation-failure rows; USD 2.097 reported, 0 unknown-cost calls). Aggregate in docs/results/jev-stage-v1-metrics.json, per-day digests in docs/results/jev-stage-v1-ledger.json. Blind packets (14 repair pairs, 51 controls) are exported privately and await two human reviewers and an adjudicator. Both reviewers returned complete label files on 2026-10-17; they were validated and frozen by SHA-256 (docs/results/jev-stage-v1-labels-frozen.json) before the adjudication packet was built from blinded content: 31 shared items, 23 with a material disagreement, 29 decisions for the adjudicator. The correspondence key stays sealed.",
+  "status_note": "Run on 2026-10-16 at commit 0a06089 over the frozen 28-day frame: 28 of 28 days produced a ready briefing and a retained schema-3 audit (17 complete reviews, 11 partial; 0 generation-failure rows; USD 2.097 reported, 0 unknown-cost calls). Aggregate in docs/results/jev-stage-v1-metrics.json, per-day digests in docs/results/jev-stage-v1-ledger.json. Both reviewers returned complete label files on 2026-10-17; they were validated and frozen by SHA-256 (docs/results/jev-stage-v1-labels-frozen.json) before the adjudication packet was built from blinded content. Adjudication is complete: 23 of 31 shared items were adjudicated, with 29 decisions applied and no unresolved questions. Both keys were opened after decisions were returned: the adjudication key at 2026-10-19T22:40:56Z and the packet correspondence key at 2026-10-19T22:57:16Z. Pooled and original/repaired per-side outcomes with exact denominators are recorded in docs/results/jev-stage-v1.md and the freeze record; only aggregate counts, digests and opening timestamps are published, while packets, labels, decisions and both keys remain private.",
   "amendments": [
     {
       "date": "2026-10-19",

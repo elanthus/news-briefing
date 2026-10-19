@@ -49,11 +49,257 @@
   "items_with_any_disagreement": 23,
   "items_sent_to_adjudication": 23,
   "adjudication_packet_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96",
-  "correspondence_opened_at": null,
+  "correspondence_opened_at": "2026-10-19T22:40:56Z",
   "adjudication_packet_enriched": {
     "date": "2026-10-19",
     "sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
     "change": "outlet name and publication date added to every evidence item (84 items across 23 adjudication items) by matching frozen title and excerpt against the verified runs; no correspondence key read; adjudication ids, version order, labels, rationales and A/B assignment unchanged",
     "original_sha256": "36894fa161d3fd3c1646acab5687acdee40ceffd7be5b6fa10c6f6e85acf8f96"
-  }
+  },
+  "adjudication_decisions_returned": {
+    "date": "2026-10-19",
+    "adjudicator": "adj",
+    "file": "decisions-adj.json",
+    "validated_against_packet_sha256": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
+    "items": 23,
+    "decisions": 29,
+    "label_counts": {
+      "citations:irrelevant_listed": 1,
+      "meaning_preservation:added": 10,
+      "meaning_preservation:changed": 1,
+      "support:strengthened": 3,
+      "support:supported": 13,
+      "support:unsupported": 1
+    },
+    "flags": 0,
+    "sha256": "a7631eec5e50a061a122af789a8bd90f980ebffb69c79b34aacbf6019758b0dc",
+    "bytes": 11771,
+    "initial_return": {
+      "file": "decisions-adj-initial-2026-10-19.json",
+      "sha256": "7c5e1c4981669dd3ec231b7e3f4a4e49bc03a13639c96dd78cd399b8a0b3d07c",
+      "bytes": 8577,
+      "flags": 1
+    },
+    "revision": "The adjudicator's first return was reviewed against the rubric before the correspondence key was opened: 13 labels on 12 items were changed, one flag was withdrawn, and every rationale was rewritten to name the deciding evidence. The main corrections were meaning labels decided on story grouping, which the rubric does not ask about, two decisions that used knowledge outside the packet, and one attribution ruling inconsistent with the others. Outlet names in the enriched packet evidence were treated as evidence, so an attribution matching a listed outlet is supported. Both returns are retained privately; adjudicated outcomes were computed from the revised return only (see adjudicated_outcomes).",
+    "correspondence_opened_at": "2026-10-19T22:40:56Z"
+  },
+  "adjudicated_outcomes": {
+    "date": "2026-10-19",
+    "computed_at": "2026-10-19T22:57:16Z",
+    "method": "agreed labels kept; each disputed question takes the adjudicator's decision; shared items recomputed by blinded content and every key entry checked against the adjudication packet before use",
+    "adjudicator": "adj",
+    "shared_items": 31,
+    "shared_pairs": 14,
+    "shared_controls": 17,
+    "adjudicated_items": 23,
+    "decisions_applied": 29,
+    "unresolved_slots": 0,
+    "outcomes": {
+      "pairs": {
+        "support": {
+          "favorable": "supported",
+          "count": 21,
+          "of": 28,
+          "unresolved": 0,
+          "labels": {
+            "reversed": 1,
+            "strengthened": 3,
+            "supported": 21,
+            "unsupported": 3
+          }
+        },
+        "citations": {
+          "favorable": "all_relevant",
+          "count": 25,
+          "of": 28,
+          "unresolved": 0,
+          "labels": {
+            "all_relevant": 25,
+            "irrelevant_listed": 3
+          }
+        },
+        "readability": {
+          "favorable": "readable",
+          "count": 24,
+          "of": 28,
+          "unresolved": 0,
+          "labels": {
+            "fragment_or_incomplete": 4,
+            "readable": 24
+          }
+        },
+        "meaning_preservation": {
+          "favorable": "preserved",
+          "count": 0,
+          "of": 14,
+          "unresolved": 0,
+          "labels": {
+            "added": 11,
+            "changed": 2,
+            "lost": 1
+          }
+        }
+      },
+      "controls": {
+        "support": {
+          "favorable": "supported",
+          "count": 13,
+          "of": 17,
+          "unresolved": 0,
+          "labels": {
+            "strengthened": 2,
+            "supported": 13,
+            "unsupported": 2
+          }
+        },
+        "citations": {
+          "favorable": "all_relevant",
+          "count": 17,
+          "of": 17,
+          "unresolved": 0,
+          "labels": {
+            "all_relevant": 17
+          }
+        },
+        "readability": {
+          "favorable": "readable",
+          "count": 17,
+          "of": 17,
+          "unresolved": 0,
+          "labels": {
+            "readable": 17
+          }
+        }
+      },
+      "pairs_by_side": {
+        "original": {
+          "support": {
+            "favorable": "supported",
+            "count": 8,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "reversed": 1,
+              "strengthened": 2,
+              "supported": 8,
+              "unsupported": 3
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 12,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 12,
+              "irrelevant_listed": 2
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 10,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "fragment_or_incomplete": 4,
+              "readable": 10
+            }
+          }
+        },
+        "repaired": {
+          "support": {
+            "favorable": "supported",
+            "count": 13,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "strengthened": 1,
+              "supported": 13
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 13,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 13,
+              "irrelevant_listed": 1
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 14,
+            "of": 14,
+            "unresolved": 0,
+            "labels": {
+              "readable": 14
+            }
+          }
+        }
+      }
+    },
+    "flags": 0,
+    "flag_counts": {},
+    "outcomes_with_flags": null,
+    "single_labeled": {
+      "r1": {
+        "items": 34,
+        "pairs": 0,
+        "controls": 34,
+        "outcomes": {
+          "pairs": {},
+          "controls": {
+            "support": {
+              "favorable": "supported",
+              "count": 27,
+              "of": 34,
+              "unresolved": 0,
+              "labels": {
+                "reversed": 1,
+                "strengthened": 5,
+                "supported": 27,
+                "unsupported": 1
+              }
+            },
+            "citations": {
+              "favorable": "all_relevant",
+              "count": 34,
+              "of": 34,
+              "unresolved": 0,
+              "labels": {
+                "all_relevant": 34
+              }
+            },
+            "readability": {
+              "favorable": "readable",
+              "count": 33,
+              "of": 34,
+              "unresolved": 0,
+              "labels": {
+                "fragment_or_incomplete": 1,
+                "readable": 33
+              }
+            }
+          }
+        }
+      }
+    },
+    "inputs_sha256": {
+      "packets": {
+        "reviewer-primary.json": "55941de46341012a77089ec382d9d1835cfe0082bd11efdb8f1ba247bf08884d",
+        "reviewer-double.json": "55d7248757deab8a7811e7ae10c31684ef32e7de7c7aaa67ad57b756160c7276"
+      },
+      "labels": {
+        "r1": "04615cbb45dc868b20fabc770ae1408a5165b6963ad0621f9cb4e44873fe8102",
+        "r2": "6b429b216f536dd5db18f9038239aa0a037859d2848a7d2dc8d744c1a7d9811f"
+      },
+      "adjudication_packet": "217f5653dd0a277d75c16d51ad70f530cfef63ee419a00f535e7b303acd0776e",
+      "decisions": "a7631eec5e50a061a122af789a8bd90f980ebffb69c79b34aacbf6019758b0dc",
+      "key": "0c861d4e3edea3757a3a2ec878296a61a65836e2d6dc36cd45194e679329f6ae",
+      "packet_correspondence": "c01582516582a4f988e20eab0b05d12174a32ec2043f6c465c4c837c2a1140bc"
+    },
+    "packet_correspondence_opened_at": "2026-10-19T22:57:16Z"
+  },
+  "packet_correspondence_opened_at": "2026-10-19T22:57:16Z"
 }

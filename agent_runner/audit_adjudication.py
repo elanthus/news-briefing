@@ -8,6 +8,15 @@ per-item random order) and a private key that maps each adjudication item back
 to the two packet ids and the A/B assignment. Shared items are matched by their
 blinded content, so no correspondence key is read. Run ``... validate
 ADJUDICATION_PACKET DECISIONS`` to check an adjudicator's returned file.
+
+Run ``... outcomes PACKET_R1 LABELS_R1 PACKET_R2 LABELS_R2 ADJUDICATION_PACKET
+DECISIONS --key KEY [--correspondence KEY] [--freeze-record RECORD]`` to compute adjudicated outcomes:
+every shared item keeps its agreed labels and takes the adjudicator's decision
+on each disputed question. Reading the key is the unblinding step; with
+``--freeze-record`` the inputs are checked against the committed digests first,
+and the record then receives the counts and ``correspondence_opened_at``.
+The optional packet correspondence key splits shared pairs by original/repaired
+side and records its digest and separate ``packet_correspondence_opened_at``.
 """
 
 from __future__ import annotations
@@ -19,15 +28,19 @@ import os
 import random
 import secrets
 from collections import Counter
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 from agent_runner.audit_labels import PER_VERSION, validate_labels
-from agent_runner.checkpoint import write_json_atomic
+from agent_runner.audit_packets import PROTOCOL_ID
+from agent_runner.checkpoint import write_json_atomic, write_text_atomic
 
 QUESTIONS = (*PER_VERSION, "meaning_preservation")
 MATERIAL = ("support", "citations", "meaning_preservation")
+FAVORABLE = {"support": "supported", "meaning_preservation": "preserved",
+             "citations": "all_relevant", "readability": "readable"}
+RECORD_TIME = "%Y-%m-%dT%H:%M:%SZ"
 MAX_BYTES = 50_000_000
 
 
@@ -295,6 +308,248 @@ def enrich_evidence(packet_path: Path, stage_root: Path, *, start: date, end: da
     return {"items": len(packet["items"]), "evidence_enriched": enriched}
 
 
+Final = dict[str, list[str | None]]
+Slot = tuple[str, int | None]
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _blinded(versions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each version reduced to the fields every packet carries, so an enriched item still matches its origin."""
+    return [{"headline": v["headline"], "prose": v["prose"],
+             "evidence": [{"title": e["title"], "excerpt": e.get("excerpt")} for e in v["evidence"]]}
+            for v in versions]
+
+
+def _resolve(first: dict[str, Any], second: dict[str, Any], pair: bool,
+             decided: dict[Slot, str]) -> Final:
+    """Agreed labels stay; each decided slot takes its decision; a disputed slot nobody decided stays None."""
+    final: Final = {q: [left if left == right else None
+                        for left, right in zip(first[q], second[q], strict=True)] for q in PER_VERSION}
+    if pair:
+        agreed = first["meaning_preservation"] == second["meaning_preservation"]
+        final["meaning_preservation"] = [first["meaning_preservation"] if agreed else None]
+    for (question, version), label in decided.items():
+        final[question][0 if version is None else int(version)] = label
+    return final
+
+
+def _own(entry: dict[str, Any], versions: int) -> Final:
+    """One reviewer's labels for an item nobody else labeled, in the shape of a resolved item."""
+    aligned = _aligned(entry, list(range(versions)))
+    final: Final = {q: list(aligned[q]) for q in PER_VERSION}
+    if versions == 2:
+        final["meaning_preservation"] = [aligned["meaning_preservation"]]
+    return final
+
+
+def _tally(finals: list[tuple[bool, Final]]) -> dict[str, dict[str, dict[str, Any]]]:
+    """Per group (pairs, controls) and question: the favorable count, its exact denominator, and every label."""
+    tallies: dict[str, dict[str, dict[str, Any]]] = {}
+    for group, pair in (("pairs", True), ("controls", False)):
+        per_question: dict[str, dict[str, Any]] = {}
+        for question in QUESTIONS:
+            labels = [label for is_pair, final in finals if is_pair == pair for label in final.get(question, [])]
+            if not labels:
+                continue
+            counts = Counter(label for label in labels if label is not None)
+            per_question[question] = {"favorable": FAVORABLE[question], "count": counts[FAVORABLE[question]],
+                                      "of": len(labels), "unresolved": sum(label is None for label in labels),
+                                      "labels": dict(sorted(counts.items()))}
+        tallies[group] = per_question
+    return tallies
+
+
+def _pairs_by_side(rows: list[dict[str, Any]], finals: list[tuple[bool, Final]],
+                   correspondence: Any) -> dict[str, dict[str, dict[str, Any]]]:
+    """Resolve both packet orders before tallying each shared pair once per side."""
+    if (not isinstance(correspondence, dict) or correspondence.get("schema_version") != 1
+            or correspondence.get("protocol_id") != PROTOCOL_ID
+            or not isinstance(correspondence.get("mapping"), list)):
+        raise ValueError("not a packet correspondence key")
+    mapping = {}
+    for entry in correspondence["mapping"]:
+        if not isinstance(entry, dict) or not isinstance(entry.get("packet_id"), str):
+            raise ValueError("malformed packet correspondence entry")
+        packet_id = entry["packet_id"]
+        if packet_id in mapping:
+            raise ValueError("packet correspondence repeats a packet id")
+        mapping[packet_id] = entry
+    grouped: dict[str, list[tuple[bool, Final]]] = {"original": [], "repaired": []}
+    for row, (pair, final) in zip(rows, finals, strict=True):
+        if not pair:
+            continue
+        orders = []
+        for packet in ("first", "second"):
+            entry = mapping.get(row[packet]["packet_id"], {})
+            sides = entry.get("sides")
+            if (entry.get("kind") != "pair" or not isinstance(sides, list)
+                    or sides not in (["original", "repaired"], ["repaired", "original"])):
+                raise ValueError("each shared pair must map to exactly one original and one repaired side")
+            orders.append(sides)
+        if orders[0] != [orders[1][index] for index in row["order"]]:
+            raise ValueError("packet correspondence sides disagree after version alignment")
+        for index, side in enumerate(orders[0]):
+            grouped[side].append((True, {q: [final[q][index]] for q in PER_VERSION}))
+    return {side: _tally(values)["pairs"] for side, values in grouped.items()}
+
+
+def adjudicated_outcomes(packet_first: Path, labels_first: Path, packet_second: Path, labels_second: Path,
+                         adjudication_path: Path, decisions_path: Path, key_path: Path, *,
+                         opened_at: str | None = None, correspondence_path: Path | None = None,
+                         packet_opened_at: str | None = None) -> dict[str, Any]:
+    """Final labels per shared item and their counts per question, for repair pairs and controls separately.
+
+    Both label files and the decisions file are validated first. Shared items
+    are recomputed by blinded content; the key is read only after that, and
+    each key entry must agree with the adjudication packet (content, both
+    reviewers' labels, and the listed disagreements) before its decisions are
+    applied. Any shared item with a material disagreement that the packet does
+    not carry fails closed. Flags never change the main outcomes; when present,
+    the same counts with flags applied are returned beside them.
+    """
+    validate_labels(packet_first, labels_first)
+    validate_labels(packet_second, labels_second)
+    checked = validate_adjudication(adjudication_path, decisions_path)
+    first, second = _read(packet_first), _read(packet_second)
+    lf, ls = _read(labels_first), _read(labels_second)
+    adjudication, decisions = _read(adjudication_path), _read(decisions_path)
+    if first.get("rubric") != second.get("rubric") or adjudication.get("rubric") != first.get("rubric"):
+        raise ValueError("the packets carry different rubrics")
+    result = compare(first, lf, second, ls)
+    rows = {row["first"]["packet_id"]: row for row in result["rows"]}
+    opened_at = opened_at or datetime.now(UTC).strftime(RECORD_TIME)
+    key = _read(key_path)  # The unblinding step: from here on, reviewer identities are known per item.
+    if not isinstance(key, dict) or key.get("schema_version") != 1 or not isinstance(key.get("mapping"), list):
+        raise ValueError("not an adjudication key")
+    digests = {lf["reviewer"]: _sha256(labels_first), ls["reviewer"]: _sha256(labels_second)}
+    if not isinstance(key.get("summary"), dict) or key["summary"].get("label_files_sha256") != digests:
+        raise ValueError("the key was not built from these label files")
+    mapping = {str(entry["adjudication_id"]): entry for entry in key["mapping"]}
+    if len(mapping) != len(key["mapping"]) or set(mapping) != {it["adjudication_id"] for it in adjudication["items"]}:
+        raise ValueError("the key does not map the adjudication items exactly once")
+    sides = {lf["reviewer"]: "first", ls["reviewer"]: "second"}
+    entries = {entry["adjudication_id"]: entry for entry in decisions["items"]}
+    decided: dict[str, dict[Slot, str]] = {}
+    flagged: dict[str, dict[Slot, str]] = {}
+    for item in adjudication["items"]:
+        adjudication_id = item["adjudication_id"]
+        entry = mapping[adjudication_id]
+        row = rows.get(str(entry["first_packet_id"]))
+        if (row is None or row["second"]["packet_id"] != entry["second_packet_id"]
+                or row["order"] != entry["second_version_order"]):
+            raise ValueError(f"{adjudication_id}: key entry does not name a shared item")
+        if _blinded(item["versions"]) != _blinded(row["first"]["versions"]):
+            raise ValueError(f"{adjudication_id}: packet content differs from the reviewer packet")
+        for side in ("A", "B"):
+            if item["labels"][side] != row[f"labels_{sides[entry[f'reviewer_{side}']]}"]:
+                raise ValueError(f"{adjudication_id}: labels shown as {side} are not reviewer "
+                                 f"{entry[f'reviewer_{side}']}'s")
+        listed = {(d["question"], d["version"]) for d in item["disagreements"]}
+        if listed != {(d["question"], d["version"]) for d in row["differing"]} or not row["material"]:
+            raise ValueError(f"{adjudication_id}: listed disagreements differ from the recomputed ones")
+        packet_id = row["first"]["packet_id"]
+        decided[packet_id] = {(d["question"], d["version"]): d["label"] for d in entries[adjudication_id]["decisions"]}
+        flagged[packet_id] = {(f["question"], f["version"]): f["label"]
+                              for f in entries[adjudication_id].get("flags", [])}
+    finals, with_flags = [], []
+    for packet_id, row in rows.items():
+        if row["material"] and packet_id not in decided:
+            raise ValueError(f"{packet_id}: a material disagreement was not adjudicated")
+        pair = len(row["first"]["versions"]) == 2
+        final = _resolve(row["labels_first"], row["labels_second"], pair, decided.get(packet_id, {}))
+        finals.append((pair, final))
+        with_flags.append((pair, _resolve(row["labels_first"], row["labels_second"], pair,
+                                          {**decided.get(packet_id, {}), **flagged.get(packet_id, {})})))
+    single: dict[str, Any] = {}
+    shared_second = {row["second"]["packet_id"] for row in rows.values()}
+    for packet, labels, shared in ((first, lf, set(rows)), (second, ls, shared_second)):
+        entries_by_id = {e["packet_id"]: e for e in labels["items"]}
+        own = [(len(item["versions"]) == 2, _own(entries_by_id[item["packet_id"]], len(item["versions"])))
+               for item in packet["items"] if item["packet_id"] not in shared]
+        if own:
+            single[labels["reviewer"]] = {"items": len(own), "pairs": sum(p for p, _ in own),
+                                          "controls": sum(not p for p, _ in own), "outcomes": _tally(own)}
+    outcomes: dict[str, Any] = _tally(finals)
+    unresolved = sum(cell["unresolved"] for group in outcomes.values() for cell in group.values())
+    packet_opening = {}
+    if correspondence_path is not None:
+        packet_opened_at = packet_opened_at or datetime.now(UTC).strftime(RECORD_TIME)
+        outcomes["pairs_by_side"] = _pairs_by_side(list(rows.values()), finals, _read(correspondence_path))
+        packet_opening["packet_correspondence_opened_at"] = packet_opened_at
+    return {
+        "correspondence_opened_at": opened_at,
+        **packet_opening,
+        "adjudicator": checked["adjudicator"],
+        "shared_items": result["shared_items"], "shared_pairs": result["shared_pairs"],
+        "shared_controls": result["shared_controls"],
+        "adjudicated_items": checked["items"], "decisions_applied": checked["decisions"],
+        "unresolved_slots": unresolved,
+        "outcomes": outcomes,
+        "flags": checked["flags"], "flag_counts": checked["flag_counts"],
+        "outcomes_with_flags": _tally(with_flags) if checked["flags"] else None,
+        "single_labeled": single,
+        "inputs_sha256": {"packets": {path.name: _sha256(path) for path in (packet_first, packet_second)},
+                          "labels": digests, "adjudication_packet": _sha256(adjudication_path),
+                          "decisions": _sha256(decisions_path), "key": _sha256(key_path),
+                          **({"packet_correspondence": _sha256(correspondence_path)}
+                             if correspondence_path is not None else {})},
+    }
+
+
+def verify_frozen_inputs(record: dict[str, Any], *, packets: list[Path], labels: list[Path],
+                         adjudication_path: Path, decisions_path: Path) -> None:
+    """Fail closed unless every input's digest is the one the committed freeze record retains."""
+    returned = record.get("adjudication_decisions_returned")
+    if not isinstance(returned, dict) or not isinstance(record.get("label_files"), dict):
+        raise ValueError("freeze record does not retain returned decisions")
+    expected = {
+        **{path: set(record["packet_files"].values()) for path in packets},
+        **{path: {entry["sha256"] for entry in record["label_files"].values()} for path in labels},
+        adjudication_path: {returned["validated_against_packet_sha256"]},
+        decisions_path: {returned["sha256"]},
+    }
+    for path, allowed in expected.items():
+        if _sha256(path) not in allowed:
+            raise ValueError(f"{path.name}: digest is not in the freeze record")
+
+
+def record_outcomes(record_path: Path, outcomes: dict[str, Any]) -> dict[str, Any]:
+    """Write the counts and the unblinding time into the freeze record; the first opening time is kept."""
+    record = _read(record_path)
+    previous = record.get("adjudicated_outcomes", {}).get("inputs_sha256", {})
+    for name in ("key", "packet_correspondence"):
+        if name in previous and previous[name] != outcomes["inputs_sha256"].get(name):
+            raise ValueError(f"{name}: recorded key digest changed or key omitted")
+    if record.get("packet_correspondence_opened_at") and "packet_correspondence_opened_at" not in outcomes:
+        raise ValueError("packet correspondence was already opened; rerun with --correspondence")
+    opened = record.get("correspondence_opened_at") or outcomes["correspondence_opened_at"]
+    outcomes["correspondence_opened_at"] = opened
+    record["correspondence_opened_at"] = opened
+    if "packet_correspondence_opened_at" in outcomes:
+        packet_opened = record.get("packet_correspondence_opened_at") or outcomes["packet_correspondence_opened_at"]
+        outcomes["packet_correspondence_opened_at"] = packet_opened
+        record["packet_correspondence_opened_at"] = packet_opened
+    if isinstance(record.get("adjudication_decisions_returned"), dict):
+        record["adjudication_decisions_returned"]["correspondence_opened_at"] = opened
+    record["adjudicated_outcomes"] = {
+        "date": opened[:10], "computed_at": datetime.now(UTC).strftime(RECORD_TIME),
+        "method": ("agreed labels kept; each disputed question takes the adjudicator's decision; shared items "
+                   "recomputed by blinded content and every key entry checked against the adjudication packet "
+                   "before use"),
+        **{k: outcomes[k] for k in ("adjudicator", "shared_items", "shared_pairs", "shared_controls",
+                                    "adjudicated_items", "decisions_applied", "unresolved_slots", "outcomes",
+                                    "flags", "flag_counts", "outcomes_with_flags", "single_labeled")},
+        "inputs_sha256": outcomes["inputs_sha256"],
+        **({"packet_correspondence_opened_at": outcomes["packet_correspondence_opened_at"]}
+           if "packet_correspondence_opened_at" in outcomes else {}),
+    }
+    write_text_atomic(record_path, json.dumps(record, indent=2, ensure_ascii=True) + "\n")
+    return record
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -311,9 +566,33 @@ def main() -> int:
     validate = commands.add_parser("validate")
     validate.add_argument("packet", type=Path)
     validate.add_argument("decisions", type=Path)
+    outcomes = commands.add_parser("outcomes", help="final labels and counts after adjudication (reads the key)")
+    for name in ("packet_first", "labels_first", "packet_second", "labels_second", "adjudication", "decisions"):
+        outcomes.add_argument(name, type=Path)
+    outcomes.add_argument("--key", type=Path, required=True, help="private key written by export")
+    outcomes.add_argument("--correspondence", type=Path,
+                          help="private packet correspondence key; split shared pairs by original/repaired side")
+    outcomes.add_argument("--freeze-record", type=Path,
+                          help="check inputs against this record's digests, then write the counts into it")
     args = parser.parse_args()
     try:
-        if args.command == "export":
+        if args.command == "outcomes":
+            opened_at = None
+            packet_opened_at = None
+            if args.freeze_record is not None:
+                record = _read(args.freeze_record)
+                verify_frozen_inputs(record, packets=[args.packet_first, args.packet_second],
+                                     labels=[args.labels_first, args.labels_second],
+                                     adjudication_path=args.adjudication, decisions_path=args.decisions)
+                opened_at = record.get("correspondence_opened_at")
+                packet_opened_at = record.get("packet_correspondence_opened_at")
+            result = adjudicated_outcomes(args.packet_first, args.labels_first, args.packet_second,
+                                          args.labels_second, args.adjudication, args.decisions, args.key,
+                                          opened_at=opened_at, correspondence_path=args.correspondence,
+                                          packet_opened_at=packet_opened_at)
+            if args.freeze_record is not None:
+                record_outcomes(args.freeze_record, result)
+        elif args.command == "export":
             result = export_adjudication(args.packet_first, args.labels_first, args.packet_second, args.labels_second,
                                          args.output_dir, args.private_key)
         elif args.command == "enrich":

@@ -120,7 +120,9 @@ These are preliminary automated judgments, not grounding guarantees. The
 [September 30 preliminary evaluations](docs/results/jev-preliminary-2026-09-30.md)
 found useful grouping repairs and successful detection of seeded prose errors,
 but also false alarms, a missed attribution error and incomplete rewritten
-sentences. Monitor the audit as the daily workflow runs. See
+sentences. The [human-adjudicated evaluation of the daily stage](docs/results/jev-stage-v1.md)
+covers 28 sampled days, judging only frozen title-and-excerpt evidence for repair
+pairs and a small control sample. Monitor the audit as the daily workflow runs. See
 [daily semantic checks and repairs](docs/jev-review.md) for replay commands,
 coverage limits, repair bounds and billing controls.
 
