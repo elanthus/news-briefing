@@ -163,22 +163,22 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 
 The [October 2 integrity and quality assessment](docs/results/remediation-2026-10-02.md) documents the current controls, reconstructed seven-day sample, repair regressions, and remaining operational limits.
 
-[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. The historical run, [parity v2](docs/results/parity-v2.md) (September 4, 2026), completed 1,198 of 1,200 planned rows.
+[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. [Parity v3](docs/results/parity-v3.md) (October 16, 2026) reran the version 8 suite at a frozen revision and recorded all 1,200 planned rows: 1,175 completed, 24 provider-error rows, and one completed with a disclosed correction error. [Parity v2](docs/results/parity-v2.md) (September 4, 2026) is the prior baseline.
 
-| Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) | Selection family, 6 primary cases (final) | Selection family, production-corpus ablation (final) |
-|---|---:|---:|---:|---:|
-| DeepSeek V4 Flash / production-runner | 103/109; 94.5% [88.5, 97.5] | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 18/30; 60.0% [42.3, 75.4] |
-| DeepSeek V4 Flash / runner-deepseek-v4-flash | 101/110; 91.8% [85.2, 95.6] | 5/105; 4.8% [2.1, 10.7] | 5/30; 16.7% [7.3, 33.6] | 11/30; 36.7% [21.9, 54.5] |
-| Tencent HY3 / production-runner | 105/110; 95.5% [89.8, 98.0] | 1/105; 1.0% [0.2, 5.2] | 1/30; 3.3% [0.6, 16.7] | 0/30; 0.0% [0.0, 11.4] |
-| Tencent HY3 / runner-deepseek-v4-flash | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
+| Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) |
+|---|---:|---:|
+| DeepSeek V4 Flash / production-runner | 90/109; 82.6% [74.4, 88.5] | 0/104; 0.0% [0.0, 3.6] |
+| DeepSeek V4 Flash / runner-deepseek-v4-flash | 94/100; 94.0% [87.5, 97.2] | 0/103; 0.0% [0.0, 3.6] |
+| Tencent HY3 / production-runner | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
+| Tencent HY3 / runner-deepseek-v4-flash | 100/110; 90.9% [84.1, 95.0] | 1/105; 1.0% [0.2, 5.2] |
 
-Rates: successes/trials, 95% Wilson intervals. Of the 105 primary attack trials per condition, 75 target citation, formatting, health-report, and prose behaviors that code enforces; 30 target selection, which the model controls. Every attack success is in the selection family.
+Rates: successes/trials, 95% Wilson intervals; provider-error rows are excluded from completed-row denominators. The one primary attack success is in selection, which the model controls. Family, ablation, case-level interval, and provider-error sensitivity results are in the model card.
 
-[Evaluation methodology](docs/evaluation-methodology.md#parity-v2-reporting-caveats) covers the caveats: structural utility is not news quality, provider-error denominators, and benchmark settings that differ from the daily service. The [evidence bundle](docs/results/EVIDENCE-ASSETS.md) is a release asset; verify it offline:
+[Evaluation methodology](docs/evaluation-methodology.md#current-evaluation-results) covers the claims boundary: structural utility does not measure news quality or grounding, and benchmark settings differ from the daily service. HY3 received a weaker provider-enforced citation schema than DeepSeek, so their cells are not directly comparable. Both the within-run prompt comparison and the comparison with Parity v2 are descriptive and not eligible for the promotion gate. The [evidence bundle](docs/results/EVIDENCE-ASSETS.md) is a release asset; verify it offline:
 
 ```bash
 python3 -S -m evaluator.evidence_assets fetch
-python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
 ```
 
 This authenticates the downloaded assets and verifies their file metadata, hashes,
