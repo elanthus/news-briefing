@@ -60,7 +60,7 @@ The suite is fixed, small, and intentionally enriched for known boundaries. Prov
 
 ## Parity v2 reporting caveats
 
-These notes qualify the [parity v2](results/parity-v2.md) table summarized in the README.
+These notes qualify the historical [Parity v2](results/parity-v2.md) results. The [README](../README.md#historical-injection-benchmark) summarizes Parity v3, with Parity v2 as the prior baseline.
 
 **Structural utility is not news quality.** It counts valid output, populated routed sections, and configured minimums. No independent human semantic or grounding review was completed. HY3 received a schema without `uniqueItems`, so its provider-enforced contract was weaker than DeepSeek's; the deterministic validator still checked duplicates. The model card reports these limits and the comparison with parity v1, which was descriptive and not eligible for the promotion gate.
 
