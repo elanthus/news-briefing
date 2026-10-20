@@ -61,5 +61,249 @@
   "adjudication_packet_superseded": {
     "sha256": "08b13a81e95653aa5d8c83dd4cc2420cd564269aa2956158a1e66d1c092794fd",
     "reason": "its fixed instructions said two people labeled each item, but r1 is a model review; the packet was rebuilt from the same frozen label files with reviewer-neutral instructions before it was sent or any decision was returned, with a new random A/B assignment and key"
+  },
+  "adjudication_decisions_returned": {
+    "date": "2026-10-20",
+    "adjudicator": "adj",
+    "adjudicator_kind": {
+      "type": "unspecified",
+      "source": "the decisions file carries no adjudicator metadata"
+    },
+    "file": "decisions-adj.json",
+    "validated_against_packet_sha256": "52332e942cb7280942cdf65e08c5d6e02f957c4ca09603f1670537b98ea53b80",
+    "items": 12,
+    "decisions": 15,
+    "label_counts": {
+      "citations:all_relevant": 3,
+      "citations:irrelevant_listed": 1,
+      "meaning_preservation:added": 1,
+      "meaning_preservation:changed": 1,
+      "meaning_preservation:lost": 1,
+      "readability:readable": 1,
+      "support:strengthened": 5,
+      "support:supported": 2
+    },
+    "flags": 0,
+    "sha256": "458c57c49415e3f278d6ed123f1b51a37ee3ac39b16a572f0d5b013720d041d9",
+    "bytes": 9821,
+    "correspondence_opened_at": "2026-10-20T17:46:15Z"
+  },
+  "correspondence_opened_at": "2026-10-20T17:46:15Z",
+  "packet_correspondence_opened_at": "2026-10-20T17:46:15Z",
+  "adjudicated_outcomes": {
+    "date": "2026-10-20",
+    "computed_at": "2026-10-20T17:46:15Z",
+    "method": "agreed labels kept; each disputed question takes the adjudicator's decision; shared items recomputed by blinded content and every key entry checked against the adjudication packet before use",
+    "adjudicator": "adj",
+    "shared_items": 32,
+    "shared_pairs": 21,
+    "shared_controls": 11,
+    "adjudicated_items": 12,
+    "decisions_applied": 15,
+    "unresolved_slots": 1,
+    "outcomes": {
+      "pairs": {
+        "support": {
+          "favorable": "supported",
+          "count": 37,
+          "of": 42,
+          "unresolved": 0,
+          "labels": {
+            "strengthened": 2,
+            "supported": 37,
+            "unsupported": 3
+          }
+        },
+        "citations": {
+          "favorable": "all_relevant",
+          "count": 37,
+          "of": 42,
+          "unresolved": 0,
+          "labels": {
+            "all_relevant": 37,
+            "irrelevant_listed": 5
+          }
+        },
+        "readability": {
+          "favorable": "readable",
+          "count": 37,
+          "of": 42,
+          "unresolved": 1,
+          "labels": {
+            "fragment_or_incomplete": 4,
+            "readable": 37
+          }
+        },
+        "meaning_preservation": {
+          "favorable": "preserved",
+          "count": 0,
+          "of": 21,
+          "unresolved": 0,
+          "labels": {
+            "added": 18,
+            "changed": 2,
+            "lost": 1
+          }
+        }
+      },
+      "controls": {
+        "support": {
+          "favorable": "supported",
+          "count": 5,
+          "of": 11,
+          "unresolved": 0,
+          "labels": {
+            "strengthened": 5,
+            "supported": 5,
+            "unsupported": 1
+          }
+        },
+        "citations": {
+          "favorable": "all_relevant",
+          "count": 10,
+          "of": 11,
+          "unresolved": 0,
+          "labels": {
+            "all_relevant": 10,
+            "irrelevant_listed": 1
+          }
+        },
+        "readability": {
+          "favorable": "readable",
+          "count": 11,
+          "of": 11,
+          "unresolved": 0,
+          "labels": {
+            "readable": 11
+          }
+        }
+      },
+      "pairs_by_side": {
+        "original": {
+          "support": {
+            "favorable": "supported",
+            "count": 18,
+            "of": 21,
+            "unresolved": 0,
+            "labels": {
+              "supported": 18,
+              "unsupported": 3
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 17,
+            "of": 21,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 17,
+              "irrelevant_listed": 4
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 17,
+            "of": 21,
+            "unresolved": 1,
+            "labels": {
+              "fragment_or_incomplete": 3,
+              "readable": 17
+            }
+          }
+        },
+        "repaired": {
+          "support": {
+            "favorable": "supported",
+            "count": 19,
+            "of": 21,
+            "unresolved": 0,
+            "labels": {
+              "strengthened": 2,
+              "supported": 19
+            }
+          },
+          "citations": {
+            "favorable": "all_relevant",
+            "count": 20,
+            "of": 21,
+            "unresolved": 0,
+            "labels": {
+              "all_relevant": 20,
+              "irrelevant_listed": 1
+            }
+          },
+          "readability": {
+            "favorable": "readable",
+            "count": 20,
+            "of": 21,
+            "unresolved": 0,
+            "labels": {
+              "fragment_or_incomplete": 1,
+              "readable": 20
+            }
+          }
+        }
+      }
+    },
+    "flags": 0,
+    "flag_counts": {},
+    "outcomes_with_flags": null,
+    "single_labeled": {
+      "r1": {
+        "items": 22,
+        "pairs": 0,
+        "controls": 22,
+        "outcomes": {
+          "pairs": {},
+          "controls": {
+            "support": {
+              "favorable": "supported",
+              "count": 17,
+              "of": 22,
+              "unresolved": 0,
+              "labels": {
+                "strengthened": 2,
+                "supported": 17,
+                "unsupported": 3
+              }
+            },
+            "citations": {
+              "favorable": "all_relevant",
+              "count": 22,
+              "of": 22,
+              "unresolved": 0,
+              "labels": {
+                "all_relevant": 22
+              }
+            },
+            "readability": {
+              "favorable": "readable",
+              "count": 20,
+              "of": 22,
+              "unresolved": 0,
+              "labels": {
+                "fragment_or_incomplete": 2,
+                "readable": 20
+              }
+            }
+          }
+        }
+      }
+    },
+    "inputs_sha256": {
+      "packets": {
+        "reviewer-primary.json": "f047d7b4b3a06a4f72376b226d4b7e63654a4517d65b68defc16d11a79f2276d",
+        "reviewer-double.json": "e66939437b3fd29619e2525cdfea9a8a212e8a64e22b9522cd2be5bd4352d03a"
+      },
+      "labels": {
+        "r1": "00988526bfed8f355a40c9a8354c975ffdb965555f6739ca23aa487e83e52395",
+        "r2": "efb89e072abafb45789753e3b87080f478adec48b266f82d733a9cf42d83f828"
+      },
+      "adjudication_packet": "52332e942cb7280942cdf65e08c5d6e02f957c4ca09603f1670537b98ea53b80",
+      "decisions": "458c57c49415e3f278d6ed123f1b51a37ee3ac39b16a572f0d5b013720d041d9",
+      "key": "e5c47681b8f19a4133560bec8b615da33091613150ba5e64e3e4ff0824b9bb19",
+      "packet_correspondence": "dbd790856f7a339719a302aee24f3c76bc30e474b661e0a0f69e133a602c48ac"
+    },
+    "packet_correspondence_opened_at": "2026-10-20T17:46:15Z"
   }
 }
