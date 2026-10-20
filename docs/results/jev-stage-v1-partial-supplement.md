@@ -10,8 +10,10 @@ repairs and validation remain unchanged. Briefing generation is not repeated.
 
 The [protocol](../../evaluator/protocols/jev-stage-v1-partial-supplement.json)
 fixes the original metric digest and the selected dates before provider calls.
-The runner records the clean execution revision, protocol digest, per-day input
+The runner records the execution revision, protocol digest, per-day input
 and audit digests, reported costs, and verified outcomes in a separate result.
+The recorded run predates the runner's clean-worktree check, so its recorded
+revision is not proven to come from a clean worktree.
 The original evaluation, human labels, adjudication, and results remain unchanged.
 
 ## Why these days were partial
@@ -85,8 +87,12 @@ These are automated review and repair outcomes; no new human adjudication was pe
 
 ## Reproduce
 
-Run from the revision recorded in the supplemental result, with the original
-private tree available and `OPENROUTER_API_KEY` in the environment:
+Run from the revision that merged this supplement or a later one, with the
+original private tree available and `OPENROUTER_API_KEY` in the environment.
+The recorded execution revision `11e3b4b` predates the clean-worktree check;
+the merged revision has the same protocol digest and the same 256-call cap, and
+it refuses modified or untracked code and writes each completed day's ledger
+entry inside the output tree.
 
 ```bash
 python3 -S rerun_jev_partials.py \

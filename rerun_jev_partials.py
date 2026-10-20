@@ -3,7 +3,8 @@
 
 The protocol fixes the cohort and baseline metric digest before provider calls.
 Generation is reused, never repeated. Existing output trees are refused so an
-interrupted paid replay cannot silently run again. Only counts, costs, dates,
+interrupted paid replay cannot silently run again; each completed day leaves its
+ledger entry and reported cost inside the tree. Only counts, costs, dates,
 revision identifiers and artifact digests are written to the public result.
 """
 
@@ -23,6 +24,8 @@ from agent_runner.checkpoint import write_json_atomic
 from agent_runner.jev_review import MAX_CALLS, load_verified_run
 from agent_runner.semantic_repairs import daily_semantic_review
 from run_jev_stage import ROOT, DayFailure, _git_commit, _read_json, _sha256
+
+DAY_LEDGER = "ledger.json"
 
 
 def clean_commit() -> str:
@@ -105,10 +108,16 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
                 phases[phase] = {"calls": len(report["calls"]), "planned_checks": report["planned_checks"],
                                  "returned_checks": len(report["results"]), "stop_code": stop,
                                  "reached_call_limit": len(report["calls"]) >= MAX_CALLS}
-        ledger.append({"report_date": day, "source_day_sha256": before[day],
-                       "baseline_audit_sha256": row["audit_sha256"], "copied_run_sha256": source_digest,
-                       "replay_audit_sha256": _sha256(review / "audit.json"),
-                       "review_tree_sha256": tree_digest(review), "review_counts": phases})
+        entry = {"report_date": day, "source_day_sha256": before[day],
+                 "baseline_audit_sha256": row["audit_sha256"], "copied_run_sha256": source_digest,
+                 "replay_audit_sha256": _sha256(review / "audit.json"),
+                 "review_tree_sha256": tree_digest(review), "review_counts": phases}
+        ledger.append(entry)
+        # Record each paid day as it completes so a later failure still leaves its spend on disk.
+        # The file sits inside the day directory, which load_days and aggregate do not enumerate.
+        write_json_atomic(output_root / day / DAY_LEDGER,
+                          {**entry, "reported_cost_usd": audit["reported_cost_usd"],
+                           "unknown_cost_calls": audit["unknown_cost_calls"]})
         print(f"{day}: initial {audit['status']}; follow-up {audit['post_status']}; "
               f"reported USD {audit['reported_cost_usd']:.6f}", flush=True)
     metrics = aggregate(output_root, start=start, end=end, sample_dates=dates)
