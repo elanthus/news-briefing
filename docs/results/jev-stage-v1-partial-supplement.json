@@ -1,0 +1,1653 @@
+{
+  "baseline_metrics_sha256": "18124986b51aa71731ab798227acd9a77c7718568c7ee2199b5cb23cf8ecf015",
+  "code_commit": "11e3b4b16cb7398b2e6d45c68b8ef70c76d310ec",
+  "completed_at": "2026-10-20T01:09:11.218610+00:00",
+  "generation_calls": 0,
+  "metrics": {
+    "blocked_slots_by_kind": {
+      "duplicate": 0,
+      "irrelevant_citation": 3,
+      "reversed_claim": 0,
+      "strengthened_claim": 0,
+      "unsafe_grouping": 0,
+      "unsupported_claim": 0
+    },
+    "confirmation_rate_by_kind": {
+      "duplicate": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 1,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "ci95_wilson": [
+            0.0,
+            0.7934506856227626
+          ],
+          "rate": 0.0,
+          "successes": 0,
+          "trials": 1
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 1,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            1.0,
+            1.0
+          ],
+          "ci95_wilson": [
+            0.20654931437723745,
+            1.0
+          ],
+          "rate": 1.0,
+          "successes": 1,
+          "trials": 1
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 1,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "ci95_wilson": [
+            0.0,
+            0.7934506856227626
+          ],
+          "rate": 0.0,
+          "successes": 0,
+          "trials": 1
+        }
+      },
+      "irrelevant_citation": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 8,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.6842105263157895,
+            0.84375
+          ],
+          "ci95_wilson": [
+            0.5789344100575552,
+            0.8674759908149096
+          ],
+          "rate": 0.75,
+          "successes": 24,
+          "trials": 32
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 8,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.15625,
+            0.3157894736842105
+          ],
+          "ci95_wilson": [
+            0.1325240091850904,
+            0.4210655899424448
+          ],
+          "rate": 0.25,
+          "successes": 8,
+          "trials": 32
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 8,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "ci95_wilson": [
+            0.0,
+            0.1071791982550706
+          ],
+          "rate": 0.0,
+          "successes": 0,
+          "trials": 32
+        }
+      },
+      "reversed_claim": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        }
+      },
+      "strengthened_claim": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        }
+      },
+      "unsafe_grouping": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 9,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            1.0,
+            1.0
+          ],
+          "ci95_wilson": [
+            0.9010990076755959,
+            0.9999999999999999
+          ],
+          "rate": 1.0,
+          "successes": 35,
+          "trials": 35
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 9,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "ci95_wilson": [
+            6.938893903907228e-18,
+            0.09890099232440402
+          ],
+          "rate": 0.0,
+          "successes": 0,
+          "trials": 35
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 9,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "ci95_wilson": [
+            6.938893903907228e-18,
+            0.09890099232440402
+          ],
+          "rate": 0.0,
+          "successes": 0,
+          "trials": 35
+        }
+      },
+      "unsupported_claim": {
+        "confirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "disputed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        },
+        "unconfirmed": {
+          "bootstrap": {
+            "contributing_days": 0,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": null,
+          "ci95_wilson": null,
+          "rate": null,
+          "successes": 0,
+          "trials": 0
+        }
+      }
+    },
+    "confirmation_rates": {
+      "confirmed": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.7719298245614035,
+          0.9558823529411765
+        ],
+        "ci95_wilson": [
+          0.7671994025434227,
+          0.928777555897702
+        ],
+        "rate": 0.8676470588235294,
+        "successes": 59,
+        "trials": 68
+      },
+      "disputed": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.04411764705882353,
+          0.22807017543859648
+        ],
+        "ci95_wilson": [
+          0.07122244410229805,
+          0.23280059745657733
+        ],
+        "rate": 0.1323529411764706,
+        "successes": 9,
+        "trials": 68
+      },
+      "unconfirmed": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.053471336520070537
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 68
+      }
+    },
+    "coverage": {
+      "ci95_wilson": [
+        0.7411670330319684,
+        1.0
+      ],
+      "rate": 1.0,
+      "successes": 11,
+      "trials": 11
+    },
+    "days": [
+      {
+        "audit_sha256": "1d404ade11d55a389fbe27d8e74f385914ccb3c27c01808dc1b633d8a92aa8ea",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.038705898,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 68,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 35,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {},
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 1
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "unsafe_grouping": 1
+          },
+          "followup_blockers": {},
+          "repair_targets": 0,
+          "slot_causes": {},
+          "slot_outcomes": {}
+        },
+        "publication_outcome": "original_retained",
+        "report_date": "2026-09-19",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "693211f21d511a3e9639d02b811a5aae3659d4a9768e941bb9130d0bbd5b8692",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.035822136,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 646,
+            "irrelevant_citation": 68,
+            "reversed_claim": 19,
+            "strengthened_claim": 19,
+            "unsafe_grouping": 41,
+            "unsupported_claim": 19
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {},
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 7
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "unsafe_grouping": 7
+          },
+          "followup_blockers": {},
+          "repair_targets": 0,
+          "slot_causes": {},
+          "slot_outcomes": {}
+        },
+        "publication_outcome": "original_retained",
+        "report_date": "2026-09-21",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "3021feea04c5449907c6a66ae613c8c4d92702dd42ca0c65403f02ec5926bd47",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.04280367,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.00610216,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.040675488,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 96,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 25,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 6,
+              "disputed": 3
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 1
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 9,
+            "unsafe_grouping": 1
+          },
+          "followup_blockers": {},
+          "repair_targets": 3,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 3
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-09-22",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "ece11146b695776b3618f37ea78448b2cd6c93d690ea93693651f04f046cbf26",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.036190602,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.003025836,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.035820372,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 1,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 63,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 25,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 1
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {},
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 1
+          },
+          "followup_blockers": {
+            "irrelevant_citation": 6
+          },
+          "repair_targets": 1,
+          "slot_causes": {
+            "withhold_repair": {
+              "followup_flag": 1
+            }
+          },
+          "slot_outcomes": {
+            "withhold_repair": 1
+          }
+        },
+        "publication_outcome": "original_retained",
+        "report_date": "2026-09-23",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "e1822d3089d9c89ff5ee1b3923fe328310ce88485c7ed196cd60347d1a671f99",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.040328106,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.004123416,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.038364858,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 1,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 79,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 30,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 2
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 2
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 2,
+            "unsafe_grouping": 2
+          },
+          "followup_blockers": {
+            "irrelevant_citation": 1
+          },
+          "repair_targets": 3,
+          "slot_causes": {
+            "apply_repair": {},
+            "withhold_repair": {
+              "followup_flag": 1
+            }
+          },
+          "slot_outcomes": {
+            "apply_repair": 2,
+            "withhold_repair": 1
+          }
+        },
+        "publication_outcome": "partial_applied",
+        "report_date": "2026-09-29",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "0718ae76c2c612f5af9b0a4b4d966c05a466e3052ca10e2ab73e779d8c07c668",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.036287034,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.00311784,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.033872496,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 671,
+            "irrelevant_citation": 74,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 31,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {
+              "disputed": 1
+            },
+            "irrelevant_citation": {
+              "confirmed": 2,
+              "disputed": 1
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 1
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "duplicate": 1,
+            "irrelevant_citation": 3,
+            "unsafe_grouping": 1
+          },
+          "followup_blockers": {},
+          "repair_targets": 1,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 1
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-10-01",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "d45db549a51313139cafd5b7c6efb2e421c044aef6054dc9983fd59be6290539",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.037082934,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.0053298,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.036775242,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 1,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 72,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 28,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 2,
+              "disputed": 1
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {},
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 3
+          },
+          "followup_blockers": {
+            "irrelevant_citation": 1
+          },
+          "repair_targets": 2,
+          "slot_causes": {
+            "apply_repair": {},
+            "withhold_repair": {
+              "followup_flag": 1
+            }
+          },
+          "slot_outcomes": {
+            "apply_repair": 1,
+            "withhold_repair": 1
+          }
+        },
+        "publication_outcome": "partial_applied",
+        "report_date": "2026-10-03",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "b9afda545743a5661af420682fdb65d96ddbd34dc5631acaa8369fdcf8a6097c",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.039792564,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.00451986,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.03837288,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 759,
+            "irrelevant_citation": 72,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 41,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 2,
+              "disputed": 1
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 4
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 3,
+            "unsafe_grouping": 4
+          },
+          "followup_blockers": {},
+          "repair_targets": 3,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 3
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-10-06",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "7c6c3bd400a96d1575006b72be41409cdef6ec3f663d644e4d9459880df75010",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.043847832,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.004007608,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.042788844,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 737,
+            "irrelevant_citation": 86,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 44,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {},
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 14
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "unsafe_grouping": 14
+          },
+          "followup_blockers": {},
+          "repair_targets": 2,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 2
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-10-09",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "6eb2bf387b1a1fe0bd7151a650fe45e1d419f79610ccab7fd96e05af49e13d14",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.035083356,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.006116842,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.030281874,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 68,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 16,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 8,
+              "disputed": 2
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 2
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 10,
+            "unsafe_grouping": 2
+          },
+          "followup_blockers": {},
+          "repair_targets": 3,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 3
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-10-12",
+        "status": "complete"
+      },
+      {
+        "audit_sha256": "67de99ce2f38ddadf4431bdae164205ab66ddee800217f085e286a6e0ccf41e0",
+        "costs": [
+          {
+            "phase": "initial_review",
+            "reported_cost_usd": 0.036932154,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "repair_generation",
+            "reported_cost_usd": 0.005023932,
+            "unknown_cost_calls": 0
+          },
+          {
+            "phase": "followup_review",
+            "reported_cost_usd": 0.03574809,
+            "unknown_cost_calls": 0
+          }
+        ],
+        "counts": {
+          "blocked_slots": {
+            "duplicate": 0,
+            "irrelevant_citation": 0,
+            "reversed_claim": 0,
+            "strengthened_claim": 0,
+            "unsafe_grouping": 0,
+            "unsupported_claim": 0
+          },
+          "checks": {
+            "duplicate": 781,
+            "irrelevant_citation": 72,
+            "reversed_claim": 22,
+            "strengthened_claim": 22,
+            "unsafe_grouping": 30,
+            "unsupported_claim": 22
+          },
+          "confirmations": {
+            "duplicate": {},
+            "irrelevant_citation": {
+              "confirmed": 1
+            },
+            "reversed_claim": {},
+            "strengthened_claim": {},
+            "unsafe_grouping": {
+              "confirmed": 3
+            },
+            "unsupported_claim": {}
+          },
+          "estimated_spending_guard": false,
+          "flags": {
+            "irrelevant_citation": 1,
+            "unsafe_grouping": 3
+          },
+          "followup_blockers": {},
+          "repair_targets": 3,
+          "slot_causes": {
+            "apply_repair": {}
+          },
+          "slot_outcomes": {
+            "apply_repair": 3
+          }
+        },
+        "publication_outcome": "repaired_applied",
+        "report_date": "2026-10-13",
+        "status": "complete"
+      }
+    ],
+    "days_stopped_by_estimated_spending_guard": 0,
+    "days_with_flags": {
+      "ci95_wilson": [
+        0.7411670330319684,
+        1.0
+      ],
+      "rate": 1.0,
+      "successes": 11,
+      "trials": 11
+    },
+    "flag_rate_by_kind": {
+      "duplicate": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0003754223501439119
+        ],
+        "ci95_wilson": [
+          2.1319708828349752e-05,
+          0.0006838433305335513
+        ],
+        "rate": 0.00012077294685990338,
+        "successes": 1,
+        "trials": 8280
+      },
+      "irrelevant_citation": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.015604681404421327,
+          0.0660377358490566
+        ],
+        "ci95_wilson": [
+          0.02784491775369985,
+          0.05470319185133711
+        ],
+        "rate": 0.039119804400977995,
+        "successes": 32,
+        "trials": 818
+      },
+      "reversed_claim": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.01581879321327306
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 239
+      },
+      "strengthened_claim": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.01581879321327306
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 239
+      },
+      "unsafe_grouping": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.04375,
+          0.16831683168316833
+        ],
+        "ci95_wilson": [
+          0.0736361921209594,
+          0.13743501444675746
+        ],
+        "rate": 0.10115606936416185,
+        "successes": 35,
+        "trials": 346
+      },
+      "unsupported_claim": {
+        "bootstrap": {
+          "contributing_days": 11,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.01581879321327306
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 239
+      }
+    },
+    "followup_blockers_by_kind": {
+      "duplicate": 0,
+      "irrelevant_citation": 8,
+      "reversed_claim": 0,
+      "strengthened_claim": 0,
+      "unsafe_grouping": 0,
+      "unsupported_claim": 0
+    },
+    "per_slot_acceptance": {
+      "apply_repair": {
+        "bootstrap": {
+          "contributing_days": 9,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.6842105263157895,
+          0.9629629629629629
+        ],
+        "ci95_wilson": [
+          0.6536393971937906,
+          0.9501898750027473
+        ],
+        "rate": 0.8571428571428571,
+        "successes": 18,
+        "trials": 21
+      },
+      "failed": {
+        "bootstrap": {
+          "contributing_days": 9,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.154639018924847
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 21
+      },
+      "skipped": {
+        "bootstrap": {
+          "contributing_days": 9,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.0,
+          0.0
+        ],
+        "ci95_wilson": [
+          0.0,
+          0.154639018924847
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 21
+      },
+      "withhold_repair": {
+        "bootstrap": {
+          "contributing_days": 9,
+          "dropped_zero_denominator_resamples": 0,
+          "samples": 10000,
+          "seed": 1729
+        },
+        "ci95_day_cluster_bootstrap": [
+          0.037037037037037035,
+          0.3157894736842105
+        ],
+        "ci95_wilson": [
+          0.04981012499725268,
+          0.34636060280620945
+        ],
+        "rate": 0.14285714285714285,
+        "successes": 3,
+        "trials": 21
+      }
+    },
+    "publication_outcomes": {
+      "original_retained": {
+        "ci95_wilson": [
+          0.09746059290024889,
+          0.5656453011761291
+        ],
+        "rate": 0.2727272727272727,
+        "successes": 3,
+        "trials": 11
+      },
+      "partial_applied": {
+        "ci95_wilson": [
+          0.05136768974608513,
+          0.4769805619608442
+        ],
+        "rate": 0.18181818181818182,
+        "successes": 2,
+        "trials": 11
+      },
+      "repaired_applied": {
+        "ci95_wilson": [
+          0.280091537409322,
+          0.7872872837754024
+        ],
+        "rate": 0.5454545454545454,
+        "successes": 6,
+        "trials": 11
+      }
+    },
+    "repair_round_rate": {
+      "ci95_wilson": [
+        0.523019438039156,
+        0.9486323102539149
+      ],
+      "rate": 0.8181818181818182,
+      "successes": 9,
+      "trials": 11
+    },
+    "sampling_frame": {
+      "end": "2026-10-15",
+      "planned_days": 11,
+      "sample_dates": [
+        "2026-09-19",
+        "2026-09-21",
+        "2026-09-22",
+        "2026-09-23",
+        "2026-09-29",
+        "2026-10-01",
+        "2026-10-03",
+        "2026-10-06",
+        "2026-10-09",
+        "2026-10-12",
+        "2026-10-13"
+      ],
+      "start": "2026-09-18"
+    },
+    "schema_version": 1,
+    "slot_causes": {
+      "apply_repair": {},
+      "failed": {},
+      "skipped": {},
+      "withhold_repair": {
+        "followup_flag": {
+          "bootstrap": {
+            "contributing_days": 3,
+            "dropped_zero_denominator_resamples": 0,
+            "samples": 10000,
+            "seed": 1729
+          },
+          "ci95_day_cluster_bootstrap": [
+            1.0,
+            1.0
+          ],
+          "ci95_wilson": [
+            0.4385029682449546,
+            1.0
+          ],
+          "rate": 1.0,
+          "successes": 3,
+          "trials": 3
+        }
+      }
+    },
+    "status_counts": {
+      "complete": 11
+    }
+  },
+  "original_artifacts_unchanged": true,
+  "protocol_id": "jev-stage-v1-partial-supplement",
+  "protocol_sha256": "7d9bcb15c5e7019d78bcc36438ba6ea3bebb2c72c0bf38441fda5a6679b2bc0d",
+  "replay_ledger": [
+    {
+      "baseline_audit_sha256": "19ccdc7e0f1ce5c03b817eaeb8342a623f7df6af69c5bea5182f00bf418ea70f",
+      "copied_run_sha256": "32a9ef97c678e3143a7c1b9a9eed84adcf7d0ad9ca38b38dbb2690c6c53429ce",
+      "replay_audit_sha256": "1d404ade11d55a389fbe27d8e74f385914ccb3c27c01808dc1b633d8a92aa8ea",
+      "report_date": "2026-09-19",
+      "review_counts": {
+        "initial": {
+          "calls": 139,
+          "planned_checks": 950,
+          "reached_call_limit": false,
+          "returned_checks": 950,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "f8bc69fbbea1002db875dd1ea21b643ce39408ef6fd1ef1e4ea4707f2b079814",
+      "source_day_sha256": "09b64e730d411f238fc183495c09b9e8f2dbbb6019c93f1b78298502f4ce3995"
+    },
+    {
+      "baseline_audit_sha256": "6ff8df84a2d32d3bc90e6e164dbedf17bd7fee92c3b6930f64092cd6fc8d78f6",
+      "copied_run_sha256": "36be93354be91a97640869c4594b7ca07bcbf9608e8c98305f347944526cfe5b",
+      "replay_audit_sha256": "693211f21d511a3e9639d02b811a5aae3659d4a9768e941bb9130d0bbd5b8692",
+      "report_date": "2026-09-21",
+      "review_counts": {
+        "initial": {
+          "calls": 133,
+          "planned_checks": 812,
+          "reached_call_limit": false,
+          "returned_checks": 812,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "6a588dfad5b391e27ec1e4f8f6cdadc8884bd1b1ce1d0a694d474c8c605b4796",
+      "source_day_sha256": "2fad6385bc63e0ab67a78d1e1d1eb1e92aa24b0c64da4087ffe138973a46f127"
+    },
+    {
+      "baseline_audit_sha256": "23ef0bb0fb8bdfc90d784123c8598c06ffce6324862532e5b1a60a06b1b22b4b",
+      "copied_run_sha256": "cfdeb62ca89708079d18c412bf3d5c3989978e4ccd6b15f41d5d224677e62116",
+      "replay_audit_sha256": "3021feea04c5449907c6a66ae613c8c4d92702dd42ca0c65403f02ec5926bd47",
+      "report_date": "2026-09-22",
+      "review_counts": {
+        "followup": {
+          "calls": 143,
+          "planned_checks": 958,
+          "reached_call_limit": false,
+          "returned_checks": 958,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 153,
+          "planned_checks": 968,
+          "reached_call_limit": false,
+          "returned_checks": 968,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "9399106d0a7808f773c31210e4475c24fc8cd9a98f96dbaf57a25154758599ac",
+      "source_day_sha256": "38630d272c71e1eec12ebb90ea76c606ba925ec0cb7f1198086bfd12305a169e"
+    },
+    {
+      "baseline_audit_sha256": "85fad008ff78400f017cd6a40240a818e2fbaa6cd55d3dc771fbe3b32d7d0978",
+      "copied_run_sha256": "9d7b104f62e1afb701eb94a36126cd76b1a3fa74814e121159c09ed3b3510904",
+      "replay_audit_sha256": "ece11146b695776b3618f37ea78448b2cd6c93d690ea93693651f04f046cbf26",
+      "report_date": "2026-09-23",
+      "review_counts": {
+        "followup": {
+          "calls": 136,
+          "planned_checks": 934,
+          "reached_call_limit": false,
+          "returned_checks": 934,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 134,
+          "planned_checks": 935,
+          "reached_call_limit": false,
+          "returned_checks": 935,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "1a046b0f6219c2a7500e53d3761df1a2e297677ddac2118b87c0100df3a6b735",
+      "source_day_sha256": "6015342325f27be92661c53b2b5bd407931fd2c60aeb0eb93d245d4d1909d89b"
+    },
+    {
+      "baseline_audit_sha256": "c2dcd17dac1f308abf45dbfd76b5e2d3803810f14ddcdde6d744a693ef25a242",
+      "copied_run_sha256": "50e26962fd692581851f83f41ed2e57efbcf09e642e9b5cadba7ec7527b95315",
+      "replay_audit_sha256": "e1822d3089d9c89ff5ee1b3923fe328310ce88485c7ed196cd60347d1a671f99",
+      "report_date": "2026-09-29",
+      "review_counts": {
+        "followup": {
+          "calls": 134,
+          "planned_checks": 948,
+          "reached_call_limit": false,
+          "returned_checks": 948,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 141,
+          "planned_checks": 956,
+          "reached_call_limit": false,
+          "returned_checks": 956,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "859593c0d3e4b0e3269225e56ef04ea7c34ddfd6faf9d05c7a77be8bb1de1bf8",
+      "source_day_sha256": "d9d99a31027be438d6274ffeb607b63363de460cb80291c78b1ce3aedbd736aa"
+    },
+    {
+      "baseline_audit_sha256": "8f1c8a757fabbd6cc17e2c885db77980d1bec1a8857c61fee97672ee764a540e",
+      "copied_run_sha256": "c0c6eac165bc88f0107d51030daa1cad9def5fe3e781bdb6399bfde4b8db7f74",
+      "replay_audit_sha256": "0718ae76c2c612f5af9b0a4b4d966c05a466e3052ca10e2ab73e779d8c07c668",
+      "report_date": "2026-10-01",
+      "review_counts": {
+        "followup": {
+          "calls": 121,
+          "planned_checks": 832,
+          "reached_call_limit": false,
+          "returned_checks": 832,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 132,
+          "planned_checks": 842,
+          "reached_call_limit": false,
+          "returned_checks": 842,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "1084b2288cff123ab93ceb8ef5aae95088e25516a0677d2996b1f4df9834df91",
+      "source_day_sha256": "c796ff0de8a03c2cfef5f16a122b5d702976003d243f22b2abecf9eb47ae4409"
+    },
+    {
+      "baseline_audit_sha256": "35c652baefbceb803b68070be74f474cbf9dbe83ca95b04f7be35640248594d2",
+      "copied_run_sha256": "6208bcdefbd9485ce8566e31f2daeba5c622251d5a938aef714a70d20f414e1b",
+      "replay_audit_sha256": "d45db549a51313139cafd5b7c6efb2e421c044aef6054dc9983fd59be6290539",
+      "report_date": "2026-10-03",
+      "review_counts": {
+        "followup": {
+          "calls": 134,
+          "planned_checks": 945,
+          "reached_call_limit": false,
+          "returned_checks": 945,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 138,
+          "planned_checks": 947,
+          "reached_call_limit": false,
+          "returned_checks": 947,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "2a65bec8d60a91959051ca22da19642cf8ebb7f88e8c82a6797eae62f2a05a73",
+      "source_day_sha256": "3dd816c013d01379f1f9acf1aba4aacb6ebaae76668da0ca47fb0cf1cf1fb195"
+    },
+    {
+      "baseline_audit_sha256": "9a0f48cbc11552472b252eb37e4a6ace22639b3604e9695b1e0cf487cc94df8b",
+      "copied_run_sha256": "f6907064c291e59e371e60fa5ad656f9a674be1fd0dbf116df209be78d4df98d",
+      "replay_audit_sha256": "b9afda545743a5661af420682fdb65d96ddbd34dc5631acaa8369fdcf8a6097c",
+      "report_date": "2026-10-06",
+      "review_counts": {
+        "followup": {
+          "calls": 140,
+          "planned_checks": 931,
+          "reached_call_limit": false,
+          "returned_checks": 931,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 147,
+          "planned_checks": 938,
+          "reached_call_limit": false,
+          "returned_checks": 938,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "42b6bcb84df90160661494319999a15ef24f9d83338623253ab96e06e5246702",
+      "source_day_sha256": "cc09ab8244dbd5729e90bdaed128a1e2eaa83c73f55ba4cd7c093b8d2c98f38d"
+    },
+    {
+      "baseline_audit_sha256": "584bc359ef3f469712103de30fcd1b45954b4f9be6cb245851eafc408d2ab4d9",
+      "copied_run_sha256": "af6acc0037d57a960cd32f9e5693651e619856b0fcb34ff4c1b695a7e85d281d",
+      "replay_audit_sha256": "7c6c3bd400a96d1575006b72be41409cdef6ec3f663d644e4d9459880df75010",
+      "report_date": "2026-10-09",
+      "review_counts": {
+        "followup": {
+          "calls": 158,
+          "planned_checks": 929,
+          "reached_call_limit": false,
+          "returned_checks": 929,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 165,
+          "planned_checks": 933,
+          "reached_call_limit": false,
+          "returned_checks": 933,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "c1ecd7f72289d75c57f6f24680644aba0707e5a78ae0fb1bdae860fa389b7195",
+      "source_day_sha256": "786276e79b9584e5a05c31c19ca1296ea290dbebbc159fda791a3138d63c4a9b"
+    },
+    {
+      "baseline_audit_sha256": "d598eb81073ef3e47de6dee296c3b1905ec13dbf3aaa00b7144a40b95d895f14",
+      "copied_run_sha256": "02db5f0d4624378ac8112c40fd981bb51b7865856ed46f19a20df028a9d5e7b0",
+      "replay_audit_sha256": "6eb2bf387b1a1fe0bd7151a650fe45e1d419f79610ccab7fd96e05af49e13d14",
+      "report_date": "2026-10-12",
+      "review_counts": {
+        "followup": {
+          "calls": 112,
+          "planned_checks": 914,
+          "reached_call_limit": false,
+          "returned_checks": 914,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 139,
+          "planned_checks": 931,
+          "reached_call_limit": false,
+          "returned_checks": 931,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "d9d0b54c456b82dfc9864a2af69867b40f4ce353bc26f86633bca8d4be287188",
+      "source_day_sha256": "026f1b43acf30829bf2d32f5e12979e09f2a6a87d809543d18fb251b95f8159c"
+    },
+    {
+      "baseline_audit_sha256": "8fbee0040269acf5cdb102ea1fdd6b1c43be0e7f165bca78cb3cc08e05b43b6c",
+      "copied_run_sha256": "3f8054782c602a554843abf4720a7100bfbd5fb70e413000c4e695836d0c1e97",
+      "replay_audit_sha256": "67de99ce2f38ddadf4431bdae164205ab66ddee800217f085e286a6e0ccf41e0",
+      "report_date": "2026-10-13",
+      "review_counts": {
+        "followup": {
+          "calls": 130,
+          "planned_checks": 941,
+          "reached_call_limit": false,
+          "returned_checks": 941,
+          "stop_code": null
+        },
+        "initial": {
+          "calls": 135,
+          "planned_checks": 949,
+          "reached_call_limit": false,
+          "returned_checks": 949,
+          "stop_code": null
+        }
+      },
+      "review_tree_sha256": "96086fcd67ff08b76959d42855f5718023790656ef3c3c18ca1f3642b4061d1a",
+      "source_day_sha256": "7ca8fd3762c4d460ee1ad741547de62cc00d9d9c8f7c6d56f4724109782c5b58"
+    }
+  ],
+  "reported_cost_usd": 0.796943724,
+  "review_call_limit": 256,
+  "schema_version": 1,
+  "started_at": "2026-10-20T00:40:13.516995+00:00",
+  "unknown_cost_calls": 0
+}
