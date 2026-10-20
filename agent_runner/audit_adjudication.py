@@ -171,11 +171,12 @@ def export_adjudication(packet_first: Path, labels_first: Path, packet_second: P
     output_dir.mkdir(parents=True, exist_ok=False)
     write_json_atomic(output_dir / "adjudication-packet.json", {
         "schema_version": 1, "kind": "adjudication", "rubric": first["rubric"],
-        "instructions": ("Two independent people labeled each item from the evidence shown; they disagreed on "
+        # Reviewer kind (person or model) is recorded with the frozen labels, not asserted to the adjudicator.
+        "instructions": ("Two independent reviewers labeled each item from the evidence shown; they disagreed on "
                          "the questions listed. Read both rationales, judge only from the supplied evidence, and "
                          "choose the final label for each listed question. Agreed questions are shown for context "
                          "and are not re-decided. A and B are assigned at random per item and are not the same "
-                         "person throughout."),
+                         "reviewer throughout."),
         "items": items,
     })
     return summary
