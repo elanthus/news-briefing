@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "protocol_id": "jev-stage-v1-partial-supplement",
+  "frozen_at": "2026-10-20T17:04:02Z",
+  "note": "Both label files were validated against their packets and frozen by SHA-256 before any adjudication and before the packet correspondence key was opened. r1 is a Codex model review and r2's reviewer is unspecified, so these are not human labels. The packets and rubric carry the exporter's fixed jev-stage-v1 identifier; they cover only the 11 replayed partial days and are not pooled with the original evaluation.",
+  "label_files": {
+    "r1": {
+      "packet": "reviewer-primary.json",
+      "items": 54,
+      "pairs": 21,
+      "controls": 33,
+      "sha256": "00988526bfed8f355a40c9a8354c975ffdb965555f6739ca23aa487e83e52395",
+      "bytes": 39004,
+      "reviewer": {
+        "type": "model",
+        "agent": "Codex",
+        "source": "reviewer_metadata in the label file"
+      }
+    },
+    "r2": {
+      "packet": "reviewer-double.json",
+      "items": 32,
+      "pairs": 21,
+      "controls": 11,
+      "sha256": "efb89e072abafb45789753e3b87080f478adec48b266f82d733a9cf42d83f828",
+      "bytes": 25576,
+      "reviewer": {
+        "type": "unspecified",
+        "source": "the label file carries no reviewer metadata"
+      }
+    }
+  },
+  "packet_files": {
+    "reviewer-primary.json": "f047d7b4b3a06a4f72376b226d4b7e63654a4517d65b68defc16d11a79f2276d",
+    "reviewer-double.json": "e66939437b3fd29619e2525cdfea9a8a212e8a64e22b9522cd2be5bd4352d03a"
+  },
+  "raw_agreement": {
+    "citations": {
+      "agreements": 49,
+      "compared": 53
+    },
+    "meaning_preservation": {
+      "agreements": 18,
+      "compared": 21
+    },
+    "readability": {
+      "agreements": 51,
+      "compared": 53
+    },
+    "support": {
+      "agreements": 46,
+      "compared": 53
+    }
+  },
+  "shared_items": 32,
+  "shared_pairs": 21,
+  "shared_controls": 11,
+  "items_with_any_disagreement": 13,
+  "items_sent_to_adjudication": 12,
+  "adjudication_packet_sha256": "52332e942cb7280942cdf65e08c5d6e02f957c4ca09603f1670537b98ea53b80",
+  "adjudication_packet_superseded": {
+    "sha256": "08b13a81e95653aa5d8c83dd4cc2420cd564269aa2956158a1e66d1c092794fd",
+    "reason": "its fixed instructions said two people labeled each item, but r1 is a model review; the packet was rebuilt from the same frozen label files with reviewer-neutral instructions before it was sent or any decision was returned, with a new random A/B assignment and key"
+  }
+}
