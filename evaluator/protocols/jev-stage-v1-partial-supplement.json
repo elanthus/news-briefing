@@ -1,0 +1,46 @@
+{
+  "protocol_id": "jev-stage-v1-partial-supplement",
+  "status": "frozen_for_run",
+  "authorization": {
+    "authorized_at": "2026-10-20T00:37:50.089860+00:00",
+    "scope": "User requested raising the call limit and rerunning the 11 partial days separately; clarified to reuse frozen briefings."
+  },
+  "objective": "Measure completion and automated review/repair outcomes after increasing the Jev review call cap on the original partial-day cohort.",
+  "baseline_protocol_id": "jev-stage-v1",
+  "inputs": [
+    {
+      "path": "docs/results/jev-stage-v1-metrics.json",
+      "sha256": "18124986b51aa71731ab798227acd9a77c7718568c7ee2199b5cb23cf8ecf015"
+    }
+  ],
+  "baseline_metrics_sha256": "18124986b51aa71731ab798227acd9a77c7718568c7ee2199b5cb23cf8ecf015",
+  "selection_rule": "Exactly the days marked partial in the frozen baseline metrics; selected after seeing the original outcomes. Original complete days are not replayed.",
+  "sample_dates": [
+    "2026-09-19",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-29",
+    "2026-10-01",
+    "2026-10-03",
+    "2026-10-06",
+    "2026-10-09",
+    "2026-10-12",
+    "2026-10-13"
+  ],
+  "original_review_call_limit": 128,
+  "review_call_limit": 256,
+  "unchanged_guards": {
+    "review_cost_ceiling_usd_per_phase": 0.1,
+    "review_deadline_seconds_per_phase": 120,
+    "review_request_bytes": 24000,
+    "review_call_timeout_seconds": 30,
+    "repair_max_calls": 2,
+    "repair_reported_spend_stop_usd": 0.1
+  },
+  "input_policy": "Copy the exact original selected ready run; verify its frozen inputs and baseline audit digests before calls. Do not regenerate briefings. Run initial review, isolated confirmation, bounded repair and follow-up in a new private tree. Refuse existing output trees.",
+  "revision_rule": "Freeze this protocol and implementation in a clean commit before provider calls; the public result records that code commit and the protocol digest at that commit.",
+  "command": "python3 -S rerun_jev_partials.py --source-root .news-briefing/jev-stage --output-root .news-briefing/jev-stage-v1-partial-supplement --output docs/results/jev-stage-v1-partial-supplement.json",
+  "publication": "Publish only aggregate metrics, reported costs, dates, revision identifiers and SHA-256 digests. Keep all generated text, source evidence, model responses and credentials private. Preserve every original Jev-stage v1 evaluation record and verify source-day trees are unchanged.",
+  "claims_boundary": "Supplemental automated outcomes on a post hoc selected subset. Do not pool with or replace the frozen original evaluation, transfer its human labels to new repairs, claim causal attribution to the call cap alone (model calls are stochastic), or claim precision, recall or ground-truth accuracy."
+}

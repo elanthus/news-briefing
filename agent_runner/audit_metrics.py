@@ -197,8 +197,16 @@ def observations(audit: dict[str, Any], integrity: dict[str, Any]) -> dict[str, 
             "blocked_slots": {k: len(v) for k, v in blocked_slots.items()}, "estimated_spending_guard": budget_stop}
 
 
-def aggregate(root: Path, *, start: date, end: date) -> dict[str, Any]:
+def aggregate(root: Path, *, start: date, end: date, sample_dates: list[str] | None = None) -> dict[str, Any]:
     rows = load_days(root, start=start, end=end)
+    if sample_dates is not None:
+        parsed = [date.fromisoformat(value) for value in sample_dates]
+        if (not parsed or sample_dates != [d.isoformat() for d in sorted(set(parsed))]
+                or any(not start <= day <= end for day in parsed)):
+            raise ValueError("sample dates must be nonempty, distinct, ascending and inside the frame")
+        if any(child.name not in sample_dates for child in root.iterdir()):
+            raise ValueError("audit root contains a day outside the selected sample")
+        rows = [row for row in rows if row["report_date"] in sample_dates]
     per_day = []
     for row in rows:
         audit, integrity = row["audit"], row["integrity"]
@@ -226,7 +234,8 @@ def aggregate(root: Path, *, start: date, end: date) -> dict[str, Any]:
                         for code in sorted({code for c in counts for code in c["slot_causes"].get(outcome, {})})}
               for outcome in outcomes}
     return {"schema_version": 1,
-            "sampling_frame": {"start": start.isoformat(), "end": end.isoformat(), "planned_days": len(rows)},
+            "sampling_frame": {"start": start.isoformat(), "end": end.isoformat(), "planned_days": len(rows),
+                               **({"sample_dates": sample_dates} if sample_dates is not None else {})},
             "coverage": rate(len(complete), len(rows)),
             "status_counts": dict(Counter(r["status"] for r in per_day)),
             "flag_rate_by_kind": flag_rates,
