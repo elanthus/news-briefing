@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 from agent_runner.checkpoint import sha256_file, write_json_atomic
 from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
 from agent_runner.jev_review import (
+    MAX_CALLS,
     _payload,
     build_tasks,
     load_citation_urls,
@@ -139,6 +140,34 @@ class FakeJudge(JevClient):
 
 
 class JevReviewTests(unittest.TestCase):
+    def test_raised_call_guard_stays_bounded_and_records_its_limit(self):
+        self.assertEqual(MAX_CALLS, 256)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            topics = [{'included': True, 'position': {}, 'headline': 'Short', 'prose': 'Short',
+                       'evidence': [{'title': 'Short'}]}]
+            task = {'check': 'unsupported_claim', 'positions': [{}], 'state': {'topic': topics[0]}}
+            judge = FakeJudge()
+            original_payload = _payload
+
+            def one_per_batch(tasks):
+                state, questions, size = original_payload(tasks)
+                return state, questions, size if len(tasks) == 1 else 100_000
+
+            with patch('agent_runner.jev_review.load_verified_run',
+                       return_value=SimpleNamespace(root=(root / 'run').resolve(), topics=topics, hashes={})), patch(
+                'agent_runner.jev_review.load_citation_urls', return_value={'{}': [['https://example.com']]}
+            ), patch('agent_runner.jev_review.build_tasks', return_value=([task] * (MAX_CALLS + 1), 0)), patch(
+                'agent_runner.jev_review._payload', side_effect=one_per_batch
+            ):
+                report = review_run(root / 'run', root / 'review', client=judge)
+            self.assertEqual(report['status'], 'partial')
+            self.assertEqual(report['stop_code'], 'budget')
+            self.assertEqual(report['max_calls'], MAX_CALLS)
+            self.assertEqual(len(judge.calls), MAX_CALLS)
+            self.assertEqual(report['cost_ceiling_usd'], 0.10)
+            self.assertEqual(report['max_review_seconds'], 120)
+
     def make_run(self, root):
         corpus, _config, _projected, output = fixture_contract()
         corpus_path = root / "input.json"

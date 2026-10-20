@@ -17,6 +17,7 @@ files = [
     "run_briefing.py",
     "run_daily_briefing.py",
     "run_jev_stage.py",
+    "rerun_jev_partials.py",
     "daily_publish.py",
     "prepare_publication.py",
     "publication_schema.py",

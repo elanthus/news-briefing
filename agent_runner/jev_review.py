@@ -33,7 +33,7 @@ from agent_runner.output import (
 
 MAX_ARTIFACT_BYTES = 4_000_000
 MAX_TOPICS = 64
-MAX_CALLS = 128
+MAX_CALLS = 256
 MAX_REVIEW_SECONDS = 120
 RUBRICS = {
     "duplicate": (
@@ -262,6 +262,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                               "started_at": utc_now(), "status": "running", "threshold": threshold,
                               "citation_threshold": citation_threshold,
                               "cost_ceiling_usd": cost_ceiling, "max_duplicate_pairs": max_pairs,
+                              "max_calls": MAX_CALLS,
                               "timeout_seconds": timeout, "confirm_flags": confirm_flags, "calls": [], "results": [],
                               "max_review_seconds": MAX_REVIEW_SECONDS,
                               "limitations": ["Automated judgments, not human verification.",

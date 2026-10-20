@@ -191,10 +191,14 @@ is skipped, with no evidence truncation. Responses are bounded to 128,000 bytes 
 must contain exactly the requested Noul answer IDs with finite probabilities in
 `[0, 1]`; unexpected response fields or answer types are rejected.
 
-The default per-call timeout is 30 seconds, with at most 128 calls and a 120-second
+The default per-call timeout is 30 seconds, with at most 256 calls and a 120-second
 overall review deadline. Each call's timeout is limited to the remaining review time. Calls are not
 retried. The reviewer refuses redirects so authorization never follows another
 destination, and never records remote error bodies.
+
+The [partial-day supplement](results/jev-stage-v1-partial-supplement.md) replays
+the original evaluation's partial days with this higher call cap and separate
+results; the original evaluation used 128 calls per phase.
 
 `--cost-ceiling` defaults to USD 0.10 and is limited to USD 1.00. Before each Jev call,
 serialized request bytes conservatively estimate input tokens at the documented
