@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import os
 import shutil
+import subprocess
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,16 @@ from agent_runner.checkpoint import write_json_atomic
 from agent_runner.jev_review import MAX_CALLS, load_verified_run
 from agent_runner.semantic_repairs import daily_semantic_review
 from run_jev_stage import ROOT, DayFailure, _git_commit, _read_json, _sha256
+
+
+def clean_commit() -> str:
+    """Refuse to identify modified or untracked execution code as the current commit."""
+    status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=ROOT,
+                            text=True, capture_output=True, check=False)
+    commit = _git_commit()
+    if status.returncode != 0 or status.stdout.strip() or commit is None:
+        raise ValueError("replay requires a clean committed worktree")
+    return commit
 
 
 def tree_digest(root: Path) -> str:
@@ -128,8 +139,9 @@ def main() -> int:
     if not os.environ.get("OPENROUTER_API_KEY"):
         parser.error("missing OPENROUTER_API_KEY")
     try:
+        revision = clean_commit()
         result = replay(args.source_root, args.baseline_metrics, args.protocol, args.output_root, args.output,
-                        code_commit=_git_commit())
+                        code_commit=revision)
     except (OSError, ValueError, KeyError, TypeError, DayFailure) as exc:
         parser.error(str(exc))
     print(f"replay complete; coverage {result['metrics']['coverage']['successes']}/"

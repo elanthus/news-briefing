@@ -1,18 +1,49 @@
 import hashlib
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from agent_runner.audit_metrics import aggregate
 from agent_runner.jev_review import MAX_CALLS
 from agent_runner.semantic_repairs import daily_semantic_review
-from rerun_jev_partials import replay, tree_digest
+from rerun_jev_partials import clean_commit, main, replay, tree_digest
 from tests.test_semantic_repairs import Judge, make_run
 
 
 class PartialReplayTests(unittest.TestCase):
+    def test_clean_revision_requires_successful_git_status_and_committed_head(self):
+        for status, commit, allowed in ((SimpleNamespace(returncode=0, stdout=''), 'abc', True),
+                                       (SimpleNamespace(returncode=0, stdout=' M runner.py'), 'abc', False),
+                                       (SimpleNamespace(returncode=0, stdout='?? local.py'), 'abc', False),
+                                       (SimpleNamespace(returncode=1, stdout=''), 'abc', False),
+                                       (SimpleNamespace(returncode=0, stdout=''), None, False)):
+            with self.subTest(status=status, commit=commit), patch(
+                'rerun_jev_partials.subprocess.run', return_value=status
+            ), patch('rerun_jev_partials._git_commit', return_value=commit):
+                if allowed:
+                    self.assertEqual(clean_commit(), commit)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'clean committed worktree'):
+                        clean_commit()
+
+    def test_cli_refuses_dirty_code_before_replay_or_provider_calls(self):
+        arguments = ['rerun_jev_partials.py', '--source-root', 'original', '--output-root', 'new',
+                     '--output', 'new-result.json']
+        with patch('sys.argv', arguments), patch.dict('os.environ', {'OPENROUTER_API_KEY': 'synthetic'}), patch(
+            'rerun_jev_partials.clean_commit', side_effect=ValueError('replay requires a clean committed worktree')
+        ), patch('rerun_jev_partials.replay') as paid_replay, redirect_stderr(io.StringIO()), self.assertRaises(
+            SystemExit
+        ) as caught:
+            main()
+        self.assertEqual(caught.exception.code, 2)
+        paid_replay.assert_not_called()
+
     def baseline(self, root):
         source = root / 'original'
         source.mkdir()

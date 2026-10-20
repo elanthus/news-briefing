@@ -91,9 +91,13 @@ private tree available and `OPENROUTER_API_KEY` in the environment:
 ```bash
 python3 -S rerun_jev_partials.py \
   --source-root .news-briefing/jev-stage \
-  --output-root .news-briefing/jev-stage-v1-partial-supplement \
-  --output docs/results/jev-stage-v1-partial-supplement.json
+  --output-root .news-briefing/jev-stage-v1-partial-supplement-repro \
+  --output .news-briefing/jev-stage-v1-partial-supplement-repro.json
 ```
+
+Use the committed supplemental JSON as the reference result. Reproductions make
+fresh model calls, so their judgments, repairs and spend can differ. Choose new
+unused output paths for each reproduction; retain the original committed result.
 
 The output tree and result must be new. The runner validates the original
 artifacts, copies each selected ready run into the new tree, and runs Jev,
