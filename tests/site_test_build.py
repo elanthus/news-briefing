@@ -1916,6 +1916,22 @@ class BriefingDecorationTests(unittest.TestCase):
         self.assertNotIn("source-chip", page)
         self.assertNotIn("run-notes", page)
 
+    def test_model_markdown_links_and_images_render_inert(self) -> None:
+        payloads = (
+            r"[colon](https\://attacker.example/colon)",
+            r"[slash](https:\/\/attacker.example/slash)",
+            "[plain](https://attacker.example/plain)",
+            "![image](https://attacker.example/image.png)",
+            "[reference][r]\n\n[r]: https://attacker.example/reference",
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                rendered = _render_markdown(f"## AI/Tech\n\n{payload}\n")
+                self.assertNotIn("<a ", rendered)
+                self.assertNotIn("<img", rendered)
+        cited = _render_markdown("## AI/Tech\n\n🔗 https://example.com/story\n")
+        self.assertIn('<a href="https://example.com/story">', cited)
+
     def test_count_label_pluralizes_y_nouns(self) -> None:
         self.assertEqual(_count_label(0, "story"), "0 stories")
         self.assertEqual(_count_label(1, "story"), "1 story")

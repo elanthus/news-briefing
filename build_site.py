@@ -943,7 +943,12 @@ def _render_markdown(markdown: str, coverage: SourceCoverage | None = None) -> s
     # each "🔗 …" destination in a commonmark autolink below; arbitrary prose
     # renders inert, and validateLink refuses the non-http(s) schemes the
     # checker's destination grammar does not detect.
+    # The link, image, and reference rules are disabled too: model Markdown
+    # links are a second grammar (CommonMark resolves backslash escapes and
+    # entities inside destinations) that the checker would have to mirror
+    # exactly. Only the code-owned autolinks above may produce an <a>.
     parser = markdown_it.MarkdownIt("commonmark", {"html": False})
+    parser.disable(["link", "image", "reference"])
     parser.validateLink = _is_web_link
     public_markdown = markdown or ""
     public_markdown = _omit_report_only_warnings(public_markdown)

@@ -158,6 +158,10 @@ class GroundingTest(unittest.TestCase):
             "bare URL": "visit HTTPS://attacker.example/bare",
             "protocol-relative URL": "[click](//attacker.example/protocol-relative)",
             "bare www URL": "visit www.attacker.example/bare-www",
+            # CommonMark removes backslash escapes inside link destinations.
+            "backslash-escaped colon": r"[click](https\://attacker.example/colon)",
+            "backslash-escaped slash": r"[click](https:\/\/attacker.example/slash)",
+            "escape and entity mixed": r"[click](https\:&#47;&#47;attacker.example/mixed)",
         }
         for kind, attack in attacks.items():
             with self.subTest(kind=kind):
