@@ -82,3 +82,9 @@ Fetch first with `fetch_news.py`, then pass the saved corpus to `run_briefing.py
 | `run_briefing.py --corpus` | Required frozen corpus for generation; the exact bytes are archived and bound to the manifest hash. |
 
 Provider selection (`--provider claude-code-cli`, `codex-cli`, `openrouter`, or `openai-compatible` for a local server such as Ollama or LM Studio, with `--endpoint` and `--lean-schema` for the latter's MLX engine) is described in the README's [Generate one](../README.md#generate-one) section.
+
+## Local servers and the generation allowance
+
+A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
+
+Generation shares a 30-minute, $25 allowance across selection, prose, corrections, and fallback models. Daily backfills share that allowance across dates. Missing billing data retains a conservative reservation; ambiguous completion stops additional calls. Override it with `--generation-seconds` and `--generation-usd` on the generation CLIs. These controls cannot guarantee a strict billing cap; the [design notes](design.md) explain the accounting.

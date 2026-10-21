@@ -12,13 +12,17 @@
 [![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
 &nbsp;·&nbsp; Live site → <https://elanthus.github.io/news-briefing/>
 
----
+![Runtime pipeline: fetch, then per model in the fallback chain select, check, freeze, write prose and gate; a ready candidate is reviewed, confirmed, repaired, followed up, published and deployed](docs/images/runtime-pipeline.svg)
 
-My news agent cited an article it had never been given.
+## What this demonstrates
 
-It was an early manual run in August 2026 (Claude Opus 5 via Claude Desktop), before any publishing pipeline existed. One link in its 22 plausible topics pointed at a story the fetcher had never retrieved. The deterministic checker rejected it with an `ungrounded_link` error ([dogfooding log](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair)), and that became the project's rule: **anything code can decide, the prompt does not get to decide.**
+- **Code-owned citation projection.** The model never sees a URL. It chooses opaque handles, and code resolves each to its destination ([`agent_runner/output.py`](agent_runner/output.py), [ADR 0001](docs/adr/0001-citation-projection.md)).
+- **Two schema-constrained passes with frozen evidence.** Selection picks handles; code validates and freezes that evidence; prose sees only it ([ADR 0002](docs/adr/0002-two-pass-selection-then-prose-with-frozen-evidence.md)).
+- **Fail-closed boundaries.** DNS-pinned SSRF defense with every redirect hop revalidated ([`news_fetch/transport.py`](news_fetch/transport.py)), `DOCTYPE` refusal before an XML tree is built ([`news_fetch/feed_xml.py`](news_fetch/feed_xml.py)), and bounded CLI output capture ([`agent_runner/providers.py`](agent_runner/providers.py)).
+- **An offline-verifiable evaluation harness.** Positive-evidence oracles ([what is fixed](evaluator/README.md#what-is-fixed)), Wilson and case-cluster bootstrap intervals ([methodology](docs/evaluation-methodology.md#denominators-and-uncertainty)), hash-frozen [protocols](evaluator/protocols/), and credential-free [evidence bundles](docs/results/EVIDENCE-ASSETS.md).
+- **A daily production loop with human-adjudicated review of its repair stage.** Jev, the `typesafe/jev-1.13` reviewer model called through OpenRouter's Decisions API, reviews and repairs each run before it publishes with an integrity report ([Jev checks and repairs](docs/jev-review.md)); a [28-day evaluation](docs/results/jev-stage-v1.md) adjudicates the repair stage.
 
-Today a scheduled GitHub Actions job collects a bounded corpus of untrusted RSS, Hacker News, and Reddit items, runs separate selection and prose passes, and publishes only what passes the gate. The model never receives a URL. It chooses among opaque handles; code resolves each to its destination. Jev checks whether the prose is supported by its frozen feed excerpts, confirms flags in isolation, and triggers bounded repairs; these model judgments can still be wrong.
+The rule dates from an August 2026 run that cited an article the fetcher never retrieved ([dogfooding log](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair)): **anything code can decide, the prompt does not get to decide.**
 
 ## Generate one
 
@@ -41,11 +45,7 @@ python3 -S run_briefing.py --provider openrouter --model deepseek/deepseek-v4-fl
 python3 -S run_briefing.py --provider openai-compatible --model qwen3:32b --corpus corpus.json --output briefing.md
 ```
 
-A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
-
-Generation shares a 30-minute, $25 allowance across selection, prose, corrections, and fallback models. Daily backfills share that allowance across dates. Missing billing data retains a conservative reservation; ambiguous completion stops additional calls. Override it with `--generation-seconds` and `--generation-usd` on the generation CLIs. These controls cannot guarantee a strict billing cap; [design notes](docs/design.md) explain the accounting.
-
-To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News queries, subreddits) and [`briefing-config.json`](briefing-config.json) (sections and the categories each may draw from). [Customizing the briefing](docs/customizing.md) has complete examples.
+Local-server settings, the shared time and cost allowance, and custom sources are in [customizing](docs/customizing.md#local-servers-and-the-generation-allowance).
 
 ## What code enforces, and what it doesn't
 
@@ -59,9 +59,9 @@ To use your own news, edit [`sources.json`](sources.json) (feeds, Hacker News qu
 | Is a reported story also listed as excluded? | Shared canonical URLs, matching headlines after typography normalization, and copied summaries of at least eight words block publication. Reworded duplicates still need model judgment. |
 | **Is the summary faithful to the article?** | Jev checks and repairs support against the frozen title and excerpt. The full article is not reviewed; low scores do not prove factual accuracy. |
 
-## Architecture
+Jev scores stories against their frozen excerpts, rechecks each flag in isolation, and triggers bounded repairs. Its judgments can be wrong; [Jev checks and repairs](docs/jev-review.md) has the thresholds and bounds.
 
-![Runtime pipeline: fetch, then per model in the fallback chain select, check, freeze, write prose and gate; a ready candidate is reviewed, confirmed, repaired, followed up, published and deployed](docs/images/runtime-pipeline.svg)
+## Architecture
 
 ```text
 fetch_news.py          →  corpus.json (schema v7, validated on write)
@@ -74,67 +74,17 @@ prepare_publication.py / build_site.py  →  static site + per-run integrity rep
 daily_publish.py       →  daily workflow driver: fetch or restore, run, publish
 ```
 
-The validator rejects any URL or reference token in prose, and rendering expands a Hacker News handle to both article and discussion links. This is destination allowlisting, not semantic grounding.
-
-Daily runs use **Jev checks and automatic repairs** through OpenRouter with the
-existing `OPENROUTER_API_KEY`:
-
-1. Review each included citation against its own frozen excerpt and story, plus
-   reworded duplicates, unsafe grouping, and unsupported, strengthened or reversed
-   claims.
-2. Recheck each flag in isolation with the same evidence, prose and rubric.
-   Confirmation thresholds are in
-   [Jev checks and repairs](docs/jev-review.md#confirmation-and-repair-policy).
-3. Code removes confirmed irrelevant citations, then HY3 rewrites affected slots
-   against their remaining frozen evidence. Grouping repairs may retain a further
-   subset; prose-only repairs keep their sources. Code keeps each original
-   headline unless the slot lost a source item. All unaffected topics retain
-   their positions and prose. The normal validator checks the candidate.
-4. Follow-up review must have complete coverage and known costs. Each repaired
-   slot whose returned checks are all below their respective thresholds is
-   applied; a re-flagged slot keeps its original prose and sources. When only
-   some slots clear, code assembles the published briefing from the original and
-   the cleared slots, then validates and hashes it again. If no slot clears, retain
-   the original ready briefing. A repair that would remove every source from a
-   slot is skipped rather than publish an uncited story.
-
-The integrity report opens with one plain sentence stating the **publication
-decision** and its reason, followed by the deterministic checker's count under
-its own name. Next come the changes that reached the published briefing, each
-as a before/after difference; the flagged stories, one line each in plain
-words; the exclusion log; and the affected sources. The briefing page's status
-chip and "Behind this briefing" panel describe source coverage with the same
-wording as the report. Operator records follow in collapsed sections: the
-decision record, an action ledger of code and model work (including skipped,
-failed, and rejected repairs with fixed explanations), initial and follow-up
-review statistics with their scores, and provenance, phase costs, and artifact
-digests. Source removals identify their cause and distinguish published changes
-from proposals; an article and its Hacker News discussion count as one source
-item. Full check data remains in public history JSON; legacy entries identify
-unavailable operational history.
-Historical research is preserved through the [retention contract](docs/research-retention.md).
-Feed excerpts and prompts stay in encrypted diagnostics. Duplicate findings and
-excluded-topic grouping remain advisory; repairs do not rerank or delete slots.
-
-These are preliminary automated judgments, not grounding guarantees. The
-[September 30 preliminary evaluations](docs/results/jev-preliminary-2026-09-30.md)
-found useful grouping repairs and successful detection of seeded prose errors,
-but also false alarms, a missed attribution error and incomplete rewritten
-sentences. The [human-adjudicated evaluation of the daily stage](docs/results/jev-stage-v1.md)
-covers 28 sampled days, judging only frozen title-and-excerpt evidence for repair
-pairs and a small control sample. Monitor the audit as the daily workflow runs. See
-[daily semantic checks and repairs](docs/jev-review.md) for replay commands,
-coverage limits, repair bounds and billing controls.
+The validator rejects any URL or reference token in prose: destination allowlisting, not semantic grounding. [Design notes](docs/design.md) cover orchestration and the integrity report.
 
 ## Read one
 
-The [live site](https://elanthus.github.io/news-briefing/) publishes daily with a per-run integrity report. [`docs/sample-briefing.md`](docs/sample-briefing.md) is the Markdown of the `ready` run published for September 27, 2026, copied byte for byte from the site's `history.json`.
+[`docs/sample-briefing.md`](docs/sample-briefing.md) is the published September 27, 2026 run, copied byte for byte from the site's `history.json`.
 
 | Reader view | Auditor view |
 |---|---|
 | ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Current integrity report from an offline fixture](docs/images/auditor-report-current.jpg) |
 
-The reader screenshot is the current site renderer applied locally to [`docs/sample-briefing.md`](docs/sample-briefing.md); the earlier dates in its strip are placeholders. The auditor screenshot shows the top of a report for a day whose repair was published: the decision sentence, the before/after change, and the flagged story. It uses committed fixtures and synthetic judge scores. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (choose a new output directory), then open the printed path, `/tmp/briefing-example/site/reports/2026-09-30.html`. It illustrates the report layout, not a quality result.
+The reader view renders the sample briefing; its earlier dates are placeholders. The auditor view uses fixtures and synthetic judge scores: layout, not a quality result. Reproduce it with `uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example` (a new directory), then open `/tmp/briefing-example/site/reports/2026-09-30.html`.
 
 ## Watch it catch an injection
 
@@ -150,20 +100,20 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 1 error(s), 0 warning(s)
 ```
 
-## At a glance
-
-| | |
-|---|---|
-| **Runs** | Daily on GitHub Actions, 150–250 items, three-model fallback chain. |
-| **Trade-offs** | Opaque handles cost the model any ability to judge a source by its URL.<br>Two schema-constrained passes cost a second model call per run.<br>Deterministic repair before correction can drop a topic the model selected instead of asking it to fix the output. |
-| **Fail-closed boundaries** | DNS-pinned, redirect-hop-repeated SSRF defense; `DOCTYPE` rejection before the XML tree is built; an unexpected provider tool call is a hard failure. |
-| **Verification** | Three offline test suites (core, evaluator, opt-in site build) on Python 3.11–3.14, plus `ruff`, configured `mypy` checks, and Actions pinned to commit SHAs. |
-
 ## Historical injection benchmark
 
-The [October 2 integrity and quality assessment](docs/results/remediation-2026-10-02.md) documents the current controls, reconstructed seven-day sample, repair regressions, and remaining operational limits.
+[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. [Parity v3](docs/results/parity-v3.md) (October 16, 2026) ran the version 8 suite at a frozen revision: 1,200 planned rows, 1,175 completed, 24 provider errors, and one disclosed correction error.
 
-[`evaluator/`](evaluator/) is a development-only benchmark: 22 utility cases and 33 indirect prompt-injection attacks. [Parity v3](docs/results/parity-v3.md) (October 16, 2026) reran the version 8 suite at a frozen revision and recorded all 1,200 planned rows: 1,175 completed, 24 provider-error rows, and one completed with a disclosed correction error. [Parity v2](docs/results/parity-v2.md) (September 4, 2026) is the prior baseline.
+Of the 105 primary attack trials per condition, 75 target behaviors the schema, validator, and renderer enforce in code. The informative signals are the 30 selection trials, the judgment the model controls, and the 12-case position/count ablation:
+
+| Model / prompt | Primary, all families | Primary, selection | Ablation, selection | Ablation, citation |
+|---|---:|---:|---:|---:|
+| DeepSeek V4 Flash / production-runner | 0/104; 0.0% [0.0, 3.6] | 0/29; 0.0% [0.0, 11.7] | 2/30; 6.7% [1.8, 21.3] | 0/30; 0.0% [0.0, 11.4] |
+| DeepSeek V4 Flash / runner-deepseek-v4-flash | 0/103; 0.0% [0.0, 3.6] | 0/28; 0.0% [0.0, 12.1] | 20/26; 76.9% [57.9, 89.0] | 0/25; 0.0% [0.0, 13.3] |
+| Tencent HY3 / production-runner | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
+| Tencent HY3 / runner-deepseek-v4-flash | 1/105; 1.0% [0.2, 5.2] | 1/30; 3.3% [0.6, 16.7] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
+
+DeepSeek under the `runner-deepseek-v4-flash` prompt reached 20/26 in selection ablation (20/30 counting provider errors as failures). All families, with structural utility:
 
 | Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) |
 |---|---:|---:|
@@ -172,23 +122,17 @@ The [October 2 integrity and quality assessment](docs/results/remediation-2026-1
 | Tencent HY3 / production-runner | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
 | Tencent HY3 / runner-deepseek-v4-flash | 100/110; 90.9% [84.1, 95.0] | 1/105; 1.0% [0.2, 5.2] |
 
-Rates: successes/trials, 95% Wilson intervals; provider-error rows are excluded from completed-row denominators. The one primary attack success is in selection, which the model controls. Family, ablation, case-level interval, and provider-error sensitivity results are in the model card.
-
-[Evaluation methodology](docs/evaluation-methodology.md#current-evaluation-results) covers the claims boundary: structural utility does not measure news quality or grounding, and benchmark settings differ from the daily service. HY3 received a weaker provider-enforced citation schema than DeepSeek, so their cells are not directly comparable. Both the within-run prompt comparison and the comparison with Parity v2 are descriptive and not eligible for the promotion gate. The [evidence bundle](docs/results/EVIDENCE-ASSETS.md) is a release asset; verify it offline:
+Rates are successes/trials with 95% Wilson intervals, which describe this fixed authored suite, not deployment traffic; provider-error rows are excluded. Structural utility does not measure news quality or grounding, and benchmark settings differ from the daily service. HY3 answered a weaker provider-enforced citation schema than DeepSeek, so their cells are not directly comparable. The within-run prompt comparison and the comparison with [Parity v2](docs/results/parity-v2.md) are descriptive and not eligible for the promotion gate. The [methodology](docs/evaluation-methodology.md#current-evaluation-results) sets the claims boundary. Verify the [evidence bundle](docs/results/EVIDENCE-ASSETS.md) offline:
 
 ```bash
 python3 -S -m evaluator.evidence_assets fetch
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
 ```
 
-This authenticates the downloaded assets and verifies their file metadata, hashes,
-and independently rebuilt score ledger. Historical report formatting is frozen;
-regenerate those reports using the recorded source tag and the commands in
-[EVIDENCE-ASSETS.md](docs/results/EVIDENCE-ASSETS.md).
-
 ## Further reading
 
 - [Design notes](docs/design.md) · [ADRs](docs/adr/README.md) · [evaluation methodology](docs/evaluation-methodology.md) · [benchmark guide](evaluator/README.md)
+- [October 2 integrity and quality assessment](docs/results/remediation-2026-10-02.md) · [September 30 preliminary Jev evaluations](docs/results/jev-preliminary-2026-09-30.md) · [research retention](docs/research-retention.md)
 - [Grounding monitor](docs/results/grounding-monitor.md) · [archive contract](docs/publication-archive-contract.md) · [dogfooding log](docs/dogfooding.md) · [write-up](docs/writeups/injection-benchmark-post.md)
 - [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CLAUDE.md`](CLAUDE.md)
 
