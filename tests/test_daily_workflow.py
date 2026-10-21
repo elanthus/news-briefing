@@ -159,6 +159,42 @@ class DailyWorkflowTests(unittest.TestCase):
         )[0]
         self.assertNotIn("continue-on-error", build_step)
 
+    def test_prior_downloads_bypass_the_pages_cache(self) -> None:
+        for name, filename in (
+            ("Download prior live history", "history.json"),
+            ("Download prior metrics ledger", "metrics.json"),
+        ):
+            step = _step(name)
+            with self.subTest(step=name):
+                self.assertIn("if: always()", step)
+                self.assertIn("continue-on-error: true", step)
+                self.assertIn("-H 'Cache-Control: no-cache'", step)
+                self.assertIn(
+                    f'"https://elanthus.github.io/news-briefing/{filename}?v=$GITHUB_RUN_ID"', step
+                )
+                for flag in ("--fail", "--max-filesize 50000000", "--retry 3", "--remove-on-error"):
+                    self.assertIn(flag, step)
+
+    def test_only_a_definite_404_starts_a_new_metrics_ledger(self) -> None:
+        """metrics.json keeps every date; a transient download failure must
+        stop the build rather than restart the ledger from seven days."""
+        download = _step("Download prior metrics ledger")
+        self.assertIn("--write-out '%{http_code}'", download)
+        self.assertRegex(
+            download,
+            r'if \[\[ ! -f prior-metrics\.json && "\$status" == "404" \]\]; then\s+'
+            r"touch prior-metrics-absent",
+        )
+        build = _step("Build static archive")
+        self.assertRegex(
+            build,
+            r"\[\[ -f prior-metrics\.json \]\]; then\s+"
+            r"args\+=\(--prior-metrics prior-metrics\.json\)\s+"
+            r"elif \[\[ -f prior-metrics-absent \]\]; then\s+"
+            r"args\+=\(--allow-empty-metrics\)\s+fi",
+        )
+        self.assertNotIn("continue-on-error", build)
+
     def test_uploads_only_encrypted_diagnostics_even_when_generation_needs_review(self) -> None:
         self.assertIn("- name: Upload encrypted briefing diagnostics\n        if: always()", WORKFLOW)
         self.assertIn("name: briefing-diagnostics-${{ github.run_id }}", WORKFLOW)

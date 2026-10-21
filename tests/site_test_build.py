@@ -16,8 +16,10 @@ from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
 from unittest.mock import patch
+from xml.etree import ElementTree
 
 import eval_briefing
+import site_metrics
 from agent_runner.failures import FailureRecord
 from agent_runner.integrity import add_phase, blank_integrity
 from agent_runner.output import render_briefing, render_validation_status
@@ -41,10 +43,13 @@ def build_site(*args, **kwargs):
     real guard (build_site refuses that unless allow_empty_history is set) is
     exercised directly by test_build_site_refuses_empty_history_without_optin
     and by the CLI's mutually-exclusive group. Tests that pass prior_history
-    exercise the ordinary path unchanged.
+    exercise the ordinary path unchanged. The metrics-ledger opt-in defaults on
+    the same way; MetricsLedgerTests exercise its guard and prior-ledger merge.
     """
     if "allow_empty_history" not in kwargs and "prior_history" not in kwargs:
         kwargs["allow_empty_history"] = True
+    if "allow_empty_metrics" not in kwargs and "prior_metrics" not in kwargs:
+        kwargs["allow_empty_metrics"] = True
     return _build_site(*args, **kwargs)
 
 
@@ -2684,6 +2689,194 @@ class ReaderFacingReportTests(unittest.TestCase):
                 self.assertTrue(table["scrolls"] or columns <= 3, table)
             # The chip wraps as a rounded box rather than a pill when it runs to two lines.
             self.assertIn("p.status-chip { border-radius: .9rem;", pages[0])
+
+
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _ledger_strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for key, item in value.items() for s in [key, *_ledger_strings(item)]]
+    if isinstance(value, list):
+        return [s for item in value for s in _ledger_strings(item)]
+    return []
+
+
+def _legacy_ready_entry(day: str) -> dict[str, object]:
+    """A ready entry from before provenance, Jev review, and integrity records existed."""
+    entry = _live_entry("2026-10-13")
+    return {**entry, "date": day, "provenance": None, "semantic_audit": None, "integrity": None,
+            "advisory_findings": []}
+
+
+class MetricsLedgerTests(unittest.TestCase):
+    def _build(self, root: Path, name: str, briefings: Path, **kwargs: object) -> Path:
+        output = root / name
+        build_site(briefings, output, **kwargs)
+        return output
+
+    def test_ledger_rebuild_is_idempotent_and_outlives_history_truncation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entries = [_legacy_ready_entry(f"2026-09-{day:02d}") for day in range(1, 10)]
+            (root / "prior.json").write_text(json.dumps({"schema_version": 9, "entries": entries}))
+            (root / "empty").mkdir()
+            first = self._build(root, "first", root / "empty", prior_history=root / "prior.json",
+                                allow_empty_metrics=True)
+            history = json.loads((first / "history.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(history["entries"]), 7)
+            ledger = json.loads((first / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual([row["date"] for row in ledger["rows"]],
+                             [f"2026-09-{day:02d}" for day in range(1, 10)])
+
+            second = self._build(root, "second", root / "empty", prior_history=first / "history.json",
+                                 prior_metrics=first / "metrics.json")
+            third = self._build(root, "third", root / "empty", prior_history=second / "history.json",
+                                prior_metrics=second / "metrics.json")
+            self.assertEqual((first / "metrics.json").read_bytes(), (second / "metrics.json").read_bytes())
+            self.assertEqual((second / "metrics.json").read_bytes(), (third / "metrics.json").read_bytes())
+            self.assertEqual((second / "metrics.html").read_bytes(), (third / "metrics.html").read_bytes())
+
+    def test_lower_rank_day_never_clobbers_a_ready_row(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root / "initial"
+            initial.mkdir()
+            (initial / "2026-08-20.md").write_text("validated briefing", encoding="utf-8")
+            BuildSiteTests._write_sidecar(initial, date="2026-08-20", disposition="ready")
+            seeded = self._build(root, "seeded", initial)
+
+            # The date has left history (no prior history passed); only the ledger remembers it.
+            failed = root / "failed"
+            failed.mkdir()
+            BuildSiteTests._write_sidecar(failed, date="2026-08-20", disposition="blocked")
+            kept = self._build(root, "kept", failed, prior_metrics=seeded / "metrics.json",
+                               allow_empty_history=True, replace_existing=True)
+            rows = json.loads((kept / "metrics.json").read_text(encoding="utf-8"))["rows"]
+            self.assertEqual([(row["date"], row["disposition"]) for row in rows], [("2026-08-20", "ready")])
+
+            # An equal-rank rerun replaces the row; an explicit republish of a page replaces it too.
+            review = root / "review"
+            review.mkdir()
+            (review / "2026-08-20.md").write_text("review preview", encoding="utf-8")
+            BuildSiteTests._write_sidecar(
+                review, date="2026-08-20", disposition="review_required",
+                findings=[BuildSiteTests._finding("unsupported_figure", "Verify figure.")],
+            )
+            scheduled = self._build(root, "scheduled", review, prior_metrics=seeded / "metrics.json",
+                                    allow_empty_history=True)
+            self.assertEqual(
+                json.loads((scheduled / "metrics.json").read_text(encoding="utf-8"))["rows"][0]["disposition"],
+                "ready",
+            )
+            manual = self._build(root, "manual", review, prior_metrics=seeded / "metrics.json",
+                                 allow_empty_history=True, replace_existing=True)
+            self.assertEqual(
+                json.loads((manual / "metrics.json").read_text(encoding="utf-8"))["rows"][0]["disposition"],
+                "review_required",
+            )
+
+    def test_build_refuses_to_drop_the_ledger_without_optin(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "empty").mkdir()
+            (root / "prior.json").write_text(json.dumps({"schema_version": 9, "entries": []}))
+            with self.assertRaisesRegex(ValueError, "allow_empty_metrics"):
+                _build_site(root / "empty", root / "site", prior_history=root / "prior.json")
+            self.assertFalse((root / "site" / "index.html").exists())
+            (root / "bad.json").write_text(json.dumps({"schema_version": 1, "rows": [{
+                "date": "2026-08-20", "disposition": "ready", "headline": "Injected text",
+            }]}))
+            with self.assertRaisesRegex(ValueError, "exactly"):
+                _build_site(root / "empty", root / "site", prior_history=root / "prior.json",
+                            prior_metrics=root / "bad.json")
+
+    def test_legacy_entry_records_null_and_renders_unknown_not_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_legacy_ready_entry("2026-09-01")])
+            row = json.loads((site / "metrics.json").read_text(encoding="utf-8"))["rows"][0]
+            for field in ("provider", "model", "attempt_index", "fallback_used", "review_status",
+                          "repair_decision", "review_stage_cost_usd", "phase_costs_usd",
+                          "unknown_cost_calls", "flags_raised", "flags_confirmed"):
+                self.assertIsNone(row[field], field)
+            page = (site / "metrics.html").read_text(encoding="utf-8")
+            text = _text(page)
+            self.assertIn("unknown", text)
+            self.assertIn("follow-up spend across recorded days: unknown.", text)
+            self.assertIn("Days with unknown or partly unknown cost, marked below the axis: 1.", text)
+            self.assertIn("2026-09-01: cost unknown", text)
+            self.assertNotIn("$0.0000", text)
+            self.assertIn("Days with no review record: 1.", text)
+
+    def test_ledger_rows_carry_no_feed_or_model_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            live = [_live_entry("2026-10-13"), _live_entry("2026-10-12")]
+            site = _build_from_entries(Path(directory), live)
+            raw = (site / "metrics.json").read_text(encoding="utf-8")
+            ledger = json.loads(raw)
+            enums = {"ready", "complete", "partial", "failed", "original_retained", "repaired_applied",
+                     "partial_applied", "unpublished", *site_metrics.ROW_FIELDS, *site_metrics.COST_PHASES,
+                     "schema_version", "rows"}
+            identifiers = {"openrouter", "tencent/hy3"}
+            for value in _ledger_strings(ledger):
+                self.assertTrue(value in enums or value in identifiers or _ISO_DATE.fullmatch(value), value)
+            self.assertNotIn("http", raw)
+            for entry in live:
+                markdown = entry["markdown"]
+                assert isinstance(markdown, str)
+                for line in markdown.splitlines():
+                    if len(line.strip()) > 24:
+                        self.assertNotIn(line.strip(), raw)
+
+    def test_every_svg_string_is_escaped_and_well_formed(self) -> None:
+        hostile = '</text><script>alert("x")</script>&'
+        chart = site_metrics._hbar_chart(hostile, [(hostile, 1, "chart-bar")], 1)
+        self.assertNotIn("<script", chart)
+        self.assertIn("&lt;/text&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;", chart)
+        ElementTree.fromstring(chart)
+        with self.assertRaisesRegex(ValueError, "identifiers"):
+            site_metrics._identifier(hostile)
+        with tempfile.TemporaryDirectory() as directory:
+            entries = [_live_entry("2026-10-13"), _live_entry("2026-10-12"), _legacy_ready_entry("2026-09-01")]
+            site = _build_from_entries(Path(directory), entries)
+            page = (site / "metrics.html").read_text(encoding="utf-8")
+            charts = re.findall(r"<svg\b.*?</svg>", page, flags=re.S)
+            self.assertGreaterEqual(len(charts), 4)
+            for chart in charts:
+                ElementTree.fromstring(chart)
+                self.assertNotIn("<script", chart)
+
+    def test_metrics_page_fits_phone_width_and_is_linked(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = _build_from_entries(Path(directory), [_live_entry("2026-10-13"), _live_entry("2026-10-12")])
+            page = (site / "metrics.html").read_text(encoding="utf-8")
+            self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', page)
+            self.assertIn("@media (max-width: 40rem)", page)
+            self.assertIn("@media (prefers-color-scheme: dark)", page)
+            self.assertIn(".metrics-chart { display: block; height: auto;", page)
+            self.assertIn("max-width: 100%; width: 100%; }", page)
+            self.assertNotIn("<script", page)
+            self.assertNotIn('rel="stylesheet"', page)
+            for chart in re.findall(r"<svg\b[^>]*>", page):
+                self.assertIn('class="metrics-chart"', chart)
+                self.assertIn(f'viewBox="0 0 {site_metrics.CHART_WIDTH} ', chart)
+            scan = _LayoutScan()
+            scan.feed(page)
+            for table in scan.tables:
+                columns = table["columns"]
+                assert isinstance(columns, int)
+                self.assertTrue(table["scrolls"] or columns <= 3, table)
+            text = _text(page)
+            self.assertIn("operational summaries of the daily integrity records", text)
+            self.assertIn("not an independent assessment, a grounding rate, or a quality measurement", text)
+            index = (site / "index.html").read_text(encoding="utf-8")
+            self.assertIn('<a href="metrics.html">Operational metrics</a>', index)
+            self.assertIn('<a href="metrics.html">operational metrics</a> page', _between(
+                index, 'id="run-notes"', "</section>"))
+            report = (site / "reports/2026-10-13.html").read_text(encoding="utf-8")
+            self.assertIn('<a href="../metrics.html">Operational metrics</a>', report)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ files = [
     "restore_private_corpora.py",
     "audit_manifest.py",
     "build_site.py",
+    "site_metrics.py",
     "agent_runner",
 ]
 disallow_untyped_defs = true
