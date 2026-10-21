@@ -79,6 +79,29 @@ The site and its machine-readable history retain up to seven report dates. When 
 
 Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
 
+## Operational metrics ledger
+
+`history.json` keeps seven report dates, so any summary computed from it alone covers one week. The builder therefore also writes `metrics.json`, a ledger with one compact row per report date, and `metrics.html`, a page computed from that ledger. [`site_metrics.py`](../site_metrics.py) builds, validates, merges, and renders it without model calls or network access. The site footer on every page and the "Behind this briefing" panel link to the page.
+
+The daily workflow downloads the deployed `metrics.json` alongside `history.json`, with the same curl bounds, a `Cache-Control: no-cache` header, and a per-run `?v=$GITHUB_RUN_ID` query on both downloads, to get past the Pages CDN's ten-minute cache. The builder merges by date with the history rank rule: a current row replaces a prior row only when its publication rank is at least as high, so a blocked or review-required retry never replaces a ready day, while a manual `--replace-existing` republish of a page replaces it as history does. Rows are computed from every merged entry before history truncation, and the ledger itself is never truncated.
+
+Losing the ledger would lose more than a week, so `build_site.py` refuses to build without `--prior-metrics` unless `--allow-empty-metrics` or `--allow-empty-history` is given. The workflow passes `--allow-empty-metrics` only when the ledger download returned a definite HTTP 404, which means the ledger has never been deployed. The ledger then starts from the seven dates in history. Every other download failure stops the build. A malformed prior ledger also fails the build.
+
+Ledger schema version 1 rows contain exactly these fields, and no others. They carry no feed text, headlines, summaries, prose, finding messages, URLs, or hashes:
+
+| Field | Source and meaning |
+|---|---|
+| `date`, `disposition` | The entry's report date and publication disposition. |
+| `provider`, `model`, `attempt_index`, `attempt_count` | `provenance`: the selected generation identity and its position in the fallback chain. Identifiers must match a plain model-identifier pattern. |
+| `fallback_used`, `failed_attempts` | `attempt_index > 1` and `attempt_index − 1`. For a blocked day, the number of `generation_failures`. |
+| `review_status`, `followup_status`, `review_complete` | `integrity.initial_review` / `followup_review` status, falling back to `semantic_audit.status` / `post_status`. `review_complete` is true only for a complete initial review, the same rule as the integrity report. |
+| `repair_decision` | `integrity.decision`: `original_retained`, `repaired_applied`, `partial_applied`, or `unpublished`. |
+| `review_stage_cost_usd`, `phase_costs_usd`, `unknown_cost_calls` | `semantic_audit.reported_cost_usd` and `unknown_cost_calls`, plus `integrity.costs` per phase (`initial_review`, `repair_generation`, `followup_review`). Original generation cost is not in the public record and is not carried. |
+| `flags_raised`, `flags_confirmed` | Initial Jev checks whose confirmation label is not `not_flagged`, and those labeled `confirmed`. |
+| `findings_count`, `advisory_findings` | The entry's actionable finding count and number of advisory findings. |
+
+A field the source entry does not record is `null`, and the page renders it as "unknown"; it is never filled with zero. A legacy entry without provenance, a Jev audit, or an integrity record therefore keeps those fields null. The page reports the ready rate over all recorded days, published days by selected model and fallback use, repair outcomes on days with complete review, known review-stage cost per day with unknown-cost days marked, and a 28-day rolling ready rate. The rolling rate leaves dates with no record out of both counts. These are operational summaries of the daily integrity records. They are not an independent assessment, a grounding rate, or a quality measurement. Charts are inline SVG generated in Python, with every label escaped, and the page loads no script.
+
 ## Reader retirement and research evidence
 
 Production readers now require history schema 9, the complete current sidecar

@@ -82,6 +82,7 @@ run artifacts.
 | [`private_archive.py`](private_archive.py) | Authenticated encryption and bounded retention for operational corpora and diagnostics |
 | [`restore_private_corpora.py`](restore_private_corpora.py) | Token-scoped restore of the newest encrypted GitHub Actions corpus archive |
 | [`build_site.py`](build_site.py) | Static archive: briefings, integrity reports, public audit manifests |
+| [`site_metrics.py`](site_metrics.py) | Text-free `metrics.json` ledger (one row per report date, never truncated) and the operational metrics page |
 | [`evaluator/`](evaluator) | Development-only benchmark: cases, oracles, judges, metrics, public evidence export |
 | [`fixtures/`](fixtures) | Frozen corpus, briefing, configuration, and injection fixtures |
 
