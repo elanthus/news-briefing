@@ -39,6 +39,12 @@ configuration, such as:
   checkpoint integrity, or fail-closed provider-event validation; and
 - prompt-injection paths that cross a boundary the project claims to enforce.
 
+Evidence recorded by runs before #291 is accepted at the review, repair and
+publication handoffs only through the marker-scoped re-decode in
+`load_verified_run` (`redecode_redacted_text` in `agent_runner/output.py`),
+which re-decodes recorded strings that already carry the destination marker,
+masks nothing, and leaves the production projection grammar unchanged.
+
 The following are documented limitations rather than vulnerabilities by
 themselves:
 

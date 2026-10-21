@@ -117,19 +117,25 @@ benchmark or establish a prompt-only baseline.
 
 ### October 21 compatibility verification
 
-Two retained formats are rejected by the readers at current main and are
-recovered only with the readers at the run's recorded source revision:
+Two retained formats were rejected by the readers at current main on October
+21. One still is, and is recovered only with the readers at the run's recorded
+source revision; the other now reads at current main:
 
 - Daily semantic-audit envelopes with metadata schema 1 or 2 (runs before
   October 14). `load_public_audit` returns no audit for them, so a re-derived
   publication record carries the original candidate without the audit. The
   historical public record is unchanged.
-- Runs whose recorded `selected-evidence.json` no longer matches the projection
-  after #291 added backslash-escape removal to `redact_destinations`;
-  `load_verified_run` reports that the recorded evidence differs from the frozen
-  corpus projection. They read at `393c78d`, the last main commit before #291.
-  Four of the 25 retained production days are affected; the research dataset is
-  not.
+- Runs whose recorded `selected-evidence.json` keeps CommonMark backslash
+  escapes inside strings the projection masks, which #291 removed from
+  `redact_destinations` output: October 1, 3, 5 and the first October 6 run. On
+  October 21 `load_verified_run` reported that their recorded evidence differed
+  from the frozen corpus projection, and they read only at `393c78d`, the last
+  main commit before #291. `load_verified_run` now re-decodes just the recorded
+  strings that carry the destination marker with the current decoder, still
+  requires exact equality with the projection, and hands consumers the
+  projection rather than the recorded text; all four read at current main. The
+  production projection grammar is unchanged, and the research dataset was never
+  affected.
 
 Every other retained format reads at current main. The
 [compatibility record](results/retention-2026-10-21.md) and its

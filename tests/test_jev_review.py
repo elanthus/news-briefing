@@ -23,7 +23,12 @@ from agent_runner.jev_review import (
     review_run,
 )
 from agent_runner.models import ProviderError
-from agent_runner.output import project_selected_evidence
+from agent_runner.output import (
+    DESTINATION_REDACTION,
+    project_corpus,
+    project_selected_evidence,
+    redecode_redacted_text,
+)
 from agent_runner.runner import RunnerSettings, run_workflow
 from run_daily_briefing import ChainResult
 from tests.test_briefing_output import ROOT, fixture_contract, selection_from_output
@@ -168,8 +173,8 @@ class JevReviewTests(unittest.TestCase):
             self.assertEqual(report['cost_ceiling_usd'], 0.10)
             self.assertEqual(report['max_review_seconds'], 120)
 
-    def make_run(self, root):
-        corpus, _config, _projected, output = fixture_contract()
+    def make_run(self, root, corpus=None):
+        corpus, _config, _projected, output = fixture_contract(corpus)
         corpus_path = root / "input.json"
         corpus_path.write_text(json.dumps(corpus), encoding="utf-8")
         settings = RunnerSettings(
@@ -179,6 +184,86 @@ class JevReviewTests(unittest.TestCase):
         result = run_workflow(FakeProvider([output]), settings, root / "run")
         self.assertEqual(result.status, "ready")
         return root / "run"
+
+    # The first corpus item is the first topic of the first section. Its summary
+    # carries a destination plus stray CommonMark escapes; the projection masks the
+    # destination and, since #291, removes the escapes from that string.
+    CURRENT_SUMMARY = f"Read the thread at {DESTINATION_REDACTION} - then the follow-up."
+    HISTORICAL_SUMMARY = f"Read the thread at {DESTINATION_REDACTION} \\- then the follow\\-up."
+
+    def escaped_corpus(self):
+        corpus = copy.deepcopy(fixture_contract()[0])
+        item = next(iter(corpus["categories"].values()))[0]
+        item["title"] = "Follow-up thread"
+        item["summary"] = "Read the thread at https://example.test/thread \\- then the follow\\-up."
+        return corpus
+
+    @staticmethod
+    def rewrite_evidence(run, before, after):
+        """Replace one recorded evidence string and re-bind its manifest hash."""
+        manifest = json.loads((run / "manifest.json").read_text())
+        evidence = json.loads((run / "selected-evidence.json").read_text())
+        count = 0
+
+        def walk(value):
+            nonlocal count
+            if isinstance(value, str):
+                count += value == before
+                return after if value == before else value
+            if isinstance(value, list):
+                return [walk(item) for item in value]
+            if isinstance(value, dict):
+                return {key: walk(item) for key, item in value.items()}
+            return value
+
+        write_json_atomic(run / "selected-evidence.json", walk(evidence))
+        manifest["artifacts"]["selected-evidence.json"] = sha256_file(run / "selected-evidence.json")
+        write_json_atomic(run / "manifest.json", manifest)
+        return count
+
+    def test_pre_291_escapes_inside_masked_recorded_strings_are_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = self.make_run(Path(directory), self.escaped_corpus())
+            self.assertEqual(self.rewrite_evidence(run, self.CURRENT_SUMMARY, self.HISTORICAL_SUMMARY), 1)
+            state = load_verified_run(run)
+            corpus = json.loads((run / "corpus.json").read_text())
+            frozen = json.loads((run / "frozen-selection.json").read_text())
+            self.assertEqual(state.evidence, project_selected_evidence(frozen, project_corpus(corpus)))
+            self.assertEqual(state.hashes["selected-evidence.json"], sha256_file(run / "selected-evidence.json"))
+            summaries = [source["summary"] for topic in state.topics for source in topic["evidence"]]
+            self.assertIn(self.CURRENT_SUMMARY, summaries)
+            self.assertNotIn(self.HISTORICAL_SUMMARY, summaries)
+
+    def test_otherwise_altered_recorded_evidence_is_still_rejected(self):
+        marker, current = DESTINATION_REDACTION, self.CURRENT_SUMMARY
+        alterations = {
+            "escape in a marker-free string": ("Follow-up thread", "Follow\\-up thread"),
+            "entity in a marker-free string": ("Follow-up thread", "Follow&#45;up thread"),
+            # Replacing the marker leaves none, so these fail plain equality.
+            "live URL replacing the marker": (current, current.replace(marker, "https://attacker.invalid/x")),
+            "escaped URL replacing the marker": (current, current.replace(marker, "https\\://attacker.invalid/x")),
+            "entity-encoded URL replacing the marker": (
+                current, current.replace(marker, "https&#58;//attacker.invalid/x")),
+            # Beside a surviving marker the re-decode runs and must still not match.
+            "live URL beside the marker": (current, current + " https://attacker.invalid/x"),
+            "escaped URL beside the marker": (current, current + " https\\://attacker.invalid/x"),
+            "entity-encoded URL beside the marker": (current, current + " https&#58;//attacker.invalid/x"),
+            "changed text in a masked string": (current, current + " Extra claim."),
+        }
+        for name, (before, after) in alterations.items():
+            with self.subTest(alteration=name), tempfile.TemporaryDirectory() as directory:
+                run = self.make_run(Path(directory), self.escaped_corpus())
+                self.assertEqual(self.rewrite_evidence(run, before, after), 1)
+                with self.assertRaisesRegex(ValueError, "differs"):
+                    load_topics(run)
+
+    def test_current_recorded_evidence_is_accepted_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = self.make_run(Path(directory), self.escaped_corpus())
+            recorded = json.loads((run / "selected-evidence.json").read_text())
+            self.assertIn(self.CURRENT_SUMMARY, json.dumps(recorded))
+            self.assertEqual(redecode_redacted_text(recorded), recorded)
+            self.assertEqual(load_verified_run(run).evidence, recorded)
 
     def test_review_is_advisory_redacted_and_source_artifacts_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -10,6 +10,7 @@ import corpus_schema
 import eval_briefing
 from agent_runner.outcomes import classify_outcome
 from agent_runner.output import (
+    DESTINATION_REDACTION,
     REPAIRABLE_CHECKS,
     Citation,
     attach_frozen_selection,
@@ -23,6 +24,7 @@ from agent_runner.output import (
     redact_destinations,
     redact_opaque_references,
     redact_preview_value,
+    redecode_redacted_text,
     render_briefing,
     render_candidate_preview,
     render_validation_status,
@@ -35,8 +37,10 @@ from agent_runner.output import (
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def fixture_contract():
-    corpus = json.loads((ROOT / "fixtures/current-corpus.json").read_text(encoding="utf-8"))
+def fixture_contract(corpus=None):
+    """Build the frozen fixture contract, optionally from a caller-supplied corpus."""
+    if corpus is None:
+        corpus = json.loads((ROOT / "fixtures/current-corpus.json").read_text(encoding="utf-8"))
     config = briefing_config.load_config(ROOT / "fixtures/briefing-config-2026-08-11.json")
     projected = project_corpus(corpus)
     items = {}
@@ -248,6 +252,33 @@ class BriefingOutputTests(unittest.TestCase):
             with self.subTest(spelling=spelling):
                 self.assertNotIn(
                     "attacker.invalid", redact_destinations(f"see [x]({spelling})"))
+
+    def test_redecode_only_decodes_marker_bearing_strings_and_never_masks(self):
+        marker = DESTINATION_REDACTION
+        recorded = {
+            "masked": f"see {marker} \\- then the follow\\-up &amp; more",
+            "plain": r"a plain \- string &amp; entity",
+            "escaped link": r"[x](https\://attacker.invalid/colon)",
+            "nested": [{"masked": f"{marker} \\*"}],
+        }
+        redecoded = redecode_redacted_text(recorded)
+        self.assertEqual(redecoded["masked"], f"see {marker} - then the follow-up & more")
+        self.assertEqual(redecoded["plain"], recorded["plain"])
+        self.assertEqual(redecoded["escaped link"], recorded["escaped link"])
+        self.assertEqual(redecoded["nested"], [{"masked": f"{marker} *"}])
+        # A destination written into a masked string is decoded, never masked, so
+        # it can only ever differ from the projection's marker.
+        self.assertEqual(
+            redecode_redacted_text(f"{marker} https\\://attacker.invalid/x"),
+            f"{marker} https://attacker.invalid/x")
+        with self.assertRaisesRegex(ValueError, "escaped dictionary key"):
+            redecode_redacted_text({f"{marker} \\-": "value"})
+
+    def test_redecode_is_the_identity_on_current_projections(self):
+        _corpus, _config, projected, output = fixture_contract()
+        evidence = project_selected_evidence(selection_from_output(output), projected)
+        self.assertEqual(redecode_redacted_text(projected.document), projected.document)
+        self.assertEqual(redecode_redacted_text(evidence), evidence)
 
     def test_preview_redaction_handles_destinations_in_keys_and_values(self):
         preview = redact_preview_value({

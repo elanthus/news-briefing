@@ -57,13 +57,18 @@ OPAQUE_REFERENCE = re.compile(r"\b(?:citation|item)_\d+\b", re.IGNORECASE)
 ITEM_REFERENCE = re.compile(r"\bitem_\d+\b", re.IGNORECASE)
 
 
-def _redact_text_destinations(value: str) -> str:
+def _decode_text(value: str) -> str:
+    """Resolve HTML character references and CommonMark backslash escapes to a fixed point."""
     decoded = value
     while True:
         decoded_once = eval_briefing.remove_backslash_escapes(html.unescape(decoded))
         if decoded_once == decoded:
-            break
+            return decoded
         decoded = decoded_once
+
+
+def _redact_text_destinations(value: str) -> str:
+    decoded = _decode_text(value)
     spellings = eval_briefing.url_spellings(decoded)
     if not spellings:
         return value
@@ -107,6 +112,26 @@ def redact_destinations(value: Any) -> Any:
         _redact_text_destinations,
         "model input contains a destination-bearing dictionary key",
     )
+
+
+def redecode_redacted_text(value: Any) -> Any:
+    """Re-decode recorded strings that already carry the destination marker.
+
+    ``_redact_text_destinations`` returns decoded text only for a string in
+    which it masks a destination; every other string comes back as written.
+    Before f4aea95 (#291) that decoding resolved HTML character references
+    alone, so evidence recorded by earlier runs keeps CommonMark backslash
+    escapes inside its masked strings that the current decoder removes. This
+    applies the current decoder to the strings that contain
+    ``DESTINATION_REDACTION`` and leaves every other string, and every key, as
+    recorded. It masks nothing, so a destination spelling that the projection
+    would redact still cannot be made to match it. Only ``load_verified_run``
+    uses this; the production projection path does not.
+    """
+    def redecode(text: str) -> str:
+        return _decode_text(text) if DESTINATION_REDACTION in text else text
+
+    return _redact_strings(value, redecode, "recorded evidence contains an escaped dictionary key")
 
 
 def redact_opaque_references(value: Any, *, include_citations: bool) -> Any:
