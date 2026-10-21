@@ -239,9 +239,15 @@ class JevReviewTests(unittest.TestCase):
         alterations = {
             "escape in a marker-free string": ("Follow-up thread", "Follow\\-up thread"),
             "entity in a marker-free string": ("Follow-up thread", "Follow&#45;up thread"),
-            "live URL in a masked slot": (current, current.replace(marker, "https://attacker.invalid/x")),
-            "escaped URL in a masked slot": (current, current.replace(marker, "https\\://attacker.invalid/x")),
-            "entity-encoded URL in a masked slot": (current, current.replace(marker, "https&#58;//attacker.invalid/x")),
+            # Replacing the marker leaves none, so these fail plain equality.
+            "live URL replacing the marker": (current, current.replace(marker, "https://attacker.invalid/x")),
+            "escaped URL replacing the marker": (current, current.replace(marker, "https\\://attacker.invalid/x")),
+            "entity-encoded URL replacing the marker": (
+                current, current.replace(marker, "https&#58;//attacker.invalid/x")),
+            # Beside a surviving marker the re-decode runs and must still not match.
+            "live URL beside the marker": (current, current + " https://attacker.invalid/x"),
+            "escaped URL beside the marker": (current, current + " https\\://attacker.invalid/x"),
+            "entity-encoded URL beside the marker": (current, current + " https&#58;//attacker.invalid/x"),
             "changed text in a masked string": (current, current + " Extra claim."),
         }
         for name, (before, after) in alterations.items():
