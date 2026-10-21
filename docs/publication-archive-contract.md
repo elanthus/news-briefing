@@ -87,7 +87,7 @@ The daily workflow downloads the deployed `metrics.json` alongside `history.json
 
 Losing the ledger would lose more than a week, so `build_site.py` refuses to build without `--prior-metrics` unless `--allow-empty-metrics` is given; `--allow-empty-history` does not imply it, so a history-recovery dispatch never also discards the ledger. The builder validates the merged ledger against the same parser before writing any output, so a build that would publish a ledger the next build refuses fails instead. A provider or model identifier outside the plain-identifier pattern is recorded as `null` rather than failing the build. The workflow passes `--allow-empty-metrics` only when the ledger download returned a definite HTTP 404, which means the ledger has never been deployed. The ledger then starts from the seven dates in history. Every other download failure stops the build. A malformed prior ledger also fails the build.
 
-Ledger schema version 1 rows contain exactly these fields, and no others. They carry no feed text, headlines, summaries, prose, finding messages, URLs, or hashes:
+Ledger schema version 2 rows contain exactly these fields, and no others. They carry no feed text, headlines, summaries, prose, finding messages, URLs, or hashes. The builder still reads a schema 1 ledger and upgrades each row with `generation_cost_usd` and `generation_unknown_cost_calls` set to `null`, then writes schema 2:
 
 | Field | Source and meaning |
 |---|---|
@@ -96,11 +96,12 @@ Ledger schema version 1 rows contain exactly these fields, and no others. They c
 | `fallback_used`, `failed_attempts` | `attempt_index > 1` and `attempt_index − 1`. For a blocked day, the number of `generation_failures`. |
 | `review_status`, `followup_status`, `review_complete` | `integrity.initial_review` / `followup_review` status, falling back to `semantic_audit.status` / `post_status`. `review_complete` is true only for a complete initial review, the same rule as the integrity report. |
 | `repair_decision` | `integrity.decision`: `original_retained`, `repaired_applied`, `partial_applied`, or `unpublished`. |
-| `review_stage_cost_usd`, `phase_costs_usd`, `unknown_cost_calls` | `semantic_audit.reported_cost_usd` and `unknown_cost_calls`, plus `integrity.costs` per phase (`initial_review`, `repair_generation`, `followup_review`). Original generation cost is not in the public record and is not carried. |
+| `generation_cost_usd`, `generation_unknown_cost_calls` | The `generation` entry of `integrity.costs`: the fallback chain's reported spend for the date across every attempt, including attempts that did not publish, and the number of its calls whose billing never arrived. Null for a date recorded before that phase existed. |
+| `review_stage_cost_usd`, `phase_costs_usd`, `unknown_cost_calls` | `semantic_audit.reported_cost_usd` and `unknown_cost_calls`, plus `integrity.costs` per review phase (`initial_review`, `repair_generation`, `followup_review`). |
 | `flags_raised`, `flags_confirmed` | Initial Jev checks whose confirmation label is not `not_flagged`, and those labeled `confirmed`. |
 | `findings_count`, `advisory_findings` | The entry's actionable finding count and number of advisory findings. |
 
-A field the source entry does not record is `null`, and the page renders it as "unknown"; it is never filled with zero. A legacy entry without provenance, a Jev audit, or an integrity record therefore keeps those fields null. The page reports the ready rate over all recorded days, published days by selected model and fallback use, repair outcomes on days with complete review, known review-stage cost per day with unknown-cost days marked, and a 28-day rolling ready rate. The rolling rate leaves dates with no record out of both counts. These are operational summaries of the daily integrity records. They are not an independent assessment, a grounding rate, or a quality measurement. Charts are inline SVG generated in Python, with every label escaped, and the page loads no script.
+A field the source entry does not record is `null`, and the page renders it as "unknown"; it is never filled with zero. A legacy entry without provenance, a Jev audit, or an integrity record therefore keeps those fields null. The page reports the ready rate over all recorded days, published days by selected model and fallback use, repair outcomes on days with complete review, known generation and review-stage cost per day with unknown-cost days marked, and a 28-day rolling ready rate. The rolling rate leaves dates with no record out of both counts. These are operational summaries of the daily integrity records. They are not an independent assessment, a grounding rate, or a quality measurement. Charts are inline SVG generated in Python, with every label escaped, and the page loads no script.
 
 ## Reader retirement and research evidence
 
@@ -165,6 +166,16 @@ fallback run. `integrity.repair_generation` separately identifies the actual rep
 provider/model and its recorded prompt hash. Jev is the judge rather than the
 prose author. Initial review, repair generation, and follow-up review have separate
 cost records; known spend is aggregated once and unknown billing is never zeroed.
+A fourth `generation` cost record carries the date's model-chain spend. Each
+fallback attempt records its own share of the shared generation allowance in
+the private chain log, and publication sums those shares, including attempts
+that failed or were quarantined, so the published figure is what the date cost
+rather than a running total across backfill dates. A standalone
+`run_briefing.py` run owns a fresh allowance, so its manifest's budget record
+is used instead. Any attempt without a recorded share makes the whole date's
+generation cost unknown; a partial sum would read as a total. The review
+phases still reconcile with the semantic audit's aggregate; the generation
+phase does not take part in that check.
 Semantic repair work is separate from original generation correction counters.
 
 ## Machine-readable history
@@ -183,7 +194,7 @@ not infer those identities.
 
 | Field | Contents |
 |---|---|
-| `integrity` | Bounded version-1 operational record: publication decision and fixed reasons, verified artifact hashes, original/repair identities, ordered phases and action references, separate coverage/costs, optional numeric workflow run identity, and typed corpus-health records. Null for unavailable history. Non-public entries expose status-only information. |
+| `integrity` | Bounded version-1 operational record: publication decision and fixed reasons, verified artifact hashes, original/repair identities, ordered phases and action references, separate coverage/costs, optional numeric workflow run identity, and typed corpus-health records. Null for unavailable history. Non-public entries expose status-only information plus the date's `generation` cost record, since a blocked day still paid for its failed attempts. |
 | `semantic_audit` | Public generated original/changed prose, initial and actual follow-up Jev scores and confirmations, repair outcomes and coverage/cost metadata; null without a valid audit or public artifact. No frozen feed excerpts or prompts. |
 | `date` | The Eastern report date the entry was labeled with. |
 | `disposition` | The run's publication disposition. |

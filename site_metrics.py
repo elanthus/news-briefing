@@ -11,6 +11,11 @@ carry feed text, headlines, summaries, prose, findings messages, URLs or
 hashes. A field the source entry does not record is ``null`` and renders as
 "unknown"; it is never filled with zero.
 
+Schema 2 adds the date's generation spend: the fallback chain's reported cost
+across every attempt, published as the integrity record's ``generation`` cost
+phase. A schema 1 ledger is read and upgraded with that spend unknown; rows
+recorded before the phase existed stay unknown rather than zero.
+
 The page is an operational summary of the daily integrity records. It is not
 an independent assessment, a grounding rate, or a quality measurement.
 """
@@ -27,7 +32,12 @@ from typing import Any
 
 from publication_schema import INTEGRITY_DECISIONS, Provenance
 
-LEDGER_SCHEMA_VERSION = 1
+LEDGER_SCHEMA_VERSION = 2
+# Older ledgers the builder still reads; each is upgraded row by row before
+# validation and written back at the current version.
+LEGACY_LEDGER_SCHEMA_VERSIONS = frozenset({1})
+# Fields schema 2 added; a schema 1 row lacks them and gets ``null``.
+SCHEMA_2_FIELDS = frozenset({"generation_cost_usd", "generation_unknown_cost_calls"})
 LEDGER_ROW_LIMIT = 100_000
 DISPOSITIONS = frozenset({"blocked", "degraded", "no_result", "ready", "rejected", "review_required"})
 REVIEW_STATUSES = frozenset({"complete", "partial", "failed"})
@@ -44,6 +54,7 @@ _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+\[\]-]{0,199}")
 ROW_FIELDS = frozenset({
     "date", "disposition", "provider", "model", "attempt_index", "attempt_count", "fallback_used",
     "failed_attempts", "review_status", "followup_status", "review_complete", "repair_decision",
+    "generation_cost_usd", "generation_unknown_cost_calls",
     "review_stage_cost_usd", "phase_costs_usd", "unknown_cost_calls", "flags_raised",
     "flags_confirmed", "findings_count", "advisory_findings",
 })
@@ -75,6 +86,17 @@ def _phase_costs(record: Mapping[str, Any] | None) -> dict[str, float | None] | 
     return {phase: recorded.get(phase) for phase in COST_PHASES}
 
 
+def _generation_cost(record: Mapping[str, Any] | None) -> tuple[float | None, int | None]:
+    """(known USD, unknown-cost calls) of the date's model chain, or unknown."""
+    if record is None:
+        return None, None
+    for cost in record["costs"]:
+        if cost["phase"] == "generation":
+            usd = cost["reported_cost_usd"]
+            return (None if usd is None else float(usd)), cost["unknown_cost_calls"]
+    return None, None
+
+
 def metrics_row(
     *,
     day: date,
@@ -97,6 +119,7 @@ def metrics_row(
         fallback_used = failed_attempts = None
     review_status = _review_status(integrity, semantic_audit, followup=False)
     checks = semantic_audit["checks"] if semantic_audit is not None else None
+    generation_usd, generation_unknown = _generation_cost(integrity)
     return {
         "date": day.isoformat(),
         "disposition": disposition,
@@ -111,6 +134,8 @@ def metrics_row(
         # Same rule as the integrity report's "complete review" wording.
         "review_complete": None if review_status is None else review_status == "complete",
         "repair_decision": integrity["decision"] if integrity is not None else None,
+        "generation_cost_usd": generation_usd,
+        "generation_unknown_cost_calls": generation_unknown,
         "review_stage_cost_usd": (
             float(semantic_audit["reported_cost_usd"]) if semantic_audit is not None else None
         ),
@@ -178,6 +203,8 @@ def parse_row(raw: object) -> dict[str, Any]:
     if raw["review_complete"] is not (None if raw["review_status"] is None else raw["review_status"] == "complete"):
         raise ValueError("metrics review_complete disagrees with review_status")
     _enum(raw["repair_decision"], INTEGRITY_DECISIONS)
+    _cost(raw["generation_cost_usd"])
+    _count(raw["generation_unknown_cost_calls"], limit=5000)
     _cost(raw["review_stage_cost_usd"])
     phases = raw["phase_costs_usd"]
     if phases is not None:
@@ -192,17 +219,25 @@ def parse_row(raw: object) -> dict[str, Any]:
     return raw
 
 
+def _upgrade_row(raw: object, version: int) -> object:
+    """Bring a legacy row to the current shape; every added field is unknown."""
+    if version == 1 and isinstance(raw, dict) and not (set(raw) & SCHEMA_2_FIELDS):
+        return {**raw, **{field: None for field in SCHEMA_2_FIELDS}}
+    return raw
+
+
 def parse_ledger(payload: object) -> list[dict[str, Any]]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "rows"}
         or type(payload["schema_version"]) is not int
-        or payload["schema_version"] != LEDGER_SCHEMA_VERSION
+        or payload["schema_version"] not in LEGACY_LEDGER_SCHEMA_VERSIONS | {LEDGER_SCHEMA_VERSION}
         or not isinstance(payload["rows"], list)
         or len(payload["rows"]) > LEDGER_ROW_LIMIT
     ):
         raise ValueError(f"metrics ledger must use schema_version {LEDGER_SCHEMA_VERSION} with a rows array")
-    rows = [parse_row(row) for row in payload["rows"]]
+    version = payload["schema_version"]
+    rows = [parse_row(_upgrade_row(row, version)) for row in payload["rows"]]
     dates = [row["date"] for row in rows]
     if len(set(dates)) != len(dates):
         raise ValueError("metrics ledger contains a duplicate date")
@@ -291,12 +326,37 @@ def _hbar_chart(label: str, bars: list[tuple[str, int, str]], total: int) -> str
     return "".join(parts)
 
 
+def _cost_unknown(row: Mapping[str, Any], stage: str) -> bool:
+    """True when a day's spend for ``stage`` is unknown or only partly known."""
+    if stage == "generation":
+        cost, calls = row["generation_cost_usd"], row["generation_unknown_cost_calls"]
+    else:
+        cost, calls = row["review_stage_cost_usd"], row["unknown_cost_calls"]
+    return cost is None or calls is None or calls > 0
+
+
+def _cost_tip(row: Mapping[str, Any]) -> str:
+    generation, review = row["generation_cost_usd"], row["review_stage_cost_usd"]
+    if generation is None and review is None:
+        return f"{row['date']}: cost unknown"
+    notes = []
+    for stage, cost in (("generation", generation), ("review stage", review)):
+        note = f"{stage} {_usd(cost)}"
+        if cost is not None:
+            note += " known" + (", plus calls of unknown cost" if _cost_unknown(row, stage.split()[0]) else "")
+        notes.append(note)
+    return f"{row['date']}: " + "; ".join(notes)
+
+
 def _cost_chart(rows: list[dict[str, Any]]) -> str:
+    """Two bars per recorded day: generation on the left, the Jev review stage on the right."""
     width, height, top, bottom = CHART_WIDTH, 180, 16, 30
-    known = [row["review_stage_cost_usd"] for row in rows if row["review_stage_cost_usd"] is not None]
+    known = [row[field] for row in rows for field in ("generation_cost_usd", "review_stage_cost_usd")
+             if row[field] is not None]
     ceiling = max(known, default=0.0) or 1.0
     step = width / max(len(rows), 1)
-    label = "Known Jev-stage cost per recorded day; days with unknown or partly unknown cost are marked"
+    label = ("Known generation (left bar) and Jev review-stage (right bar) cost per recorded day; "
+             "days with unknown or partly unknown cost are marked")
     parts = [
         f'<svg class="metrics-chart" viewBox="0 0 {width} {height}" role="img" aria-label="{_e(label)}" '
         'preserveAspectRatio="xMinYMin meet">',
@@ -305,25 +365,25 @@ def _cost_chart(rows: list[dict[str, Any]]) -> str:
     ]
     plot = height - top - bottom
     for index, row in enumerate(rows):
-        cost = row["review_stage_cost_usd"]
-        unknown_calls = row["unknown_cost_calls"]
-        x = index * step + step * 0.15
-        bar_width = max(step * 0.7, 1.0)
-        unknown = cost is None or unknown_calls is None or unknown_calls > 0
-        if cost is None:
-            tip = f"{row['date']}: cost unknown"
-        else:
-            tip = f"{row['date']}: {_usd(cost)} known" + (", plus calls of unknown cost" if unknown else "")
-        if cost is not None:
+        x = index * step + step * 0.1
+        slot = max(step * 0.8, 2.0)
+        bar_width = max(slot / 2 - 1.0, 1.0)
+        tip = _e(_cost_tip(row))
+        for offset, css, cost in (
+            (0.0, "chart-bar cost-generation", row["generation_cost_usd"]),
+            (slot / 2, "chart-bar cost-review", row["review_stage_cost_usd"]),
+        ):
+            if cost is None:
+                continue
             bar_height = plot * cost / ceiling
             parts.append(
-                f'<rect class="chart-bar" x="{x:.1f}" y="{height - bottom - bar_height:.1f}" '
-                f'width="{bar_width:.1f}" height="{bar_height:.1f}"><title>{_e(tip)}</title></rect>'
+                f'<rect class="{css}" x="{x + offset:.1f}" y="{height - bottom - bar_height:.1f}" '
+                f'width="{bar_width:.1f}" height="{bar_height:.1f}"><title>{tip}</title></rect>'
             )
-        if unknown:
+        if _cost_unknown(row, "generation") or _cost_unknown(row, "review"):
             parts.append(
-                f'<rect class="chart-unknown" x="{x:.1f}" y="{height - bottom + 4}" width="{bar_width:.1f}" '
-                f'height="6"><title>{_e(tip)}</title></rect>'
+                f'<rect class="chart-unknown" x="{x:.1f}" y="{height - bottom + 4}" width="{slot:.1f}" '
+                f'height="6"><title>{tip}</title></rect>'
             )
     if rows:
         parts.append(
@@ -471,15 +531,16 @@ def render_metrics_body(rows: list[dict[str, Any]]) -> str:
         + "</section>"
     )
 
-    unknown_days = sum(
-        1 for row in rows
-        if row["review_stage_cost_usd"] is None or row["unknown_cost_calls"] is None or row["unknown_cost_calls"] > 0
-    )
-    known = [row["review_stage_cost_usd"] for row in rows if row["review_stage_cost_usd"] is not None]
-    # With no known cost at all the total is unknown, not $0.
-    known_total = sum(known) if known else None
+    unknown_days = sum(1 for row in rows if _cost_unknown(row, "generation") or _cost_unknown(row, "review"))
+    generation_known = [row["generation_cost_usd"] for row in rows if row["generation_cost_usd"] is not None]
+    review_known = [row["review_stage_cost_usd"] for row in rows if row["review_stage_cost_usd"] is not None]
+    # With no known cost at all a total is unknown, not $0.
+    generation_total = sum(generation_known) if generation_known else None
+    review_total = sum(review_known) if review_known else None
     cost_rows = [
         [row["date"],
+         _usd(row["generation_cost_usd"]),
+         _unknown(row["generation_unknown_cost_calls"]),
          _usd(row["review_stage_cost_usd"]),
          *(_usd(row["phase_costs_usd"][phase]) if row["phase_costs_usd"] is not None else "unknown"
            for phase in COST_PHASES),
@@ -487,14 +548,19 @@ def render_metrics_body(rows: list[dict[str, Any]]) -> str:
         for row in reversed(rows)
     ]
     cost_section = (
-        '<section><h2 id="costs">Review-stage cost per day</h2>'
-        f"<p>Known Jev review, repair, and follow-up spend across recorded days: {_e(_usd(known_total))}. "
-        f"Days with unknown or partly unknown cost, marked below the axis: {_e(unknown_days)}. "
-        "Generation cost is not part of the public record, so it is not shown.</p>"
+        '<section><h2 id="costs">Cost per day</h2>'
+        f"<p>Known generation spend across recorded days: {_e(_usd(generation_total))}; days with unknown "
+        f"generation cost: {_e(sum(1 for row in rows if row['generation_cost_usd'] is None))}. "
+        f"Known Jev review, repair, and follow-up spend across recorded days: {_e(_usd(review_total))}. "
+        f"Days with unknown or partly unknown cost, marked below the axis: {_e(unknown_days)}.</p>"
+        "<p>Generation spend is the fallback chain's reported cost for the date across every attempt, "
+        "including attempts that did not publish. Dates recorded before that spend entered the public "
+        "record show unknown, as do calls whose billing never arrived.</p>"
         + _cost_chart(rows)
         + "<details><summary>Cost by day</summary>"
-        + _table("Review-stage cost by day",
-                 ["Date", "Known total", "Initial review", "Repair", "Follow-up", "Unknown-cost calls"],
+        + _table("Cost by day",
+                 ["Date", "Generation", "Generation unknown-cost calls", "Review-stage total",
+                  "Initial review", "Repair", "Follow-up", "Review unknown-cost calls"],
                  cost_rows)
         + "</details></section>"
     )

@@ -158,6 +158,27 @@ def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]
     write_json_atomic(root / LOG_NAME, payload)
 
 
+def _spend_snapshot(budget: GenerationBudget) -> tuple[float, int, int]:
+    return budget.known_spend_usd, budget.unknown_cost_calls, budget.calls
+
+
+def _attempt_spend(before: tuple[float, int, int], budget: GenerationBudget) -> dict[str, Any]:
+    """What one attempt added to the shared allowance.
+
+    The allowance is shared across every model in the chain and, on backfill,
+    across report dates, so its running totals cannot attribute spend to one
+    date. The difference around each attempt can: known USD the provider
+    reported, plus calls whose billing never arrived. Publication sums these
+    rows into the date's public ``generation`` cost.
+    """
+    known, unknown, calls = _spend_snapshot(budget)
+    return {
+        "known_usd": round(known - before[0], 12),
+        "unknown_cost_calls": unknown - before[1],
+        "calls": calls - before[2],
+    }
+
+
 def run_fallback_chain(
     settings: RunnerSettings,
     run_dir: Path,
@@ -177,6 +198,7 @@ def run_fallback_chain(
         candidate_name = _candidate_dir_name(index, candidate.model)
         candidate_dir = run_dir / candidate_name
         started = utc_now()
+        spend_before = _spend_snapshot(budget)
         result: RunResult | None = None
         failure: Exception | None = None
         try:
@@ -204,6 +226,7 @@ def run_fallback_chain(
                 "run_dir": candidate_name,
                 "failure_reason": None,
                 "failure": None,
+                "generation_spend": _attempt_spend(spend_before, budget),
             }
             attempts.append(row)
             _write_chain_logs(run_dir, started_at, attempts, budget)
@@ -222,6 +245,7 @@ def run_fallback_chain(
             "failure": run_failure(
                 manifest, failure.record() if isinstance(failure, ProviderError) else None
             ).payload(),
+            "generation_spend": _attempt_spend(spend_before, budget),
         }
         attempts.append(row)
         _write_chain_logs(run_dir, started_at, attempts, budget)
