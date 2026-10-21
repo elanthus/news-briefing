@@ -60,7 +60,7 @@ ITEM_REFERENCE = re.compile(r"\bitem_\d+\b", re.IGNORECASE)
 def _redact_text_destinations(value: str) -> str:
     decoded = value
     while True:
-        decoded_once = html.unescape(decoded)
+        decoded_once = eval_briefing.remove_backslash_escapes(html.unescape(decoded))
         if decoded_once == decoded:
             break
         decoded = decoded_once

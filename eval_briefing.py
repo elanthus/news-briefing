@@ -141,6 +141,10 @@ _WWW_URL = re.compile(r"(?<![\w@/.-])www\.[^\s<>\"']+", re.IGNORECASE)
 # keeps one grammar shared by checker and renderer instead of a hand-curated
 # TLD table chasing a third-party linkifier this stdlib-only checker cannot
 # import.
+# CommonMark removes a backslash before any ASCII punctuation, including inside
+# link destinations, so "https\://" and "https:\/\/" are live links to a
+# Markdown renderer even though neither spelling matches the grammar above.
+_BACKSLASH_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
 _LIST_ITEM = re.compile(r"^\s*[-*]\s+\S")
 _SLOT_SUFFIX = re.compile(r"\s*\(\d+\s+(?:slots?|stories)\)\s*$", re.IGNORECASE)
 
@@ -151,6 +155,11 @@ def _clean_link_url(value: str) -> str:
     while url.endswith(")") and url.count(")") > url.count("("):
         url = url[:-1].rstrip(".,;")
     return url
+
+
+def remove_backslash_escapes(text: str) -> str:
+    """Apply CommonMark backslash-escape removal to ``text``."""
+    return _BACKSLASH_ESCAPE.sub(r"\1", text)
 
 
 def url_spellings(text: str) -> list[tuple[int, int, str, str]]:
@@ -187,6 +196,9 @@ def output_urls(text: str) -> list[tuple[str, str]]:
     references are decoded in a second pass because browsers decode them in
     attributes. Raw destinations are masked first so semicolonless HTML named
     character references inside a legitimate bare URL cannot change its identity.
+    The masked text is also scanned with CommonMark backslash escapes removed,
+    alone and combined with entity decoding in either order, because a
+    Markdown renderer resolves both inside link destinations.
     """
     found: dict[str, str] = {}
     raw = url_spellings(text)
@@ -194,13 +206,20 @@ def output_urls(text: str) -> list[tuple[str, str]]:
         canonical = corpus_schema.canonicalize_url(absolute)
         found.setdefault(canonical, spelled)
 
-    masked = list(text)
+    masked_chars = list(text)
     for start, end, _spelled, _absolute in raw:
-        masked[start:end] = " " * (end - start)
-    decoded = html.unescape("".join(masked))
-    for _start, _end, spelled, absolute in url_spellings(decoded):
-        canonical = corpus_schema.canonicalize_url(absolute)
-        found.setdefault(canonical, spelled)
+        masked_chars[start:end] = " " * (end - start)
+    masked = "".join(masked_chars)
+    decodings = (
+        html.unescape(masked),
+        remove_backslash_escapes(masked),
+        html.unescape(remove_backslash_escapes(masked)),
+        remove_backslash_escapes(html.unescape(masked)),
+    )
+    for decoded in decodings:
+        for _start, _end, spelled, absolute in url_spellings(decoded):
+            canonical = corpus_schema.canonicalize_url(absolute)
+            found.setdefault(canonical, spelled)
     return list(found.items())
 
 

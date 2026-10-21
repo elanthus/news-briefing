@@ -241,6 +241,14 @@ class BriefingOutputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "destination-bearing dictionary key"):
             project_corpus(injected)
 
+    def test_redaction_removes_backslash_escaped_destinations(self):
+        for spelling in (r"https\://attacker.invalid/colon",
+                         r"https:\/\/attacker.invalid/slash",
+                         r"https\:&#47;&#47;attacker.invalid/mixed"):
+            with self.subTest(spelling=spelling):
+                self.assertNotIn(
+                    "attacker.invalid", redact_destinations(f"see [x]({spelling})"))
+
     def test_preview_redaction_handles_destinations_in_keys_and_values(self):
         preview = redact_preview_value({
             "https://attacker.invalid/key": "https://attacker.invalid/value",

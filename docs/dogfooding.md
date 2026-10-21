@@ -41,6 +41,16 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 - Reference checker: 0 errors, 0 warnings against `fixtures/corpus-2026-08-09.json` and `fixtures/briefing-2026-08-09.md`.
 - This is a fetch-only check, not a complete run: no model step was involved. It is also a *different* fetch from the one recorded below, an hour or so earlier in the day — same window length, different contents, which is what live retrieval looks like.
 
+## Security findings
+
+### 2026-10-20 — CommonMark backslash-escaped link destinations
+
+- Finding: `eval_briefing.output_urls` did not detect a Markdown link whose destination was written `https\://host/path` or `https:\/\/host/path`. CommonMark removes a backslash before ASCII punctuation inside a link destination, so `build_site._render_markdown` rendered both as a live `<a href="https://host/path">`. The checker's grammar matched neither spelling, so an ungrounded destination passed complete-output grounding. The runner's `freeform_url` check in `agent_runner/output.py` and `redact_destinations` use the same grammar and had the same gap.
+- Root cause: the checker and the renderer parsed link destinations with two different grammars. The checker already decoded HTML character references, but the renderer also resolved backslash escapes.
+- Fix, checker side: `output_urls` scans the masked text again with backslash escapes removed, alone and combined with HTML decoding in either order. `redact_destinations` removes backslash escapes along with HTML character references before redacting.
+- Fix, renderer side: `_render_markdown` disables markdown-it's `link`, `image`, and `reference` rules. A model-authored Markdown link, image, or reference definition now renders as inert text. Only the code-owned `🔗` citation autolinks produce an `<a>`. The renderer no longer needs to mirror the checker's grammar for Markdown link syntax.
+- Regression tests: `tests/test_eval_briefing.py` (`GroundingTest.test_rejects_every_output_link_bypass_outside_citation_markers`), `tests/test_briefing_output.py` (`test_redaction_removes_backslash_escaped_destinations`), and `tests/site_test_build.py` (`BriefingDecorationTests.test_model_markdown_links_and_images_render_inert`). Each test failed before the fix.
+
 ## Daily runs
 
 The archived corpora below use corpus schemas v3–v5. Current code accepts only v7 and rejects them, so each reproduce command first checks out `47e19ff` (2026-08-17). That commit contains every archived run below, and its checker loads them and reproduces the recorded results. Run them in a separate worktree (`git worktree add ../news-briefing-47e19ff 47e19ff`) if you don't want to leave your branch, or run `git switch -` afterwards to return to it.
