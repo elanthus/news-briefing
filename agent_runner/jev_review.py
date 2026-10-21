@@ -27,6 +27,7 @@ from agent_runner.output import (
     project_selected_evidence,
     redact_destinations,
     redact_opaque_references,
+    redecode_redacted_text,
     validate_output,
     validate_selection,
 )
@@ -125,10 +126,10 @@ def load_verified_run(run_dir: Path) -> VerifiedRun:
         raise ValueError("final attempt is not unique")
     candidate = verified(matches[0].get("structured_artifact"))
     frozen = verified("frozen-selection.json")
-    evidence = verified("selected-evidence.json")
+    recorded = verified("selected-evidence.json")
     corpus = verified("corpus.json")
     config = briefing_config.parse_config(verified("briefing-config.json"))
-    if not all(isinstance(value, dict) for value in (candidate, frozen, evidence, corpus)):
+    if not all(isinstance(value, dict) for value in (candidate, frozen, recorded, corpus)):
         raise ValueError("review inputs must be objects")
     if corpus_schema.validate_corpus(corpus):
         raise ValueError("review corpus fails the corpus contract")
@@ -137,7 +138,11 @@ def load_verified_run(run_dir: Path) -> VerifiedRun:
         finding.level == "ERROR" for finding in validate_output(candidate, config, projected.citations)
     ):
         raise ValueError("review input fails the structured contract")
-    if project_selected_evidence(frozen, projected) != evidence:
+    # Runs recorded before #291 keep backslash escapes inside the strings the
+    # projection masks. Only those recorded strings are re-decoded, the
+    # comparison stays exact, and consumers receive the projection itself.
+    evidence = project_selected_evidence(frozen, projected)
+    if redecode_redacted_text(recorded) != evidence:
         raise ValueError("recorded evidence differs from the frozen corpus projection")
     topics: list[dict[str, Any]] = []
     for bucket in ("sections", "excluded_topics"):
