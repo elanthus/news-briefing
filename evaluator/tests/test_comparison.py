@@ -3,13 +3,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
-from evaluator.comparison import compare_runs, markdown_comparison
+from evaluator.comparison import (
+    HISTORICAL_POLICIES,
+    REGRESSION_POLICY,
+    _promotion_decision,
+    compare_runs,
+    markdown_comparison,
+    regression_policy_for_sha256,
+)
 from evaluator.metrics import percentile, rate, wilson_interval
 
 
@@ -22,6 +30,21 @@ class MetricTest(unittest.TestCase):
         self.assertLess(low, 0.7)
         self.assertGreater(high, 0.7)
         self.assertIsNone(wilson_interval(0, 0))
+
+    def test_wilson_interval_boundaries_match_closed_form(self) -> None:
+        # At 0/n and n/n the Wilson bounds reduce to z²/(n+z²) and n/(n+z²),
+        # with z = 1.959963984540054 (two-sided 95%).
+        for trials, outer in ((10, 0.2775327998628892), (30, 0.11351339317396875)):
+            with self.subTest(trials=trials):
+                low, high = wilson_interval(0, trials) or [math.nan, math.nan]
+                self.assertEqual(low, 0.0)
+                self.assertAlmostEqual(high, outer, places=12)
+                low, high = wilson_interval(trials, trials) or [math.nan, math.nan]
+                self.assertAlmostEqual(low, 1.0 - outer, places=12)
+                self.assertAlmostEqual(high, 1.0, places=12)
+        # Published Parity v3 cells: 0/30 → [0.0, 11.4] and 20/26 → [57.9, 89.0].
+        self.assertEqual([round(value * 100, 1) for value in wilson_interval(0, 30) or []], [0.0, 11.4])
+        self.assertEqual([round(value * 100, 1) for value in wilson_interval(20, 26) or []], [57.9, 89.0])
 
     def test_percentile_interpolates_and_validates_input(self) -> None:
         self.assertEqual(percentile([0.0, 10.0], 0.25), 2.5)
@@ -212,6 +235,143 @@ class ComparisonTest(unittest.TestCase):
             decision["gated_outcome"],
             "inconclusive_pending_human_grounding",
         )
+
+    def _multi_model_result(
+        self,
+        outcomes: dict[str, list[tuple[bool, bool]]],
+        *,
+        policy_path: Path = REGRESSION_POLICY,
+        samples: int = 2_000,
+    ) -> dict[str, Any]:
+        """Compare per-model utility outcomes given as (baseline, candidate) per authored case."""
+        prompts = ("production-2026-08", "reliability-v1")
+        rows: list[dict[str, Any]] = []
+        for model, cases in outcomes.items():
+            for index, pair in enumerate(cases):
+                for prompt, success in zip(prompts, pair, strict=True):
+                    row = self._row(prompt, f"utility-{index}", 0, success)
+                    row["model"] = model
+                    row["final"]["human_grounding_reviewed_topics"] = 2
+                    row["final"]["human_grounding_error_topics"] = 0
+                    rows.append(row)
+            # Attack non-inferiority needs an attack interval; no attack succeeds.
+            for prompt in prompts:
+                attack = self._row(prompt, "attack-case", 0)
+                attack["model"] = model
+                attack["case_kind"] = "attack"
+                rows.append(attack)
+        manifest = {
+            **self._provenance(*prompts),
+            "generation_controls": [
+                {"provider": "provider", "model": model, "temperature": 0} for model in outcomes
+            ],
+            "suite_sha256": "suite",
+            "run_kind": "final",
+            "trials_per_case": 1,
+            "run_status": "complete",
+            "planned_case_trials": len(rows),
+            "results": rows,
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            path = Path(temporary_dir) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            return compare_runs(path, path, bootstrap_samples=samples, seed=7, policy_path=policy_path)
+
+    def test_utility_point_estimate_above_threshold_fails_when_interval_includes_zero(self) -> None:
+        # Two of ten cases improve and one regresses: +10 pp, but resampling the
+        # authored cases puts the lower bound at or below zero.
+        cases = [(False, True), (False, True), (True, False)] + [(True, True)] * 7
+        result = self._multi_model_result({"model": cases})
+        decision = result["comparisons"][0]["decision"]
+        utility = decision["rules"]["utility"]
+        self.assertAlmostEqual(utility["point_estimate"], 0.1)
+        self.assertTrue(utility["point_estimate_met"])
+        self.assertLessEqual(utility["ci95_case_cluster_bootstrap"][0], 0.0)
+        self.assertFalse(utility["lower_bound_met"])
+        self.assertFalse(decision["minimum_utility_improvement_met"])
+        self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
+        self.assertEqual(result["regression_policy_version"], 2)
+
+        # The archived version 1 policy tested the point estimate alone and passed it.
+        legacy = self._multi_model_result(
+            {"model": cases}, policy_path=HISTORICAL_POLICIES / "regression-policy-v1.json"
+        )
+        legacy_decision = legacy["comparisons"][0]["decision"]
+        self.assertTrue(legacy_decision["minimum_utility_improvement_met"])
+        self.assertNotIn("rules", legacy_decision)
+        self.assertNotIn("promotion", legacy)
+        self.assertEqual(legacy["schema_version"], 1)
+
+    def test_utility_rule_passes_when_interval_excludes_zero(self) -> None:
+        result = self._multi_model_result({"model": [(False, True)] * 4})
+        utility = result["comparisons"][0]["decision"]["rules"]["utility"]
+        self.assertEqual(utility["ci95_case_cluster_bootstrap"], [1.0, 1.0])
+        self.assertTrue(utility["met"])
+        self.assertEqual(result["promotion"]["decision"], "promote_candidate")
+
+    def test_promotion_requires_every_model_under_all_models(self) -> None:
+        outcomes = {"passes": [(False, True)] * 4, "fails": [(True, True)] * 4}
+        result = self._multi_model_result(outcomes)
+        per_model = {row["model"]: row["decision"]["gated_outcome"] for row in result["comparisons"]}
+        self.assertEqual(per_model, {"passes": "promote_candidate", "fails": "do_not_promote_candidate"})
+        self.assertEqual(result["promotion"], {
+            "requires": "all_models",
+            "models_evaluated": 2,
+            "models_promoting": 1,
+            "decision": "do_not_promote_candidate",
+        })
+        self.assertIn(
+            "Promotion decision (all_models, 1/2 models promoting): do_not_promote_candidate",
+            markdown_comparison(result),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            policy = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
+            policy["promotion_rule"]["promotion_requires"] = "any_model"
+            any_policy = Path(temporary_dir) / "policy.json"
+            any_policy.write_text(json.dumps(policy), encoding="utf-8")
+            any_result = self._multi_model_result(outcomes, policy_path=any_policy)
+            self.assertEqual(any_result["promotion"]["requires"], "any_model")
+            self.assertEqual(any_result["promotion"]["decision"], "promote_candidate")
+
+            policy["promotion_rule"]["promotion_requires"] = "most_models"
+            any_policy.write_text(json.dumps(policy), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "promotion_requires"):
+                self._multi_model_result(outcomes, policy_path=any_policy)
+
+    def test_promotion_decision_combines_outcomes(self) -> None:
+        promote, block, pending, descriptive = (
+            "promote_candidate",
+            "do_not_promote_candidate",
+            "inconclusive_pending_human_grounding",
+            "not_gate_eligible_descriptive_comparison",
+        )
+        cases = [
+            ([promote, promote], promote, promote),
+            ([promote, block], block, promote),
+            ([promote, pending], pending, promote),
+            ([block, pending], block, pending),
+            ([block, block], block, block),
+            ([descriptive, promote], descriptive, descriptive),
+            ([], descriptive, descriptive),
+        ]
+        for outcomes, all_models, any_model in cases:
+            with self.subTest(outcomes=outcomes):
+                self.assertEqual(_promotion_decision(outcomes, "all_models"), all_models)
+                self.assertEqual(_promotion_decision(outcomes, "any_model"), any_model)
+
+    def test_policy_is_resolved_by_recorded_sha256(self) -> None:
+        archived = HISTORICAL_POLICIES / "regression-policy-v1.json"
+        for path in (REGRESSION_POLICY, archived):
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.assertEqual(regression_policy_for_sha256(digest), path)
+        current = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
+        self.assertEqual(
+            current["supersedes"]["sha256"],
+            hashlib.sha256(archived.read_bytes()).hexdigest(),
+        )
+        with self.assertRaisesRegex(ValueError, "no current or archived"):
+            regression_policy_for_sha256("0" * 64)
 
     def test_incompatible_suite_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -415,6 +575,8 @@ class CommittedComparisonTest(unittest.TestCase):
             allow_descriptive=True,
             bootstrap_samples=committed["bootstrap"]["samples"],
             seed=committed["bootstrap"]["seed"],
+            # Regenerate under the exact policy bytes the committed file records.
+            policy_path=regression_policy_for_sha256(committed["regression_policy_sha256"]),
         )
         # The published file records repository-relative manifest paths.
         result["baseline_manifest"] = committed["baseline_manifest"]

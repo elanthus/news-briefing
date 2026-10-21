@@ -14,7 +14,7 @@ from typing import TextIO
 from evaluator.adapters import Adapter, adapter_for, load_dotenv, production_adapter_for
 from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
 from evaluator.cases import run_deterministic_suite
-from evaluator.comparison import compare_runs, markdown_comparison
+from evaluator.comparison import REGRESSION_POLICY, compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
 from evaluator.preflight import preflight_run
@@ -270,6 +270,10 @@ def main() -> int:
     compare.add_argument("--allow-descriptive", action="store_true")
     compare.add_argument("--bootstrap-samples", type=int, default=10_000)
     compare.add_argument("--seed", type=int, default=1729)
+    compare.add_argument(
+        "--regression-policy", type=Path, default=REGRESSION_POLICY,
+        help="policy file; pass an archived evaluator/policies/ file to regenerate a historical comparison",
+    )
     compare.add_argument("--output", type=Path)
 
     quality = subparsers.add_parser(
@@ -370,6 +374,7 @@ def main() -> int:
                 allow_descriptive=args.allow_descriptive,
                 bootstrap_samples=args.bootstrap_samples,
                 seed=args.seed,
+                policy_path=args.regression_policy,
             )
             output_path = args.output
             if output_path:
