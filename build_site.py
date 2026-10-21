@@ -204,6 +204,7 @@ ins { text-decoration: underline; background: #298a2930; } del { background: #bd
 .metrics-chart text { fill: var(--text); font-family: var(--sans); font-size: 15px; }
 .metrics-chart .chart-value { fill: var(--muted); }
 .chart-bar { fill: var(--accent); } .chart-unknown { fill: var(--warn); }
+.chart-bar.cost-generation { fill: var(--accent); } .chart-bar.cost-review { fill: var(--muted); }
 .chart-bar.disposition-ready { fill: var(--ok); } .chart-bar.disposition-blocked { fill: var(--bad); }
 .chart-axis, .chart-grid { stroke: var(--rule); } .chart-grid { stroke-dasharray: 4 4; }
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2; } .chart-point { fill: var(--accent); }
@@ -1895,6 +1896,11 @@ def _provenance_and_costs(entry: BriefingEntry) -> str:
             "</ol><p>Phase order records execution; it does not imply measured durations.</p>"
         )
         for cost in record["costs"]:
+            phase_label = (
+                "generation (every attempt in the fallback chain)"
+                if cost["phase"] == "generation"
+                else cost["phase"].replace("_", " ")
+            )
             spend = (
                 "unavailable"
                 if cost["reported_cost_usd"] is None
@@ -1906,7 +1912,7 @@ def _provenance_and_costs(entry: BriefingEntry) -> str:
                 else str(cost["unknown_cost_calls"])
             )
             parts.append(
-                f"<p>{cost['phase'].replace('_', ' ')}: reported {spend}; unknown billing calls: {unknown}.</p>"
+                f"<p>{phase_label}: reported {spend}; unknown billing calls: {unknown}.</p>"
             )
         if record["artifacts"]:
             parts.append("<h3>Artifact digests (SHA-256)</h3><ul>" + "".join(

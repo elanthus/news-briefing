@@ -9,6 +9,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_runner.budget import GenerationBudget
 from agent_runner.models import ProviderError
 from agent_runner.runner import RunnerSettings, RunResult
 from run_daily_briefing import PRODUCTION_MODEL_CHAIN, run_fallback_chain
@@ -172,6 +173,59 @@ class DailyBriefingFallbackTests(unittest.TestCase):
         self.assertEqual(log["attempts"][0]["failure"]["status_code"], 404)
         self.assertIn("READY", stdout.getvalue())
         self.assertIn("FAILED", stderr.getvalue())
+
+    def test_attempt_rows_record_their_share_of_the_shared_allowance(self) -> None:
+        # The allowance is shared across the chain (and across backfill dates),
+        # so each attempt records what it added: the only per-date attribution.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self._settings(root)
+            budget = GenerationBudget()
+            budget.known_spend_usd, budget.calls = 1.5, 7  # spend from an earlier backfill date
+
+            def fake_run(provider, run_settings, run_dir, *, budget):
+                run_dir.mkdir(parents=True)
+                budget.reserve("prompt", {}, 10, 60)
+                if provider.model == "tencent/hy3":
+                    budget.settle(0.004)  # billed, then the attempt failed anyway
+                    raise ProviderError("openrouter HTTP 500", transient=False, status_code=500)
+                if provider.model == "deepseek/deepseek-v4-flash-0731":
+                    budget.settle(None)  # billing never arrived
+                    preview = run_dir / "preview.md"
+                    preview.write_text("quarantined\n", encoding="utf-8")
+                    (run_dir / "manifest.json").write_text(json.dumps({
+                        "status": "complete", "final": {"status": "rejected", "findings": []},
+                    }), encoding="utf-8")
+                    return RunResult(1, run_dir, preview, "rejected")
+                budget.settle(0.002)
+                budget.reserve("prose", {}, 10, 60)
+                budget.settle(0.002)
+                content = b"ready report\n"
+                (run_dir / "final.md").write_bytes(content)
+                run_settings.output_path.write_bytes(content)
+                digest = hashlib.sha256(content).hexdigest()
+                (run_dir / "manifest.json").write_text(json.dumps({
+                    "status": "complete", "artifacts": {"final.md": digest},
+                    "final": {"status": "ready", "artifact_type": "final", "run_artifact": "final.md",
+                              "output_sha256": digest},
+                }), encoding="utf-8")
+                return RunResult(0, run_dir, run_settings.output_path, "ready")
+
+            with (
+                patch("run_daily_briefing.run_workflow", side_effect=fake_run),
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()),
+            ):
+                result = run_fallback_chain(settings, root / "run", max_tokens=100_000, budget=budget)
+            log = json.loads((root / "run/fallback-log.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ready")
+        spends = [row["generation_spend"] for row in log["attempts"]]
+        self.assertEqual([s["calls"] for s in spends], [1, 1, 2])
+        self.assertEqual([s["unknown_cost_calls"] for s in spends], [0, 1, 0])
+        self.assertEqual([round(s["known_usd"], 6) for s in spends], [0.004, 0.0, 0.004])
+        # The earlier date's spend never leaks into this date's rows.
+        self.assertAlmostEqual(log["generation_budget"]["known_spend_usd"], 1.508)
+        self.assertEqual(log["generation_budget"]["calls"], 11)
 
     def test_ready_primary_stops_before_fallback_models(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

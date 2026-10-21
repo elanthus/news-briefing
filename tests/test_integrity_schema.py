@@ -190,6 +190,47 @@ class IntegritySchemaTests(unittest.TestCase):
         raw.update(generation=None, repair_generation=None, artifacts=[], phases=[], actions=[],
                    initial_review=None, followup_review=None, costs=[])
         self.assertIsNotNone(parse_integrity(raw, disposition="no_result"))
+        # A blocked day still paid for its failed attempts: the generation cost
+        # is a number, not model text, so it is the one cost a status-only
+        # record may carry; a review-phase cost still is not.
+        raw["costs"] = [{"phase": "generation", "reported_cost_usd": 0.02, "unknown_cost_calls": 1}]
+        self.assertIsNotNone(parse_integrity(raw, disposition="blocked"))
+        raw["costs"].append({"phase": "initial_review", "reported_cost_usd": 0.01, "unknown_cost_calls": 0})
+        with self.assertRaisesRegex(ValueError, "status-only privacy"):
+            parse_integrity(raw, disposition="blocked")
+
+    def test_generation_cost_phase_is_accepted_and_kept_out_of_the_review_aggregate(self):
+        raw = integrity_fixture()
+        generation = {"phase": "generation", "reported_cost_usd": 0.5, "unknown_cost_calls": 2}
+        raw["costs"].insert(0, generation)
+        # The three review phases still sum to the audit's 0.03; generation does not join them.
+        parsed = parse_integrity(raw, semantic_audit=audit_fixture())
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["costs"][0], generation)
+        # An accepted repair still needs known billing in each review phase, and
+        # an unknown generation cost does not disturb that.
+        raw["costs"][0] = {"phase": "generation", "reported_cost_usd": None, "unknown_cost_calls": None}
+        self.assertIsNotNone(parse_integrity(raw, semantic_audit=audit_fixture()))
+        raw["costs"][1]["unknown_cost_calls"] = 1
+        audit = audit_fixture()
+        audit["unknown_cost_calls"] = 1  # the review aggregate agrees; acceptance still refuses it
+        with self.assertRaisesRegex(ValueError, "known billing in each phase"):
+            parse_integrity(raw, semantic_audit=audit)
+
+    def test_generation_cost_phase_is_unique_and_bounded(self):
+        raw = integrity_fixture()
+        raw["costs"].insert(0, {"phase": "generation", "reported_cost_usd": 0.5, "unknown_cost_calls": 0})
+        raw["costs"].insert(0, {"phase": "generation", "reported_cost_usd": 0.1, "unknown_cost_calls": 0})
+        with self.assertRaisesRegex(ValueError, "costs|duplicate"):
+            parse_integrity(raw, semantic_audit=audit_fixture())
+        raw = integrity_fixture()
+        raw["costs"].insert(0, {"phase": "generation", "reported_cost_usd": 100.5, "unknown_cost_calls": 0})
+        with self.assertRaisesRegex(ValueError, "invalid integrity cost"):
+            parse_integrity(raw, semantic_audit=audit_fixture())
+        raw = integrity_fixture()
+        raw["costs"].insert(0, {"phase": "model_chain", "reported_cost_usd": 0.1, "unknown_cost_calls": 0})
+        with self.assertRaises(ValueError):
+            parse_integrity(raw, semantic_audit=audit_fixture())
 
     def test_one_story_action_can_reference_its_full_bounded_question_set(self):
         raw, audit = integrity_fixture(), audit_fixture()

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass, replace
@@ -196,6 +197,60 @@ def _chain_attempt_span(run_dir: Path, selected_dir_name: str) -> tuple[int, int
             ):
                 return index, attempt_count
     return 1, attempt_count
+
+
+def _unknown_generation_cost() -> dict[str, Any]:
+    return {"phase": "generation", "reported_cost_usd": None, "unknown_cost_calls": None}
+
+
+def _spend_usd(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        return None
+    return float(value)
+
+
+def _spend_calls(value: object) -> int | None:
+    return value if type(value) is int and value >= 0 else None
+
+
+def _generation_cost(run_dir: Path, original_manifest: object) -> dict[str, Any]:
+    """The date's generation spend as a public cost phase, or explicitly unknown.
+
+    A daily chain records every attempt's share of the shared allowance in the
+    fallback log, so the date's spend is the sum over all attempts, including
+    the ones that did not publish. A standalone ``run_briefing.py`` run owns a
+    fresh allowance, so its manifest's budget record is exact. Any attempt
+    without a recorded share makes the whole date unknown: a partial sum would
+    read as a total.
+    """
+    fallback = _load_json(run_dir / FALLBACK_LOG_NAME)
+    known, unknown = 0.0, 0
+    if isinstance(fallback, dict):
+        attempts = fallback.get("attempts")
+        if not isinstance(attempts, list):
+            return _unknown_generation_cost()
+        for row in attempts:
+            spend = row.get("generation_spend") if isinstance(row, dict) else None
+            usd = _spend_usd(spend.get("known_usd")) if isinstance(spend, dict) else None
+            calls = _spend_calls(spend.get("unknown_cost_calls")) if isinstance(spend, dict) else None
+            if usd is None or calls is None:
+                return _unknown_generation_cost()
+            known += usd
+            unknown += calls
+    elif isinstance(original_manifest, dict):
+        record = original_manifest.get("generation_budget")
+        usd = _spend_usd(record.get("known_spend_usd")) if isinstance(record, dict) else None
+        calls = _spend_calls(record.get("unknown_cost_calls")) if isinstance(record, dict) else None
+        if usd is None or calls is None:
+            return _unknown_generation_cost()
+        known, unknown = usd, calls
+    else:
+        return _unknown_generation_cost()
+    if known > 100 or unknown > 5000:
+        print(f"warning: {run_dir} generation spend exceeds the public record bounds; published as unknown",
+              file=sys.stderr)
+        return _unknown_generation_cost()
+    return {"phase": "generation", "reported_cost_usd": known, "unknown_cost_calls": unknown}
 
 
 def _review_context(
@@ -444,6 +499,9 @@ def prepare_publication(
         integrity["generation"] = provenance_payload(provenance) if provenance is not None else None
         if not any(p["phase"] == "publication_verification" for p in integrity["phases"]):
             add_phase(integrity, "publication_verification", "complete")
+    # Generation spend is published for every disposition: a blocked day still
+    # paid for its failed attempts, and that is the cost a reader most needs.
+    integrity["costs"].insert(0, _generation_cost(run_dir, original_manifest))
     integrity["workflow_run_id"] = parse_workflow_run_id(workflow_run_id)
     verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
                        if original_generation_dir is not None and isinstance(original_manifest, dict) else None)

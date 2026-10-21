@@ -379,6 +379,10 @@ INTEGRITY_PHASES = {
     "selection_repair", "prose_repair", "candidate_validation", "followup_review", "partial_assembly",
     "publication_verification",
 }
+# ``generation`` is the date's model-chain spend across every attempt; the
+# three review phases are Jev-stage spend and reconcile with the audit total.
+REVIEW_COST_PHASES = ("initial_review", "repair_generation", "followup_review")
+INTEGRITY_COST_PHASES = ("generation", *REVIEW_COST_PHASES)
 INTEGRITY_ACTIONS = {
     "selection_correction", "prose_correction", "remove_source", "selection_repair", "prose_repair",
     "promotion", "publication", "withhold_repair", "apply_repair",
@@ -675,21 +679,24 @@ def parse_integrity(
                 raise ValueError("integrity partial assembly action is invalid")
             assembled[outcome].append(subjects[0])
     costs: dict[str, dict[str, Any]] = {}
-    for value in _integrity_list(record["costs"], 3, "costs"):
+    for value in _integrity_list(record["costs"], len(INTEGRITY_COST_PHASES), "costs"):
         cost = _integrity_object(value, {"phase", "reported_cost_usd", "unknown_cost_calls"}, "cost")
-        key = _integrity_enum(cost["phase"], {"initial_review", "repair_generation", "followup_review"})
+        key = _integrity_enum(cost["phase"], set(INTEGRITY_COST_PHASES))
         if key in costs:
             raise ValueError("duplicate integrity cost phase")
         costs[key] = cost
         _integrity_cost(cost["reported_cost_usd"])
         if cost["unknown_cost_calls"] is not None:
             _integrity_int(cost["unknown_cost_calls"])
-    if audit is not None and costs and all(
-        c["reported_cost_usd"] is not None and c["unknown_cost_calls"] is not None for c in costs.values()
+    # Generation spend is model-chain billing; only the review phases must add
+    # up to the semantic audit's aggregate.
+    review_costs = {key: cost for key, cost in costs.items() if key in REVIEW_COST_PHASES}
+    if audit is not None and review_costs and all(
+        c["reported_cost_usd"] is not None and c["unknown_cost_calls"] is not None for c in review_costs.values()
     ):
-        if (not math.isclose(sum(c["reported_cost_usd"] for c in costs.values()),
+        if (not math.isclose(sum(c["reported_cost_usd"] for c in review_costs.values()),
                              audit["reported_cost_usd"], rel_tol=0, abs_tol=1e-8)
-                or sum(c["unknown_cost_calls"] for c in costs.values()) != audit["unknown_cost_calls"]):
+                or sum(c["unknown_cost_calls"] for c in review_costs.values()) != audit["unknown_cost_calls"]):
             raise ValueError("integrity costs disagree with semantic aggregate")
     eligible = {_integrity_position(p) for row in initial_rows
                 if row["confirmation_label"] == "confirmed" and row["check"] != "duplicate"
@@ -720,16 +727,18 @@ def parse_integrity(
                 if position in affected and topic["removed_evidence_count"] != len(removals.get(position, set())):
                     raise ValueError("integrity source removals disagree with semantic repair count")
     if accepted:
-        _integrity_acceptance(record, initial, followup, phases, costs, affected, eligible, followup_rows)
+        _integrity_acceptance(record, initial, followup, phases, review_costs, affected, eligible, followup_rows)
     run_id = record["workflow_run_id"]
     if run_id is not None and (type(run_id) is not int or parse_workflow_run_id(run_id) is None):
         raise ValueError("invalid workflow run identifier")
     _integrity_health(record["corpus_health"])
     if (decision == "unpublished" or disposition in {"rejected", "no_result", "blocked"}) and (
         record["generation"] is not None or record["repair_generation"] is not None or artifacts or actions
-        or audit is not None or initial is not None or followup is not None or costs
+        or audit is not None or initial is not None or followup is not None or review_costs
         or any(p["phase"] != "publication_verification" for p in phases.values())
     ):
+        # A blocked day still paid for its failed attempts: the generation cost
+        # phase is a number, not model or provider text, so it stays.
         raise ValueError("unpublished integrity must preserve status-only privacy")
     return record
 
@@ -757,7 +766,7 @@ def _integrity_acceptance(
         raise ValueError("accepted integrity repair requires complete initial and follow-up review")
     if not affected or not affected <= eligible:
         raise ValueError("accepted integrity repair is outside confirmed targets")
-    if set(costs) != {"initial_review", "repair_generation", "followup_review"} or any(
+    if set(costs) != set(REVIEW_COST_PHASES) or any(
         cost["reported_cost_usd"] is None or cost["unknown_cost_calls"] != 0 for cost in costs.values()
     ):
         raise ValueError("accepted integrity repair requires known billing in each phase")

@@ -860,6 +860,118 @@ class PreparePublicationTests(unittest.TestCase):
             self.assertEqual(sidecar["provenance"]["attempt_index"], 2)
             self.assertEqual(sidecar["provenance"]["attempt_count"], 3)
 
+    @staticmethod
+    def _generation_cost(record) -> dict[str, object]:
+        costs = [cost for cost in record.integrity["costs"] if cost["phase"] == "generation"]
+        assert len(costs) == 1, record.integrity["costs"]
+        return costs[0]
+
+    def _ready_chain(self, root: Path, attempts: list[dict[str, object]]) -> Path:
+        chain = root / "run"
+        selected = chain / "02-deepseek-deepseek-v4-flash-0731"
+        selected.mkdir(parents=True)
+        content = b"fallback briefing\n"
+        (selected / "final.md").write_bytes(content)
+        self._write_manifest(selected, "ready", "final", "final.md", content, [],
+                             provider="openrouter", model="deepseek/deepseek-v4-flash-0731",
+                             prompt_sha256="b" * 64)
+        (chain / "fallback-log.json").write_text(json.dumps({
+            "status": "ready", "selected_run_dir": selected.name,
+            "selected_model": "deepseek/deepseek-v4-flash-0731",
+            "model_chain": ["tencent/hy3", "deepseek/deepseek-v4-flash-0731", "google/gemini-3.7-flash"],
+            "attempts": attempts,
+        }), encoding="utf-8")
+        return chain
+
+    def test_generation_cost_sums_every_chain_attempt_including_failed_ones(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = self._ready_chain(root, [
+                {"index": 1, "model": "tencent/hy3", "status": "failed", "run_dir": "01-tencent-hy3",
+                 "generation_spend": {"known_usd": 0.0125, "unknown_cost_calls": 1, "calls": 2}},
+                {"index": 2, "model": "deepseek/deepseek-v4-flash-0731", "status": "ready",
+                 "run_dir": "02-deepseek-deepseek-v4-flash-0731",
+                 "generation_spend": {"known_usd": 0.03, "unknown_cost_calls": 0, "calls": 2}},
+            ])
+            record = prepare_publication(chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20))
+            self.assertEqual(record.disposition, "ready")
+            cost = self._generation_cost(record)
+            self.assertAlmostEqual(cost["reported_cost_usd"], 0.0425)
+            self.assertEqual(cost["unknown_cost_calls"], 1)
+            # Generation leads the cost list so the record reads chronologically.
+            self.assertEqual(record.integrity["costs"][0]["phase"], "generation")
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["integrity"]["costs"][0]["phase"], "generation")
+
+    def test_generation_cost_is_unknown_when_any_attempt_lacks_a_recorded_share(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = self._ready_chain(root, [
+                {"index": 1, "model": "tencent/hy3", "status": "failed", "run_dir": "01-tencent-hy3"},
+                {"index": 2, "model": "deepseek/deepseek-v4-flash-0731", "status": "ready",
+                 "run_dir": "02-deepseek-deepseek-v4-flash-0731",
+                 "generation_spend": {"known_usd": 0.03, "unknown_cost_calls": 0, "calls": 2}},
+            ])
+            record = prepare_publication(chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20))
+            # A partial sum would read as a total; the date is unknown instead.
+            self.assertEqual(self._generation_cost(record),
+                             {"phase": "generation", "reported_cost_usd": None, "unknown_cost_calls": None})
+
+    def test_generation_cost_outside_public_bounds_is_unknown_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = self._ready_chain(root, [
+                {"index": 2, "model": "deepseek/deepseek-v4-flash-0731", "status": "ready",
+                 "run_dir": "02-deepseek-deepseek-v4-flash-0731",
+                 "generation_spend": {"known_usd": 250.0, "unknown_cost_calls": 0, "calls": 2}},
+            ])
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                record = prepare_publication(chain, root / "missing-corpus.json", root / "history",
+                                             date(2026, 8, 20))
+            self.assertIsNone(self._generation_cost(record)["reported_cost_usd"])
+            self.assertIn("generation spend exceeds the public record bounds", stderr.getvalue())
+
+    def test_generation_cost_comes_from_the_manifest_budget_without_a_fallback_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"manual briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(
+                run, "ready", "final", "final.md", content, [],
+                provider="openrouter", model="tencent/hy3", prompt_sha256="c" * 64,
+                generation_budget={"schema_version": 1, "limit_usd": 25.0, "deadline_epoch": 1.0,
+                                   "known_spend_usd": 0.0208, "unknown_reserved_usd": 0.0,
+                                   "unknown_cost_calls": 0, "calls": 2, "in_flight_usd": 0.0,
+                                   "stop_reason": None},
+            )
+            record = prepare_publication(run, root / "missing-corpus.json", root / "history", date(2026, 8, 20))
+            cost = self._generation_cost(record)
+            self.assertAlmostEqual(cost["reported_cost_usd"], 0.0208)
+            self.assertEqual(cost["unknown_cost_calls"], 0)
+
+    def test_exhausted_chain_still_publishes_its_generation_spend(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = root / "run"
+            chain.mkdir()
+            (chain / "fallback-log.json").write_text(json.dumps({
+                "schema_version": 2, "status": "failed", "model_chain": ["google/gemini-3.7-flash"],
+                "attempts": [{"model": "google/gemini-3.7-flash", "status": "failed",
+                              "failure": FailureRecord("invalid_request", status_code=400).payload(),
+                              "failure_reason": "ProviderError: openrouter HTTP 400: private-data",
+                              "generation_spend": {"known_usd": 0.0, "unknown_cost_calls": 1, "calls": 1}}],
+            }))
+            record = prepare_publication(chain, root / "missing.json", root / "history", date(2026, 9, 6))
+            self.assertEqual(record.disposition, "blocked")
+            self.assertEqual(record.integrity["decision"], "unpublished")
+            # The only cost on a blocked day is what its failed attempts spent.
+            self.assertEqual(record.integrity["costs"],
+                             [{"phase": "generation", "reported_cost_usd": 0.0, "unknown_cost_calls": 1}])
+            self.assertNotIn("private-data", json.dumps(record.payload()))
+
     def test_provenance_defaults_to_single_attempt_without_a_fallback_log(self) -> None:
         # A manual run_briefing.py run has no fallback-chain log at all.
         with tempfile.TemporaryDirectory() as directory:
@@ -994,6 +1106,7 @@ class PreparePublicationTests(unittest.TestCase):
         model: str | None = None,
         prompt_sha256: str | None = None,
         extra_attempts: list[dict[str, object]] | None = None,
+        generation_budget: dict[str, object] | None = None,
     ) -> None:
         artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
         attempts: list[dict[str, object]] = list(extra_attempts or [])
@@ -1032,6 +1145,8 @@ class PreparePublicationTests(unittest.TestCase):
             manifest["provider"] = {"provider": provider, "model": model}
         if prompt_sha256 is not None:
             manifest["identity"] = {"prompt_sha256": prompt_sha256}
+        if generation_budget is not None:
+            manifest["generation_budget"] = generation_budget
         (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 

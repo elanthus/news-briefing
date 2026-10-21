@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import gzip
 import hashlib
 import html
@@ -2879,17 +2880,77 @@ class MetricsLedgerTests(unittest.TestCase):
             site = _build_from_entries(Path(directory), [_legacy_ready_entry("2026-09-01")])
             row = json.loads((site / "metrics.json").read_text(encoding="utf-8"))["rows"][0]
             for field in ("provider", "model", "attempt_index", "fallback_used", "review_status",
-                          "repair_decision", "review_stage_cost_usd", "phase_costs_usd",
+                          "repair_decision", "generation_cost_usd", "generation_unknown_cost_calls",
+                          "review_stage_cost_usd", "phase_costs_usd",
                           "unknown_cost_calls", "flags_raised", "flags_confirmed"):
                 self.assertIsNone(row[field], field)
             page = (site / "metrics.html").read_text(encoding="utf-8")
             text = _text(page)
             self.assertIn("unknown", text)
+            self.assertIn("Known generation spend across recorded days: unknown; days with unknown "
+                          "generation cost: 1.", text)
             self.assertIn("follow-up spend across recorded days: unknown.", text)
             self.assertIn("Days with unknown or partly unknown cost, marked below the axis: 1.", text)
             self.assertIn("2026-09-01: cost unknown", text)
             self.assertNotIn("$0.0000", text)
             self.assertIn("Days with no review record: 1.", text)
+
+    def test_generation_cost_reaches_the_ledger_the_page_and_the_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            entry = copy.deepcopy(_live_entry("2026-10-13"))
+            integrity = entry["integrity"]
+            assert isinstance(integrity, dict)
+            integrity["costs"].insert(
+                0, {"phase": "generation", "reported_cost_usd": 0.1234, "unknown_cost_calls": 1})
+            site = _build_from_entries(Path(directory), [entry, _legacy_ready_entry("2026-09-01")])
+            rows = {row["date"]: row for row in json.loads(
+                (site / "metrics.json").read_text(encoding="utf-8"))["rows"]}
+            self.assertEqual(rows["2026-10-13"]["generation_cost_usd"], 0.1234)
+            self.assertEqual(rows["2026-10-13"]["generation_unknown_cost_calls"], 1)
+            self.assertIsNone(rows["2026-09-01"]["generation_cost_usd"])
+            # The review-stage figures are untouched by the new phase.
+            self.assertEqual(set(rows["2026-10-13"]["phase_costs_usd"]), set(site_metrics.COST_PHASES))
+            page = (site / "metrics.html").read_text(encoding="utf-8")
+            text = _text(page)
+            self.assertIn("Known generation spend across recorded days: $0.1234; days with unknown "
+                          "generation cost: 1.", text)
+            self.assertIn("including attempts that did not publish", text)
+            self.assertIn('class="chart-bar cost-generation"', page)
+            self.assertIn('class="chart-bar cost-review"', page)
+            self.assertIn("2026-10-13: generation $0.1234 known, plus calls of unknown cost; review stage $", text)
+            self.assertIn("2026-09-01: cost unknown", text)
+            report = _text((site / "reports/2026-10-13.html").read_text(encoding="utf-8"))
+            self.assertIn("generation (every attempt in the fallback chain): reported $0.1234; "
+                          "unknown billing calls: 1.", report)
+
+    def test_schema_one_ledger_is_upgraded_with_generation_spend_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seeded = _build_from_entries(root, [_live_entry("2026-10-13")])
+            current = json.loads((seeded / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(current["schema_version"], 2)
+            legacy = {"schema_version": 1, "rows": [
+                {key: value for key, value in row.items() if key not in site_metrics.SCHEMA_2_FIELDS}
+                for row in current["rows"]]}
+            (root / "legacy.json").write_text(json.dumps(legacy), encoding="utf-8")
+            (root / "none").mkdir()
+            rebuilt = root / "rebuilt"
+            build_site(root / "none", rebuilt, prior_history=seeded / "history.json",
+                       prior_metrics=root / "legacy.json")
+            ledger = json.loads((rebuilt / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(ledger["schema_version"], 2)
+            # Rebuilt from history, the day regains its row; the legacy row's
+            # missing fields are unknown, never zero.
+            upgraded = site_metrics.parse_ledger(legacy)
+            self.assertEqual(
+                [(row["generation_cost_usd"], row["generation_unknown_cost_calls"]) for row in upgraded],
+                [(None, None)])
+            # A legacy row that already carries a schema-2 field is not silently accepted.
+            legacy["rows"][0]["generation_cost_usd"] = 0.5
+            with self.assertRaisesRegex(ValueError, "exactly"):
+                site_metrics.parse_ledger(legacy)
+            with self.assertRaisesRegex(ValueError, "schema_version"):
+                site_metrics.parse_ledger({"schema_version": 3, "rows": []})
 
     def test_ledger_rows_carry_no_feed_or_model_text(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
