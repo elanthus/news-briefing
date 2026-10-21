@@ -105,12 +105,35 @@ separate checkout of the recorded revision. Never extract an untrusted archive
 over a live checkout. The research extractor has no in-place or delete mode.
 
 Current public history was checked with the strict readers without changing its
-Markdown or clearing history. GitHub archives are cold evidence until their
-authenticated inner contents can be inspected with the archive passphrase. They
-are not inputs to current publication or counted as migrated research samples.
+Markdown or clearing history. The preserved GitHub wrappers' authenticated inner
+contents were inspected on October 21, 2026; the
+[compatibility record](results/retention-2026-10-21.md) lists every retained
+format, the readers that accept it, and the artifacts the current readers reject.
+They remain cold evidence: not inputs to current publication and not counted as
+migrated research samples.
 Scheduled corpus restoration remains governed by its separate current-corpus
 validation and retention contract. This change does not run a new quality
 benchmark or establish a prompt-only baseline.
+
+### October 21 compatibility verification
+
+Two retained formats are rejected by the readers at current main and are
+recovered only with the readers at the run's recorded source revision:
+
+- Daily semantic-audit envelopes with metadata schema 1 or 2 (runs before
+  October 14). `load_public_audit` returns no audit for them, so a re-derived
+  publication record carries the original candidate without the audit. The
+  historical public record is unchanged.
+- Runs whose recorded `selected-evidence.json` no longer matches the projection
+  after #291 added backslash-escape removal to `redact_destinations`;
+  `load_verified_run` reports that the recorded evidence differs from the frozen
+  corpus projection. They read at `393c78d`, the last main commit before #291.
+  Four of the 25 retained production days are affected; the research dataset is
+  not.
+
+Every other retained format reads at current main. The
+[compatibility record](results/retention-2026-10-21.md) and its
+[JSON table](results/retention-2026-10-21.json) give the per-day evidence.
 
 ### Restoring preserved local wrappers
 

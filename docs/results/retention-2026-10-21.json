@@ -1,0 +1,1190 @@
+{
+ "schema_version": 1,
+ "date": "2026-10-21",
+ "issue": "elanthus/news-briefing#242",
+ "reader_revision": "83ea3579448d08b6eff12e327bdd5c4015bb2f79",
+ "pre_291_revision": "393c78d8bbe53cc151c586f6a8dac267863d3e04",
+ "prior_receipt": {
+  "path": "docs/results/retention-2026-10-15.json",
+  "source_revision": "d76a990d913c954501a7f09e88228069bde6374d"
+ },
+ "preservation_integrity": {
+  "originals_archive": {
+   "path": ".news-briefing/portfolio-preservation-2026-10-15/originals.tar.gz",
+   "sha256": "75fadb430c6d5403bb30b63505876b852e65befb2010f0929b8aaf51ec4aad0a",
+   "archive_sha256_matches_manifest": true,
+   "members_in_manifest": 102566,
+   "members_hashed": 102566,
+   "mismatched": 0,
+   "unexpected": 0,
+   "result": "PASS"
+  },
+  "github_wrapper_manifest_sha256": "63071e83e909b8ef587594b57b4305c3661d239751bcb23e4b022026796be8ad",
+  "wrappers": 52,
+  "wrapper_digests_verified": 52
+ },
+ "github_inventory": {
+  "fetched": "2026-10-21",
+  "unexpired": 37,
+  "by_kind": {
+   "corpus": 16,
+   "diagnostics": 16,
+   "publication": 4,
+   "github-pages": 1
+  },
+  "all_main_branch_same_repository": true,
+  "preserved_still_unexpired": 22,
+  "preserved_now_expired_on_github": 30,
+  "unexpired_not_preserved": [
+   {
+    "id": 12062759887,
+    "name": "briefing-diagnostics-38941204235-1",
+    "created_at": "2026-10-16",
+    "expires_at": "2026-10-30",
+    "bytes": 1208624,
+    "workflow_run_id": 38941204235,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12062979568,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-16",
+    "expires_at": "2026-10-30",
+    "bytes": 524162,
+    "workflow_run_id": 38941204235,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12107602083,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-17",
+    "expires_at": "2026-10-31",
+    "bytes": 521666,
+    "workflow_run_id": 39050152988,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12107362787,
+    "name": "briefing-diagnostics-39050152988-1",
+    "created_at": "2026-10-17",
+    "expires_at": "2026-10-31",
+    "bytes": 963141,
+    "workflow_run_id": 39050152988,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12143224487,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-18",
+    "expires_at": "2026-11-01",
+    "bytes": 522274,
+    "workflow_run_id": 39146434214,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12143418794,
+    "name": "briefing-diagnostics-39146434214-1",
+    "created_at": "2026-10-18",
+    "expires_at": "2026-11-01",
+    "bytes": 719370,
+    "workflow_run_id": 39146434214,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12215074951,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-19",
+    "expires_at": "2026-11-02",
+    "bytes": 523778,
+    "workflow_run_id": 39310871195,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12215204795,
+    "name": "briefing-diagnostics-39310871195-1",
+    "created_at": "2026-10-19",
+    "expires_at": "2026-11-02",
+    "bytes": 1012308,
+    "workflow_run_id": 39310871195,
+    "head_sha": "623cee18aad35bff86fa668055c3533e1481e316"
+   },
+   {
+    "id": 12283944810,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-20",
+    "expires_at": "2026-11-03",
+    "bytes": 524647,
+    "workflow_run_id": 39464789343,
+    "head_sha": "a2f723917e6af362eb191b0bbf96bbd222fa8766"
+   },
+   {
+    "id": 12283954829,
+    "name": "briefing-diagnostics-39464789343-1",
+    "created_at": "2026-10-20",
+    "expires_at": "2026-11-03",
+    "bytes": 960789,
+    "workflow_run_id": 39464789343,
+    "head_sha": "a2f723917e6af362eb191b0bbf96bbd222fa8766"
+   },
+   {
+    "id": 12288311055,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-20",
+    "expires_at": "2026-11-03",
+    "bytes": 524823,
+    "workflow_run_id": 39471567948,
+    "head_sha": "a2f723917e6af362eb191b0bbf96bbd222fa8766"
+   },
+   {
+    "id": 12286309975,
+    "name": "briefing-diagnostics-39471567948-1",
+    "created_at": "2026-10-20",
+    "expires_at": "2026-11-03",
+    "bytes": 949536,
+    "workflow_run_id": 39471567948,
+    "head_sha": "a2f723917e6af362eb191b0bbf96bbd222fa8766"
+   },
+   {
+    "id": 12370131279,
+    "name": "briefing-corpus-archive",
+    "created_at": "2026-10-21",
+    "expires_at": "2026-11-04",
+    "bytes": 523906,
+    "workflow_run_id": 39650476701,
+    "head_sha": "393c78d8bbe53cc151c586f6a8dac267863d3e04"
+   },
+   {
+    "id": 12370550864,
+    "name": "briefing-diagnostics-39650476701-1",
+    "created_at": "2026-10-21",
+    "expires_at": "2026-11-04",
+    "bytes": 1186379,
+    "workflow_run_id": 39650476701,
+    "head_sha": "393c78d8bbe53cc151c586f6a8dac267863d3e04"
+   },
+   {
+    "id": 12370426117,
+    "name": "github-pages",
+    "created_at": "2026-10-21",
+    "expires_at": "2026-10-22",
+    "bytes": 1054496,
+    "workflow_run_id": 39650476701,
+    "head_sha": "393c78d8bbe53cc151c586f6a8dac267863d3e04"
+   }
+  ]
+ },
+ "encrypted_wrappers": {
+  "total": 39,
+  "authenticated": 39,
+  "authentication_failures": 0,
+  "unsafe_members": 0,
+  "kinds": {
+   "briefing-corpus-archive": 19,
+   "briefing-diagnostics": 19,
+   "grounding-monitor-review": 1
+  },
+  "format": "NBPA1 envelope: magic, 8-byte salt, AES-256-CBC ciphertext, HMAC-SHA256 over the authenticated prefix (private_archive.py)"
+ },
+ "corpus_wrappers": {
+  "wrappers": 19,
+  "corpora": 266,
+  "corpus_schema_versions": {
+   "7": 266
+  },
+  "schema_problems": 0,
+  "dates": {
+   "first": "2026-09-18",
+   "last": "2026-10-15",
+   "count": 28
+  },
+  "offline_restore": [
+   {
+    "newest": "2026-10-01",
+    "result": "restored 14 corpora (2026-09-18 to 2026-10-01); every member of every wrapper validated"
+   },
+   {
+    "newest": "2026-10-15",
+    "result": "failed closed: conflicting preserved corpora for 2026-10-08"
+   }
+  ],
+  "divergent_dates": {
+   "2026-10-02": {
+    "5f9476594c23f3b2d08819f01dfdc3ee9b96c1401fc5be8522a58cbe21071d6a": [
+     11245143874,
+     11280427049,
+     11310920785,
+     11371756630,
+     11430109063,
+     11436819093,
+     11505908132,
+     11573283194,
+     11581248830,
+     11638708768,
+     11677547696,
+     11711501389,
+     11776225172,
+     11844224752,
+     11919105945,
+     11996586302
+    ],
+    "4cdaf88583413adaa8586e02494f60999d27edcc370b25b3315eb61336f336ea": [
+     11242700175
+    ],
+    "7a1d3182f5c13dc1cc417f331444c5ede777525ce5b442ce8c726e54f537a267": [
+     11212654830
+    ]
+   },
+   "2026-10-06": {
+    "9f932e19c496ebc40a799df30a93d8078abad43f08c3313e8a767ddd2194548c": [
+     11436819093,
+     11505908132,
+     11573283194,
+     11581248830,
+     11638708768,
+     11677547696,
+     11711501389,
+     11776225172,
+     11844224752,
+     11919105945,
+     11996586302
+    ],
+    "68343c0596fa45255c9f7e17169f18228ef2c6bae0876e6fe21caf31016789c0": [
+     11430109063
+    ]
+   },
+   "2026-10-08": {
+    "fcf52d9ec1fa59cb9e24633b020ef860bbfecf4fae5bb192e394f80bc56af66d": [
+     11581248830,
+     11638708768,
+     11677547696,
+     11711501389,
+     11776225172,
+     11844224752,
+     11919105945,
+     11996586302
+    ],
+    "47c54392b5199d65c98f582c4f972c364b7b104876ac9cafc56032a5d15b24a5": [
+     11573283194
+    ]
+   }
+  },
+  "cause": "a day with more than one workflow run fetched that day's corpus fresh in each run; later wrappers carry the newest copy",
+  "resolution": "run_jev_stage.provenance_manifest keeps the newest wrapper per creation day; restore_private_corpora --artifact-manifest accepts that selection"
+ },
+ "diagnostics_wrappers": {
+  "wrappers": 19,
+  "run_days": 25,
+  "inner_layout": [
+   "corpora/<date>.json (corpus schema 7, fourteen dates per wrapper)",
+   "reports/<date>.md",
+   "runs/<date>/fallback-log.json (chain log schema 2)",
+   "runs/<date>/01-tencent-hy3/ (runner checkpoint: manifest.json schema 1, final.md, corpus.json, frozen-selection.json, selected-evidence.json, briefing-config.json, attempts, trace)",
+   "runs/<date>/jev-review/ (audit.json envelope {metadata, audit, integrity}, report.json, optional repair/ and post-review/)"
+  ],
+  "days": [
+   {
+    "date": "2026-10-01",
+    "diagnostics_artifact_id": 11191596406,
+    "workflow_run_id": 36910872294,
+    "source_revision": "ab6638d2a5a07df1109250f0150268497a968f0c",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 1,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ValueError: recorded evidence differs from the frozen corpus projection",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-09-26",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-09-27",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-09-28",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-09-29",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-09-30",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-01",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-02",
+    "diagnostics_artifact_id": 11213149186,
+    "workflow_run_id": 36973850922,
+    "source_revision": "eebe3120e74f0f6cd3c1a88333b399dded3c0375",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-02",
+    "diagnostics_artifact_id": 11242110943,
+    "workflow_run_id": 37039426464,
+    "source_revision": "60897c69c44b8d53014685841fe198229f3c65a9",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11242540522,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-02",
+    "diagnostics_artifact_id": 11245393720,
+    "workflow_run_id": 37048725230,
+    "source_revision": "60897c69c44b8d53014685841fe198229f3c65a9",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11245248740,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-03",
+    "diagnostics_artifact_id": 11280536688,
+    "workflow_run_id": 37140851653,
+    "source_revision": "60897c69c44b8d53014685841fe198229f3c65a9",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ValueError: recorded evidence differs from the frozen corpus projection",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11280511840,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-04",
+    "diagnostics_artifact_id": 11311040507,
+    "workflow_run_id": 37221782412,
+    "source_revision": "60897c69c44b8d53014685841fe198229f3c65a9",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11311180086,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-05",
+    "diagnostics_artifact_id": 11371636729,
+    "workflow_run_id": 37374345776,
+    "source_revision": "60897c69c44b8d53014685841fe198229f3c65a9",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ValueError: recorded evidence differs from the frozen corpus projection",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11372010703,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-06",
+    "diagnostics_artifact_id": 11431115438,
+    "workflow_run_id": 37502234121,
+    "source_revision": "bfd26d79053f35c19f5b4a326454d8b37684a637",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ValueError: recorded evidence differs from the frozen corpus projection",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11429994674,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-06",
+    "diagnostics_artifact_id": 11436814186,
+    "workflow_run_id": 37515603119,
+    "source_revision": "bfd26d79053f35c19f5b4a326454d8b37684a637",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11436614509,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-07",
+    "diagnostics_artifact_id": 11506482335,
+    "workflow_run_id": 37674647540,
+    "source_revision": "bfd26d79053f35c19f5b4a326454d8b37684a637",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11506077820,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-08",
+    "diagnostics_artifact_id": 11573093807,
+    "workflow_run_id": 37831394054,
+    "source_revision": "bfd26d79053f35c19f5b4a326454d8b37684a637",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11573143345,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-08",
+    "diagnostics_artifact_id": 11581209027,
+    "workflow_run_id": 37850089731,
+    "source_revision": "2bc682514754fa9387a9e2b9514f7c69004bb8f6",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11582205094,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-09",
+    "diagnostics_artifact_id": 11638728687,
+    "workflow_run_id": 37976702946,
+    "source_revision": "8bd1f27896806acbb321a8af83efc5914ec2447a",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11638788669,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-10",
+    "diagnostics_artifact_id": 11677453075,
+    "workflow_run_id": 38073784124,
+    "source_revision": "8bd1f27896806acbb321a8af83efc5914ec2447a",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": [
+     {
+      "receipt_artifact_id": 11677427910,
+      "hashes_matched": 7,
+      "hashes_declared": 7
+     }
+    ]
+   },
+   {
+    "date": "2026-10-11",
+    "diagnostics_artifact_id": 11711765716,
+    "workflow_run_id": 38163438464,
+    "source_revision": "ee24b2849471da1f2d418600d71de954471b20ce",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 1,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-12",
+    "diagnostics_artifact_id": 11776135190,
+    "workflow_run_id": 38313004954,
+    "source_revision": "ee24b2849471da1f2d418600d71de954471b20ce",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 1,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": false,
+      "published_artifact_identical": false,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-13",
+    "diagnostics_artifact_id": 11843904989,
+    "workflow_run_id": 38458743457,
+    "source_revision": "9d5f6093b36bb587c2fa9122bdf6c15cae82c579",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 2,
+    "audit_accepted_by_reader_revision": false,
+    "audit_accepted_by_pre_291_revision": false,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": false
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-14",
+    "diagnostics_artifact_id": 11919235868,
+    "workflow_run_id": 38612512079,
+    "source_revision": "d76a990d913c954501a7f09e88228069bde6374d",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 3,
+    "audit_accepted_by_reader_revision": true,
+    "audit_accepted_by_pre_291_revision": true,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": true
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": []
+   },
+   {
+    "date": "2026-10-15",
+    "diagnostics_artifact_id": 11996361609,
+    "workflow_run_id": 38780721966,
+    "source_revision": "d76a990d913c954501a7f09e88228069bde6374d",
+    "fallback_log_schema": 2,
+    "run_manifest_schema": 1,
+    "audit_metadata_schema": 3,
+    "audit_accepted_by_reader_revision": true,
+    "audit_accepted_by_pre_291_revision": true,
+    "audit_accepted_by_source_revision": true,
+    "verified_run_at_reader_revision": "ok",
+    "verified_run_at_pre_291_revision": "ok",
+    "prepare_publication_at_reader_revision": {
+     "disposition": "ready",
+     "integrity_version": 1,
+     "repair_actions": 0,
+     "semantic_audit_included": true
+    },
+    "site_reader_accepts_sidecar": true,
+    "comparison_with_published": [
+     {
+      "published_record": "github-pages artifact 11996371643 (2026-10-15)",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     },
+     {
+      "published_record": "live history.json 2026-10-21",
+      "markdown_identical": true,
+      "published_artifact_identical": true,
+      "disposition_identical": true
+     }
+    ],
+    "publication_receipts": []
+   }
+  ]
+ },
+ "reader_summary": {
+  "prepare_publication_at_reader_revision": {
+   "days": 25,
+   "ready": 25,
+   "integrity_version_1": 25
+  },
+  "site_reader_at_reader_revision": {
+   "sidecars": 25,
+   "accepted": 25
+  },
+  "load_public_audit": {
+   "accepted_at_reader_revision": 2,
+   "accepted_at_pre_291_revision": 2,
+   "accepted_at_source_revision": 25,
+   "metadata_schemas": {
+    "1": 1,
+    "2": 22,
+    "3": 2
+   }
+  },
+  "load_verified_run": {
+   "ok_at_reader_revision": 21,
+   "ok_at_pre_291_revision": 25,
+   "rejected_at_reader_revision": [
+    {
+     "date": "2026-10-01",
+     "diagnostics_artifact_id": 11191596406,
+     "reason": "ValueError: recorded evidence differs from the frozen corpus projection"
+    },
+    {
+     "date": "2026-10-03",
+     "diagnostics_artifact_id": 11280536688,
+     "reason": "ValueError: recorded evidence differs from the frozen corpus projection"
+    },
+    {
+     "date": "2026-10-05",
+     "diagnostics_artifact_id": 11371636729,
+     "reason": "ValueError: recorded evidence differs from the frozen corpus projection"
+    },
+    {
+     "date": "2026-10-06",
+     "diagnostics_artifact_id": 11431115438,
+     "reason": "ValueError: recorded evidence differs from the frozen corpus projection"
+    }
+   ]
+  },
+  "reproduction_against_published": {
+   "compared": 8,
+   "identical": 7,
+   "differs": [
+    {
+     "date": "2026-10-12",
+     "published_record": "github-pages artifact 11996371643 (2026-10-15)"
+    }
+   ]
+  },
+  "publication_receipts": {
+   "receipts": 12,
+   "schema_version": 1,
+   "matched": 12,
+   "hashes_matched": 84,
+   "hashes_declared": 84
+  }
+ },
+ "retired_producers": {
+  "briefing-publication receipts": {
+   "retained": 12,
+   "dates": "2026-10-02 to 2026-10-10",
+   "schema_version": 1,
+   "producer_retired_in": "e509125 (2026-10-10)",
+   "current_reader": null,
+   "status": "cold evidence; plaintext; every declared artifact hash matches the retained run files"
+  },
+  "grounding-monitor-review": {
+   "retained": 1,
+   "artifact_id": 11309799585,
+   "authenticated": true,
+   "members": 8,
+   "producer_retired_in": "e509125 (2026-10-10)",
+   "current_reader": null,
+   "status": "cold evidence; no supported consumer"
+  }
+ },
+ "public_surfaces": {
+  "preserved_github_pages_2026_10_15": {
+   "artifact_id": 11996371643,
+   "history_sha256": "4c729b510eb494ad026d7a541282c926d4215521c23d02ce0529d3400727a88c",
+   "schema_version": 9,
+   "entries": 7,
+   "dates": [
+    "2026-10-09",
+    "2026-10-10",
+    "2026-10-11",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15"
+   ],
+   "strict_reader": "ok"
+  },
+  "live_history": {
+   "fetched": "2026-10-21",
+   "sha256": "669648bf5028c6995b636d5a43e5fe6834845c34f2962c95e6c657110f2bfc73",
+   "schema_version": 9,
+   "entries": 7,
+   "dates": [
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-17",
+    "2026-10-18",
+    "2026-10-19",
+    "2026-10-20",
+    "2026-10-21"
+   ],
+   "strict_reader": "ok"
+  },
+  "live_metrics": {
+   "fetched": "2026-10-21",
+   "schema_version": 1,
+   "rows": 8,
+   "dates": [
+    "2026-10-14",
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-17",
+    "2026-10-18",
+    "2026-10-19",
+    "2026-10-20",
+    "2026-10-21"
+   ],
+   "parse_ledger": "ok"
+  }
+ },
+ "research_dataset": {
+  "path": ".news-briefing/portfolio-retained-v1-final",
+  "extractor_revision": "16ac16686cd541aa1b1dd9d0230a957cdc38abf0",
+  "verify_in_separate_checkout_of_source_revision": {
+   "bytes": 32331215,
+   "files": 608,
+   "manifest_sha256": "7f6141c9c5aae2f0299986221f12708de3b8f37b2ba8391794658ce6d9a58e1e",
+   "ready_records": 17,
+   "records": 17,
+   "repair_pairs": 7,
+   "schema_version": 1,
+   "unavailable_records": 0,
+   "unique_blobs": 398
+  },
+  "verify_with_reader_revision": "identical figures",
+  "note": "the extractor was copied into a git-archive checkout of the recorded source revision; its readers re-derived all run views"
+ },
+ "public_bundles": {
+  "parity-v1-evidence": {
+   "verify_public_run": "verified",
+   "in_tree_SHA256SUMS_identical_to_fetched": true
+  },
+  "parity-v2-evidence": {
+   "verify_public_run": "verified",
+   "in_tree_SHA256SUMS_identical_to_fetched": true
+  },
+  "portfolio-v2-evidence": {
+   "verify_public_run": "verified",
+   "in_tree_SHA256SUMS_identical_to_fetched": true
+  },
+  "parity-v3-evidence": {
+   "verify_public_run": "verified",
+   "in_tree_SHA256SUMS_identical_to_fetched": true
+  }
+ },
+ "unsupported_or_unreadable": [
+  {
+   "artifacts": "retained daily semantic-audit envelopes with metadata schema 1 or 2 (2026-09-26 to 2026-10-13, 23 run days)",
+   "current_behavior": "load_public_audit returns no audit by design (#282 retired schemas 1 and 2); prepare_publication then publishes the original candidate without the audit",
+   "consequence": "re-deriving 2026-10-12 from its diagnostics with the current readers publishes the original candidate, while the historical publication accepted a repaired candidate; public history keeps the historical record",
+   "recovery": "readers at the recorded source_revision accept every retained envelope (demonstrated per day above)"
+  },
+  {
+   "artifacts": "four retained ready runs (2026-10-01, 2026-10-03, 2026-10-05, first 2026-10-06 run)",
+   "current_behavior": "load_verified_run rejects them: recorded evidence differs from the frozen corpus projection",
+   "cause": "f4aea95 (#291, merged 2026-10-21) removes backslash escapes inside redact_destinations, so the current projection of those corpora no longer equals the evidence recorded at generation",
+   "scope": "none of the 17 research-dataset runs or the other 21 retained days is affected; the Jev-stage and Parity results were computed before #291 at their recorded revisions",
+   "recovery": "readers at 393c78d or at each run's recorded source_revision accept all 25 days",
+   "decision_needed": "retain this as documented historical-reader recovery, or add a narrow re-redaction of recorded evidence in load_verified_run without weakening #291"
+  },
+  {
+   "artifacts": "publication receipts and grounding-monitor review packets",
+   "current_behavior": "no producer or reader in the tree since e509125",
+   "recovery": "none needed; cold evidence with verified hashes"
+  },
+  {
+   "artifacts": "preserved corpus wrappers for 2026-10-02, 2026-10-06 and 2026-10-08",
+   "current_behavior": "a whole-set restore of a window containing those dates fails closed on conflicting copies",
+   "recovery": "newest-wrapper-per-day manifest (run_jev_stage.provenance_manifest)"
+  }
+ ],
+ "limits": [
+  "No paid generation or judging.",
+  "No history was cleared and --allow-empty-history was not used.",
+  "Decrypted inputs were read in a session scratch directory and deleted; only metadata and digests are recorded.",
+  "Artifacts created after 2026-10-15 were inventoried, not downloaded; their inner contents were not inspected.",
+  "Reader acceptance at a revision proves readability at that revision, not the historical quality of any run."
+ ]
+}
