@@ -2239,8 +2239,9 @@ def build_site(
             "without one intentionally, otherwise this silently truncates the "
             "published archive")
     # The metrics ledger keeps every recorded date, so losing it loses more
-    # than a week; starting a new one is likewise an explicit opt-in.
-    if prior_metrics is None and not (allow_empty_metrics or allow_empty_history):
+    # than a week; starting a new one is its own explicit opt-in. Recovering
+    # history with allow_empty_history must never also discard the ledger.
+    if prior_metrics is None and not allow_empty_metrics:
         raise ValueError(
             "no prior_metrics was given; pass allow_empty_metrics=True to start the "
             "ledger from this build's history intentionally, otherwise this silently "
@@ -2276,6 +2277,10 @@ def build_site(
         rank=PUBLICATION_RANK,
         replaced=frozenset(replaced),
     )
+    # Fail this build, before anything is written, rather than publish a
+    # ledger that the next build's parse_ledger would refuse.
+    metrics_payload = site_metrics.ledger_payload(ledger)
+    site_metrics.parse_ledger(json.loads(json.dumps(metrics_payload)))
     entries = entries[:7]
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -2300,7 +2305,7 @@ def build_site(
         encoding="utf-8",
     )
     (output_dir / "metrics.json").write_text(
-        json.dumps(site_metrics.ledger_payload(ledger), ensure_ascii=False, indent=2) + "\n",
+        json.dumps(metrics_payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     (output_dir / "metrics.html").write_text(
@@ -2349,7 +2354,7 @@ def main() -> int:
         action="store_true",
         help=(
             "start the metrics ledger from this build's history intentionally; "
-            "required when --prior-metrics is absent (implied by --allow-empty-history)"
+            "required when --prior-metrics is absent, even with --allow-empty-history"
         ),
     )
     parser.add_argument(

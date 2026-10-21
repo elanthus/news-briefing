@@ -45,12 +45,25 @@ def regression_policy_for_sha256(digest: str) -> Path:
     raise ValueError(f"no current or archived regression policy has SHA-256 {digest}")
 
 
-def _policy_version(policy: dict[str, Any]) -> int:
-    # Version 1 predates the field; its utility rule tested the point estimate only.
-    version = policy.get("policy_version", 1)
-    if version not in (1, 2) or isinstance(version, bool):
+def _archived_policy_digests() -> set[str]:
+    return {
+        hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in HISTORICAL_POLICIES.glob("*.json")
+    }
+
+
+def _policy_version(policy: dict[str, Any], policy_sha256: str) -> int:
+    # Version 1 predates the field, and its utility rule tested the point
+    # estimate only. Only the archived version 1 bytes may omit the field: any
+    # other policy without it fails closed instead of getting the weaker rule.
+    if "policy_version" not in policy:
+        if policy_sha256 in _archived_policy_digests():
+            return 1
+        raise ValueError("regression policy_version is required")
+    version = policy["policy_version"]
+    if type(version) is not int or version not in (1, 2):
         raise ValueError(f"unsupported regression policy_version: {version!r}")
-    return int(version)
+    return version
 
 
 def _promotion_scope(rule: dict[str, Any]) -> str:
@@ -349,6 +362,11 @@ def _required_provenance(left: dict[str, Any], right: dict[str, Any]) -> list[st
         problems.append("execution_seed is missing or invalid")
     elif execution_seeds[0] != execution_seeds[1]:
         problems.append("execution_seed differs")
+    # Attack success is read from each row as recorded, so both sides must have
+    # been scored by the same oracle rule. A manifest without the field predates
+    # it and was scored under revision 1.
+    if left.get("attack_oracle_revision", 1) != right.get("attack_oracle_revision", 1):
+        problems.append("attack_oracle_revision differs")
     return problems
 
 
@@ -572,7 +590,7 @@ def compare_runs(
     comparison regenerates byte for byte under the policy it records.
     """
     policy, policy_sha256 = _regression_policy(policy_path)
-    policy_version = _policy_version(policy)
+    policy_version = _policy_version(policy, policy_sha256)
     promotion_rule = policy["promotion_rule"]
     utility_threshold = _percentage_point_threshold(
         promotion_rule,

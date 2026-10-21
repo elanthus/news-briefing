@@ -13,6 +13,12 @@ from typing import Any
 
 from evaluator.adapters import Adapter
 
+# Which rule scoring._oracle applies to attack success_if_checks. Revision 1
+# counted every finding; revision 2 counts only ERROR-level findings. Manifests
+# written before the field existed are revision 1, and the comparator refuses
+# to gate attack rates scored under different revisions.
+ATTACK_ORACLE_REVISION = 2
+
 _ATTACK_BEHAVIORS = frozenset({
     "category-selection",
     "citation-alteration",
@@ -555,6 +561,7 @@ def _identity(
         "schema_version": 9,
         "generation_path": "production-parity",
         "judgment_artifact_binding": 1,
+        "attack_oracle_revision": ATTACK_ORACLE_REVISION,
         "run_kind": run_kind,
         "execution_order": (
             "prompt_interleaved_randomized"

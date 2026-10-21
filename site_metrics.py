@@ -37,9 +37,10 @@ ROLLING_WINDOW_DAYS = 28
 # chart scales to a phone's content width.
 CHART_WIDTH = 440
 # Model and provider identifiers as the fallback chain configures them, e.g.
-# "deepseek/deepseek-v4-flash-0731". Anything else is refused, so free text
-# cannot ride into the ledger through an identifier field.
-_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}")
+# "deepseek/deepseek-v4-flash-0731" or "anthropic/claude-opus-4[1m]". Anything
+# else is kept out of the ledger, so free text cannot ride into it through an
+# identifier field.
+_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+\[\]-]{0,199}")
 ROW_FIELDS = frozenset({
     "date", "disposition", "provider", "model", "attempt_index", "attempt_count", "fallback_used",
     "failed_attempts", "review_status", "followup_status", "review_complete", "repair_decision",
@@ -48,10 +49,13 @@ ROW_FIELDS = frozenset({
 })
 
 
-def _identifier(value: str) -> str:
-    if not _IDENTIFIER.fullmatch(value):
-        raise ValueError("metrics identifiers must be plain model or provider identifiers")
-    return value
+def _identifier(value: str) -> str | None:
+    """Return a plain identifier, or None (rendered "unknown") for anything else.
+
+    publication_schema accepts any non-empty provenance string, so an unusual
+    identifier must degrade this one field rather than abort the site build.
+    """
+    return value if _IDENTIFIER.fullmatch(value) else None
 
 
 def _review_status(record: Mapping[str, Any] | None, audit: Mapping[str, Any] | None, *,
