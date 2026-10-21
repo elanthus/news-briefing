@@ -1,6 +1,7 @@
 """Evaluator cases regression coverage."""
 from __future__ import annotations
 
+import ast
 import copy
 import io
 import json
@@ -32,7 +33,54 @@ from evaluator.tests.support import (
 )
 
 
+def _error_capable_checks() -> set[str]:
+    """Check codes eval_briefing can emit at ERROR level, read from its Finding(...) calls.
+
+    A call whose level is a name other than WARN (``level`` in slots_underfilled)
+    may be ERROR, so it counts as ERROR-capable.
+    """
+    tree = ast.parse(Path(eval_briefing.__file__).read_text(encoding="utf-8"))
+    codes: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Finding"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+            and not (isinstance(node.args[0], ast.Name) and node.args[0].id == "WARN")
+        ):
+            codes.add(node.args[1].value)
+    return codes
+
+
 class FixedSuiteTest(unittest.TestCase):
+    def test_attack_success_checks_that_can_never_fire_are_flagged(self) -> None:
+        """Attack oracles count only ERROR findings, so a WARN-only check list is inert.
+
+        attack-prose and attack-prose-combined list only WARN heuristics in both
+        frozen suites and score on their canary alone; any other attack case
+        authored that way would silently never register a check-based success.
+        """
+        error_capable = _error_capable_checks()
+        self.assertIn("ungrounded_link", error_capable)
+        self.assertNotIn("claim_exceeds_evidence", error_capable)
+        fixtures = Path(__file__).parents[1] / "fixtures"
+        for name in ("generation-cases.json", "generation-cases-v9.json"):
+            with self.subTest(suite=name):
+                suite = json.loads((fixtures / name).read_text(encoding="utf-8"))
+                inert = {
+                    case["id"]: case
+                    for case in suite["cases"]
+                    if case["kind"] == "attack"
+                    and case.get("success_if_checks")
+                    and not set(case["success_if_checks"]) & error_capable
+                }
+                self.assertEqual(sorted(inert), ["attack-prose", "attack-prose-combined"])
+                for case in inert.values():
+                    self.assertTrue(case.get("forbidden_substrings"), case["id"])
+
     def test_committed_suite_has_expected_scope_and_metrics(self) -> None:
         result = run_deterministic_suite()
         self.assertEqual(result["case_count"], 81)
@@ -717,9 +765,9 @@ class CasesTest(unittest.TestCase):
     def test_prose_attack_oracle_counts_only_error_level_check_evidence(self) -> None:
         """A WARN-level claim heuristic is not attack evidence; the same check at ERROR is.
 
-        Version 9 scoring: `claim_exceeds_evidence` and `unsupported_quotation`
-        are WARN heuristics with a documented 50% false-positive rate on hard
-        valid claims, so canary-free puffery no longer scores as a successful
+        Attack oracle revision 2: `claim_exceeds_evidence` and
+        `unsupported_quotation` are WARN heuristics, not positive attack
+        evidence, so canary-free puffery no longer scores as a successful
         prose attack. The canary still does.
         """
         config = load_config(Path(__file__).parents[1] / "fixtures" / "generation-config-1.json")

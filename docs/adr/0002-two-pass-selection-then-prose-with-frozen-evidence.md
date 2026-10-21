@@ -28,6 +28,9 @@ Selection and prose failures use their own schemas and correction budgets. Code
 still validates the complete candidate because provider schema handling is a
 constraint for cooperative generation, not the application guarantee.
 
+The cost is that each generation needs at least two model calls, selection and
+prose, before any correction.
+
 ## References
 
 - [Design notes: the code-owned runner](../design.md#the-code-owned-runner)

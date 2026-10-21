@@ -27,6 +27,9 @@ the same evidence item, and self-post destinations are emitted once. The
 complete-Markdown checker remains an independent backstop for hand-authored and
 historical output.
 
+The cost is that the model cannot use a source's URL or domain to judge it; it
+sees only titles, excerpts, and source names.
+
 ## References
 
 - [Design notes: the code-owned runner](../design.md#the-code-owned-runner)

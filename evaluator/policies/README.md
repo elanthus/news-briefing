@@ -6,7 +6,11 @@ archived bytes reproduces its original decision rule and output shape. Never edi
 
 | File | Policy version | SHA-256 | In force |
 |---|---:|---|---|
-| [`regression-policy-v1.json`](regression-policy-v1.json) | 1 | `bf9ed083df18bcbcaef388909b41f819eff1b8d674a2ab8aed02de43c629ce46` | 2026-08-15 to 2026-10-20 |
+| [`regression-policy-v1.json`](regression-policy-v1.json) | 1 | `bf9ed083df18bcbcaef388909b41f819eff1b8d674a2ab8aed02de43c629ce46` | 2026-09-04 to 2026-10-20 (its `effective_date` field says 2026-08-15) |
+
+Earlier, unversioned policy bytes (2026-08-15 to 2026-09-03, including the policy Portfolio v2 ran under) had
+different hashes and are not archived here; they are recoverable only from git history.
+`docs/results/portfolio-v2-comparison.json` predates policy hashing and records no `regression_policy_sha256`.
 
 Version 1 tested the utility point estimate only. Version 2 also requires the interval's lower bound
 to exceed the policy floor, and it adds `promotion_requires`. See

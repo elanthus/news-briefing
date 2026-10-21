@@ -114,10 +114,22 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn("--allow-empty-history", stderr.getvalue())
             self.assertFalse((output / "index.html").exists())
 
+            # The history opt-in does not also restart the metrics ledger.
+            with (
+                patch.object(sys, "argv", ["build_site.py", str(briefings), str(output),
+                                           "--allow-empty-history"]),
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit),
+            ):
+                build_site_main()
+            self.assertIn("allow_empty_metrics", stderr.getvalue())
+            self.assertFalse((output / "index.html").exists())
+
             with patch.object(
                 sys,
                 "argv",
-                ["build_site.py", str(briefings), str(output), "--allow-empty-history"],
+                ["build_site.py", str(briefings), str(output), "--allow-empty-history",
+                 "--allow-empty-metrics"],
             ):
                 self.assertEqual(build_site_main(), 0)
             self.assertTrue((output / "index.html").exists())
@@ -174,7 +186,7 @@ class BuildSiteTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _build_site(briefings, root / "site")
             self.assertFalse((root / "site" / "index.html").exists())
-            _build_site(briefings, root / "site", allow_empty_history=True)
+            _build_site(briefings, root / "site", allow_empty_history=True, allow_empty_metrics=True)
             self.assertTrue((root / "site" / "index.html").exists())
 
     def test_review_required_report_summarizes_findings_without_preview(self) -> None:
@@ -2794,6 +2806,20 @@ class MetricsLedgerTests(unittest.TestCase):
                 "review_required",
             )
 
+            # An equal-rank scheduled rerun replaces the row without --replace-existing.
+            rerun = root / "rerun"
+            rerun.mkdir()
+            (rerun / "2026-08-20.md").write_text("second review preview", encoding="utf-8")
+            BuildSiteTests._write_sidecar(
+                rerun, date="2026-08-20", disposition="review_required",
+                findings=[BuildSiteTests._finding("unsupported_figure", "Verify figure."),
+                          BuildSiteTests._finding("unsupported_quotation", "Verify quotation.")],
+            )
+            equal = self._build(root, "equal", rerun, prior_metrics=manual / "metrics.json",
+                                allow_empty_history=True)
+            row = json.loads((equal / "metrics.json").read_text(encoding="utf-8"))["rows"][0]
+            self.assertEqual((row["disposition"], row["findings_count"]), ("review_required", 2))
+
     def test_build_refuses_to_drop_the_ledger_without_optin(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -2801,13 +2827,52 @@ class MetricsLedgerTests(unittest.TestCase):
             (root / "prior.json").write_text(json.dumps({"schema_version": 9, "entries": []}))
             with self.assertRaisesRegex(ValueError, "allow_empty_metrics"):
                 _build_site(root / "empty", root / "site", prior_history=root / "prior.json")
+            # Recovering history does not also license restarting the ledger.
+            with self.assertRaisesRegex(ValueError, "allow_empty_metrics"):
+                _build_site(root / "empty", root / "site", allow_empty_history=True)
             self.assertFalse((root / "site" / "index.html").exists())
-            (root / "bad.json").write_text(json.dumps({"schema_version": 1, "rows": [{
-                "date": "2026-08-20", "disposition": "ready", "headline": "Injected text",
-            }]}))
+
+            # A row that is valid except for one extra text field is refused.
+            seeded = self._build(root, "seeded", root / "empty", prior_history=root / "prior.json",
+                                 allow_empty_metrics=True)
+            (root / "valid").mkdir()
+            valid_site = _build_from_entries(root / "valid", [_legacy_ready_entry("2026-08-20")])
+            valid = json.loads((valid_site / "metrics.json").read_text(encoding="utf-8"))
+            site_metrics.parse_ledger(valid)
+            valid["rows"][0]["headline"] = "Injected text"
+            (root / "bad.json").write_text(json.dumps(valid))
             with self.assertRaisesRegex(ValueError, "exactly"):
-                _build_site(root / "empty", root / "site", prior_history=root / "prior.json",
+                _build_site(root / "empty", root / "site", prior_history=seeded / "history.json",
                             prior_metrics=root / "bad.json")
+            self.assertFalse((root / "site" / "index.html").exists())
+
+    def test_unusual_model_identifier_degrades_to_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bracketed, spaced = _live_entry("2026-10-13"), _live_entry("2026-10-12")
+            for entry, model in ((bracketed, "anthropic/claude-opus-4[1m]"), (spaced, "free text model")):
+                provenance = entry["provenance"]
+                assert isinstance(provenance, dict)
+                entry["provenance"] = {**provenance, "model": model}
+            site = _build_from_entries(Path(directory), [bracketed, spaced])
+            rows = {row["date"]: row for row in json.loads(
+                (site / "metrics.json").read_text(encoding="utf-8"))["rows"]}
+            self.assertEqual(rows["2026-10-13"]["model"], "anthropic/claude-opus-4[1m]")
+            self.assertIsNone(rows["2026-10-12"]["model"])
+            self.assertTrue((site / "index.html").exists())
+
+    def test_ledger_the_next_build_would_refuse_fails_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entry = _legacy_ready_entry("2026-09-01")
+            # History accepts any non-negative count; the ledger caps it at 100000.
+            entry["findings_count"] = 100_001
+            (root / "prior.json").write_text(json.dumps({"schema_version": 9, "entries": [entry]}))
+            (root / "empty").mkdir()
+            with self.assertRaisesRegex(ValueError, "metrics count"):
+                build_site(root / "empty", root / "site", prior_history=root / "prior.json",
+                           allow_empty_metrics=True)
+            self.assertFalse((root / "site" / "metrics.json").exists())
+            self.assertFalse((root / "site" / "index.html").exists())
 
     def test_legacy_entry_records_null_and_renders_unknown_not_zero(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2852,8 +2917,7 @@ class MetricsLedgerTests(unittest.TestCase):
         self.assertNotIn("<script", chart)
         self.assertIn("&lt;/text&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;", chart)
         ElementTree.fromstring(chart)
-        with self.assertRaisesRegex(ValueError, "identifiers"):
-            site_metrics._identifier(hostile)
+        self.assertIsNone(site_metrics._identifier(hostile))
         with tempfile.TemporaryDirectory() as directory:
             entries = [_live_entry("2026-10-13"), _live_entry("2026-10-12"), _legacy_ready_entry("2026-09-01")]
             site = _build_from_entries(Path(directory), entries)

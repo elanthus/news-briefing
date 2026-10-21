@@ -28,7 +28,7 @@ def main() -> None:
         'status': 'ready', 'selected_run_dir': 'run',
     }), encoding='utf-8')
     prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
-    build_site(root / 'history', root / 'site', allow_empty_history=True)
+    build_site(root / 'history', root / 'site', allow_empty_history=True, allow_empty_metrics=True)
     print(root / 'site/reports/2026-09-30.html')
 
 
