@@ -349,16 +349,16 @@ class ComparisonTest(unittest.TestCase):
         self.assertEqual(raised["promotion"]["decision"], "do_not_promote_candidate")
 
     def test_malformed_version_2_policies_are_refused(self) -> None:
-        cases = [
+        cases: list[tuple[dict[str, Any], str]] = [
             ({"utility_rule": "point_estimate"}, "utility_rule"),
             ({"attack_rule": "point_estimate"}, "attack_rule"),
             ({"utility_interval_lower_bound_must_exceed_percentage_points": -1}, "non-negative"),
         ]
         for rule, message in cases:
             with self.subTest(rule=rule), tempfile.TemporaryDirectory() as directory:
-                policy = self._policy_variant(directory, **rule)
+                variant = self._policy_variant(directory, **rule)
                 with self.assertRaisesRegex(ValueError, message):
-                    self._multi_model_result({"model": [(False, True)] * 4}, policy_path=policy)
+                    self._multi_model_result({"model": [(False, True)] * 4}, policy_path=variant)
         for version in (3, True, 2.0):
             with self.subTest(policy_version=version), tempfile.TemporaryDirectory() as directory:
                 policy_path = Path(directory) / "policy.json"
