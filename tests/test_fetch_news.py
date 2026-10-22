@@ -494,6 +494,20 @@ class RelevanceTest(unittest.TestCase):
             "title": "The purpose of DNS is to spread scams",
             "summary": ""}))
 
+    def test_codex_releases_drops_prerelease_tags_and_keeps_stable_releases(self):
+        for title in ("0.164.0-alpha.12", "rust-v0.163.0-alpha.11.2", "0.165.0-beta.1",
+                      "0.165.0-rc1"):
+            self.assertFalse(is_relevant_item({
+                "source": "Codex Releases", "title": title, "summary": ""}), title)
+        self.assertTrue(is_relevant_item({
+            "source": "Codex Releases", "title": "0.164.0", "summary": "Stable release"}))
+        self.assertTrue(is_relevant_item({
+            "source": "Codex Releases", "title": "rust-v0.163.0", "summary": ""}))
+
+    def test_prerelease_noise_applies_only_to_listed_sources(self):
+        self.assertTrue(is_relevant_item({
+            "source": "Claude Code Releases", "title": "v2.1.0-beta.1", "summary": ""}))
+
     def test_hacker_news_query_match_must_still_be_topically_relevant(self):
         self.assertFalse(is_relevant_item({
             "source": "Hacker News", "title": "Dithered QR Codes", "summary": ""}))

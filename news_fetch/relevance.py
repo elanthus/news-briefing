@@ -55,6 +55,19 @@ SOURCE_RELEVANCE_FILTERS = {
     "Simon Willison's Weblog": DEV_TOOL_RELEVANCE,
     "Hacker News": HN_RELEVANCE,
 }
+# Some release feeds tag every prerelease build. The Codex feed publishes
+# several alpha tags a day, and each one is a version bump, not a story. The
+# noise pattern drops prerelease tags before they reach the model corpus and
+# keeps stable releases. Matched against the title and summary, so a stable
+# release whose notes mention an earlier alpha is still dropped; that is an
+# accepted cost for a feed where the title is the version tag.
+PRERELEASE_NOISE = re.compile(
+    r"\d-(?:alpha|beta|rc|pre|dev|nightly)(?:[.\-]?\d+)*\b",
+    re.IGNORECASE,
+)
+SOURCE_NOISE_FILTERS = {
+    "Codex Releases": PRERELEASE_NOISE,
+}
 
 
 def is_relevant_item(item: Item) -> bool:
@@ -65,10 +78,14 @@ def is_relevant_item(item: Item) -> bool:
     mistake — an item dropped here cannot be ranked at all, and a starved
     sub-category cannot fill its reserved slots.
     """
-    pattern = SOURCE_RELEVANCE_FILTERS.get(item.get("source", ""))
+    source = item.get("source", "")
+    text = f"{item.get('title', '')} {item.get('summary', '')}"
+    noise = SOURCE_NOISE_FILTERS.get(source)
+    if noise is not None and noise.search(text):
+        return False
+    pattern = SOURCE_RELEVANCE_FILTERS.get(source)
     if pattern is None:
         return True
-    text = f"{item.get('title', '')} {item.get('summary', '')}"
     if COMMERCE_NOISE.search(text):
         return False
     return bool(pattern.search(text))
