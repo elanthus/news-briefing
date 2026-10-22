@@ -18,10 +18,12 @@ It displays changed prose once per story and separates initial review, confirmat
 Use a completed runner directory with a manifest identifying a `ready` final candidate.
 For a fallback chain, find the selected child directory in `fallback-log.json`.
 Do not use the chain's parent directory as the review input.
+Use `--confirm-flags` to confirm each initial flag in isolation.
 
 ```bash
 python3 -S -m agent_runner.jev_review \
   --run-dir .news-briefing/runs/RUN \
+  --confirm-flags \
   --output-dir .news-briefing/jev-reviews/RUN
 ```
 
@@ -68,7 +70,7 @@ The round can repair at most four slots. More targets skip the entire round.
 HY3 preserves topic positions. Code preserves other topics and the exclusion log.
 The repair does not rerank sections.
 
-Each citation check compares one source's title and excerpt with the story prose, without neighboring sources.
+Each citation check compares one source's title and excerpt with the story headline and prose, without neighboring sources.
 Code removes that source only when both scores reach the citation threshold.
 Disputed and lower-scoring citations remain.
 If all sources in any target slot are confirmed irrelevant, the round is skipped and the original report remains.
@@ -241,9 +243,12 @@ Monitor false alarms, missed errors, and editorial losses. The deterministic gat
 2. Include failed generation and incomplete-review days.
 3. Declare the frozen sampling interval with `--start` and `--end`.
 4. Put the ready run or fallback chain in each day's `run/` directory.
-5. Include exactly one review directory: `review/` or `jev-review/`.
+5. If a review audit exists, put it in exactly one directory: `review/` or `jev-review/`.
 
-Missing folders become `missing_day` rows. Folders outside the declared interval are rejected.
+Missing day directories become `missing_day` rows.
+An existing day without a review's `audit.json` becomes `missing_review`, with one exception.
+If its fallback chain has status `failed` and no selected run, the day becomes `generation_failure`.
+Folders outside the declared interval are rejected.
 
 ```bash
 python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
