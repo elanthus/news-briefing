@@ -17,8 +17,11 @@ entry recorded no spend stays unknown rather than zero.
 
 Only ``LEDGER_SCHEMA_VERSION`` is readable. A ledger at any other version is
 refused and the build fails before anything is written. Rows are never upgraded
-in place; a refused deployed ledger is rebuilt from history by an explicit
-``--allow-empty-metrics`` build.
+in place. An explicit ``--allow-empty-metrics`` build starts a new ledger from
+the published history, which keeps seven dates while the ledger keeps every
+recorded date, so that path alone loses the older dates. Keeping them needs the
+retained daily inputs for those dates or a one-shot offline migration that
+states its own removal condition.
 
 The page is an operational summary of the daily integrity records. It is not
 an independent assessment, a grounding rate, or a quality measurement.
