@@ -2,62 +2,53 @@
 
 ## Supported versions
 
-This project is not distributed as a versioned package. Security fixes are made on
-the `main` branch, which is the only supported version.
+Only `main` receives security fixes. This project is not a versioned package.
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for a suspected vulnerability. Instead, use
-[GitHub's private vulnerability reporting](https://github.com/elanthus/news-briefing/security/advisories/new)
-and include:
+Use [GitHub private vulnerability reporting](https://github.com/elanthus/news-briefing/security/advisories/new).
+Do not report a suspected vulnerability in a public issue.
+Include these details:
 
-- a description of the vulnerability and its impact;
-- the affected files, configuration, and environment;
-- the smallest reproducible example you can provide; and
-- any suggested remediation, if you have one.
+- The vulnerability and its impact.
+- The affected files, configuration, and environment.
+- A minimal reproducible example.
+- A suggested fix, if available.
 
-Do not include credentials, personal data, or live exploit targets in the report.
-Please allow time to investigate and coordinate a fix before public disclosure.
+Exclude credentials, personal data, and live exploit targets.
+Allow time for investigation and a coordinated fix before public disclosure.
 
 ## Security scope
 
-Useful reports include vulnerabilities in the repository's code or default
-configuration, such as:
+Report failures in the repository's code or default configuration that cross a claimed boundary.
+These boundaries include:
 
-- bypasses of public-destination validation, DNS pinning, or redirect checks
-  (`news_fetch/destinations.py` and `news_fetch/transport.py`);
-- ways to introduce a briefing URL that is absent from the fetched corpus;
-- parser or resource-exhaustion flaws that violate the documented input bounds
-  (feed XML parsing is in `news_fetch/feed_xml.py`);
-- credential exposure from the runner, the fetcher, or the optional evaluator,
-  including `OPENROUTER_API_KEY`, `CORPUS_ARCHIVE_PASSPHRASE`, and the optional
-  `SCRAPECREATORS_API_KEY` (sent only to the ScrapeCreators HTTPS API origin,
-  without following redirects, when the fetcher's final Reddit fallback runs;
-  see [Reddit falls back through three backends](docs/design.md#fetching));
-- bypasses of the runner's OpenRouter or Claude Code action-tool policy, citation
-  projection, generation artifact integrity at repair/publication handoffs, evaluator
-  checkpoint integrity, or fail-closed provider-event validation; and
-- prompt-injection paths that cross a boundary the project claims to enforce.
+- Public-destination validation, DNS pinning, and redirect checks in `news_fetch/destinations.py` and `news_fetch/transport.py`.
+- Citation membership in the fetched corpus.
+- Parsing and resource bounds, including XML checks in `news_fetch/feed_xml.py`.
+- Credentials used by the fetcher, runner, archive, and evaluator.
+- OpenRouter and Claude Code action-tool restrictions.
+- Citation projection and artifact verification at review, repair, and publication handoffs.
+- Evaluator checkpoint integrity and provider-event validation.
+- Prompt injection that escapes an enforced boundary.
 
-Evidence recorded by runs before #291 is accepted at the review, repair and
-publication handoffs only through the marker-scoped re-decode in
-`load_verified_run` (`redecode_redacted_text` in `agent_runner/output.py`),
-which re-decodes recorded strings that already carry the destination marker,
-masks nothing, and leaves the production projection grammar unchanged.
+Credentials include `OPENROUTER_API_KEY`, `CORPUS_ARCHIVE_PASSPHRASE`, and the optional `SCRAPECREATORS_API_KEY`.
+The fetcher sends the ScrapeCreators key only to its approved HTTPS API origin. It does not follow redirects with that key.
+See [Reddit fetching](docs/design.md#fetching).
 
-The following are documented limitations rather than vulnerabilities by
-themselves:
+Some pre-#291 evidence contains escaped text that the current projection decodes differently.
+`load_verified_run` uses `redecode_redacted_text` only for recorded strings that already contain the destination marker.
+It masks no additional content. It still requires equality with the current projection.
+This compatibility path does not change the production projection grammar.
 
-- inaccurate ranking or summaries produced by a model;
-- prompt injection that changes selection or prose without escaping the corpus
-  URL allowlist;
-- a Codex built-in tool being present but unused inside the documented empty,
-  read-only sandbox boundary (actual non-message/reasoning trace events are in
-  scope);
-- malicious, inaccurate, unavailable, or rate-limited third-party feeds; and
-- denial of service against the upstream public sources.
+The following conditions alone are documented limitations:
 
-The README's [what code enforces, and what it doesn't](README.md#what-code-enforces-and-what-it-doesnt)
-table states the trust boundaries and guarantees; [`docs/design.md`](docs/design.md)
-covers the reasoning behind them. Reports showing that an implementation does not
-meet one of those stated guarantees are in scope.
+- Model ranking and summary errors.
+- Injection that changes selection or prose while staying inside the corpus URL allowlist.
+- An unused Codex built-in tool inside the documented empty, read-only sandbox.
+- Malicious, inaccurate, unavailable, or rate-limited upstream feeds.
+- Denial of service against public upstream sources.
+
+Actual Codex trace events outside permitted messages and reasoning remain in scope.
+See the [enforcement table](README.md#what-code-enforces-and-what-it-doesnt) and [design notes](docs/design.md).
+An implementation that fails a stated guarantee is in scope.

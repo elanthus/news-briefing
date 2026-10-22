@@ -1,22 +1,16 @@
 # Contributing
 
-Thanks for helping improve news-briefing. Contributions should preserve the
-project's central property: deterministic code constrains and checks the corpus,
-while the model handles judgments that code cannot prove.
+Preserve the central contract: code constrains and checks the corpus. Models make judgments that code cannot prove.
 
 ## Before you start
 
-For a bug, open a focused issue with reproduction steps, expected behavior, and
-actual behavior. For a substantial feature or a change to a trust boundary, open
-an issue before writing code so the design and scope can be agreed first.
-
-Report suspected vulnerabilities privately as described in
-[SECURITY.md](SECURITY.md), not in a public issue.
+For a bug, open an issue with reproduction steps, expected behavior, and actual behavior.
+For a substantial feature or trust-boundary change, agree on the design and scope in an issue before implementation.
+Report suspected vulnerabilities through the private process in [SECURITY.md](SECURITY.md).
 
 ## Development setup
 
-Use Python 3.11 or newer. The briefing pipeline uses only the standard library, so
-there is no package installation step:
+Use Python 3.11 or later. The core pipeline needs no third-party Python packages.
 
 ```bash
 git clone https://github.com/elanthus/news-briefing.git
@@ -25,39 +19,32 @@ python3 -S -m unittest -v
 python3 -S -m unittest discover -s evaluator/tests -v
 ```
 
-The optional evaluator development tools can be installed in an isolated
-environment with:
+To install optional evaluator development tools in an isolated environment:
 
 ```bash
 uv sync --project evaluator --group dev
 ```
 
-Static-site tests are intentionally excluded from default discovery. If you are
-changing `build_site.py` or the generated site, install the pinned renderer and
-run the opt-in module explicitly:
+The site tests require the pinned renderer. They are excluded from default discovery.
+Run them when `build_site.py`, `prepare_publication.py`, or the generated site changes:
 
 ```bash
-python3 -m pip install --requirement requirements-site.txt
-python3 -m unittest -v tests.site_test_build
+uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m unittest -v tests.site_test_build
 ```
 
-Smoke-test the evaluation harness (case loading, oracles, scoring, report
-rendering) with zero provider calls:
+Check evaluator loading, oracles, scoring, and report output without provider calls:
 
 ```bash
 python3 -S -m evaluator checker
-python3 -S -m unittest discover -s evaluator/tests
 ```
 
 ### One interpreter per run
 
-A script that starts another pipeline script runs it with `sys.executable`,
-never a bare `python` or `python3` looked up on `PATH`. The child then uses the
-interpreter, version, and environment the parent was started with. New
-orchestration code must follow the same rule.
+Use `sys.executable` when one pipeline script starts another.
+The child must use the parent's interpreter, version, and environment.
+Do not select a child interpreter through a bare `python` or `python3` command on `PATH`.
 
-Never commit API keys, `.env` files, generated corpora, briefings, or evaluator
-run artifacts.
+Do not commit credentials, `.env` files, generated corpora, generated briefings, or evaluator run artifacts.
 
 ## Repository map
 
@@ -88,70 +75,56 @@ run artifacts.
 
 ## Making a change
 
-- Keep the core runtime compatible with Python 3.11+ and free of third-party
-  dependencies.
+- Keep the core runtime compatible with Python 3.11 or later and the standard library.
 - Add or update tests for behavior changes. Tests must not require network access.
 - Treat fetched titles, summaries, sources, and URLs as untrusted input.
-- Preserve explicit limits, typed failures, and corpus-health reporting; do not
-  silently discard failures or weaken checks to make a run pass.
-- Update the README, design notes, fixtures, or prompt documentation when a public
-  contract or trust boundary changes.
-- Keep changes focused. Avoid unrelated formatting or refactoring in the same pull
-  request.
+- Preserve limits, typed failures, and corpus-health reporting. Do not weaken checks to make a run pass.
+- Update documentation when a public contract or trust boundary changes.
+- Keep each pull request focused. Exclude unrelated formatting and refactoring.
 
-Changes to `briefing-runner-prompt.md`—the production prompt used by
-`run_briefing.py` and the daily chain—need particular care, as do changes to
-`evaluator/prompts/briefing-prompt.md`, which serves the evaluator's direct-Markdown path. Changes
-to security controls, fixture labels, or evaluator oracles also need particular
-care. Explain the intended guarantee, add a regression case, and distinguish
-deterministic enforcement from heuristic or model-evaluated behavior.
+Changes to production prompts, security controls, fixture labels, and evaluator oracles need specific evidence.
+Describe the intended guarantee and add a regression case.
+Distinguish code enforcement from heuristic checks and model judgments.
+The production prompt is `briefing-runner-prompt.md`.
+The historical direct-Markdown prompt is `evaluator/prompts/briefing-prompt.md`.
 
 ## Checks
 
-Run the repository gate listed under
-[Required checks](CLAUDE.md#required-checks) in `CLAUDE.md`. Continuous
-integration runs the same lint, type, test, and checker steps, plus a few more:
+Run the [repository gate](CLAUDE.md#required-checks).
+CI runs the core and evaluator suites on Python 3.11 through 3.14.
+It also runs lint, type checks, the evaluator checker, and the opt-in site tests.
 
-- It enforces the declared case counts in `evaluator/regression-policy.json`.
-  This step reads only checked-in files and runs offline.
-- It fetches and verifies the public evidence bundles, and an informational
-  end-to-end job fetches a live corpus. Both need network access, so they are
-  not part of the local gate.
-- It runs the site tests. Locally they stay opt-in because they need the pinned
-  site-renderer dependency (see below).
+The offline policy job verifies declared fixture counts and the committed checker snapshot.
+Snapshot drift fails the gate. Use `--update-snapshot` only for an intentional, reviewed update.
+CI also fetches public evidence bundles and verifies committed comparison output.
+These downloads require network access and are outside the local gate.
+The live-source smoke job is informational. It does not block a pull request.
 
-The evaluator checker validates checker behavior against the committed snapshot.
-CI fails on snapshot drift; snapshot updates are opt-in via `--update-snapshot`.
+The maintainer's [pre-push configuration](.agentic-preflight.toml) also runs site tests with the pinned dependency.
+Outside contributors do not need Agentic Preflight.
+For live evaluations, record the provider, exact model, prompt version, trials, sampling controls, and incomplete or failed runs.
 
-CI runs the offline suites on Python 3.11 through 3.14, plus `ruff` and `mypy`
-with `disallow_untyped_defs = true` from `pyproject.toml`, and a non-blocking
-smoke test against live feeds.
+## Documentation style
 
-CI and the agentic-preflight gate—the maintainer's local pre-push hook
-configuration (`.agentic-preflight.toml`), which outside contributors are not
-expected to run—also run `tests.site_test_build` with `requirements-site.txt`;
-the module stays opt-in locally so the typical suite retains its no-install
-contract.
+Use [ASD-STE100 Issue 9](https://www.asd-ste100.org/) as the writing reference for maintained documentation.
+Write one instruction per sentence. Use the imperative form for procedures and active voice where possible.
+Limit procedural sentences to 20 words and descriptive sentences to 25 words.
+Use one term for one concept. Define necessary software terms and preserve exact code identifiers.
 
-The live-source smoke test is informational and is not required for a pull
-request. If you run live model evaluations, disclose the provider, exact model,
-prompt version, trial count, sampling controls, and any incomplete or failed runs.
+Check claims against code, configuration, tests, and recorded evidence before rewriting them.
+Preserve commands, schemas, quotations, and measured values unless a verified correction is required.
+Do not restyle historical reports, archived runs, prompts, fixtures, or raw evidence.
+This repository uses an STE style. It does not claim complete dictionary conformity or certified compliance.
 
 ## Pull requests
 
-Pull requests get an automated Claude review defined in
-[`.github/workflows/claude-code-review.yml`](.github/workflows/claude-code-review.yml).
+Pull requests receive the [automated Claude review](.github/workflows/claude-code-review.yml).
+Include these details in the description:
 
-In the pull request description:
+- The problem and resulting behavior.
+- Changed guarantees, limitations, or compatibility requirements.
+- The checks completed and their results.
+- The related issue, if available.
 
-- explain the problem and the chosen solution;
-- identify any changed guarantees, limitations, or compatibility concerns;
-- list the checks you ran and their results; and
-- link the relevant issue, if one exists.
-
-Keep commits reviewable and use clear, imperative commit subjects. A pull request
-should be small enough that its security and grounding implications can be
-understood without unrelated context.
-
-By contributing, you agree that your contribution is licensed under the project's
-[MIT License](LICENSE).
+Use clear, imperative commit subjects. Make the change understandable without unrelated conversation history.
+Contributions use the project's [MIT License](LICENSE).

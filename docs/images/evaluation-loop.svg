@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="580" viewBox="0 0 1200 580" role="img" aria-labelledby="title desc">
   <title id="title">Development-only evaluation loop</title>
-  <desc id="desc">A frozen 55-case generation suite of matched attack and benign cases runs across models, prompts and trials through the production-parity runner: selection, frozen evidence, prose, promotion and deterministic repair, with at most one correction. Deterministic oracles and blinded model judges measure the saved artifacts. The report groups results into four score families. evaluator compare applies the fixed promotion rule in regression-policy.json to a compatible, complete baseline and candidate. A separate offline checker gate runs in CI without credentials. The evaluator never changes the production publication decision.</desc>
+  <desc id="desc">Frozen cases run across models, prompts, and trials through the production-parity runner. Code validates selection, freezes evidence, checks prose, and permits at most one model correction. Oracles and blinded judges assess saved artifacts. Reports separate four score families. Promotion requires compatible complete evidence, utility and attack intervals, no contract regression, and completed human grounding review. Every evaluated model must pass. A separate offline checker runs in CI. Research review does not change published reports.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -27,8 +27,8 @@
 
   <rect class="canvas" x="1" y="1" width="1198" height="578" rx="18" stroke="#cbd5e1" stroke-width="2"/>
 
-  <text class="title" x="40" y="45">Dev-only evaluation: measure first, promote only by declared rules</text>
-  <text class="subtitle" x="40" y="72">Frozen inputs and saved artifacts keep stochastic model behavior separate from deterministic policy.</text>
+  <text class="title" x="40" y="45">Evaluation: measure results before applying promotion rules</text>
+  <text class="subtitle" x="40" y="72">Frozen inputs and saved artifacts separate model behavior from code checks.</text>
 
   <g transform="translate(720 82)">
     <rect class="node code" x="0" y="0" width="20" height="20" rx="4"/>
@@ -41,7 +41,7 @@
 
   <rect class="node input" x="35" y="125" width="205" height="125" rx="12"/>
   <text class="label" x="137.5" y="160">Generation suite</text>
-  <text class="detail" x="137.5" y="185">55 cases, version 9</text>
+  <text class="detail" x="137.5" y="185">Version 9 cases</text>
   <text class="detail" x="137.5" y="205">attack + clean twins</text>
   <text class="detail" x="137.5" y="225">position × count ablations</text>
 
@@ -85,22 +85,22 @@
 
   <rect class="node code" x="380" y="395" width="470" height="120" rx="12"/>
   <text class="label" x="615" y="425">Promotion gate: evaluator compare</text>
-  <text class="detail" x="615" y="450">baseline vs candidate; compatible, complete runs</text>
-  <text class="detail" x="615" y="470">utility +5 pp; attack non-inferior (paired bootstrap)</text>
-  <text class="detail" x="615" y="490">0 new contract regressions; no human grounding-error increase</text>
+  <text class="detail" x="615" y="450">Compatible, complete runs; no new contract regressions</text>
+  <text class="detail" x="615" y="470">utility ≥ +5 pp, lower bound > 0; attack upper bound &lt; +5 pp</text>
+  <text class="detail" x="615" y="490">All models pass; human review complete; no grounding-error increase</text>
 
   <path class="flow" d="M 1095 330 V 400 Q 1095 455 1035 455 H 850"/>
   <text class="edge-label" x="960" y="445">regression-policy.json</text>
 
   <rect class="node code" x="35" y="395" width="310" height="70" rx="12"/>
   <text class="label" x="190" y="423">Offline checker gate (CI)</text>
-  <text class="detail" x="190" y="448">81 reviewed cases · no credentials</text>
+  <text class="detail" x="190" y="448">Model-reviewed cases · no credentials</text>
 
   <rect x="35" y="480" width="310" height="65" rx="10" fill="#e2e8f0" stroke="#94a3b8"/>
   <text class="note" x="190" y="507">Evaluation cannot publish content.</text>
   <text class="detail" x="190" y="530">Measures the runtime; never replaces its gate.</text>
 
   <rect class="node model" x="880" y="480" width="290" height="65" rx="12"/>
-  <text class="label" x="1025" y="505">Weekly grounding monitor</text>
-  <text class="detail" x="1025" y="530">reviews deployed runs; never edits them</text>
+  <text class="label" x="1025" y="505">Explicit research review</text>
+  <text class="detail" x="1025" y="530">Packet export and machine grounding</text>
 </svg>

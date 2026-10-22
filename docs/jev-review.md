@@ -1,29 +1,23 @@
 # Daily Jev checks and repairs
 
-After the fallback chain selects a ready briefing, the daily publisher requests a
-Jev review, confirms each initial flag in isolation, and attempts one bounded HY3
-repair round for confirmed included citation, grouping or prose problems. Accepted
-repairs update the public report; the original run remains immutable. The existing
-`OPENROUTER_API_KEY` authenticates both models.
+After generation selects a ready briefing, the daily stage requests a Jev review.
+It confirms each initial flag in isolation and can attempt one bounded HY3 repair round.
+Accepted slots update the public report. The original run remains unchanged.
+Both models use `OPENROUTER_API_KEY`.
 
-The public integrity report shows the publication decision and action outcomes
-before detailed statistics. It identifies skipped and failed repairs as well as
-accepted and rejected candidates. Actual headline and summary differences appear
-once per story, even when citation review triggered the repair. Unchanged prose
-is omitted; removal and repair metadata remain visible. Initial and follow-up
-review coverage, isolated confirmations, unresolved flags, and billing uncertainty
-are reported separately. These are automated excerpt judgments, not human
-verification.
+Jev uses OpenRouter's Decisions API with `typesafe/jev-1.13`.
+It needs no TypeSafe key or third-party Python package.
+It returns probabilities, not prose or free-text rationales.
+These excerpt judgments are automated evidence, not human verification.
 
-The reviewer uses OpenRouter's Decisions API with `typesafe/jev-1.13` and the existing
-`OPENROUTER_API_KEY`. It requires no TypeSafe key or third-party Python package. Jev
-does not write prose or provide free-text rationales.
+The integrity report distinguishes accepted, rejected, failed, and skipped repairs.
+It displays changed prose once per story and separates initial review, confirmation, follow-up, and billing uncertainty.
 
 ## Review an existing run
 
-Use a completed runner directory whose manifest identifies a `ready` final candidate.
-For a daily fallback chain, use its selected candidate directory, recorded in
-`fallback-log.json`, rather than the chain's parent directory.
+Use a completed runner directory with a manifest identifying a `ready` final candidate.
+For a fallback chain, find the selected child directory in `fallback-log.json`.
+Do not use the chain's parent directory as the review input.
 
 ```bash
 python3 -S -m agent_runner.jev_review \
@@ -31,219 +25,225 @@ python3 -S -m agent_runner.jev_review \
   --output-dir .news-briefing/jev-reviews/RUN
 ```
 
-The output directory must be new and separate from the source run; it cannot contain
-or be contained by the source directory. This preserves the source run and its
-checkpoint hashes. To review again with different settings, choose a new directory.
+The output directory must be new and separate from the source directory.
+Neither directory can contain the other.
+Use a new directory to review with different settings.
+The standalone command returns zero for complete coverage and one for partial or failed review.
+Flag counts do not determine this exit status.
 
-To request an advisory-only review immediately after generation, add
-`--jev-review-dir .news-briefing/jev-reviews/RUN` to `run_briefing.py`. Review
-runs only when generation reaches `ready`. Add `--confirm-flags` to the standalone
-review command for isolated confirmation. The daily fallback-chain command
-`run_daily_briefing.py --jev-review-dir DIR` confirms flags and applies bounded
-repairs only after full acceptance; scheduled publication always enables this
-stage. The redundant `--jev-repair-mode` flag is removed. The daily producer has
-one apply policy; historical candidate-only artifacts are archived as research
-evidence under the [retention contract](research-retention.md). Current publication
-accepts only schema-3 per-slot audits.
-The standalone review command returns zero for complete coverage and one for partial
-or failed review, regardless of how many findings it flags.
+| Entry point | Review behavior |
+|---|---|
+| `run_briefing.py --jev-review-dir DIR` | Advisory review after a ready result. |
+| `agent_runner.jev_review --confirm-flags` | Standalone review with isolated flag confirmation. |
+| `run_daily_briefing.py --jev-review-dir DIR` | Confirmation and bounded repair, subject to full acceptance checks. |
+| Scheduled publication | Always enables the daily review stage. |
+
+The daily producer has one apply policy. The obsolete `--jev-repair-mode` option is removed.
+Current publication accepts only schema-3 audits with per-slot decisions.
+Historical candidate-only artifacts remain [research evidence](research-retention.md).
 
 ## Confirmation and repair policy
 
-An initial score at or above its threshold triggers a single recheck with only that
-finding's exact frozen evidence, prose and rubric. A pair check retains exactly
-its two topics. Citation relevance uses **0.60** by default; other checks use
-**0.80**. Both scores are preserved: **confirmed** requires both to reach the
-cutoff; otherwise the flag is **disputed**. If the recheck cannot return, the label
-is **unconfirmed**, coverage is partial and no repair is attempted.
+### Confirm each flag
 
-Confirmed included citation, grouping and prose findings trigger repair. Each
-citation check sees one source's title/excerpt and the published story's prose,
-with no neighboring sources. Code removes that exact source only when both scores
-reach 0.60. This favors excluding questionable links. Disputed and lower-scoring
-citations remain. If all sources in a slot are confirmed irrelevant, skip the
-repair round and retain the original report; the nonempty-citation contract still
-applies. Use `--citation-threshold` on the standalone reviewer to change its
-cutoff. Duplicate findings and excluded-topic grouping flags remain advisory. A round repairs at
-most four slots; more targets skip the entire round. HY3 keeps affected topics
-in their existing positions and code preserves every other topic and the
-exclusion log. No section reranking occurs.
+An initial score at or above its threshold triggers one isolated recheck.
+The request contains only that finding's frozen evidence, prose, and rubric.
+A pair check retains exactly two topics.
 
-After confirmed citation removals, grouping repair selects a nonempty subset of
-a slot's own source items, using local integer indexes, then writes prose against the refrozen subset.
-Prose-only repair preserves its original references and source order. Code
-keeps each repaired slot's original headline and asks the model only for a
-summary under it. A slot that lost a source item, by confirmed removal or a
-smaller grouping subset, may receive a new headline, which the normal validator
-checks like any other. The verifier rejects a changed headline on a slot whose
-sources are unchanged. No model receives a URL or opaque citation handle. Each actual repair call is limited to
-10,000 output tokens and 180 seconds; the round makes at most two calls through
-the existing provider adapter. A prose-only round preserves selection in code,
-so it needs just one paid call.
+| Check | Default threshold |
+|---|---:|
+| Citation relevance | 0.60 |
+| Other checks | 0.80 |
 
-The normal runner validates and renders the complete candidate. A separate Jev
-review then repeats citation, grouping and prose checks and duplicate comparisons
-for the candidate. Its coverage must be complete and its costs known; otherwise no
-slot is applied. Acceptance is then decided per slot: a repaired slot is applied
-when every returned check involving its position is below its respective
-threshold, and a re-flagged slot keeps its original prose and sources. A check
-that names two positions blocks both. When every slot clears, the repaired run is
-the publication input (`repaired_applied`). When only some clear, code assembles
-a new run from the frozen original and the cleared slots through the normal
-runner without a model call, revalidates it, and verifies that cleared slots
-match the repaired run exactly and every other topic matches the original byte
-for byte (`partial_applied`). The integrity record then lists the original,
-candidate and published digests, and its action ledger records `apply_repair` or
-`withhold_repair` for each repaired slot. If assembly or its verification fails,
-every target is recorded as failed and the original is published; the audit
-still keeps the follow-up scores, costs and the slots that had cleared. The assembled briefing is not reviewed
-again: a cleared slot is not compared by a duplicate check with the original prose
-of a withheld one. A singleton source no longer needs a grouping check; the
-audit identifies that code-level scope change without inventing a Jev score.
-Removed citations likewise have a removal outcome, not an invented follow-up
-score. Retained citations are matched back to their original frozen indexes so
-removing one cannot attach the next source's score to it.
-Unrelated findings remain visible and do not prevent an otherwise cleared repair.
+Both scores must reach the threshold for `confirmed`.
+Otherwise, the flag is `disputed`.
+A missing confirmation produces `unconfirmed`, partial coverage, and no repair.
+Use `--citation-threshold` to change the standalone citation cutoff.
 
-One round is the limit: rejected slots are retained in the audit with their
-proposed prose, and the original ready briefing is published when no slot clears.
-Failed or skipped repairs retain the original as well. Applying cleared slots
-does not change the original fallback run or its checkpoints. Publication
-revalidates input hashes, exact before/after prose, unchanged topics, source
-subsets, per-slot acceptance and the ready repaired or assembled run before using
-it. Audits written before per-slot acceptance (metadata versions 1 and 2) are
-retired historical attachments; current publication rejects them.
-An invalid audit is ignored and cannot replace the original publication input.
+### Prepare the repair
 
-The repair instructions ask for concise complete sentences and forbid copying
-truncated fragments. Code rejects empty strings, trailing ellipses, and summary
-text without closing punctuation. Those checks catch some truncation errors;
-they do not prove readability, truth or exhaustive support.
+Confirmed included citation, grouping, and prose findings can trigger repair.
+Duplicate findings and excluded-topic grouping remain advisory.
+The round can repair at most four slots. More targets skip the entire round.
+HY3 preserves topic positions. Code preserves other topics and the exclusion log.
+The repair does not rerank sections.
+
+Each citation check compares one source's title and excerpt with the story prose, without neighboring sources.
+Code removes that source only when both scores reach the citation threshold.
+Disputed and lower-scoring citations remain.
+If all sources in any target slot are confirmed irrelevant, the round is skipped and the original report remains.
+Every included slot must retain evidence.
+
+After confirmed citation removals, grouping repair can select a nonempty subset of the slot's sources using local integer indexes.
+Code freezes that subset before prose generation.
+Prose-only repair preserves references and source order.
+It keeps the original headline and requests only a summary.
+A slot that loses a source can receive a new headline, subject to normal validation.
+The verifier rejects a changed headline when sources are unchanged.
+Repair models receive no URLs or opaque citation handles.
+
+Each repair call permits at most 10,000 output tokens and 180 seconds.
+The round makes at most two calls through the existing provider adapter.
+A prose-only round requires one call because code preserves the selection.
+
+### Check and apply each slot
+
+The normal runner validates and renders the complete candidate.
+A separate Jev follow-up repeats citation, grouping, prose, and duplicate checks.
+Coverage must be complete and costs known before any slot can apply.
+
+A repaired slot applies only when every returned check involving its position is below the applicable threshold.
+A check involving two positions blocks both when it reaches its threshold.
+Unrelated findings remain visible but do not block cleared slots.
+
+| Result | Publication decision |
+|---|---|
+| Every repaired slot clears | Publish the repaired run as `repaired_applied`. |
+| Some repaired slots clear | Assemble and validate a separate run as `partial_applied`. |
+| No slot clears, or repair fails/skips | Retain the original ready report. |
+
+Partial assembly uses the frozen original and cleared slots without another model call.
+Code verifies exact candidate content for cleared slots and byte-identical original content for every other topic.
+If assembly or verification fails, every target is recorded as failed and the original remains published.
+The audit still retains scores, costs, and the slots that cleared.
+
+Partial assembly does not receive another Jev review.
+A cleared slot is therefore not compared with the original prose of a withheld slot.
+This limits the duplicate-check guarantee for the assembled result.
+
+A singleton source no longer requires grouping review.
+Removed sources have removal outcomes, not invented follow-up scores.
+Retained citation scores map back to original frozen indexes.
+Removal must not shift one source's score onto another source.
+
+Only one repair round is permitted.
+The audit retains proposed prose for rejected slots.
+Publication verifies hashes, before/after prose, unchanged topics, source subsets, per-slot acceptance, and the selected ready run.
+It rejects audit metadata versions 1 and 2.
+An invalid audit cannot replace the original publication input.
+
+Repair instructions require complete sentences and prohibit copied truncated fragments.
+Code rejects empty strings, trailing ellipses, and summaries without closing punctuation.
+These checks do not prove readability, truth, or complete evidence support.
 
 ## Public audit and retained history
 
-The public `semantic_audit` field contains bounded generated before/after prose,
-positions, scores, labels, repair outcomes, and coverage/cost metadata. It never
-contains frozen feed titles/excerpts or prompts. Canonical `followup_checks`
-retain the actual returned follow-up questions, including blockers that were
-below threshold initially. Source indexes stay aligned to the original frozen
-selection. Removed citations and singleton grouping establish a code-owned scope
-change; they do not receive invented Jev scores.
+Public `semantic_audit` includes bounded generated before/after prose, positions, scores, labels, outcomes, coverage, and costs.
+It excludes frozen feed titles, excerpts, and prompts.
+Canonical `followup_checks` preserve actual returned questions, including blockers below the initial threshold.
+Source indexes remain aligned with the original selection.
 
-The versioned `integrity` record adds operational facts and references canonical
-check records rather than duplicating story prose. The publication step verifies
-artifacts and recomputes or cross-checks decisions, coverage, removals, costs, and
-subjects. Invalid or tampered audits retain the original and expose only a safe
-verification-failed explanation. Fixed allowlisted codes explain all applicable
-skip causes, failures, and rejections. Raw exceptions, provider
-bodies, private paths, prompts, and frozen excerpts remain private.
+The versioned `integrity` record references canonical checks without duplicating story prose.
+Publication verifies artifacts and checks decisions, coverage, removals, costs, and subjects.
+Invalid audits expose only a safe verification-failed explanation and retain the original.
+Fixed codes describe skip causes, failures, and rejections.
+Raw exceptions, provider bodies, private paths, prompts, and excerpts stay private.
 
-The report leads with publication and review status, then an action ledger,
-then story differences and initial/follow-up statistics. Source items display
-short destination labels; article and Hacker News links remain paired as one
-source. Proposed changes are labeled separately from published changes. Every
-returned check remains in public JSON. HTML escapes prose and highlights exact
-word differences without interpreting model-authored markup. Definitions explain
-probability thresholds, disputed/unconfirmed flags, missing confirmation, and
-excerpt-only scope.
+The current HTML layout leads with the publication decision and reader-relevant changes.
+It then presents flagged stories, the exclusion log, and affected sources.
+Operator sections contain the action ledger, statistics, scores, phases, costs, and hashes.
+Proposed changes remain separate from published changes.
+Exact word differences are escaped and displayed without interpreting model markup.
+Article and Hacker News discussion destinations remain one source item.
+Every returned check remains available in public JSON.
 
-History schema 9 preserves valid integrity metadata through merges, replacement,
-and rebuilds. Only schema 9 is accepted; schemas 7 and 8 are rejected. Current
-entries may explicitly record `integrity: null` or `semantic_audit: null` when
-unavailable. Missing operational history is never enriched by rerunning models.
-Non-public dispositions remain status-only. Raw reports and failed traces stay
-in encrypted diagnostics under `runs/DATE/jev-review/`.
+History schema 9 preserves valid metadata through merges, replacement, and rebuilds.
+Older history schemas are rejected.
+Explicit `integrity: null` and `semantic_audit: null` represent unavailable records.
+Missing historical information is never recreated through new model calls.
+Non-public dispositions retain status information only.
+Encrypted diagnostics retain raw review files under `runs/DATE/jev-review/`.
 
 ## What is checked
 
 | Check | Evidence and scope |
 |---|---|
-| Reworded duplicate | Compare frozen evidence between included topics and between included and excluded topics, across sections. Shared entities or themes alone are not duplicates; distinct developments are not duplicates. Excluded-versus-excluded pairs are omitted. |
-| Citation relevance | For each included source, compare only its own frozen title/excerpt against the story headline and prose. Shared entities or themes alone do not make it relevant. |
-| Unsafe grouping | For every included or excluded topic citing multiple evidence items, judge whether those items describe distinct developments that should be separate stories. |
-| Unsupported claim | For each included headline and summary, judge whether any material factual assertion lacks support in its own frozen excerpts. |
-| Strengthened claim | Judge whether the included prose increases certainty, scope, magnitude, or causality beyond its own evidence. |
-| Reversed claim | Judge whether included prose contradicts or reverses its own evidence. |
+| Reworded duplicate | Compare included/included and included/excluded evidence across sections. Shared themes or entities alone are insufficient. Excluded/excluded pairs are omitted. |
+| Citation relevance | Compare one included source's frozen evidence with the story headline and prose. Shared themes alone are insufficient. |
+| Unsafe grouping | Determine whether a multi-source included or excluded topic combines distinct developments. |
+| Unsupported claim | Determine whether included prose contains a material factual assertion unsupported by its own excerpts. |
+| Strengthened claim | Detect increased certainty, scope, magnitude, or causality beyond the evidence. |
+| Reversed claim | Detect a contradiction or reversal of the evidence. |
 
-The report includes redacted topic evidence and positions, the question rubrics, all
-returned probabilities, per-call model identity, request hash, latency, reported cost, and input
-artifact hashes. A score at or above `--threshold` (default `0.8`) flags a check;
-citation relevance uses `--citation-threshold` (default `0.6`).
-This is a provisional triage threshold, not a calibrated guarantee of correctness.
-Several checks can flag one topic; `flagged_checks` is not a topic error rate.
+The private report retains redacted evidence, positions, rubrics, probabilities, model identity, request hash, latency, cost, and input hashes.
+`--threshold` defaults to 0.8. `--citation-threshold` defaults to 0.6.
+These provisional thresholds are not calibrated correctness guarantees.
+Several checks can flag one topic. `flagged_checks` is not a topic error rate.
 
-Before calling Jev, code verifies artifact hashes, validates the corpus and structured
-candidate, rebuilds selected evidence from the frozen selection and corpus, and checks
-every final citation-reference array against its original section and position.
-A repair that drops or reorders topics causes review to fail rather than attach prose
-to different evidence. No URL or opaque citation/item handle is sent to Jev.
+Before calling Jev, code verifies hashes, corpus, structured candidate, and reconstructed selected evidence.
+Every final citation array must match its original section and position.
+Dropped or reordered topics cause failure instead of reassignment to different evidence.
+Jev receives no URLs or opaque citation/item handles.
 
 ## Bounds and failure reporting
 
-The reviewer accepts at most 64 included and excluded topics. It considers at most
-1,000 duplicate pairs by default (`--max-pairs`, maximum 2,016); if capped, it prioritizes
-headline word overlap and reports the omitted pair count. This candidate ordering
-cannot identify all semantic duplicates.
+| Limit | Value |
+|---|---:|
+| Included and excluded topics together | 64 |
+| Default duplicate pairs | 1,000 |
+| Maximum `--max-pairs` | 2,016 |
+| Questions per request | 50 |
+| Serialized ASCII request bytes | 24,000 |
+| Response bytes | 128,000 |
+| Default per-call timeout | 30 seconds |
+| Calls per review phase | 256 |
+| Overall review deadline | 120 seconds |
+| Default `--cost-ceiling` | USD 0.10 |
+| Maximum `--cost-ceiling` | USD 1.00 |
 
-Requests contain at most 50 questions and 24,000 serialized ASCII bytes. Questions
-are batched with explicit field paths to their own evidence. A single oversized check
-is skipped, with no evidence truncation. Responses are bounded to 128,000 bytes and
-must contain exactly the requested Noul answer IDs with finite probabilities in
-`[0, 1]`; unexpected response fields or answer types are rejected.
+When pair capacity is insufficient, headline overlap determines priority. The report records omitted pairs.
+This ordering cannot identify every semantic duplicate.
+Requests use explicit field paths for each question's evidence.
+An oversized individual check is skipped without truncating evidence.
+Responses must contain exactly the requested Noul answer IDs and finite probabilities in `[0, 1]`.
+Unexpected fields and answer types fail validation.
 
-The default per-call timeout is 30 seconds, with at most 256 calls and a 120-second
-overall review deadline. Each call's timeout is limited to the remaining review time. Calls are not
-retried. The reviewer refuses redirects so authorization never follows another
-destination, and never records remote error bodies.
+Each timeout is limited by the remaining review time.
+Calls do not retry. Redirects are refused, and remote error bodies are not recorded.
+The [partial-day supplement](results/jev-stage-v1-partial-supplement.md) used the higher call cap.
+The original evaluation used 128 calls per phase.
 
-The [partial-day supplement](results/jev-stage-v1-partial-supplement.md) replays
-the original evaluation's partial days with this higher call cap and separate
-results; the original evaluation used 128 calls per phase.
+The estimated spending guard uses request bytes and the configured USD 0.042-per-million input rate.
+This rate is an implementation assumption, not a promise of current provider pricing.
+Reported cost accumulates separately.
+Initial/confirmation review and follow-up each have a USD 0.10 estimated guard.
+Repair generation stops before another call when reported repair spend reaches USD 0.10.
+Token limits bound individual calls, but these controls are not a strict combined billing cap.
 
-`--cost-ceiling` defaults to USD 0.10 and is limited to USD 1.00. Before each Jev call,
-serialized request bytes conservatively estimate input tokens at the documented
-USD 0.042 per million input tokens; reported cost accumulates separately. This is an
-estimated spending guard, not a provider-enforced hard cap. Pricing changes and
-failed or interrupted calls can leave billing uncertain. The daily flow gives the
-initial/confirmation review and the follow-up review separate USD 0.10 estimated
-spending guards. HY3 generation stops if reported repair spending reaches USD
-0.10 before another call; bounded output tokens limit individual calls, but this
-is not a strict combined dollar cap. The audit sums all reported review and repair
-costs and counts unknown-cost calls. No new call is made after an unknown cost. Missing cost stops further
-calls; failed calls are retained with unknown billing. Already-returned results are
-preserved when a later call fails.
+Missing cost stops further calls. Failed calls retain unknown billing.
+Returned results remain available when a later call fails.
+The audit adds known review and repair costs and counts unknown-cost calls.
 
-`status: complete` means all planned checks returned validated answers within the
-declared scope. It does not mean the briefing passed semantic review. Omitted pairs,
-oversized checks, or an early stop produce `partial`; invalid source artifacts or
-failure before any results produce `failed`. An interrupted review leaves `running`
-and an `in_flight` call visible. Review reports are not resumable; do not automatically
-repeat an interrupted request with ambiguous billing.
+| Status | Meaning |
+|---|---|
+| `complete` | Every planned check returned a validated answer within the declared scope. This does not mean semantic acceptance. |
+| `partial` | Pairs/checks were omitted or review stopped after some results. |
+| `failed` | Source artifacts were invalid or failure occurred before any results. |
+| `running` | Review was interrupted; an `in_flight` call can remain visible. |
 
-The reviewer sees feed excerpts, not full articles, and does not assess exclusion
-reasons for grounding. Its judgments can be wrong or influenced by injected evidence.
-The daily repair policy is a monitored preliminary rollout informed by local
-experiments; those experiments do not establish calibrated thresholds. Continue checking
-false alarms, missed errors and editorial losses in the public audit. The existing
-deterministic gate remains mandatory.
+Review reports cannot resume.
+Do not automatically repeat an interrupted request with ambiguous billing.
+The reviewer sees excerpts rather than full articles and does not check exclusion reasons for grounding.
+Injected evidence can influence its judgments.
+Monitor false alarms, missed errors, and editorial losses. The deterministic gate remains mandatory.
 
 ## Sources and implementation
 
-- [OpenRouter Jev tutorial and HTTP request/response examples](https://openrouter.ai/blog/tutorials/how-to-use-jev/)
-- [OpenRouter model pricing](https://openrouter.ai/typesafe/jev-1.13)
-- [`agent_runner/decisions.py`](../agent_runner/decisions.py): bounded Decisions API client.
-- [`agent_runner/jev_review.py`](../agent_runner/jev_review.py): frozen-evidence verification, batching, isolated confirmation and reports.
-- [`agent_runner/semantic_repairs.py`](../agent_runner/semantic_repairs.py): bounded repair patches and public audit projection.
+- [OpenRouter Jev tutorial](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
+- [OpenRouter model page](https://openrouter.ai/typesafe/jev-1.13).
+- [`agent_runner/decisions.py`](../agent_runner/decisions.py): bounded API client.
+- [`agent_runner/jev_review.py`](../agent_runner/jev_review.py): verification, batching, confirmation, and reports.
+- [`agent_runner/semantic_repairs.py`](../agent_runner/semantic_repairs.py): repair patches and public audit projection.
 
 ## Aggregate current daily audits
 
-Keep one `YYYY-MM-DD` directory for every sampled day under a private root,
-including days with no ready generation or incomplete review. Declare the frozen
-first and last sample dates with required `--start` and `--end` options. Absent
-folders become `missing_day` rows; folders outside that range are rejected.
-Each available day has `run/` (the ready run or daily fallback chain) and `review/` or `jev-review/` from
-`run_daily_briefing.py --jev-review-dir`. Exactly one review directory is allowed.
-For example:
+1. Create one private `YYYY-MM-DD` directory for each sampled day.
+2. Include failed generation and incomplete-review days.
+3. Declare the frozen sampling interval with `--start` and `--end`.
+4. Put the ready run or fallback chain in each day's `run/` directory.
+5. Include exactly one review directory: `review/` or `jev-review/`.
+
+Missing folders become `missing_day` rows. Folders outside the declared interval are rejected.
 
 ```bash
 python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
@@ -251,35 +251,32 @@ python3 -S -m agent_runner.audit_metrics .news-briefing/jev-stage \
   --output .news-briefing/jev-stage-metrics.json
 ```
 
-Replace the date placeholders with the study's frozen sampling frame. The
-aggregator verifies schema-3 envelopes and corpus dates through `load_public_audit`;
-an invalid envelope, mismatched corpus date or duplicated audit aborts the export.
-Metric calculation consumes only the public audit projection and parsed integrity record. The verifier alone reads the private
-binding artifacts. Output contains no prose, destinations, model identity,
-excerpts, requests, private metadata, or paths.
+Replace date placeholders with the study's frozen dates.
+The aggregator verifies schema-3 envelopes and corpus dates through `load_public_audit`.
+Invalid envelopes, mismatched dates, and duplicate audits abort export.
+Only verification reads private binding artifacts.
+Metric calculation uses the public projection and parsed integrity record.
+Output excludes prose, destinations, model identity, excerpts, requests, private metadata, and paths.
 
-Every rate includes successes, trials and a two-sided 95% Wilson interval (null
-for zero trials). Partial or failed initial/follow-up days and missing reviews
-remain in the coverage denominator and in per-day counts and costs, but never in
-conditioned rates. A failed fallback chain without review is a generation-failure
-row. Per-slot acceptance is conditional on complete initial and follow-up review;
-show coverage and excluded-day status counts alongside it. Slot cause denominators
-are slots with that outcome; causes can overlap.
-Follow-up blocker counts distinguish checks from affected slots, so a two-slot
-check blocks both. Initial review costs include isolated confirmation; repair
-and follow-up costs and unknown-cost calls remain separate per day. Reported
-spend is never an estimate of unreported billing. Rates that pool checks, flags or
-slots across days (flag rate by kind, confirmation rates, per-slot acceptance and
-slot causes) also carry `ci95_day_cluster_bootstrap`: a percentile interval from
-10,000 resamples of whole days with replacement under a fixed seed, with the
-contributing day count and dropped zero-denominator resamples recorded beside
-it. Wilson intervals alone do not account for within-day clustering; day-level
-rates (coverage, days with flags, repair round rate, publication outcomes) carry
-Wilson intervals only.
+Every rate gives successes, trials, and a two-sided 95% Wilson interval, null when trials are zero.
+Missing, partial, and failed reviews remain in coverage denominators and per-day costs.
+They do not enter rates conditioned on complete review.
+Failed chains without review become generation-failure rows.
+Per-slot acceptance requires complete initial and follow-up review.
+Report coverage and excluded-day statuses beside those rates.
+Slot causes can overlap; their denominator is slots with that outcome.
+
+Follow-up metrics separate check counts from affected-slot counts.
+Initial costs include confirmation. Repair, follow-up, and unknown billing remain separate.
+Reported spend is not an estimate of missing billing.
+Pooled check, flag, and slot rates also carry `ci95_day_cluster_bootstrap`.
+It uses 10,000 whole-day resamples with replacement and a fixed seed.
+The record includes contributing days and dropped zero-denominator resamples.
+Day-level rates use Wilson intervals only.
 
 ## Blind human packets for daily audits
 
-Use the same private day tree as the aggregator:
+Use the same private day tree:
 
 ```bash
 python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage \
@@ -288,78 +285,79 @@ python3 -S -m agent_runner.audit_packets .news-briefing/jev-stage \
   --private-key .news-briefing/jev-stage-correspondence.json
 ```
 
-Both destinations must be new and outside the input tree; the key must also be
-outside the packet directory. It is created with owner-only permissions. Share
-only `reviewer-primary.json` and `reviewer-double.json` with their respective
-reviewers. The key contains source correspondence, outcomes, coverage gaps and
-the private random seed. Keep it private until labels are frozen.
+Both destinations must be new and outside the input tree.
+The key must also be outside the packet directory. It receives owner-only permissions.
+Share only `reviewer-primary.json` and `reviewer-double.json` with their respective reviewers.
+Keep the correspondence key private until labels are frozen.
+It contains source correspondence, outcomes, gaps, and the random seed.
 
-Following the partitioning and blinding of
-[`independent-production-2026-10-02.json`](../evaluator/protocols/independent-production-2026-10-02.json),
-every verified changed slot (applied or withheld) is a pair in both packets.
-Record order and the two sides of each pair are independently shuffled for each
-reviewer. Each side carries only generated headline/prose and its own frozen
-source titles, excerpts, outlet names and publication dates, so removed sources
-remain identifiable by comparison and a rationale can name the outlet it relies
-on. No model/provider identity, scores, labels, repair status, paths,
-original-side marker, or shuffle seed is exported. News text itself is
-preserved; model names that are part of a news story are not metadata and are
-not censored. Packets exported before 2026-10-19 omitted the outlet name and
-date; `python3 -S -m agent_runner.audit_adjudication enrich PACKET ROOT --start
-... --end ...` adds them to an adjudication packet in place by matching each
-item's frozen title and excerpt against the verified runs, without the
-correspondence key and without changing item ids or the A/B assignment.
+The [independent-production protocol](../evaluator/protocols/independent-production-2026-10-02.json) defines partitioning and blinding.
+Every verified changed slot, applied or withheld, appears as a pair in both packets.
+Each reviewer receives independently shuffled records and pair sides.
+Each side contains generated prose and its own frozen titles, excerpts, outlet names, and publication dates.
+Packets omit model/provider metadata, scores, labels, outcomes, paths, original-side markers, and seeds.
+Model names within news text remain unchanged.
 
-Per day with complete initial review, controls are the first three unflagged
-included topics ordered by SHA256(`jev-stage-v1` + report date + section +
-zero-based position), without separators. The second reviewer receives the first
-third of that day's selected controls, rounded up. Partial initial reviews supply
-no controls. The private key records the declared frame and missing, partial and
-failed days, including dates with no folder at all. Dates must
-match the verified frozen corpus. An invalid audit aborts before any output.
+Older packets omitted outlet names and dates.
+Use `python3 -S -m agent_runner.audit_adjudication enrich PACKET ROOT --start ... --end ...` to enrich an adjudication packet.
+It matches exact frozen titles and excerpts against verified runs without a correspondence key.
+It preserves item IDs and A/B assignments.
 
-Both reviewers assess every pair for material-claim support, lost/added/changed
-meaning, relevance of retained and removed citations, and readable complete
-sentences. Controls receive the same support, relevance and readability review.
-Each packet file carries the `rubric` block with those four questions, the
-allowed label values, and the instruction to judge only from the supplied
-evidence; it names neither side of a pair nor any outcome. Reviewers return a
-separate label file with a `labels` object and a free-text `rationale` for every
-item, in the format given in the
-[reviewer instructions](results/jev-stage-reviewer-instructions.md), typically
-through the offline [review page](results/jev-stage-review.html), and check it
-with `python3 -S -m agent_runner.audit_labels PACKET LABELS`, which validates
-coverage, per-version label counts, rubric values and rationales without the
-correspondence key and without writing anything.
-Retain both reviewers' labels and rationales before unblinding. A third human
-adjudicates material disagreements from blinded evidence and rationales; report
-raw agreement and adjudicated outcomes separately with their denominators.
-`python3 -S -m agent_runner.audit_adjudication export PACKET_R1 LABELS_R1
-PACKET_R2 LABELS_R2 --output-dir DIR --private-key KEY` validates both label
-files, matches the shared items by their blinded content (never by the
-correspondence key), records raw agreement per question, and writes an
-adjudication packet holding only the items with a support, citation, or
-meaning-preservation disagreement, with the two label sets and rationales shown
-as A and B in a per-item random order; the private key maps each item back. The
-adjudicator works in the offline [adjudication page](results/jev-stage-adjudicate.html)
-and returns a decisions file that `audit_adjudication validate` checks.
-`python3 -S -m agent_runner.audit_adjudication outcomes PACKET_R1 LABELS_R1
-PACKET_R2 LABELS_R2 ADJUDICATION_PACKET DECISIONS --key KEY --freeze-record
-RECORD` then computes the adjudicated outcomes: it validates every input, checks
-each digest against the committed freeze record, recomputes the shared items by
-blinded content, reads the key (the unblinding step, recorded as
-`correspondence_opened_at`), refuses any key entry that disagrees with the
-adjudication packet, keeps every agreed label, applies the adjudicator's
-decision to each disputed question, and writes per-question counts with exact
-denominators for repair pairs and controls into the record. Flags never change
-those counts; when present, the counts with flags applied are recorded beside
-them. Add `--correspondence PACKET_KEY` to open the packet correspondence key and
-also record `outcomes.pairs_by_side` for original and repaired versions, each
-with the shared-pair denominator. Every shared pair must map to exactly one
-original and one repaired side in both packets, consistent after version
-alignment. The record retains the key's SHA-256 and first
-`packet_correspondence_opened_at` UTC timestamp on reruns.
-Reruns fail closed if either recorded key digest changes or a previously supplied
-key is omitted, so an optional correspondence argument cannot erase a recorded split.
-These commands export evidence, not labels or human approval. All packets, excerpts,
-labels and correspondence remain private and ignored.
+For each day with complete initial review, select the first three unflagged included topics by the specified SHA-256 order.
+The input is `jev-stage-v1` + report date + section + zero-based position, without separators.
+The second reviewer receives the first third of selected controls, rounded up.
+Partial initial reviews supply no controls.
+The private key records the sampling frame and missing, partial, and failed days.
+Invalid audits abort before output.
+
+Reviewers assess support, meaning changes, retained/removed citation relevance, and readable complete sentences.
+Controls receive the same applicable questions.
+Each packet supplies the rubric, allowed values, and evidence-only instructions without identifying outcomes.
+Reviewers return separate labels and a rationale for every item.
+See the [reviewer instructions](results/jev-stage-reviewer-instructions.md) and [offline review page](results/jev-stage-review.html).
+
+Validate labels without opening correspondence or writing files:
+
+```bash
+python3 -S -m agent_runner.audit_labels PACKET LABELS
+```
+
+Freeze both reviewers' labels and rationales before unblinding.
+A third human adjudicates material disagreements from blinded evidence and rationales.
+Report raw agreement and adjudicated outcomes separately with their denominators.
+
+Export disagreements:
+
+```bash
+python3 -S -m agent_runner.audit_adjudication export \
+  PACKET_R1 LABELS_R1 PACKET_R2 LABELS_R2 \
+  --output-dir DIR --private-key KEY
+```
+
+Export validates labels and matches shared items by blinded content, without the packet correspondence key.
+It records agreement per question.
+The adjudication packet contains support, citation, or meaning-preservation disagreements with randomly ordered A/B label sets and rationales.
+Its private key retains correspondence.
+Use the [adjudication page](results/jev-stage-adjudicate.html) and validate the returned decisions with `audit_adjudication validate`.
+
+Compute frozen outcomes:
+
+```bash
+python3 -S -m agent_runner.audit_adjudication outcomes \
+  PACKET_R1 LABELS_R1 PACKET_R2 LABELS_R2 ADJUDICATION_PACKET DECISIONS \
+  --key KEY --freeze-record RECORD
+```
+
+This validates all inputs against the freeze record and recomputes shared items.
+Opening the key records `correspondence_opened_at`.
+Any mismatch between the key and packet fails validation.
+Agreed labels remain unchanged. Adjudicator decisions apply only to disputed questions.
+The record separates pair and control counts with exact denominators.
+Optional flagged counts remain separate from unfiltered counts.
+
+Add `--correspondence PACKET_KEY` to record `outcomes.pairs_by_side` for original and repaired versions.
+Every shared pair must map to exactly one original and one repaired side in both packets after alignment.
+The record retains the key hash and first `packet_correspondence_opened_at` timestamp.
+Reruns reject changed key hashes or omission of a previously supplied key.
+These commands export and validate evidence; they do not supply human labels or approval.
+Keep packets, excerpts, labels, and correspondence private and ignored.

@@ -1,13 +1,10 @@
 # Evidence release assets
 
-The public evidence bundles are split between the repository and a GitHub release.
-
-Each bundle directory in `docs/results/` keeps its small, reviewable files:
-`SHA256SUMS`, `metadata.json`, and `report.md`. The large files (`manifest.json`,
-`ledger.json`, `adjudications.json`, and `report.json`) are published as one
-`.tar.gz` asset per bundle on the release
-[`evidence-bundles-2026-09-28`](https://github.com/elanthus/news-briefing/releases/tag/evidence-bundles-2026-09-28).
-Git history before that release still contains the files.
+Public evidence is split between this repository and a GitHub release.
+Each bundle directory retains `SHA256SUMS`, `metadata.json`, and `report.md`.
+Large `manifest.json`, `ledger.json`, `adjudications.json`, and `report.json` files are packaged in one `.tar.gz` per bundle.
+The release is [evidence-bundles-2026-09-28](https://github.com/elanthus/news-briefing/releases/tag/evidence-bundles-2026-09-28).
+Git history before that release also contains the earlier bundle files.
 
 | Bundle | Asset | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
@@ -27,30 +24,29 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evid
 python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
 ```
 
-The last command regenerates `parity-v2-comparison-production-runner.json` and its Markdown from
-the fetched manifests and requires both to match the committed files. It is skipped when the
-bundles have not been fetched.
+The last command regenerates the committed Parity v2 production-runner comparison and requires matching JSON and Markdown.
+It skips when the required bundles are absent.
 
-`fetch` downloads each asset over HTTPS, refusing any redirect hop to a non-HTTPS URL before it is requested, and rejects it unless its SHA-256 matches
-`evaluator/evidence-assets.json`. It accepts only regular tar members with the
-expected names, and each member must match the bundle's in-tree `SHA256SUMS`.
-Files are written only after every asset passes. The assembled bundles, including
-copies of the in-tree files, go to `.news-briefing/evidence/<bundle>/`, which is
-gitignored, so a fetch leaves the working tree clean. Pass `--asset-dir <dir>` to
-read already-downloaded archives instead of the release.
+`fetch` downloads over HTTPS and rejects non-HTTPS redirects before requesting them.
+Each archive must match its pinned SHA-256 in `evaluator/evidence-assets.json`.
+Only expected regular tar members are accepted.
+Each member must match the in-tree `SHA256SUMS`.
+Files are written only after every asset passes verification.
+
+Assembled bundles go to ignored `.news-briefing/evidence/<bundle>/`.
+Fetch leaves tracked files unchanged.
+Use `--asset-dir DIR` to read previously downloaded archives without network access.
 
 ## Integrity verification and historical regeneration
 
-The current `verify-public-run` command checks declared file names, byte sizes,
-hashes, source metadata, and a ledger rebuilt independently from manifest row
-primitives. It treats report JSON and Markdown as authenticated historical files;
-it does not render them with today's reporter. Authentication comes from the
-pinned release archive and in-tree checksums checked by `fetch`, not from a
-bundle's self-declared checksum file alone.
+`verify-public-run` checks declared names, sizes, hashes, source metadata, and independently rebuilt ledger primitives.
+It verifies historical report bytes without rendering them through current code.
+Authentication depends on pinned release archives and in-tree checksums checked by `fetch`.
+A bundle's own checksum file alone does not authenticate its origin.
 
-To regenerate a historical report, read `source_tag` in its `metadata.json`, check
-out that tag in a separate worktree, and run the source reporter against the
-public manifest's already-adjudicated rows:
+1. Read `source_tag` in the bundle's `metadata.json`.
+2. Check out that tag in a separate worktree.
+3. Run its source reporter with the authenticated public manifest:
 
 ```bash
 python3 -S - /absolute/path/to/bundle /tmp/historical-report <<'PYTHON'
@@ -69,15 +65,15 @@ destination.mkdir(parents=True, exist_ok=False)
 PYTHON
 ```
 
-The public manifest embeds adjudicated scores. The ordinary `evaluator report`
-command reloads per-trial adjudication files from a private run tree; those files
-are not distributed in this flattened bundle. Use the snippet above for public
-historical report regeneration and preserve the authenticated original and its
-hashes. Current reporting tests check metric and statistical semantics without
-requiring current presentation to reproduce historical bytes.
+Replace the bundle and output paths before execution. The output directory must be new.
+The public manifest embeds adjudicated scores.
+The ordinary `evaluator report` command reads private per-trial adjudications that this flattened bundle does not contain.
+Use the snippet above for historical public reports.
+Preserve the authenticated originals and hashes.
+Current reporter tests check metric semantics, not byte-identical historical presentation.
 
 ## Repacking
 
-`python3 -S -m evaluator.evidence_assets pack --source-root <dir> --output-dir <dir>`
-writes the archives from full bundle directories. Members are sorted, and mtime,
-owner, and mode are fixed, so the same files produce the same bytes and hashes.
+`python3 -S -m evaluator.evidence_assets pack --source-root DIR --output-dir OUT` creates archives from complete bundle directories.
+Members use sorted names and fixed timestamps, owners, and modes.
+Identical input files produce identical archive bytes and hashes.

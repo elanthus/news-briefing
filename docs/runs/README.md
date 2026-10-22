@@ -1,6 +1,8 @@
 # Archived runs
 
-Two run directories from the manual dogfooding period are kept as exemplars. The rest were removed to keep the repository small; every removed file is still available from commit `59300ea3fca18bbb8edce5cb40c821e33ab2d6e6`, for example:
+Two manual-run directories remain as examples. Other directories were removed to limit repository size.
+Their files remain available at commit `59300ea3fca18bbb8edce5cb40c821e33ab2d6e6`.
+Use these commands to inspect an archived run:
 
 ```bash
 git show 59300ea3fca18bbb8edce5cb40c821e33ab2d6e6:docs/runs/2026-08-17/briefing.md
@@ -32,4 +34,5 @@ All paths are under `docs/runs/` in commit `59300ea3fca18bbb8edce5cb40c821e33ab2
 | `2026-08-18/replay-gemini-3.7-flash/` | Model replay rejected before generation over the numeric `enum` schema: manifest, trace, request, schema. |
 | `2026-08-18/replay-gemini-3.7-flash-schema-fixed/` | Model replay with the adjusted schema: two attempts, briefing, preview, manifest, trace. |
 
-Each replay directory also held the same corpus, projected model corpus, citation map, request, and configuration; those copies were byte-identical across the five replays.
+Each replay directory also held the corpus, projected corpus, citation map, request, and configuration.
+Those copies were byte-identical across the five replays.
