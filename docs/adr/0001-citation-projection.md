@@ -2,33 +2,28 @@
 
 ## Status
 
-Accepted
+Accepted.
 
 ## Context
 
-The model needs source evidence to select and summarize stories, but code owns
-the rule that every published destination comes from the fetched corpus. Asking
-the model to reproduce URLs would leave destination identity under model control.
+The model needs evidence to select and summarize stories.
+Code must ensure that every published destination belongs to the corpus.
+Model-authored URLs would leave destination identity under model control.
 
 ## Decision
 
-Before generation, code projects each corpus item to its model-visible evidence
-and one opaque `citation_` handle. Article and Hacker News discussion URLs remain
-together in a code-owned map that the model does not receive. Structured-output
-validation accepts only eligible handles and rejects destinations in free-form
-fields. After validation, the renderer resolves each selected handle to all of
-its distinct code-owned destinations.
+Project each item into model-visible evidence and one opaque `citation_` handle.
+Keep article and Hacker News discussion URLs together in a code-owned map outside model input.
+Validate eligible handles and reject destinations in free-form fields.
+After validation, expand each selected handle to all distinct stored destinations.
 
 ## Consequences
 
-The model cannot author, substitute, or omit a destination that survives the
-structured runner. Hacker News article and discussion links remain attached to
-the same evidence item, and self-post destinations are emitted once. The
-complete-Markdown checker remains an independent backstop for hand-authored and
-historical output.
-
-The cost is that the model cannot use a source's URL or domain to judge it; it
-sees only titles, excerpts, and source names.
+A model-authored, substituted, or omitted destination cannot survive the structured runner for a selected item.
+Article and discussion destinations stay paired. Self-post destinations appear once.
+The independent Markdown checker remains available for hand-authored and historical output.
+The model cannot use a source URL or domain to assess evidence.
+It sees titles, excerpts, and source names.
 
 ## References
 

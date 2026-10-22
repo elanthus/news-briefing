@@ -1,108 +1,327 @@
 # Design notes
 
-Why each stage of the pipeline works the way it does. The [README](../README.md) covers what the system guarantees; this covers the decisions behind those guarantees.
+This document explains the pipeline boundaries and their implementation.
+The [README](../README.md) summarizes the guarantees.
+The [archive contract](publication-archive-contract.md) defines publication and retention.
 
 ## Fetching
 
-**Bounded, source-diverse context.** Broad technology feeds are filtered for AI relevance, tracking URLs are canonicalized before deduplication, and per-source and per-category caps stop one noisy publisher consuming the model's context window. Item counts alone are not a size bound, so schema v5 also caps each model-visible string, each configured source's serialized items, and the retained item set globally with serialized-byte accounting. Each item is charged its serialized UTF-8 size rounded up to a four-byte unit. One byte ledger enforces the smaller of the declared byte ceiling and four times the legacy token ceiling; the v7 token estimates remain reporting fields, with no separate token-budget path. Titles and summaries truncate on Unicode boundaries; URLs are dropped rather than rewritten. The [corpus contract](#the-corpus-contract) below defines the `processing`, `sources`, and `context_budget` fields; together they make every truncation and field/source/global drop observable.
+### Context limits and accounting
 
-**Every dropped item is accounted for.** `processing` reports `fetched`, `undated_dropped`, relevance/duplicate/cap drops, field/source/global budget drops, truncation counts, retained bytes/tokens, and `kept` per category. The drops after date parsing plus `kept` reconcile to `fetched`; `undated_dropped` is derived from each source's `parsed_entries - dated_entries`, before `fetched` is measured. That separate count catches a feed silently changing its date format — those items never reach the other counters, so without it a dead source looks identical to a quiet one.
+The fetcher filters known broad feeds for relevance, canonicalizes tracking URLs, removes duplicates, and applies source and category caps.
+It also limits each model-visible string, each source's serialized items, and the total retained items.
+Titles and summaries truncate at Unicode boundaries. Oversized URLs are dropped rather than rewritten.
 
-**Every source fetch is observable.** `sources` records exact source type and ID, whether a request was attempted and reached HTTP success, recognized, dated, and finally retained entry/byte/token-estimate counts, status, typed error details, and wall-clock latency for every configured request; `fetch_duration_ms` records the whole retrieval phase. Valid XML with an unexpected layout and responses with no parseable dates are explicit `empty` outcomes — the signals that a feed's format silently changed. `errors` contains structured projections of every `empty` or `error` source.
+Each item consumes its serialized UTF-8 byte size, rounded up to a four-byte unit.
+One ledger enforces the smaller of the byte ceiling and four times the legacy token ceiling.
+The v7 token estimates are reporting fields. They do not control a separate token budget.
 
-**A quiet source is not a failed one.** Schema v7 gives `http_success` with parsed and dated entries but nothing left after windowing (or after filtering removed/deleted or low-score entries) its own `quiet` status, distinct from `empty`. A vendor blog that posts on its own schedule, or a narrow Hacker News query that rarely clears the points floor within the window, is the ordinary shape of a low-cadence source, not a broken one — flagging it as a failure every time it has a quiet day trains readers to ignore the corpus-health block. A quiet source stays in `sources` for audit but is excluded from `errors`, the model-visible failed-source projection, and `corpus_schema.corpus_health_degraded()`'s coverage computation, unless one category collects more quiet sources than `QUIET_SOURCE_DEGRADED_THRESHOLD` in a single run — a pattern that looks systemic rather than like ordinary cadence. `fetch_hn` counts points-floor drops as filtered entries so a query that retrieved stories none of which cleared the floor is reported as quiet rather than indistinguishable from one that found nothing in the window at all.
+`processing` records fetched, retained, truncated, and dropped items per category.
+It separates relevance, duplicate, cap, field, source, and global budget drops.
+Post-date-parsing drops plus `kept` reconcile to `fetched`.
+`undated_dropped` instead equals source `parsed_entries - dated_entries`, before `fetched` is measured.
+This separate counter reveals date-parser failures that could otherwise resemble quiet sources.
 
-**Partial Hacker News responses stay visible.** An invalid response envelope or unreadable JSON fails the whole source. Individual malformed hits are isolated: valid stories survive, while `sources` and its exact `errors` projection use the existing v7 `error` status with `error_type: "MalformedEntries"` and a malformed-entry count in the message. This takes precedence over `empty` and `quiet`, even if no valid stories survive. Non-object hits are not recognized entries; timestamps count as dated only after successful parsing. A malformed timestamp contributes to the existing undated count, while a malformed engagement or story field after a parsed date does not. An absent timestamp retains the ordinary undated diagnostic. The briefing renderer and independent checker therefore report partial coverage through their existing health contract.
+### Source outcomes
 
-**Title identity remains conservative.** Canonical URLs still identify duplicates. Distinct URLs match only when their complete titles agree after Unicode NFC normalization, case folding, whitespace collapse, and curly-quote, dash, and ellipsis typography normalization. Meaningful punctuation such as `C++`, `C#`, `?` and `!` remains. Identity is computed before bounded copies truncate titles, so differing suffixes survive even beyond the title field ceiling. Newest-first ordering determines the retained occurrence.
+`sources` records every configured request with these fields:
 
-**Public network destinations only.** Source URLs are syntax-checked before scheduling: only HTTP(S), without credentials, is accepted. For each request, the hostname is resolved exactly once; every answer must be globally routable, and the socket connects directly to one of those captured addresses while TLS still authenticates the original hostname. Redirects are handled manually and repeat the complete URL, DNS, address-scope, and pinning process at every hop. That closes direct, redirect, and DNS-rebinding paths to loopback, private, link-local, and metadata-service addresses without a third-party HTTP dependency. Destination and DNS validation live in `news_fetch/destinations.py`; the pinned client lives in `news_fetch/transport.py`, and DOCTYPE-refusing feed parsing in `news_fetch/feed_xml.py`.
+- Source type and identity.
+- Request and HTTP-success flags.
+- Parsed, dated, and retained entry counts.
+- Retained bytes and token estimates.
+- Status, typed errors, and latency.
 
-**Relevance filtering removes noise, not importance.** Only the known-broad feeds listed in `SOURCE_RELEVANCE_FILTERS` are keyword-filtered; category-specific and community sources pass through untouched. Over-filtering is the more expensive mistake, because an item dropped at this stage cannot be ranked at all and a starved sub-category cannot fill its reserved slots.
+`fetch_duration_ms` records the full retrieval phase.
+Unexpected XML shapes and responses without parseable dates produce explicit `empty` outcomes.
+`errors` contains the structured projection of each `empty` or `error` source.
 
-**Recency is the only sort order.** Recency is the one ordering that means the same thing across RSS, Hacker News, and Reddit; engagement scores are not available for every source. Timestamps are required to include a time and UTC offset, and sorting compares the represented instants rather than their differently offset ISO spellings. HN points may admit an item during fetching, but recency determines corpus order. Points and comment counts remain in the raw corpus for audit and are removed from the model projection because these mutable snapshots can be stale by reading time.
+A `quiet` source has successful HTTP retrieval and parsed, dated entries, but no retained entries after windowing or applicable filtering.
+Hacker News points-floor drops count as filtered entries.
+Quiet sources stay in `sources` but do not enter `errors` or model-visible failed-source records.
+Coverage degrades when one category exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`, currently 3 quiet sources.
+The threshold does not turn those sources into fetch errors.
 
-**Untrusted XML is parsed defensively.** Feeds are remote and unauthenticated, and `xml.etree` expands internal entities, so a compact payload can amplify far beyond the response-size bound. Before building the tree, an Expat declaration callback rejects every `DOCTYPE` after the parser has recognized the document encoding; it does not scan raw bytes or special-case UTF-16. The supported RSS/Atom subset does not need a DTD, and a rejection surfaces in `errors` like any other source failure. This closes entity-declaration and external-entity paths without depending on `defusedxml`, preserving the project’s zero-dependency runtime.
+Malformed Hacker News envelopes or unreadable JSON fail the source.
+Malformed individual hits do not discard valid stories.
+The source instead reports `error_type: "MalformedEntries"` and a malformed-entry count.
+This status takes precedence over `empty` and `quiet`.
+Non-object hits are not recognized entries. A timestamp counts as dated only after successful parsing.
+Missing or malformed timestamps contribute to undated diagnostics.
+Malformed fields after a valid timestamp do not contribute to that count.
 
-**Reddit's coarse buckets.** Reddit's `top` RSS endpoint accepts only `hour`/`day`/`week`/… buckets, not an arbitrary window. Real windows run 23-25 hours, so the fetcher requests the top 25 posts from `day` for windows up to 24 hours and from `week` otherwise, then applies the exact cutoff in code. Reddit also rate-limits anonymous clients aggressively, so RSS requests use a shorter timeout and are not retried: an HTTP 429 falls straight through to the Arctic Shift fallback below, which serves the exact window. A failed subreddit degrades coverage and appears in corpus health rather than holding the run open. Expect HTTP 429s: they are the normal case for anonymous access, not a misconfiguration.
+### Identity, relevance, and order
 
-**Reddit falls back through three backends.** `fetch_reddit()` in `news_fetch/sources/reddit.py` tries anonymous RSS first. If RSS fails or returns no usable posts, it asks the free [Arctic Shift](https://arctic-shift.photon-reddit.com/) archive for the exact window (up to 100 posts, no credential). Arctic Shift records scores at ingest, so the live-score floor is not applied to its posts. If both free backends fail or return nothing, and only when `SCRAPECREATORS_API_KEY` is set, it calls the paid third-party [ScrapeCreators](https://scrapecreators.com/) subreddit API with the subreddit name, the covering `top` timeframe bucket, `sort=top`, and `trim=true`; the same exact window filter and score floor then apply to its posts. The key is sent only in an `x-api-key` header by `scrapecreators_get()`, which accepts only `https://api.scrapecreators.com:443`, applies the same public-address DNS validation as every other request, and refuses redirects so the header cannot be forwarded to a destination the response chooses. In the scheduled workflow, the key is a repository secret exposed only to the `Generate scheduled daily or manual backfill reports` step, which runs the fetcher (that step also holds `OPENROUTER_API_KEY`). Without the key, the fetcher stops after the free backends and records the subreddit as failed or empty in corpus health.
+Canonical URLs identify duplicates.
+Distinct URLs also match when their complete titles agree after these transformations:
+
+- Unicode NFC normalization and case folding.
+- Whitespace collapse.
+- Curly-quote, dash, and ellipsis normalization.
+
+Meaningful punctuation remains, including `C++`, `C#`, `?`, and `!`.
+Identity is computed before title truncation. Newest-first order determines which occurrence remains.
+
+Only sources in `SOURCE_RELEVANCE_FILTERS` receive keyword filtering.
+Other category and community sources pass through without this filter.
+An item removed here cannot receive a later model ranking.
+
+Recency controls corpus order across RSS, Hacker News, and Reddit.
+Timestamps require a time and UTC offset. Sorting compares instants, not ISO text.
+Hacker News points can determine admission, but not retained order.
+Mutable points and comment counts remain in the raw corpus and are removed from model input.
+
+### Network and XML boundaries
+
+Source URLs must use HTTP(S) and contain no credentials.
+For each request, the client resolves the hostname once and requires every address to be globally routable.
+It connects directly to a captured address. TLS still authenticates the original hostname.
+Each redirect repeats URL validation, DNS validation, address checks, and pinning.
+This blocks direct, redirect, and DNS-rebinding access to private, loopback, link-local, and metadata-service addresses.
+
+[`news_fetch/destinations.py`](../news_fetch/destinations.py) validates destinations and DNS.
+[`news_fetch/transport.py`](../news_fetch/transport.py) implements the pinned HTTP client.
+[`news_fetch/feed_xml.py`](../news_fetch/feed_xml.py) rejects `DOCTYPE` through an Expat declaration callback before tree construction.
+The parser recognizes the encoding before this check. It does not scan raw bytes for a declaration.
+The supported RSS/Atom subset requires no DTD. Rejections become source errors.
+These controls use the standard library.
+
+### Reddit backends
+
+`fetch_reddit()` tries three backends in order:
+
+1. Anonymous RSS.
+2. The free [Arctic Shift archive](https://arctic-shift.photon-reddit.com/).
+3. The paid [ScrapeCreators API](https://scrapecreators.com/), only when `SCRAPECREATORS_API_KEY` is set.
+
+RSS requests the top 25 posts from `day` for windows up to 24 hours and from `week` for longer windows.
+Code then applies the exact cutoff. Longer windows can miss posts because these buckets are coarse.
+RSS uses a shorter timeout and no retries. Failure or no usable posts triggers the next backend.
+
+Arctic Shift requests the exact window, with up to 100 posts and no credential.
+Its scores reflect ingestion time, so the live-score floor does not apply.
+If both free backends fail or return nothing, the optional paid request uses a covering `top` timeframe.
+It passes the subreddit name, `sort=top`, and `trim=true`. The exact window and score floor apply to its results.
+
+`scrapecreators_get()` sends the key only in an `x-api-key` header to `https://api.scrapecreators.com:443`.
+It applies public-address DNS checks and refuses redirects.
+The daily workflow exposes this secret to the generation step that runs the fetcher.
+Without the key, fetching stops after the free backends. Failures and empty results remain in corpus health.
 
 ## The corpus contract
 
-[`corpus_schema.py`](../corpus_schema.py) is the single source of truth for the shape of `corpus.json` — field names, valid category shape, per-category processing consistency, counter semantics, and schema generations. Producers and consumers require the current positive integer `schema_version` (v7). Missing, malformed, obsolete, and future declarations are rejected; historical evidence is reproduced with its recorded source revision. The fetcher writes that shape, the prompt names fields a model may read, and the checker validates a briefing against the same data. Keeping those expectations in one validated contract makes incompatible producer changes fail at their source.
+[`corpus_schema.py`](../corpus_schema.py) defines the current corpus contract, schema version 7.
+Producers and consumers reject missing, malformed, obsolete, and future versions.
+Reproduce historical formats with their recorded source revision.
+The fetcher validates before writing. The independent checker validates before trusting corpus fields.
 
-The fetcher validates against the contract before writing, so drift fails where it is introduced. `eval_briefing.py` validates a readable corpus before trusting its categories, items, timestamps, processing counters, errors, or source health, and refuses a corpus newer than it understands rather than misreading it.
+The contract checks category shape, item types, absolute HTTP(S) URLs, full timezone-aware timestamps, counters, and context bounds.
+It requires `cutoff <= published <= generated_at`.
+`canonicalize_url` supplies the same identity rules to the fetcher and checker.
 
-Internal accounting changes preserve the v7 storage contract. The four-byte-rounded ledger retains exactly the former default source/global selections, including per-item ceiling rounding: it enforces 96,000 rounded bytes per source and 512,000 rounded bytes globally, within the unchanged declared 98,304/524,288 raw-byte maxima. A custom internal byte limit can be up to three bytes stricter per retained item because it uses the same rounded ledger. Item/source/global limits, estimates, request flags, and health projections remain serialized and validated. `requested` and `http_success` remain because existing readers use the latter to distinguish successful empty/quiet responses from failures. Retained v7 corpora remain readable without a migration; fixture generators use the same complete field declarations. Historical authenticated evidence, hashes, and provenance are never rewritten; older experiment formats are reproduced at their recorded source version as described in the evaluator history.
+The rounded byte ledger enforces 96,000 bytes per source and 512,000 bytes globally under the default legacy limits.
+Declared raw-byte maxima remain 98,304 and 524,288.
+A custom internal byte limit can be up to three bytes stricter per retained item because of rounding.
+The v7 storage fields, including estimates, request flags, and health projections, remain unchanged.
+`http_success` distinguishes successful empty or quiet responses from failures.
 
-Schema v4 replaces ambiguous error strings with structured identities and adds complete request outcomes. Schema v5 adds field/source/global context limits, per-source retained usage, and aggregate truncation/drop telemetry. Schema v6 expands the summary ceiling from 300 to 400 characters so a typical feed sentence or date near the former boundary is not cut off. Schema v7 adds the `quiet` source status described above. It enforces those limits alongside item value types, absolute HTTP(S) URLs, timezone-aware full timestamps, and `cutoff <= published <= generated_at` rather than checking required keys alone.
+| Schema change | Meaning |
+|---|---|
+| v4 | Structured errors and complete request outcomes. |
+| v5 | Field, source, and global limits with truncation and drop telemetry. |
+| v6 | Summary ceiling increased from 300 to 400 characters. |
+| v7 | Added the `quiet` status. |
 
-**URL comparison lives here too.** `canonicalize_url` is part of the contract rather than the fetcher because two modules must agree on it: the fetcher deduplicates with it, and the checker decides whether a citation is in the corpus with it. A shared implementation ensures cosmetic changes such as a trailing slash cannot identify one article during deduplication and a different article during citation checking.
+Historical bytes, hashes, and provenance remain unchanged.
 
-`url_route` splits a canonical URL into a location (scheme, host, path) and its query parameters, and the name is a warning: a location is not an article identity. Query-routed publishers put many articles under one path, so `news.ycombinator.com/item` addresses every Hacker News story there is. The checker only calls a failed citation a rewrite when a corpus URL at the same location carries a strict superset of its parameters, and only when exactly one does. Changing `item?id=123` to `item?id=999` therefore remains an ungrounded citation rather than being misreported as a cosmetic rewrite.
+`url_route` separates a canonical URL into location and query parameters.
+A location is not an article identity. Many Hacker News stories use the same `/item` path.
+The checker classifies a failed citation as a rewrite only if exactly one matching location has a strict superset of its parameters.
+Changing `item?id=123` to `item?id=999` remains an ungrounded citation.
 
 ## The code-owned runner
 
-[`run_briefing.py`](../run_briefing.py) is an orchestration boundary rather than another agent prompt. It requires a frozen corpus and owns the sequence project → select → validate and freeze evidence → write prose → validate → repair → correct → finalize, while provider adapters implement one `ModelProvider` protocol. The primary workflow remains Python-standard-library-only: OpenRouter and the OpenAI-compatible adapter for local servers such as Ollama share one `urllib` transport, and the Claude Code and Codex adapters launch their installed commands directly.
+[`run_briefing.py`](../run_briefing.py) requires a frozen corpus and controls each generation stage.
+Provider adapters implement the `ModelProvider` protocol.
+OpenRouter and OpenAI-compatible servers use a shared standard-library HTTP transport.
+Claude Code and Codex adapters start installed CLI commands.
 
-**The model never receives a destination, internal item ID, or mutable HN engagement.** Before generation, the runner projects each corpus item into untrusted evidence plus exactly one handle formatted as `citation_` followed by digits. Handle numbering is item-aligned: an HN article with a separate discussion URL still consumes one handle, and both URLs live together in the code-owned citation map. HN points and comment counts stay in the raw corpus.
+### Projection and two passes
 
-*Validation.* The runner asserts that the number and order of model-visible handles match the retained items, and each section's structured-output schema enumerates only its eligible citation IDs. A free-form output field containing a web destination, or a `citation_`/`item_` token followed by digits, fails validation at any width. Formatting pads the first 9,999 handles to four digits but imposes no maximum width, so a wider corpus does not weaken the check.
+`project_corpus()` creates untrusted evidence and one opaque `citation_` handle per item.
+The code-owned map retains article and Hacker News discussion destinations together.
+The model receives no destinations, internal item IDs, or mutable Hacker News engagement counts.
 
-*Correction requests.* Before a rejected candidate goes back to the model, destinations are stripped from the prior output and from the findings. Internal item references are always removed; prose corrections also remove citation references, and selection corrections retain only the selectable handles they need. A rejected draft cannot leak a destination into the next attempt.
+Code verifies handle order and count against retained items.
+Each section's selection schema lists only eligible handles.
+The first model pass returns references by section and position.
+Code validates eligibility, uniqueness, placement, and counts, then performs permitted repairs and promotions.
 
-*Rendering.* Each selected item expands to all of its distinct code-owned destinations, so an HN article automatically carries its discussion link and a self-post is emitted only once.
+Code freezes the accepted selection.
+The second pass receives only selected evidence assigned to each output position.
+It returns headlines, summaries, and exclusion reasons without citation fields.
+Code attaches the frozen references by position and validates the complete candidate.
+Provider schema acceptance does not prove the application contract.
 
-Together these turn URL grounding from "check model-authored destinations after the fact" into "the model cannot author, substitute, or omit a destination." The complete-output checker remains an independent backstop for hand-authored Markdown.
+Free-form fields cannot contain destinations or digit-bearing `citation_` and `item_` tokens.
+Handles use four-digit padding for the first 9,999 items, with no maximum width.
+Validation checks tokens at every width.
+Correction requests redact rejected output and findings before another call.
+Selection corrections retain needed selectable handles. Prose corrections also remove citation references.
 
-**Selection and prose are separate model passes.** The first strict JSON Schema contains only section-positioned `citation_refs`; code independently validates eligibility, uniqueness, placement, and counts, applies safe structural repair, and freezes the accepted selection. The second request contains only the selected, position-scoped evidence. Its schema contains headlines and summaries or exclusion reasons, with exact array lengths and no citation field. Code then attaches the frozen references by position and validates the complete candidate. Provider schema acceptance is never treated as proof of the application contract.
+Rendering expands each selected item to all distinct code-owned destinations.
+An article and its Hacker News discussion remain paired. A self-post destination appears once.
+The independent Markdown checker also checks hand-authored and historical output.
 
-Not every provider honors `items.enum` or array-level `uniqueItems`, so the schema constrains cooperative samplers while the deterministic checker remains the guarantee.
+### Provider schema variants
 
-Local constrained-decoding engines that expand bounded repetition into explicit states are why the OpenAI-compatible adapter's lean schema drops ranged array bounds and string lengths while keeping enums and exact counts. Measured on LM Studio's MLX engine with Qwen3 30B-A3B and a 235-item corpus, the selection schema with citation arrays bounded at their eligible-set size did not compile in 25 minutes; capped at 10 it took about 10 minutes; with citation bounds removed but section bounds kept, 106 seconds; with no ranged array bounds, 20 seconds. Prose `maxLength` bounds of up to 1,500 characters hung the same engine.
+Some providers do not enforce `items.enum` or `uniqueItems`. Code still checks both requirements.
+The OpenAI-compatible lean schema removes ranged array bounds and string lengths while retaining enums and exact counts.
+This avoids expensive constrained-decoder expansion in local engines.
+Historical LM Studio measurements found slow compilation with ranged bounds and long prose `maxLength` limits.
+Those measurements describe one engine and corpus, not a general performance guarantee.
 
-A code-owned repair removes a complete entry if any of its evidence is ineligible or already used, and trims sections that exceed their configured maximum; it never leaves prose behind after removing that prose's evidence, and it never trims an entry preserved for rejection — with unknown evidence or a malformed shape in the over-limit tail, the limit finding persists and the run stays quarantined.
+Gemini selection schemas omit redundant `maxItems` bounds on unique citation arrays whose enums already imply that maximum.
+Section limits, citation enums, uniqueness, and exact prose counts remain.
+A September 6, 2026 probe accepted this reduced schema after rejecting the original.
+The probe established schema acceptance only; it did not evaluate a complete production briefing.
 
-This repair runs eagerly — before any model correction — whenever every blocking finding is repairable, so an editorial placement error never spends the selection-stage correction budget; the repaired attempt then re-enters the validation loop, keeping that stage's untouched budget available for findings repair cannot fix.
+### Repair, promotion, and correction
 
-A WARN-only `claim_exceeds_evidence` candidate also enters deterministic repair: its model summary is replaced by the same deduplicated cited evidence join the checker measured, then revalidated without spending a provider correction. The action is recorded as `replace_summary_with_excerpt`, and the producer emits `[verbatim]` (after any consolidated marker) so readers can distinguish corpus text from model prose. The same repair also runs as the post-budget fallback for any repairable remainder.
+[`agent_runner/stages.py`](../agent_runner/stages.py) shares the stage decision between production and evaluation.
+It considers promotion before deterministic repair and prevents either action from repeating consecutively.
+Repair removes a complete entry with ineligible or already-used evidence.
+It trims permitted over-limit entries, with included stories taking priority over exclusion logs.
+It does not retain prose after removing its evidence.
+Unknown evidence and malformed entries remain available for rejection, even in an over-limit tail.
 
-Included stories are considered before all exclusions, and every repair action is preserved in the manifest as `repair_actions`. The legacy `repair_actions` list copies only the final attempt's actions. The integrity ledger separately records generation preparation, prose validation/corrections, and superseded actions; earlier private prose is not republished as current story context. The original generation `provenance.repair_action_count` counts deterministic repairs across all attempts, including superseded ones. Promotions remain generation bookkeeping and do not count as repairs or model calls. Unknown evidence remains a rejection rather than being normalized away.
+When all blocking findings are repairable, code repairs before requesting a model correction.
+The repaired attempt returns to validation.
+A WARN-only `claim_exceeds_evidence` can also trigger repair when complete known evidence permits a safe replacement.
+Code substitutes the deduplicated evidence text and records `replace_summary_with_excerpt`.
+The renderer adds `[verbatim]`, after any consolidated marker.
+Unsafe or incomplete evidence remains unresolved.
+The same repair is available after the correction allowance is exhausted.
 
-Anthropic documents the same general pattern—validate generated values against application rules in code—in its [structured output guidance](https://platform.claude.com/docs/en/build-with-claude/structured-outputs); OpenAI likewise documents strict-schema support and keyword limits in its [structured output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+Each stage has its own production correction allowance.
+`run_briefing.py` defaults to one correction per stage. The daily runner defaults to three.
+Unknown references, free-form destinations, and invalid shapes can require model correction or rejection.
+See [ranking and checking](#ranking-and-checking) for promotion rules.
 
-**Operational completion is not a correctness verdict.** The checkpoint manifest retains `running`, `complete`, and `failed` for lifecycle control, while the result separately records publication disposition (`ready`, `review_required`, `rejected`, or `no_result`) plus protocol, contract, evidence, and coverage axes. A category-placement or exclusion-field error can leave a useful, corpus-bound candidate that needs review; an unknown citation or free-form destination is rejected. Source failures degrade coverage without making the model result a failure. Heuristic quotation findings require review rather than claiming semantic falsity; evidence-length findings are repaired only when the code can substitute the entry's complete known support, while figure findings remain nonblocking quality notes. Only `ready` writes `final.md` and the configured output path.
+Every attempt retains its actions in the manifest.
+The public `repair_actions` list describes only the final attempt.
+`provenance.repair_action_count` counts deterministic repairs across all attempts, including superseded attempts.
+The integrity ledger distinguishes superseded actions. Promotions do not count as repairs or model calls.
 
-**Blocked candidates are preserved but quarantined.** When structured output exists but cannot pass the publication gate, the runner writes `preview.md` and a destination-redacted `preview-structured.json`. The preview renderer accepts malformed shapes defensively, substitutes only code-owned URLs for known citation references, omits unknown references, and redacts model-authored destinations from prose, finding details, values, and dictionary keys. It never writes the configured output path. For a `review_required` page, the publication step copies the affected entry from the hash-bound selected structured artifact into finding metadata and records any deterministic repair actions.
+### Outcomes and publication
 
-The public site renders `review_required` entries as a quarantine stub with a notice, a status chip linking to the integrity report, and no briefing prose. The per-run integrity report under `reports/<date>.html` is written for a newcomer first. It opens with one sentence that states the publication decision and its reason, derived from the integrity record's decision and reason codes, the confirmed flags, and each story's repair status; the deterministic checker's finding count follows under its own name. Then come the changes that reached the published briefing as before/after differences, the flagged stories in plain words with what happened to each, the exclusion log, and the affected sources. Raw scores, thresholds, the action ledger (actors, subjects, triggers, outcomes, and fixed causes), phases, costs, prompt hashes, artifact digests, and the judge model sit in collapsed operator sections. Exact headline and summary differences appear once per story, including citation-triggered repairs; unchanged prose is omitted while repair metadata remains visible. Source removals identify grouping or confirmed irrelevance as their cause and distinguish proposed removals from published changes. Concise deterministic finding messages and safe story context are visible without reproducing the preview. A published briefing's exclusion log appears once, in its own section near the end of the report. The complete preview and finding context remain in public history JSON. A blocked run's zero count never reads as acceptance. Each published entry carries a status chip linking to its report; `ready` entries show clean markdown without inline review panels. On the page, each `🔗` citation renders as a source chip labelled with its destination's host (a Hacker News discussion link reads "HN discussion"), and the run outcome and source coverage sit in a visible "Behind this briefing" panel after the news. The status chip, that panel, and the report describe coverage in one vocabulary (all sources healthy, some dropped undated items, some returned nothing usable, or some failed; the most severe applies) and list the affected sources with reasons from the verified per-source record; on the page, that list replaces the footer's corpus-health, fetch-failure, and undated-drop lists, while the stored Markdown keeps the checked footer unchanged. The panel also links to the exclusion log on the integrity report. A source chip's link is the same code-owned destination the checker grounded; only its visible text changes.
+Manifest lifecycle values are `running`, `complete`, and `failed`.
+Publication dispositions are separate: `ready`, `review_required`, `rejected`, and `no_result`.
+Outcome axes describe protocol, contract, evidence, and coverage.
+A placement error can require review while citations remain corpus-bound.
+Unknown citations and free-form destinations cause rejection.
+Source failures degrade coverage without necessarily failing generation.
 
-**The tool policy is provider-specific but fail-closed.** OpenRouter and OpenAI-compatible servers receive no tool definitions and any returned tool call fails. Claude Code starts in safe mode, disables commands and session persistence, and uses both `--tools StructuredOutput` and `--allowedTools StructuredOutput` so its internal schema-emission tool is the only tool exposed or permitted; filesystem, shell, web, and MCP tools remain unavailable. The Codex adapter ignores user config and rules and explicitly disables shell, multi-agent, remote-plugin, web-search, and image tools while preserving medium reasoning. It also starts in an empty temporary directory with a read-only sandbox and rejects every completed trace item other than reasoning or the final agent message. Codex has no single documented remove-all-tools flag, so the sandbox and trace validator remain defense-in-depth backstops.
+Only `ready` writes `final.md` and the configured output path.
+Other structured candidates can produce `preview.md` and destination-redacted `preview-structured.json`.
+Preview rendering tolerates malformed shapes, resolves known handles, omits unknown handles, and redacts model-authored destinations.
+It also redacts finding details, values, and dictionary keys.
 
-**Retries are transport policy, not creative iteration.** A provider call gets at most three attempts inside one total deadline, and only explicit, safely repeatable transient failures—rate limits, connection failures, and server failures—qualify. The runner honors `Retry-After`. OpenRouter and CLI timeouts may occur after transmission or billing, so they are never retried without an idempotency guarantee. CLI output and an interrupted in-flight checkpoint are ambiguous for the same reason. Content errors instead enter the separately bounded correction loop: `run_briefing.py` allows one pass by default, while `run_daily_briefing.py` and the production daily workflow request three.
+The site displays a quarantine stub for `review_required` entries.
+The integrity report shows the publication decision, published changes, flagged stories, exclusion log, and affected sources.
+Operator details include scores, thresholds, actions, costs, phases, and hashes.
+Unchanged prose is omitted. Complete preview and finding context can remain in public history JSON.
 
-**Generation has one aggregate allowance.** Selection, prose, their corrections, and every production fallback share 1,800 seconds and a $25 spending allowance by default. Each provider deadline is clamped to the remaining time. Before IO, the runner reserves input bytes (prompt plus schema) at $20 per million and the requested output-token allowance at $60 per million; absent an explicit output bound, it uses 100,000 tokens. These fixed conservative rates are policy allowances, not live prices. A reported cost replaces that reservation; missing cost retains it and records billing uncertainty. An ambiguous timeout or interrupted reservation stops further generation. A completed ready candidate remains usable when its final call exhausts the allowance.
+Ready pages display source chips using the validated code-owned destinations.
+Hacker News discussions use the label "HN discussion".
+The "Behind this briefing" panel summarizes outcomes and coverage and links to the integrity report.
+Stored Markdown retains its checked footer.
+See the [archive contract](publication-archive-contract.md#what-reaches-the-public-page) for exposure and retention rules.
 
-`run_briefing.py` and `run_daily_briefing.py` expose `--generation-seconds` and `--generation-usd`; daily backfill shares one persisted `runs/generation-budget.json` across all report dates through `--generation-budget`. Reopening that file preserves its original deadline, spend, uncertainty, and any unfinished reservation. Manifests and fallback logs record the allowance and stop reason, and each chain attempt records its own share of the allowance so publication can attribute spend to a date rather than to the shared running total; the public integrity record carries that sum as a `generation` cost phase, unknown for dates recorded before the share existed. Jev retains its separate controls. Provider billing arrives after the call, and opaque CLI output can exceed its assumed allowance, so these checks stop additional calls rather than guarantee a strict dollar cap.
+### Tool policy and retries
 
-**Artifacts retain integrity at handoffs.** Every production generation starts a fresh run directory from an explicitly supplied frozen corpus. The manifest binds the exact corpus bytes, trusted config, generation policy, runner source files, provider generation controls, provider/CLI version, Python version, runner settings, and recorded artifacts to content hashes. Writes remain atomic; trace entries are appended and synced. Repair and publication verify the manifest and artifact bindings before consuming them. Interrupted runs retain `running` status and diagnostic artifacts but have no completed, publishable result. Production resume is unsupported; benchmark checkpoints retain their separate resume and billing controls.
+OpenRouter and OpenAI-compatible requests contain no tool definitions. Returned tool calls fail validation.
+Claude Code uses safe mode, disables commands and session persistence, and exposes only its non-action-capable `StructuredOutput` tool.
+Both `--tools StructuredOutput` and `--allowedTools StructuredOutput` enforce that policy.
 
-**Gemini's structured-output schema is the shared selection schema minus redundant bounds.** For structured selection output, Gemini 3.7 Flash receives the same JSON schema as the other providers except for redundant `maxItems` bounds on unique citation arrays whose string enums already imply that maximum. Section limits, exact prose counts, citation enums, and uniqueness remain unchanged. On September 6, 2026, a short-prompt probe reconstructed the selection schema from that day's [public audit manifest](https://elanthus.github.io/news-briefing/manifests/2026-09-06.json): Google AI Studio returned HTTP 400 with the original schema and completed successfully when only those redundant bounds were omitted. Lowering `max_tokens` or omitting reasoning did not resolve the error in the initial probe. This verifies schema acceptance, not the quality of a complete briefing; the encrypted production prompt was not replayed. Google's [structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output) notes that complex schemas may be rejected.
-**CLI output is bounded while collected.** The opt-in Claude Code and Codex adapters concurrently collect unbuffered stdout and stderr with ceilings of 8 MiB and 64 KiB. Every read requests at most the remaining capacity plus one overflow byte; a repeating CLI cannot accumulate unlimited output before the deadline. UTF-8 prompt bytes are supplied through a temporary stdin file, and completed bounded output is decoded with replacement for invalid UTF-8. Version probes use the same collector with a 64 KiB stdout ceiling. Readiness polling supports POSIX pipes and Windows pipes on Python 3.11, and capture readers stop and join before returning. Overflow produces a non-transient typed `output_truncated` failure with ambiguous completion, never another potentially billed attempt; timeout keeps the same overall call deadline and ambiguous-completion behavior. Failure messages report the limit/deadline or exit status without including captured provider output.
+Codex ignores user config and rules and disables shell, multi-agent, remote-plugin, web-search, and image tools.
+It uses medium reasoning in an empty temporary directory with a read-only sandbox.
+Trace validation rejects completed items other than reasoning and the final agent message.
+Codex has no single documented remove-all-tools flag. The sandbox and trace checks remain additional safeguards.
 
-On POSIX, each invocation owns a new session and failure cleanup kills its process group, including ordinary descendants that still hold output pipes after the leader exits. On Windows, native `taskkill /T /F` attempts tree cleanup before killing/reaping any remaining leader. Detached processes, descendants that escape the POSIX session, and Windows descendants orphaned before `taskkill` inspects the tree are outside that cleanup guarantee. A denied group cleanup is reported as a sanitized cleanup failure alongside the original typed overflow or timeout; direct-process kill and reap are still attempted. Their retained pipes cannot keep capture readers alive because readiness polling and the stop event do not depend on receiving EOF. Windows readiness behavior is covered by offline API doubles; real Windows subprocess execution is not part of the current Linux/macOS validation.
+Each provider call has one total deadline and at most three attempts.
+Only explicitly safe transient failures qualify for retry. The transport honors `Retry-After` within the remaining deadline.
+Timeouts and failures after transmission can have ambiguous completion or billing. They do not automatically retry.
+Content corrections have their own separate limits.
 
+### Generation allowance and artifacts
+
+Selection, prose, corrections, and daily fallback models share 1,800 seconds and USD 25 by default.
+Each call deadline is limited by the remaining time.
+Before I/O, the runner reserves input bytes at USD 20 per million and output tokens at USD 60 per million.
+Without an explicit output bound, it reserves 100,000 output tokens.
+These are fixed policy rates, not current provider prices.
+Reported cost replaces the reservation. Missing cost retains it and records uncertainty.
+Ambiguous completion or an interrupted reservation stops additional generation.
+A ready result remains usable when its final call exhausts the allowance.
+
+The generation CLIs expose `--generation-seconds` and `--generation-usd`.
+Daily backfill shares `runs/generation-budget.json` through `--generation-budget`.
+Reopening this file preserves the original deadline, spend, uncertainty, and unfinished reservation.
+Each fallback attempt records its own share so publication can calculate cost per date.
+Missing historical shares produce an unknown generation cost.
+Jev uses separate controls. These checks prevent further calls but cannot guarantee a strict billing cap.
+
+Each production run requires a new directory.
+The manifest binds corpus bytes, trusted config, policy, source files, provider controls, versions, settings, and artifacts to hashes.
+Writes are atomic. Trace entries are appended and synced.
+Repair and publication verify these bindings before use.
+Interrupted production runs remain `running` with diagnostics and no completed publishable result.
+Production resume is unsupported. Evaluator checkpoints have a separate resume contract.
+
+### CLI capture limits
+
+CLI adapters collect stdout and stderr concurrently without buffering the entire process output.
+Limits are 8 MiB for stdout and 64 KiB for stderr.
+Version probes use a 64 KiB stdout limit.
+Each read requests at most remaining capacity plus one overflow byte.
+Prompts enter through a temporary stdin file. Invalid UTF-8 output decodes with replacement.
+
+Overflow returns non-transient `output_truncated` with ambiguous completion.
+Timeout uses the same total call deadline. Neither event starts another potentially billed attempt.
+Failure messages omit captured provider output.
+Readiness polling supports POSIX and Windows pipes on Python 3.11.
+Readers stop and join before return, without depending on EOF.
+
+POSIX invocations use new sessions. Failure cleanup kills the process group.
+Windows cleanup attempts `taskkill /T /F`, then kills and reaps any remaining leader.
+Detached descendants, escaped sessions, and already-orphaned Windows descendants are outside this guarantee.
+Denied group cleanup records a sanitized error while direct-process cleanup continues.
+Windows behavior has offline API-double coverage. Real Windows subprocess execution is outside current Linux/macOS validation.
 
 ## Orchestration view
 
-The system is a coordinated multi-role loop: a selector works from the complete closed corpus, code freezes its validated evidence groups, and a prose generator works only from those groups under a fail-closed provider tool policy. A deterministic checker acts as the oracle; a deterministic normalizer repairs editorial placement and evidence-length errors; and a bounded corrector gets up to the configured repair limit for findings repair cannot fix. Selection and prose each receive that many corrections independently. When every blocking selection finding is repairable — an ineligible-category or globally repeated citation, or an over-limit section — the normalizer runs before freezing and no correction pass is spent; a WARN-only oversized summary likewise takes the evidence-swap path before finalization.
+The pipeline coordinates selection, frozen evidence, prose generation, deterministic checks, correction, and semantic review.
+These are sequential roles. Code controls each transition.
 
-Each stage's correction budget is reserved for findings that need the model, such as unknown references, free-form URLs, or schema-shape violations. The same normalizer also runs as the post-budget fallback, removing any unsafe later entries that survive correction, before the code-owned disposition gate decides whether the result can be published.
+The daily chain tries these models until one result is `ready`:
 
-In production, an outer fail-closed chain runs that complete protocol independently with Tencent HY3, DeepSeek V4 Flash 0731, and Gemini 3.7 Flash until one result is `ready`. Tencent HY3 and DeepSeek each allow up to 100,000 completion tokens; Gemini is capped at its supported maximum of 65,536. Failed candidates remain in isolated run directories, and `fallback-log.json` records each attempt's status (`quarantined` when a candidate completed but was not `ready`, `failed` when none completed), failure reason, and typed failure payload before the chain advances. When every model fails, the day publishes a no-result page. Publication resolves only the selected successful child run.
+| Model | Completion-token ceiling |
+|---|---:|
+| `tencent/hy3` | 100,000 |
+| `deepseek/deepseek-v4-flash-0731` | 100,000 |
+| `google/gemini-3.7-flash` | 65,536 |
 
-In the evaluator, separate semantic and grounding judges perform blinded machine review for adjudication and regression decisions. Those evaluation judgments measure the loop, while the completed-candidate gate remains deterministic and records `ready`, `review_required`, or `rejected`; an outer protocol or runtime failure instead records `no_result` without a candidate. After publication, a weekly grounding monitor machine-reviews the retained diagnostics of successfully deployed runs; it reports on published output and never changes it.
+Failed candidates remain in separate run directories.
+`fallback-log.json` records `quarantined` for completed non-ready candidates and `failed` when no candidate completed.
+It retains typed failure details. If every model fails, publication produces a status-only page.
+Only the selected successful child can supply briefing content.
+
+After a ready result, the daily stage runs Jev review, isolated confirmation, bounded repair, and follow-up review.
+The [Jev guide](jev-review.md) defines per-slot acceptance.
+The evaluator uses separate blinded semantic and grounding assessments.
+The scheduled weekly grounding monitor was retired on October 10, 2026.
+Its [historical log](results/grounding-monitor.md) remains frozen; explicit benchmark review commands remain supported.
 
 ```mermaid
 flowchart LR
@@ -156,55 +375,128 @@ flowchart LR
     judges -. evaluator adjudication .-> evaluation[Regression decision]
 ```
 
-This is orchestration of specialized roles around one generator, not concurrent multi-agent planning. Where a property is checkable—schema shape, citation membership, section limits, duplicate placement, or corpus-health reporting—a deterministic oracle is cheaper, reproducible, and more reliable than asking a second LLM. Model judges are reserved for semantic properties that code cannot honestly settle, and their machine-review status remains explicit.
-
 ## Ranking and checking
 
-**Configured slot allocation.** The default reserves space for each section so high-volume AI industry news cannot crowd out dev tools and practices. A different mix can reserve that space differently without changing code.
+### Configured slots and claim checks
 
-**Claim grounding is sampled, not asserted.** Verifying that prose is entailed by its source needs a semantic judge, so the deterministic checker does not pretend to settle it. Quotation and length checks remain WARN signals; in the production runner, a length warning with complete known evidence is repaired by substituting that evidence, while an unsafe or incomplete boundary is preserved for review.
+Section targets reserve space for each configured topic area.
+Code checks allocation. Models decide significance and semantic support.
+Quotation and evidence-length checks produce warnings.
+Safe evidence substitution can repair an oversized summary. An unresolved quotation warning can require review.
 
-Figure checks are nonblocking quality notes: the corpus contains bounded feed excerpts, so a number's absence from an excerpt cannot establish its absence from the linked article.
+Figure checks remain nonblocking because excerpts do not contain the complete article.
+If a missing figure occurs in another item, the checker requires three shared title terms and 60% shorter-title overlap.
+It then emits `figure_supported_elsewhere`; otherwise it emits `unsupported_figure`.
+Neither result proves semantic support.
+These checks remain in evaluation and run artifacts but are excluded from public advisory counts.
 
 ### Low claim/evidence overlap diagnostic
 
-A fifth claim-family warning, `low_claim_evidence_overlap`, is a deliberately narrow, nonblocking lexical-overlap diagnostic. It reports a topic only when both the model claim and its cited excerpts contain at least eight distinctive lexical terms, fewer than two terms overlap, and overlap is at most 8% of the claim terms. The 8% ceiling independently constrains the diagnostic: a one-term match needs at least 13 claim terms, while a zero-term match can still qualify at the eight-term minimum. It is a triage signal, not a claim that semantic entailment failed: paraphrase and named-entity variation remain outside deterministic proof.
+`low_claim_evidence_overlap` is a narrow lexical diagnostic.
+Both claim and evidence must contain at least eight distinctive terms.
+Fewer than two terms must overlap, with overlap at most 8% of claim terms.
+A one-term match therefore needs at least 13 claim terms. A zero-term match can qualify at eight.
+Paraphrase and entity variation can defeat this heuristic.
 
 #### Predefined promotion gate
 
-The warning may become blocking only after a prospective, human-reviewed clean set contains at least 400 topics across at least 14 report dates and the two-sided 95% Wilson interval's upper bound for false positives is at most 1%. The threshold and sample requirement are fixed before collecting that promotion set. `unsupported_figure` remains nonblocking independently because its known false positives measure a different heuristic.
+Blocking use requires a prospective, human-reviewed clean set with at least 400 topics across at least 14 report dates.
+The two-sided 95% Wilson upper bound for false positives must be at most 1%.
+These requirements precede collection. They do not change the separate `unsupported_figure` policy.
 
 #### Retained-history baseline
 
-The repository retains two clean historical briefings with matching corpora: the August 9 reference fixture and the hash-bound August 18 structured-output final. They contain 44 included topics in total. The diagnostic flagged 0 of 44. The two-sided 95% Wilson upper bound is about 8.0%, so this baseline is far too small to satisfy the promotion gate. The diagnostic therefore remains in the `quality` domain, is excluded from actionable public warning counts and panels, and is preserved in private run diagnostics.
+The August 9 reference and August 18 structured-output final contain 44 included topics.
+The diagnostic flagged none. The 95% Wilson upper bound is about 8.0%, which does not meet the promotion gate.
+`tests.test_eval_briefing.CommittedFixtureTest.test_low_overlap_on_retained_historical_clean_briefings` reproduces this baseline.
 
-`tests.test_eval_briefing.CommittedFixtureTest.test_low_overlap_on_retained_historical_clean_briefings` reproduces the baseline on every test run.
+The diagnostic remains nonblocking in the `quality` domain.
+It is excluded from actionable `findings_count` but included in public `advisory_findings`.
+Other public advisories are `slots_underfilled`, `exclusion_log_missing`, and `exclusion_log_short`.
+The integrity report and ready status chip show their counts.
 
-A figure missing from the cited excerpts is still cross-checked against item-level corpus evidence: when the exact figure appears in an uncited item with at least three shared title terms and 60% overlap with the shorter title, the checker emits `figure_supported_elsewhere`; otherwise it emits `unsupported_figure`. Both remain available in evaluation and run artifacts, but neither blocks ordinary publication nor appears in public review-required panels. The conservative title threshold prevents a common number elsewhere in a large corpus from being presented as corroboration for an unrelated claim. The committed [`fixtures/corpus-2026-08-09.json`](../fixtures/corpus-2026-08-09.json) and [`fixtures/briefing-2026-08-09.md`](../fixtures/briefing-2026-08-09.md) reference pair evaluates clean under those heuristics, but that result does not establish semantic entailment; run the checker and review the evidence for each new output.
+### Exclusion accountability
 
-**Nonblocking does not mean invisible (issue #171).** Nonblocking quality findings stay out of the publication gate and `findings_count`. The reader-relevant checks `slots_underfilled`, `exclusion_log_missing`, `exclusion_log_short`, and `low_claim_evidence_overlap` are published under a distinct `advisory_findings` key and counted by check category in the integrity report. A ready report states that its gate passed with advisory notes, and the briefing's status chip carries the same count. Concise messages and safe subjects appear in the report; full context remains in public history JSON. `unsupported_figure` and `figure_supported_elsewhere` stay out of advisory counts: a bounded feed excerpt's silence about a number says nothing about the linked article. Those heuristics remain available in evaluation and run artifacts.
+Each accountable section requests its configured number of excluded stories with reasons.
+The default is five. A target of `0` exempts a section.
+No log heading is required when every section is exempt.
 
-**Exclusion accountability.** The default asks for the next five stories dropped from each accountable section, with a reason; the configuration can change that target or exempt a section with `0`. The log heading itself is required only while at least one section is still accountable, so a configuration that exempts every section is not asked for an empty one. `expected` — the number of eligible, unreported corpus items an accountable section could still log, capped at its configured target — is computed deterministically from the corpus, not asserted by the model. A single section falling short of `expected` (`exclusion_log_short`) or logging nothing while other accountable sections still do (`exclusion_log_missing`) remains a nonblocking `quality`-domain WARN, since either can reflect a corpus that is legitimately thin in one category. But every accountable section with `expected > 0` returning zero entries is not a heuristic miss: `check_exclusion_log` emits `exclusion_log_empty` at ERROR, and `agent_runner/output.py` runs the same check against the model-visible citation set before the selection freezes, so the finding lands in the selection stage and spends a selection correction instead of surviving to a finished draft. The check is corpus-bound, not evidence-violating, so it routes through the editorial domain to `review_required` rather than `rejected` — the candidate is incomplete, not untrustworthy. A section whose eligible pool is genuinely exhausted (`expected == 0`) is correct with an empty log and raises nothing, at either level.
+Code computes `expected` from eligible unreported items, capped by the exclusion target.
+One short or missing section log produces a nonblocking quality warning.
+If every accountable section with `expected > 0` logs nothing, code emits ERROR `exclusion_log_empty`.
+Selection validation checks this before freezing evidence.
+It is an editorial error leading to `review_required`, not an evidence violation leading to `rejected`.
+An exhausted eligible pool with `expected == 0` correctly permits an empty log.
 
-**A reserved slot outranks its own accountability log.** `target_stories` is a slot the corpus is expected to fill, so a section reporting fewer topics than that while its own log still holds eligible, unreported evidence is not a thin corpus — it is material the model ranked and then left on the floor. Each log is therefore ordered, most significant first, continuing the section's own ranking rather than starting a separate one, and `promote_excluded_to_underfilled()` in `agent_runner/output.py` moves entries from the front of the log into the section until it is full or the log is exhausted. Ranking is judgment and stays with the model; promotion is deterministic and stays in code, which never reorders what it was given. It runs at the freeze point in `agent_runner/runner.py`, after the selection passes its contract and before `project_selected_evidence()`, so a promoted entry reaches the prose pass as an ordinary topic and is written up from its own evidence instead of carrying its rejection reason forward. The move is recorded as a `selection_promotion` attempt, kept distinct from `selection_repair` because filling a slot is routine editorial bookkeeping rather than evidence that the run had to be patched — `prepare_publication.py` counts only the latter in the repair-action total a reader sees. `evaluator/parity.py` performs the same step at the same point. A section whose log cannot supply a replacement keeps its gap: promotion never invents coverage, and the residual `slots_underfilled` WARN then reports the count of eligible corpus items still unreported rather than asserting a cause the checker cannot verify. A blocking `slots_underfilled` — an empty section with eligible evidence unused — is reached by promotion too, rather than diverting to a model correction: promotion is what repairs that finding, and gating it on a clean contract would handle a section at zero topics worse than the same section one topic short. Every other blocking finding still goes to repair or correction first, and structural validity is unaffected, since allocation findings are only computed once `validate_selection` is clean.
+### Promotion from the accountability log
 
-Promotion is withheld when the move would itself fail the contract. `_check_exclusion_log_selection` is corpus-bound, so promoting the last logged entries across every accountable section that still has eligible unreported items raises `exclusion_log_empty` — a blocking finding no deterministic repair covers, which would spend a model correction on a state code created. `selection_promotion_candidate()` therefore revalidates the promoted selection and discards the move if it introduced any blocking finding. Code cannot write an exclusion reason to restock a log, so leaving the slot short and letting the warning report it is the honest outcome.
+Exclusion logs continue the model's ranking, most significant first.
+`promote_excluded_to_underfilled()` moves eligible entries from a section's log into its unused story slots.
+Code preserves that order and never invents coverage.
+Promotion occurs before `project_selected_evidence()`, so the prose pass treats each promoted entry as an included topic.
 
-Only the newest selection-stage attempt's promotion counts. Actions name output positions and the renderer tags by position, so actions surviving from a selection that a model correction replaced would label whichever story the model put in that slot as promoted — a claim the briefing would be making about a story that was never promoted. A superseded promotion is therefore treated as no promotion, which doubles as the once-per-run guard: a run holds at most one live promotion, and a correction that discards one reopens promotion for its replacement.
+Promotion can also repair an empty section whose only blocking finding is `slots_underfilled`.
+Other blocking findings go through repair or correction first.
+`selection_promotion_candidate()` revalidates the result and discards a move that introduces any blocking finding.
+For example, emptying all accountable logs could introduce `exclusion_log_empty`.
+Code cannot invent exclusion reasons to replace those entries.
 
-A promoted topic is labelled where the reader meets it. `render_briefing()` tags it `[promoted from the accountability log]`, the same producer-owned literal mechanism as `[verbatim]` for a substituted summary, and `_TOPIC_LINE` in `eval_briefing.py` enumerates both tags rather than accepting arbitrary bracketed text a model headline could supply. The tag is what makes the promotion legible: the story is reported on the model's own ranking but did not take a slot by the model's own choice, and a promoted section's log is one entry shorter than its target, so `exclusion_log_short` can follow a promotion. That advisory is left to fire. Suppressing it would require the runner to know something `eval_briefing.py` cannot see — it is the independent Markdown checker — and the tag already explains the shortfall on the same page, so the pair reads as one event rather than an unexplained complaint. Promotion is recorded in the selection stage but tagged in the prose stage, two different attempts, so the runner reads the actions back from its manifest and `evaluator/parity.py` from the prior attempt's repair records; rendering therefore stays bound to the recorded promotion actions.
+A promotion records `promote_excluded_entry` in a `selection_promotion` attempt.
+It is excluded from repair totals.
+Only the newest selection-stage attempt's promotion remains live.
+A model correction that replaces that selection also supersedes its position-based actions.
+The replacement selection can then receive a new promotion.
 
-**An excluded story is not a consumed one.** `check_slot_allocation` and `empty_section_findings()` count only reported topics as using a corpus item, matching `check_exclusion_log`. Counting logged entries as used would let a section publish empty while every eligible item sat in its own accountability log — the log would launder the material out of the unused-eligible set and suppress the ERROR that exists for exactly that case. The log is evidence that coverage was available and passed over, which is the opposite of proof the corpus was exhausted. `agent_runner/output.py` owns the single implementation both production and the parity path call, because the two previously held drifted copies.
+Rendering adds `[promoted from the accountability log]` to each affected topic.
+The independent checker recognizes this exact literal and `[verbatim]`, not arbitrary bracketed labels.
+A shortened log can still produce `exclusion_log_short`. The promotion tag explains the change.
+Production and parity rendering read the recorded actions rather than inferring them from output.
 
-**Corpus health reporting.** Fetch failures, silent empty outcomes, and items dropped because their dates could not be parsed are collected per source and surfaced in the briefing, so a degraded run looks degraded instead of just looking short. Quiet sources are the deliberate exception: `eval_briefing.py`'s reconciliation works from `errors`, which never contains a `quiet` source, so the checker neither requires nor permits one in `failed_sources` — reporting one there is `unexpected_failed_source` just like any other record with no matching structured error. When one category's quiet-source count exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`, that excess flips only the outcome's coverage axis to `degraded` (which fails `--strict`); it never enters `errors` or `failed_sources`, so a briefing can legitimately carry no corpus-health section at all on a run that fails `--strict` for quiet-source coverage. The checker requires one fenced JSON manifest whose failed-source identities and statuses exactly match the structured error records and whose undated-source identities and counts match `parsed_entries - dated_entries`. Category-level `undated_dropped` totals must reconcile with those per-source counts. Prose-only claims, paraphrased IDs, duplicate entries, omitted degradation, and invented degradation are errors. The static site transforms a valid checked block at render time into readable counts and groups by source type and status; stored Markdown retains the machine contract, and malformed JSON remains escaped verbatim.
+Excluded items do not count as consumed evidence.
+`check_slot_allocation` and shared `empty_section_findings()` count only reported topics.
+Otherwise, a model could suppress an empty-section error by placing every eligible item in its exclusion log.
 
-**Private stored corpora make historical backfill deterministic.** Each workflow run captures one instant, restores the fourteen report dates ending today from the newest authenticated encrypted corpus artifact, fetches today's corpus fresh for the exact preceding 24 hours ending at that instant, and labels it with the current `America/New_York` date. Backfill reuses those exact private corpora unchanged for the six prior target dates and warns and skips when one is missing; it never reconstructs a historical date from retention-limited live feeds. Manual `single-day` dispatch also accepts one validated date inside that retained window, so a repair replaces only that date rather than regenerating the archive. The public-to-private migration is complete. A missing or expired archive starts a fresh window; obsolete-schema dates inside an authenticated archive are skipped without conversion. Current corpora, archive bounds, and date identities remain validated, including dates outside the window that are not restored. The restore step narrowly scopes the GitHub token and archive passphrase; neither reaches feed parsing nor model execution. The initial rolling window may overlap the preceding calendar-day corpus, and independently captured end times can create small overlaps or gaps between later windows. The site builder receives the private files only as local build inputs and emits text-free manifests under `site/manifests/`: item IDs, category, source, timestamp, canonical destinations, and SHA-256 hashes of the exact title and excerpt bytes. It removes stale `site/corpora` output and never copies raw source text into Pages.
+### Corpus health reporting
 
-**Untrusted-data boundary.** The generation policy treats all public-feed text as untrusted content and forbids following instructions embedded in it. The runner gives OpenRouter no tools and gives Claude Code only its non-action-capable `StructuredOutput` schema-emission tool, with the documented Codex limitation above. Citation projection prevents the model from authoring link destinations, and complete-output grounding independently allowlists every rendered web destination, whether represented as a required `🔗` citation, Markdown link, HTML link, autolink, protocol-relative link, bare `www.` link, or bare HTTP(S) text. Raw URLs and HTML-decoded or backslash-unescaped candidates are checked separately, so entity-encoded or CommonMark-escaped schemes cannot bypass validation without changing legitimate query parameters. The site renderer also disables Markdown link, image, and reference syntax, so only code-owned citation autolinks render as links. See the [evaluation threat model](evaluation-methodology.md#scope-and-threat-model) for the selection and prose channels that remain open.
+A required fenced JSON manifest must exactly match structured failed-source identities and statuses.
+It must also match each source's undated count, computed as `parsed_entries - dated_entries`.
+Category `undated_dropped` totals must reconcile with those counts.
+Missing, duplicated, invented, or paraphrased identities fail validation. Prose-only health statements are insufficient.
+
+Quiet sources never enter `errors` or `failed_sources`.
+Reporting them as failed produces `unexpected_failed_source`.
+A category with too many quiet sources can degrade coverage and fail `--strict` without requiring a failed-source block.
+The site renders valid health blocks as readable groups. Stored Markdown retains the JSON contract.
+Malformed blocks remain escaped text.
+
+### Private backfill and publication evidence
+
+The workflow captures one instant and fetches today's exact preceding 24-hour window.
+The report date uses `America/New_York`.
+Earlier dates reuse exact private corpora within the fourteen-date retention window.
+Missing historical corpora are skipped. Live feeds never reconstruct those historical inputs.
+Manual `single-day` mode can target one retained date.
+Independent capture times can create small overlaps or gaps between report windows.
+
+The builder receives private corpora as local inputs and emits text-free audit manifests.
+It removes stale `site/corpora` output and does not copy raw corpora into Pages.
+The [archive contract](publication-archive-contract.md#private-operational-artifacts) defines credentials, authentication, restoration, and retention.
+Job-level GitHub Actions permissions apply to every step; secret environment bindings do not create step-level permission isolation.
+
+### Untrusted-data boundary
+
+Feed text is untrusted evidence. The generation policy forbids following embedded instructions.
+Projection removes model-visible destinations. Rendering restores only code-owned destinations.
+The independent checker also validates Markdown, HTML, autolinks, protocol-relative links, bare `www.` links, and bare HTTP(S) text.
+Raw, HTML-decoded, and CommonMark-unescaped candidates receive separate checks.
+The site disables Markdown link, image, and reference syntax; only code-owned citation autolinks become links.
+See the [threat model](evaluation-methodology.md#scope-and-threat-model) for remaining selection and prose attacks.
 
 ## Regression-testing a prompt change
 
-[`briefing-runner-prompt.md`](../briefing-runner-prompt.md) is the structured-output prompt used by `run_briefing.py` and the production daily chain; [`evaluator/prompts/briefing-prompt.md`](../evaluator/prompts/briefing-prompt.md) is retained only with historical direct-Markdown evidence. New evaluator runs use the production two-pass contract. To regression-test a change to the production prompt, replay the frozen corpus and configuration in [`fixtures/`](../fixtures), substituting the candidate prompt path and holding the provider and model fixed across comparisons:
+The production prompt is [`briefing-runner-prompt.md`](../briefing-runner-prompt.md).
+The historical direct-Markdown prompt remains in `evaluator/prompts/briefing-prompt.md`.
+Use frozen inputs and the same provider and model to compare production prompt changes:
 
 ```bash
 python3 -S run_briefing.py \
@@ -216,26 +508,44 @@ python3 -S run_briefing.py \
   --prompt your-runner-prompt.md
 ```
 
-Then check the generated output against the same frozen inputs:
+Check the output against the same inputs:
 
 ```bash
-python3 eval_briefing.py \
+python3 -S eval_briefing.py \
   --corpus fixtures/current-corpus.json \
   --briefing your-new-output.md \
   --config briefing-config.json
 ```
 
-Run both the current and candidate prompts against these same inputs and compare the results. `fixtures/current-corpus.json` retains the August 11 evidence with current schema metadata; the original dated corpus and briefing files remain unchanged. Provider nondeterminism still limits attribution from a single replay.
+Repeat with the current prompt and a different output path.
+The current fixture retains August 11 evidence with current schema metadata. Original dated fixtures remain unchanged.
+Provider nondeterminism limits conclusions from one replay.
+Ranking changes are not automatically regressions. Check structure, section allocation, exclusion logs, and corpus-bound destinations.
 
-The reference briefing is a **regression baseline, not a golden answer**. Ranking is judgment, and a prompt change that reorders two topics is not automatically a regression. What the baseline catches is the silent structural stuff: a dropped exclusion log, a collapsed sub-category, links drifting away from the corpus.
+The [evaluator](../evaluator/README.md) supports structured generation through Codex CLI, Claude Code CLI, and OpenRouter.
+NVIDIA remains available for separate judging commands.
+It retains attempts, checks, oracle outcomes, model settings, costs, hashes, timestamps, and source provenance.
+Keep deterministic checker results, model behavior, and human assessments in separate denominators.
 
-For behavior rather than parser regression, the development-only [`evaluator/`](../evaluator/) runs a committed utility, quality, and attack set through Codex CLI, Claude Code CLI, or OpenRouter. NVIDIA remains available for the separate judge workflows. It preserves both model attempts, structured checker findings before and after correction, attack-oracle outcomes, model settings, timestamps, content hashes, and Git provenance. The deterministic gold-label suite is separate from live generation so parser failures, semantic checker limits, and stochastic model behavior keep honest denominators; its label provenance distinguishes model review, owner adjudication, and incomplete independent human review.
+## Verified review and publication handoffs
+
+Review and repair reuse a verified-run value within one process.
+It contains the checked corpus, configuration, selection, evidence, candidate, hashes, projection, and blinded topics.
+Repair copies the original selection and independently verifies the repaired run.
+Standalone review, audit loading, and publication verify persisted inputs again.
+This avoids repeated work within a process without weakening consumer boundaries.
+
+Repair acceptance requires complete follow-up, known costs, and no blocking check affecting the target slot.
+Citation checks use their lower threshold.
+Public score and operational-history consistency checks remain separate safeguards.
+
+Publication health summaries and integrity records use the same hash-bound original corpus.
+A separate fetch path cannot change those labels.
+Invalid or missing bound evidence is unavailable, not healthy.
 
 ## References and influences
 
-- Elham Tabassi, [*Artificial Intelligence Risk Management Framework (AI RMF 1.0)*](https://doi.org/10.6028/NIST.AI.100-1), NIST AI 100-1 (2023), especially the [MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/). It motivates documented and repeatable test, evaluation, verification, and validation; deployment-representative measurement; independent assessment; explicit uncertainty; and monitoring risks over time.
-- Frank Coyle, [“Why Agentic Systems Need Ontologies”](https://www.youtube.com/watch?v=Sir59K8ZDPU&t=8s), AI Engineer World's Fair (2026). The relevant architectural principle is probabilistic reasoning inside deterministic domain validation. This repository realizes that principle with closed-world corpus schemas and purpose-built checks rather than an RDF/OWL ontology.
+- [NIST AI RMF 1.0](https://doi.org/10.6028/NIST.AI.100-1) motivates documented measurement, uncertainty, independent assessment, and risk monitoring.
+- Frank Coyle's [“Why Agentic Systems Need Ontologies”](https://www.youtube.com/watch?v=Sir59K8ZDPU&t=8s) describes probabilistic reasoning within deterministic domain validation.
 
-Review and repair share a small verified-run value within one process. It carries the checked original corpus, configuration, frozen selection, selected evidence, final candidate, hashes, projection, and blinded topics. The repaired run gets its own independently verified value, and local repair edits copy the original selection. Reusing these values avoids repeated artifact reads, hashes, validation, and projection; it makes no claim about overall runtime. Standalone review, public-audit loading, and publication verify persisted inputs again at their consumer boundaries. Acceptance requires complete follow-up, known reported costs, and no threshold-blocking finding affecting a repair target, including the lower citation threshold. Public score and operational-history consistency checks remain independent safeguards.
-
-Publication source-health summaries and detailed integrity records come from the same hash-bound original run corpus. A separately supplied fetch path cannot change those labels. The shared corpus degradation rule covers failures, empty responses, undated drops, and the existing category threshold for unusually many quiet sources. Ordinary quiet sources remain separately labeled as valid dated entries outside the window or filtered by policy. Missing or invalid bound source evidence is reported as unavailable rather than healthy. Sidecar and public-history schemas retain their existing fields.
+This repository uses corpus schemas and specific checks for that boundary. It does not implement an RDF/OWL ontology.

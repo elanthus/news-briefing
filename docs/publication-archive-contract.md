@@ -1,230 +1,321 @@
 # Publication archive contract
 
-This is the authoritative contract for the published GitHub Pages archive: scheduling, corpus windows,
-repair-versus-correction precedence, hash-bound publication, retention, and the machine-readable history
-format. Read it when you need to know exactly what the archive publishes, what it withholds, and why a
-given run reached the page it did. [`prepare_publication.py`](../prepare_publication.py) enforces the
-hash-bound publication gate, and [`build_site.py`](../build_site.py) implements the rendering and
-retention rules described here.
+This document defines scheduling, publication, retention, and public history for the GitHub Pages archive.
+[`prepare_publication.py`](../prepare_publication.py) verifies publication inputs.
+[`build_site.py`](../build_site.py) applies rendering and retention rules.
 
 ## Scheduling and corpus windows
 
-The GitHub Pages workflow runs daily at 13:30 UTC and generates one report labeled with the current `America/New_York` date. A manual dispatch offers two modes: `single-day` targets today by default or one explicit `YYYY-MM-DD` inside the fourteen-date private retention window, while `backfill-7-days` targets today plus the six prior Eastern report dates. A historical single-date run reuses only that restored corpus and never expands into an archive-wide regeneration. Both manual modes replace successful existing reports for their target dates. Scheduled runs retain the normal publication rank safeguard. All modes check out `main` so generation uses the latest merged code, prompts, and configuration.
+The [daily workflow](../.github/workflows/daily-briefing.yml) runs at 13:30 UTC.
+It labels reports with the current `America/New_York` date.
+All modes check out `main` and use its merged code, prompts, and configuration.
 
-The workflow captures one start timestamp and always fetches today's corpus fresh for the exact 24-hour interval ending at that instant. Earlier target dates reuse exact current-schema corpora restored from the newest authenticated encrypted GitHub Actions archive and are skipped when no stored corpus exists; they are never reconstructed from retention-limited live feeds. A missing or expired archive starts a fresh window. An unreadable private archive fails the run.
+| Mode | Target dates | Existing successful reports |
+|---|---|---|
+| Scheduled | Today | Apply the publication-rank safeguard. |
+| Manual `single-day` | Today by default, or one explicit date inside the fourteen-date retention window | Replace successful reports for the target date. |
+| Manual `backfill-7-days` | Today and the six prior Eastern dates | Replace successful reports for the target dates. |
 
-Window boundaries are therefore approximate across dates. The first rolling window can overlap a preceding calendar-day corpus, so adjacent reports may temporarily repeat stories. Each later report likewise covers the exact 24 hours ending at that run's independently captured timestamp, so changes in capture time can create small overlaps or gaps between windows.
+A historical single-day run does not regenerate other archive dates.
+The workflow captures one start timestamp.
+Today's corpus covers the exact preceding 24 hours and is fetched fresh.
+Earlier target dates use exact restored current-schema corpora.
+If a historical corpus is missing, the workflow skips that date. It does not reconstruct it from live feeds.
 
-Each date gets a separate corpus, run directory, and report path. Every run restores only the exact corpora inside the fourteen-day window, then uploads only an encrypted archive. The static builder derives a text-free public audit manifest for each valid dated corpus. This preserves deterministic backfill inputs without redistributing source-owned titles, feed excerpts, or community post bodies through GitHub Pages.
+A missing or expired archive starts a fresh retention window.
+An unreadable archive fails restoration.
+Each date has its own corpus, run directory, and report path.
+Capture-time changes can create small overlaps or gaps between daily windows.
+The first rolling window can also overlap an earlier calendar-day corpus.
+
+Only encrypted operational archives leave the workflow as corpus artifacts.
+The public builder emits text-free audit manifests instead of raw corpora.
 
 ## Repair, correction, and publication
 
 ### Precedence: deterministic repair before model correction
 
-The correction budget is reserved for findings deterministic repair cannot fix.
+Code handles safe repairs before spending model corrections.
+Permitted repairs remove complete ineligible or repeated entries and trim eligible over-limit tails.
+Included stories take priority over exclusion logs.
+Unknown evidence and malformed entries remain available for rejection; repair never removes them merely to pass validation.
 
-Editorial placement errors — ineligible-category or globally repeated citations and over-limit sections — are repaired deterministically before any correction pass is spent: a recorded repair pass drops the complete later entry (or trims the over-limit tail), giving included stories priority over every exclusion log, and logs each change as a `repair_actions` entry rather than a checker finding.
+A safe `claim_exceeds_evidence` repair substitutes deduplicated cited evidence for an oversized summary.
+Every citation must have complete known support, and the normalized excerpt must contain no URL.
+The action is `replace_summary_with_excerpt`. Rendering marks the topic `[verbatim]`.
+Incomplete or URL-bearing evidence remains unresolved and can require review.
 
-A `claim_exceeds_evidence` warning takes the same code-owned path only when every citation has complete known support and the normalized excerpt contains no URL: the runner replaces the oversized model summary with its deduplicated cited corpus evidence, records `replace_summary_with_excerpt`, and visibly labels the rendered topic `[verbatim]` without spending a provider correction call. Incomplete or URL-bearing evidence is left untouched and remains review-required.
+Before freezing evidence, promotion can fill unused section slots from that section's ordered accountability log.
+The candidate is revalidated. A promotion that introduces a blocking finding is discarded.
+The runner records `promote_excluded_entry` in a `selection_promotion` attempt.
+Rendering adds `[promoted from the accountability log]`.
+Promotions do not count as repairs. A resulting short log can still produce `exclusion_log_short`.
 
-A section left under `target_stories` while eligible, unreported evidence remained in its own accountability log is filled from the front of that log before the evidence freezes. The runner records `promote_excluded_entry` on a `selection_promotion` attempt and labels the rendered topic `[promoted from the accountability log]`. The attempt kind is deliberately distinct from `selection_repair`: filling a reserved slot is routine editorial bookkeeping, not evidence the run had to be patched, so it stays out of the repair-action count on the published entry. Because the promoted story leaves the log, a promoted section's log can be one entry short of its target and raise the nonblocking `exclusion_log_short` advisory; the topic's tag is what explains it.
+Selection schemas list section-eligible handles. Each handle retains its article and discussion destinations in the code-owned map.
+After validation, code freezes the references by position.
+The prose pass receives only selected evidence and has no citation field.
+Code restores references after prose generation and checks the complete candidate.
 
-The selection schema exposes only the one item-aligned citation reference eligible for each corpus item in a section. Article and Hacker News discussion destinations remain paired behind that reference in the code-owned map. After independent validation, code freezes the selected reference sets. The prose request contains only the evidence selected for each output position, and the prose schema has no citation field; code attaches the frozen sets afterward. A model correction pass is spent only when a finding needs the model — such as an unknown reference, an opaque reference leaked into prose, a free-form URL, a schema-shape violation, or an error the checker raises against the rendered briefing — and the same deterministic repair still cleans up any repairable remainder once that bounded budget is exhausted. An eager repair re-enters the validation loop rather than ending the run, so the untouched correction budget stays available for findings the repaired render reveals.
-
-Repair never trims an entry held for rejection: unknown evidence remains a rejection and is never normalized away.
+Model correction handles remaining errors such as unknown references, leaked handles, destinations, invalid shapes, or rendered-contract failures.
+Each eager repair returns to validation and preserves the remaining correction allowance.
+After that allowance is exhausted, code can still apply a permitted final repair.
+See [design notes](design.md#the-code-owned-runner) for stage decisions and limits.
 
 ### What reaches the public page
 
-[`prepare_publication.py`](../prepare_publication.py) publishes a complete `ready` briefing only when the runner manifest identifies `final.md` as its final artifact and the file's SHA-256 matches the manifest. If other review-requiring findings remain after that bounded repair budget, a `review_required` run may expose its checker-generated `preview.md` under the same hash-bound rule.
+A `ready` result can publish only the manifest's `final.md` with its verified SHA-256.
+A `review_required` result can retain its verified `preview.md` in publication metadata.
+The public page displays a quarantine stub, not that preview.
 
-The static builder renders `review_required` entries as a quarantine stub on the
-public page, with a status chip linking to `reports/<date>.html`. Every status chip
-links to its integrity report; ready briefing pages contain no inline review
-panels. Integrity reports open with one plain sentence stating the publication
-decision and its reason, then the published changes, the flagged stories, the
-exclusion log, and the affected sources; statistics, the action ledger, scores,
-phases, costs, and hashes sit in collapsed operator sections. Reader-facing
-wording is a page-rendering layer: `history.json` keeps every reason code and
-the stored Markdown keeps its checked footer. They show concise deterministic
-finding messages and safe subjects without reproducing the briefing. A `ready`
-report also renders the published briefing's accountability log once, in its own
-section; the briefing page links to it instead of repeating it. A
-`review_required` report never renders its withheld preview or that preview's
-accountability log, and runs without a published artifact have no log to show.
-Unchanged prose is omitted while repair outcomes remain visible; complete
-finding context remains in public history JSON.
+Every status chip links to `reports/<date>.html`.
+Integrity reports show the publication decision and reason, published changes, flagged stories, exclusion log, and affected sources.
+Collapsed operator sections contain statistics, actions, scores, phases, costs, and hashes.
+Ready pages have no inline review panels.
+Their accountability log appears once in the integrity report, with a link from the briefing.
+Review-required reports do not display the withheld preview or its accountability log.
+Complete preview and finding context can remain in public history JSON.
 
-Nonblocking quality notes do not count toward `findings_count`. The four
-reader-relevant checks (`slots_underfilled`, `exclusion_log_missing`,
-`exclusion_log_short`, `low_claim_evidence_overlap`) appear in the integrity
-report's advisory counts and concise finding details, and the ready report states that the gate passed with
-N advisory notes. The reader-facing status chip retains its advisory-note count.
-The excerpt-bounded figure heuristics (`unsupported_figure`,
-`figure_supported_elsewhere`) remain in run artifacts and are excluded from
-advisory counts. Their rows are also omitted from the reader page's Run outcome
-warning list; the list reads "None" when no other warning remains.
+Nonblocking quality notes do not contribute to `findings_count`.
+These checks appear in `advisory_findings`, report details, and advisory counts:
 
-The published `repair_actions` describe the final attempt only: a repair
-superseded by a later model correction did not produce the published content.
-The integrity ledger distinguishes superseded generation actions from actions
-bound to the published candidate, without publishing earlier private prose.
+- `slots_underfilled`.
+- `exclusion_log_missing`.
+- `exclusion_log_short`.
+- `low_claim_evidence_overlap`.
 
-`rejected`, `blocked`, and `no_result` runs remain status-only. When every model in a fallback chain fails, a blocked page and its integrity report explain why each model failed using fixed public messages. `publication_failures.py` projects the complete failed chain into allowlisted model identifiers and reason codes; raw provider errors, rejected prose, and story details stay private. Fallback logs use schema v2 and carry structured failure records from the originating provider or checker. Records carry their own schema version 1; unversioned records are no longer accepted. A finalized checker outcome takes precedence over earlier recoverable provider errors. Public projection ignores private `failure_reason` text and allowlists only model identifiers and fixed codes. Unknown or malformed records use the generic explanation; old string-only chain logs are not classified. Missing or malformed chain logs retain the generic status notice. A status-only manual failure preserves any previously published page. Every workflow run uploads the dated corpora, reports, and verified run directories only inside a fourteen-day authenticated encrypted diagnostics artifact so correction attempts remain inspectable without exposing their raw corpus or model request.
+`unsupported_figure` and `figure_supported_elsewhere` remain private run diagnostics and evaluation signals.
+They do not appear in public advisory counts or the reader's Run outcome warning list.
+The warning list displays "None" when no other warning remains.
+
+Public `repair_actions` describe the final attempt only.
+The integrity ledger separately identifies superseded generation actions without exposing earlier private prose.
+The provenance repair total includes repairs across the original generation run.
+
+`rejected`, `blocked`, and `no_result` entries contain status information only.
+An exhausted fallback chain produces fixed public explanations for each model failure.
+[`publication_failures.py`](../publication_failures.py) allowlists model identifiers and reason codes.
+Raw exceptions, rejected prose, and story details stay private.
+
+Fallback logs use schema 2 and failure records use schema 1.
+Unversioned records are rejected. Finalized checker outcomes take precedence over earlier recoverable provider errors.
+Public projection ignores private `failure_reason` text.
+Unknown, malformed, missing, or old string-only records receive a generic explanation.
+A status-only manual failure preserves an existing published page.
+Encrypted diagnostics retain dated corpora, reports, and verified run directories for fourteen days.
 
 ## Site rendering and retention
 
-The newest retained run is rendered directly on the site home page. A date bar at the top links to separate pages for the other retained runs. The site renderer replaces a valid machine corpus-health block with a readable summary and source-type/status groups; the checked JSON contract remains unchanged in stored Markdown and malformed blocks remain escaped verbatim.
+The newest retained report appears on the home page.
+The date bar links to the other retained reports.
+Valid corpus-health JSON becomes a readable summary grouped by source type and status.
+Stored Markdown retains the checked JSON. Malformed blocks remain escaped text.
 
-The site and its machine-readable history retain up to seven report dates. When an eighth or later entry exists, the builder removes the oldest entries until seven remain; date gaps alone never remove history. An empty archive starts with newly published reports.
+The site and `history.json` retain up to seven report dates.
+The builder removes the oldest entries only when more than seven exist. Date gaps do not remove history.
 
-Each integrity report links to `manifests/<date>.json` when the matching private corpus was available during the build. Audit-manifest schema version 1 contains the corpus and item identifiers, report and window timestamps, item category and source, canonical article and discussion URLs, and SHA-256 hashes of the exact UTF-8 title and optional excerpt bytes. It also hashes the complete private corpus file. It contains neither title nor excerpt text. The builder removes any stale `site/corpora` directory before rendering, so a reused output directory cannot accidentally carry a raw corpus into the Pages artifact.
+When the matching private corpus is available, its report links to `manifests/<date>.json`.
+Audit-manifest schema 1 records:
+
+- Corpus and item identities.
+- Report and window timestamps.
+- Item category, source, and canonical article/discussion URLs.
+- SHA-256 hashes of exact UTF-8 title and optional excerpt bytes.
+- The complete private corpus file hash.
+
+Manifests contain no title or excerpt text.
+The builder removes stale `site/corpora` before rendering.
 
 ## Operational metrics ledger
 
-`history.json` keeps seven report dates, so any summary computed from it alone covers one week. The builder therefore also writes `metrics.json`, a ledger with one compact row per report date, and `metrics.html`, a page computed from that ledger. [`site_metrics.py`](../site_metrics.py) builds, validates, merges, and renders it without model calls or network access. The site footer on every page and the "Behind this briefing" panel link to the page.
+[`site_metrics.py`](../site_metrics.py) creates `metrics.json` and `metrics.html` without model calls or network access.
+The ledger keeps one row per report date and is never truncated.
+Rows come from all merged entries before the seven-date history limit applies.
+The footer and "Behind this briefing" panel link to the metrics page.
 
-The daily workflow downloads the deployed `metrics.json` alongside `history.json`, with the same curl bounds, a `Cache-Control: no-cache` header, and a per-run `?v=$GITHUB_RUN_ID` query on both downloads, to get past the Pages CDN's ten-minute cache. The builder merges by date with the history rank rule: a current row replaces a prior row only when its publication rank is at least as high, so a blocked or review-required retry never replaces a ready day, while a manual `--replace-existing` republish of a page replaces it as history does. Rows are computed from every merged entry before history truncation, and the ledger itself is never truncated.
+The workflow downloads prior metrics and history with bounded curl requests, `Cache-Control: no-cache`, and a per-run query parameter.
+These controls reduce stale CDN responses.
+A current row replaces a prior row only when its publication rank is at least as high.
+Manual `--replace-existing` follows the same replacement policy as history.
+A blocked or review-required retry cannot replace a ready date through the normal rank rule.
 
-Losing the ledger would lose more than a week, so `build_site.py` refuses to build without `--prior-metrics` unless `--allow-empty-metrics` is given; `--allow-empty-history` does not imply it, so a history-recovery dispatch never also discards the ledger. The builder validates the merged ledger against the same parser before writing any output, so a build that would publish a ledger the next build refuses fails instead. A provider or model identifier outside the plain-identifier pattern is recorded as `null` rather than failing the build. The workflow passes `--allow-empty-metrics` only when the ledger download returned a definite HTTP 404, which means the ledger has never been deployed. The ledger then starts from the seven dates in history. Every other download failure stops the build. A malformed prior ledger also fails the build.
+`build_site.py` requires `--prior-metrics` unless `--allow-empty-metrics` is explicit.
+`--allow-empty-history` does not permit an empty metrics ledger.
+The workflow enables empty metrics only after a definite HTTP 404.
+It then initializes the ledger from retained history.
+Other download failures and malformed prior ledgers stop the build.
+The builder validates the merged ledger before writing output.
 
-Ledger schema version 2 rows contain exactly these fields, and no others. They carry no feed text, headlines, summaries, prose, finding messages, URLs, or hashes. The builder still reads a schema 1 ledger and upgrades each row with `generation_cost_usd` and `generation_unknown_cost_calls` set to `null`, then writes schema 2:
+Ledger schema 2 has the fields below and no others.
+Schema 1 rows upgrade with null `generation_cost_usd` and `generation_unknown_cost_calls`.
+Invalid provider/model identifiers become null.
+Rows contain no feed text, generated prose, finding messages, URLs, or hashes.
 
-| Field | Source and meaning |
+| Field | Meaning |
 |---|---|
-| `date`, `disposition` | The entry's report date and publication disposition. |
-| `provider`, `model`, `attempt_index`, `attempt_count` | `provenance`: the selected generation identity and its position in the fallback chain. Identifiers must match a plain model-identifier pattern. |
-| `fallback_used`, `failed_attempts` | `attempt_index > 1` and `attempt_index − 1`. For a blocked day, the number of `generation_failures`. |
-| `review_status`, `followup_status`, `review_complete` | `integrity.initial_review` / `followup_review` status, falling back to `semantic_audit.status` / `post_status`. `review_complete` is true only for a complete initial review, the same rule as the integrity report. |
-| `repair_decision` | `integrity.decision`: `original_retained`, `repaired_applied`, `partial_applied`, or `unpublished`. |
-| `generation_cost_usd`, `generation_unknown_cost_calls` | The `generation` entry of `integrity.costs`: the fallback chain's reported spend for the date across every attempt, including attempts that did not publish, and the number of its calls whose billing never arrived. Null for a date recorded before that phase existed. |
-| `review_stage_cost_usd`, `phase_costs_usd`, `unknown_cost_calls` | `semantic_audit.reported_cost_usd` and `unknown_cost_calls`, plus `integrity.costs` per review phase (`initial_review`, `repair_generation`, `followup_review`). |
-| `flags_raised`, `flags_confirmed` | Initial Jev checks whose confirmation label is not `not_flagged`, and those labeled `confirmed`. |
-| `findings_count`, `advisory_findings` | The entry's actionable finding count and number of advisory findings. |
+| `date`, `disposition` | Report date and publication disposition. |
+| `provider`, `model`, `attempt_index`, `attempt_count` | Selected generation identity and fallback position from provenance. |
+| `fallback_used`, `failed_attempts` | Selected index above 1 and prior attempts. Blocked days use the generation-failure count. |
+| `review_status`, `followup_status`, `review_complete` | Integrity review status, with semantic-audit fallback. Completion refers to the initial review. |
+| `repair_decision` | `original_retained`, `repaired_applied`, `partial_applied`, or `unpublished`. |
+| `generation_cost_usd`, `generation_unknown_cost_calls` | Per-date generation spend across all attempts and calls without known billing. |
+| `review_stage_cost_usd`, `phase_costs_usd`, `unknown_cost_calls` | Aggregate semantic-audit cost and separate initial-review, repair-generation, and follow-up costs. |
+| `flags_raised`, `flags_confirmed` | Initial checks with a flag and those labeled `confirmed`. |
+| `findings_count`, `advisory_findings` | Actionable findings and advisory count. |
 
-A field the source entry does not record is `null`, and the page renders it as "unknown"; it is never filled with zero. A legacy entry without provenance, a Jev audit, or an integrity record therefore keeps those fields null. The page reports the ready rate over all recorded days, published days by selected model and fallback use, repair outcomes on days with complete review, known generation and review-stage cost per day with unknown-cost days marked, and a 28-day rolling ready rate. The rolling rate leaves dates with no record out of both counts. These are operational summaries of the daily integrity records. They are not an independent assessment, a grounding rate, or a quality measurement. Charts are inline SVG generated in Python, with every label escaped, and the page loads no script.
+Missing source fields remain null and display as "unknown". They never become zero.
+The page reports ready rates, selected models, fallback use, repair outcomes, and known costs with unknown billing marked.
+The 28-day rolling ready rate excludes dates without records from both counts.
+These operational summaries do not measure independent grounding or editorial quality.
+Charts are escaped inline SVG. The page loads no script.
 
 ## Reader retirement and research evidence
 
-Production readers now require history schema 9, the complete current sidecar
-shape, semantic-audit metadata schema 3, and versioned failure records. The
-October 15, 2026 cutover preserves the inspected public history without changing
-its Markdown. It never clears history with `--allow-empty-history`.
+Current readers require history schema 9, the complete sidecar shape, semantic-audit schema 3, and versioned failure records.
+The October 15, 2026 cutover preserved inspected public Markdown without clearing history.
+Historical audits use a private dataset tied to their source revisions.
+They are not replayed as current publication inputs.
 
-Retained research is extracted into a private, source-bound dataset rather than
-replaying old candidate-only or all-or-none audits through current publication.
-Original bytes, repair correspondence, failures, costs, and missing facts are
-preserved. Frozen public benchmark bundles remain unchanged and use their
-recorded source revisions. Archived encrypted operational artifacts are cold
-source evidence, not newly verified current research samples. See the
-[retention and migration guide](research-retention.md) and its recorded receipt
-for the supported consumer boundary, verification, and recovery procedure.
+Preservation retains original bytes, repair correspondence, failures, costs, and missing facts.
+Frozen public benchmark bundles retain their original source revisions.
+Encrypted operational archives are source evidence, not newly verified research samples.
+See [research retention](research-retention.md) for verification and recovery.
 
 ## Private operational artifacts
 
-The repository secret `CORPUS_ARCHIVE_PASSPHRASE` is required by the daily workflow. Exact corpora and diagnostics are first gzip-compressed, then encrypted with AES-256-CBC using a PBKDF2-SHA-256-derived key. A separately derived HMAC-SHA-256 authenticates the versioned envelope, and restoration verifies that MAC before decryption. The passphrase is supplied on standard input rather than in process arguments. The checkout step sets `persist-credentials: false`, so no Git credential is left in the workspace. The restore step is the only step with an explicit `GITHUB_TOKEN` binding and receives `CORPUS_ARCHIVE_PASSPHRASE`; the generation step, which fetches feeds and calls models, is bound to `OPENROUTER_API_KEY` and `SCRAPECREATORS_API_KEY`; the encryption step is bound to `CORPUS_ARCHIVE_PASSPHRASE`. The job-level permissions (`actions: read`, `contents: read`, `pages: write`, `id-token: write`) are available to every step, including fetch and generation: any step can read `github.token` or request an OIDC token, because Actions does not isolate permissions per step. Archive restoration accepts only regular `corpora/YYYY-MM-DD.json` members whose JSON validates against the current corpus schema and whose `report_date` matches the filename; unexpected members, traversal paths, duplicate dates, oversized data, and malformed current corpora fail closed. Authenticated members declaring obsolete positive integer schema versions are skipped, with their date identities, uniqueness, and byte bounds still checked. They are never upgraded or restored, and an all-obsolete archive produces an empty window. Missing, malformed, and future versions fail closed. Members outside the window receive the same checks; only current corpora for the fourteen report dates ending on the run date are written. Restoration refuses an existing output directory that is not empty, including when no archive is available, so no unvalidated file enters the retained window. The token-authenticated GitHub download follows only an absolute HTTPS artifact redirect, then downloads that destination without forwarding the token.
+The workflow requires `CORPUS_ARCHIVE_PASSPHRASE`.
+It gzip-compresses corpora and diagnostics, then encrypts them with AES-256-CBC and a PBKDF2-SHA-256-derived key.
+A separately derived HMAC-SHA-256 authenticates the versioned envelope.
+Restoration verifies the MAC before decryption.
+The passphrase enters through stdin, not process arguments.
+Checkout uses `persist-credentials: false`.
 
-The ciphertext artifacts and exact corpora retain fourteen report dates. Because this is a public repository, the encrypted artifact bytes may themselves be publicly downloadable; corpus confidentiality therefore depends on the repository secret remaining private and the authenticated-encryption envelope remaining intact. Rotating or deleting `CORPUS_ARCHIVE_PASSPHRASE` makes existing retained artifacts unreadable, so rotation must occur only after intentionally accepting that bounded backfill gap or after re-encrypting the retained archive.
+| Step | Explicit secret bindings |
+|---|---|
+| Restore | `GITHUB_TOKEN`, `CORPUS_ARCHIVE_PASSPHRASE`. |
+| Generate and fetch | `OPENROUTER_API_KEY`, `SCRAPECREATORS_API_KEY`. |
+| Encrypt | `CORPUS_ARCHIVE_PASSPHRASE`. |
+
+Job permissions are `actions: read`, `contents: read`, `pages: write`, and `id-token: write`.
+They apply to every step. Actions does not isolate permissions through these environment bindings.
+Any step can access `github.token` or request an OIDC token.
+
+The online restore path selects eligible main-branch, same-repository corpus artifacts.
+The local preserved-wrapper path requires the same workflow provenance.
+Authenticated download follows only an absolute HTTPS artifact redirect. The redirected request carries no GitHub token.
+
+Restoration accepts only regular `corpora/YYYY-MM-DD.json` members.
+Current corpora must validate and have a `report_date` matching the filename.
+Traversal paths, unexpected members, duplicate dates, oversized data, and invalid current corpora fail restoration.
+Authenticated obsolete positive-integer schema versions are skipped, without upgrade.
+Their date identities, uniqueness, and byte bounds still receive checks.
+Missing, malformed, and future versions fail restoration.
+An all-obsolete archive produces an empty window.
+
+Members outside the retained window receive the same checks.
+Only current corpora within the fourteen report dates ending on the requested date are written.
+The output directory must be absent or empty, even when no archive is available.
+See [offline wrapper restoration](research-retention.md#restoring-preserved-local-wrappers) for local recovery.
+
+Ciphertext artifacts and exact corpora retain fourteen report dates.
+Encrypted artifacts from this public repository can be publicly downloadable.
+Confidentiality depends on the secret passphrase and authenticated envelope.
+Rotating or deleting the passphrase makes prior artifacts unreadable.
+Before rotation, re-encrypt retained archives or explicitly accept the resulting backfill gap.
 
 ## Generation provenance
 
-Each `ready` or `review_required` publication carries a `provenance` object: the OpenRouter (or other) provider name, the exact model identifier, its `attempt_index` and `attempt_count` in the production fallback chain, `selection_corrections` and `prose_corrections` (how many correction calls each phase spent), `repair_action_count` (deterministic repairs applied across the whole run, not only the ones bound to the final published attempt — see `repair_actions` above), and `prompt_sha256`, the runner prompt's content hash already recorded in the checkpoint manifest's `identity`. Every field is a model identifier or a non-negative count; provenance never carries prompt text, corpus text, or a URL.
+A public artifact can carry `provenance` with these fields:
 
-`prepare_publication.py` derives `provenance` entirely from the selected child run's `manifest.json` (`provider`, `identity.prompt_sha256`, and each recorded attempt's `kind` and `repair_actions`) and, when present, the fallback chain's `fallback-log.json` (`model_chain` length and the selected attempt's `index`). A manual `run_briefing.py` run has no fallback-chain log at all: `attempt_index` and `attempt_count` both default to 1 rather than describing a chain that never existed. A manifest that predates recorded provider identity or the prompt hash — or any disposition without a public artifact — publishes no `provenance` at all (`null`), and `build_site.py` renders such an entry exactly as before.
+- Provider and exact model identifier.
+- Fallback `attempt_index` and `attempt_count`.
+- `selection_corrections` and `prose_corrections`.
+- `repair_action_count` across the original run, including superseded repairs.
+- `prompt_sha256` from the manifest identity.
 
-`build_site.py` renders `provenance`, when present, as a compact line in the collapsed "Provenance and costs" section of the per-run integrity report only ("Generated by deepseek/deepseek-v4-flash-0731, attempt 2 of 3, 1 selection correction, 0 prose corrections, 0 total repair actions."); the `attempt N of M` clause is omitted when `attempt_count` is 1, since there was no chain to have a position in. The reader-facing page never shows it.
+Provenance contains identifiers, counters, and a hash, but no prompt text, corpus text, or URL.
+`prepare_publication.py` derives it from the selected manifest and optional fallback log.
+Standalone runs use index and count 1.
+Missing recorded provider identity or prompt hash produces null provenance.
+A disposition without a public artifact also has null provenance.
+
+The integrity report displays provenance in its collapsed "Provenance and costs" section.
+It omits the attempt-position clause for standalone runs.
+The reader page does not display this detail.
 
 ## Daily semantic repair and audit
 
-After ordinary generation reaches `ready`, the daily command runs Jev checks and
-isolated confirmation. Confirmed included citation/grouping/prose findings receive one
-bounded HY3 repair round. Only a structurally valid ready candidate with complete,
-clear follow-up checks involving affected slots replaces the publication input.
-Original fallback-chain artifacts remain immutable. Partial coverage, failed or
-rejected repairs retain the original ready report. Unrelated disputed findings
-do not block an otherwise-cleared repair; checks involving repaired slots must
-still clear the follow-up threshold. The sidecar's `semantic_audit`
-retains generated before/after prose and all scores without frozen excerpts.
-Citation rows identify a frozen evidence index and code-owned destinations.
-The confirmation thresholds are stated in
-[Jev checks and repairs](jev-review.md#confirmation-and-repair-policy).
-Publication rebinds retained-source follow-up indexes to the originals and
-verifies that removed citations cannot return. The HTML report displays each exact headline or summary change once per story,
-regardless of the triggering check. Removed source items identify confirmed
-irrelevance, grouping subset selection, or both as the cause. An article and its
-Hacker News discussion count as one source removal. Candidate changes remain
-proposals when the original is retained. Failed and skipped actions retain safe
-subjects and all applicable fixed explanations. Initial and follow-up statistics
-and confirmation counts are separate; actual follow-up blockers remain visible
-even when they were below threshold initially.
-Publication revalidates the source and repaired artifacts before accepting that audit or using its candidate.
+The daily stage reviews the ready generation and confirms flags in isolation.
+Confirmed included citation, grouping, or prose findings can trigger one bounded HY3 repair round.
+Follow-up must have complete coverage and known costs before any slot can apply.
+Each applied slot must clear all checks involving its position, using the appropriate threshold.
+A two-slot check can block both positions. Unrelated findings remain visible without blocking a cleared slot.
 
-See [daily semantic checks and repairs](jev-review.md) for exact limits and
-[preliminary evaluations](results/jev-preliminary-2026-09-30.md) for observed
-benefits, misses and false alarms. A selected repair run supplies the final public
-Markdown, while generation provenance continues to describe the original selected
-fallback run. `integrity.repair_generation` separately identifies the actual repair
-provider/model and its recorded prompt hash. Jev is the judge rather than the
-prose author. Initial review, repair generation, and follow-up review have separate
-cost records; known spend is aggregated once and unknown billing is never zeroed.
-A fourth `generation` cost record carries the date's model-chain spend. Each
-fallback attempt records its own share of the shared generation allowance in
-the private chain log, and publication sums those shares, including attempts
-that failed or were quarantined, so the published figure is what the date cost
-rather than a running total across backfill dates. A standalone
-`run_briefing.py` run owns a fresh allowance, so its manifest's budget record
-is used instead. Any attempt without a recorded share makes the whole date's
-generation cost unknown; a partial sum would read as a total. The review
-phases still reconcile with the semantic audit's aggregate; the generation
-phase does not take part in that check.
-Semantic repair work is separate from original generation correction counters.
+All cleared slots produce `repaired_applied`.
+Some cleared slots produce a separately assembled and validated `partial_applied` run.
+Otherwise, the original ready report remains selected.
+Original generation artifacts remain unchanged.
+See [Jev acceptance rules](jev-review.md#confirmation-and-repair-policy), including the limits of partial assembly.
+
+Public `semantic_audit` retains generated before/after prose, actual scores, confirmations, outcomes, and costs.
+It excludes frozen excerpts and prompts.
+Publication verifies source and candidate artifacts, retained-source index correspondence, removed citations, unchanged topics, and per-slot decisions.
+An invalid audit cannot replace the original or expose unverified audit details as applied.
+
+HTML displays each changed headline or summary once per story.
+Source removals identify confirmed irrelevance, grouping subset selection, or both.
+Article and Hacker News discussion destinations count as one source item.
+Proposed changes remain distinct from published changes. Missing scores are never invented.
+
+Generation provenance describes the original selected fallback run.
+`integrity.repair_generation` separately identifies the repair provider, model, and prompt hash.
+Jev judges evidence; HY3 writes repairs.
+Initial review, repair generation, and follow-up have separate costs that reconcile with the semantic audit.
+
+The `generation` phase adds all per-attempt cost shares for that date, including failed and quarantined attempts.
+It does not use the running backfill total.
+Standalone generation uses its fresh manifest budget.
+A missing attempt share makes the date's generation cost unknown; a partial sum cannot be reported as a total.
+Generation costs do not participate in semantic-audit cost reconciliation.
+Original correction counters exclude semantic repair work.
 
 ## Machine-readable history
 
-The generated `history.json` uses `schema_version: 9`. The builder accepts only
-schema 9; older and unknown versions are rejected. Every
-schema-9 entry requires `date`, `disposition`, `findings_count`, `findings`,
-`degraded_sources`, `repair_actions`, `generation_failures`, `advisory_findings`,
-`provenance`, `semantic_audit`, `integrity`, and `markdown`. Current sidecars use
-the same metadata fields, including explicit nullable integrity and semantic
-audit fields. Missing fields and arbitrary extra fields are rejected.
-Missing historical facts remain unavailable, and rebuilding never calls a model
-to populate them. Legacy provenance is retained as recorded; when an older entry
-does not separate original generation from repair generation, the builder does
-not infer those identities.
+The builder accepts only `history.json` schema 9.
+Each entry requires every field below. Missing and extra fields fail validation.
+Current sidecars use the same metadata fields, including explicit nullable integrity and audit values.
+Rebuilding never calls a model to fill historical gaps.
+Recorded legacy provenance remains as recorded; code does not infer missing original-versus-repair identities.
 
 | Field | Contents |
 |---|---|
-| `integrity` | Bounded version-1 operational record: publication decision and fixed reasons, verified artifact hashes, original/repair identities, ordered phases and action references, separate coverage/costs, optional numeric workflow run identity, and typed corpus-health records. Null for unavailable history. Non-public entries expose status-only information plus the date's `generation` cost record, since a blocked day still paid for its failed attempts. |
-| `semantic_audit` | Public generated original/changed prose, initial and actual follow-up Jev scores and confirmations, repair outcomes and coverage/cost metadata; null without a valid audit or public artifact. No frozen feed excerpts or prompts. |
-| `date` | The Eastern report date the entry was labeled with. |
-| `disposition` | The run's publication disposition. |
-| `findings_count` | Actionable findings only, excluding nonblocking quality notes. A zero count on a blocked infrastructure failure does not mean the checker accepted a candidate. |
-| `generation_failures` | For exhausted fallback chains only, model identifiers and fixed reason codes explaining why no briefing was published. |
-| `findings` | Validated detail for `review_required` entries only, plus optional story context from the hash-bound selected structured artifact. Other dispositions retain only `findings_count`, so rejected prose is not leaked through metadata. |
-| `degraded_sources` | Sources behind the runner's degraded-coverage predicate (`corpus_schema.corpus_health_degraded`): fetch errors, undated drops, and the quiet sources of any category whose quiet count exceeds `QUIET_SOURCE_DEGRADED_THRESHOLD`. An empty list means no degradation was reported, not that every possible source was available or complete. |
-| `repair_actions` | The deterministic repair log for the run, empty when nothing was repaired. Published only for entries with a public artifact. |
-| `advisory_findings` | Nonblocking quality findings worth a reader's attention — `slots_underfilled`, `exclusion_log_missing`, `exclusion_log_short`, and `low_claim_evidence_overlap` — reusing the same finding shape and story-context resolution as `findings`, published for both `ready` and `review_required` entries. `findings_count` never counts these. The excerpt-bounded `unsupported_figure` and `figure_supported_elsewhere` heuristics stay out of this list (see [design.md](design.md#ranking-and-checking)). |
-| `provenance` | The original selected generation model and correction/repair counts for that run (see "Generation provenance" above), or `null` when unavailable. Published only for entries with a public artifact. |
-| `markdown` | A string for `ready` and `review_required` entries; `null` otherwise. |
+| `date` | Eastern report date. |
+| `disposition` | Publication disposition. |
+| `findings_count` | Actionable findings, excluding quality advisories. Zero on an infrastructure failure does not mean acceptance. |
+| `findings` | Validated detail for `review_required` entries, with optional context from the selected hash-bound structured artifact. |
+| `degraded_sources` | Fetch errors, empty outcomes, undated drops, and quiet sources from categories exceeding the quiet threshold. |
+| `repair_actions` | Final-attempt deterministic repairs, only with a public artifact. |
+| `generation_failures` | Allowlisted model identities and fixed reasons for an exhausted fallback chain. |
+| `advisory_findings` | The four reader-relevant nonblocking checks listed above, for ready and review-required entries. |
+| `provenance` | Original generation identity and counters, or null. Requires a public artifact. |
+| `semantic_audit` | Validated generated prose, review scores, confirmations, repair outcomes, coverage, and costs; otherwise null. No frozen excerpts or prompts. |
+| `integrity` | Bounded version-1 operational record with decisions, hashes, identities, phases, actions, costs, and typed corpus health; otherwise null. |
+| `markdown` | String for `ready` and `review_required`; null otherwise. |
 
-Finding context may carry a structured `path` and hash-bound original model prose.
-That context is retained in public history JSON; the report shows concise messages
-and safe subject/value context without rendering the full preview or unchanged
-stories. Integrity actions reference check indexes and verified artifact scopes;
-initial-prose hashes identify the first complete rendered candidate, while the
-first ready candidate is the semantic-review baseline. Selection preparation
-precedes that initial-briefing boundary. A missing baseline is explicitly
-unavailable, and sequence numbers do not imply measured durations.
+An empty `degraded_sources` list means no recorded degradation. It does not prove complete source coverage.
+Status-only integrity can include the date's generation cost because failed attempts can incur charges.
 
-The public metadata parser bounds every integrity field and validates internal
-consistency, but structural validity does not authorize a repair. Publication
-reconstructs or cross-checks operational claims from hash-bound artifacts and
-reports. The site loader also checks the published artifact digest against exact
-sidecar Markdown bytes and stored history Markdown before rendering or replacing
-an entry. Null integrity does not invent an artifact digest. An invalid
-audit retains the original and does not expose its unverified
-prose, scores, actions, or destinations as applied. Fixed reason codes replace
-raw exception messages. Optional workflow links are constructed from the configured
-repository and a validated numeric run ID; absent IDs produce no link. Typed
-corpus-health records contain source identities, statuses, counts, and fixed
-degradation reasons from a validated corpus, never feed text or provider bodies.
+Finding context can contain a structured path and hash-bound original model prose.
+Public JSON retains that context. HTML displays concise messages and safe subjects without full previews or unchanged stories.
+Integrity actions refer to check indexes and verified artifact scopes.
+Initial-prose hashes identify the first complete rendered candidate.
+The first ready candidate supplies the semantic-review baseline.
+Selection preparation precedes the initial-briefing boundary. Missing baselines remain unavailable.
+Sequence numbers do not represent measured durations.
+
+The metadata parser checks bounds and consistency. Structural validity alone does not authorize a repair.
+Publication reconstructs or checks operational claims against hash-bound artifacts.
+The site loader checks published digests against exact sidecar and history Markdown before rendering or replacement.
+Null integrity supplies no digest.
+Invalid audits retain the original with safe fixed explanations.
+Workflow links require the configured repository and a validated numeric run ID.
+Typed corpus health contains source identities, statuses, counts, and fixed reasons, without feed text or provider bodies.

@@ -1,33 +1,27 @@
 # Repository instructions
 
-Use these instructions when changing this repository. Preserve the central
-contract: deterministic code constrains and checks the corpus; models make the
-judgments code cannot prove.
+Use these instructions when changing this repository.
+Preserve the central contract: code constrains and checks the corpus. Models make judgments that code cannot prove.
 
 ## Runtime and dependencies
 
-- Keep the pipeline on Python 3.11+ and standard-library-only. This includes
-  `fetch_news.py`, `news_fetch/`, `run_briefing.py`, `agent_runner/`, `corpus_*.py`,
-  `prepare_publication.py`, `restore_private_corpora.py`, `private_archive.py`,
-  and the evaluator core.
-- The only third-party runtime dependencies are pinned in
-  `requirements-site.txt` for `build_site.py` and the opt-in site tests.
-- Run the core and evaluator tests with `python3 -S`. Disabling `site` prevents
-  Python from loading site-packages and enforces the no-install contract.
-- Keep changes compatible with the typed modules and Python versions configured
-  in `pyproject.toml` and `evaluator/pyproject.toml`.
+- Use Python 3.11 or later and only the standard library for the pipeline and evaluator core.
+- Apply this rule to `fetch_news.py`, `news_fetch/`, `run_briefing.py`, `agent_runner/`, and `corpus_*.py`.
+- Apply it also to `prepare_publication.py`, `restore_private_corpora.py`, and `private_archive.py`.
+- Use only the third-party runtime dependencies pinned in `requirements-site.txt` for `build_site.py` and the opt-in site tests.
+- Run core and evaluator tests with `python3 -S`. This disables `site` and prevents loading site-packages.
+- Preserve compatibility with the typed modules and Python versions in `pyproject.toml` and `evaluator/pyproject.toml`.
 
 ## Required checks
 
-Run the repository gate. Its last step is the credential-free evaluator
-checker gate that CI also runs:
+Run the repository gate. The last command is the credential-free evaluator checker that CI also runs.
 
 ```bash
 uvx ruff@0.14.2 check . && uvx mypy@1.14.1 && uvx mypy@1.14.1 --config-file evaluator/pyproject.toml evaluator && python3 -S -m unittest && python3 -S -m unittest discover -s evaluator/tests && python3 -S -m evaluator checker
 ```
 
-When `build_site.py` or `prepare_publication.py` changes, install
-`requirements-site.txt` in an isolated environment and also run:
+When `build_site.py` or `prepare_publication.py` changes, install `requirements-site.txt` in an isolated environment.
+Then run:
 
 ```bash
 python3 -m unittest tests.site_test_build
@@ -35,45 +29,46 @@ python3 -m unittest tests.site_test_build
 
 ## Security scope
 
-Treat fetched titles, summaries, source metadata, URLs, model output, and PR text
-as untrusted. Security-sensitive boundaries include public-destination, DNS,
-and redirect validation; corpus-bound citations; bounded parsing; credential
-handling; the runner's OpenRouter and Claude Code tool policies; citation
-projection; checkpoint integrity; fail-closed provider-event validation; and
-prompt injection that crosses a claimed boundary. Model ranking or summary
-errors, corpus-contained injection that does not escape the URL allowlist, an
-unused Codex built-in tool inside the documented sandbox, malicious or failed
-upstream feeds, and denial of service against public sources are documented
-limitations rather than vulnerabilities by themselves. See `SECURITY.md` before
-changing a boundary.
+Treat fetched titles, summaries, source metadata, URLs, model output, and PR text as untrusted.
+Read `SECURITY.md` before changing a security boundary.
+Security boundaries include:
+
+- Public-destination, DNS, and redirect validation.
+- Corpus-bound citations and citation projection.
+- Parsing bounds and credential handling.
+- OpenRouter and Claude Code tool policies.
+- Checkpoint integrity and fail-closed provider-event validation.
+- Prompt injection that crosses a claimed boundary.
+
+Model ranking and summary errors are documented limitations.
+Other limitations include corpus-contained injection within the URL allowlist and an unused Codex built-in tool inside the documented sandbox.
+Malicious or failed upstream feeds and denial of service against public sources are also limitations by themselves.
 
 ## Citation projection and two-pass generation
 
-The projection is implemented in `agent_runner/output.py`. `project_corpus()`
-returns a `ModelCorpus`: its `document` contains untrusted evidence and opaque
-`citation_` handles, while its code-owned `citations` map retains destinations.
-`project_selected_evidence()` removes the handles and sends only frozen,
-position-scoped evidence to the prose pass. `attach_frozen_selection()` restores
-the validated handles by position, and `render_briefing()` expands them to their
-code-owned article and Hacker News discussion destinations. `agent_runner/runner.py`
-orchestrates these functions. The evaluator's production-parity path in
-`evaluator/parity.py`, driven by the trial loop in `evaluator/execution.py`,
-reuses them; `eval_briefing.py` remains an independent
-checker for complete Markdown.
+`agent_runner/output.py` implements citation projection.
+`project_corpus()` returns a `ModelCorpus` with two parts:
 
-The model never receives a URL. `project_corpus()` excludes `url` and
-`discussion` fields and applies `redact_destinations()` recursively to all
-model-visible data. `correction_request()` in `agent_runner/runner.py` applies
-the same redaction to rejected output and findings before another model call.
-After selection validation, `attach_frozen_selection()` binds prose to the
-frozen handles by position. After the complete structured candidate passes
-validation, `render_briefing()` re-attaches the code-owned destinations.
+- `document`: untrusted evidence and opaque `citation_` handles.
+- `citations`: code-owned destinations that the model does not receive.
+
+`project_selected_evidence()` removes handles and supplies frozen evidence for each prose position.
+`attach_frozen_selection()` restores validated handles by position.
+`render_briefing()` expands them to the stored article and Hacker News discussion destinations.
+`agent_runner/runner.py` coordinates these functions.
+The evaluator uses them through `evaluator/parity.py` and the trial loop in `evaluator/execution.py`.
+`eval_briefing.py` independently checks complete Markdown.
+
+The model never receives a URL.
+`project_corpus()` excludes `url` and `discussion` fields.
+It applies `redact_destinations()` recursively to all model-visible data.
+`correction_request()` in `agent_runner/runner.py` also redacts rejected output and findings before another model call.
+Code binds prose to the validated frozen handles by position.
+Only after complete-candidate validation does rendering restore the code-owned destinations.
 
 ## Repository hygiene
 
-- Do not commit `corpus.json`, `/corpus-*.json`, `.coverage`, `.env` files,
-  generated `briefing.md`, `.news-briefing/`, or evaluator/run artifacts.
-- Do not weaken validation, typed failures, bounds, or corpus-health reporting to
-  make a run pass.
+- Do not commit `corpus.json`, `/corpus-*.json`, `.coverage`, `.env` files, generated `briefing.md`, `.news-briefing/`, or evaluator/run artifacts.
+- Do not weaken validation, typed failures, bounds, or corpus-health reporting to make a run pass.
 - Do not add network-dependent tests.
-- Do not state test counts in prose; they drift. Name the suites and the commands instead.
+- Do not state test counts in prose. Name the suites and commands instead.

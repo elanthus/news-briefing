@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
 <title id="title">Selection, frozen evidence, prose, fallback, review, and publication</title>
-<desc id="desc">The corpus is fetched once, or restored for a backfill. Each model in the fallback chain (Tencent HY3, then DeepSeek V4 Flash, then Gemini 3.7 Flash) selects citation handles; code validates, promotes, repairs or requests a correction, then freezes the selected evidence. The model writes prose from the frozen excerpts and the candidate gate validates, repairs or corrects it and records a disposition. A candidate that is not ready advances to the next model; if every model fails, a no-result page is published. A ready candidate gets semantic review, isolated confirmation, bounded repair and a follow-up review. Only an accepted repair replaces the original ready briefing. Publication writes the site and integrity report, and GitHub Pages deploys the result.</desc>
+<desc id="desc">The pipeline fetches a corpus or restores it for backfill. The fallback chain tries Tencent HY3, DeepSeek V4 Flash, then Gemini 3.7 Flash. Each model selects handles. Code validates, promotes, repairs, or requests correction before freezing evidence. The model writes prose from frozen excerpts. Code validates the candidate and records its disposition. Non-ready results advance to the next model. An exhausted chain publishes a status-only page. Ready results receive Jev review, isolated confirmation, bounded repair, and follow-up. Only cleared repair slots can replace original content. Publication writes the site and integrity report, then deploys through GitHub Pages.</desc>
 <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#64748b"/></marker></defs>
 <style>text{font-family:system-ui,sans-serif;fill:#172033}.title{font-size:25px;font-weight:700}.label{font-size:17px;font-weight:650}.detail{font-size:13px;fill:#475569}.note{font-size:13px;fill:#475569;font-style:italic}.code{fill:#ecfdf5;stroke:#059669}.model{fill:#eef2ff;stroke:#6366f1}.mixed{fill:#fffbeb;stroke:#d97706}.arrow{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.loop{fill:none;stroke:#64748b;stroke-width:2;stroke-dasharray:6 4;marker-end:url(#arrow)}.chain{fill:none;stroke:#94a3b8;stroke-width:1.5;stroke-dasharray:4 4}</style>
 <rect width="1200" height="520" rx="16" fill="#f8fafc"/>
@@ -52,7 +52,7 @@
 <text class="detail" x="700" y="374" text-anchor="middle">Revalidate + re-review</text>
 <rect class="code" x="815" y="320" width="170" height="80" rx="10"/>
 <text class="label" x="900" y="352" text-anchor="middle">Publish</text>
-<text class="detail" x="900" y="374" text-anchor="middle">Accepted repair or original</text>
+<text class="detail" x="900" y="374" text-anchor="middle">Cleared slots or original</text>
 <text class="detail" x="900" y="390" text-anchor="middle">+ integrity report</text>
 <rect class="code" x="1015" y="320" width="170" height="80" rx="10"/>
 <text class="label" x="1100" y="352" text-anchor="middle">Deploy</text>

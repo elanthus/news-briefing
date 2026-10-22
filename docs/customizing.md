@@ -1,10 +1,15 @@
 # Customizing the briefing
 
-Two files decide what gets fetched and how the briefing is sectioned. Code owns the output contract: [`agent_runner/output.py`](../agent_runner/output.py) builds schemas and validates selections and prose. The production prompt, [`briefing-runner-prompt.md`](../briefing-runner-prompt.md), supplies editorial instructions. This page walks through both, then shows how to iterate on them without spending a model call per change. The [README](../README.md#generate-one) has the short version.
+Use `sources.json` to select inputs and `briefing-config.json` to define sections.
+[`agent_runner/output.py`](../agent_runner/output.py) builds schemas and validates output.
+The [production prompt](../briefing-runner-prompt.md) supplies editorial instructions.
+See the [quick start](../README.md#generate-one) for generation commands.
 
 ## `sources.json`: where items come from
 
-Categories are labels you invent. Each RSS feed is a `["Display name", "https://…"]` pair filed under one of them; Hacker News is a list of search queries and Reddit a list of subreddit names, each with the category its results land in.
+Define category names, then assign each source to a category.
+Each RSS entry contains a display name and feed URL.
+Hacker News uses search queries. Reddit uses subreddit names.
 
 ```json
 {
@@ -20,15 +25,21 @@ Categories are labels you invent. Each RSS feed is a `["Display name", "https://
 }
 ```
 
-The fetcher accepts only HTTP(S) feed URLs without embedded credentials, and it refuses to connect to non-public addresses at any redirect hop. A feed that fails is recorded as a degraded source rather than silently dropped; the briefing must declare it. [Design notes](design.md#fetching) cover the network and parser boundaries.
+Feed URLs must use HTTP(S) and contain no credentials.
+The fetcher rejects non-public addresses at each redirect.
+Failed sources remain visible in corpus health. See [fetching](design.md#fetching).
 
-**Relevance filters.** Six broad feeds are keyword-filtered before ranking: The Verge, Ars Technica, Wired, GitHub Changelog, Simon Willison's Weblog, and Hacker News. The keyword lists live in `SOURCE_RELEVANCE_FILTERS` in [`news_fetch/relevance.py`](../news_fetch/relevance.py). Feeds you add are not filtered unless you add them there too, so a general-interest feed will contribute everything it publishes inside the window.
+`SOURCE_RELEVANCE_FILTERS` in [`news_fetch/relevance.py`](../news_fetch/relevance.py) defines keyword filters for known broad feeds.
+These include The Verge, Ars Technica, Wired, GitHub Changelog, Simon Willison's Weblog, and Hacker News.
+A new feed has no relevance filter unless you add one there.
 
-**`dev_community` primary sources.** Beyond the GitHub product changelog, `dev_community` also carries direct release feeds for the tools the AI Dev Tools and AI Dev Practices sections cover — Claude Code, Cursor, Codex, and the MCP reference servers — plus Simon Willison's practitioner blog, so its five subreddits are not the sections' sole supplier. Reddit sources also get a lower per-source cap (`REDDIT_SOURCE_CAP` in `news_fetch/curation.py`, applied by `prepare_category` to every `r/` source) so a handful of subreddits cannot fill the category cap on their own.
+`dev_community` includes release feeds for Claude Code, Cursor, Codex, and MCP reference servers.
+It also includes GitHub Changelog, Simon Willison's blog, and subreddits.
+Reddit sources use the smaller of `--source-cap` and `REDDIT_SOURCE_CAP` in `news_fetch/curation.py`.
 
 ## `briefing-config.json`: what the briefing looks like
 
-Each section names itself, says how many stories it wants, lists the corpus categories it may draw from, and gives the model a sentence of editorial direction.
+Each section defines its name, story target, eligible categories, editorial guidance, and exclusion-log target.
 
 ```json
 {
@@ -46,45 +57,72 @@ Each section names itself, says how many stories it wants, lists the corpus cate
 }
 ```
 
-`corpus_categories` is an eligibility rule the checker enforces, not a hint. A story that arrived under `world` cannot appear in a section that doesn't list `world`, whatever the model decides. In the production two-pass runner the rule is enforced twice: the selection schema for each section enumerates only that section's eligible item identifiers, and the deterministic checker independently rejects any placement that slipped through.
+`corpus_categories` is an enforced eligibility rule.
+For example, a section cannot select a `world` item unless it permits `world`.
+The selection schema lists eligible handles. The validator checks the selection independently.
 
-`excluded_stories` sets how many rejected candidates the section's exclusion log records, so a reader can see what the model passed over and why.
+`excluded_stories` sets the exclusion-log target.
+Set it to `0` to exempt a section from that log.
+The log records rejected candidates and reasons.
 
 ## Preview the corpus before spending a model call
 
-This prints the fetched corpus as a readable digest, grouped by category, with every source's outcome:
+Print a digest grouped by category, with source outcomes:
 
 ```bash
 python3 -S fetch_news.py --hours 24 --markdown
 ```
 
-Use it to confirm a new feed parses, lands in the category you expect, and survives the relevance filters.
+Check that each new feed parses, uses the expected category, and passes its relevance filter.
+This command fetches live sources but makes no model call.
 
 ## Replay a saved corpus while you iterate
 
-Once the feeds are right, save a corpus and replay it. Each replay uses separate selection and prose calls, with additional calls for corrections and optional semantic review or repair. It avoids another fetch and keeps the input evidence fixed:
+Save a corpus, then generate from those fixed bytes:
 
 ```bash
 python3 -S fetch_news.py --hours 24 -o corpus.json
 python3 -S run_briefing.py --provider claude-code-cli --model claude-sonnet-5 --corpus corpus.json --output briefing.md
 ```
 
+Each successful generation requires separate selection and prose calls.
+Corrections and optional semantic review or repair can add calls.
+Use a new output path for each comparison, or use `--force` to replace an existing output.
+
 ## Run-time flags
 
-Fetch first with `fetch_news.py`, then pass the saved corpus to `run_briefing.py --corpus`. Generation validates, repairs what it can, and asks the model to correct what it can't. Each generation uses a fresh run directory; interrupted runs remain diagnostics. The benchmark retains its separate resume support.
+Generation requires a saved corpus. Each generation uses a new run directory.
+Interrupted production runs retain diagnostics and cannot resume.
+The evaluator has a separate checkpoint-resume contract.
 
 | Flag | Effect |
 |---|---|
-| `fetch_news.py --hours` | Moves the publication window. Items older than the cutoff are never shown to the model. Reddit coverage is tuned for windows of about a day: longer windows request Reddit's top 25 posts of the week, so a multi-day window keeps fewer Reddit posts, and a window over a week can miss some entirely. |
-| `fetch_news.py --source-cap` | Bounds how many items any one publisher contributes to the corpus. Reddit's five subreddits use a lower override (`REDDIT_SOURCE_CAP`) capped at whichever value is smaller. |
-| `fetch_news.py --category-cap` | Bounds how many items any one category contributes. |
-| `--strict` | Returns nonzero on any checker finding or degraded source, for use in automation. |
-| `run_briefing.py --corpus` | Required frozen corpus for generation; the exact bytes are archived and bound to the manifest hash. |
+| `fetch_news.py --hours` | Sets the lookback window. Reddit RSS uses the top 25 posts from a covering time bucket. Longer windows can miss posts. |
+| `fetch_news.py --source-cap` | Limits items per publisher. Reddit uses the lower override described above. |
+| `fetch_news.py --category-cap` | Limits items per category. |
+| `run_briefing.py --strict` | Returns nonzero for any finding or degraded coverage. This flag is not a fetcher option. |
+| `run_briefing.py --corpus` | Supplies required frozen corpus bytes. The manifest binds their hash. |
+| `run_briefing.py --max-corrections` | Allows 0–3 corrections per stage; default 1. The daily runner defaults to 3. |
 
-The README's [Generate one](../README.md#generate-one) section shows a command for each provider: `claude-code-cli`, `codex-cli`, `openrouter`, and `openai-compatible` for a local server.
+Generation first applies permitted code repairs. It requests model corrections for remaining blocking findings when the correction allowance permits them.
+The [README](../README.md#generate-one) shows each supported provider.
 
 ## Local servers and the generation allowance
 
-`--provider openai-compatible` targets local Ollama by default; pass `--endpoint` with another server's chat-completions URL, such as LM Studio's. A full run sends roughly 30,000 prompt tokens, so raise Ollama's context with `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`. For LM Studio's MLX engine, add `--lean-schema`.
+`--provider openai-compatible` uses local Ollama by default.
+Use `--endpoint` for another chat-completions URL.
+A complete run can need a large context window. Input size depends on the corpus and schemas.
+To increase Ollama's context allowance:
 
-Generation shares a 30-minute, $25 allowance across selection, prose, corrections, and fallback models. Daily backfills share that allowance across dates. Missing billing data retains a conservative reservation; ambiguous completion stops additional calls. Override it with `--generation-seconds` and `--generation-usd` on the generation CLIs. These controls cannot guarantee a strict billing cap; the [design notes](design.md) explain the accounting.
+```bash
+OLLAMA_CONTEXT_LENGTH=65536 ollama serve
+```
+
+For LM Studio's MLX engine, add `--lean-schema`.
+This reduces schema complexity while code still validates the complete contract.
+
+Selection, prose, corrections, and daily fallback models share 30 minutes and a USD 25 allowance by default.
+Daily backfills share that allowance across dates.
+Use `--generation-seconds` and `--generation-usd` to change these limits.
+Missing billing data retains a conservative reservation. Ambiguous completion stops further generation calls.
+These controls cannot guarantee a strict billing cap. See [design notes](design.md#the-code-owned-runner).

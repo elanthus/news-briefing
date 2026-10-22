@@ -2,33 +2,29 @@
 
 ## Status
 
-Accepted
+Accepted.
 
 ## Context
 
-Some blocking findings are mechanical placement errors that code can repair by
-construction. Other findings, such as unknown references, free-form URLs, and
-schema-shape violations, require rejection or a model correction. Spending the
-bounded correction budget on the first group leaves less budget for the second.
+Code can repair some placement errors directly.
+Unknown references, free-form URLs, and invalid shapes can require rejection or model correction.
+Using model corrections for mechanical errors reduces the allowance for errors that require model judgment.
 
 ## Decision
 
-When every blocking finding is repairable, the runner applies the deterministic
-normalizer before asking the model for a correction and then re-enters
-validation. It also replaces a WARN-only summary that exceeds its evidence with
-the known cited excerpt when that excerpt is safe. After the model-correction
-budget is exhausted, the normalizer runs again as a fallback before the
-publication disposition gate.
+When all blocking findings permit deterministic repair, apply that repair before model correction.
+Then validate again.
+For a WARN-only oversized summary, substitute the complete known cited excerpt when safe.
+After model corrections are exhausted, apply any permitted remaining repair before the disposition gate.
 
 ## Consequences
 
-Repairable findings do not consume a model correction. Repair can drop an
-ineligible, repeated, or over-limit entry, but it does not remove unknown
-evidence or other non-repairable failures to make a candidate pass. Every
-attempt's repair actions are retained in the run manifest. Publication copies
-only the final attempt's `repair_actions` list; the public
-`provenance.repair_action_count` totals repair actions across every attempt,
-superseded attempts included.
+Deterministic repairs do not consume model corrections.
+They can remove ineligible, repeated, or permitted over-limit entries.
+They cannot remove unknown evidence or other unrepairable failures merely to pass validation.
+Each attempt retains its actions in the manifest.
+Public `repair_actions` includes only the final attempt's actions.
+`provenance.repair_action_count` totals repairs across all attempts, including superseded attempts.
 
 ## References
 

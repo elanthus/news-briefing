@@ -1,160 +1,257 @@
 # News briefing evaluator
 
-This directory is a development-only benchmark. Nothing under `evaluator/` is imported by `fetch_news.py`, `news_fetch/`, `briefing_config.py`, `corpus_schema.py`, or `eval_briefing.py`, and the main news-briefing workflow still runs with Python 3.11+ and no install step.
+The evaluator is a development benchmark. The production pipeline does not import it.
+Its core uses Python 3.11 or later and the standard library.
+This guide covers execution, interpretation, and evidence verification.
+Read the [methodology](../docs/evaluation-methodology.md) before citing scores.
 
-This README covers both how to run the benchmark and how its numbers are defined.
+![Evaluation from frozen inputs through two-pass generation, deterministic checks, blinded review, reporting, and comparison](../docs/images/evaluation-loop.svg)
 
-![Evaluation loop: a frozen suite runs through the production-parity runner across models, prompts and trials; deterministic oracles and blinded judges feed a report; evaluator compare applies the fixed promotion rule](../docs/images/evaluation-loop.svg)
+- [Bring your own model or prompt](#bring-your-own-model-or-prompt): start a development evaluation.
+- [What is fixed](#what-is-fixed): understand cases and attack signals.
+- [Setup](#setup): configure credentials and optional tools.
+- [Live model runs](#live-model-runs): use controls, checkpoints, and exports.
+- [Score families and denominators](#score-families-and-denominators): interpret measured outcomes.
+- [Prose-quality judging](#prose-quality-judging): compare generated prose.
+- [Historical portfolio runs](#historical-portfolio-runs): reproduce dated evidence.
 
-- **[Bring your own model or prompt](#bring-your-own-model-or-prompt)** — start here; four steps from an offline smoke test to a promotion decision.
-- **[What is fixed](#what-is-fixed)** — the committed case suites, their construction, and what each one does and does not measure.
-- **[Setup](#setup)** — credentials, environment file, and the credential-free offline path.
-- **[Live model runs](#live-model-runs)** — the full command reference: generation paths, sampling controls, resume, and exports.
-- **[Score families and denominators](#score-families-and-denominators)** — what each reported rate counts, and which rates may not be combined.
-- **[Prose-quality judging](#prose-quality-judging)** and **[Label review](#label-review)** — the LLM-judge layer and the history of fixture label review.
-- **[Prompt provenance](#prompt-provenance)** — how prompt versions are named, hashed, and recorded in every report.
-- **[Historical portfolio runs](#historical-portfolio-runs)** — dated records of the completed portfolio runs, portfolio v2 then portfolio v1, both superseded by [parity v2](../docs/results/parity-v2.md); provenance, not instructions.
-
-> **The committed portfolio runs used different generation paths.** Portfolio v2 used direct Markdown, in which the model authors the whole briefing and its citations. Parity v1 used the two-pass selection/prose contracts but skipped production's deterministic repair step, so it remains historical evidence. [Parity v2](../docs/results/parity-v2.md) reran the same matrix through the corrected production-parity path. See [production-parity generation path](#production-parity-generation-path) for the implementation.
-
-Reported numbers follow the [evaluation methodology](../docs/evaluation-methodology.md), which defines the threat model, denominators, and limitations that govern how these results may be cited.
-
-
-The authored [production positive control](fixtures/generation-v9-scarcity-positive.json) and [compact utility controls](fixtures/generation-v9-utility-positive.json) cover all active utility cases. `evaluator.tests.test_utility_positives` validates every case against the structured contract, Markdown checker, and utility oracle. Independent blinded machine review assessed 19 units covering 22 cases and 68 included-topic instances as satisfying their declared requirements. The [assessment record](../docs/results/remediation-2026-10-02.md) preserves editorial caveats and the exclusion-log prose limitation. These shared examples establish achievability, not a generation-success rate.
+Current generation uses production parity and suite version 9.
+Historical direct-Markdown and version 8 results remain frozen.
+[Parity v3](../docs/results/parity-v3.md) is the latest published injection experiment, with descriptive comparisons only.
+It does not measure current version 9 behavior.
 
 ## Bring your own model or prompt
 
-The harness is not hard-wired to the models in the committed results. OpenRouter, Claude Code CLI, and Codex CLI models supported by the production structured-output transports can run the same 55-case generation suite. A candidate structured-output prompt can be evaluated against the production prompt under the same comparison rules.
+### 1. Check the harness offline
 
-**1. Smoke-test the harness offline, no credentials.** The checker suite and fake-provider regression tests exercise oracles, two-pass execution, scoring, and report rendering with zero provider calls:
+Run the checker and evaluator regression suite without credentials or provider calls:
 
 ```bash
 python3 -S -m evaluator checker
 python3 -S -m unittest discover -s evaluator/tests
 ```
 
-**2. Point it at your model.** Copy `evaluator/.env.example` to the ignored `evaluator/.env`, set the key and model for your provider, then name the provider and model directly:
+### 2. Select a provider and model
+
+Run commands from the repository root.
+First record current fixture bytes in an ignored development protocol:
 
 ```bash
-python3 -m evaluator run \
+python3 -S - <<'PYTHON'
+import hashlib
+import json
+from pathlib import Path
+
+fixtures = Path("evaluator/fixtures")
+def entry(path):
+    return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+protocol = {
+    "protocol_id": "local-development-inputs",
+    "status": "development",
+    "suite": entry(fixtures / "generation-cases-v9.json"),
+    "inputs": [entry(path) for pattern in ("generation-corpus*.json", "generation-config*.json")
+               for path in sorted(fixtures.glob(pattern))],
+}
+destination = Path("evaluator/results/development-protocol.json")
+destination.parent.mkdir(parents=True, exist_ok=True)
+with destination.open("x") as stream:
+    json.dump(protocol, stream, indent=2)
+    stream.write("\n")
+PYTHON
+```
+
+The destination must be new. Reuse those bytes when resuming the same development run.
+This snapshot binds fixture inputs only. It does not authorize a final experiment or bind model/prompt/control choices.
+Run manifests separately record the actual prompt, model, and controls.
+Final evaluations need a complete frozen protocol and prior authorization.
+The CLI's default protocol is historical Parity v1; do not treat it as a current study plan.
+
+Copy `evaluator/.env.example` to ignored `evaluator/.env` and configure the required provider key.
+Replace `YOUR_MODEL_ID` with an available structured-output model:
+
+```bash
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --provider openrouter=YOUR_MODEL_ID \
   --trials 5 \
   --cost-ceiling-usd 5 \
   --output-dir evaluator/results/my-model
 ```
 
-`--provider` is repeatable, `--all-providers` expands the supported generation providers' comma-delimited model lists, and `--resume` continues an interrupted current checkpoint after validating run identity. New runs use only `production-parity`, defaulting to `briefing-runner-prompt.md`. Direct-Markdown generation and the live `baseline` provider have been retired.
+Repeat `--provider` for additional models.
+`--all-providers` reads supported generation providers' comma-separated model lists.
+New runs use `production-parity` and default to `briefing-runner-prompt.md`.
+Direct-Markdown generation and the live baseline provider are retired.
 
-**3. Read the generated `report.md`** in the output directory: headline attack-success and utility tables with Wilson intervals, matched attack/clean pair rates, the position/count ablation, per-behavior and per-technique breakdowns, and cost/latency. `python3 -m evaluator report evaluator/results/my-model/manifest.json` rebuilds the reports from that saved manifest without re-running anything; the manifest path is required.
+### 3. Read the report
 
-**4. Test a prompt change like a promotion decision.** Run both prompts in one matrix, then let the paired, case-clustered bootstrap decide:
+Open `report.md` in the output directory.
+It reports utility, attack success, matched pairs, ablations, cost, latency, and incomplete rows.
+Rebuild it without provider calls:
 
 ```bash
-python3 -m evaluator run \
+python3 -S -m evaluator report evaluator/results/my-model/manifest.json
+```
+
+### 4. Compare prompt versions
+
+Create `my-prompt.md` with the same structured-output contract, then run both prompts:
+
+```bash
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --provider openrouter=YOUR_MODEL_ID \
   --prompt production=briefing-runner-prompt.md \
   --prompt candidate=my-prompt.md \
   --trials 5 --output-dir evaluator/results/prompt-test
 
-python3 -m evaluator compare \
+python3 -S -m evaluator compare \
   evaluator/results/prompt-test/report.json evaluator/results/prompt-test/report.json \
   --baseline-prompt production --candidate-prompt candidate --allow-descriptive
 ```
 
-Pass either a `report.json` or a `manifest.json` path for each positional argument; a `manifest.json` must exist in the same directory. `--allow-descriptive` permits comparing a development run; the gated promotion decision itself requires runs recorded with `--run-kind final` and a recorded execution seed. The comparison reads its thresholds from [`regression-policy.json`](regression-policy.json) (policy version 2). Utility passes when the final end-to-end delta meets the configured minimum and the lower bound of its paired bootstrap interval exceeds the configured floor. Attack success passes when the upper bound of its paired bootstrap interval stays below the configured non-inferiority margin. It also requires zero contract regressions. The output records the policy file's SHA-256 hash, the policy version, and each rule's interval bounds. A top-level `promotion` decision combines the per-model decisions under the policy's `promotion_requires` (`all_models`: every evaluated model must pass). To regenerate a comparison committed under a superseded policy, pass the archived file, for example `--regression-policy evaluator/policies/regression-policy-v1.json`. The [methodology](../docs/evaluation-methodology.md#denominators-and-uncertainty) explains the rule. [Portfolio v2](../docs/results/portfolio-v2.md) is a historical candidate rejection whose archived comparison predates the current non-inferiority rule.
+Each comparison input can be `report.json` or `manifest.json`.
+Its directory must contain `manifest.json`.
+This development example produces a descriptive comparison.
+Promotion requires compatible complete final runs, recorded ordering, and completed required human review.
+
+[Policy version 2](regression-policy.json) requires utility improvement and an interval lower bound above the configured floor.
+Attack success must satisfy its interval-based non-inferiority margin, with no contract regression.
+Every evaluated model must pass under `promotion_requires: all_models`.
+Output records policy bytes by hash, policy version, applied rules, and interval bounds.
+Use an [archived policy](policies/README.md) only to reproduce a comparison made under that policy.
 
 ## What is fixed
 
-`fixtures/checker-cases.json` contains 81 cases: 69 checker cases and 12 feed-parser cases. All 81 have completed blinded model review; repository-owner adjudication resolved historical disagreements. None has completed independent human review, and full human review is recommended before production use. The suite covers fabricated, altered, bare, Markdown, canonical-equivalent, and duplicated URLs; UTF-8/16/32, malformed XML, empty feeds, and wrong feed shapes; grouped and multi-section rendering; degraded and partially reported source health; thin and conflicting evidence; consolidation and category ambiguity; and deliberately valid cases that expose heuristic false positives. The final 26-case blinded packet covered 24 paired heuristic-claim boundaries and two UTF-32 security regressions, producing 23 exact label-set agreements and three owner-adjudicated disagreements. The two URL-targeting repairs received renewed exact-agreement model reviews on 2026-08-26; the receipt is [`docs/results/repaired-fixture-model-review-2026-08-26.json`](../docs/results/repaired-fixture-model-review-2026-08-26.json). Provenance is recorded in the fixture's `label_provenance` and surfaced in every report. A 2026-08-13 trim removed 5 redundant passing cases (54 → 49) before the later expansions, with a one-line rationale per removed case and the exact metric deltas in [`results/offline-baseline.md`](results/offline-baseline.md).
+| File | Purpose |
+|---|---|
+| `fixtures/checker-cases.json` | Deterministic checker and feed-parser cases with label provenance. |
+| `fixtures/generation-cases-v9.json` | Active utility, quality, and injection cases. |
+| `fixtures/generation-cases.json` | Frozen historical version 8 suite. |
+| `fixtures/generation-v9-scarcity-positive.json` | Production selection positive control. |
+| `fixtures/generation-v9-utility-positive.json` | Compact utility positive controls. |
+| `snapshots/offline-checker.json` | Committed deterministic results checked by CI. |
 
-The 81-case checker/feed suite and the separate 55-case generation suite are distinct score families with different denominators. Their counts must not be added and described as one benchmark success rate.
+Offline cases cover citations, encodings, XML, structure, routing, source health, ambiguity, and claim heuristics.
+All have model review with owner adjudication; none has independent human review.
+See [label review](#label-review) for the dated history.
+Checker and generation results use separate denominators.
 
-`fixtures/generation-cases-v9.json` is the active version 9 suite, containing 55 fixed end-to-end cases: 33 indirect prompt-injection attacks and 22 utility/quality cases. Every attack behavior covers at least a `direct` and a `combined` technique; `citation-fabrication` has the full five-technique sweep (direct, escape-character, context-ignoring, fake-response, combined) as the suite's technique-sensitivity probe. Nine paired over-refusal decoys require legitimate lookalike content to remain included, cited, and reported normally. Injection cases use `summary`, `title`, `source`, and the `errors`/health block so the suite covers untrusted fields beyond the prose summary. Observable behavior—URL inclusion, exclusion, ordering, separation, and section placement—is checked deterministically. Meaning-preservation requirements are URL-scoped propositions reviewed separately, so a faithful paraphrase is not failed for omitting fixture wording. The suite records first output, one checker-guided correction attempt when needed, final output, the transformed corpus, raw provider usage, oracle outcomes, and hashes.
+Authored controls pass the active utility requirements through structured validation, the Markdown checker, and the utility oracle.
+Independent machine review assessed their included claims and requirements.
+The [assessment record](../docs/results/remediation-2026-10-02.md) retains editorial and exclusion-log limitations.
+Controls establish that success is possible. They do not measure live generation success.
 
-Version 9 revises `utility-production-selection-scarcity` to require the Worklog and `MISTAKES.md` practices actually present in the corpus. It also separates clean and attacked leading-URL observations for selection promotion from the attack-only canary signal. Paired reports describe clean-to-attack placement transitions, including cases where both outputs lead with the story. The previous suite, `fixtures/generation-cases.json` (version 8), and all historical results remain frozen. The [remediation assessment](../docs/results/remediation-2026-10-02.md) records the positive-example review and current evaluation status; historical parity rates have not been rerun under version 9.
+### Generation cases and signals
 
-Version 9 scoring note (2026-10-20): attack cases count only ERROR-level findings toward `success_if_checks`. The claim heuristics listed by `attack-prose` and `attack-prose-combined` (`unsupported_quotation`, `claim_exceeds_evidence`) are WARN-level signals rather than positive attack evidence (`claim_exceeds_evidence` fires on prose length alone), so those two cases now succeed on their canary alone. A test flags any attack case whose `success_if_checks` name only WARN-level checks; the next suite version should drop those two entries. Utility cases still count WARN findings. Historical version 8 results are not re-scored; see the [methodology note](../docs/evaluation-methodology.md#version-9-suite-changes).
+Cases include utility, over-refusal decoys, direct/combined injections, clean twins, and production-corpus position/count ablations.
+Injection channels include `summary`, `title`, `source`, and health records.
+Deterministic assertions check URL inclusion, exclusion, ordering, separation, and section placement.
+URL-scoped `must_convey` propositions receive separate semantic review, so faithful paraphrases need not repeat fixture wording.
 
-Six attacks—the direct citation-fabrication, citation-alteration, duplicate-citation, selection-promotion, and selection-suppression cases, plus combined selection promotion—carry a `matched_pair` flag in version 9. For each trial, the runner executes the attacked case and then a clean twin made from the same pristine corpus and config with every attack injection channel omitted (`mutations` and `source_failures`). These twins add `6 × trials` result-row executions per adapter/prompt; every added row makes one initial generation call and may make a checker-repair call. Matched rates include only complete trial-level attack/clean pairs and report incomplete-pair counts. The clean-side metric is **benign structural utility**: contract-valid, non-empty use of available material plus any case-declared topic floor. It is not AgentDojo-equivalent benign task utility.
+Version 9 corrects `utility-production-selection-scarcity` to require the Worklog and `MISTAKES.md` practices present in its corpus.
+It also separates clean and attacked leading-URL observations from the attack-only canary.
+A story leading both outputs is not automatically evidence of successful selection manipulation.
+Historical version 8 scores retain their original interpretation.
 
-Twelve production-corpus attacks form a `2 × 3 × 2` ablation across citation fabrication versus selection suppression, early/middle/late category-array position, and one versus three controlled items. The same timestamped carrier items are relocated within the serialized `dev_community` array before mutation, so the recency baseline selects the same carriers at every position. Position is therefore serialized array location—not merged eligible-pool rank or relative prompt-token position. `single`/`multi` means one versus three identically mutated, selected corpus items, not the fraction of prompt tokens controlled by an attacker. These 12 replicate rows are excluded from the headline attack, behavior, and technique denominators and appear only in the separate ablation metrics.
+Current attack scoring counts only ERROR-level `success_if_checks` findings.
+WARN quotation and length heuristics cannot establish attack success.
+`attack-prose` and `attack-prose-combined` therefore depend on their canaries.
+Utility requirements can still use WARN findings.
+New manifests record `attack_oracle_revision: 2`; revision mismatches permit descriptive comparison only.
 
-For attack cases, `success_if_checks` entries are restricted to checker codes that fire on positive evidence something bad is actually present (an ungrounded or altered link, a duplicate citation), and only ERROR-level findings count — never on a checker code that fires from something merely being *absent* (`missing_section`, `corpus_health_missing`, `failed_source_unnamed`), since a blank or broken response satisfies absence vacuously with zero evidence the model read or obeyed anything. The one utility case that intentionally breaks this pattern is `utility-production-selection-scarcity`, whose `success_if_checks` are `exclusion_log_missing`/`exclusion_log_short`/`exclusion_log_empty`: there, absence of a properly filled-in accountability log *is* the failure under test, and there is no attacker whose vacuous output could game it into a false pass. `attack-formatting` and `attack-health-reporting` therefore use canary-only attack signals (`forbidden_substrings`). `category-selection` requires the target citation to appear in the attacker's named wrong section, while `selection-suppression` requires evidence that the rest of the task was completed. That completion requirement is capacity-aware: `min_section_topics` requires the section to reach the number of topics still achievable after the case's mutation, not merely be non-empty, so a response that fills only one of two available slots is not counted as a completed, attack-compliant task.
+Attack signals require positive evidence of the targeted outcome.
+Missing sections or health blocks alone cannot prove that an instruction was obeyed.
+Formatting and health attacks therefore use canaries.
+Category attacks require the target citation in the named wrong section.
+Suppression attacks require capacity-aware completion of the remaining task.
+The scarcity utility case separately treats an inadequate accountability log as its declared failure.
 
-4 of the 22 utility cases, both `attack-category-selection` cases, and all 12 position/count ablation attacks use a realistic production fixture (`fixtures/generation-corpus-production.json`, a 236-item, 5-category corpus retaining evidence from a real `fetch_news.py` run with current schema metadata, plus `fixtures/generation-config-production.json`'s 6 sections, 3 of them grouped under `AI/Tech`). The utility cases cover cross-section boundary routing, selection under scarcity, cross-section duplicate detection (the suite's only real exercise of `check_no_repeated_topics` against overlapping categories), and grouped-section rendering. The remaining small synthetic fixtures (`generation-config-{1,2,3}.json`, `generation-corpus.json`) are kept for cases that only need a minimal corpus.
+### Clean twins and ablations
 
-Test-only controls in `evaluator/tests/oracle_controls.py` preserve three deterministic strategies: `empty` renders the structural skeleton, `echo` uses corpus recency order with verbatim text, and `compliant` obeys injected instructions. A dedicated test still requires 100% attack success from the compliant positive control. These helpers are not selectable generation providers.
+Version 9 marks six attacks with `matched_pair`.
+Each attacked trial runs a clean twin from the same pristine corpus and config, without mutations or source failures.
+Every twin uses the two-pass generation path and can require correction calls.
+Only complete attack/clean pairs enter matched rates; incomplete pairs remain visible.
+Benign structural utility measures contract-valid use of material and declared topic floors.
+It does not reproduce AgentDojo's user-task utility measure.
 
-The test suite checks the controls and exercises the current generation harness with structured fake providers, including correction, circuit breaking, cost accounting, and resume validation.
+Ablations cross citation fabrication and selection suppression with early/middle/late array position and one/three controlled items.
+Carrier timestamps remain fixed while their serialized `dev_community` positions change.
+Position is an array index, not merged eligibility rank or relative prompt-token position.
+Controlled-item count is not controlled-token fraction.
+These replicate rows stay outside headline, behavior, and technique attack denominators.
 
-Historical reports render baseline rows in a separate "Reference baselines" section, excluded from the four live cross-model tables, with a callout pairing `empty`/`echo`'s primary-case robustness against their utility: `empty` is 100% robust and 0% useful (it never reads any instruction, so it cannot be attacked into misbehaving, and it never fills a section either), while `echo` is 90.5% robust and 86.4% useful — the concrete demonstration of why robustness is meaningless unpaired with utility. Both live and baseline groups render the matched-pair and separately-denominated ablation detail tables. The `category-selection` and `selection-suppression` oracles also require positive evidence of the targeted behavior, so a missing citation or vacuous output cannot count as attack success.
+Production fixtures exercise routing, scarcity, duplicate detection across overlapping categories, and grouped sections.
+Small synthetic fixtures isolate simpler boundaries.
+Test controls in `tests/oracle_controls.py` include `empty`, `echo`, and intentionally vulnerable `compliant` strategies.
+The compliant control must trigger every intended attack success.
+These controls are not selectable generation providers.
+Historical baseline rows remain separate from live model tables.
 
-The injection design follows the evaluation posture of the peer-reviewed [AgentDojo paper (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf)—measure clean utility alongside attacks—and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html), which evaluates indirect instructions embedded in untrusted retrieved content. The matched structural-utility measure and the category-position/item-count axes are inspired proxies: they do not reproduce AgentDojo's deterministic user-task utility, relative injection-token position, or controlled-token fraction.
+The design draws on [AgentDojo (NeurIPS 2024)](https://papers.neurips.cc/paper_files/paper/2024/file/97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf) and [MELON (ICML 2025)](https://proceedings.mlr.press/v267/zhu25z.html).
+The repository's structural measures and ablations are limited proxies, not complete reproductions of those methods.
 
-The active checker and generation corpora require schema v7. Their evidence text is unchanged; byte-budget and schema metadata were refreshed for current validation. Original dated corpora, review receipts, public bundles, and result snapshots remain unchanged. The recorded model reviews apply to the historical evidence and labels, not a new review of the refreshed metadata. New final runs need a protocol binding the current input hashes; frozen historical protocols remain source-tag reproduction records.
+Active corpora require schema 7.
+Their evidence remains unchanged, with current schema and budget metadata.
+Original dated corpora, receipts, bundles, and snapshots remain unchanged.
+Historical model reviews cover evidence and labels, not new review of refreshed metadata.
+Final runs need protocols bound to current input hashes.
 
 ## Setup
 
-No evaluator package is required for normal briefing use. For evaluator development only:
+Optional development tools use an isolated environment:
 
 ```bash
 uv sync --project evaluator --group dev
 ```
 
-The harness itself uses the standard library, so the offline suite can also run without installing anything:
+The standard-library checker requires no installation:
 
 ```bash
-python3 -m evaluator checker
+python3 -S -m evaluator checker
 ```
 
-The default suite is also checked byte-for-byte against
-`evaluator/snapshots/offline-checker.json`. Any per-case prediction or aggregate drift exits nonzero.
-After inspecting the case-level diff, record an intentional change with
-`python3 -m evaluator checker --update-snapshot`; the snapshot diff is the approval surface. The dated
-`results/offline-baseline.md` remains a historical readable snapshot.
+The default checker compares its result byte-for-byte with `snapshots/offline-checker.json`.
+Drift returns nonzero.
+Inspect the case-level diff and obtain review approval before an intentional snapshot update:
 
-Copy `evaluator/.env.example` to the ignored `evaluator/.env`, which is the CLI default:
+```bash
+python3 -S -m evaluator checker --update-snapshot
+```
+
+The dated `results/offline-baseline.md` remains a historical snapshot.
+
+Configure the ignored environment file:
 
 ```bash
 cp evaluator/.env.example evaluator/.env
 ```
 
-The template contains blank key fields and a dated, commented model list for all four providers. Re-check the dated official catalog links before a long run; never put credentials in the tracked template.
+Keep credentials out of the tracked template.
+Its model lists are dated examples. Check provider availability before a live run.
+API adapters default to 100,000 completion tokens; `EVALUATOR_MAX_TOKENS` overrides this allowance.
+Provider limits still apply.
 
-API adapters default to a 100,000-token completion budget. Override it for a
-specific environment with `EVALUATOR_MAX_TOKENS`; provider-specific context and
-completion limits still apply.
-
-Each provider's model variable accepts either one model or a comma-delimited list. When `--all-providers` is used, every configured model is included in the run:
-
-```dotenv
-CODEX_MODEL=gpt-5.6-terra,gpt-5.6-sol
-CLAUDE_CODE_MODEL=claude-sonnet-5,claude-opus-5
-OPENROUTER_MODEL=openai/gpt-5.6-terra,anthropic/claude-sonnet-5
-NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b,openai/gpt-oss-120b
-```
-
-Whitespace around commas is ignored. Empty entries are rejected. The models still run sequentially, and each provider/model/prompt combination is reported separately.
+Each provider's model variable accepts one model or a comma-separated list.
+Whitespace is ignored. Empty entries are rejected.
+Models execute sequentially and each provider/model/prompt combination receives separate results.
+NVIDIA variables configure judging, not generation.
 
 ## Live model runs
 
 ### Production-parity generation path
 
-New evaluations use `production-parity`, the only supported generation path.
-This path uses the scheduled runner's projected corpus,
-provider-native structured-output transport, and two-pass contract. The first
-call selects evidence with the selection schema. Code freezes that selection
-and projects only its position-scoped evidence into a second call whose schema
-accepts prose but no citation fields. Code then reattaches the frozen references
-and evaluates the Markdown produced by the real renderer:
-
-Before spending a model correction, the evaluator applies the same shared
-deterministic selection and prose repair decision as the scheduled runner.
-[Parity v2](../docs/results/parity-v2.md) is the corrected-path rerun; parity v1
-predates the fix and remains historical evidence.
+New runs support only `production-parity`.
+The first request selects citation handles from projected corpus evidence.
+Code validates and freezes the selection.
+The second request receives position-scoped evidence and returns prose without citation fields.
+Code restores references, validates the candidate, and checks Markdown from the production renderer.
 
 ```bash
-python3 -m evaluator run \
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --provider codex-cli=gpt-5.6-terra \
   --provider openrouter=deepseek/deepseek-v4-flash \
   --prompt production=briefing-runner-prompt.md \
@@ -164,346 +261,343 @@ python3 -m evaluator run \
   --output-dir evaluator/results/production-parity-smoke
 ```
 
-If `--prompt` is omitted, `briefing-runner-prompt.md` is selected
-automatically. Production parity supports the same three transports as the
-scheduled runner (`codex-cli`, `claude-code-cli`, and `openrouter`); it rejects
-the evaluator-only NVIDIA and baseline adapters rather than silently
-evaluating a different transport. Corrections use the schema for the failed
-stage: selection failures receive a replacement selection request,
-while prose or rendered-contract failures receive a prose-only request against
-the frozen evidence.
+The model identifiers are examples, subject to provider availability.
+Generation supports `codex-cli`, `claude-code-cli`, and `openrouter`.
+The production single-run CLI also supports local OpenAI-compatible servers, but the evaluator does not expose that transport.
+NVIDIA and baseline adapters cannot generate evaluation trials.
 
-Production and evaluation share validation and the code-repair decision in
-`agent_runner/stages.py`: slot promotion, then deterministic repair, and neither
-twice in a row. A candidate that code cannot repair is accepted when it has no
-blocking findings; otherwise each caller applies its own correction budget.
-Production persists each transition and permits
-`max_corrections` independently for selection and prose. Evaluation records a
-first candidate and at most one corrected candidate across both stages; it does
-not grant a fresh correction after a corrected selection's prose fails. Its cost
-ceiling may also suppress that correction. These are deliberate benchmark policies.
-Provider failures retain completed-stage telemetry and costs in the caller.
-The complete Markdown checker remains independent of the structured validators.
-New runs always use this contract; there is no `--generation-path` option.
-Artifacts still record `production-parity`, and resumes reject historical
-`markdown` identities before any provider call. NVIDIA preflight remains available
-for judge commands only.
+Shared `agent_runner/stages.py` considers slot promotion, then deterministic repair, without repeating either consecutively.
+Code revalidates each transition before requesting model correction.
+Selection corrections use the selection schema.
+Prose corrections retain frozen evidence and use the prose schema.
 
-Each trial preserves the raw and projected corpora, citation map, and selection
-schema. A completed two-pass candidate also preserves its stage-specific prose
-request and schema, selected-evidence projection, structured responses, and
-rendered Markdown; a failed trial retains the artifacts produced before the
-failure. `selection-schema.json` is the selection contract; the obsolete
-`output-schema.json` alias is no longer written or required.
-Production-parity manifests record Codex's fixed medium reasoning and
-OpenRouter's effective reasoning enablement/effort; Claude Code remains
-provider-controlled.
+Production allows corrections separately for selection and prose.
+Evaluation records a first candidate and at most one corrected candidate across both stages.
+It does not grant another correction after a corrected selection's prose fails.
+The cost ceiling can also prevent correction.
+Provider failures retain completed-stage telemetry and costs.
+The complete Markdown checker remains independent.
+
+There is no `--generation-path` option.
+Manifests record `production-parity`; historical Markdown identities cannot resume.
+Artifacts retain raw/projected corpora, citation map, selection schema, requests, structured responses, selected evidence, and rendered output as available.
+Failed trials retain artifacts completed before failure.
+`selection-schema.json` is current; the obsolete `output-schema.json` alias is not written.
 
 ### Cost ceilings
 
-The provider-scoped ceiling accumulates costs reported by OpenRouter. The
-evaluator checks it before each candidate or correction; a selection call and
-its dependent prose call form one staged candidate. One staged candidate can
-therefore take the observed total above the limit. A stopped ceiling, provider
-failure, or billing/credit error leaves checkpointed artifacts and
-causes a nonzero command exit.
+The ceiling accumulates reported cost and checks it before each candidate or correction.
+A selection call and its dependent prose call form one candidate.
+That candidate can take observed cost above the ceiling.
+Provider failures, billing/credit errors, and a reached ceiling preserve checkpointed work and cause a nonzero exit.
+Unknown billing remains explicit; see [resume accounting](#resuming-an-interrupted-run).
 
 ### Comparing prompt versions after a run
 
-The following command is a historical provenance record. Its `evaluator/results/portfolio-v1-final-20260815/` tree now exists only in the verified originals archive recorded in [the retention receipt](../docs/results/retention-2026-10-15.json). Restore it with the recorded source revision before reproducing the command:
-
-```bash
-python3 -m evaluator compare \
-  evaluator/results/portfolio-v1-final-20260815/report.json \
-  evaluator/results/portfolio-v1-final-20260815/report.json \
-  --allow-descriptive \
-  --output evaluator/results/portfolio-v1-final-20260815/comparison.json
-```
-
-The comparator requires exact, duplicate-free provider/model/case/trial keys and refuses incompatible
-suite, corpus, configuration, protocol, prompt, generation-control, adjudication-state, run-kind, or
-repetition provenance by default. It uses a 10,000-resample authored-case-cluster bootstrap and reports
-contract and end-to-end utility, targeted attack success, correction success, grounding proxy, latency,
-cost, and unmatched rows. Human grounding stays undetermined until blinded review and adjudication are
-complete. Legacy or otherwise incompatible manifests require `--allow-descriptive` and cannot receive a
-gated outcome.
+Use the comparison command in the [quick start](#bring-your-own-model-or-prompt).
+The comparator requires unique provider/model/case/trial keys and compatible identities.
+It checks suite, corpus, configuration, protocol, prompts, controls, adjudication state, run kind, and repetition provenance.
+The default bootstrap resamples authored-case clusters 10,000 times.
+Output includes utility, attack success, corrections, grounding proxy, latency, cost, and unmatched rows.
+Incomplete human grounding remains undetermined.
+`--allow-descriptive` permits incompatible evidence without granting a gated promotion outcome.
 
 ### Grounding review packets
 
-The following export command is also a historical provenance record. Its input tree now lives only in that originals archive; the former ignored local directory has been removed:
+Export packets from a current verified run:
 
 ```bash
-python3 -m evaluator export-grounding-review \
-  evaluator/results/portfolio-v1-final-20260815/manifest.json \
-  --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review
+python3 -S -m evaluator export-grounding-review \
+  evaluator/results/my-model/manifest.json \
+  --output-dir evaluator/results/my-model/grounding-human-review
 ```
 
-The following judging command is likewise a historical provenance record. Its input and packet trees now live only in that originals archive:
+For automated review, select available judge models:
 
 ```bash
-python3 -m evaluator judge-grounding \
-  evaluator/results/portfolio-v1-final-20260815/manifest.json \
-  --packet-dir evaluator/results/portfolio-v1-final-20260815/grounding-human-review \
-  --primary-model deepseek/deepseek-v4-pro-0813 \
-  --audit-model minimax/minimax-m3 \
+python3 -S -m evaluator judge-grounding \
+  evaluator/results/my-model/manifest.json \
+  --packet-dir evaluator/results/my-model/grounding-human-review \
+  --primary-model YOUR_PRIMARY_MODEL_ID \
+  --audit-model YOUR_AUDIT_MODEL_ID \
   --cost-ceiling-usd 7 \
-  --output-dir evaluator/results/portfolio-v1-final-20260815/grounding-machine-review
+  --output-dir evaluator/results/my-model/grounding-machine-review
 ```
 
-The primary judge labels every topic; the audit judge separately labels the stratified double-review
-sample. Calls are batched, validated, and checkpointed for safe resume. The cost ceiling stops before the
-next call while preserving the configured headroom. Results explicitly identify both judges and state that
-the labels are automated rather than human approval.
+The primary judge labels every topic. The audit judge independently labels the stratified double-review sample.
+Calls are batched, validated, and checkpointed for resume.
+The ceiling checks before the next call and preserves configured headroom.
+Results identify both judges and remain automated evidence, not human approval.
+Historical rows without current evidence digests require their recorded readers and cannot become verified by selecting a new output directory.
 
 ### Retired weekly production monitor
 
-The scheduled production grounding monitor was retired on October 10, 2026.
-Its [historical log](../docs/results/grounding-monitor.md) is frozen, and its
-`monitor-grounding` command and deployment-receipt downloader are removed.
-The explicit benchmark packet export and machine review commands above remain
-supported, including their evidence identities, cost controls and resume support.
-See [Evaluation methodology](../docs/evaluation-methodology.md#unverified-machine-grounding-monitor)
-for the distinction between historical monitoring and current daily integrity records.
+The scheduled grounding monitor was retired on October 10, 2026.
+Its [historical log](../docs/results/grounding-monitor.md) remains frozen.
+The `monitor-grounding` command and monitor-only downloader were removed.
+Explicit packet export and machine review remain supported.
+See the [methodology](../docs/evaluation-methodology.md#unverified-machine-grounding-monitor) for their measurement limits.
 
 ### What is retained and where
 
-Historical `evaluator/results/portfolio-*` and `evaluator/results/parity-*` trees,
-including raw generations and review mappings, now live only in the verified
-originals archive recorded in [the retention receipt](../docs/results/retention-2026-10-15.json).
-Commands referencing those trees are historical records, not active local inputs.
-Restore into a separate checkout at the recorded revision when reproducing them.
-New runs and their private mappings remain local and ignored. Versioned aggregates for the superseded
-portfolio-v1 rows live in [`history/portfolio-v1.json`](history/portfolio-v1.json); the historical portfolio-v2
-aggregates are in [`docs/results/portfolio-v2-evidence/`](../docs/results/portfolio-v2-evidence/). The current
-production-parity aggregates are in [`docs/results/parity-v2-evidence/`](../docs/results/parity-v2-evidence/).
-The large files of both bundles are a [release asset](../docs/results/EVIDENCE-ASSETS.md).
-[`regression-policy.json`](regression-policy.json) defines compatibility, completeness, review-trigger, and
-promotion rules. Incomplete or incompatible runs cannot pass.
+Historical raw portfolio and parity trees remain in the verified originals archive identified by the [retention receipt](../docs/results/retention-2026-10-15.json).
+Restore them into a separate checkout of the recorded revision.
+New runs and private review mappings remain local and ignored.
+The superseded portfolio-v1 aggregate is `history/portfolio-v1.json`.
+[Public bundle instructions](../docs/results/EVIDENCE-ASSETS.md) cover Portfolio v2 and Parity v1–v3.
+These are frozen experiments, not current-version results.
 
 ### Everyday run commands
 
-Run one model and one prompt version:
+Run one configured model:
 
 ```bash
-python3 -m evaluator run \
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --provider codex-cli=gpt-5.6-terra \
   --prompt production=briefing-runner-prompt.md \
   --trials 3
 ```
 
-Run all three configured generation providers:
+Run all configured generation providers:
 
 ```bash
-python3 -m evaluator run --all-providers --trials 3
+python3 -S -m evaluator run --all-providers --trials 3 \
+  --protocol evaluator/results/development-protocol.json
 ```
 
-Final runs require at least two prompt versions, randomize case/trial work, and strictly interleave those
-versions within each provider/model. Pass `--execution-seed` to reproduce a particular order; otherwise the
-runner generates and records a seed in the manifest. Development and pilot runs retain fixed adapter →
-prompt → case → trial order.
-
-Compare prompt versions by repeating `--prompt`:
+Compare structured prompts by repeating `--prompt`:
 
 ```bash
-python3 -m evaluator run \
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --all-providers \
   --prompt baseline=briefing-runner-prompt.md \
   --prompt candidate=/path/to/candidate-prompt.md \
   --trials 3
 ```
 
+Replace the candidate path before execution.
+Development and pilot runs use fixed adapter, prompt, case, and trial order.
+Final runs randomize case/trial work and interleave prompt versions within each provider/model.
+`--execution-seed` selects that order; otherwise the runner generates and records a seed.
+It does not seed model sampling.
+
 ### Sampling controls
 
-Set sampling controls for the OpenRouter production adapter with optional run flags:
-
 ```bash
-python3 -m evaluator run \
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
   --all-providers \
   --temperature 0.2 \
   --reasoning disabled \
   --trials 3
 ```
 
-If `--temperature` is omitted, API runs preserve the evaluator's existing `temperature=0`
-default. Generation takes no sampling seed. These flags do not affect the Codex or
-Claude Code CLI adapters because those CLIs do not expose equivalent controls here.
-If `--reasoning` is omitted, the API provider's default is preserved; `enabled` or `disabled`
-is sent as an explicit reasoning control and recorded in the run manifest and report.
-`--reasoning-effort` selects an explicit API effort level and implies enabled reasoning.
+OpenRouter temperature defaults to 0.
+Omitted reasoning preserves the provider default. Explicit reasoning or effort is recorded in the manifest.
+`--reasoning-effort` implies enabled reasoning.
+These flags do not change CLI sampling controls.
+Codex uses fixed medium reasoning. Claude Code remains provider-controlled.
+Exact output reproducibility is not guaranteed.
 
 ### Providers and adapters
 
-Generation supports `codex-cli`, `claude-code-cli`, and `openrouter` through the production runner's transports and tool policies. Raw-text transports, including NVIDIA, remain for active grounding and semantic judges. They cannot be selected for generation.
-
-Sampling controls are not equivalent across providers. OpenRouter sends the configured temperature and reasoning settings. The Codex and Claude Code CLIs expose neither temperature nor seed control to this evaluator. Every manifest records effective settings; exact reproducibility is not guaranteed, and CLI/API results are not directly comparable on sampling controls alone.
+Generation uses production structured-output transports and tool policies.
+Raw-text adapters, including NVIDIA, remain available for separate judging workflows.
+CLI and API controls are not equivalent.
+Every manifest records effective settings; those settings alone do not make cross-provider results directly comparable.
 
 ### Retries, timeouts, and circuit breaking
 
-The CLI displays a progress bar labeled with the exact provider and model. API calls make at most three attempts for HTTP 408, 425, 429, and 5xx responses, or known pre-transmission failures such as DNS lookup failures and refused connections. Timeouts, resets, and other failures after transmission may have begun have ambiguous completion and are not automatically retried. `Retry-After` is honored when present; otherwise retries wait one second and then two seconds. `--timeout` remains the total ceiling for one model call, including retry waits and attempts. A retry is not started when its delay would exceed the remaining call timeout.
+The progress display identifies the provider and model.
+API calls permit at most three attempts for HTTP 408, 425, 429, 5xx, and known pre-transmission failures.
+Timeouts, resets, and failures after possible transmission do not automatically retry.
+`Retry-After` controls the delay when present; otherwise delays are one and two seconds.
+`--timeout` includes all attempts and waits for one call.
+A retry cannot start if its delay exceeds the remaining deadline.
 
-Three consecutive provider failures open a circuit for that exact provider/model. Its remaining case-trials are recorded as circuit-open skips, while other models continue. Any successful case-trial resets the consecutive-failure count.
+Three consecutive failures open a circuit for that provider/model.
+Remaining trials record circuit-open skips while other models continue.
+A successful trial resets the failure count.
 
 ### Preflight without credentials
 
-`preflight` takes exactly the `run` options and rehearses everything `run` checks
-before its first provider call, without loading `evaluator/.env` or making a call:
+`preflight` accepts the same options as `run`.
+It resolves the plan and checks declared protocol bindings without loading `evaluator/.env` or calling providers.
+Unlike a plain development run, it checks the supplied protocol bindings against the requested plan.
+After creating the development input snapshot in the quick start, run:
 
 ```bash
 python3 -S -m evaluator preflight \
-  --provider openrouter=deepseek/deepseek-v4-flash \
-  --prompt production-runner=briefing-runner-prompt.md \
-  --suite evaluator/fixtures/generation-cases.json \
-  --protocol evaluator/protocols/parity-v3.json \
-  --trials 5 --run-kind final --source-tag parity-v3-source-YYYYMMDD \
-  --output-dir evaluator/results/parity-v3-final-YYYYMMDD --before-tag
+  --protocol evaluator/results/development-protocol.json \
+  --provider openrouter=YOUR_MODEL_ID \
+  --prompt production=briefing-runner-prompt.md \
+  --trials 1 --run-kind development \
+  --output-dir evaluator/results/my-model-preflight
 ```
 
-It builds each production-parity adapter, resolves the evaluation plan (suite
-validation, planned rows, prompt and fixture hashes, execution order and seed),
-and reports, as pass/fail checks, every protocol binding it can read: input,
-prompt, and suite hashes against the committed bytes; the suite path, prompt
-versions and paths, provider/model set, trials, timeout, temperature,
-reasoning, run kind, execution seed, planned row count, and cost ceiling against
-the protocol's `suite`, `prompts`, `models`, `controls`, and `authorization`
-blocks; `status` (`frozen_for_run` is required for a final run) and
-`authorization.authorized_at`. The output directory must be new, or with
-`--resume` must hold a `running` checkpoint whose immutable identity matches.
-Credential presence is reported, never required. For a final run the clean,
-tagged source is checked like `run` does; `--before-tag` reports a missing tag
-as deferred so a frozen protocol can be rehearsed before the tag exists, and
-resolves the plan as if the clean HEAD carried that tag. The exit code is 0
-only when every non-deferred check passes.
+For a final evaluation, replace the development snapshot with a newly frozen protocol matching current inputs and all requested controls.
+Do not reuse a historical protocol as a current-run template without updating its bindings.
+Preflight checks suite, prompts, corpora, configs, providers, models, trials, timeouts, controls, row counts, and cost authorization.
+It checks protocol `status: frozen_for_run` and `authorization.authorized_at` for final execution.
+
+The output directory must be new, or contain a matching `running` checkpoint with `--resume`.
+Credential presence is reported but not required.
+Final checks require a clean source tree and matching tag.
+`--before-tag` permits a missing final tag as deferred while checking the plan as if that tag identified clean HEAD.
+Exit zero means every non-deferred check passed.
 
 ### Run outputs and final-run requirements
 
-Every run writes `manifest.json`, `report.json`, `report.md`, and per-trial artifacts to its output directory. When `--output-dir` is omitted, that directory is `evaluator/results/<UTC timestamp>/`. Those three top-level files are atomically checkpointed after every trial. A provider failure is recorded with its stage, retry metadata, and error; the remaining matrix continues, and the command exits nonzero after finishing so automation can detect the partial run without losing already-billed work. Each successful trial also gets `grounding-adjudication.json`; a human reviewer sets each topic's `grounding_error` to `true` or `false` and may add notes.
+Every run writes `manifest.json`, `report.json`, `report.md`, and trial artifacts.
+The default directory is `evaluator/results/<UTC timestamp>/`.
+Top-level files are atomically checkpointed after each trial.
+Provider failures record stage, retry metadata, and error while other planned work continues.
+The command returns nonzero for the resulting partial execution.
+Successful trials also receive `grounding-adjudication.json` for topic-level human decisions.
 
-A final run additionally requires `--source-tag TAG`. Before loading credentials or making a provider call,
-the CLI refuses a dirty worktree or a tag that does not point at `HEAD`. The manifest records the commit,
-Git tree, source tag, and SHA-256 of every tracked evaluator/runtime Python source file.
+A final run requires at least two prompts and `--source-tag TAG` pointing to clean HEAD.
+Dirty trees and mismatched tags fail before credentials or provider calls.
+The manifest records commit, Git tree, source tag, and tracked runtime/evaluator Python source hashes.
 
 ### Exporting public evidence
 
-After review and adjudication, export reviewer-facing evidence with one complete manifest, or with compatible
-split manifests with matching experiment identities, complete components, and disjoint adapter sets.
-Each component must contain the exact frozen prompt/case/trial matrix for every configured adapter.
-Interrupted components, overlapping adapters, duplicate rows, and missing rows are refused:
+Export one complete manifest or compatible split manifests:
 
 ```bash
-python3 -m evaluator export-public-run evaluator/results/<run>/manifest.json \
-  --output-dir /tmp/<run>-public \
-  --ledger-output /tmp/<run>-ledger.json
-python3 -m evaluator verify-public-run /tmp/<run>-public
+python3 -S -m evaluator export-public-run evaluator/results/my-model/manifest.json \
+  --output-dir /tmp/my-model-public \
+  --ledger-output /tmp/my-model-ledger.json
+python3 -S -m evaluator verify-public-run /tmp/my-model-public
 ```
 
-The committed ledger contains all row identities and scoring primitives without generated prose. The release
-bundle contains the redacted manifest with raw generations, per-row adjudications, and regenerated reports;
-provider request identifiers are removed. Together with the recorded source tag and committed fixtures, this
-supports independent aggregate recalculation and output-level scoring audit without publishing redundant
-per-row copies of the same request and corpus.
+Review and adjudicate evidence before public export.
+Split components need matching experiment identity, complete prompt/case/trial matrices, and disjoint adapter sets.
+Interrupted components, overlap, duplicate rows, and missing rows are rejected.
 
-`verify-public-run` checks the declared file set, byte sizes, hashes, source metadata, and a score ledger
-rebuilt from the manifest's row primitives. It does not render reports with today's code. Authenticate
-historical bundles first with `evaluator.evidence_assets fetch`, which checks the pinned release archive
-and in-tree checksums. To regenerate a historical report, check out its metadata's `source_tag` and run
-the source reporter on the public manifest's embedded scores using the exact commands in
-[EVIDENCE-ASSETS.md](../docs/results/EVIDENCE-ASSETS.md). Historical reports and release assets stay
-immutable as current presentation evolves; current reporter tests retain semantic and statistical coverage.
+The ledger contains row identities and score primitives without generated prose.
+The public bundle contains redacted manifests with generations, adjudications, and reports.
+Provider request IDs are removed.
+Source tags and committed fixtures support independent aggregate recalculation and output-level scoring review.
+
+`verify-public-run` checks names, sizes, hashes, source metadata, and a ledger rebuilt from manifest primitives.
+It authenticates historical report files without rendering them through current code.
+First authenticate released bundles through `evaluator.evidence_assets fetch` and pinned in-tree checksums.
+For historical regeneration, use the recorded source reporter and [bundle procedure](../docs/results/EVIDENCE-ASSETS.md).
 
 ### Resuming an interrupted run
 
-If the process itself is interrupted while the manifest still has `run_status: running`, repeat the original
-`run` command with the same providers, prompts, trials, run kind, controls, timeout, protocol, and cost-ceiling
-options, reuse its explicit output directory, and add `--resume`:
+Resume only a manifest with `run_status: running`.
+Repeat its original command and explicit output directory, adding `--resume`:
 
 ```bash
-python3 -m evaluator run \
-  --provider openrouter=deepseek/deepseek-v4-flash \
-  --prompt production-2026-08=evaluator/prompts/production-2026-08.md \
-  --trials 5 \
-  --run-kind pilot \
-  --output-dir evaluator/results/<interrupted-run> \
+python3 -S -m evaluator run \
+  --protocol evaluator/results/development-protocol.json \
+  --provider openrouter=YOUR_MODEL_ID \
+  --trials 5 --cost-ceiling-usd 5 \
+  --output-dir evaluator/results/my-model \
   --resume
 ```
 
-Before another provider call, resume verifies the suite, root and case-specific corpora, configurations,
-protocol, prompts and prompt order, generation path, adapter/model order, generation controls, per-adapter timeout, trials,
-run kind, execution order/seed, circuit threshold, and cost-ceiling settings against the checkpoint. It also
-requires saved results to be a unique exact prefix of the original execution plan and verifies their artifact
-files, including recorded hashes for the corpus, requests, generated outputs and adjudications. Symlinks
-and changed evidence are refused. Older compatible checkpoints without the complete artifact hash map
-retain their recorded corpus/final-output digest checks and required artifact/path validation; request and
-adjudication bytes without recorded hashes cannot receive the newer byte-integrity guarantee. A provider interruption before a row is checkpointed can still leave
-unrecorded billing; the checkpoint cannot infer that charge, and restarting the partial row retains this
-existing limitation. Completed and failed saved rows are skipped; a partially created directory for the interrupted row is
-safely reused. Known billed cost and each adapter's consecutive-failure/circuit state are reconstructed from
-saved rows. A call whose billing is unknown stays unknown in the record and is charged against the ceiling
-at the mean known cost per call observed so far (zero before any known cost), both live and when a resume
-reconstructs the charge; the manifest reports `ceiling_known_cost_usd`, `ceiling_known_cost_calls`,
-`ceiling_unknown_cost_calls`, and `ceiling_estimated_unknown_cost_usd` beside `observed_ceiling_cost_usd`.
-Missing cost is never reconstructed as zero and never blocks a resume. A generated final-run execution seed may be omitted on resume because the recorded seed is reused.
-Complete, stopped, completed-with-errors, incompatible, and corrupt manifests are refused without a provider
-call. `--resume` always requires `--output-dir`; it never guesses which run to continue.
+This example matches the earlier single-model command.
+Use the original options if your run differs.
+Resume verifies suite, corpora, configs, protocol, prompts and order, path, providers, controls, timeouts, trials, run kind, ordering, circuits, and ceilings.
+Saved rows must form a unique exact plan prefix with valid required artifacts and hashes.
+Changed evidence and symlinks are rejected.
+Older compatible checkpoints retain only the integrity guarantees their recorded hashes support.
+
+Saved completed and failed rows are skipped.
+An interrupted row's partial directory can be reused.
+Interruption before checkpointing can leave unrecorded billing that resume cannot reconstruct.
+Known cost and circuit state are rebuilt from saved rows.
+Unknown-cost calls stay unknown and receive the mean observed known call cost for ceiling accounting.
+Before any known cost, that estimate is zero.
+This estimate does not turn missing billing into a known zero charge.
+
+The manifest separates known cost, known/unknown call counts, estimated unknown cost, and observed ceiling cost.
+Unknown billing does not block resume.
+An automatically generated execution seed can be omitted because resume reuses it.
+Complete, stopped, completed-with-errors, incompatible, and corrupt manifests cannot resume.
+`--resume` always requires `--output-dir`.
 
 ### Rebuilding reports
 
-Rebuild any complete or partial report without calling a model:
-
 ```bash
-python3 -m evaluator report evaluator/results/<run>/manifest.json
+python3 -S -m evaluator report evaluator/results/my-model/manifest.json
 ```
+
+This rebuilds complete or partial reports without model calls.
 
 ### Semantic judging
 
-Cases with `must_convey` requirements also get `semantic-adjudication.json`. Review those files manually, or run a blinded semantic judge that sees only corpus evidence, every generated topic citing the required URL, and one proposition at a time:
+Cases with `must_convey` requirements receive `semantic-adjudication.json`.
+Review them manually or select an available judge:
 
 ```bash
-python3 -m evaluator judge-semantics evaluator/results/<run>/manifest.json \
-  --judge-provider claude-code-cli --judge-model claude-opus-4-6
+python3 -S -m evaluator judge-semantics evaluator/results/my-model/manifest.json \
+  --judge-provider claude-code-cli --judge-model YOUR_JUDGE_MODEL_ID
 ```
 
-The labels are `conveyed`, `not_conveyed`, and `unclear`; `unclear` remains unresolved until a human adjudicates it. The default `semantic-judgments` directory refreshes the run's adjudication labels, `report.json`, and `report.md` without changing the immutable generation manifest. Recorded topics must match the parsed final output before review. Each resulting judgment retains the actual reviewer and hashes of its frozen inputs. Missing-topic and missing-evidence decisions remain deterministic labels.
+The judge sees corpus evidence, topics citing the required URL, and one proposition at a time.
+Labels are `conveyed`, `not_conveyed`, and `unclear`.
+Unclear labels remain unresolved until human adjudication.
+The default `semantic-judgments` directory updates adjudications and reports without changing the generation manifest.
+A separate new `--output-dir` creates an independent assessment without replacing prior labels.
 
-Resume the same assessment with its existing output directory. To request an independent assessment, use a new empty directory:
-
-```bash
-python3 -m evaluator judge-semantics evaluator/results/<run>/manifest.json \
-  --judge-provider claude-code-cli --judge-model claude-opus-4-6 \
-  --output-dir evaluator/results/<run>/independent-semantics
-```
-
-That separate directory makes its own calls and retains its own labels without changing the earlier adjudications or generation report. Labels embedded in generation artifacts are never adopted as the newly requested judge's work. Legacy labels without provenance are counted as ignored and rejudged; legacy checkpoints are preserved and rejected. Generation now records separate digests for the transformed per-trial corpus and final Markdown. Semantic and quality judging, and grounding-packet export, verify these before any call or export, even for a fresh assessment directory. The source-corpus hash is not a substitute because case mutations change the trial evidence. Legacy generation rows without these artifact digests are preserved and explicitly rejected as unverifiable; a new output directory does not authenticate old evidence. The generation identity includes the artifact-binding version, so an older interrupted run cannot silently resume into this contract. Effective prompt, evidence, output, proposition, reviewer, and control changes refuse incompatible resume.
+Recorded topics must match parsed final output.
+Judgments retain reviewer identity and exact input hashes.
+Embedded labels are rejudged, not attributed to the newly requested model.
+Legacy labels without provenance are ignored for attribution; incompatible checkpoints remain rejected.
+Trial-corpus and final-output digests are required even for a new assessment directory.
+Changed evidence, prompts, propositions, reviewers, or controls refuse resume.
 
 ## Score families and denominators
 
-`report.json` schema 9 and `report.md` separate four score families. Every proportion includes successes, trials, and a 95% Wilson interval; execution conditions are reported separately and are never folded into a score.
+Report schema 9 separates four families.
+Rates include successes, trials, and 95% Wilson intervals.
+Execution conditions remain separate from scores.
 
-1. **Checker capability** reports checker and feed-parser precision and recall plus the heuristic claim-check false-positive rate from the fixed offline suite. Label provenance and model/human review status appear beside the metrics. The labels intentionally include semantic failures the deterministic checker cannot detect, such as conflicting evidence and over-consolidation; those misses lower recall rather than disappearing from the denominator.
+| Family | Meaning and denominator |
+|---|---|
+| Checker capability | Offline precision, recall, and heuristic false positives. Semantic labels that code misses still reduce recall. |
+| Application utility | Completed utility trials: contract, routing, end-to-end success, corrections, decoys, and actual health failures. |
+| Security robustness | Completed primary attacks: targeted success, its robustness complement, recovery, behavior, and technique breakdowns. |
+| Editorial quality | Utility topics and propositions: meaning preservation, human grounding, labeled deterministic proxies, and optional pairwise quality. |
 
-2. **Application utility** uses completed utility case-trials only. It reports first and final contract success, deterministic routing success, their conjunction as end-to-end success, checker-guided correction success, paired over-refusal-decoy success, and health-reporting success for cases whose corpus contains actual source failures. The harmless `utility-over-refusal-health-reporting` decoy belongs only to the over-refusal cohort. Attack cases cannot raise or lower these metrics.
+Clean twins and ablations do not enter primary attack denominators.
+`utility_under_attack` checks structural validity and use of available sections.
+It is less strict than application end-to-end utility; do not subtract one rate from the other.
+Matched tables use one complete-pair denominator for benign utility, attacked utility, and targeted success.
+Unclear and unreviewed editorial labels remain visible.
 
-3. **Security robustness** uses completed primary attacked case-trials only; derived clean twins and the 12 production-corpus ablation replicates never enter the headline, behavior, or technique denominators. It reports targeted attack success and its complement, robustness, before and after correction; recovery among cases compromised on the first pass; and breakdowns by the nine attacked behaviors and by attack technique — `direct` and `combined` for every behavior, plus `escape_character`, `context_ignore`, and `response_injection` for `citation-fabrication` only.
-
-   "Targeted" is deliberate: a case's attack signal requires evidence the attacker's specific goal actually occurred (e.g. `category-selection` requires the citation to land in the attacker's named wrong section, not merely go missing), so a vacuous or broken output cannot register as a successful attack. Utility failures cannot enter these denominators.
-
-   This family also reports `utility_under_attack` — whether the underlying task was still completed despite the attack (structural validity and no section left empty when material existed), independent of whether the targeted goal also occurred. It is a floor, not parity with `application_utility`'s stricter `end_to_end_success_final`, so the two are not directly comparable and this report does not subtract one from the other; a model that complies with an attack can score low on `utility_under_attack` even at 100% attack success, when compliance itself breaks the contract (e.g. citing a fabricated URL).
-
-   The matched table places benign structural utility, structural utility under attack, and targeted attack success on one complete-pair denominator for both first and final stages, and discloses incomplete pairs. A separately denominated `ablation` object and tables report the serialized-`dev_community` position and one-versus-three controlled-item proxies.
-
-4. **Editorial quality** uses topics and propositions from completed utility case-trials only. Meaning preservation is the share of decided URL-scoped propositions labeled `conveyed`; unreviewed and `unclear` propositions remain explicit. Human grounding error is primary, while the deterministic missing/ungrounded-citation and claim-heuristic measure remains visibly labeled as a proxy. Pairwise prose judging is attached to this family when its default output exists.
-
-The separate **Operations** section reports planned, recorded, completed, provider-error, circuit-open, and correction-error trial counts, plus latency and cost. With the active version 9 suite, each adapter/prompt/trial executes 61 result rows: 55 authored cases plus six derived clean twins. Historical version 8 runs had five twins and 60 rows. A clean twin always adds an initial call and may add a repair call. Missing cost is `null`, never silently treated as zero; NVIDIA can use configured per-token rates, while subscription-backed Codex CLI runs generally have no meaningful per-call billed amount.
+Operations records planned, recorded, completed, failed, skipped, and correction-error rows with latency and cost.
+Each version 9 adapter/prompt/trial executes the authored cases plus six twins.
+Historical version 8 used five twins.
+A twin requires selection and prose calls and can require correction.
+Missing cost is null. Subscription CLI usage generally has no meaningful per-call billed value.
+NVIDIA judging can use configured per-token rates.
 
 ## Prose-quality judging
 
-The checker and case oracles validate routing — is a citation grounded, does a topic land in the right section — not the quality of the prose written about a correctly-routed story. `judge-quality` closes part of that gap with a blinded pairwise LLM judge over utility-case topics only, run after `run` against a completed manifest:
+Use a completed multi-condition run with matching stories:
 
 ```bash
-python3 -m evaluator judge-quality evaluator/results/<run>/manifest.json \
-  --judge-provider claude-code-cli --judge-model claude-opus-4-6
+python3 -S -m evaluator judge-quality evaluator/results/prompt-test/manifest.json \
+  --judge-provider claude-code-cli --judge-model YOUR_JUDGE_MODEL_ID
 ```
 
-It matches same-story topics written by two different provider/model/prompt groups in the same run, by exact canonical-URL-set identity, and asks a judge model to pick the better option on four axes — faithfulness (to the corpus's title/summary blurb, never to outside knowledge), salience, concision, and coherence — plus an overall preference. Every pair is judged twice with option order swapped, because pairwise LLM judges are known to favor whichever option is labeled first; a low position-consistency rate on an axis means its win rate is not yet trustworthy, and both are reported side by side rather than only the win rate. The default output directory also refreshes the main report so its Editorial quality family links the pairwise metrics with meaning and grounding. Like the historical label review, this is additional evidence, not a substitute for human read-through, and checkpoints bind the effective rubric and prompt bytes, referenced corpus/output/configuration files, reviewer provider/model, controls, and timeout. A changed input or reviewer refuses resume. Use a new empty `--output-dir` for a separate independent assessment; its report preserves per-pair reviewer identity. Quality result schema 3 records this provenance. Older schema 2 reports remain historical and are marked `stale_schema` when rebuilding current reports.
+The judge compares utility topics with exact canonical-URL-set identity across provider/model/prompt groups.
+It scores faithfulness to corpus evidence, salience, concision, coherence, and overall preference.
+Each pair runs twice with swapped option order.
+Reports show position consistency beside win rates because option order can influence judgments.
+Low consistency limits interpretation.
+
+Default output refreshes the main report. A new empty output directory retains an independent assessment.
+Checkpoints bind rubric, prompts, corpus, output, config, reviewer, controls, and timeout.
+Changed inputs refuse resume.
+Quality schema 3 records this provenance; older schema 2 reports appear as `stale_schema` in current reports.
+Machine preference is additional evidence, not human review.
 
 ## Label review
 
@@ -515,20 +609,23 @@ These LLM reviews supported initial fixture and benchmark development; they are 
 
 ## Prompt provenance
 
-The default version is named `production` and hashes the root `briefing-runner-prompt.md`. For a durable comparison, copy a prompt into `evaluator/prompts/`, give it a version name, and pass both versions explicitly. Portfolio v1 records the selected files and SHA-256 hashes for `production-2026-08` and `reliability-v1` in [`protocols/portfolio-v1.json`](protocols/portfolio-v1.json). Every saved report also stores the name and SHA-256 hash, so historical runs retain their exact prompt identity and changed prompt bytes remain visible. The committed [offline baseline](results/offline-baseline.md) reports checker/feed results and explicitly records live-model metrics as unrun rather than inventing provider data.
+The default `production` version hashes root `briefing-runner-prompt.md`.
+For durable comparison, preserve a named prompt in `evaluator/prompts/` and pass each version explicitly.
+Reports retain version names and hashes.
+The offline baseline marks live-model metrics unrun instead of inventing provider results.
 
-`evaluator/prompts/` also holds prompts that production does not select:
-
-- `briefing-prompt.md` is the retired direct-Markdown prompt, retained with its published evidence and used by offline tests.
-- `briefing-runner-prompt-deepseek-v4-flash.md` is the per-model runner variant compared in parity runs. The hash-frozen `protocols/parity-v1.json` names it by its former repository-root path; its bytes, and therefore its recorded SHA-256, are unchanged. Its leading HTML comment is a file note: the runner and the evaluator strip leading HTML comments before a prompt reaches the model, while prompt hashes still cover the file bytes.
+`briefing-prompt.md` is the retired direct-Markdown prompt retained for historical evidence and offline tests.
+`briefing-runner-prompt-deepseek-v4-flash.md` is the variant used by parity experiments.
+The Parity v1 protocol names its former root path, but its bytes and recorded hash remain unchanged.
+Leading HTML file comments are stripped before model input. Hashes still cover complete file bytes.
 
 ## Historical portfolio runs
 
-Dated records of the completed portfolio runs, retained for provenance. The
-`evaluator/results/portfolio-*` and `evaluator/results/parity-*` trees named by
-historical commands now live only in the verified originals archive in
-[the retention receipt](../docs/results/retention-2026-10-15.json), not in active
-local working directories. Restore historical inputs separately before use. Reproduce historical generation with the recorded source tag, corpus bytes, prompts, and protocol; current code does not replay obsolete corpus or generation formats. Public evidence hash verification and report regeneration remain available without generation calls. **[Parity v2](../docs/results/parity-v2.md) is a citable historical experiment.** It predates version 9 and the publication/provenance remediation; see the [current assessment status](../docs/results/remediation-2026-10-02.md). Portfolio v2 comes first below as the direct-Markdown record; v1 follows as a superseded snapshot. Neither is instructions for a new run — the current commands are documented above.
+The following records preserve original experiment narratives and commands.
+They are historical evidence, outside the maintained-procedure rewrite.
+Their raw input trees now reside in the [verified originals archive](../docs/results/retention-2026-10-15.json).
+Use recorded source tags, protocols, and bytes for reproduction.
+Current generation does not replay obsolete formats.
 
 ### Portfolio v2 (historical, direct-Markdown)
 
@@ -627,28 +724,22 @@ remain for provenance only and must not be cited as a reproducible result.
 
 ### Finding regression tests
 
-Run all evaluator tests with `python3 -S -m unittest discover -s evaluator/tests`.
-Tests are grouped by behavior: `test_execution.py`, `test_parity.py`,
-`test_checkpoint.py`, `test_public_evidence.py`, `test_reporting.py`,
-`test_comparison.py`, and separate judge modules. `test_cases.py` covers case
-validation and oracles, and `test_adapters.py` covers transports. Shared offline
-builders live in `support.py`; fixtures used by one module stay in that module.
-The completed-checkpoint refusal is a separate test from interrupted-checkpoint
-corruption, so splitting them retired no coverage.
-Export/tamper/verification scenarios remain integrated because they check the same
-saved evidence through successive trust boundaries.
+Run the evaluator suite:
+
+```bash
+python3 -S -m unittest discover -s evaluator/tests
+```
+
+Modules separate execution, parity, checkpoints, public evidence, reporting, comparison, and judging.
+`test_cases.py` covers cases and oracles. `test_adapters.py` covers transports.
+Shared builders live in `support.py`.
+Integrated export/tamper tests follow evidence across successive trust boundaries.
 
 ## Retained portfolio research
 
-`python3 -S -m evaluator.research migrate --root . --output .news-briefing/portfolio-retained-v1-final`
-was the one-time migration command used before the selected working trees were
-removed. It captured local Jev studies into a private version-1 dataset without
-rewriting historical audits or manufacturing missing generation-time provenance.
-Verification with `python3 -S -m evaluator.research verify .news-briefing/portfolio-retained-v1-final`
-depends on the readers at the retention receipt's `source_revision`. Use this
-extractor together with those readers in a separate verification checkout; the
-extractor itself was introduced after that revision. Current-reader compatibility
-is not a preservation guarantee.
-See [research retention](../docs/research-retention.md) for the fixed collections,
-retained source bytes, extracted run views, exclusions from scoring, and recovery.
-The public historical evidence bundles keep their existing release contract.
+The one-time research migration captured private studies before their original working trees were removed.
+It did not rewrite old audits or invent generation provenance.
+Verification needs the extractor plus reader modules from the receipt's source revision in a separate checkout.
+The extractor itself was introduced after that revision.
+See [research retention](../docs/research-retention.md) for collections, recovery, and scoring exclusions.
+Public historical bundles retain their release contract.
