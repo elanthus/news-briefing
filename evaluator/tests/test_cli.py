@@ -48,30 +48,24 @@ def _comparison_manifest() -> dict[str, object]:
 
 
 class CliTest(unittest.TestCase):
-    def test_compare_regenerates_under_the_policy_given_on_the_command_line(self) -> None:
-        archived = Path(evaluator_cli.__file__).with_name("policies") / "regression-policy-v1.json"
+    def test_compare_records_the_policy_given_on_the_command_line(self) -> None:
+        policy = Path(evaluator_cli.__file__).with_name("regression-policy.json")
         with tempfile.TemporaryDirectory() as directory:
             manifest = Path(directory) / "manifest.json"
             manifest.write_text(json.dumps(_comparison_manifest()), encoding="utf-8")
-            results = {}
-            for label, extra in (("current", []), ("archived", ["--regression-policy", str(archived)])):
-                output = Path(directory) / label / "comparison.json"
-                argv = [
-                    "evaluator", "compare", str(manifest), str(manifest),
-                    "--baseline-prompt", "production-2026-08", "--candidate-prompt", "reliability-v1",
-                    "--bootstrap-samples", "50", "--output", str(output), *extra,
-                ]
-                with patch.object(sys, "argv", argv), redirect_stdout(io.StringIO()):
-                    self.assertEqual(evaluator_cli.main(), 0)
-                results[label] = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(results["archived"]["schema_version"], 1)
-        self.assertEqual(
-            results["archived"]["regression_policy_sha256"],
-            hashlib.sha256(archived.read_bytes()).hexdigest(),
-        )
-        self.assertNotIn("promotion", results["archived"])
-        self.assertEqual(results["current"]["schema_version"], 2)
-        self.assertEqual(results["current"]["regression_policy_version"], 2)
+            output = Path(directory) / "comparison.json"
+            argv = [
+                "evaluator", "compare", str(manifest), str(manifest),
+                "--baseline-prompt", "production-2026-08", "--candidate-prompt", "reliability-v1",
+                "--bootstrap-samples", "50", "--output", str(output), "--regression-policy", str(policy),
+            ]
+            with patch.object(sys, "argv", argv), redirect_stdout(io.StringIO()):
+                self.assertEqual(evaluator_cli.main(), 0)
+            result = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["regression_policy_version"], 2)
+        self.assertEqual(result["regression_policy_sha256"], hashlib.sha256(policy.read_bytes()).hexdigest())
+        self.assertIn("promotion", result)
 
     def test_retired_generation_cli_option_is_rejected(self) -> None:
         stderr = io.StringIO()

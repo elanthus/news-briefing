@@ -5,8 +5,8 @@
   "effective_date": "2026-10-20",
   "supersedes": {
     "policy_version": 1,
-    "path": "evaluator/policies/regression-policy-v1.json",
-    "sha256": "bf9ed083df18bcbcaef388909b41f819eff1b8d674a2ab8aed02de43c629ce46"
+    "sha256": "bf9ed083df18bcbcaef388909b41f819eff1b8d674a2ab8aed02de43c629ce46",
+    "available_from": "git history before 2026-10-22"
   },
   "scope": "Prompt or model changes evaluated with the portfolio-v1 protocol",
   "compatibility_requirements": {

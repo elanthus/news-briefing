@@ -11,10 +11,17 @@ carry feed text, headlines, summaries, prose, findings messages, URLs or
 hashes. A field the source entry does not record is ``null`` and renders as
 "unknown"; it is never filled with zero.
 
-Schema 2 adds the date's generation spend: the fallback chain's reported cost
-across every attempt, published as the integrity record's ``generation`` cost
-phase. A schema 1 ledger is read and upgraded with that spend unknown; rows
-recorded before the phase existed stay unknown rather than zero.
+Generation spend is the fallback chain's reported cost across every attempt,
+published as the integrity record's ``generation`` cost phase. A row whose
+entry recorded no spend stays unknown rather than zero.
+
+Only ``LEDGER_SCHEMA_VERSION`` is readable. A ledger at any other version is
+refused and the build fails before anything is written. Rows are never upgraded
+in place. An explicit ``--allow-empty-metrics`` build starts a new ledger from
+the published history, which keeps seven dates while the ledger keeps every
+recorded date, so that path alone loses the older dates. Keeping them needs the
+retained daily inputs for those dates or a one-shot offline migration that
+states its own removal condition.
 
 The page is an operational summary of the daily integrity records. It is not
 an independent assessment, a grounding rate, or a quality measurement.
@@ -33,11 +40,6 @@ from typing import Any
 from publication_schema import INTEGRITY_DECISIONS, Provenance
 
 LEDGER_SCHEMA_VERSION = 2
-# Older ledgers the builder still reads; each is upgraded row by row before
-# validation and written back at the current version.
-LEGACY_LEDGER_SCHEMA_VERSIONS = frozenset({1})
-# Fields schema 2 added; a schema 1 row lacks them and gets ``null``.
-SCHEMA_2_FIELDS = frozenset({"generation_cost_usd", "generation_unknown_cost_calls"})
 LEDGER_ROW_LIMIT = 100_000
 DISPOSITIONS = frozenset({"blocked", "degraded", "no_result", "ready", "rejected", "review_required"})
 REVIEW_STATUSES = frozenset({"complete", "partial", "failed"})
@@ -219,25 +221,17 @@ def parse_row(raw: object) -> dict[str, Any]:
     return raw
 
 
-def _upgrade_row(raw: object, version: int) -> object:
-    """Bring a legacy row to the current shape; every added field is unknown."""
-    if version == 1 and isinstance(raw, dict) and not (set(raw) & SCHEMA_2_FIELDS):
-        return {**raw, **{field: None for field in SCHEMA_2_FIELDS}}
-    return raw
-
-
 def parse_ledger(payload: object) -> list[dict[str, Any]]:
     if (
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "rows"}
         or type(payload["schema_version"]) is not int
-        or payload["schema_version"] not in LEGACY_LEDGER_SCHEMA_VERSIONS | {LEDGER_SCHEMA_VERSION}
+        or payload["schema_version"] != LEDGER_SCHEMA_VERSION
         or not isinstance(payload["rows"], list)
         or len(payload["rows"]) > LEDGER_ROW_LIMIT
     ):
         raise ValueError(f"metrics ledger must use schema_version {LEDGER_SCHEMA_VERSION} with a rows array")
-    version = payload["schema_version"]
-    rows = [parse_row(_upgrade_row(row, version)) for row in payload["rows"]]
+    rows = [parse_row(row) for row in payload["rows"]]
     dates = [row["date"] for row in rows]
     if len(set(dates)) != len(dates):
         raise ValueError("metrics ledger contains a duplicate date")

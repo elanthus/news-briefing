@@ -120,7 +120,7 @@ Promotion requires compatible complete final runs, recorded ordering, and comple
 Attack success must satisfy its interval-based non-inferiority margin, with no contract regression.
 Every evaluated model must pass under `promotion_requires: all_models`.
 Output records policy bytes by hash, policy version, applied rules, and interval bounds.
-Use an [archived policy](policies/README.md) only to reproduce a comparison made under that policy.
+Only the current policy version is readable; reproduce an older comparison from the commit that recorded it.
 
 ## What is fixed
 

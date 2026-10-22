@@ -66,6 +66,15 @@ It applies `redact_destinations()` recursively to all model-visible data.
 Code binds prose to the validated frozen handles by position.
 Only after complete-candidate validation does rendering restore the code-owned destinations.
 
+## Schema versions
+
+- Give every file format exactly one readable `schema_version`. Readers accept that version and refuse every other one.
+- Bump the version when a change would break a reader. Validate the payload before the producer writes it, as `corpus_schema.py` does.
+- Do not add legacy readers, version sets, row upgraders, "predates the field" defaults, or absent-key tolerance for an older shape.
+- A value unknown at write time is a typed sentinel the schema declares, with the key present. Absence is a validation error.
+- Older artifacts are reproduced from the commit that wrote them, or rebuilt from retained inputs. Document that path instead of keeping a reader.
+- A one-shot migration tool states its removal condition when it is added.
+
 ## Repository hygiene
 
 - Do not commit `corpus.json`, `/corpus-*.json`, `.coverage`, `.env` files, generated `briefing.md`, `.news-briefing/`, or evaluator/run artifacts.
