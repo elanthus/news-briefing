@@ -16,8 +16,9 @@ published as the integrity record's ``generation`` cost phase. A row whose
 entry recorded no spend stays unknown rather than zero.
 
 Only ``LEDGER_SCHEMA_VERSION`` is readable. A ledger at any other version is
-refused; the builder then rebuilds the ledger from history instead of upgrading
-rows in place.
+refused and the build fails before anything is written. Rows are never upgraded
+in place; a refused deployed ledger is rebuilt from history by an explicit
+``--allow-empty-metrics`` build.
 
 The page is an operational summary of the daily integrity records. It is not
 an independent assessment, a grounding rate, or a quality measurement.

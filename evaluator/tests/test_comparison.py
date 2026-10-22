@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -629,3 +630,54 @@ class ComparisonTest(unittest.TestCase):
                 compare_runs(path, path, bootstrap_samples=10)
             self.assertIn("selected provider/model set differs", str(raised.exception))
 
+
+ROOT = Path(__file__).resolve().parents[2]
+EVIDENCE = ROOT / ".news-briefing" / "evidence"
+COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-production-runner-policy-v2.json"
+
+
+class CommittedComparisonTest(unittest.TestCase):
+    """Regenerate a published comparison so bootstrap draw order cannot drift.
+
+    The fixture was produced under the current policy, so it must record that
+    policy's bytes by hash; a policy change means regenerating the fixture.
+    """
+
+    def test_committed_parity_v2_comparison_reproduces(self) -> None:
+        if not all(
+            (EVIDENCE / bundle / "manifest.json").is_file()
+            for bundle in ("parity-v1-evidence", "parity-v2-evidence")
+        ):
+            message = "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch"
+            # CI sets REQUIRE_EVIDENCE=1 after fetching, so a missing bundle fails there.
+            if os.environ.get("REQUIRE_EVIDENCE") == "1":
+                self.fail(message)
+            self.skipTest(message)
+        committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
+        self.assertEqual(committed["schema_version"], 2)
+        self.assertEqual(
+            committed["regression_policy_sha256"],
+            hashlib.sha256(REGRESSION_POLICY.read_bytes()).hexdigest(),
+            "the committed comparison records a policy other than the current one",
+        )
+        row = committed["comparisons"][0]
+        result = compare_runs(
+            EVIDENCE / "parity-v1-evidence" / "manifest.json",
+            EVIDENCE / "parity-v2-evidence" / "manifest.json",
+            baseline_prompt=row["baseline_prompt"],
+            candidate_prompt=row["candidate_prompt"],
+            allow_descriptive=True,
+            bootstrap_samples=committed["bootstrap"]["samples"],
+            seed=committed["bootstrap"]["seed"],
+        )
+        # The published file records repository-relative manifest paths.
+        result["baseline_manifest"] = committed["baseline_manifest"]
+        result["candidate_manifest"] = committed["candidate_manifest"]
+        self.assertEqual(
+            json.dumps(result, indent=2, sort_keys=True) + "\n",
+            COMMITTED_COMPARISON.read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            markdown_comparison(result),
+            COMMITTED_COMPARISON.with_suffix(".md").read_text(encoding="utf-8"),
+        )

@@ -101,6 +101,7 @@ A policy must declare the one readable `policy_version`.
 Unversioned and superseded policies are rejected.
 The comparator does not read version 1 policies or write schema 1 comparisons.
 Committed comparisons that record the version 1 hash `bf9ed083…` are reproduced from the repository commit that recorded them.
+The committed `parity-v2-comparison-production-runner-policy-v2.json` records the current policy and is regenerated in CI from the evidence bundles.
 The Portfolio v2 comparison predates policy hashing and records none.
 Historical comparisons remain unchanged.
 
