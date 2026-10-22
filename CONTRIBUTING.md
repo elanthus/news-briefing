@@ -51,7 +51,7 @@ Do not commit credentials, `.env` files, generated corpora, generated briefings,
 | Path | What it is |
 |---|---|
 | [`fetch_news.py`](fetch_news.py) | Corpus fetcher CLI: arguments, window resolution, output and exit status |
-| [`news_fetch/`](news_fetch) | Fetcher modules: `config` (source loading), `destinations` (public-destination and DNS validation), `transport` (DNS-pinned HTTP client and header-deadline watchdog), `feed_xml` (XML defense), `sources/` (RSS, Hacker News, Reddit adapters), `relevance`, `curation` (deduplication, caps, budgets), `model` (item and fetch-result types), `collect` (fetch orchestration and source health) |
+| [`news_fetch/`](news_fetch) | Source configuration, destination checks, HTTP transport, XML parsing, adapters, relevance, curation, types, and source-health collection. |
 | [`sources.json`](sources.json) | RSS feeds, Hacker News queries, and subreddit list read by the fetcher |
 | [`corpus_schema.py`](corpus_schema.py) | Corpus contract (schema v7) and shared URL canonicalization |
 | [`briefing-config.json`](briefing-config.json) | Section targets, eligible corpus categories, and exclusion-log sizes |
