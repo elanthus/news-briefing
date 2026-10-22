@@ -36,7 +36,8 @@ A new feed has no relevance filter unless you add one there.
 `SOURCE_NOISE_FILTERS` in the same module drops items that match a pattern, per source.
 It applies before the relevance filter.
 The Codex Releases feed uses it to drop prerelease tags such as `0.164.0-alpha.12`.
-Stable releases pass through.
+The pattern runs against the title and the summary together.
+A stable release passes through only when neither field matches the prerelease pattern.
 Add a feed there when it publishes items that are never briefing material.
 
 `dev_community` includes release feeds for Claude Code, Cursor, Codex, and MCP reference servers.

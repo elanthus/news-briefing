@@ -64,6 +64,9 @@ Identity is computed before title truncation. Newest-first order determines whic
 
 Only sources in `SOURCE_RELEVANCE_FILTERS` receive keyword filtering.
 Other category and community sources pass through without this filter.
+Separately, `SOURCE_NOISE_FILTERS` drops items that match a per-source pattern.
+It runs before the relevance filter and does not depend on `SOURCE_RELEVANCE_FILTERS` membership.
+The Codex Releases feed uses it to drop prerelease tags.
 An item removed here cannot receive a later model ranking.
 
 Recency controls corpus order across RSS, Hacker News, and Reddit.
