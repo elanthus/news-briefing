@@ -2923,34 +2923,23 @@ class MetricsLedgerTests(unittest.TestCase):
             self.assertIn("generation (every attempt in the fallback chain): reported $0.1234; "
                           "unknown billing calls: 1.", report)
 
-    def test_schema_one_ledger_is_upgraded_with_generation_spend_unknown(self) -> None:
+    def test_ledger_at_any_other_schema_version_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             seeded = _build_from_entries(root, [_live_entry("2026-10-13")])
             current = json.loads((seeded / "metrics.json").read_text(encoding="utf-8"))
-            self.assertEqual(current["schema_version"], 2)
-            legacy = {"schema_version": 1, "rows": [
-                {key: value for key, value in row.items() if key not in site_metrics.SCHEMA_2_FIELDS}
-                for row in current["rows"]]}
-            (root / "legacy.json").write_text(json.dumps(legacy), encoding="utf-8")
+            self.assertEqual(current["schema_version"], site_metrics.LEDGER_SCHEMA_VERSION)
+            for version in (1, 3, "2", None):
+                with self.subTest(schema_version=version), self.assertRaisesRegex(ValueError, "schema_version"):
+                    site_metrics.parse_ledger({**current, "schema_version": version})
+            # A refused prior ledger fails the build before anything is written,
+            # so an old deployed ledger is replaced by a rebuild, never upgraded.
+            (root / "stale.json").write_text(json.dumps({**current, "schema_version": 1}), encoding="utf-8")
             (root / "none").mkdir()
-            rebuilt = root / "rebuilt"
-            build_site(root / "none", rebuilt, prior_history=seeded / "history.json",
-                       prior_metrics=root / "legacy.json")
-            ledger = json.loads((rebuilt / "metrics.json").read_text(encoding="utf-8"))
-            self.assertEqual(ledger["schema_version"], 2)
-            # Rebuilt from history, the day regains its row; the legacy row's
-            # missing fields are unknown, never zero.
-            upgraded = site_metrics.parse_ledger(legacy)
-            self.assertEqual(
-                [(row["generation_cost_usd"], row["generation_unknown_cost_calls"]) for row in upgraded],
-                [(None, None)])
-            # A legacy row that already carries a schema-2 field is not silently accepted.
-            legacy["rows"][0]["generation_cost_usd"] = 0.5
-            with self.assertRaisesRegex(ValueError, "exactly"):
-                site_metrics.parse_ledger(legacy)
             with self.assertRaisesRegex(ValueError, "schema_version"):
-                site_metrics.parse_ledger({"schema_version": 3, "rows": []})
+                build_site(root / "none", root / "rebuilt", prior_history=seeded / "history.json",
+                           prior_metrics=root / "stale.json")
+            self.assertFalse((root / "rebuilt").exists())
 
     def test_ledger_rows_carry_no_feed_or_model_text(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

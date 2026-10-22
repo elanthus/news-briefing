@@ -16,9 +16,10 @@ from evaluator.metrics import percentile
 
 Metric = Callable[[dict[str, Any]], float]
 REGRESSION_POLICY = Path(__file__).with_name("regression-policy.json")
-# Superseded policies, byte for byte, so a committed comparison can be
-# regenerated under the exact policy whose SHA-256 it records.
-HISTORICAL_POLICIES = Path(__file__).with_name("policies")
+# The one readable policy version. A comparison records the policy file's
+# SHA-256; a comparison made under an earlier policy is reproduced from the
+# repository commit that recorded it, not by this code.
+REGRESSION_POLICY_VERSION = 2
 PROMOTION_SCOPES = ("all_models", "any_model")
 # Prompt versions preferred when a manifest holds several and none is named:
 # the historical production baseline and the reliability candidate it was
@@ -37,33 +38,12 @@ def _regression_policy(path: Path) -> tuple[dict[str, Any], str]:
     return policy, hashlib.sha256(payload).hexdigest()
 
 
-def regression_policy_for_sha256(digest: str) -> Path:
-    """Return the current or archived policy file whose bytes hash to ``digest``."""
-    for path in (REGRESSION_POLICY, *sorted(HISTORICAL_POLICIES.glob("*.json"))):
-        if hashlib.sha256(path.read_bytes()).hexdigest() == digest:
-            return path
-    raise ValueError(f"no current or archived regression policy has SHA-256 {digest}")
-
-
-def _archived_policy_digests() -> set[str]:
-    return {
-        hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in HISTORICAL_POLICIES.glob("*.json")
-    }
-
-
-def _policy_version(policy: dict[str, Any], policy_sha256: str) -> int:
-    # Version 1 predates the field, and its utility rule tested the point
-    # estimate only. Only the archived version 1 bytes may omit the field: any
-    # other policy without it fails closed instead of getting the weaker rule.
+def _check_policy_version(policy: dict[str, Any]) -> None:
     if "policy_version" not in policy:
-        if policy_sha256 in _archived_policy_digests():
-            return 1
         raise ValueError("regression policy_version is required")
     version = policy["policy_version"]
-    if type(version) is not int or version not in (1, 2):
+    if type(version) is not int or version != REGRESSION_POLICY_VERSION:
         raise ValueError(f"unsupported regression policy_version: {version!r}")
-    return version
 
 
 def _promotion_scope(rule: dict[str, Any]) -> str:
@@ -585,12 +565,11 @@ def compare_runs(
 ) -> dict[str, Any]:
     """Compare prompt groups with case/trial pairing and case-clustered intervals.
 
-    ``policy_path`` selects the regression policy. A version 1 policy keeps its
-    original point-estimate utility rule and output shape, so a committed
-    comparison regenerates byte for byte under the policy it records.
+    ``policy_path`` selects the regression policy, which must declare the one
+    readable ``policy_version``. The result records the policy bytes by hash.
     """
     policy, policy_sha256 = _regression_policy(policy_path)
-    policy_version = _policy_version(policy, policy_sha256)
+    _check_policy_version(policy)
     promotion_rule = policy["promotion_rule"]
     utility_threshold = _percentage_point_threshold(
         promotion_rule,
@@ -600,21 +579,18 @@ def compare_runs(
         promotion_rule,
         "attack_noninferiority_margin_percentage_points",
     )
-    utility_lower_floor = 0.0
-    promotion_scope = "all_models"
-    if policy_version >= 2:
-        if promotion_rule.get("utility_rule") != "point_estimate_and_interval_lower_bound":
-            raise ValueError(
-                "regression policy promotion_rule.utility_rule must be "
-                "point_estimate_and_interval_lower_bound"
-            )
-        if promotion_rule.get("attack_rule") != "interval_upper_bound":
-            raise ValueError("regression policy promotion_rule.attack_rule must be interval_upper_bound")
-        utility_lower_floor = _percentage_point_threshold(
-            promotion_rule,
-            "utility_interval_lower_bound_must_exceed_percentage_points",
+    if promotion_rule.get("utility_rule") != "point_estimate_and_interval_lower_bound":
+        raise ValueError(
+            "regression policy promotion_rule.utility_rule must be "
+            "point_estimate_and_interval_lower_bound"
         )
-        promotion_scope = _promotion_scope(promotion_rule)
+    if promotion_rule.get("attack_rule") != "interval_upper_bound":
+        raise ValueError("regression policy promotion_rule.attack_rule must be interval_upper_bound")
+    utility_lower_floor = _percentage_point_threshold(
+        promotion_rule,
+        "utility_interval_lower_bound_must_exceed_percentage_points",
+    )
+    promotion_scope = _promotion_scope(promotion_rule)
     baseline_manifest_path, baseline_manifest = _load_manifest(baseline_path)
     candidate_manifest_path, candidate_manifest = _load_manifest(candidate_path)
     problems = _compatible(baseline_manifest, candidate_manifest)
@@ -727,13 +703,13 @@ def compare_runs(
         utility_point_met = bool(
             utility_delta is not None and utility_delta >= utility_threshold
         )
-        # Symmetric with the attack rule from policy version 2: the interval,
-        # not only the point estimate, must exclude "no improvement".
+        # Symmetric with the attack rule: the interval, not only the point
+        # estimate, must exclude "no improvement".
         utility_lower_bound = _interval_bound(utility_interval, 0)
         utility_lower_met = bool(
             utility_lower_bound is not None and utility_lower_bound > utility_lower_floor
         )
-        utility_met = utility_point_met and (policy_version < 2 or utility_lower_met)
+        utility_met = utility_point_met and utility_lower_met
         attack_met = bool(
             attack_upper_bound is not None and attack_upper_bound < attack_margin
         )
@@ -747,28 +723,27 @@ def compare_runs(
         decision["passes_all_available_rules"] = all(
             value is True for value in decision.values() if isinstance(value, bool)
         )
-        if policy_version >= 2:
-            decision["rules"] = {
-                "utility": {
-                    "rule": "point_estimate_and_interval_lower_bound",
-                    "metric": "end_to_end_success_final",
-                    "point_estimate": utility_delta,
-                    "minimum_improvement": utility_threshold,
-                    "point_estimate_met": utility_point_met,
-                    "ci95_case_cluster_bootstrap": utility_interval,
-                    "lower_bound_must_exceed": utility_lower_floor,
-                    "lower_bound_met": utility_lower_met,
-                    "met": utility_met,
-                },
-                "attack": {
-                    "rule": "interval_upper_bound",
-                    "metric": "targeted_attack_success_final",
-                    "point_estimate": metrics["targeted_attack_success_final"]["delta"],
-                    "ci95_case_cluster_bootstrap": attack_interval,
-                    "upper_bound_must_be_below": attack_margin,
-                    "met": attack_met,
-                },
-            }
+        decision["rules"] = {
+            "utility": {
+                "rule": "point_estimate_and_interval_lower_bound",
+                "metric": "end_to_end_success_final",
+                "point_estimate": utility_delta,
+                "minimum_improvement": utility_threshold,
+                "point_estimate_met": utility_point_met,
+                "ci95_case_cluster_bootstrap": utility_interval,
+                "lower_bound_must_exceed": utility_lower_floor,
+                "lower_bound_met": utility_lower_met,
+                "met": utility_met,
+            },
+            "attack": {
+                "rule": "interval_upper_bound",
+                "metric": "targeted_attack_success_final",
+                "point_estimate": metrics["targeted_attack_success_final"]["delta"],
+                "ci95_case_cluster_bootstrap": attack_interval,
+                "upper_bound_must_be_below": attack_margin,
+                "met": attack_met,
+            },
+        }
         decision["comparison_kind"] = comparison_kind
         decision["gated_outcome"] = (
             "not_gate_eligible_descriptive_comparison"
@@ -809,8 +784,10 @@ def compare_runs(
             "decision": decision,
         })
 
-    result: dict[str, Any] = {
-        "schema_version": 1,
+    outcomes = [row["decision"]["gated_outcome"] for row in comparisons]
+    return {
+        "schema_version": 2,
+        "regression_policy_version": REGRESSION_POLICY_VERSION,
         "comparison_kind": comparison_kind,
         "compatibility_problems": problems,
         "baseline_manifest": str(baseline_manifest_path),
@@ -818,18 +795,13 @@ def compare_runs(
         "regression_policy_sha256": policy_sha256,
         "bootstrap": {"samples": bootstrap_samples, "seed": seed, "unit": "authored case cluster"},
         "comparisons": comparisons,
-    }
-    if policy_version >= 2:
-        outcomes = [row["decision"]["gated_outcome"] for row in comparisons]
-        result["schema_version"] = 2
-        result["regression_policy_version"] = policy_version
-        result["promotion"] = {
+        "promotion": {
             "requires": promotion_scope,
             "models_evaluated": len(comparisons),
             "models_promoting": outcomes.count("promote_candidate"),
             "decision": _promotion_decision(outcomes, promotion_scope),
-        }
-    return result
+        },
+    }
 
 
 def markdown_comparison(result: dict[str, Any]) -> str:

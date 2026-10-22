@@ -272,7 +272,7 @@ def main() -> int:
     compare.add_argument("--seed", type=int, default=1729)
     compare.add_argument(
         "--regression-policy", type=Path, default=REGRESSION_POLICY,
-        help="policy file; pass an archived evaluator/policies/ file to regenerate a historical comparison",
+        help="policy file declaring the current policy_version (default: evaluator/regression-policy.json)",
     )
     compare.add_argument("--output", type=Path)
 

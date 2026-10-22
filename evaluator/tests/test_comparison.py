@@ -4,19 +4,17 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
 from evaluator.comparison import (
-    HISTORICAL_POLICIES,
     REGRESSION_POLICY,
+    REGRESSION_POLICY_VERSION,
     _promotion_decision,
     compare_runs,
     markdown_comparison,
-    regression_policy_for_sha256,
 )
 from evaluator.metrics import percentile, rate, wilson_interval
 
@@ -290,17 +288,8 @@ class ComparisonTest(unittest.TestCase):
         self.assertFalse(utility["lower_bound_met"])
         self.assertFalse(decision["minimum_utility_improvement_met"])
         self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
-        self.assertEqual(result["regression_policy_version"], 2)
-
-        # The archived version 1 policy tested the point estimate alone and passed it.
-        legacy = self._multi_model_result(
-            {"model": cases}, policy_path=HISTORICAL_POLICIES / "regression-policy-v1.json"
-        )
-        legacy_decision = legacy["comparisons"][0]["decision"]
-        self.assertTrue(legacy_decision["minimum_utility_improvement_met"])
-        self.assertNotIn("rules", legacy_decision)
-        self.assertNotIn("promotion", legacy)
-        self.assertEqual(legacy["schema_version"], 1)
+        self.assertEqual(result["regression_policy_version"], REGRESSION_POLICY_VERSION)
+        self.assertEqual(result["schema_version"], 2)
 
     def test_utility_rule_passes_when_interval_excludes_zero(self) -> None:
         result = self._multi_model_result({"model": [(False, True)] * 4})
@@ -359,7 +348,7 @@ class ComparisonTest(unittest.TestCase):
                 variant = self._policy_variant(directory, **rule)
                 with self.assertRaisesRegex(ValueError, message):
                     self._multi_model_result({"model": [(False, True)] * 4}, policy_path=variant)
-        for version in (3, True, 2.0):
+        for version in (1, 3, True, 2.0):
             with self.subTest(policy_version=version), tempfile.TemporaryDirectory() as directory:
                 policy_path = Path(directory) / "policy.json"
                 policy = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
@@ -368,7 +357,7 @@ class ComparisonTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "unsupported regression policy_version"):
                     self._multi_model_result({"model": [(False, True)] * 4}, policy_path=policy_path)
 
-    def test_missing_policy_version_is_refused_unless_bytes_are_archived(self) -> None:
+    def test_missing_policy_version_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             policy_path = Path(directory) / "policy.json"
             policy = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
@@ -376,16 +365,14 @@ class ComparisonTest(unittest.TestCase):
             policy_path.write_text(json.dumps(policy), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "policy_version is required"):
                 self._multi_model_result({"model": [(False, True)] * 4}, policy_path=policy_path)
-            # The same omission in a copy of the archived v1 rule, re-serialized
-            # so its bytes differ, is refused too.
-            legacy = json.loads((HISTORICAL_POLICIES / "regression-policy-v1.json").read_text(encoding="utf-8"))
-            policy_path.write_text(json.dumps(legacy), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "policy_version is required"):
-                self._multi_model_result({"model": [(False, True)] * 4}, policy_path=policy_path)
-        archived = self._multi_model_result(
-            {"model": [(False, True)] * 4}, policy_path=HISTORICAL_POLICIES / "regression-policy-v1.json"
+
+    def test_result_records_the_policy_bytes_by_hash(self) -> None:
+        result = self._multi_model_result({"model": [(False, True)] * 4})
+        self.assertEqual(
+            result["regression_policy_sha256"],
+            hashlib.sha256(REGRESSION_POLICY.read_bytes()).hexdigest(),
         )
-        self.assertEqual(archived["schema_version"], 1)
+        self.assertEqual(result["regression_policy_version"], REGRESSION_POLICY_VERSION)
 
     def test_attack_scores_from_different_oracle_revisions_are_not_gated(self) -> None:
         prompts = ("production-2026-08", "reliability-v1")
@@ -468,19 +455,6 @@ class ComparisonTest(unittest.TestCase):
             with self.subTest(outcomes=outcomes):
                 self.assertEqual(_promotion_decision(outcomes, "all_models"), all_models)
                 self.assertEqual(_promotion_decision(outcomes, "any_model"), any_model)
-
-    def test_policy_is_resolved_by_recorded_sha256(self) -> None:
-        archived = HISTORICAL_POLICIES / "regression-policy-v1.json"
-        for path in (REGRESSION_POLICY, archived):
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            self.assertEqual(regression_policy_for_sha256(digest), path)
-        current = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
-        self.assertEqual(
-            current["supersedes"]["sha256"],
-            hashlib.sha256(archived.read_bytes()).hexdigest(),
-        )
-        with self.assertRaisesRegex(ValueError, "no current or archived"):
-            regression_policy_for_sha256("0" * 64)
 
     def test_incompatible_suite_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
@@ -655,46 +629,3 @@ class ComparisonTest(unittest.TestCase):
                 compare_runs(path, path, bootstrap_samples=10)
             self.assertIn("selected provider/model set differs", str(raised.exception))
 
-
-ROOT = Path(__file__).resolve().parents[2]
-EVIDENCE = ROOT / ".news-briefing" / "evidence"
-COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-production-runner.json"
-
-
-class CommittedComparisonTest(unittest.TestCase):
-    """Regenerate a published comparison so bootstrap draw order cannot drift."""
-
-    def test_committed_parity_v2_comparison_reproduces(self) -> None:
-        if not all(
-            (EVIDENCE / bundle / "manifest.json").is_file()
-            for bundle in ("parity-v1-evidence", "parity-v2-evidence")
-        ):
-            message = "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch"
-            # CI sets REQUIRE_EVIDENCE=1 after fetching, so a missing bundle fails there.
-            if os.environ.get("REQUIRE_EVIDENCE") == "1":
-                self.fail(message)
-            self.skipTest(message)
-        committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
-        row = committed["comparisons"][0]
-        result = compare_runs(
-            EVIDENCE / "parity-v1-evidence" / "manifest.json",
-            EVIDENCE / "parity-v2-evidence" / "manifest.json",
-            baseline_prompt=row["baseline_prompt"],
-            candidate_prompt=row["candidate_prompt"],
-            allow_descriptive=True,
-            bootstrap_samples=committed["bootstrap"]["samples"],
-            seed=committed["bootstrap"]["seed"],
-            # Regenerate under the exact policy bytes the committed file records.
-            policy_path=regression_policy_for_sha256(committed["regression_policy_sha256"]),
-        )
-        # The published file records repository-relative manifest paths.
-        result["baseline_manifest"] = committed["baseline_manifest"]
-        result["candidate_manifest"] = committed["candidate_manifest"]
-        self.assertEqual(
-            json.dumps(result, indent=2, sort_keys=True) + "\n",
-            COMMITTED_COMPARISON.read_text(encoding="utf-8"),
-        )
-        self.assertEqual(
-            markdown_comparison(result),
-            COMMITTED_COMPARISON.with_suffix(".md").read_text(encoding="utf-8"),
-        )
