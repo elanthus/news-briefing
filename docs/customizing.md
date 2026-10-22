@@ -33,6 +33,12 @@ Failed sources remain visible in corpus health. See [fetching](design.md#fetchin
 These include The Verge, Ars Technica, Wired, GitHub Changelog, Simon Willison's Weblog, and Hacker News.
 A new feed has no relevance filter unless you add one there.
 
+`SOURCE_NOISE_FILTERS` in the same module drops items that match a pattern, per source.
+It applies before the relevance filter.
+The Codex Releases feed uses it to drop prerelease tags such as `0.164.0-alpha.12`.
+Stable releases pass through.
+Add a feed there when it publishes items that are never briefing material.
+
 `dev_community` includes release feeds for Claude Code, Cursor, Codex, and MCP reference servers.
 It also includes GitHub Changelog, Simon Willison's blog, and subreddits.
 Reddit sources use the smaller of `--source-cap` and `REDDIT_SOURCE_CAP` in `news_fetch/curation.py`.
