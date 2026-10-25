@@ -72,7 +72,8 @@ PAGE_DISPOSITIONS = {"ready", "review_required"}
 PUBLICATION_RANK = {"ready": 2, "review_required": 1}
 PROJECT_URL = "https://github.com/elanthus/news-briefing"
 PROJECT_DESCRIPTION = (
-    "A daily LLM-generated news briefing with deterministic corpus and citation checks."
+    "A daily LLM-generated news briefing with deterministic corpus and citation checks "
+    "and Jev decision-model review of prose against frozen evidence."
 )
 FAVICON_SOURCE_DIR = Path(__file__).resolve().parent / "docs" / "images"
 FAVICON_FILENAMES = ("favicon-light.png", "favicon-dark.png")

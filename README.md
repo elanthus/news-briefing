@@ -22,7 +22,7 @@ Code checks the corpus and controls citation destinations. Models select stories
 - **Two generation passes.** Code validates the selection and freezes its evidence. The prose pass receives only that evidence. See [ADR 0002](docs/adr/0002-two-pass-selection-then-prose-with-frozen-evidence.md).
 - **Enforced input limits.** The fetcher checks public addresses at each redirect. It rejects XML declarations with `DOCTYPE`. Provider adapters limit captured output.
 - **Reproducible evaluation.** The [evaluator](evaluator/README.md) records protocols, uncertainty, and evidence hashes. Public [evidence bundles](docs/results/EVIDENCE-ASSETS.md) support verification without credentials or model calls.
-- **Daily review and repair.** Jev reviews each ready report. Confirmed findings can trigger bounded HY3 repairs. The [integrity report](docs/jev-review.md) records each result.
+- **Daily review and repair.** Jev, a decision model served through OpenRouter's Decisions API, reviews each ready report. It returns probabilities, not prose. Confirmed findings can trigger bounded HY3 repairs. The [integrity report](docs/jev-review.md) records each result.
 
 An August 2026 run cited an article outside its fetched corpus. The [historical log](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair) records that failure.
 Code now enforces properties that it can check. Models make judgments that code cannot prove.

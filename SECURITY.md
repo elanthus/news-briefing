@@ -28,6 +28,7 @@ These boundaries include:
 - Parsing and resource bounds, including XML checks in `news_fetch/feed_xml.py`.
 - Credentials used by the fetcher, runner, archive, and evaluator.
 - OpenRouter and Claude Code action-tool restrictions.
+- Jev Decisions API requests in `agent_runner/decisions.py`: request and response byte limits, Noul-only questions, probability validation, and no retry of an ambiguously billed request.
 - Citation projection and artifact verification at review, repair, and publication handoffs.
 - Evaluator checkpoint integrity and provider-event validation.
 - Prompt injection that escapes an enforced boundary.

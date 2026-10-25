@@ -12,6 +12,8 @@ from evaluator.cases import HEURISTIC_CLAIM_CHECKS
 from evaluator.metrics import latency_summary, rate
 from evaluator.plan import _attack_dimensions, _json
 
+QUALITY_JUDGMENTS_SCHEMA_VERSION = 3
+
 ReportWriter = Callable[[dict[str, Any], Path], dict[str, Any]]
 
 
@@ -237,8 +239,6 @@ def _pairwise_quality(
 ) -> dict[str, Any]:
     if quality is None:
         return {"status": "not_run", "axes": []}
-    if quality.get("_report_status") == "stale_schema":
-        return {"status": "stale_schema", "axes": []}
     axes = [
         row for row in quality.get("win_rates", []) if (row["provider"], row["model"], row["prompt_version"]) == key
     ]
@@ -257,8 +257,10 @@ def _load_quality_summary(artifact_root: Path | None) -> dict[str, Any] | None:
     payload = _json(path)
     if not isinstance(payload, dict):
         raise ValueError(f"quality judgments must contain an object: {path}")
-    if payload.get("schema_version") != 3:
-        return {"_report_status": "stale_schema"}
+    if payload.get("schema_version") != QUALITY_JUDGMENTS_SCHEMA_VERSION:
+        raise ValueError(
+            f"quality judgments must declare schema_version {QUALITY_JUDGMENTS_SCHEMA_VERSION}: {path}"
+        )
     return payload
 
 
@@ -467,7 +469,7 @@ def _operations_summary(
 
 
 def _pairwise_summary(quality: dict[str, Any] | None) -> dict[str, Any]:
-    status = "not_run" if quality is None else quality.get("_report_status", "available")
+    status = "not_run" if quality is None else "available"
     return {
         "status": status,
         "judge": None if quality is None else quality.get("judge"),
