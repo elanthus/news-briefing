@@ -35,7 +35,7 @@ from evaluator.judge_io import (
     verified_generation_artifact,
 )
 from evaluator.metrics import rate
-from evaluator.report import markdown_report, summarize
+from evaluator.report import QUALITY_JUDGMENTS_SCHEMA_VERSION, markdown_report, summarize
 from evaluator.scoring import apply_adjudications
 
 QUALITY_AXES = ("faithfulness", "salience", "concision", "coherence")
@@ -232,7 +232,7 @@ def _identity(
 ) -> dict[str, Any]:
     """Bind resumable quality checkpoints to their exact inputs and judge."""
     return {
-        "schema_version": 3,
+        "schema_version": QUALITY_JUDGMENTS_SCHEMA_VERSION,
         "manifest": str(manifest_path.resolve()),
         "manifest_sha256": sha256_bytes(manifest_content),
         "suite": str(suite_path.resolve()),
@@ -363,7 +363,7 @@ def run_quality_judging(
         })
 
     result = {
-        "schema_version": 3,
+        "schema_version": QUALITY_JUDGMENTS_SCHEMA_VERSION,
         "manifest": str(manifest_path),
         "judge": reviewer_identity(judge),
         "pairs_available": len(all_pairs),

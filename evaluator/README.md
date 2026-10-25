@@ -596,7 +596,8 @@ Low consistency limits interpretation.
 Default output refreshes the main report. A new empty output directory retains an independent assessment.
 Checkpoints bind rubric, prompts, corpus, output, config, reviewer, controls, and timeout.
 Changed inputs refuse resume.
-Quality schema 3 records this provenance; older schema 2 reports appear as `stale_schema` in current reports.
+Quality schema 3 records this provenance. Reporting reads only that version and refuses any other;
+reproduce an older quality report from the commit that wrote it.
 Machine preference is additional evidence, not human review.
 
 ## Label review

@@ -157,6 +157,29 @@ class ReportingTest(unittest.TestCase):
         self.assertEqual(report["operations"]["recorded_case_trials"], 5)
 
 
+    def test_summarize_reads_only_the_current_quality_judgments_schema(self) -> None:
+        manifest = {
+            "run_status": "complete",
+            "planned_case_trials": 0,
+            "grounding_measure": "fixture proxy",
+            "results": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            judgments = root / "quality-judgments" / "quality-judgments.json"
+            judgments.parent.mkdir()
+            judgments.write_text(json.dumps({"schema_version": 2, "win_rates": []}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "schema_version 3"):
+                summarize(manifest, root)
+            judgments.write_text(
+                json.dumps({"schema_version": 3, "judge": "fixture", "win_rates": []}), encoding="utf-8"
+            )
+            judging = summarize(manifest, root)["score_families"]["editorial_quality"]["pairwise_judging"]
+            self.assertEqual(judging["status"], "available")
+            self.assertEqual(judging["judge"], "fixture")
+            judging = summarize(manifest, None)["score_families"]["editorial_quality"]["pairwise_judging"]
+            self.assertEqual(judging["status"], "not_run")
+
     def test_summarize_tolerates_pre_utility_under_attack_manifests(self) -> None:
         """A readable manifest may omit utility_under_attack without crashing `report`.
 

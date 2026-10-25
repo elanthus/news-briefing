@@ -168,5 +168,6 @@ other write deploy key may be added while this bypass exists.
   (`bypass_actors[].actor_type`, `bypass_mode`, `actor_id: null` for DeployKey)
 - [Creating rulesets for a repository](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository)
   (eligible bypass actors)
-- [`.github/workflows/monitor-grounding.yml`](../../.github/workflows/monitor-grounding.yml)
+- `.github/workflows/monitor-grounding.yml`, removed with the monitor-only code in
+  [pull request 268](https://github.com/elanthus/news-briefing/pull/268) under [ADR 0006](0006-protect-main-without-bypass.md)
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
