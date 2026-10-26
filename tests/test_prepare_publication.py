@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from datetime import date
@@ -866,7 +867,8 @@ class PreparePublicationTests(unittest.TestCase):
         assert len(costs) == 1, record.integrity["costs"]
         return costs[0]
 
-    def _ready_chain(self, root: Path, attempts: list[dict[str, object]]) -> Path:
+    def _ready_chain(self, root: Path, attempts: list[dict[str, object]],
+                     timing: dict[str, object] | None = None) -> Path:
         chain = root / "run"
         selected = chain / "02-deepseek-deepseek-v4-flash-0731"
         selected.mkdir(parents=True)
@@ -874,14 +876,75 @@ class PreparePublicationTests(unittest.TestCase):
         (selected / "final.md").write_bytes(content)
         self._write_manifest(selected, "ready", "final", "final.md", content, [],
                              provider="openrouter", model="deepseek/deepseek-v4-flash-0731",
-                             prompt_sha256="b" * 64)
+                             prompt_sha256="b" * 64,
+                             started_at="2026-08-20T13:33:00+00:00", completed_at="2026-08-20T13:36:00+00:00")
         (chain / "fallback-log.json").write_text(json.dumps({
             "status": "ready", "selected_run_dir": selected.name,
             "selected_model": "deepseek/deepseek-v4-flash-0731",
             "model_chain": ["tencent/hy3", "deepseek/deepseek-v4-flash-0731", "google/gemini-3.7-flash"],
-            "attempts": attempts,
+            "attempts": attempts, **(timing or {}),
         }), encoding="utf-8")
         return chain
+
+    def test_generation_timing_spans_the_whole_chain_not_the_selected_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chain = self._ready_chain(root, [
+                {"index": 1, "model": "tencent/hy3", "status": "failed", "run_dir": "01-tencent-hy3",
+                 "generation_spend": {"known_usd": 0.0125, "unknown_cost_calls": 0, "calls": 2}},
+                {"index": 2, "model": "deepseek/deepseek-v4-flash-0731", "status": "ready",
+                 "run_dir": "02-deepseek-deepseek-v4-flash-0731",
+                 "generation_spend": {"known_usd": 0.03, "unknown_cost_calls": 0, "calls": 2}},
+            ], timing={"started_at": "2026-08-20T13:30:00+00:00", "completed_at": "2026-08-20T13:36:05+00:00"})
+            record = prepare_publication(chain, root / "missing-corpus.json", root / "history", date(2026, 8, 20))
+            # The failed first model's three minutes are part of what the day cost in time.
+            self.assertEqual(record.integrity["generation_timing"],
+                             {"started_at": "2026-08-20T13:30:00+00:00", "completed_at": "2026-08-20T13:36:05+00:00"})
+            sidecar = json.loads((root / "history/2026-08-20.json").read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["integrity"]["generation_timing"]["completed_at"], "2026-08-20T13:36:05+00:00")
+            self.assertEqual(sidecar["integrity"]["version"], 2)
+
+    def test_generation_timing_is_unrecorded_when_the_chain_log_cannot_be_trusted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            attempts = [{"index": 2, "model": "deepseek/deepseek-v4-flash-0731", "status": "ready",
+                         "run_dir": "02-deepseek-deepseek-v4-flash-0731",
+                         "generation_spend": {"known_usd": 0.03, "unknown_cost_calls": 0, "calls": 2}}]
+            # Reversed timestamps are recorded but unusable: a warning and no value.
+            chain = self._ready_chain(root, attempts, timing={
+                "started_at": "2026-08-20T13:36:05+00:00", "completed_at": "2026-08-20T13:30:00+00:00"})
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                record = prepare_publication(chain, root / "missing-corpus.json", root / "history",
+                                             date(2026, 8, 20))
+            self.assertIsNone(record.integrity["generation_timing"])
+            self.assertIn("generation timing is unusable", stderr.getvalue())
+            # A chain log without timestamps is silently unrecorded, and the
+            # selected run's own manifest span is not substituted for the chain's.
+            shutil.rmtree(chain)
+            chain = self._ready_chain(root, attempts)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                record = prepare_publication(chain, root / "missing-corpus.json", root / "history",
+                                             date(2026, 8, 20))
+            self.assertIsNone(record.integrity["generation_timing"])
+            self.assertNotIn("generation timing", stderr.getvalue())
+
+    def test_generation_timing_comes_from_the_manifest_without_a_fallback_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            content = b"manual briefing\n"
+            (run / "final.md").write_bytes(content)
+            self._write_manifest(
+                run, "ready", "final", "final.md", content, [],
+                provider="openrouter", model="tencent/hy3", prompt_sha256="c" * 64,
+                started_at="2026-08-20T13:30:00+00:00", completed_at="2026-08-20T13:32:30+00:00",
+            )
+            record = prepare_publication(run, root / "missing-corpus.json", root / "history", date(2026, 8, 20))
+            self.assertEqual(record.integrity["generation_timing"],
+                             {"started_at": "2026-08-20T13:30:00+00:00", "completed_at": "2026-08-20T13:32:30+00:00"})
 
     def test_generation_cost_sums_every_chain_attempt_including_failed_ones(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1107,6 +1170,8 @@ class PreparePublicationTests(unittest.TestCase):
         prompt_sha256: str | None = None,
         extra_attempts: list[dict[str, object]] | None = None,
         generation_budget: dict[str, object] | None = None,
+        started_at: str | None = None,
+        completed_at: str | None = None,
     ) -> None:
         artifacts = {artifact_name: hashlib.sha256(digest_content).hexdigest()}
         attempts: list[dict[str, object]] = list(extra_attempts or [])
@@ -1147,6 +1212,10 @@ class PreparePublicationTests(unittest.TestCase):
             manifest["identity"] = {"prompt_sha256": prompt_sha256}
         if generation_budget is not None:
             manifest["generation_budget"] = generation_budget
+        if started_at is not None:
+            manifest["started_at"] = started_at
+        if completed_at is not None:
+            manifest["completed_at"] = completed_at
         (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 

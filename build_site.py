@@ -37,6 +37,7 @@ from publication_schema import (
     INTEGRITY_REASON_MESSAGES,
     Provenance,
     ReviewFinding,
+    generation_seconds,
     parse_finding,
     parse_integrity,
     parse_provenance,
@@ -52,6 +53,8 @@ SIDECAR_FIELDS = {
 SIDECAR_FIELDS |= {"semantic_audit"}
 SIDECAR_FIELDS |= {"integrity"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
+HISTORY_SCHEMA_VERSION = 10
+PROVIDER_LABELS = {"openrouter": "OpenRouter"}
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -181,7 +184,8 @@ p.status-chip { border-radius: .9rem; display: inline-block; font-weight: 600; m
 .integrity-report h1 { font-size: 1.65rem; margin: .5rem 0; }
 .integrity-report h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; }
 .decision { font-family: var(--serif); font-size: 1.2rem; line-height: 1.45; }
-.decision-facts { color: var(--muted); font-size: .9rem; }
+.decision-facts, .generation-facts { color: var(--muted); font-size: .9rem; }
+.generation-summary { border-top: 1px solid var(--rule); font-size: .85rem; margin-top: 1.5rem; padding-top: .6rem; }
 .flag-list li, .coverage-list li { border-bottom: 1px solid var(--rule); padding: .45rem 0; }
 .flag-list a { text-decoration: none; }
 .diff { border-left: .25rem solid var(--rule); padding-left: .8rem; }
@@ -384,10 +388,10 @@ def _load_history(path: Path) -> list[BriefingEntry]:
         not isinstance(payload, dict)
         or set(payload) != {"schema_version", "entries"}
         or type(payload.get("schema_version")) is not int
-        or payload["schema_version"] != 9
+        or payload["schema_version"] != HISTORY_SCHEMA_VERSION
         or not isinstance(payload.get("entries"), list)
     ):
-        raise ValueError(f"history {path} must use schema_version 9 with an entries array")
+        raise ValueError(f"history {path} must use schema_version {HISTORY_SCHEMA_VERSION} with an entries array")
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
@@ -452,7 +456,7 @@ def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
 
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
-        "schema_version": 9,
+        "schema_version": HISTORY_SCHEMA_VERSION,
         "entries": [
             {
                 "semantic_audit": entry.semantic_audit,
@@ -1166,7 +1170,9 @@ def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
         f'<nav class="section-nav" aria-label="Sections"><ul>{"".join(nav_links)}</ul></nav>\n'
         if len(nav_links) > 1 else ""
     )
-    return f'<p class="dateline">{dateline}</p>\n{masthead}{nav}{"".join(sections)}{notes}'
+    summary = _generation_summary(entry)
+    footer = f'<p class="muted generation-summary">{html.escape(summary)}</p>\n' if summary else ""
+    return f'<p class="dateline">{dateline}</p>\n{masthead}{nav}{"".join(sections)}{notes}{footer}'
 
 
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
@@ -1311,12 +1317,97 @@ def _count_label(n: int, noun: str) -> str:
     return f"{n} {noun}s"
 
 
+def _duration_label(seconds: float) -> str:
+    hours, rest = divmod(round(seconds), 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours} h {minutes} min"
+    if minutes:
+        return f"{minutes} min {secs} s"
+    return f"{secs} s"
+
+
+def _model_label(model: str) -> str:
+    return MODEL_LABELS.get(model, model)
+
+
+def _charges_sentence(record: dict[str, Any]) -> str:
+    """Every recorded model charge for the date, with its uncertainty stated.
+
+    Generation is the fallback chain; review is Jev's initial review, repair
+    generation, and follow-up. A phase whose billing never arrived is named
+    rather than summed as zero, so the figure never reads as a total it is not.
+    """
+    rows = record["costs"]
+    if not rows:
+        return "Model charges were not recorded."
+    known = {"generation": 0.0, "review": 0.0}
+    recorded: set[str] = set()
+    unreported: list[str] = []
+    unknown_calls = 0
+    for cost in rows:
+        group = "generation" if cost["phase"] == "generation" else "review"
+        recorded.add(group)
+        if cost["reported_cost_usd"] is None:
+            unreported.append(group)
+        else:
+            known[group] += cost["reported_cost_usd"]
+        if cost["unknown_cost_calls"]:
+            unknown_calls += cost["unknown_cost_calls"]
+    sentence = f"Model charges: ${known['generation'] + known['review']:.4f}"
+    if recorded == {"generation", "review"}:
+        sentence += f" (generation ${known['generation']:.4f}, review ${known['review']:.4f})"
+    elif recorded == {"review"}:
+        sentence += " for review; the generation charge was not recorded"
+    if unreported:
+        sentence += f", with the {' and '.join(dict.fromkeys(unreported))} charge not reported"
+    elif unknown_calls:
+        sentence += f", plus {_count_label(unknown_calls, 'call')} of unknown cost"
+    return sentence + "."
+
+
+def _generation_summary(entry: BriefingEntry) -> str:
+    """One plain sentence pair for readers: which model wrote the day, how long it took, what it cost.
+
+    Shown at the foot of the briefing and in the integrity report's summary box.
+    Model identifiers, a duration, and dollar figures only; the figures come
+    from the validated integrity record and never from model text.
+    """
+    record = entry.integrity
+    provenance = entry.provenance
+    if provenance is None and record is not None and record["generation"] is not None:
+        provenance = parse_provenance(record["generation"])
+    seconds = generation_seconds(record["generation_timing"]) if record is not None else None
+    if provenance is None and seconds is None and not (record and record["costs"]):
+        return ""
+    if provenance is not None:
+        opening = (f"Generated by {_model_label(provenance.model)} via "
+                   f"{PROVIDER_LABELS.get(provenance.provider, provenance.provider)}")
+        repair = (parse_provenance(record["repair_generation"])
+                  if record is not None and record["repair_generation"] is not None else None)
+        if repair is not None and repair.model != provenance.model:
+            opening += f", with repairs by {_model_label(repair.model)}"
+        if seconds is not None:
+            opening += f" in {_duration_label(seconds)}"
+    elif entry.disposition in PAGE_DISPOSITIONS:
+        opening = "The generating model was not recorded"
+    else:
+        opening = "No model produced this briefing"
+        if seconds is not None:
+            opening += f"; the attempts took {_duration_label(seconds)}"
+    sentences = [opening + "."]
+    if seconds is None:
+        sentences.append("Generation time was not recorded.")
+    sentences.append(_charges_sentence(record) if record is not None else "Model charges were not recorded.")
+    return " ".join(sentences)
+
+
 def _provenance_line(provenance: Provenance) -> str:
-    """Compact per-run generation summary for the integrity report only.
+    """Compact per-run generation summary for the integrity report's operator records.
 
     Model identifiers and counts only — the same public-facing content the
     provenance object carries, never prompt text, corpus text, or a URL. The
-    reader-facing page never calls this.
+    reader-facing page shows only ``_generation_summary``.
     """
     segments = [f"Generated by {provenance.provider} / {provenance.model}"]
     if provenance.attempt_count > 1:
@@ -1363,6 +1454,7 @@ def _render_report(
     coverage = _source_coverage(entry)
     public = entry.disposition in PAGE_DISPOSITIONS
     lead, detail = _decision_sentence(entry)
+    summary = _generation_summary(entry)
     parts = [
         f'<p><a href="../{briefing_href}">← Back to briefing</a></p>',
         f"<h1>Integrity report — {html.escape(entry.slug)}</h1>",
@@ -1372,7 +1464,8 @@ def _render_report(
         + "</p>"
         f'<p class="decision-facts">{html.escape(_checker_line(entry))} '
         f'Sources: <a href="#sources">{html.escape(coverage.label)}</a>.</p>'
-        "</section>",
+        + (f'<p class="generation-facts">{html.escape(summary)}</p>' if summary else "")
+        + "</section>",
     ]
     if entry.generation_failures:
         parts.append(_generation_failure_notice(entry))
@@ -1895,6 +1988,13 @@ def _provenance_and_costs(entry: BriefingEntry) -> str:
             )
         parts.append(
             "</ol><p>Phase order records execution; it does not imply measured durations.</p>"
+        )
+        timing = record["generation_timing"]
+        seconds = generation_seconds(timing)
+        parts.append(
+            "<p>Generation timing: not recorded.</p>" if timing is None or seconds is None else
+            f"<p>Generation timing (every attempt in the fallback chain): {html.escape(timing['started_at'])} — "
+            f"{html.escape(timing['completed_at'])}, {_duration_label(seconds)}.</p>"
         )
         for cost in record["costs"]:
             phase_label = (
