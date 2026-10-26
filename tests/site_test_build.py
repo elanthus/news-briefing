@@ -3002,6 +3002,31 @@ class MetricsLedgerTests(unittest.TestCase):
             self.assertNotIn('<p class="muted generation-summary">',
                              (site / "2026-10-11.html").read_text(encoding="utf-8"))
 
+    def test_generation_summary_keeps_a_recorded_duration_and_an_unrecorded_failed_day(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            entry = copy.deepcopy(_live_entry("2026-10-13"))
+            integrity = entry["integrity"]
+            assert isinstance(integrity, dict)
+            # A published day whose model identity was lost still reports its measured time.
+            entry["provenance"] = None
+            integrity["generation"] = None
+            integrity["generation_timing"] = {"started_at": "2026-10-13T13:30:05+00:00",
+                                              "completed_at": "2026-10-13T13:36:17+00:00"}
+            # A failed day from before integrity records existed still gets its line.
+            failed = {
+                "date": "2026-10-11", "disposition": "blocked", "findings_count": 0, "findings": [],
+                "degraded_sources": [], "repair_actions": [], "advisory_findings": [], "provenance": None,
+                "semantic_audit": None, "integrity": None, "markdown": None,
+                "generation_failures": [{"model": "tencent/hy3", "reason": "generation_failed"}],
+            }
+            site = _build_from_entries(Path(directory), [entry, failed])
+            page = _text((site / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("The generating model was not recorded; generation took 6 min 12 s. "
+                          "Model charges: $", page)
+            report = _text((site / "reports/2026-10-11.html").read_text(encoding="utf-8"))
+            self.assertIn("No model produced this briefing. Generation time was not recorded. "
+                          "Model charges were not recorded.", report)
+
     def test_ledger_at_any_other_schema_version_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

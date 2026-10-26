@@ -70,6 +70,7 @@ The public page displays a quarantine stub, not that preview.
 Every status chip links to `reports/<date>.html`.
 A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges.
 Integrity reports show the publication decision and reason, that same generation line, published changes, flagged stories, exclusion log, and affected sources.
+An unpublished day's report always carries the line, stating "not recorded" for any missing figure, because the cost of a failed day is what a reader most needs.
 Collapsed operator sections contain statistics, actions, scores, phases, costs, and hashes.
 Ready pages have no inline review panels.
 Their accountability log appears once in the integrity report, with a link from the briefing.
