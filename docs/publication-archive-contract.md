@@ -185,8 +185,10 @@ Charts are escaped inline SVG. The page loads no script.
 Current readers require history schema 10, integrity version 2, the complete sidecar shape, semantic-audit schema 3, and versioned failure records.
 The October 15, 2026 cutover to schema 9 preserved inspected public Markdown without clearing history.
 The October 26, 2026 cutover to schema 10 adds `generation_timing` to the integrity record and bumps it to version 2.
-A deployed schema 9 history is refused, not upgraded, so the first build after that cutover fails until the archive restarts.
+A deployed schema 9 history is refused, not upgraded, so every build after that cutover fails until the archive restarts.
 Restart it with a manual `single-day` run and `allow_empty_history: true`.
+That input skips the prior-history download and builds the archive from the run's own dates; it does not merely tolerate a failed download.
+Scheduled runs never set it, so they merge into the restarted history from the next day on.
 The metrics ledger keeps every earlier date's row, because it is merged from its own prior copy, not from history.
 The earlier briefings leave the site; their run directories stay in the encrypted diagnostics archives for fourteen days, and their sidecars can be rebuilt with `prepare_publication.py` at a commit after the cutover.
 Historical audits use a private dataset tied to their source revisions.
