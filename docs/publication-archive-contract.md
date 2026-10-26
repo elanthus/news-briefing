@@ -68,9 +68,18 @@ A `review_required` result can retain its verified `preview.md` in publication m
 The public page displays a quarantine stub, not that preview.
 
 Every status chip links to `reports/<date>.html`.
-A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges.
+A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges, when any of them is recorded.
 Integrity reports show the publication decision and reason, that same generation line, published changes, flagged stories, exclusion log, and affected sources.
-An unpublished day's report always carries the line, stating "not recorded" for any missing figure, because the cost of a failed day is what a reader most needs.
+Each figure states its own gap, so a missing value never reads as zero:
+
+- A published day without provenance reads "The generating model was not recorded", followed by "; generation took …" when timing exists.
+- Missing timing reads "Generation time was not recorded."
+- A cost list without a generation row reads "for review; the generation charge was not recorded".
+- A phase whose billing never arrived reads "with the generation charge not reported"; calls of unknown cost read "plus N calls of unknown cost".
+- A recorded zero is printed as "$0.0000".
+
+A published day with none of these recorded shows no line.
+An unpublished day's report always carries the line, opening "No model produced this briefing", because the cost of a failed day is what a reader most needs.
 Collapsed operator sections contain statistics, actions, scores, phases, costs, and hashes.
 Ready pages have no inline review panels.
 Their accountability log appears once in the integrity report, with a link from the briefing.
