@@ -140,17 +140,23 @@ class DailyWorkflowTests(unittest.TestCase):
         actually stops the deploy."""
         # Assert the behavioral fields, not the human-readable description copy:
         # the boolean input exists, defaults off, is wired to the build env, and
-        # selects exactly one of --prior-history / --allow-empty-history.
+        # selects exactly one of --allow-empty-history / --prior-history. The
+        # flag wins even when a prior history was downloaded: its job is to
+        # start the archive over, which is the only way past a deployed history
+        # at a retired schema, so the download step is skipped under it too.
         self.assertIn("allow_empty_history:", WORKFLOW)
         self.assertIn("type: boolean", WORKFLOW)
         self.assertIn("default: false", WORKFLOW)
         self.assertIn("ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}", WORKFLOW)
+        download_step = WORKFLOW.split("- name: Download prior live history", 1)[1].split("- name:", 1)[0]
+        self.assertIn("if: always() && !inputs.allow_empty_history", download_step)
         self.assertRegex(
             WORKFLOW,
-            r'\[\[ -f prior-history\.json \]\]; then\s+'
-            r'args\+=\(--prior-history prior-history\.json\)\s+'
-            r'elif \[\[ "\$ALLOW_EMPTY_HISTORY" == "true" \]\]; then\s+'
-            r'args\+=\(--allow-empty-history\)',
+            r'if \[\[ "\$ALLOW_EMPTY_HISTORY" == "true" \]\]; then\s+'
+            r'(#[^\n]*\n\s+)?rm -f prior-history\.json\s+'
+            r'args\+=\(--allow-empty-history\)\s+'
+            r'elif \[\[ -f prior-history\.json \]\]; then\s+'
+            r'args\+=\(--prior-history prior-history\.json\)',
         )
         # No "|| true" or continue-on-error around the build step itself: a
         # missing prior history without the escape hatch must fail the job.

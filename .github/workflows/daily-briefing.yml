@@ -18,7 +18,7 @@ on:
         required: false
         type: string
       allow_empty_history:
-        description: Deploy even if the prior published history could not be downloaded
+        description: Start a fresh retention window - skip the deployed history and build from this run alone (use after a history schema cutover, or when the download keeps failing)
         required: false
         default: false
         type: boolean
@@ -77,7 +77,10 @@ jobs:
         run: python3 daily_publish.py generate-reports
 
       - name: Download prior live history
-        if: always()
+        # allow_empty_history skips the download outright: a deployed history
+        # at a retired schema would otherwise be downloaded and refused, and the
+        # flag's purpose is to start the archive over without it.
+        if: always() && !inputs.allow_empty_history
         continue-on-error: true
         # Retry a transient Pages/CDN failure: a missing prior-history.json fails
         # the deploy (build_site requires it), which would throw away this run's
@@ -132,10 +135,12 @@ jobs:
           ALLOW_EMPTY_HISTORY: ${{ inputs.allow_empty_history }}
         run: |
           args=(briefing-history site)
-          if [[ -f prior-history.json ]]; then
-            args+=(--prior-history prior-history.json)
-          elif [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then
+          if [[ "$ALLOW_EMPTY_HISTORY" == "true" ]]; then
+            # The download step was skipped; never merge a stray file either.
+            rm -f prior-history.json
             args+=(--allow-empty-history)
+          elif [[ -f prior-history.json ]]; then
+            args+=(--prior-history prior-history.json)
           fi
           if [[ -f prior-metrics.json ]]; then
             args+=(--prior-metrics prior-metrics.json)
