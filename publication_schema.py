@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import re
 import urllib.parse
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -370,10 +371,18 @@ INTEGRITY_REASON_MESSAGES = {
     "rejected": "The publication candidate was rejected.",
     "no_result": "Generation did not produce a publishable result.",
 }
+INTEGRITY_VERSION = 2
 INTEGRITY_FIELDS = {
     "version", "decision", "reasons", "acceptance_verified", "generation", "repair_generation",
-    "artifacts", "phases", "actions", "initial_review", "followup_review", "costs", "workflow_run_id", "corpus_health",
+    "artifacts", "phases", "actions", "initial_review", "followup_review", "costs", "generation_timing",
+    "workflow_run_id", "corpus_health",
 }
+# ``generation_timing`` is the wall clock of the date's model chain, from the
+# first attempt's start to the last attempt's end, or null when the run left no
+# usable record. A generation allowance is 1,800 seconds by default; a day can
+# raise it, but nothing legitimately runs past this bound.
+GENERATION_TIMING_FIELDS = {"started_at", "completed_at"}
+MAX_GENERATION_SECONDS = 86_400
 INTEGRITY_PHASES = {
     "generation_preparation", "initial_validation", "initial_review", "confirmation", "code_removal",
     "selection_repair", "prose_repair", "candidate_validation", "followup_review", "partial_assembly",
@@ -489,6 +498,38 @@ def _integrity_coverage(value: object) -> dict[str, Any] | None:
     return row
 
 
+def _integrity_generation_timing(value: object) -> None:
+    if value is None:
+        return
+    timing = _integrity_object(value, GENERATION_TIMING_FIELDS, "generation timing")
+    started = _integrity_timestamp(timing["started_at"])
+    completed = _integrity_timestamp(timing["completed_at"])
+    if started is None or completed is None:
+        raise ValueError("integrity generation timing requires both timestamps")
+    if not 0 <= (completed - started).total_seconds() <= MAX_GENERATION_SECONDS:
+        raise ValueError("integrity generation timing is out of bounds")
+
+
+def generation_timing_record(started_at: object, completed_at: object) -> dict[str, str] | None:
+    """A publishable ``generation_timing`` record, or None when the run's timestamps cannot be trusted."""
+    record = {"started_at": started_at, "completed_at": completed_at}
+    try:
+        _integrity_generation_timing(record)
+    except ValueError:
+        return None
+    return {"started_at": str(started_at), "completed_at": str(completed_at)}
+
+
+def generation_seconds(timing: Mapping[str, Any] | None) -> float | None:
+    """Elapsed seconds of a validated ``generation_timing`` record, or None when unrecorded."""
+    if timing is None:
+        return None
+    started = _integrity_timestamp(timing["started_at"])
+    completed = _integrity_timestamp(timing["completed_at"])
+    assert started is not None and completed is not None
+    return (completed - started).total_seconds()
+
+
 def _integrity_cost(value: object) -> None:
     if value is not None and (
         not isinstance(value, (int, float)) or isinstance(value, bool)
@@ -528,8 +569,9 @@ def parse_integrity(
     if raw is None:
         return None
     record = _integrity_object(raw, INTEGRITY_FIELDS, "record")
-    if type(record["version"]) is not int or record["version"] != 1:
+    if type(record["version"]) is not int or record["version"] != INTEGRITY_VERSION:
         raise ValueError("invalid integrity version")
+    _integrity_generation_timing(record["generation_timing"])
     decision = _integrity_enum(record["decision"], INTEGRITY_DECISIONS)
     reasons = _integrity_reasons(record["reasons"])
     accepted = record["acceptance_verified"]

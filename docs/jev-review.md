@@ -149,7 +149,7 @@ Exact word differences are escaped and displayed without interpreting model mark
 Article and Hacker News discussion destinations remain one source item.
 Every returned check remains available in public JSON.
 
-History schema 9 preserves valid metadata through merges, replacement, and rebuilds.
+History schema 10 preserves valid metadata through merges, replacement, and rebuilds.
 Older history schemas are rejected.
 Explicit `integrity: null` and `semantic_audit: null` represent unavailable records.
 Missing historical information is never recreated through new model calls.

@@ -3,7 +3,12 @@
 import copy
 import unittest
 
-from publication_schema import parse_integrity, parse_semantic_audit
+from publication_schema import (
+    generation_seconds,
+    generation_timing_record,
+    parse_integrity,
+    parse_semantic_audit,
+)
 
 POSITION = {"bucket": "sections", "section": "Tech", "index": 0}
 
@@ -38,7 +43,7 @@ def phase(sequence, name):
 
 def integrity_fixture():
     return {
-        "version": 1, "decision": "repaired_applied", "reasons": [], "acceptance_verified": True,
+        "version": 2, "decision": "repaired_applied", "reasons": [], "acceptance_verified": True,
         "generation": None, "repair_generation": None,
         "artifacts": [{"id": "original", "sha256": "a" * 64},
                       {"id": "candidate", "sha256": "b" * 64}, {"id": "published", "sha256": "b" * 64}],
@@ -51,6 +56,8 @@ def integrity_fixture():
         "initial_review": coverage(1, 1), "followup_review": coverage(),
         "costs": [{"phase": name, "reported_cost_usd": 0.01, "unknown_cost_calls": 0}
                   for name in ("initial_review", "repair_generation", "followup_review")],
+        "generation_timing": {"started_at": "2026-10-01T13:30:00+00:00",
+                              "completed_at": "2026-10-01T13:34:12+00:00"},
         "workflow_run_id": None, "corpus_health": None,
     }
 
@@ -73,7 +80,17 @@ class IntegritySchemaTests(unittest.TestCase):
 
     def test_every_bound_and_unknown_field_fails_closed(self):
         changes = [
-            ("version", True), ("version", 2), ("decision", "published"), ("reasons", ["remote error body"]),
+            ("version", True), ("version", 1), ("version", 3), ("decision", "published"),
+            ("reasons", ["remote error body"]),
+            ("generation_timing", {"started_at": "2026-10-01T13:30:00+00:00"}),
+            ("generation_timing", {"started_at": "2026-10-01T13:30:00+00:00", "completed_at": None}),
+            ("generation_timing", {"started_at": "2026-10-01T13:30:00", "completed_at": "2026-10-01T13:34:12"}),
+            ("generation_timing", {"started_at": "2026-10-01T13:34:12+00:00",
+                                   "completed_at": "2026-10-01T13:30:00+00:00"}),
+            ("generation_timing", {"started_at": "2026-10-01T13:30:00+00:00",
+                                   "completed_at": "2026-10-02T13:30:01+00:00"}),
+            ("generation_timing", {"started_at": "2026-10-01T13:30:00+00:00",
+                                   "completed_at": "2026-10-01T13:34:12+00:00", "seconds": 252}),
             ("reasons", ["provider_failure"] * 2), ("workflow_run_id", True), ("workflow_run_id", "123"),
             ("workflow_run_id", 0),
             ("workflow_run_id", 10**18 + 1), ("actions", [integrity_fixture()["actions"][0]] * 513),
@@ -88,6 +105,26 @@ class IntegritySchemaTests(unittest.TestCase):
         raw["private_path"] = "/private/run"
         with self.assertRaises(ValueError):
             parse_integrity(raw, semantic_audit=audit_fixture())
+
+    def test_generation_timing_is_unrecorded_or_a_bounded_utc_span(self):
+        raw = integrity_fixture()
+        self.assertAlmostEqual(generation_seconds(raw["generation_timing"]), 252.0)
+        raw["generation_timing"] = None
+        self.assertIsNotNone(parse_integrity(raw, semantic_audit=audit_fixture()))
+        self.assertIsNone(generation_seconds(None))
+        # The key is required even when the value is unrecorded.
+        del raw["generation_timing"]
+        with self.assertRaises(ValueError):
+            parse_integrity(raw, semantic_audit=audit_fixture())
+        # A record from a run leaves the same shape the parser accepts, and a
+        # malformed or out-of-order pair is unrecorded rather than guessed.
+        self.assertEqual(generation_timing_record("2026-10-01T13:30:00+00:00", "2026-10-01T13:34:12+00:00"),
+                         {"started_at": "2026-10-01T13:30:00+00:00", "completed_at": "2026-10-01T13:34:12+00:00"})
+        for started, completed in (("2026-10-01T13:34:12+00:00", "2026-10-01T13:30:00+00:00"),
+                                   ("2026-10-01T13:30:00", "2026-10-01T13:34:12"), (None, None), (1, 2),
+                                   ("2026-10-01T13:30:00+00:00", "2026-10-02T13:30:01+00:00")):
+            with self.subTest(started=started, completed=completed):
+                self.assertIsNone(generation_timing_record(started, completed))
 
     def test_subject_and_check_references_cannot_escape_verified_artifact_scope(self):
         changes = [

@@ -12,7 +12,7 @@ import corpus_schema
 from agent_runner.checkpoint import sha256_bytes
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json
 from agent_runner.stages import SELECTION_ATTEMPT_KINDS
-from publication_schema import parse_integrity, parse_provenance, provenance_payload
+from publication_schema import INTEGRITY_VERSION, parse_integrity, parse_provenance, provenance_payload
 
 
 def position_key(position: dict[str, Any]) -> str:
@@ -62,10 +62,10 @@ def run_provenance(manifest: dict[str, Any], *, attempt_index: int = 1,
 
 
 def blank_integrity(decision: str, reasons: list[str]) -> dict[str, Any]:
-    return {"version": 1, "decision": decision, "reasons": reasons, "acceptance_verified": False,
+    return {"version": INTEGRITY_VERSION, "decision": decision, "reasons": reasons, "acceptance_verified": False,
             "generation": None, "repair_generation": None, "artifacts": [], "phases": [], "actions": [],
-            "initial_review": None, "followup_review": None, "costs": [], "workflow_run_id": None,
-            "corpus_health": None}
+            "initial_review": None, "followup_review": None, "costs": [], "generation_timing": None,
+            "workflow_run_id": None, "corpus_health": None}
 
 
 def add_phase(record: dict[str, Any], phase: str, status: str, reasons: list[str] | None = None,

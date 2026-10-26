@@ -68,7 +68,18 @@ A `review_required` result can retain its verified `preview.md` in publication m
 The public page displays a quarantine stub, not that preview.
 
 Every status chip links to `reports/<date>.html`.
-Integrity reports show the publication decision and reason, published changes, flagged stories, exclusion log, and affected sources.
+A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges, when any of them is recorded.
+Integrity reports show the publication decision and reason, that same generation line, published changes, flagged stories, exclusion log, and affected sources.
+Each figure states its own gap, so a missing value never reads as zero:
+
+- A published day without provenance reads "The generating model was not recorded", followed by "; generation took …" when timing exists.
+- Missing timing reads "Generation time was not recorded."
+- A cost list without a generation row reads "for review; the generation charge was not recorded".
+- A phase whose billing never arrived reads "with the generation charge not reported"; calls of unknown cost read "plus N calls of unknown cost".
+- A recorded zero is printed as "$0.0000".
+
+A published day with none of these recorded shows no line.
+An unpublished day's report always carries the line, opening "No model produced this briefing", because the cost of a failed day is what a reader most needs.
 Collapsed operator sections contain statistics, actions, scores, phases, costs, and hashes.
 Ready pages have no inline review panels.
 Their accountability log appears once in the integrity report, with a link from the briefing.
@@ -131,6 +142,7 @@ The builder removes stale `site/corpora` before rendering.
 The ledger keeps one row per report date and is never truncated.
 Rows come from all merged entries before the seven-date history limit applies.
 The footer and "Behind this briefing" panel link to the metrics page.
+The generation line at the foot of a briefing names the model, the wall clock, and the charges for that date only.
 
 The workflow downloads prior metrics and history with bounded curl requests, `Cache-Control: no-cache`, and a per-run query parameter.
 These controls reduce stale CDN responses.
@@ -170,8 +182,13 @@ Charts are escaped inline SVG. The page loads no script.
 
 ## Reader retirement and research evidence
 
-Current readers require history schema 9, the complete sidecar shape, semantic-audit schema 3, and versioned failure records.
-The October 15, 2026 cutover preserved inspected public Markdown without clearing history.
+Current readers require history schema 10, integrity version 2, the complete sidecar shape, semantic-audit schema 3, and versioned failure records.
+The October 15, 2026 cutover to schema 9 preserved inspected public Markdown without clearing history.
+The October 26, 2026 cutover to schema 10 adds `generation_timing` to the integrity record and bumps it to version 2.
+A deployed schema 9 history is refused, not upgraded, so the first build after that cutover fails until the archive restarts.
+Restart it with a manual `single-day` run and `allow_empty_history: true`.
+The metrics ledger keeps every earlier date's row, because it is merged from its own prior copy, not from history.
+The earlier briefings leave the site; their run directories stay in the encrypted diagnostics archives for fourteen days, and their sidecars can be rebuilt with `prepare_publication.py` at a commit after the cutover.
 Historical audits use a private dataset tied to their source revisions.
 They are not replayed as current publication inputs.
 
@@ -240,7 +257,8 @@ A disposition without a public artifact also has null provenance.
 
 The integrity report displays provenance in its collapsed "Provenance and costs" section.
 It omits the attempt-position clause for standalone runs.
-The reader page does not display this detail.
+The reader page shows only the model label, the generation wall clock, and the model charges, at the foot of the briefing.
+Chain position, correction counts, and the prompt hash stay in the report.
 
 ## Daily semantic repair and audit
 
@@ -280,7 +298,7 @@ Original correction counters exclude semantic repair work.
 
 ## Machine-readable history
 
-The builder accepts only `history.json` schema 9.
+The builder accepts only `history.json` schema 10.
 Each entry requires every field below. Missing and extra fields fail validation.
 Current sidecars use the same metadata fields, including explicit nullable integrity and audit values.
 Rebuilding never calls a model to fill historical gaps.
@@ -298,11 +316,14 @@ Recorded legacy provenance remains as recorded; code does not infer missing orig
 | `advisory_findings` | The four reader-relevant nonblocking checks listed above, for ready and review-required entries. |
 | `provenance` | Original generation identity and counters, or null. Requires a public artifact. |
 | `semantic_audit` | Validated generated prose, review scores, confirmations, repair outcomes, coverage, and costs; otherwise null. No frozen excerpts or prompts. |
-| `integrity` | Bounded version-1 operational record with decisions, hashes, identities, phases, actions, costs, and typed corpus health; otherwise null. |
+| `integrity` | Bounded version-2 operational record with decisions, hashes, identities, phases, actions, costs, generation timing, and typed corpus health; otherwise null. |
 | `markdown` | String for `ready` and `review_required`; null otherwise. |
 
 An empty `degraded_sources` list means no recorded degradation. It does not prove complete source coverage.
 Status-only integrity can include the date's generation cost because failed attempts can incur charges.
+`generation_timing` holds the fallback chain's start and end timestamps, or null when the run left no usable record.
+It spans every attempt, including failed ones, as the generation cost does. A standalone run records its own manifest span.
+A reversed or unparseable pair is published as null with a warning, never guessed.
 
 Finding context can contain a structured path and hash-bound original model prose.
 Public JSON retains that context. HTML displays concise messages and safe subjects without full previews or unchanged stories.

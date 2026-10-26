@@ -238,6 +238,8 @@ Unchanged prose is omitted. Complete preview and finding context can remain in p
 Ready pages display source chips using the validated code-owned destinations.
 Hacker News discussions use the label "HN discussion".
 The "Behind this briefing" panel summarizes outcomes and coverage and links to the integrity report.
+A ready briefing closes with the generating model, the generation wall clock, and the recorded model charges.
+The integrity report repeats that line in its summary box.
 Stored Markdown retains its checked footer.
 See the [archive contract](publication-archive-contract.md#what-reaches-the-public-page) for exposure and retention rules.
 

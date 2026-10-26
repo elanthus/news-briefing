@@ -30,6 +30,7 @@ from publication_schema import (
     ReviewContext,
     ReviewFinding,
     finding_payload,
+    generation_timing_record,
     parse_finding,
     parse_integrity,
     parse_provenance,
@@ -251,6 +252,26 @@ def _generation_cost(run_dir: Path, original_manifest: object) -> dict[str, Any]
               file=sys.stderr)
         return _unknown_generation_cost()
     return {"phase": "generation", "reported_cost_usd": known, "unknown_cost_calls": unknown}
+
+
+def _generation_timing(run_dir: Path, original_manifest: object) -> dict[str, str] | None:
+    """The date's generation wall clock, or None when it was not recorded.
+
+    A daily chain's log spans every attempt, from the first model's start to
+    the write after the last attempt, so a day that fell back to a later model
+    reports the whole wait, as its cost does. A standalone ``run_briefing.py``
+    run spans its own manifest. Either record is published only when both
+    timestamps parse, are in order, and fit the public bound.
+    """
+    fallback = _load_json(run_dir / FALLBACK_LOG_NAME)
+    source: object = fallback if isinstance(fallback, dict) else original_manifest
+    if not isinstance(source, dict):
+        return None
+    started, completed = source.get("started_at"), source.get("completed_at")
+    timing = generation_timing_record(started, completed)
+    if timing is None and (started is not None or completed is not None):
+        print(f"warning: {run_dir} generation timing is unusable; published as unrecorded", file=sys.stderr)
+    return timing
 
 
 def _review_context(
@@ -502,6 +523,7 @@ def prepare_publication(
     # Generation spend is published for every disposition: a blocked day still
     # paid for its failed attempts, and that is the cost a reader most needs.
     integrity["costs"].insert(0, _generation_cost(run_dir, original_manifest))
+    integrity["generation_timing"] = _generation_timing(run_dir, original_manifest)
     integrity["workflow_run_id"] = parse_workflow_run_id(workflow_run_id)
     verified_corpus = (_bound_json_artifact(original_generation_dir, original_manifest, "corpus.json")
                        if original_generation_dir is not None and isinstance(original_manifest, dict) else None)
