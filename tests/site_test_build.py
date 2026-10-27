@@ -146,8 +146,15 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('<meta name="description"', page)
             self.assertIn('<meta property="og:title"', page)
             self.assertIn('<meta property="og:description"', page)
-            self.assertIn('<meta name="twitter:card" content="summary">', page)
+            self.assertIn('<meta name="twitter:card" content="summary_large_image">', page)
+            self.assertIn(
+                '<meta property="og:image" '
+                'content="https://elanthus.github.io/news-briefing/og-card.png">',
+                page,
+            )
+            self.assertIn('<meta name="referrer" content="no-referrer">', page)
             self.assertIn('class="site-header"', page)
+            self.assertIn('<a href="#how-it-works">How it works</a>', page)
             self.assertIn("https://github.com/elanthus/news-briefing", page)
             self.assertIn('class="site-footer"', page)
             self.assertIn("semantic review assesses frozen excerpts", page)
@@ -164,17 +171,26 @@ class BuildSiteTests(unittest.TestCase):
             page = (output / "index.html").read_text(encoding="utf-8")
             self.assertIn(
                 '<link rel="icon" href="favicon-light.png" '
-                'type="image/png" sizes="512x512">',
+                'type="image/png" sizes="192x192">',
                 page,
             )
             self.assertIn('media="(prefers-color-scheme: light)"', page)
             self.assertIn('media="(prefers-color-scheme: dark)"', page)
+            self.assertIn('<link rel="apple-touch-icon" href="favicon-light.png">', page)
             repository_root = Path(__file__).resolve().parents[1]
-            for filename in ("favicon-light.png", "favicon-dark.png"):
+            for published, source in (
+                ("favicon-light.png", "favicon-light.png"),
+                ("favicon-dark.png", "favicon-dark.png"),
+                ("og-card.png", "og-card.png"),
+                ("pipeline.svg", "runtime-pipeline.svg"),
+            ):
                 self.assertEqual(
-                    (output / filename).read_bytes(),
-                    (repository_root / "docs" / "images" / filename).read_bytes(),
+                    (output / published).read_bytes(),
+                    (repository_root / "docs" / "images" / source).read_bytes(),
                 )
+            # Keep the icons and share card light: they load on every page view.
+            for filename in ("favicon-light.png", "favicon-dark.png", "og-card.png"):
+                self.assertLess((output / filename).stat().st_size, 40_000, filename)
 
     def test_build_site_refuses_empty_history_without_optin(self) -> None:
         # The never-silently-truncate-the-archive invariant lives in build_site
@@ -271,6 +287,101 @@ class BuildSiteTests(unittest.TestCase):
             self.assertIn('href="index.html"><time datetime="2026-08-20">', prior)
             self.assertIn('<span class="weekday">Thu</span><span class="monthday">Aug 20</span>', prior)
             self.assertIn("prior ready briefing", prior)
+
+    def test_build_publishes_a_record_per_day_and_explains_the_pipeline(self) -> None:
+        from build_site import DAY_RECORD_SCHEMA_VERSION, parse_day_record
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-19.md").write_text("prior ready briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-19", disposition="ready")
+            (briefings / "2026-08-20.md").write_text(
+                "## US Politics\n\n**Story** — Text.\n", encoding="utf-8",
+            )
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            output = root / "site"
+            (output / "reports").mkdir(parents=True)
+            (output / "reports/2026-01-01.json").write_text("{}", encoding="utf-8")
+
+            build_site(briefings, output)
+
+            # Stale records go the way of stale pages.
+            self.assertFalse((output / "reports/2026-01-01.json").exists())
+            history = json.loads((output / "history.json").read_text(encoding="utf-8"))
+            for entry in history["entries"]:
+                record_path = output / "reports" / f"{entry['date']}.json"
+                record = json.loads(record_path.read_text(encoding="utf-8"))
+                self.assertEqual(record, {"schema_version": DAY_RECORD_SCHEMA_VERSION, **entry})
+                parsed = parse_day_record(record, source=str(record_path))
+                self.assertEqual(parsed.slug, entry["date"])
+                self.assertEqual(parsed.markdown, entry["markdown"])
+            for broken in (
+                {**record, "schema_version": DAY_RECORD_SCHEMA_VERSION + 1},
+                {key: value for key, value in record.items() if key != "schema_version"},
+                {**record, "extra": True},
+            ):
+                with self.subTest(keys=sorted(broken)), self.assertRaises(ValueError):
+                    parse_day_record(broken, source="record")
+
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            self.assertIn('<a href="2026-08-20.json">This day’s public record (JSON)</a>', report)
+            self.assertIn('<a href="../history.json">Seven-day history (JSON)</a>', report)
+            self.assertNotIn("published Markdown", report)
+            self.assertIn('<a href="../index.html#how-it-works">How it works</a>', report)
+            self.assertNotIn('id="how-it-works"', report)
+
+            for page_name in ("index.html", "2026-08-19.html"):
+                page = (output / page_name).read_text(encoding="utf-8")
+                about = page[page.index('<section class="about" id="how-it-works"'):]
+                self.assertIn("<h2 id=\"about-title\">How this briefing is made</h2>", about)
+                self.assertIn("Jev, a decision model served through OpenRouter", about)
+                self.assertIn('<img class="pipeline" src="pipeline.svg"', about)
+                self.assertIn("docs/adr", about)
+                self.assertLess(page.index('<article class="briefing-content">'), page.index(about))
+            index = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn('href="reports/2026-08-20.html">integrity report</a>', index)
+            self.assertIn('href="reports/2026-08-19.html">integrity report</a>',
+                          (output / "2026-08-19.html").read_text(encoding="utf-8"))
+            self.assertIn('id="how-it-works"', (output / "metrics.html").read_text(encoding="utf-8")
+                          .replace('href="index.html#how-it-works"', 'id="how-it-works"'))
+
+    def test_day_record_schema_is_pinned_to_the_history_field_set(self) -> None:
+        # Schema 1 of reports/<date>.json means exactly these fields. A change
+        # to the history shape must bump both versions together, so a record
+        # written earlier is never accepted or refused by accident.
+        from build_site import DAY_RECORD_SCHEMA_VERSION, HISTORY_FIELDS, HISTORY_SCHEMA_VERSION
+
+        self.assertEqual((DAY_RECORD_SCHEMA_VERSION, HISTORY_SCHEMA_VERSION), (1, 10))
+        self.assertEqual(HISTORY_FIELDS, {
+            "date", "disposition", "findings_count", "degraded_sources", "findings",
+            "repair_actions", "generation_failures", "advisory_findings", "provenance",
+            "semantic_audit", "integrity", "markdown",
+        })
+
+    def test_day_record_link_precedes_the_audit_manifest_link(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            corpora = root / "corpora"
+            corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            (corpora / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-20"}), encoding="utf-8",
+            )
+            output = root / "site"
+
+            build_site(briefings, output, corpora_dir=corpora)
+
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            links = re.findall(r'<p class="audit-artifact"><a href="([^"]+)">', report)
+            self.assertEqual(
+                links, ["2026-08-20.json", "../manifests/2026-08-20.json", "../history.json"],
+            )
 
     def test_ordinary_warning_does_not_duplicate_unredacted_story(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -888,15 +999,17 @@ class BuildSiteTests(unittest.TestCase):
         outcome = rendered.index("<h3>Run outcome</h3>")
         self.assertLess(excluded, outcome)
         run_outcome = rendered[outcome:]
-        for label in ("Disposition: ", "Errors", "Warnings", "Source issues",
-                      "Undated source drops"):
+        for label in ("Passed generation checks.", "Source issues", "Undated source drops"):
             with self.subTest(label=label):
                 self.assertIn(f"<strong>{label}", run_outcome)
                 self.assertNotIn(f"<strong>{label}", rendered[excluded:outcome])
+        self.assertNotIn("Disposition:", rendered)
         self.assertNotIn("unsupported_figure", rendered)
         self.assertNotIn("figure_supported_elsewhere", rendered)
-        warnings = run_outcome.index("<strong>Warnings</strong>")
-        self.assertIn("None</p>", run_outcome[warnings:run_outcome.index("Source issues")])
+        # The only warnings were report-only, so the page says so in words.
+        self.assertIn("<p>No checker errors.</p>", run_outcome)
+        warnings = run_outcome.index("<p>No checker warnings.</p>")
+        self.assertLess(warnings, run_outcome.index("Source issues"))
 
     def test_status_chip_shows_degraded_sources_suffix(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1889,7 +2002,8 @@ class BriefingDecorationTests(unittest.TestCase):
         self.assertIn('<a href="#run-notes">Behind this briefing</a>', page)
         notes = page.index('<section class="run-notes"')
         self.assertLess(page.index("Plain story"), notes)
-        self.assertLess(notes, page.index("<strong>Disposition: READY</strong>"))
+        self.assertLess(notes, page.index("<strong>Passed generation checks.</strong>"))
+        self.assertNotIn("Disposition: READY", page)
         self.assertLess(notes, page.index('href="reports/2026-08-20.html#excluded-topics"'))
         self.assertTrue(page.startswith('<p class="dateline">Thursday edition · 2 stories</p>'))
 
@@ -1913,13 +2027,50 @@ class BriefingDecorationTests(unittest.TestCase):
             'href="https://example.net/skipped" title="https://example.net/skipped">example.net</a>',
             log[: log.index("</section>")],
         )
-        self.assertNotIn("Disposition: READY", log[: log.index("</section>")])
+        self.assertNotIn("Passed generation checks.", log[: log.index("</section>")])
 
         withheld = BriefingEntry(
             day=date(2026, 8, 20), disposition="review_required", findings_count=0, findings=(),
             degraded_sources=(), markdown=self.BRIEFING,
         )
         self.assertNotIn('<section class="excluded-topics">', _render_report(withheld, [withheld]))
+
+    def test_run_outcome_axes_read_as_prose_on_the_page_only(self) -> None:
+        footer = (
+            "### Run outcome\n\n"
+            "**Disposition: READY**\n\n"
+            "- Protocol: `completed`\n"
+            "- Contract: `accepted`\n"
+            "- Evidence: `corpus_bound`\n"
+            "- Coverage: `degraded`\n\n"
+            "**Errors**\nNone\n\n"
+            "**Warnings**\n- WARN [editorial/unknown_check] — Cause: kept as recorded\n\n"
+            "**Source issues**\nNone\n"
+        )
+        rendered = _render_markdown("## AI/Tech\n\n**Story** — Text.\n\n---\n\n" + footer)
+        self.assertIn(
+            "<p><strong>Passed generation checks.</strong> The generation protocol completed, "
+            "the output contract was accepted, and every citation resolved inside the frozen "
+            "corpus. Source coverage was degraded.</p>",
+            rendered,
+        )
+        self.assertIn("<p>No checker errors.</p>", rendered)
+        # A non-empty list keeps its label and rows; only empty lists become a sentence.
+        self.assertIn("<strong>Warnings</strong>", rendered)
+        self.assertIn("kept as recorded", rendered)
+        for machine_text in ("Disposition:", "corpus_bound", "<code>completed</code>"):
+            self.assertNotIn(machine_text, rendered)
+
+        # An axis value the page has no wording for leaves the whole block as recorded.
+        unknown = _render_markdown(footer.replace("`corpus_bound`", "`novel_state`"))
+        self.assertIn("<strong>Passed generation checks.</strong>", unknown)
+        self.assertIn("<code>novel_state</code>", unknown)
+        self.assertIn("<code>completed</code>", unknown)
+
+        # The same lines inside a fence are model text and stay verbatim.
+        fenced = _render_markdown("```\n" + footer + "```\n")
+        self.assertIn("**Disposition: READY**", fenced)
+        self.assertNotIn("Passed generation checks", fenced)
 
     def test_corpus_window_is_humanized_only_when_it_parses(self) -> None:
         page = _decorated(self.BRIEFING)
@@ -2535,8 +2686,10 @@ class ReaderFacingReportTests(unittest.TestCase):
             self.assertEqual(chip, f"⚠ Passed publication checks · 2 stories flagged in review · {label}")
             panel = _between(index, '<section class="run-notes"', "</section>")
             self.assertIn(f'<p class="coverage-state coverage-empty">{label}.</p>', panel)
-            self.assertIn(f"<li>Coverage: {label}</li>", panel)
-            self.assertNotIn("Coverage: <code>degraded</code>", panel)
+            # The Run outcome paragraph ends with the same coverage wording.
+            self.assertIn(f"resolved inside the frozen corpus. {label}.</p>", panel)
+            self.assertNotIn("<code>degraded</code>", panel)
+            self.assertNotIn("Coverage:", panel)
             self.assertNotIn("Source issues", panel)
             self.assertNotIn("Undated source drops", panel)
             sources = _between(report, 'id="sources"', "<details>")
@@ -2602,7 +2755,7 @@ class ReaderFacingReportTests(unittest.TestCase):
             label = "Some sources had problems"
             self.assertIn(f"⚠ Passed publication checks · {label}</a></p>", index)
             panel = _between(index, '<section class="run-notes"', "</section>")
-            self.assertIn(f"<li>Coverage: {label}</li>", panel)
+            self.assertIn(f"resolved inside the frozen corpus. {label}.</p>", panel)
             # Without verified reasons, the footer's own source lists stay visible.
             self.assertIn("<strong>Source issues</strong>", panel)
             self.assertIn("<strong>“claude”</strong> (Hacker News search) reason not recorded", report)

@@ -74,12 +74,24 @@ DISPOSITIONS = {
 PAGE_DISPOSITIONS = {"ready", "review_required"}
 PUBLICATION_RANK = {"ready": 2, "review_required": 1}
 PROJECT_URL = "https://github.com/elanthus/news-briefing"
+SITE_URL = "https://elanthus.github.io/news-briefing/"
 PROJECT_DESCRIPTION = (
-    "A daily LLM-generated news briefing with deterministic corpus and citation checks "
-    "and Jev decision-model review of prose against frozen evidence."
+    "A daily news briefing written by a language model inside limits that code enforces. "
+    "Every citation resolves to a frozen corpus, and a second model reviews each story "
+    "against its evidence before publication."
 )
-FAVICON_SOURCE_DIR = Path(__file__).resolve().parent / "docs" / "images"
-FAVICON_FILENAMES = ("favicon-light.png", "favicon-dark.png")
+ASSET_SOURCE_DIR = Path(__file__).resolve().parent / "docs" / "images"
+# Published asset name -> source file under docs/images. Every page links the
+# favicons and share card; briefing pages embed the pipeline diagram.
+SITE_ASSETS = {
+    "favicon-light.png": "favicon-light.png",
+    "favicon-dark.png": "favicon-dark.png",
+    "og-card.png": "og-card.png",
+    "pipeline.svg": "runtime-pipeline.svg",
+}
+# One public record per retained date, written beside its integrity report so
+# a reader can open a single day's data without the whole seven-day history.
+DAY_RECORD_SCHEMA_VERSION = 1
 
 
 STYLE = """
@@ -108,6 +120,19 @@ article { padding: 1rem 0; }
 .site-name { font-size: 1.05rem; font-weight: 750; letter-spacing: -.01em; text-decoration: none; }
 .site-footer { border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem;
   margin-top: 3rem; padding-top: 1rem; }
+.site-links { display: flex; flex-wrap: wrap; gap: .25rem 1rem; font-size: .85rem; font-weight: 600;
+  margin-top: .55rem; }
+.site-links a { text-decoration: none; }
+.site-links a:hover { text-decoration: underline; }
+.about { border-top: 2px solid var(--strong-rule); margin-top: 3rem; padding-top: .5rem; }
+.about h2 { font-family: var(--serif); font-size: 1.5rem; line-height: 1.2; margin: .5rem 0 .6rem; }
+.about p { font-size: .95rem; line-height: 1.55; }
+.pipeline { background: #f8fafc; border: 1px solid var(--rule); border-radius: .75rem; display: block;
+  height: auto; margin: 1rem 0; max-width: 100%; width: 100%; }
+.about-links { display: flex; flex-wrap: wrap; gap: .35rem .5rem; margin: .5rem 0 0; }
+.about-links a { border: 1px solid var(--rule); border-radius: 999px; font-size: .82rem; font-weight: 600;
+  padding: .25rem .7rem; text-decoration: none; }
+.about-links a:hover { border-color: var(--accent); }
 .history-nav { margin-bottom: 1.25rem; }
 .history-label { color: var(--muted); font-size: .72rem; font-weight: 650; letter-spacing: .08em;
   margin: 0 0 .4rem; text-transform: uppercase; }
@@ -181,6 +206,7 @@ p.status-chip { border-radius: .9rem; display: inline-block; font-weight: 600; m
 .integrity-report { max-width: 52rem; }
 .integrity-report .site-header { margin-bottom: .5rem; padding-bottom: .5rem; }
 .integrity-report .site-header p { display: none; }
+.integrity-report .site-links { margin-top: .3rem; }
 .integrity-report h1 { font-size: 1.65rem; margin: .5rem 0; }
 .integrity-report h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; }
 .decision { font-family: var(--serif); font-size: 1.2rem; line-height: 1.45; }
@@ -395,43 +421,45 @@ def _load_history(path: Path) -> list[BriefingEntry]:
     entries: list[BriefingEntry] = []
     seen: set[str] = set()
     for index, raw_entry in enumerate(payload["entries"]):
-        source = f"history {path} entry {index}"
-        fields = HISTORY_FIELDS
-        if not isinstance(raw_entry, dict) or set(raw_entry) != fields:
-            raise ValueError(f"{source} must contain exactly {sorted(HISTORY_FIELDS)}")
-        metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS if key in raw_entry}
-        entry = _entry_from_payload(
-            metadata,
-            source=source,
-        )
-        markdown = raw_entry["markdown"]
-        if (entry.disposition in PAGE_DISPOSITIONS and not isinstance(markdown, str)) or (
-            entry.disposition not in PAGE_DISPOSITIONS and markdown is not None
-        ):
-            raise ValueError(f"{source} markdown does not match its disposition")
-        _verify_published_artifact(
-            entry, markdown.encode("utf-8") if markdown is not None else None, source=source,
-        )
+        entry = _entry_from_history_row(raw_entry, source=f"history {path} entry {index}")
         if entry.slug in seen:
             raise ValueError(f"history {path} contains duplicate date {entry.slug}")
         seen.add(entry.slug)
-        entries.append(
-            BriefingEntry(
-                day=entry.day,
-                disposition=entry.disposition,
-                findings_count=entry.findings_count,
-                findings=entry.findings,
-                degraded_sources=entry.degraded_sources,
-                markdown=markdown,
-                repair_actions=entry.repair_actions,
-                generation_failures=entry.generation_failures,
-                advisory_findings=entry.advisory_findings,
-                provenance=entry.provenance,
-                semantic_audit=entry.semantic_audit,
-                integrity=entry.integrity,
-            )
-        )
+        entries.append(entry)
     return entries
+
+
+def _entry_from_history_row(raw_entry: object, *, source: str) -> BriefingEntry:
+    """Validate one history-shaped row: sidecar metadata plus its Markdown."""
+    if not isinstance(raw_entry, dict) or set(raw_entry) != HISTORY_FIELDS:
+        raise ValueError(f"{source} must contain exactly {sorted(HISTORY_FIELDS)}")
+    metadata = {key: raw_entry[key] for key in SIDECAR_FIELDS if key in raw_entry}
+    entry = _entry_from_payload(
+        metadata,
+        source=source,
+    )
+    markdown = raw_entry["markdown"]
+    if (entry.disposition in PAGE_DISPOSITIONS and not isinstance(markdown, str)) or (
+        entry.disposition not in PAGE_DISPOSITIONS and markdown is not None
+    ):
+        raise ValueError(f"{source} markdown does not match its disposition")
+    _verify_published_artifact(
+        entry, markdown.encode("utf-8") if markdown is not None else None, source=source,
+    )
+    return BriefingEntry(
+        day=entry.day,
+        disposition=entry.disposition,
+        findings_count=entry.findings_count,
+        findings=entry.findings,
+        degraded_sources=entry.degraded_sources,
+        markdown=markdown,
+        repair_actions=entry.repair_actions,
+        generation_failures=entry.generation_failures,
+        advisory_findings=entry.advisory_findings,
+        provenance=entry.provenance,
+        semantic_audit=entry.semantic_audit,
+        integrity=entry.integrity,
+    )
 
 
 def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
@@ -454,31 +482,53 @@ def _finding_history_payload(finding: ReviewFinding) -> dict[str, object]:
     }
 
 
+def _history_entry_payload(entry: BriefingEntry) -> dict[str, object]:
+    return {
+        "semantic_audit": entry.semantic_audit,
+        "integrity": entry.integrity,
+        "date": entry.slug,
+        "disposition": entry.disposition,
+        "findings_count": entry.findings_count,
+        "findings": [_finding_history_payload(finding) for finding in entry.findings],
+        "degraded_sources": list(entry.degraded_sources),
+        "repair_actions": [dict(action) for action in entry.repair_actions],
+        "generation_failures": [failure.payload() for failure in entry.generation_failures],
+        "advisory_findings": [
+            _finding_history_payload(finding) for finding in entry.advisory_findings
+        ],
+        "provenance": (
+            provenance_payload(entry.provenance) if entry.provenance is not None else None
+        ),
+        "markdown": entry.markdown,
+    }
+
+
 def _history_payload(entries: list[BriefingEntry]) -> dict[str, object]:
     return {
         "schema_version": HISTORY_SCHEMA_VERSION,
-        "entries": [
-            {
-                "semantic_audit": entry.semantic_audit,
-                "integrity": entry.integrity,
-                "date": entry.slug,
-                "disposition": entry.disposition,
-                "findings_count": entry.findings_count,
-                "findings": [_finding_history_payload(finding) for finding in entry.findings],
-                "degraded_sources": list(entry.degraded_sources),
-                "repair_actions": [dict(action) for action in entry.repair_actions],
-                "generation_failures": [failure.payload() for failure in entry.generation_failures],
-                "advisory_findings": [
-                    _finding_history_payload(finding) for finding in entry.advisory_findings
-                ],
-                "provenance": (
-                    provenance_payload(entry.provenance) if entry.provenance is not None else None
-                ),
-                "markdown": entry.markdown,
-            }
-            for entry in entries
-        ],
+        "entries": [_history_entry_payload(entry) for entry in entries],
     }
+
+
+def _day_record_payload(entry: BriefingEntry) -> dict[str, object]:
+    """One date's history entry under its own schema version."""
+    return {"schema_version": DAY_RECORD_SCHEMA_VERSION, **_history_entry_payload(entry)}
+
+
+def parse_day_record(payload: object, *, source: str) -> BriefingEntry:
+    """Accept only the current per-day record shape; refuse every other one."""
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != HISTORY_FIELDS | {"schema_version"}
+        or type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != DAY_RECORD_SCHEMA_VERSION
+    ):
+        raise ValueError(
+            f"{source} must use schema_version {DAY_RECORD_SCHEMA_VERSION} "
+            f"with exactly {sorted(HISTORY_FIELDS)}"
+        )
+    row = {key: value for key, value in payload.items() if key != "schema_version"}
+    return _entry_from_history_row(row, source=source)
 
 
 def _metrics_row(entry: BriefingEntry) -> dict[str, Any]:
@@ -494,33 +544,50 @@ def _metrics_row(entry: BriefingEntry) -> dict[str, Any]:
     )
 
 
-def _document(title: str, body: str, *, asset_prefix: str = "") -> str:
+def _document(
+    title: str,
+    body: str,
+    *,
+    asset_prefix: str = "",
+    about_href: str = "index.html#how-it-works",
+) -> str:
     escaped_title = html.escape(title)
     escaped_description = html.escape(PROJECT_DESCRIPTION)
     escaped_asset_prefix = html.escape(asset_prefix, quote=True)
+    escaped_about_href = html.escape(about_href, quote=True)
     return (
         "<!doctype html>\n"
         '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        # Pages link out to dozens of news hosts; never send them the page URL.
+        '<meta name="referrer" content="no-referrer">\n'
         f'<meta name="description" content="{escaped_description}">\n'
         f'<meta property="og:title" content="{escaped_title}">\n'
         f'<meta property="og:description" content="{escaped_description}">\n'
         '<meta property="og:type" content="website">\n'
-        '<meta name="twitter:card" content="summary">\n'
+        f'<meta property="og:image" content="{SITE_URL}og-card.png">\n'
+        '<meta property="og:image:width" content="1200">\n'
+        '<meta property="og:image:height" content="630">\n'
+        '<meta name="twitter:card" content="summary_large_image">\n'
         f'<link rel="icon" href="{escaped_asset_prefix}favicon-light.png" '
-        'type="image/png" sizes="512x512">\n'
+        'type="image/png" sizes="192x192">\n'
         f'<link rel="icon" href="{escaped_asset_prefix}favicon-light.png" '
-        'type="image/png" sizes="512x512" media="(prefers-color-scheme: light)">\n'
+        'type="image/png" sizes="192x192" media="(prefers-color-scheme: light)">\n'
         f'<link rel="icon" href="{escaped_asset_prefix}favicon-dark.png" '
-        'type="image/png" sizes="512x512" media="(prefers-color-scheme: dark)">\n'
+        'type="image/png" sizes="192x192" media="(prefers-color-scheme: dark)">\n'
+        f'<link rel="apple-touch-icon" href="{escaped_asset_prefix}favicon-light.png">\n'
         f"<title>{escaped_title}</title>\n<style>{STYLE}</style>\n"
         "</head>\n"
         + ('<body class="integrity-report">\n' if title.startswith("Integrity report") else "<body>\n")
         +
         '<header class="site-header">'
-        f'<a class="site-name" href="{PROJECT_URL}">news-briefing</a>'
+        f'<a class="site-name" href="{escaped_asset_prefix}index.html">news-briefing</a>'
         f"<p>{escaped_description}</p>"
-        "</header>\n"
+        '<nav class="site-links" aria-label="Project">'
+        f'<a href="{escaped_about_href}">How it works</a>'
+        f'<a href="{escaped_asset_prefix}metrics.html">Metrics</a>'
+        f'<a href="{PROJECT_URL}">Source</a>'
+        "</nav></header>\n"
         f"{body}\n"
         '<footer class="site-footer">Generated by '
         f'<a href="{PROJECT_URL}">news-briefing</a>. '
@@ -909,6 +976,122 @@ def _omit_report_only_warnings(markdown: str) -> str:
 
 
 _COVERAGE_ROW = re.compile(r"^- Coverage: `[a-z_]+`$")
+# Reader wording for the Run outcome footer. The producer writes machine axes
+# (agent_runner.outcomes.classify_outcome); the page shows them as sentences.
+# A known disposition always becomes its lead sentence. An axis value outside
+# these maps keeps the four axis rows as recorded, so a new or unexpected
+# outcome is shown rather than hidden; a disposition outside the map keeps
+# its line too.
+_OUTCOME_DISPOSITION_LINE = re.compile(r"^\*\*Disposition: ([A-Z ]+)\*\*$")
+_OUTCOME_AXIS_ROW = re.compile(r"^- (Protocol|Contract|Evidence): `([a-z_]+)`$")
+_OUTCOME_COVERAGE_ROW = re.compile(r"^- Coverage: (?:`([a-z_]+)`|([^`]+))$")
+_OUTCOME_DISPOSITIONS = {
+    "READY": "Passed generation checks.",
+    "REVIEW REQUIRED": "Withheld for review after generation checks.",
+    "REJECTED": "Rejected by generation checks.",
+    "NO RESULT": "Generation produced no result.",
+}
+_OUTCOME_AXES = {
+    "Protocol": {
+        "completed": "the generation protocol completed",
+        "no_result": "the generation protocol did not complete",
+    },
+    "Contract": {
+        "accepted": "the output contract was accepted",
+        "review_required": "the output contract needs review",
+        "rejected": "the output contract was rejected",
+        "not_evaluated": "the output contract was not evaluated",
+    },
+    "Evidence": {
+        "corpus_bound": "every citation resolved inside the frozen corpus",
+        "violated": "a citation pointed outside the frozen corpus",
+        "review_required": "the evidence support needs review",
+        "unassessed": "the evidence support was not assessed",
+    },
+}
+_OUTCOME_COVERAGE = {"full": "Every source was fetched.", "degraded": "Source coverage was degraded."}
+_EMPTY_FINDING_GROUPS = {"**Errors**": "No checker errors.", "**Warnings**": "No checker warnings."}
+
+
+def _outcome_axes_sentence(lines: list[str], structural: list[bool], start: int) -> tuple[str, int] | None:
+    """Fold the blank line and four axis rows after a disposition line into prose.
+
+    Returns the sentence and the number of lines consumed, or None when the
+    rows are not exactly the producer's shape with known values.
+    """
+    rows = lines[start:start + 5]
+    if len(rows) != 5 or rows[0] != "" or not all(structural[start:start + 5]):
+        return None
+    phrases: dict[str, str] = {}
+    coverage: str | None = None
+    for row in rows[1:]:
+        axis = _OUTCOME_AXIS_ROW.match(row)
+        if axis is not None:
+            phrase = _OUTCOME_AXES[axis.group(1)].get(axis.group(2))
+            if phrase is None:
+                return None
+            phrases[axis.group(1)] = phrase
+            continue
+        coverage_row = _OUTCOME_COVERAGE_ROW.match(row)
+        if coverage_row is None:
+            return None
+        code, label = coverage_row.groups()
+        coverage = _OUTCOME_COVERAGE.get(code) if code is not None else f"{label.strip()}."
+        if coverage is None:
+            return None
+    if set(phrases) != set(_OUTCOME_AXES) or coverage is None:
+        return None
+    protocol = phrases["Protocol"]
+    sentence = (
+        f"{protocol[0].upper()}{protocol[1:]}, {phrases['Contract']}, "
+        f"and {phrases['Evidence']}. {coverage}"
+    )
+    return sentence, 5
+
+
+def _humanize_run_outcome(markdown: str) -> str:
+    """Rewrite the Run outcome footer's machine axes as reader sentences.
+
+    Page rendering only; history.json keeps the code-owned footer verbatim.
+    The disposition line becomes a lead sentence, its four axis rows fold into
+    the same paragraph, and an empty Errors or Warnings list becomes one
+    sentence. Only structural lines are matched, so fenced or model text is
+    untouched. An unknown axis value keeps the axis rows as written under the
+    rewritten lead; an unknown disposition keeps its own line as written.
+    """
+    lines = markdown.split("\n")
+    structural = _markdown_structure_mask(lines)
+    output: list[str] = []
+    in_run_outcome = False
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if structural[index] and line.startswith("### "):
+            in_run_outcome = line == _RUN_OUTCOME_HEADING
+        elif in_run_outcome and structural[index]:
+            disposition = _OUTCOME_DISPOSITION_LINE.match(line)
+            lead = _OUTCOME_DISPOSITIONS.get(disposition.group(1)) if disposition else None
+            if lead is not None:
+                folded = _outcome_axes_sentence(lines, structural, index + 1)
+                if folded is None:
+                    output.append(f"**{lead}**")
+                    index += 1
+                else:
+                    output.append(f"**{lead}** {folded[0]}")
+                    index += 1 + folded[1]
+                continue
+            if (
+                line in _EMPTY_FINDING_GROUPS
+                and index + 1 < len(lines)
+                and structural[index + 1]
+                and lines[index + 1] == "None"
+            ):
+                output.append(_EMPTY_FINDING_GROUPS[line])
+                index += 2
+                continue
+        output.append(line)
+        index += 1
+    return "\n".join(output)
 _SOURCE_NOTE_GROUPS = frozenset({"**Source issues**", "**Undated source drops**"})
 
 
@@ -986,6 +1169,7 @@ def _render_markdown(markdown: str, coverage: SourceCoverage | None = None) -> s
     if coverage is not None:
         public_markdown = _merge_source_notes(public_markdown, coverage)
     public_markdown = _humanize_corpus_health(public_markdown)
+    public_markdown = _humanize_run_outcome(public_markdown)
     public_markdown = _CITATION_AUTOLINK.sub(_autolink_citation, public_markdown)
     # With html disabled, story anchor comments would otherwise render as text.
     lines = [
@@ -1291,21 +1475,68 @@ def _entry_body(entry: BriefingEntry) -> str:
     return f'<article class="briefing-content">{briefing}</article>'
 
 
+_PIPELINE_ALT = (
+    "Pipeline diagram. Code fetches a frozen corpus; a model selects citation handles; code "
+    "validates them and freezes the evidence; the model writes prose from that evidence; code "
+    "gates the candidate and records its disposition. A ready briefing gets a Jev review, "
+    "isolated flag confirmation, one bounded repair, and a follow-up review before the site "
+    "and integrity report deploy."
+)
+_ABOUT_LINKS = (
+    (f"{PROJECT_URL}#readme", "Project README"),
+    (f"{PROJECT_URL}/blob/main/docs/design.md", "Design notes"),
+    (f"{PROJECT_URL}/tree/main/docs/adr", "Architecture decision records"),
+    (f"{PROJECT_URL}/blob/main/docs/evaluation-methodology.md", "Evaluation methodology"),
+    (f"{PROJECT_URL}/blob/main/docs/results/EVIDENCE-ASSETS.md", "Public evidence bundles"),
+    (f"{PROJECT_URL}/blob/main/docs/jev-review.md", "Jev review and repair"),
+)
+
+
+def _about_section(entry: BriefingEntry | None) -> str:
+    """Explain the pipeline to a first-time reader, with the day's report link."""
+    report = (
+        f' The <a href="reports/{html.escape(entry.slug)}.html">integrity report</a> for this '
+        "day records every decision, change, and cost."
+        if entry is not None else ""
+    )
+    items = "".join(f'<li><a href="{href}">{label}</a></li>' for href, label in _ABOUT_LINKS)
+    return (
+        '<section class="about" id="how-it-works" aria-labelledby="about-title">'
+        '<h2 id="about-title">How this briefing is made</h2>'
+        "<p>Each day the pipeline fetches a fixed list of public feeds into a frozen corpus. "
+        "A language model selects stories by opaque citation handles and never sees a URL. "
+        "Code validates every handle, freezes the evidence behind each story, and the model "
+        "writes its summaries from that evidence alone. Code then expands the handles back to "
+        "their stored destinations, so no link can point outside the corpus.</p>"
+        "<p>Before publication, Jev, a decision model served through OpenRouter, scores each "
+        "story against its frozen excerpts and returns probabilities rather than prose. A "
+        "confirmed flag can trigger one bounded repair, which is reviewed again before it "
+        f"replaces the original.{report}</p>"
+        f'<img class="pipeline" src="pipeline.svg" alt="{html.escape(_PIPELINE_ALT)}" '
+        'width="1200" height="520" loading="lazy">'
+        f'<ul class="about-links">{items}</ul>'
+        "</section>"
+    )
+
+
 def _render_index(entries: list[BriefingEntry]) -> str:
     if not entries:
         return _document(
             "Daily news briefing",
-            "<h1>Daily news briefing</h1><p class=\"muted\">No runs are available yet.</p>",
+            "<h1>Daily news briefing</h1><p class=\"muted\">No runs are available yet.</p>"
+            + _about_section(None),
+            about_href="#how-it-works",
         )
     newest = entries[0]
-    body = _history_nav(entries, newest) + _entry_body(newest)
-    return _document(f"Daily briefing — {newest.slug}", body)
+    body = _history_nav(entries, newest) + _entry_body(newest) + _about_section(newest)
+    return _document(f"Daily briefing — {newest.slug}", body, about_href="#how-it-works")
 
 
 def _render_briefing(entry: BriefingEntry, entries: list[BriefingEntry]) -> str:
     return _document(
         f"Daily briefing — {entry.slug}",
-        _history_nav(entries, entry) + _entry_body(entry),
+        _history_nav(entries, entry) + _entry_body(entry) + _about_section(entry),
+        about_href="#how-it-works",
     )
 
 
@@ -1504,9 +1735,16 @@ def _render_report(
         if body:
             parts.append(f"<details><summary>{title}</summary>{body}</details>")
     parts.append("</section>")
-    data_links = ['<a href="../history.json">Full public history and check data (JSON)</a>']
+    data_links = [
+        f'<a href="{html.escape(entry.slug)}.json">This day\u2019s public record (JSON)</a> — '
+        "the stored Markdown when one exists, review scores, repair outcomes, and costs for "
+        "this date.",
+        '<a href="../history.json">Seven-day history (JSON)</a> — the same records for every '
+        "retained date; the input the next build merges.",
+    ]
     if entry.slug in manifest_dates:
-        data_links.insert(0, f'<a href="../manifests/{html.escape(entry.slug)}.json">'
+        # The day record stays first; the manifest follows it.
+        data_links.insert(1, f'<a href="../manifests/{html.escape(entry.slug)}.json">'
                              "Download audit manifest (JSON)</a> — corpus membership, canonical "
                              "destinations, provenance, and content hashes; source-owned titles and "
                              "excerpts are not included.")
@@ -1515,6 +1753,7 @@ def _render_report(
         f"Integrity report — {entry.slug}",
         "\n".join(parts),
         asset_prefix="../",
+        about_href="../index.html#how-it-works",
     )
 
 
@@ -2403,15 +2642,15 @@ def build_site(
         output_dir,
         entries[0].day if entries else None,
     )
-    for favicon_filename in FAVICON_FILENAMES:
-        source = FAVICON_SOURCE_DIR / favicon_filename
-        (output_dir / favicon_filename).write_bytes(source.read_bytes())
+    for published_name, source_name in SITE_ASSETS.items():
+        (output_dir / published_name).write_bytes((ASSET_SOURCE_DIR / source_name).read_bytes())
     for stale_page in output_dir.glob("*.html"):
         stale_page.unlink()
     reports_dir = output_dir / "reports"
     if reports_dir.is_dir():
-        for stale_report in reports_dir.glob("*.html"):
-            stale_report.unlink()
+        for pattern in ("*.html", "*.json"):
+            for stale_report in reports_dir.glob(pattern):
+                stale_report.unlink()
     reports_dir.mkdir(exist_ok=True)
     (output_dir / "index.html").write_text(_render_index(entries), encoding="utf-8")
     (output_dir / "history.json").write_text(
@@ -2434,6 +2673,13 @@ def build_site(
     for entry in entries:
         (reports_dir / f"{entry.slug}.html").write_text(
             _render_report(entry, entries, manifest_dates),
+            encoding="utf-8",
+        )
+        record = _day_record_payload(entry)
+        # Fail before writing rather than publish a record parse_day_record refuses.
+        parse_day_record(json.loads(json.dumps(record)), source=f"day record {entry.slug}")
+        (reports_dir / f"{entry.slug}.json").write_text(
+            json.dumps(record, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
