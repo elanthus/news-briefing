@@ -1,350 +1,149 @@
-"""Builders and runners for the committed gold-label deterministic suite."""
+"""Registered transforms for the committed gold-label deterministic suite."""
 
 from __future__ import annotations
 
 import copy
-import json
-import re
-import xml.etree.ElementTree as ET
-from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import briefing_config
-import corpus_schema
-import eval_briefing
-from news_fetch import curation, feed_xml
+from briefing_config import BriefingConfig
 
-from evaluator.judge_io import portable_path
-from evaluator.metrics import classification_metrics, rate
-
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SUITE = Path(__file__).with_name("fixtures") / "checker-cases.json"
-HEURISTIC_CLAIM_CHECKS = (
-    "unsupported_figure",
-    "figure_supported_elsewhere",
-    "unsupported_quotation",
-    "claim_exceeds_evidence",
+from evaluator.case_fixtures import (
+    CLAIM_PAIR_VARIANTS,
+    apply_claim_pair_variant,
+    baseline,
+    degraded_corpus,
+    fixture_usage,
+    health_block,
+    item,
+    replace,
+    replace_tool_three_exclusion,
 )
 
-
-# Authored valid-side candidates and minimally changed invalid-side neighbors.
-# Each tuple is evidence title, evidence summary, output title, and output
-# prose. The committed gold labels decide which candidates are actually clean;
-# checker findings on those clean sides form the false-positive cohort.
-CLAIM_PAIR_VARIANTS: dict[str, tuple[str, str, str, str]] = {
-    "claim-fraction-valid": (
-        "One in two users enabled the feature",
-        "One in two users enabled the optional feature.",
-        "Half of users enable feature",
-        "50 percent of users enabled the optional feature.",
-    ),
-    "claim-fraction-invalid": (
-        "One in two users enabled the feature",
-        "One in two users enabled the optional feature.",
-        "Most users enable feature",
-        "60 percent of users enabled the optional feature.",
-    ),
-    "claim-rounded-valid": (
-        "Feature adoption reaches 49.6 percent",
-        "Adoption reached 49.6 percent in the measured cohort.",
-        "Feature adoption reaches about half",
-        "About 50 percent of the measured cohort adopted the feature.",
-    ),
-    "claim-rounded-invalid": (
-        "Feature adoption reaches 49.6 percent",
-        "Adoption reached 49.6 percent in the measured cohort.",
-        "Feature adoption reaches a large majority",
-        "About 70 percent of the measured cohort adopted the feature.",
-    ),
-    "claim-range-valid": (
-        "Task completes between 10 and 12 minutes",
-        "Measured runs completed between 10 and 12 minutes.",
-        "Task completes in a narrow range",
-        "Measured runs completed in 10–12 minutes.",
-    ),
-    "claim-range-invalid": (
-        "Task completes between 10 and 12 minutes",
-        "Measured runs completed between 10 and 12 minutes.",
-        "Task completion range widens",
-        "Measured runs completed in 10–15 minutes.",
-    ),
-    "claim-currency-valid": (
-        "Project receives USD 1.2 million",
-        "The project received USD 1.2 million in funding.",
-        "Project receives new funding",
-        "The project received $1.2m in funding.",
-    ),
-    "claim-currency-invalid": (
-        "Project receives USD 1.2 million",
-        "The project received USD 1.2 million in funding.",
-        "Project receives larger funding round",
-        "The project received $1.8m in funding.",
-    ),
-    "claim-date-valid": (
-        "Release scheduled for August 14, 2026",
-        "The release is scheduled for August 14, 2026.",
-        "Release scheduled for mid-August",
-        "The release is scheduled for 2026-08-14.",
-    ),
-    "claim-date-invalid": (
-        "Release scheduled for August 14, 2026",
-        "The release is scheduled for August 14, 2026.",
-        "Release scheduled one day later",
-        "The release is scheduled for 2026-08-15.",
-    ),
-    "claim-count-valid": (
-        "Twelve teams join the pilot",
-        "Twelve teams joined the pilot program.",
-        "Pilot expands to twelve teams",
-        "12 teams joined the pilot program.",
-    ),
-    "claim-count-invalid": (
-        "Twelve teams join the pilot",
-        "Twelve teams joined the pilot program.",
-        "Pilot expands to thirteen teams",
-        "13 teams joined the pilot program.",
-    ),
-    "claim-quote-punctuation-valid": (
-        "Maintainer describes safe local execution",
-        'The maintainer called it "safe, local execution" for developers.',
-        "Maintainer emphasizes local execution",
-        'The maintainer called it "safe local execution" for developers.',
-    ),
-    "claim-quote-punctuation-invalid": (
-        "Maintainer describes safe local execution",
-        'The maintainer called it "safe, local execution" for developers.',
-        "Maintainer makes stronger safety claim",
-        'The maintainer called it "perfectly safe execution" for developers.',
-    ),
-    "claim-uncertainty-valid": (
-        "Change could reduce latency by 20 percent",
-        "Early tests suggest the change could reduce latency by 20 percent.",
-        "Change may reduce latency",
-        "Early tests suggest the change may reduce latency by 20%.",
-    ),
-    "claim-uncertainty-invalid": (
-        "Change could reduce latency by 20 percent",
-        "Early tests suggest the change could reduce latency by 20 percent.",
-        "Change claims a larger latency reduction",
-        "The change reduces latency by 35%.",
-    ),
-    "claim-multiple-figures-valid": (
-        "Three of five tests finish in twenty minutes",
-        "3 of 5 tests completed in 20 minutes.",
-        "Most tests finish within the run",
-        "In 20 minutes, 3 of 5 tests completed.",
-    ),
-    "claim-multiple-figures-invalid": (
-        "Three of five tests finish in twenty minutes",
-        "3 of 5 tests completed in 20 minutes.",
-        "Most tests take longer",
-        "In 30 minutes, 3 of 5 tests completed.",
-    ),
-    "claim-unit-valid": (
-        "Startup time falls to 1,000 milliseconds",
-        "Measured startup time fell to 1,000 milliseconds.",
-        "Startup time falls to one second",
-        "Measured startup time fell to 1 second.",
-    ),
-    "claim-unit-invalid": (
-        "Startup time falls to 1,000 milliseconds",
-        "Measured startup time fell to 1,000 milliseconds.",
-        "Startup time reported as two seconds",
-        "Measured startup time fell to 2 seconds.",
-    ),
-    "claim-quote-whitespace-valid": (
-        "Documentation names local mode",
-        'The documentation calls the setting "local   mode".',
-        "Documentation names local mode",
-        'The documentation calls the setting "local mode".',
-    ),
-    "claim-quote-whitespace-invalid": (
-        "Documentation names local mode",
-        'The documentation calls the setting "local   mode".',
-        "Documentation names a different mode",
-        'The documentation calls the setting "remote mode".',
-    ),
-    "claim-paraphrase-length-valid": (
-        "Approved",
-        "",
-        "Proposal approved",
-        "The proposal received approval.",
-    ),
-    "claim-paraphrase-length-invalid": (
-        "Approved",
-        "",
-        "Proposal receives unsupported guarantees",
-        "The proposal received approval and passed every security test.",
-    ),
-}
+CaseState = tuple[dict[str, Any], str, BriefingConfig]
+Variant = Callable[[dict[str, Any], str, BriefingConfig], CaseState]
+VARIANTS: dict[str, Variant] = {}
 
 
-def _config() -> briefing_config.BriefingConfig:
-    return briefing_config.BriefingConfig(
-        schema_version=1,
-        sections=(briefing_config.BriefingSection(
-            name="AI Dev Tools",
-            group=None,
-            target_stories=2,
-            corpus_categories=("dev_community",),
-            guidance="Agentic coding tools and integrations.",
-            excluded_stories=1,
-        ),),
+def variant(name: str) -> Callable[[Variant], Variant]:
+    """Register an authored corpus, prose, and configuration transform."""
+
+    def register(transform: Variant) -> Variant:
+        if name in VARIANTS:
+            raise ValueError(f"duplicate variant {name!r}")
+        VARIANTS[name] = transform
+        return transform
+
+    return register
+
+
+def text_only(transform: Callable[[str], str]) -> Variant:
+    """Adapt a prose-only mutation to the shared variant signature."""
+
+    def apply(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+        return corpus, transform(text), config
+
+    return apply
+
+
+@variant("valid-baseline")
+def _valid_baseline(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    return corpus, text, config
+
+
+@variant("valid-trailing-slash")
+@text_only
+def _valid_trailing_slash(text: str) -> str:
+    return replace(text, "https://example.test/tool-one", "https://EXAMPLE.test/tool-one/")
+
+
+@variant("valid-tracking-parameter")
+@text_only
+def _valid_tracking_parameter(text: str) -> str:
+    return replace(text, "https://example.test/tool-three", "https://example.test/tool-three?utm_source=rss")
+
+
+@variant("valid-query-order")
+@text_only
+def _valid_query_order(text: str) -> str:
+    return replace(text, "id=2&output=1", "output=1&id=2")
+
+
+@variant("ungrounded-bare-url-in-prose")
+@text_only
+def _ungrounded_bare_url_in_prose(text: str) -> str:
+    return text + "\nReader note: https://not-a-citation.example.test/context\n"
+
+
+@variant("valid-doctype-as-text")
+def _valid_doctype_as_text(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    text = replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")
+    corpus["categories"]["dev_community"][1]["summary"] = (
+        "The <!DOCTYPE html> text is discussed; tool two added a review mode for proposed patches."
     )
+    return corpus, text, config
 
 
-def _item(title: str, url: str, summary: str, source: str = "Test Wire") -> dict[str, Any]:
-    return {
-        "title": title,
-        "url": url,
-        "published": "2026-08-11T10:00:00+00:00",
-        "summary": summary,
-        "source": source,
+@variant("valid-category-overlap")
+def _valid_category_overlap(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["other_news"].append(copy.deepcopy(corpus["categories"]["dev_community"][1]))
+    corpus["processing"]["other_news"]["fetched"] = 2
+    corpus["processing"]["other_news"]["kept"] = 2
+    return corpus, text, config
+
+
+@variant("valid-hn-without-discussion")
+def _valid_hn_without_discussion(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"][0].pop("discussion")
+    text = replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
+    return corpus, text, config
+
+
+@variant("valid-exclusions-exhausted")
+def _valid_exclusions_exhausted(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"] = corpus["categories"]["dev_community"][:3]
+    corpus["processing"]["dev_community"]["fetched"] = 3
+    corpus["processing"]["dev_community"]["kept"] = 3
+    config = briefing_config.BriefingConfig(
+        schema_version=1,
+        sections=(config.sections[0]._replace(excluded_stories=5),),
+    )
+    return corpus, text, config
+
+
+@variant("valid-grouped-multisection")
+def _valid_grouped_multisection(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    practice = item(
+        "Teams adopt staged patch review",
+        "https://example.test/staged-review",
+        "Teams adopted a staged workflow for reviewing proposed patches.",
+    )
+    corpus["categories"]["dev_practices"] = [practice]
+    corpus["processing"]["dev_practices"] = {
+        "fetched": 1,
+        "undated_dropped": 0,
+        "relevance_dropped": 0,
+        "duplicates_dropped": 0,
+        "source_cap_dropped": 0,
+        "category_cap_dropped": 0,
+        "kept": 1,
     }
-
-
-def baseline() -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = json.loads(
-        (Path(__file__).with_name("fixtures") / "checker-corpus.json").read_text(encoding="utf-8")
+    config = briefing_config.BriefingConfig(
+        schema_version=1,
+        sections=(
+            config.sections[0]._replace(group="AI/Tech"),
+            briefing_config.BriefingSection(
+                name="AI Dev Practices",
+                group="AI/Tech",
+                target_stories=1,
+                corpus_categories=("dev_practices",),
+                guidance="Workflow patterns rather than product updates.",
+                excluded_stories=0,
+            ),
+        ),
     )
     text = """# Daily Briefing — August 11, 2026
-
-## AI Dev Tools
-
-**Tool one reaches version 2** — Tool one released version 2 with safer local execution.
-🔗 https://example.test/tool-one
-🔗 HN: https://news.ycombinator.com/item?id=101
-`↑ 45 pts · 12 comments`
-
-**Tool two adds review mode** — Tool two added a review mode for proposed patches.
-🔗 https://publisher.test/story?id=2&output=1
-
----
-
-### Excluded Topics (accountability log)
-
-**AI Dev Tools**
-- *Tool three updates its extension* — lower immediate impact. 🔗 https://example.test/tool-three
-"""
-    return corpus, text, _config()
-
-
-def _replace(text: str, old: str, new: str) -> str:
-    if old not in text:
-        raise AssertionError(f"suite variant expected {old!r} in baseline")
-    return text.replace(old, new, 1)
-
-
-def _replace_tool_three_exclusion(text: str) -> str:
-    """Move the baseline exclusion to a different, internally consistent story."""
-    return _replace(
-        text,
-        "- *Tool three updates its extension* — lower immediate impact. "
-        "🔗 https://example.test/tool-three",
-        "- *Half of users enable feature* — lower immediate impact. "
-        "🔗 https://example.test/half-users",
-    )
-
-
-def _apply_claim_pair_variant(
-    corpus: dict[str, Any], text: str, variant: str
-) -> tuple[dict[str, Any], str]:
-    evidence_title, evidence_summary, output_title, output_prose = CLAIM_PAIR_VARIANTS[variant]
-    corpus["categories"]["dev_community"][1].update(
-        title=evidence_title,
-        summary=evidence_summary,
-    )
-    original = (
-        "**Tool two adds review mode** — Tool two added a review mode for proposed patches.\n"
-        "🔗 https://publisher.test/story?id=2&output=1"
-    )
-    replacement = (
-        f"**{output_title}** — {output_prose}\n"
-        "🔗 https://publisher.test/story?id=2&output=1"
-    )
-    return corpus, _replace(text, original, replacement)
-
-
-def _fixture_usage(corpus: dict[str, Any]) -> None:
-    """Account for authored fixture mutations using the current budget fields."""
-    for category, items in corpus["categories"].items():
-        stats = corpus["processing"][category]
-        for field in corpus_schema.PROCESSING_FIELDS:
-            stats.setdefault(field, 0)
-        usage = [curation.item_context_usage(item) for item in items]
-        stats["context_bytes"] = sum(size for size, _ in usage)
-        stats["estimated_tokens"] = sum(tokens for _, tokens in usage)
-    for output_field, processing_field in (("used_bytes", "context_bytes"),
-                                           ("estimated_tokens", "estimated_tokens")):
-        corpus["context_budget"][output_field] = sum(
-            stats[processing_field] for stats in corpus["processing"].values()
-        )
-
-
-def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus, text, config = baseline()
-
-    if variant == "valid-baseline":
-        pass
-    elif variant == "valid-trailing-slash":
-        text = _replace(text, "https://example.test/tool-one", "https://EXAMPLE.test/tool-one/")
-    elif variant == "valid-tracking-parameter":
-        text = _replace(text, "https://example.test/tool-three", "https://example.test/tool-three?utm_source=rss")
-    elif variant == "valid-query-order":
-        text = _replace(text, "id=2&output=1", "output=1&id=2")
-    elif variant == "ungrounded-bare-url-in-prose":
-        text += "\nReader note: https://not-a-citation.example.test/context\n"
-    elif variant == "valid-doctype-as-text":
-        text = _replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")
-        corpus["categories"]["dev_community"][1]["summary"] = (
-            "The <!DOCTYPE html> text is discussed; tool two added a review mode for proposed patches."
-        )
-    elif variant == "valid-category-overlap":
-        corpus["categories"]["other_news"].append(copy.deepcopy(corpus["categories"]["dev_community"][1]))
-        corpus["processing"]["other_news"]["fetched"] = 2
-        corpus["processing"]["other_news"]["kept"] = 2
-    elif variant == "valid-hn-without-discussion":
-        corpus["categories"]["dev_community"][0].pop("discussion")
-        text = _replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
-    elif variant == "valid-exclusions-exhausted":
-        corpus["categories"]["dev_community"] = corpus["categories"]["dev_community"][:3]
-        corpus["processing"]["dev_community"]["fetched"] = 3
-        corpus["processing"]["dev_community"]["kept"] = 3
-        config = briefing_config.BriefingConfig(
-            schema_version=1,
-            sections=(config.sections[0]._replace(excluded_stories=5),),
-        )
-    elif variant == "valid-grouped-multisection":
-        practice = _item(
-            "Teams adopt staged patch review",
-            "https://example.test/staged-review",
-            "Teams adopted a staged workflow for reviewing proposed patches.",
-        )
-        corpus["categories"]["dev_practices"] = [practice]
-        corpus["processing"]["dev_practices"] = {
-            "fetched": 1,
-            "undated_dropped": 0,
-            "relevance_dropped": 0,
-            "duplicates_dropped": 0,
-            "source_cap_dropped": 0,
-            "category_cap_dropped": 0,
-            "kept": 1,
-        }
-        config = briefing_config.BriefingConfig(
-            schema_version=1,
-            sections=(
-                config.sections[0]._replace(group="AI/Tech"),
-                briefing_config.BriefingSection(
-                    name="AI Dev Practices",
-                    group="AI/Tech",
-                    target_stories=1,
-                    corpus_categories=("dev_practices",),
-                    guidance="Workflow patterns rather than product updates.",
-                    excluded_stories=0,
-                ),
-            ),
-        )
-        text = """# Daily Briefing — August 11, 2026
 
 ## AI/Tech
 
@@ -370,34 +169,38 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
 **AI Dev Tools**
 - *Tool three updates its extension* — lower immediate impact. 🔗 https://example.test/tool-three
 """
-    elif variant == "category-ambiguity-clean":
-        corpus["categories"]["dev_community"][1].update(
-            title="Tool two review mode reshapes patch workflows",
-            summary="Tool two's new review mode changes how developers inspect proposed patches.",
-        )
-        practice = _item(
-            "Teams adopt staged patch review",
-            "https://example.test/staged-review",
-            "Teams adopted a staged workflow for reviewing proposed patches.",
-        )
-        corpus["categories"]["dev_community"].append(practice)
-        corpus["processing"]["dev_community"]["fetched"] = 5
-        corpus["processing"]["dev_community"]["kept"] = 5
-        config = briefing_config.BriefingConfig(
-            schema_version=1,
-            sections=(
-                config.sections[0]._replace(target_stories=1),
-                briefing_config.BriefingSection(
-                    name="AI Dev Practices",
-                    group=None,
-                    target_stories=1,
-                    corpus_categories=("dev_community",),
-                    guidance="Workflow patterns rather than product updates.",
-                    excluded_stories=0,
-                ),
+    return corpus, text, config
+
+
+@variant("category-ambiguity-clean")
+def _category_ambiguity_clean(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"][1].update(
+        title="Tool two review mode reshapes patch workflows",
+        summary="Tool two's new review mode changes how developers inspect proposed patches.",
+    )
+    practice = item(
+        "Teams adopt staged patch review",
+        "https://example.test/staged-review",
+        "Teams adopted a staged workflow for reviewing proposed patches.",
+    )
+    corpus["categories"]["dev_community"].append(practice)
+    corpus["processing"]["dev_community"]["fetched"] = 5
+    corpus["processing"]["dev_community"]["kept"] = 5
+    config = briefing_config.BriefingConfig(
+        schema_version=1,
+        sections=(
+            config.sections[0]._replace(target_stories=1),
+            briefing_config.BriefingSection(
+                name="AI Dev Practices",
+                group=None,
+                target_stories=1,
+                corpus_categories=("dev_community",),
+                guidance="Workflow patterns rather than product updates.",
+                excluded_stories=0,
             ),
-        )
-        text = """# Daily Briefing — August 11, 2026
+        ),
+    )
+    text = """# Daily Briefing — August 11, 2026
 
 ## AI Dev Tools
 
@@ -416,356 +219,341 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
 **AI Dev Tools**
 - *Tool three updates its extension* — lower immediate impact. 🔗 https://example.test/tool-three
 """
-    elif variant == "fabricated-included":
-        text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/invented")
-    elif variant == "fabricated-excluded":
-        text = _replace(text, "https://example.test/tool-three", "https://example.test/invented")
-    elif variant == "altered-publisher-url":
-        text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2")
-    elif variant == "bare-included-url":
-        text = _replace(text, "🔗 https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2&output=1")
-    elif variant == "markdown-included-url":
-        text = _replace(
-            text,
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "[Source](https://publisher.test/story?id=2&output=1)",
-        )
-    elif variant == "markdown-excluded-url":
-        text = _replace(
-            text,
-            "🔗 https://example.test/tool-three",
-            "[Source](https://example.test/tool-three)",
-        )
-    elif variant == "duplicate-url-same-topic":
-        text = _replace(
-            text,
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://publisher.test/story?id=2&output=1",
-        )
-    elif variant == "duplicate-url-canonical":
-        text = _replace(
-            text,
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://PUBLISHER.test/story/?output=1&id=2&utm_source=x",
-        )
-    elif variant == "included-and-excluded":
-        text = _replace(text, "https://example.test/tool-three", "https://publisher.test/story?id=2&output=1")
-    elif variant == "topic-without-link":
-        text = _replace(text, "🔗 https://publisher.test/story?id=2&output=1", "")
-    elif variant == "excluded-without-link":
-        text = _replace(text, "🔗 https://example.test/tool-three", "")
-    elif variant == "missing-section":
-        text = _replace(text, "## AI Dev Tools", "## Developer News")
-    elif variant == "missing-exclusion-section":
-        text = text.split("### Excluded Topics", 1)[0]
-    elif variant == "overfilled":
-        text = _replace(
-            text,
-            "---\n\n### Excluded Topics",
-            "**Tool three** — Tool three updated its editor extension.\n"
-            "🔗 https://example.test/tool-three\n\n---\n\n### Excluded Topics",
-        )
-        text = _replace_tool_three_exclusion(text)
-    elif variant == "underfilled":
-        start = text.index("**Tool two adds review mode**")
-        end = text.index("---", start)
-        text = text[:start] + text[end:]
-    elif variant == "wrong-category":
-        text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://example.test/market")
-    elif variant == "hn-discussion-missing":
-        text = _replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
-    elif variant == "unsupported-figure":
-        text = _replace(text, "version 2 with", "version 87 with")
-    elif variant == "unsupported-quotation":
-        text = _replace(text, "Tool two added a review mode", 'Tool two called review mode "perfectly safe"')
-    elif variant == "claim-too-long":
-        text = _replace(
-            text,
-            "Tool two added a review mode for proposed patches.",
-            "Tool two added a review mode for proposed patches and transformed every stage of engineering "
-            "with universal safety guarantees, automatic deployment, perfect rollback, and complete compliance.",
-        )
-    elif variant == "valid-semantic-figure":
-        text = _replace(
-            text,
-            "**Tool two adds review mode** — Tool two added a review mode for proposed patches.\n"
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "**Half of users enable feature** — 50 percent of users enabled the optional feature.\n"
-            "🔗 https://example.test/half-users",
-        )
-    elif variant == "valid-thin-evidence-paraphrase":
-        corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
-        text = _replace(
-            text,
-            "Tool two added a review mode for proposed patches.",
-            "The release introduced a mode that lets developers review proposed patches before accepting them.",
-        )
-    elif variant in CLAIM_PAIR_VARIANTS:
-        corpus, text = _apply_claim_pair_variant(corpus, text, variant)
-    elif variant == "thin-evidence-unsupported":
-        corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
-        text = _replace(
-            text,
-            "Tool two added a review mode for proposed patches.",
-            "Review mode guarantees zero defects.",
-        )
-    elif variant == "conflicting-evidence":
-        corpus["categories"]["dev_community"].append(_item(
-            "Tool two review mode delayed",
-            "https://example.test/tool-two-delay",
-            "The maintainer says review mode has not shipped.",
-        ))
-        corpus["processing"]["dev_community"]["fetched"] = 5
-        corpus["processing"]["dev_community"]["kept"] = 5
-        text = _replace(
-            text,
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-two-delay",
-        )
-    elif variant == "over-consolidated":
-        text = _replace(
-            text,
-            "🔗 https://publisher.test/story?id=2&output=1",
-            "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-three",
-        )
-        text = _replace(text, "https://example.test/tool-three", "https://example.test/half-users")
-    elif variant.startswith("health-"):
-        corpus = _degraded_corpus(corpus, two_failures=variant in {"health-partial", "health-duplicate"})
-        if variant == "health-valid":
-            text += _health_block([
-                ("rss", "Feed A", "error"),
-            ])
-        elif variant == "health-missing":
-            pass
-        elif variant == "health-prose-only":
-            text += "\n---\n\n### Corpus health\nFeed A failed.\n"
-        elif variant == "health-malformed-json":
-            text += "\n---\n\n### Corpus health\n```json\n{bad json}\n```\n"
-        elif variant == "health-wrong-schema":
-            text += "\n---\n\n### Corpus health\n```json\n{\"failures\": []}\n```\n"
-        elif variant == "health-partial":
-            text += _health_block([("rss", "Feed A", "error")])
-        elif variant == "health-unexpected":
-            text += _health_block([
-                ("rss", "Feed A", "error"),
-                ("rss", "Imaginary", "error"),
-            ])
-        elif variant == "health-wrong-status":
-            text += _health_block([("rss", "Feed A", "empty")])
-        elif variant == "health-duplicate":
-            text += _health_block([
-                ("rss", "Feed A", "error"),
-                ("rss", "Feed B", "empty"),
-                ("rss", "Feed B", "empty"),
-            ])
-        else:
-            raise ValueError(f"unknown variant {variant!r}")
-    elif variant == "selection-ambiguity":
-        corpus["categories"]["dev_community"][2].update(
-            title="Tool three release combines an extension update with staged patch review",
-            summary=(
-                "The release is both an editor-extension product update and a staged "
-                "patch-review workflow change."
-            ),
-        )
-        config = briefing_config.BriefingConfig(
-            schema_version=1,
-            sections=(
-                config.sections[0],
-                briefing_config.BriefingSection(
-                    name="AI Dev Practices",
-                    group=None,
-                    target_stories=1,
-                    corpus_categories=("dev_community",),
-                    guidance="Workflow patterns rather than product updates.",
-                    excluded_stories=0,
-                ),
-            ),
-        )
-        text = _replace(
-            text,
-            "---\n\n### Excluded Topics",
-            "## AI Dev Practices\n\n"
-            "**Tool three release combines an extension update with staged patch review** — "
-            "The release is both an editor-extension product update and a staged "
-            "patch-review workflow change.\n"
-            "🔗 https://example.test/tool-three\n\n"
-            "---\n\n### Excluded Topics",
-        )
-        text = _replace(text, "`↑ 45 pts · 12 comments`\n", "")
-        text = _replace_tool_three_exclusion(text)
-    elif variant == "formatting-ambiguity":
-        text = _replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
-    else:
-        raise ValueError(f"unknown variant {variant!r}")
-    _fixture_usage(corpus)
     return corpus, text, config
 
 
-def _degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, Any]:
-    corpus["schema_version"] = corpus_schema.SCHEMA_VERSION
-    errors = [{
-        "source_type": "rss",
-        "source_id": "Feed A",
-        "status": "error",
-        "error_type": "HTTPError",
-        "message": "HTTP 503",
-        "duration_ms": 10,
-    }]
-    if two_failures:
-        errors.append({
-            "source_type": "rss",
-            "source_id": "Feed B",
-            "status": "empty",
-            "error_type": "EmptyFeed",
-            "message": "no dated entries",
-            "duration_ms": 8,
-        })
-    corpus["errors"] = errors
-    corpus["fetch_duration_ms"] = 18
-    corpus["sources"] = [{
-        "source_type": error["source_type"],
-        "source_id": error["source_id"],
-        "category": "dev_community",
-        "status": error["status"],
-        "requested": True,
-        "http_success": error["status"] == "empty",
-        "parsed_entries": 0,
-        "dated_entries": 0,
-        "retained_entries": 0,
-        "retained_bytes": 0,
-        "estimated_tokens": 0,
-        "duration_ms": error["duration_ms"],
-        "error_type": error["error_type"],
-        "message": error["message"],
-    } for error in errors]
-    return corpus
+@variant("fabricated-included")
+@text_only
+def _fabricated_included(text: str) -> str:
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/invented")
 
 
-def _health_block(records: list[tuple[str, str, str]]) -> str:
-    payload = {
-        "failed_sources": [
-            {"source_type": source_type, "source_id": source_id, "status": status}
-            for source_type, source_id, status in records
-        ]
-    }
-    return "\n---\n\n### Corpus health\nCoverage was degraded.\n```json\n" + json.dumps(payload) + "\n```\n"
+@variant("fabricated-excluded")
+@text_only
+def _fabricated_excluded(text: str) -> str:
+    return replace(text, "https://example.test/tool-three", "https://example.test/invented")
 
 
-def _xml_case(variant: str) -> bytes:
-    ordinary = '<?xml version="1.0" encoding="{decl}"?><rss><channel><item><title>ok</title></item></channel></rss>'
-    if variant == "utf8-rss":
-        return ordinary.format(decl="UTF-8").encode("utf-8")
-    if variant == "utf16-rss":
-        return ordinary.format(decl="UTF-16").encode("utf-16")
-    if variant == "utf16le-rss":
-        return ordinary.format(decl="UTF-16").encode("utf-16-le")
-    if variant == "utf16be-rss":
-        return ordinary.format(decl="UTF-16").encode("utf-16-be")
-    if variant == "utf32-rss":
-        return ordinary.format(decl="UTF-32").encode("utf-32")
-    if variant == "atom-valid":
-        return b'<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>ok</title></entry></feed>'
-    if variant == "feed-empty":
-        return b'<rss><channel /></rss>'
-    if variant == "feed-wrong-shape":
-        return b'<html><body>not a feed</body></html>'
-    if variant == "malformed-unclosed":
-        return b'<rss><channel><item></rss>'
-    if variant == "malformed-entity":
-        return b'<rss><item><title>&unknown;</title></item></rss>'
-    if variant == "doctype-utf8":
-        return b'<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY x "boom">]><rss><title>&x;</title></rss>'
-    if variant == "doctype-utf16":
-        return ('<?xml version="1.0" encoding="UTF-16"?>'
-                '<!DOCTYPE rss [<!ENTITY x "boom">]><rss><title>&x;</title></rss>').encode("utf-16")
-    if variant == "doctype-utf32":
-        return ('<?xml version="1.0" encoding="UTF-32"?>'
-                '<!DOCTYPE rss [<!ENTITY x "boom">]><rss><title>&x;</title></rss>').encode("utf-32")
-    if variant == "malformed-utf32":
-        return b"\xff\xfe\x00\x00\x3c\x00\x00"
-    raise ValueError(f"unknown XML variant {variant!r}")
+@variant("altered-publisher-url")
+@text_only
+def _altered_publisher_url(text: str) -> str:
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2")
 
 
-def _feed_prediction(variant: str) -> set[str]:
-    try:
-        root = feed_xml.parse_feed_xml(_xml_case(variant))
-    except (ET.ParseError, ValueError, UnicodeError):
-        return {"feed_rejected"}
-    local_name = re.sub(r"^\{[^}]+\}", "", root.tag)
-    if local_name not in {"rss", "feed"}:
-        return {"feed_shape_unrecognized"}
-    entries = list(root.iter("item")) + root.findall("{http://www.w3.org/2005/Atom}entry")
-    return {"feed_empty"} if not entries else set()
+@variant("bare-included-url")
+@text_only
+def _bare_included_url(text: str) -> str:
+    return replace(text, "🔗 https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2&output=1")
 
 
-def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
-    suite = json.loads(path.read_text(encoding="utf-8"))
-    records: list[dict[str, Any]] = []
-    for case in suite["cases"]:
-        expected = set(case["human_labels"])
-        if case["component"] == "checker":
-            corpus, text, config = apply_variant(case["variant"])
-            problems = corpus_schema.validate_corpus(corpus)
-            if problems:
-                raise ValueError(f"case {case['id']} built an invalid corpus: {'; '.join(problems)}")
-            findings = eval_briefing.evaluate(corpus, text, config)
-            predicted = {finding.check for finding in findings}
-            detail = [finding._asdict() for finding in findings]
-        elif case["component"] == "feed_parser":
-            predicted = _feed_prediction(case["variant"])
-            detail = []
-        else:
-            raise ValueError(f"case {case['id']} has unknown component")
-        records.append({
-            **case,
-            "predicted_labels": sorted(predicted),
-            "matched": sorted(expected & predicted),
-            "missed": sorted(expected - predicted),
-            "unexpected": sorted(predicted - expected),
-            "findings": detail,
-        })
-
-    components: dict[str, Any] = {}
-    for component in sorted({case["component"] for case in records}):
-        rows = [case for case in records if case["component"] == component]
-        metrics = classification_metrics(
-            [set(case["human_labels"]) for case in rows],
-            [set(case["predicted_labels"]) for case in rows],
-        )
-        metrics["cases"] = len(rows)
-        metrics["exact_case_match"] = rate(
-            sum(not case["missed"] and not case["unexpected"] for case in rows), len(rows)
-        )
-        components[component] = metrics
-
-    heuristic_cases = [
-        case
-        for case in records
-        if case.get("heuristic_claim_case") and not case["human_labels"]
-    ]
-    heuristic_positive = set(HEURISTIC_CLAIM_CHECKS)
-    false_positives = sum(
-        bool(set(case["predicted_labels"]) & heuristic_positive)
-        and not bool(set(case["human_labels"]) & heuristic_positive)
-        for case in heuristic_cases
+@variant("markdown-included-url")
+@text_only
+def _markdown_included_url(text: str) -> str:
+    return replace(
+        text,
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "[Source](https://publisher.test/story?id=2&output=1)",
     )
-    heuristic_negatives = len(heuristic_cases)
-    per_check_false_positive_rates: dict[str, Any] = {}
-    all_heuristic_cases = [case for case in records if case.get("heuristic_claim_case")]
-    for check in sorted(heuristic_positive):
-        negatives = [case for case in all_heuristic_cases if check not in case["human_labels"]]
-        per_check_false_positive_rates[check] = rate(
-            sum(check in case["predicted_labels"] for case in negatives),
-            len(negatives),
+
+
+@variant("markdown-excluded-url")
+@text_only
+def _markdown_excluded_url(text: str) -> str:
+    return replace(
+        text,
+        "🔗 https://example.test/tool-three",
+        "[Source](https://example.test/tool-three)",
+    )
+
+
+@variant("duplicate-url-same-topic")
+@text_only
+def _duplicate_url_same_topic(text: str) -> str:
+    return replace(
+        text,
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://publisher.test/story?id=2&output=1",
+    )
+
+
+@variant("duplicate-url-canonical")
+@text_only
+def _duplicate_url_canonical(text: str) -> str:
+    return replace(
+        text,
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://PUBLISHER.test/story/?output=1&id=2&utm_source=x",
+    )
+
+
+@variant("included-and-excluded")
+@text_only
+def _included_and_excluded(text: str) -> str:
+    return replace(text, "https://example.test/tool-three", "https://publisher.test/story?id=2&output=1")
+
+
+@variant("topic-without-link")
+@text_only
+def _topic_without_link(text: str) -> str:
+    return replace(text, "🔗 https://publisher.test/story?id=2&output=1", "")
+
+
+@variant("excluded-without-link")
+@text_only
+def _excluded_without_link(text: str) -> str:
+    return replace(text, "🔗 https://example.test/tool-three", "")
+
+
+@variant("missing-section")
+@text_only
+def _missing_section(text: str) -> str:
+    return replace(text, "## AI Dev Tools", "## Developer News")
+
+
+@variant("missing-exclusion-section")
+@text_only
+def _missing_exclusion_section(text: str) -> str:
+    return text.split("### Excluded Topics", 1)[0]
+
+
+@variant("overfilled")
+@text_only
+def _overfilled(text: str) -> str:
+    text = replace(
+        text,
+        "---\n\n### Excluded Topics",
+        "**Tool three** — Tool three updated its editor extension.\n"
+        "🔗 https://example.test/tool-three\n\n---\n\n### Excluded Topics",
+    )
+    return replace_tool_three_exclusion(text)
+
+
+@variant("underfilled")
+def _underfilled(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    start = text.index("**Tool two adds review mode**")
+    end = text.index("---", start)
+    text = text[:start] + text[end:]
+    return corpus, text, config
+
+
+@variant("wrong-category")
+@text_only
+def _wrong_category(text: str) -> str:
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://example.test/market")
+
+
+@variant("hn-discussion-missing")
+@text_only
+def _hn_discussion_missing(text: str) -> str:
+    return replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
+
+
+@variant("unsupported-figure")
+@text_only
+def _unsupported_figure(text: str) -> str:
+    return replace(text, "version 2 with", "version 87 with")
+
+
+@variant("unsupported-quotation")
+@text_only
+def _unsupported_quotation(text: str) -> str:
+    return replace(text, "Tool two added a review mode", 'Tool two called review mode "perfectly safe"')
+
+
+@variant("claim-too-long")
+@text_only
+def _claim_too_long(text: str) -> str:
+    return replace(
+        text,
+        "Tool two added a review mode for proposed patches.",
+        "Tool two added a review mode for proposed patches and transformed every stage of engineering "
+        "with universal safety guarantees, automatic deployment, perfect rollback, and complete compliance.",
+    )
+
+
+@variant("valid-semantic-figure")
+@text_only
+def _valid_semantic_figure(text: str) -> str:
+    return replace(
+        text,
+        "**Tool two adds review mode** — Tool two added a review mode for proposed patches.\n"
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "**Half of users enable feature** — 50 percent of users enabled the optional feature.\n"
+        "🔗 https://example.test/half-users",
+    )
+
+
+@variant("valid-thin-evidence-paraphrase")
+def _valid_thin_evidence_paraphrase(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
+    text = replace(
+        text,
+        "Tool two added a review mode for proposed patches.",
+        "The release introduced a mode that lets developers review proposed patches before accepting them.",
+    )
+    return corpus, text, config
+
+
+def _claim_pair(variant_name: str) -> Variant:
+    def apply(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+        corpus, text = apply_claim_pair_variant(corpus, text, variant_name)
+        return corpus, text, config
+
+    return apply
+
+
+for _variant_name in CLAIM_PAIR_VARIANTS:
+    variant(_variant_name)(_claim_pair(_variant_name))
+
+
+@variant("thin-evidence-unsupported")
+def _thin_evidence_unsupported(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
+    text = replace(
+        text,
+        "Tool two added a review mode for proposed patches.",
+        "Review mode guarantees zero defects.",
+    )
+    return corpus, text, config
+
+
+@variant("conflicting-evidence")
+def _conflicting_evidence(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"].append(
+        item(
+            "Tool two review mode delayed",
+            "https://example.test/tool-two-delay",
+            "The maintainer says review mode has not shipped.",
         )
-    return {
-        "schema_version": 1,
-        "suite": portable_path(path),
-        "label_provenance": suite["label_provenance"],
-        "case_count": len(records),
-        "components": components,
-        "heuristic_claim_false_positive_rate": rate(false_positives, heuristic_negatives),
-        "heuristic_claim_false_positive_rates": per_check_false_positive_rates,
-        "cases": records,
-    }
+    )
+    corpus["processing"]["dev_community"]["fetched"] = 5
+    corpus["processing"]["dev_community"]["kept"] = 5
+    text = replace(
+        text,
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-two-delay",
+    )
+    return corpus, text, config
+
+
+@variant("over-consolidated")
+@text_only
+def _over_consolidated(text: str) -> str:
+    text = replace(
+        text,
+        "🔗 https://publisher.test/story?id=2&output=1",
+        "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-three",
+    )
+    return replace(text, "https://example.test/tool-three", "https://example.test/half-users")
+
+
+@variant("health-missing")
+def _health_missing(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=False)
+    return corpus, text, config
+
+
+@variant("health-malformed-json")
+def _health_malformed_json(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += "\n---\n\n### Corpus health\n```json\n{bad json}\n```\n"
+    return corpus, text, config
+
+
+@variant("health-wrong-schema")
+def _health_wrong_schema(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += '\n---\n\n### Corpus health\n```json\n{"failures": []}\n```\n'
+    return corpus, text, config
+
+
+@variant("health-partial")
+def _health_partial(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=True)
+    text += health_block([("rss", "Feed A", "error")])
+    return corpus, text, config
+
+
+@variant("health-unexpected")
+def _health_unexpected(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += health_block(
+        [
+            ("rss", "Feed A", "error"),
+            ("rss", "Imaginary", "error"),
+        ]
+    )
+    return corpus, text, config
+
+
+@variant("health-wrong-status")
+def _health_wrong_status(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += health_block([("rss", "Feed A", "empty")])
+    return corpus, text, config
+
+
+@variant("health-duplicate")
+def _health_duplicate(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus = degraded_corpus(corpus, two_failures=True)
+    text += health_block(
+        [
+            ("rss", "Feed A", "error"),
+            ("rss", "Feed B", "empty"),
+            ("rss", "Feed B", "empty"),
+        ]
+    )
+    return corpus, text, config
+
+
+@variant("selection-ambiguity")
+def _selection_ambiguity(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
+    corpus["categories"]["dev_community"][2].update(
+        title="Tool three release combines an extension update with staged patch review",
+        summary=("The release is both an editor-extension product update and a staged patch-review workflow change."),
+    )
+    config = briefing_config.BriefingConfig(
+        schema_version=1,
+        sections=(
+            config.sections[0],
+            briefing_config.BriefingSection(
+                name="AI Dev Practices",
+                group=None,
+                target_stories=1,
+                corpus_categories=("dev_community",),
+                guidance="Workflow patterns rather than product updates.",
+                excluded_stories=0,
+            ),
+        ),
+    )
+    text = replace(
+        text,
+        "---\n\n### Excluded Topics",
+        "## AI Dev Practices\n\n"
+        "**Tool three release combines an extension update with staged patch review** — "
+        "The release is both an editor-extension product update and a staged "
+        "patch-review workflow change.\n"
+        "🔗 https://example.test/tool-three\n\n"
+        "---\n\n### Excluded Topics",
+    )
+    text = replace(text, "`↑ 45 pts · 12 comments`\n", "")
+    text = replace_tool_three_exclusion(text)
+    return corpus, text, config
+
+
+@variant("formatting-ambiguity")
+@text_only
+def _formatting_ambiguity(text: str) -> str:
+    return replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
+
+
+def apply_variant(variant: str) -> CaseState:
+    corpus, text, config = baseline()
+
+    try:
+        transform = VARIANTS[variant]
+    except KeyError:
+        raise ValueError(f"unknown variant {variant!r}") from None
+    corpus, text, config = transform(corpus, text, config)
+    fixture_usage(corpus)
+    return corpus, text, config

@@ -8,7 +8,7 @@ from typing import Any
 
 from agent_runner.hashing import sha256_bytes
 
-from evaluator import cases as cases_module
+from evaluator import case_runner
 from evaluator import checkpoint as checkpoint_module
 from evaluator.adapters import Adapter
 from evaluator.checkpoint import (
@@ -138,7 +138,7 @@ def run_evaluation(
         cost_ceiling_usd=cost_ceiling_usd,
         cost_ceiling_provider=cost_ceiling_provider,
         checkpoint=checkpoint_module._checkpoint,
-        deterministic_suite=cases_module.run_deterministic_suite,
+        deterministic_suite=case_runner.run_deterministic_suite,
     )
     if state.completed_report is not None:
         return state.completed_report

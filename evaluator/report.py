@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evaluator.cases import HEURISTIC_CLAIM_CHECKS
+from evaluator.case_runner import HEURISTIC_CLAIM_CHECKS
 from evaluator.metrics import latency_summary, rate
 from evaluator.plan import _attack_dimensions, _json
 

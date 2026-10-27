@@ -16,7 +16,7 @@ from evaluator.adapters import (
     Generation,
     ProviderRequestError,
 )
-from evaluator.cases import run_deterministic_suite
+from evaluator.case_runner import run_deterministic_suite
 from evaluator.checkpoint import _reconstruct_observed_cost
 from evaluator.report import summarize
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
@@ -606,7 +606,7 @@ class ExecutionTest(unittest.TestCase):
             prompt.write_text("Produce the briefing.", encoding="utf-8")
             output = temporary / "results"
             with (
-                patch("evaluator.cases.run_deterministic_suite", return_value=deterministic),
+                patch("evaluator.case_runner.run_deterministic_suite", return_value=deterministic),
                 patch(
                     "eval_briefing.parse_briefing",
                     wraps=eval_briefing.parse_briefing,

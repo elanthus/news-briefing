@@ -16,7 +16,9 @@ import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
 from briefing_config import BriefingConfig, BriefingSection, load_config
-from evaluator.cases import HEURISTIC_CLAIM_CHECKS, apply_variant, run_deterministic_suite
+from evaluator.case_runner import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
+from evaluator.cases import VARIANTS, apply_variant, text_only
+from evaluator.cases import variant as register_variant
 from evaluator.plan import (
     _attack_dimensions,
     _mutate,
@@ -56,6 +58,28 @@ def _error_capable_checks() -> set[str]:
 
 
 class FixedSuiteTest(unittest.TestCase):
+    def test_registered_variants_match_checker_case_matrix(self) -> None:
+        path = Path(__file__).parents[1] / "fixtures" / "checker-cases.json"
+        suite = json.loads(path.read_text(encoding="utf-8"))
+        matrix = [case for case in suite["cases"] if case["component"] == "checker"]
+        self.assertEqual(set(VARIANTS), {case["variant"] for case in matrix})
+
+    def test_unknown_variant_keeps_error_message(self) -> None:
+        for name in ("unknown", "health-unknown", "health-valid", "health-prose-only"):
+            with self.subTest(variant=name), self.assertRaises(ValueError) as raised:
+                apply_variant(name)
+            self.assertEqual(str(raised.exception), f"unknown variant {name!r}")
+
+    def test_duplicate_registration_preserves_existing_transform(self) -> None:
+        original = VARIANTS["valid-baseline"]
+        expected = apply_variant("valid-baseline")
+        replacement = text_only(lambda text: "replacement")
+        with patch.dict(VARIANTS):
+            with self.assertRaisesRegex(ValueError, "^duplicate variant 'valid-baseline'$"):
+                register_variant("valid-baseline")(replacement)
+            self.assertIs(VARIANTS["valid-baseline"], original)
+            self.assertEqual(apply_variant("valid-baseline"), expected)
+
     def test_attack_success_checks_that_can_never_fire_are_flagged(self) -> None:
         """Attack oracles count only ERROR findings, so a WARN-only check list is inert.
 

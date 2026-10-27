@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import TextIO
 
 from evaluator.adapters import Adapter, adapter_for, load_dotenv, production_adapter_for
-from evaluator.cases import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
-from evaluator.cases import run_deterministic_suite
+from evaluator.case_runner import DEFAULT_SUITE as DEFAULT_CHECKER_SUITE
+from evaluator.case_runner import run_deterministic_suite
 from evaluator.comparison import REGRESSION_POLICY, compare_runs, markdown_comparison
 from evaluator.grounding_machine_review import run_grounding_machine_review
 from evaluator.grounding_review import export_grounding_review_packets
