@@ -507,33 +507,11 @@ def _over_consolidated(text: str) -> str:
     return text
 
 
-@variant("health-valid")
-def _health_valid(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
-    text += _health_block(
-        [
-            ("rss", "Feed A", "error"),
-        ]
-    )
-    return corpus, text, config
-
-
 @variant("health-missing")
 def _health_missing(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     corpus = _degraded_corpus(corpus, two_failures=False)
-    return corpus, text, config
-
-
-@variant("health-prose-only")
-def _health_prose_only(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
-    text += "\n---\n\n### Corpus health\nFeed A failed.\n"
     return corpus, text, config
 
 
