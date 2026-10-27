@@ -7,7 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
-from agent_runner.checkpoint import sha256_bytes, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_bytes
 
 from evaluator.adapters import Adapter, Generation
 

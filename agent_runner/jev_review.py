@@ -18,8 +18,9 @@ from typing import Any, Literal
 
 import briefing_config
 import corpus_schema
-from agent_runner.checkpoint import sha256_bytes, utc_now, write_json_atomic
+from agent_runner.checkpoint import utc_now, write_json_atomic
 from agent_runner.decisions import JEV_MODEL, MAX_REQUEST_BYTES, JevClient
+from agent_runner.hashing import sha256_bytes
 from agent_runner.models import ProviderError
 from agent_runner.output import (
     ModelCorpus,

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import corpus_schema
-from agent_runner.checkpoint import sha256_bytes
+from agent_runner.hashing import sha256_bytes
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, read_json_artifact
 from agent_runner.output import PROMOTION_ACTION
 from agent_runner.positions import StoryPosition

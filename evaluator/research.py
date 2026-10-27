@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from agent_runner.checkpoint import sha256_bytes
+from agent_runner.hashing import sha256_bytes
 from agent_runner.jev_review import load_verified_run
 
 SCHEMA_VERSION = 1

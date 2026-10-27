@@ -53,10 +53,6 @@ class StoryPositionTest(unittest.TestCase):
         self.assertEqual(StoryPosition("sections", "dev_community", 0).anchor_id(), "story-066ded60e52f")
         self.assertEqual(StoryPosition("excluded_topics", "other_news", 3).anchor_id(), "story-c886de1e70e8")
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_control_characters_in_section_are_rejected(self):
         for section in ("a\tb", "a\x7fb", " ", "\n"):
             with self.assertRaises(ValueError):
@@ -76,3 +72,7 @@ if __name__ == "__main__":
     def test_shipped_section_names_are_valid_positions(self):
         for section in briefing_config.load_config().sections:
             StoryPosition.from_payload({"bucket": "sections", "section": section.name, "index": 0})
+
+
+if __name__ == "__main__":
+    unittest.main()

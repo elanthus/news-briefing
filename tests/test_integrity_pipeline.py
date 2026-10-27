@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_runner.checkpoint import sha256_file
+from agent_runner.hashing import sha256_file
 from agent_runner.integrity import corpus_health, degraded_health_records, generation_history
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError

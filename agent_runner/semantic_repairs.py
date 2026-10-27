@@ -9,8 +9,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from agent_runner.checkpoint import sha256_bytes, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
 from agent_runner.decisions import MAX_REQUEST_BYTES
+from agent_runner.hashing import sha256_bytes
 from agent_runner.integrity import repair_scope, semantic_integrity
 from agent_runner.jev_review import (
     MAX_ARTIFACT_BYTES,

@@ -14,8 +14,9 @@ from typing import Any
 import briefing_config
 import fetch_news
 from agent_runner.budget import DEFAULT_GENERATION_SECONDS, DEFAULT_GENERATION_USD, GenerationBudget
-from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic
+from agent_runner.checkpoint import utc_now, write_json_atomic
 from agent_runner.failures import FailureRecord, run_failure
+from agent_runner.hashing import sha256_file
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow

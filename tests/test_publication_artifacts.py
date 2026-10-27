@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_runner.checkpoint import sha256_file, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_file
 from agent_runner.publication import verified_publication
 from tests.test_semantic_repairs import make_run
 

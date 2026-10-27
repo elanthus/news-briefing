@@ -8,7 +8,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from agent_runner.checkpoint import sha256_bytes, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_bytes
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.judge_io import judgment_identity, parse_json_response, portable_path, reviewer_identity

@@ -10,9 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from agent_runner.checkpoint import sha256_file
 from agent_runner.checkpoint import write_json_atomic as _write_json_atomic
 from agent_runner.checkpoint import write_text_atomic as _write_text_atomic
+from agent_runner.hashing import sha256_file
 
 from evaluator.adapters import Adapter, ProviderRequestError, is_transient_provider_error
 from evaluator.judge_io import verified_generation_artifact

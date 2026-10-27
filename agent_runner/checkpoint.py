@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.failures import final_failure
-from agent_runner.hashing import sha256_bytes as sha256_bytes
-from agent_runner.hashing import sha256_file as sha256_file
+from agent_runner.hashing import sha256_bytes, sha256_file
 
 
 def write_bytes_atomic(path: Path, value: bytes) -> None:

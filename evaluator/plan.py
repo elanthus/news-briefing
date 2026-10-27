@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent_runner.hashing import sha256_bytes, sha256_file
+from agent_runner.hashing import sha256_file
 
 from evaluator.adapters import Adapter
 
@@ -574,7 +574,7 @@ def _identity(
         "corpus_sha256": sha256_file(corpus_path),
         "case_corpus_sha256": case_corpus_sha256,
         "config_sha256": config_sha256,
-        "protocol_sha256": sha256_bytes(protocol_path.read_bytes()),
+        "protocol_sha256": sha256_file(protocol_path),
         "prompt_sha256": prompt_sha256,
         "prompt_order": list(prompt_versions),
         "trials_per_case": trials,
@@ -635,17 +635,15 @@ def resolve_evaluation_plan(
     )
     matched_ids = sorted(case["id"] for case in cases if case.get("matched_pair"))
     prompt_hashes = {
-        version: sha256_bytes(path.read_bytes())
+        version: sha256_file(path)
         for version, path in sorted(prompt_versions.items())
     }
     corpus_hashes = {
-        case["id"]: sha256_bytes(
-            (suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path).read_bytes()
-        )
+        case["id"]: sha256_file(suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path)
         for case in cases
     }
     config_hashes = {
-        name: sha256_bytes((suite_path.parent / name).read_bytes())
+        name: sha256_file(suite_path.parent / name)
         for name in sorted({case["config"] for case in cases})
     }
     _validate_source_provenance(run_kind, source_provenance)

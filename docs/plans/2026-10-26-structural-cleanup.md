@@ -10,13 +10,13 @@ for each PR, and no phase weakens validation, bounds, or typed failures.
 
 ## What the audit got right, with corrections
 
-Measured on this checkout, excluding the locked worktree at
+Measured on `main` at 0e403c3 (after PR 307), excluding the locked worktree at
 `.claude/worktrees/site-portfolio-polish` (that worktree doubles every grep count,
 so any number taken from a raw repo-wide grep is roughly 2x reality).
 
 | Claim | Measured | Note |
 | --- | --- | --- |
-| `build_site.py` is 2,505 lines | 2,505 | Correct. |
+| `build_site.py` is 2,505 lines | 2,751 | Grew since the audit (PR 305 merged). |
 | `output.py` is 1,735 lines | 1,775 | Grew since the audit. |
 | 34 functions over 100 lines | 45 total, 34 outside tests | Audit counted non-test code. |
 | `apply_variant` has 47 branches | 45 `elif` plus the `if`, 319 lines | Close enough. |
@@ -31,12 +31,12 @@ One correction: the audit names `jev_review.py` under the evaluator. The file is
 
 The six position encodings today:
 
-1. `agent_runner/integrity.py:19` `position_key()` returns `json.dumps(position, sort_keys=True)`, and callers round-trip with `json.loads(key)` at lines 180, 218, 231, 236.
-2. `build_site.py:2068` `_position_key()` is a verbatim copy of the above, and `_story_anchor()` hashes it.
-3. `agent_runner/semantic_repairs.py:46` `_action_path()` renders `topics.<section>[<index>]` and `_STORY_ANCHOR` parses it back out of a Markdown comment.
-4. `build_site.py:58` `STORY_ANCHOR` and `build_site.py:1740` `_STORY_PATH` parse that same path with two different regexes.
-5. `agent_runner/jev_review.py:185,198` builds JSON-string keys inline instead of calling `position_key`.
-6. `publication_schema.py:451` `_integrity_position()` validates into a `(bucket, section, index)` tuple and `_integrity_check_key()` sorts those tuples. `parse_semantic_audit` separately calls a local `position()` helper for the same purpose.
+1. `agent_runner/integrity.py` `position_key()` returns `json.dumps(position, sort_keys=True)`, and callers round-trip with `json.loads(key)`.
+2. `build_site.py` `_position_key()` is a verbatim copy of the above, and `_story_anchor()` hashes it.
+3. `agent_runner/semantic_repairs.py` `_action_path()` renders `topics.<section>[<index>]` and `_STORY_ANCHOR` parses it back out of a Markdown comment.
+4. `build_site.py` `STORY_ANCHOR` and `_STORY_PATH` parse that same path with two different regexes.
+5. `agent_runner/jev_review.py` builds JSON-string keys inline instead of calling `position_key`.
+6. `publication_schema.py` `_integrity_position()` validates into a `(bucket, section, index)` tuple and `_integrity_check_key()` sorts those tuples. `parse_semantic_audit` separately calls a local `position()` helper for the same purpose.
 
 ## Ordering and why
 
@@ -129,15 +129,15 @@ import facade re-exporting every public name, so `runner.py`,
 `evaluator/parity.py`, `eval_briefing.py`, and tests do not change in this PR.
 Remove the facade in a follow-up once imports are updated.
 
-| New module | Lines moved from `output.py` | Contents |
+| New module | Blocks moved from `output.py` | Contents |
 | --- | --- | --- |
-| `agent_runner/citations.py` | 20-76, 1390-1412 | `Citation`, `CitationDestination`, `ModelCorpus`, `OutputFinding`, `_complete_item_citations` |
-| `agent_runner/redaction.py` | 76-184 | `redact_destinations`, `redecode_redacted_text`, `redact_opaque_references`, `redact_preview_value` and their regexes |
-| `agent_runner/projection.py` | 185-297, 1250-1341 | `project_corpus`, `project_selected_evidence`, `attach_frozen_selection`, `detach_prose` |
-| `agent_runner/schemas.py` | 298-484 | `build_selection_schema`, `build_prose_schema` and the schema builders |
-| `agent_runner/structural_repair.py` | 485-849 | `REPAIRABLE_CHECKS`, `repair_structural_output`, `repair_entries`, `empty_section_findings`, `promote_excluded_to_underfilled` |
-| `agent_runner/validation.py` | 850-1249, 1342-1380 | `_validate_structure`, `validate_selection`, `validate_prose_output`, `validate_output` |
-| `agent_runner/render.py` | 1381-1775 | `render_briefing`, `render_candidate_preview`, `render_validation_status`, `complete_briefing` |
+| `agent_runner/citations.py` | `OutputFinding`..`ModelCorpus`, `_complete_item_citations` | `Citation`, `CitationDestination`, `ModelCorpus`, `OutputFinding`, `_complete_item_citations` |
+| `agent_runner/redaction.py` | `DESTINATION_REDACTION`..`redact_preview_value` | `redact_destinations`, `redecode_redacted_text`, `redact_opaque_references`, `redact_preview_value` and their regexes |
+| `agent_runner/projection.py` | `project_corpus`..`project_selected_evidence`, `attach_frozen_selection`..`detach_prose` | `project_corpus`, `project_selected_evidence`, `attach_frozen_selection`, `detach_prose` |
+| `agent_runner/schemas.py` | `_text_property`..`build_prose_schema` | `build_selection_schema`, `build_prose_schema` and the schema builders |
+| `agent_runner/structural_repair.py` | `REPAIRABLE_CHECKS`..`promote_excluded_to_underfilled` | `REPAIRABLE_CHECKS`, `repair_structural_output`, `repair_entries`, `empty_section_findings`, `promote_excluded_to_underfilled` |
+| `agent_runner/validation.py` | `_object_fields`..`validate_prose_output`, `validate_output` | `_validate_structure`, `validate_selection`, `validate_prose_output`, `validate_output` |
+| `agent_runner/render.py` | `_date_label`..`complete_briefing` | `render_briefing`, `render_candidate_preview`, `render_validation_status`, `complete_briefing` |
 
 Rules for this phase:
 
@@ -153,15 +153,18 @@ Verification: full gate, plus `git diff --stat` should show `output.py` shrinkin
 keep `markdown-it` behind one module. Same facade approach: `build_site.py`
 keeps `main()` and `build_site()` and imports the rest.
 
-| New module | Lines | Contents |
-| --- | --- | --- |
-| `site/history.py` | 49-56, 224-496 | `BriefingEntry`, sidecar and history loading, `_history_payload`, `HISTORY_SCHEMA_VERSION` |
-| `site/style.py` | 85-223 | the `STYLE` string, and `_document()` |
-| `site/prose.py` | 535-966 | coverage labels, corpus-health prose, `_humanize_corpus_health`, `_omit_report_only_warnings`, `_merge_source_notes` |
-| `site/markdown.py` | 944-1177 | `_render_markdown`, autolink, and the post-render decoration regexes. Only this module imports `markdown_it`. |
-| `site/pages.py` | 1178-1446 | index, briefing page, nav, status chip, generation summary |
-| `site/report.py` | 1447-2263 | integrity report, decision sentence, action ledger, `_render_semantic_audit` |
-| `site/publish.py` | 2264-2334 | `_remove_path`, `_publish_audit_manifests` |
+Ranges are named by symbol, not line, because the file keeps moving; each row is a
+contiguous block in today's file order.
+
+| New module | From | Through | Contents |
+| --- | --- | --- | --- |
+| `site_build/history.py` | `SIDECAR_FIELDS` | `_metrics_row` | `BriefingEntry`, sidecar and history loading, `_history_payload`, `HISTORY_SCHEMA_VERSION` |
+| `site_build/style.py` | `STYLE` | `_document` | the stylesheet string and the page shell |
+| `site_build/prose.py` | `_COVERAGE_LABELS` | `_merge_source_notes` | coverage labels, corpus-health prose, `_humanize_corpus_health`, `_omit_report_only_warnings` |
+| `site_build/markdown.py` | `_autolink_citation` | `_decorate_briefing` | `_render_markdown`, autolink, post-render decoration regexes. Only this module imports `markdown_it`. |
+| `site_build/pages.py` | `_history_nav` | `_excluded_topics` | index, briefing page, nav, status chip, generation summary |
+| `site_build/report.py` | `_render_report` | `_render_semantic_audit` | integrity report, decision sentence, action ledger |
+| `site_build/publish.py` | `_remove_path` | `_publish_audit_manifests` | manifest publication |
 
 Naming: `site` shadows the stdlib `site` module that `python3 -S` disables. Use `site_build/` instead. This matters because core tests run with `-S` and a top-level package named `site` would be importable there and confusing.
 

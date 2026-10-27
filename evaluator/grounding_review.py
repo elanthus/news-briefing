@@ -11,7 +11,8 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
-from agent_runner.checkpoint import sha256_bytes, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_bytes
 
 from evaluator.judge_io import portable_path, verified_generation_artifact
 

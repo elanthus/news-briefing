@@ -11,8 +11,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from agent_runner.checkpoint import sha256_file, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
 from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
+from agent_runner.hashing import sha256_file
 from agent_runner.jev_review import (
     MAX_CALLS,
     _payload,
