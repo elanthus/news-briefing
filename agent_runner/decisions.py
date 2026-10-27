@@ -13,7 +13,7 @@ from typing import Any
 
 from agent_runner.http_transport import ResponseLimitError, bounded_request
 from agent_runner.models import ProviderError
-from agent_runner.providers import _urlopen, validated_metadata
+from agent_runner.providers import open_validated_url, validated_metadata
 
 JEV_MODEL = "typesafe/jev-1.13"
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
@@ -49,7 +49,7 @@ class JevClient:
         })
         started = time.perf_counter()
         try:
-            raw, _ = bounded_request(request, deadline=started + timeout, opener=_urlopen,
+            raw, _ = bounded_request(request, deadline=started + timeout, opener=open_validated_url,
                                      max_bytes=MAX_RESPONSE_BYTES)
         except ResponseLimitError as exc:
             raise ProviderError(f"Jev {exc}", transient=False, status_code=exc.status,

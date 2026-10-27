@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 import corpus_schema
 from agent_runner.checkpoint import sha256_bytes
-from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json
+from agent_runner.jev_review import MAX_ARTIFACT_BYTES, read_json_artifact
 from agent_runner.output import PROMOTION_ACTION
 from agent_runner.positions import StoryPosition
 from agent_runner.stages import SELECTION_ATTEMPT_KINDS
@@ -146,10 +146,10 @@ def repair_scope(report: dict[str, Any]) -> tuple[
 def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                        metadata: dict[str, Any]) -> dict[str, Any]:
     """Recompute operational facts; callers first verify report/artifact bindings."""
-    before = _read_json(destination / "report.json")[0]
+    before = read_json_artifact(destination / "report.json")[0]
     targets, grouping, confirmed_removed, reasons = repair_scope(before)
     record = blank_integrity("original_retained", reasons)
-    manifest = _read_json(original / "manifest.json")[0]
+    manifest = read_json_artifact(original / "manifest.json")[0]
     original_digest = sha256_bytes(_bound_bytes(original, manifest, "final.md"))
     record["artifacts"] = [{"id": "original", "sha256": original_digest}]
     record["initial_review"] = review_coverage(before)
@@ -179,7 +179,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
     elif not targets:
         record["reasons"] = ["no_targets"]
     else:
-        calls = _read_json(destination / "repair" / "repair-calls.json")[0]
+        calls = read_json_artifact(destination / "repair" / "repair-calls.json")[0]
         record["costs"].append(review_cost({"calls": calls}, "repair_generation"))
         # Outcomes are per slot: a partial round applies cleared slots and rejects re-flagged ones.
         statuses = {StoryPosition.from_payload(t["position"]): t["repair_status"] for t in audit["topics"]
@@ -188,7 +188,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
         changed = bool(outcomes & {"applied", "rejected"})
         partial = outcomes == {"applied", "rejected"}
         repaired = destination / "repair" / "run"
-        repaired_manifest = _read_json(repaired / "manifest.json")[0]
+        repaired_manifest = read_json_artifact(repaired / "manifest.json")[0]
         if any(c["status"] != "code_preserved" for c in calls):
             with contextlib.suppress(ValueError):  # malformed identity: no repair_generation
                 record["repair_generation"] = run_provenance(repaired_manifest)
@@ -234,7 +234,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                                artifact="original", positions=[key.to_payload()], checks=refs[key])
             if audit["post_status"] is not None:
                 # A failure after follow-up (such as partial assembly) keeps that review's spend and coverage.
-                after = _read_json(destination / "post-review" / "report.json")[0]
+                after = read_json_artifact(destination / "post-review" / "report.json")[0]
                 if "followup_checks" in audit:
                     record["followup_review"] = review_coverage(after)
                 record["costs"].append(review_cost(after, "followup_review"))
@@ -243,7 +243,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                 add_phase(record, "followup_review", after["status"],
                           [] if after["status"] == "complete" else ["incomplete_followup"], after)
         else:
-            after = _read_json(destination / "post-review" / "report.json")[0]
+            after = read_json_artifact(destination / "post-review" / "report.json")[0]
             record["followup_review"] = review_coverage(after)
             record["costs"].append(review_cost(after, "followup_review"))
             blockers = [i for i, row in enumerate(audit["followup_checks"]) if row["probability"] >= (
@@ -280,8 +280,8 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                                        {"stage": "followup", "index": i} for i in blockers
                                        if any(StoryPosition.from_payload(p) == key
                                               for p in audit["followup_checks"][i]["positions"])])
-            old = _read_json(original / "frozen-selection.json")[0]
-            new = _read_json(repaired / "frozen-selection.json")[0]
+            old = read_json_artifact(original / "frozen-selection.json")[0]
+            new = read_json_artifact(repaired / "frozen-selection.json")[0]
             # Source indexes always refer to the original selection, regardless of subset order.
             for key in sorted(targets, key=StoryPosition.json_key):
                 pos = key.to_payload()
@@ -304,7 +304,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
     elif record["decision"] == "partial_applied":
         assembled = destination / "assembly" / "run"
         published_digest = sha256_bytes(_bound_bytes(
-            assembled, _read_json(assembled / "manifest.json")[0], "final.md"))
+            assembled, read_json_artifact(assembled / "manifest.json")[0], "final.md"))
     record["artifacts"].append({"id": "published", "sha256": published_digest})
     record["actions"].sort(key=lambda action: action["phase_sequence"])
     for index, action in enumerate(record["actions"]):
@@ -323,7 +323,7 @@ def generation_history(original: Path, record: dict[str, Any], *,
     result = copy.deepcopy(record)
     subjects = {StoryPosition.from_payload(t["position"]) for t in (audit or {}).get("topics", [])}
     prefix = blank_integrity(record["decision"], [])
-    manifest = _read_json(original / "manifest.json")[0]
+    manifest = read_json_artifact(original / "manifest.json")[0]
     attempts = manifest.get("attempts", [])
     baseline_found = False
     final_index = manifest.get("final", {}).get("attempt")

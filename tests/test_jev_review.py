@@ -49,7 +49,7 @@ class DecisionsTests(unittest.TestCase):
 
     def evaluate(self, payload):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=Response(payload)
+            "agent_runner.decisions.open_validated_url", return_value=Response(payload)
         ) as opened:
             result = JevClient().evaluate({"title": "Evidence"}, {
                 "question": {"type": "noul", "instructions": "Is this supported?"}})
@@ -95,12 +95,12 @@ class DecisionsTests(unittest.TestCase):
 
     def test_oversized_response_and_redirect_fail_without_retry_or_body_leak(self):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=io.BytesIO(b" " * (MAX_RESPONSE_BYTES + 1))
+            "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(b" " * (MAX_RESPONSE_BYTES + 1))
         ), self.assertRaisesRegex(ProviderError, "output budget"):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         error = urllib.error.HTTPError(ENDPOINT, 302, "redirect", {}, io.BytesIO(b"secret"))
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", side_effect=error
+            "agent_runner.decisions.open_validated_url", side_effect=error
         ) as opened, self.assertRaisesRegex(ProviderError, "Jev HTTP 302") as caught:
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         opened.assert_called_once()
@@ -113,9 +113,9 @@ class DecisionsTests(unittest.TestCase):
                 if isinstance(error, http.client.IncompleteRead):
                     response = MagicMock()
                     response.__enter__.return_value.read.side_effect = error
-                    opener = patch("agent_runner.decisions._urlopen", return_value=response)
+                    opener = patch("agent_runner.decisions.open_validated_url", return_value=response)
                 else:
-                    opener = patch("agent_runner.decisions._urlopen", side_effect=error)
+                    opener = patch("agent_runner.decisions.open_validated_url", side_effect=error)
                 with opener as opened, self.assertRaises(ProviderError) as caught:
                     JevClient().evaluate({}, {"q": {"type": "noul"}})
                 opened.assert_called_once()
@@ -126,7 +126,7 @@ class DecisionsTests(unittest.TestCase):
     def test_deeply_nested_json_is_a_typed_provider_failure(self):
         raw = b"[" * 2000 + b"0" + b"]" * 2000
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=io.BytesIO(raw)
+            "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(raw)
         ), self.assertRaises(ProviderError):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
 
@@ -290,7 +290,8 @@ class JevReviewTests(unittest.TestCase):
             state = load_verified_run(run)
             urls = load_citation_urls(state)
             (run / "frozen-selection.json").write_text("{}")
-            with patch("agent_runner.jev_review._read_json", side_effect=AssertionError("unexpected artifact read")):
+            with patch("agent_runner.jev_review.read_json_artifact",
+                       side_effect=AssertionError("unexpected artifact read")):
                 self.assertEqual(load_citation_urls(state), urls)
                 report = review_run(run, root / "review", client=FakeJudge(), verified_run=state)
             self.assertEqual(report["status"], "complete")
@@ -428,7 +429,7 @@ class JevReviewTests(unittest.TestCase):
             response.__enter__.return_value.read.side_effect = http.client.IncompleteRead(
                 b"private-http-response-marker-209", 20)
             with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-                "agent_runner.decisions._urlopen", return_value=response
+                "agent_runner.decisions.open_validated_url", return_value=response
             ) as opened:
                 report = review_run(run, root / "review")
             self.assertEqual(report["status"], "failed")

@@ -506,7 +506,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _urlopen(request: urllib.request.Request, *, timeout: float) -> Any:
+def open_validated_url(request: urllib.request.Request, *, timeout: float) -> Any:
     """Open a provider request through the no-redirect opener."""
     return urllib.request.build_opener(_NoRedirect, *deadline_handlers()).open(request, timeout=timeout)
 
@@ -545,7 +545,7 @@ def _post_chat_completion(
         cause: Exception | None = None
         try:
             response_body, request_id = bounded_request(
-                http_request, deadline=deadline, opener=_urlopen
+                http_request, deadline=deadline, opener=open_validated_url
             )
             break
         except urllib.error.HTTPError as exc:

@@ -56,7 +56,7 @@ def sent_payload(provider, schema=SCHEMA):
     """Return the JSON body an HTTP provider sends for ``schema``."""
     response = FakeResponse({"choices": [{"message": {"content": '{"schema_version":1}'}}]})
     with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-        "agent_runner.providers._urlopen", return_value=response
+        "agent_runner.providers.open_validated_url", return_value=response
     ) as opened:
         provider.generate(GenerationRequest("prompt", schema, 30, "0" * 32))
     return json.loads(opened.call_args.args[0].data)
@@ -155,7 +155,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers.open_validated_url", return_value=FakeResponse(payload)
         ) as opened:
             result = provider.generate(REQUEST)
         sent = json.loads(opened.call_args.args[0].data)
@@ -194,7 +194,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers.open_validated_url", return_value=FakeResponse(payload)
         ), self.assertRaisesRegex(ProviderError, "empty tool policy"):
             provider.generate(REQUEST)
 
@@ -206,7 +206,7 @@ class ProviderTests(unittest.TestCase):
         }
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", return_value=FakeResponse(payload)
+            "agent_runner.providers.open_validated_url", return_value=FakeResponse(payload)
         ), self.assertRaisesRegex(ProviderError, "invalid operational metadata: cost"):
             provider.generate(REQUEST)
 
@@ -225,7 +225,7 @@ class ProviderTests(unittest.TestCase):
         })
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", side_effect=[error, success]
+            "agent_runner.providers.open_validated_url", side_effect=[error, success]
         ) as opened:
             result = provider.generate(REQUEST)
         self.assertEqual(opened.call_count, 2)
@@ -245,7 +245,7 @@ class ProviderTests(unittest.TestCase):
         )
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", side_effect=error
+            "agent_runner.providers.open_validated_url", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertNotIn("top_secret", str(raised.exception))
@@ -263,7 +263,7 @@ class ProviderTests(unittest.TestCase):
         )
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", side_effect=error
+            "agent_runner.providers.open_validated_url", side_effect=error
         ), self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertTrue(raised.exception.openrouter_model_404)
@@ -273,7 +273,7 @@ class ProviderTests(unittest.TestCase):
     def test_openrouter_does_not_retry_ambiguous_response_timeout(self):
         provider = OpenRouterProvider("vendor/model")
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", return_value=TimeoutResponse({})
+            "agent_runner.providers.open_validated_url", return_value=TimeoutResponse({})
         ) as opened, self.assertRaises(ProviderError) as raised:
             provider.generate(REQUEST)
         self.assertTrue(raised.exception.ambiguous_completion)
@@ -373,14 +373,14 @@ class ProviderTests(unittest.TestCase):
 
     def test_openai_compatible_timeout_hints_at_lean_schema_only_for_full_profile(self):
         request = GenerationRequest("prompt", SCHEMA, 30, "0" * 32)
-        with patch("agent_runner.providers._urlopen", return_value=TimeoutResponse({})), self.assertRaises(
+        with patch("agent_runner.providers.open_validated_url", return_value=TimeoutResponse({})), self.assertRaises(
             ProviderError
         ) as raised:
             OpenAICompatibleProvider("m").generate(request)
         self.assertIn("--lean-schema", str(raised.exception))
         self.assertTrue(raised.exception.ambiguous_completion)
         self.assertTrue(raised.exception.transient)
-        with patch("agent_runner.providers._urlopen", return_value=TimeoutResponse({})), self.assertRaises(
+        with patch("agent_runner.providers.open_validated_url", return_value=TimeoutResponse({})), self.assertRaises(
             ProviderError
         ) as raised:
             OpenAICompatibleProvider("m", lean_schema=True).generate(request)
@@ -389,12 +389,12 @@ class ProviderTests(unittest.TestCase):
     def test_openai_compatible_strips_think_blocks_and_code_fences(self):
         wrapped = '<think>\nweighing the stories\n</think>\n```json\n{"schema_version": 1}\n```'
         response = FakeResponse({"choices": [{"message": {"content": wrapped}}]})
-        with patch("agent_runner.providers._urlopen", return_value=response):
+        with patch("agent_runner.providers.open_validated_url", return_value=response):
             result = OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
         self.assertEqual(result.structured_output, {"schema_version": 1})
         self.assertEqual(result.raw_output, wrapped)
         unclosed = FakeResponse({"choices": [{"message": {"content": "<think>still going"}}]})
-        with patch("agent_runner.providers._urlopen", return_value=unclosed), self.assertRaisesRegex(
+        with patch("agent_runner.providers.open_validated_url", return_value=unclosed), self.assertRaisesRegex(
             ProviderError, "invalid JSON"
         ):
             OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
@@ -462,14 +462,14 @@ class ProviderTests(unittest.TestCase):
         pathological = "```" + " " * 200_000
         response = FakeResponse({"choices": [{"message": {"content": pathological}}]})
         started = time.perf_counter()
-        with patch("agent_runner.providers._urlopen", return_value=response), self.assertRaisesRegex(
+        with patch("agent_runner.providers.open_validated_url", return_value=response), self.assertRaisesRegex(
             ProviderError, "invalid JSON"
         ):
             OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
         self.assertLess(time.perf_counter() - started, 1.0)
         # A fence without a newline after the opener is still unwrapped.
         compact = FakeResponse({"choices": [{"message": {"content": '```json{"schema_version": 1}```'}}]})
-        with patch("agent_runner.providers._urlopen", return_value=compact):
+        with patch("agent_runner.providers.open_validated_url", return_value=compact):
             result = OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
         self.assertEqual(result.structured_output, {"schema_version": 1})
 
@@ -478,7 +478,8 @@ class ProviderTests(unittest.TestCase):
             "id": "req-1",
             "choices": [{"finish_reason": "length", "message": {"content": '{"schema_version": 1, "sec'}}],
         }
-        with patch("agent_runner.providers._urlopen", return_value=FakeResponse(truncated)), self.assertRaises(
+        with patch("agent_runner.providers.open_validated_url",
+                   return_value=FakeResponse(truncated)), self.assertRaises(
             ProviderError
         ) as raised:
             OpenAICompatibleProvider("qwen3:32b", lean_schema=True).generate(REQUEST)
@@ -489,7 +490,7 @@ class ProviderTests(unittest.TestCase):
         self.assertTrue(raised.exception.record()["output_truncated"])
         # The parser is shared, so OpenRouter reports the same cause.
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.providers._urlopen", return_value=FakeResponse(truncated)
+            "agent_runner.providers.open_validated_url", return_value=FakeResponse(truncated)
         ), self.assertRaises(ProviderError) as raised:
             OpenRouterProvider("vendor/model").generate(REQUEST)
         self.assertTrue(raised.exception.output_truncated)
@@ -504,7 +505,8 @@ class ProviderTests(unittest.TestCase):
     def test_openai_compatible_refuses_bearer_token_over_cleartext_to_remote_hosts(self):
         response = FakeResponse({"choices": [{"message": {"content": '{"schema_version": 1}'}}]})
         with patch.dict(os.environ, {"OPENAI_COMPATIBLE_API_KEY": "secret"}):
-            with patch("agent_runner.providers._urlopen", return_value=response) as urlopen, self.assertRaises(
+            with patch("agent_runner.providers.open_validated_url",
+                       return_value=response) as urlopen, self.assertRaises(
                 ProviderError
             ) as raised:
                 OpenAICompatibleProvider("m", endpoint="http://gateway.example/v1/chat/completions").generate(REQUEST)
@@ -519,7 +521,7 @@ class ProviderTests(unittest.TestCase):
                 "https://gateway.example/v1/chat/completions",
             ):
                 with self.subTest(endpoint=endpoint), patch(
-                    "agent_runner.providers._urlopen", return_value=response
+                    "agent_runner.providers.open_validated_url", return_value=response
                 ) as urlopen:
                     OpenAICompatibleProvider("m", endpoint=endpoint).generate(REQUEST)
                     sent = urlopen.call_args.args[0]
@@ -567,7 +569,7 @@ class ProviderTests(unittest.TestCase):
             }
         )
         with patch.dict(os.environ, {}, clear=True), patch(
-            "agent_runner.providers._urlopen", return_value=response
+            "agent_runner.providers.open_validated_url", return_value=response
         ) as opened:
             result = provider.generate(REQUEST)
         sent = opened.call_args.args[0]
@@ -578,7 +580,7 @@ class ProviderTests(unittest.TestCase):
         self.assertIsNone(result.cost_usd)
 
         with patch.dict(os.environ, {"OPENAI_COMPATIBLE_API_KEY": "local-key"}), patch(
-            "agent_runner.providers._urlopen", return_value=response
+            "agent_runner.providers.open_validated_url", return_value=response
         ) as opened:
             provider.generate(REQUEST)
         self.assertEqual(opened.call_args.args[0].get_header("Authorization"), "Bearer local-key")
@@ -587,7 +589,7 @@ class ProviderTests(unittest.TestCase):
         response = FakeResponse(
             {"choices": [{"message": {"content": "{}", "tool_calls": [{"id": "call_1"}]}}]}
         )
-        with patch("agent_runner.providers._urlopen", return_value=response), self.assertRaisesRegex(
+        with patch("agent_runner.providers.open_validated_url", return_value=response), self.assertRaisesRegex(
             ProviderError, "openai-compatible violated the empty tool policy"
         ):
             OpenAICompatibleProvider("qwen3:32b").generate(REQUEST)
@@ -596,7 +598,8 @@ class ProviderTests(unittest.TestCase):
         error = urllib.error.HTTPError(
             "http://127.0.0.1:11434/v1/chat/completions", 404, "Not Found", {}, io.BytesIO(b"no such model")
         )
-        with patch("agent_runner.providers._urlopen", side_effect=error), self.assertRaises(ProviderError) as raised:
+        with patch("agent_runner.providers.open_validated_url", side_effect=error), \
+                self.assertRaises(ProviderError) as raised:
             OpenAICompatibleProvider("missing").generate(REQUEST)
         self.assertFalse(raised.exception.openrouter_model_404)
         self.assertIn("openai-compatible HTTP 404", str(raised.exception))

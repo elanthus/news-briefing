@@ -24,7 +24,7 @@ from agent_runner.checkpoint import write_json_atomic
 from agent_runner.hashing import sha256_file
 from agent_runner.jev_review import MAX_CALLS, load_verified_run
 from agent_runner.semantic_repairs import daily_semantic_review
-from run_jev_stage import ROOT, DayFailure, _git_commit, _read_json
+from run_jev_stage import ROOT, DayFailure, _git_commit, read_json
 
 DAY_LEDGER = "ledger.json"
 
@@ -67,11 +67,11 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
     if output_root.exists() or output_path.exists():
         raise ValueError("replay tree and public output must be new; inspect an interrupted run before retrying")
     protocol_digest = sha256_file(protocol_path)
-    protocol = _read_json(protocol_path)
+    protocol = read_json(protocol_path)
     baseline_digest = sha256_file(baseline_path)
     if protocol["baseline_metrics_sha256"] != baseline_digest or protocol["review_call_limit"] != MAX_CALLS:
         raise ValueError("baseline digest or review call limit differs from the frozen protocol")
-    baseline = _read_json(baseline_path)
+    baseline = read_json(baseline_path)
     frame = baseline["sampling_frame"]
     start, end = date.fromisoformat(frame["start"]), date.fromisoformat(frame["end"])
     expected = {row["report_date"]: row for row in baseline["days"]}
@@ -102,7 +102,7 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
         phases = {}
         for phase, relative in (("initial", "report.json"), ("followup", "post-review/report.json")):
             if (review / relative).exists():
-                report = _read_json(review / relative)
+                report = read_json(review / relative)
                 stop = report.get("stop_code")
                 if stop not in (None, "budget", "deadline", "unknown_billing", "provider_failure", "invalid_result"):
                     raise ValueError("unrecognized review stop code")

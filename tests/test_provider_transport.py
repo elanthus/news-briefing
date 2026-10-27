@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from agent_runner.http_transport import ResponseLimitError, bounded_request
 from agent_runner.models import GenerationRequest, ProviderError
-from agent_runner.providers import OpenRouterProvider, _post_chat_completion, _urlopen
+from agent_runner.providers import OpenRouterProvider, _post_chat_completion, open_validated_url
 from evaluator.adapters import NvidiaAdapter, ProviderRequestError
 
 
@@ -30,7 +30,7 @@ class ProviderBoundsTests(unittest.TestCase):
             response = Response(json.dumps(payload).encode())
             response.headers = {"x-request-id": header}
             with self.subTest(header=header), patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}), patch(
-                "agent_runner.providers._urlopen", return_value=response
+                "agent_runner.providers.open_validated_url", return_value=response
             ) as opened:
                 result = OpenRouterProvider("test").generate(GenerationRequest("prompt", {}, 1, "trace"))
             self.assertIsNone(result.provider_request_id)
@@ -43,7 +43,7 @@ class ProviderBoundsTests(unittest.TestCase):
             value = (stream if status is None else urllib.error.HTTPError(
                 "https://example.invalid", status, "error", Response.headers, stream))
             with self.subTest(status=status), patch(
-                "agent_runner.providers._urlopen",
+                "agent_runner.providers.open_validated_url",
                 **({"return_value": value} if status is None else {"side_effect": value}),
             ) as opened:
                 with self.assertRaises(ResponseLimitError) as caught:
@@ -58,7 +58,7 @@ class ProviderBoundsTests(unittest.TestCase):
     def test_oversized_error_is_not_retried_or_exposed(self):
         error = urllib.error.HTTPError("https://example.invalid", 429, "error", {},
                                        io.BytesIO(b"secret" * 20_000))
-        with patch("agent_runner.providers._urlopen", side_effect=error) as opened:
+        with patch("agent_runner.providers.open_validated_url", side_effect=error) as opened:
             with self.assertRaises(ProviderError) as caught:
                 _post_chat_completion("provider", "https://example.invalid", {}, b"{}", timeout=1)
         self.assertFalse(caught.exception.transient)
@@ -68,7 +68,7 @@ class ProviderBoundsTests(unittest.TestCase):
 
     def test_ambiguous_paid_reset_is_not_retried(self):
         with patch.dict(os.environ, {"NVIDIA_API_KEY": "test"}), patch(
-            "agent_runner.providers._urlopen", side_effect=ConnectionResetError("reset")
+            "agent_runner.providers.open_validated_url", side_effect=ConnectionResetError("reset")
         ) as opened:
             with self.assertRaises(ProviderRequestError) as caught:
                 NvidiaAdapter("test", timeout=1).generate("prompt")
@@ -86,7 +86,8 @@ class ProviderBoundsTests(unittest.TestCase):
                 (payload if field == "id" else payload["usage"])[field] = value
                 with self.subTest(field=field, value=str(value)[:30]), patch.dict(
                     os.environ, {"OPENROUTER_API_KEY": "test"}
-                ), patch("agent_runner.providers._urlopen", return_value=Response(json.dumps(payload).encode())):
+                ), patch("agent_runner.providers.open_validated_url",
+                         return_value=Response(json.dumps(payload).encode())):
                     with self.assertRaises(ProviderError) as caught:
                         OpenRouterProvider("test").generate(GenerationRequest("prompt", {}, 1, "trace"))
                 failure = caught.exception
@@ -101,7 +102,7 @@ class ProviderBoundsTests(unittest.TestCase):
         for usage in ({}, {"prompt_tokens": 0, "completion_tokens": 0, "cost": 0}):
             payload = {"choices": [{"message": {"content": "{}"}}], "usage": usage}
             with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}), patch(
-                "agent_runner.providers._urlopen", return_value=Response(json.dumps(payload).encode())
+                "agent_runner.providers.open_validated_url", return_value=Response(json.dumps(payload).encode())
             ):
                 result = OpenRouterProvider("test").generate(GenerationRequest("prompt", {}, 1, "trace"))
             self.assertEqual(result.input_tokens, usage.get("prompt_tokens"))
@@ -113,7 +114,7 @@ class ProviderBoundsTests(unittest.TestCase):
             payload = {"id": "gen", "choices": choices,
                        "usage": {"prompt_tokens": 12, "completion_tokens": 5, "cost": 0.1}}
             with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}), patch(
-                "agent_runner.providers._urlopen", return_value=Response(json.dumps(payload).encode())
+                "agent_runner.providers.open_validated_url", return_value=Response(json.dumps(payload).encode())
             ), self.assertRaises(ProviderError) as caught:
                 OpenRouterProvider("test").generate(GenerationRequest("prompt", {}, 1, "trace"))
             self.assertEqual(caught.exception.cost_usd, 0.1)
@@ -201,7 +202,7 @@ class ProviderDeadlineTests(unittest.TestCase):
                 with self.assertRaises(TimeoutError):
                     bounded_request(urllib.request.Request(
                         f"http://127.0.0.1:{server.server_port}", data=b"{}"),
-                        deadline=time.perf_counter() + 0.05, opener=_urlopen)
+                        deadline=time.perf_counter() + 0.05, opener=open_validated_url)
                 self.assertTrue(resolver_finished.wait(1))
                 self.assertFalse(received.wait(0.1))
         finally:

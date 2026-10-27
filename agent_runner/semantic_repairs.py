@@ -15,11 +15,11 @@ from agent_runner.integrity import repair_scope, semantic_integrity
 from agent_runner.jev_review import (
     MAX_ARTIFACT_BYTES,
     VerifiedRun,
-    _read_json,
     build_tasks,
     citation_urls_payload,
     load_citation_urls,
     load_verified_run,
+    read_json_artifact,
     review_run,
     task_key,
 )
@@ -264,7 +264,7 @@ class RepairProvider:
         properties: dict[str, Any] = {}
         state: dict[str, Any] = {}
         active = sorted(self.grouping if selection_stage else self.targets, key=StoryPosition.json_key)
-        frozen = None if selection_stage else _read_json(self.destination / "run" / "selected-evidence.json")[0]
+        frozen = None if selection_stage else read_json_artifact(self.destination / "run" / "selected-evidence.json")[0]
         for n, key in enumerate(active):
             topic = self.topics[key]
             pos = topic["position"]
@@ -534,7 +534,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
     metadata: dict[str, Any] = {"schema_version": AUDIT_SCHEMA_VERSION, "input_hashes": report.get("input_hashes", {}),
                                 "applied": False, "apply_repairs": True,
                                 "targets": _position_keys(targets), "grouping": _position_keys(grouping),
-                                "review_sha256": _read_json(destination / "report.json")[1],
+                                "review_sha256": read_json_artifact(destination / "report.json")[1],
                                 "removed_citations": {k.json_key(): sorted(v) for k, v in removed.items()}}
     if skip_reasons:
         for key in targets:
@@ -559,7 +559,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
             revised, hashes = repaired_state.topics, repaired_state.hashes
             after = review_run(repaired_state.root, destination / "post-review", client=judge,
                                confirm_flags=True, verified_run=repaired_state)
-            metadata["post_review_sha256"] = _read_json(destination / "post-review" / "report.json")[1]
+            metadata["post_review_sha256"] = read_json_artifact(destination / "post-review" / "report.json")[1]
             audit["post_status"] = after["status"]
             audit["reported_cost_usd"] += after["reported_cost_usd"]
             audit["unknown_cost_calls"] += after["unknown_cost_calls"]
@@ -602,9 +602,9 @@ def daily_semantic_review(run: Path, destination: Path, *,
             metadata["repair_error_type"] = type(exc).__name__
             for key in targets:
                 by_position[key]["repair_status"] = "failed"
-        metadata["repair_calls_sha256"] = _read_json(repair_root / "repair-calls.json")[1]
+        metadata["repair_calls_sha256"] = read_json_artifact(repair_root / "repair-calls.json")[1]
         if (repair_root / "run" / "manifest.json").is_file():
-            metadata["repair_manifest_sha256"] = _read_json(repair_root / "run" / "manifest.json")[1]
+            metadata["repair_manifest_sha256"] = read_json_artifact(repair_root / "run" / "manifest.json")[1]
         # Preserve reported spend even when validation or post-review failed.
         audit["reported_cost_usd"] += sum(c.get("cost_usd") or 0 for c in provider.calls)
         audit["unknown_cost_calls"] += sum(c.get("cost_usd") is None for c in provider.calls)
@@ -618,7 +618,7 @@ def load_public_audit(original: Path, destination: Path, *,
                       expected_report_date: str | None = None) -> tuple[dict[str, Any] | None, Path]:
     """Bind public before/after prose to verified runs; invalid audit never replaces publication."""
     try:
-        envelope, _ = _read_json(destination / "audit.json")
+        envelope, _ = read_json_artifact(destination / "audit.json")
         if (not isinstance(envelope, dict)
                 or set(envelope) != {"metadata", "audit", "integrity"}):
 
@@ -638,7 +638,7 @@ def load_public_audit(original: Path, destination: Path, *,
                 or not base <= set(metadata) or set(metadata) - base - optional - new_fields - slot_fields
                 or metadata.get("apply_repairs") is not True):
             raise ValueError("invalid semantic audit metadata")
-        before, review_hash = _read_json(destination / "report.json")
+        before, review_hash = read_json_artifact(destination / "report.json")
         if metadata["review_sha256"] != review_hash:
             raise ValueError("semantic review artifact hash mismatch")
         original_state = load_verified_run(original)
@@ -667,7 +667,7 @@ def load_public_audit(original: Path, destination: Path, *,
             raise ValueError("semantic audit before scores mismatch")
         post_report = None
         if audit["post_status"] is not None:
-            post_report, post_hash = _read_json(destination / "post-review" / "report.json")
+            post_report, post_hash = read_json_artifact(destination / "post-review" / "report.json")
             if metadata.get("post_review_sha256") != post_hash or audit["post_status"] != post_report["status"]:
                 raise ValueError("semantic post-review artifact hash mismatch")
             repaired_state = load_verified_run(destination / "repair" / "run")
@@ -795,10 +795,10 @@ def load_public_audit(original: Path, destination: Path, *,
                 raise ValueError("semantic audit unchanged outcomes mismatch")
         calls: list[dict[str, Any]] = []
         if targets and not skip_reasons:
-            calls, calls_hash = _read_json(destination / "repair" / "repair-calls.json")
+            calls, calls_hash = read_json_artifact(destination / "repair" / "repair-calls.json")
             if metadata.get("repair_calls_sha256") != calls_hash:
                 raise ValueError("semantic repair call artifact mismatch")
-            repair_manifest, manifest_hash = _read_json(destination / "repair" / "run" / "manifest.json")
+            repair_manifest, manifest_hash = read_json_artifact(destination / "repair" / "run" / "manifest.json")
             if metadata.get("repair_manifest_sha256") != manifest_hash:
                 raise ValueError("semantic repair manifest mismatch")
             _verify_repair_calls(calls, repair_manifest)

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.checkpoint import write_json_atomic
-from agent_runner.jev_review import _read_json
+from agent_runner.jev_review import read_json_artifact
 from agent_runner.positions import StoryPosition
 from agent_runner.semantic_repairs import load_public_audit
 from publication_schema import SEMANTIC_CHECKS, parse_integrity
@@ -86,7 +86,7 @@ def selected_run(day: Path) -> Path:
     run = _within(day / "run", day)
     log = run / "fallback-log.json"
     if log.exists():
-        value, _ = _read_json(_within(log, day))
+        value, _ = read_json_artifact(_within(log, day))
         selected = value.get("selected_run_dir") if isinstance(value, dict) else None
         if not isinstance(selected, str) or not selected or Path(selected).is_absolute():
             raise ValueError("daily chain has no contained selected run")
@@ -122,7 +122,7 @@ def load_days(root: Path, *, start: date, end: date) -> list[dict[str, Any]]:
             status = "missing_review"
             log = day / "run" / "fallback-log.json"
             if log.exists():
-                chain, _ = _read_json(_within(log, day))
+                chain, _ = read_json_artifact(_within(log, day))
                 if (isinstance(chain, dict) and chain.get("status") == "failed"
                         and chain.get("selected_run_dir") is None):
                     status = "generation_failure"
@@ -130,7 +130,7 @@ def load_days(root: Path, *, start: date, end: date) -> list[dict[str, Any]]:
                          "integrity": None, "review": None, "run": None, "audit_sha256": None})
             continue
         review = _within(reviews[0], day)
-        envelope, digest = _read_json(_within(review / "audit.json", day))
+        envelope, digest = read_json_artifact(_within(review / "audit.json", day))
         if digest in seen_audits:
             raise ValueError("duplicate daily audit in the sampling frame")
         seen_audits.add(digest)

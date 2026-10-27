@@ -9,7 +9,7 @@ from agent_runner.checkpoint import RunStore
 from agent_runner.failures import FailureRecord, final_failure, parse_failure, run_failure
 from agent_runner.models import ProviderError
 from publication_failures import summarize_failed_chain
-from run_daily_briefing import PRODUCTION_MODEL_CHAIN, _write_chain_logs
+from run_daily_briefing import PRODUCTION_MODEL_CHAIN, write_chain_logs
 
 
 class FailureRecordTests(unittest.TestCase):
@@ -151,7 +151,7 @@ class FailureRecordTests(unittest.TestCase):
                      "completed_at": "2026-09-07T00:00:00Z", "failure_reason": None,
                      "failure": FailureRecord("provider_error").payload()}
                     for index, candidate in enumerate(PRODUCTION_MODEL_CHAIN[:2])]
-            _write_chain_logs(root, "2026-09-07T00:00:00Z", rows, GenerationBudget())
+            write_chain_logs(root, "2026-09-07T00:00:00Z", rows, GenerationBudget())
             path = root / "fallback-log.json"
             chain = json.loads(path.read_text())
             self.assertEqual(parse_failure(chain["failure"]).code, "chain_incomplete")
