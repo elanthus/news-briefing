@@ -6,18 +6,15 @@ import copy
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import corpus_schema
 from agent_runner.checkpoint import sha256_bytes
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json
 from agent_runner.output import PROMOTION_ACTION
+from agent_runner.positions import StoryPosition
 from agent_runner.stages import SELECTION_ATTEMPT_KINDS
 from publication_schema import INTEGRITY_VERSION, parse_integrity, parse_provenance, provenance_payload
-
-
-def position_key(position: dict[str, Any]) -> str:
-    return json.dumps(position, sort_keys=True)
 
 
 def _bound_bytes(run: Path, manifest: dict[str, Any], name: Any) -> bytes:
@@ -115,23 +112,24 @@ def review_cost(report: dict[str, Any], phase: str) -> dict[str, Any]:
             "unknown_cost_calls": sum(c.get("cost_usd") is None for c in calls)}
 
 
-def repair_scope(report: dict[str, Any]) -> tuple[set[str], set[str], dict[str, set[int]], list[str]]:
-    targets: set[str] = set()
-    grouping: set[str] = set()
-    removed: dict[str, set[int]] = {}
+def repair_scope(report: dict[str, Any]) -> tuple[
+        set[StoryPosition], set[StoryPosition], dict[StoryPosition, set[int]], list[str]]:
+    targets: set[StoryPosition] = set()
+    grouping: set[StoryPosition] = set()
+    removed: dict[StoryPosition, set[int]] = {}
     for row in report["results"]:
         if row.get("confirmation_label") != "confirmed" or row["check"] == "duplicate":
             continue
         pos = row["positions"][0]
         if pos["bucket"] != "sections":
             continue
-        key = position_key(pos)
+        key = StoryPosition.from_payload(pos)
         targets.add(key)
         if row["check"] == "unsafe_grouping":
             grouping.add(key)
         elif row["check"] == "irrelevant_citation":
             removed.setdefault(key, set()).add(row["evidence_index"])
-    counts = {position_key(t["position"]): len(t["evidence"]) for t in report.get("topics", [])}
+    counts = {StoryPosition.from_payload(t["position"]): len(t["evidence"]) for t in report.get("topics", [])}
     # Kept independent: several safeguards can withhold the same attempted round.
     reasons = []
     if report["status"] != "complete":
@@ -172,20 +170,20 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                   [] if complete else ["incomplete_review"], timing(confirmation_calls))
     refs = {key: [{"stage": "initial", "index": i} for i, row in enumerate(audit["checks"])
                   if row["confirmation_label"] == "confirmed" and row["check"] != "duplicate"
-                  and any(position_key(p) == key for p in row["positions"])] for key in targets}
+                  and any(StoryPosition.from_payload(p) == key for p in row["positions"])] for key in targets}
     if reasons:
         phase = add_phase(record, "prose_repair", "skipped", reasons)
-        for key in sorted(targets):
+        for key in sorted(targets, key=StoryPosition.json_key):
             add_action(record, phase, "code", "withhold_repair", "skipped", reasons,
-                       artifact="original", positions=[json.loads(key)], checks=refs[key])
+                       artifact="original", positions=[key.to_payload()], checks=refs[key])
     elif not targets:
         record["reasons"] = ["no_targets"]
     else:
         calls = _read_json(destination / "repair" / "repair-calls.json")[0]
         record["costs"].append(review_cost({"calls": calls}, "repair_generation"))
         # Outcomes are per slot: a partial round applies cleared slots and rejects re-flagged ones.
-        statuses = {position_key(t["position"]): t["repair_status"] for t in audit["topics"]
-                    if position_key(t["position"]) in targets}
+        statuses = {StoryPosition.from_payload(t["position"]): t["repair_status"] for t in audit["topics"]
+                    if StoryPosition.from_payload(t["position"]) in targets}
         outcomes = set(statuses.values())
         changed = bool(outcomes & {"applied", "rejected"})
         partial = outcomes == {"applied", "rejected"}
@@ -212,10 +210,10 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                               [failure] if call_failed else [])
             if call["stage"] == "selection":
                 selection_phase = phase
-            for key in sorted(grouping if call["stage"] == "selection" else targets):
+            for key in sorted(grouping if call["stage"] == "selection" else targets, key=StoryPosition.json_key):
                 outcome = statuses[key]
                 add_action(record, phase, "model", stage, outcome, [failure] if outcome == "failed" else [],
-                           artifact="candidate" if changed else "original", positions=[json.loads(key)],
+                           artifact="candidate" if changed else "original", positions=[key.to_payload()],
                            checks=refs[key])
         validation = add_phase(record, "candidate_validation", "complete" if changed else "failed",
                                [] if changed else [failure])
@@ -224,16 +222,16 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
             if record["costs"][-1]["unknown_cost_calls"] and "unknown_billing" not in record["reasons"]:
                 record["reasons"].append("unknown_billing")
             if removal_phase is not None:
-                for key, indexes in sorted(confirmed_removed.items()):
+                for key, indexes in sorted(confirmed_removed.items(), key=lambda item: item[0].json_key()):
                     for index in sorted(indexes):
                         add_action(record, removal_phase, "code", "remove_source", "failed",
                                    ["confirmed_irrelevance", *record["reasons"]], artifact="original",
-                                   positions=[json.loads(key)], sources=[index], checks=refs[key])
+                                   positions=[key.to_payload()], sources=[index], checks=refs[key])
             # Invalid generation may end before any paid prose request can be recorded.
             if not any(a["action"] == "prose_repair" for a in record["actions"]):
-                for key in sorted(targets):
+                for key in sorted(targets, key=StoryPosition.json_key):
                     add_action(record, validation, "code", "prose_repair", "failed", record["reasons"],
-                               artifact="original", positions=[json.loads(key)], checks=refs[key])
+                               artifact="original", positions=[key.to_payload()], checks=refs[key])
             if audit["post_status"] is not None:
                 # A failure after follow-up (such as partial assembly) keeps that review's spend and coverage.
                 after = _read_json(destination / "post-review" / "report.json")[0]
@@ -250,7 +248,7 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
             record["costs"].append(review_cost(after, "followup_review"))
             blockers = [i for i, row in enumerate(audit["followup_checks"]) if row["probability"] >= (
                 audit["citation_threshold"] if row["check"] == "irrelevant_citation"
-                else audit["threshold"]) and any(position_key(p) in targets for p in row["positions"])]
+                else audit["threshold"]) and any(StoryPosition.from_payload(p) in targets for p in row["positions"])]
             follow_reasons = []
             if after["status"] != "complete":
                 follow_reasons.append("incomplete_followup")
@@ -271,8 +269,8 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
             elif partial:
                 record.update(decision="partial_applied", acceptance_verified=True)
                 assembly = add_phase(record, "partial_assembly", "complete")
-                for key in sorted(targets):
-                    pos = json.loads(key)
+                for key in sorted(targets, key=StoryPosition.json_key):
+                    pos = key.to_payload()
                     if statuses[key] == "applied":
                         add_action(record, assembly, "code", "apply_repair", "applied", [],
                                    artifact="candidate", positions=[pos], checks=refs[key])
@@ -280,15 +278,15 @@ def semantic_integrity(original: Path, destination: Path, audit: dict[str, Any],
                         add_action(record, assembly, "code", "withhold_repair", "rejected", ["followup_flag"],
                                    artifact="original", positions=[pos], checks=[
                                        {"stage": "followup", "index": i} for i in blockers
-                                       if any(position_key(p) == key
+                                       if any(StoryPosition.from_payload(p) == key
                                               for p in audit["followup_checks"][i]["positions"])])
             old = _read_json(original / "frozen-selection.json")[0]
             new = _read_json(repaired / "frozen-selection.json")[0]
             # Source indexes always refer to the original selection, regardless of subset order.
-            for key in sorted(targets):
-                pos = json.loads(key)
-                previous = old["sections"][pos["section"]]["topics"][pos["index"]]["citation_refs"]
-                current = new["sections"][pos["section"]]["topics"][pos["index"]]["citation_refs"]
+            for key in sorted(targets, key=StoryPosition.json_key):
+                pos = key.to_payload()
+                previous = old["sections"][key.section]["topics"][key.index]["citation_refs"]
+                current = new["sections"][key.section]["topics"][key.index]["citation_refs"]
                 for index, ref in enumerate(previous):
                     if ref in current:
                         continue
@@ -323,7 +321,7 @@ def generation_history(original: Path, record: dict[str, Any], *,
                        audit: dict[str, Any] | None = None) -> dict[str, Any]:
     """Prepend verified generation bookkeeping without exposing superseded prose."""
     result = copy.deepcopy(record)
-    subjects = {position_key(t["position"]) for t in (audit or {}).get("topics", [])}
+    subjects = {StoryPosition.from_payload(t["position"]) for t in (audit or {}).get("topics", [])}
     prefix = blank_integrity(record["decision"], [])
     manifest = _read_json(original / "manifest.json")[0]
     attempts = manifest.get("attempts", [])
@@ -363,14 +361,15 @@ def generation_history(original: Path, record: dict[str, Any], *,
             raw_action = attempt.get("repair_actions", [])[index] if attempt.get("repair_actions") else {}
             match = re.match(r"^(topics|excluded_topics)\.(.+?)\[(\d+)\]", raw_action.get("path", ""))
             if match and not superseded:
-                bucket = "sections" if match[1] == "topics" else "excluded_topics"
+                bucket: Literal["sections", "excluded_topics"] = (
+                    "sections" if match[1] == "topics" else "excluded_topics")
                 section, slot = match[2], int(match[3])
                 try:
                     left, right = candidate[bucket][section], final_output[bucket][section]
                     if bucket == "sections":
                         left, right = left["topics"], right["topics"]
                     pos = {"bucket": bucket, "section": section, "index": slot}
-                    if left[slot] == right[slot] and position_key(pos) in subjects:
+                    if left[slot] == right[slot] and StoryPosition(bucket, section, slot) in subjects:
                         positions = [pos]
                 except (KeyError, IndexError, TypeError):
                     pass

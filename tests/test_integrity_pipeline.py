@@ -8,9 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_runner.checkpoint import sha256_file
-from agent_runner.integrity import corpus_health, degraded_health_records, generation_history, position_key
+from agent_runner.integrity import corpus_health, degraded_health_records, generation_history
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
+from agent_runner.positions import StoryPosition
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit
 from prepare_publication import prepare_publication
 from publication_schema import parse_integrity
@@ -429,11 +430,11 @@ class IntegrityPipelineTests(unittest.TestCase):
                 if action["action"] in {"prose_repair", "remove_source", "apply_repair"} or (
                     action["action"] == "withhold_repair" and action["actor"] == "code"
                 ):
-                    key = position_key(action["positions"][0])
+                    key = StoryPosition.from_payload(action["positions"][0])
                     outcomes.setdefault(key, set()).add((action["action"], action["outcome"]))
-            self.assertEqual(outcomes[position_key(first["position"])], {
+            self.assertEqual(outcomes[StoryPosition.from_payload(first["position"])], {
                 ("prose_repair", "applied"), ("remove_source", "applied"), ("apply_repair", "applied")})
-            self.assertEqual(outcomes[position_key(second["position"])], {
+            self.assertEqual(outcomes[StoryPosition.from_payload(second["position"])], {
                 ("prose_repair", "rejected"), ("withhold_repair", "rejected")})
             withheld = next(a for a in integrity["actions"] if a["action"] == "withhold_repair"
                             and a["actor"] == "code")

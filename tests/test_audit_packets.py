@@ -8,8 +8,8 @@ from unittest.mock import patch
 from agent_runner.audit_metrics import flagged
 from agent_runner.audit_packets import control_order
 from agent_runner.audit_packets import export_packets as export_daily_packets
-from agent_runner.integrity import position_key
 from agent_runner.jev_review import load_verified_run
+from agent_runner.positions import StoryPosition
 from agent_runner.semantic_repairs import daily_semantic_review
 from tests.test_briefing_output import fixture_contract
 from tests.test_semantic_repairs import Judge, PatchProvider, make_run, split_review
@@ -62,7 +62,7 @@ class AuditPacketTests(unittest.TestCase):
                     private = mapping[item['packet_id']]
                     self.assertEqual(len(item['versions']), len(private['sides']))
                     if private['kind'] == 'pair':
-                        pair_map[position_key(private['position'])] = private['sides']
+                        pair_map[StoryPosition.from_payload(private['position'])] = private['sides']
                     for side, version in zip(private['sides'], item['versions'], strict=True):
                         self.assertEqual(set(version), {'headline', 'prose', 'evidence'})
                         for evidence in version['evidence']:
@@ -84,14 +84,15 @@ class AuditPacketTests(unittest.TestCase):
             self.assertNotEqual(primary_pairs, secondary_pairs)
             self.assertEqual({m['repair_status'] for m in mapping.values() if m['kind'] == 'pair'},
                              {'applied', 'rejected'})
-            flagged_positions = {position_key(p) for c in audit['checks'] if flagged(c, audit) for p in c['positions']}
+            flagged_positions = {StoryPosition.from_payload(p) for c in audit['checks'] if flagged(c, audit)
+                                 for p in c['positions']}
             eligible = [t for t in load_verified_run(run).topics if t['included'] and
-                        position_key(t['position']) not in flagged_positions]
+                        StoryPosition.from_payload(t['position']) not in flagged_positions]
             ordered = sorted(eligible, key=lambda t: control_order(day.name, t['position']))[:3]
             first_controls = [m for m in mapping.values()
                               if m['packet_id'].startswith('r1-') and m['kind'] == 'control']
-            self.assertEqual({position_key(m['position']) for m in first_controls},
-                             {position_key(t['position']) for t in ordered})
+            self.assertEqual({StoryPosition.from_payload(m['position']) for m in first_controls},
+                             {StoryPosition.from_payload(t['position']) for t in ordered})
             second_controls = [m for m in mapping.values()
                                if m['packet_id'].startswith('r2-') and m['kind'] == 'control']
             self.assertEqual([m['position'] for m in second_controls], [ordered[0]['position']])

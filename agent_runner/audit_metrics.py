@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.checkpoint import write_json_atomic
-from agent_runner.integrity import position_key
 from agent_runner.jev_review import _read_json
+from agent_runner.positions import StoryPosition
 from agent_runner.semantic_repairs import load_public_audit
 from publication_schema import SEMANTIC_CHECKS, parse_integrity
 
@@ -164,7 +164,7 @@ def observations(audit: dict[str, Any], integrity: dict[str, Any]) -> dict[str, 
         if flagged(check, audit):
             flags[kind] += 1
             confirmations[kind][check["confirmation_label"]] += 1
-    targets = {position_key(t["position"]) for t in audit["topics"] if t["repair_status"] != "unchanged"}
+    targets = {StoryPosition.from_payload(t["position"]) for t in audit["topics"] if t["repair_status"] != "unchanged"}
     outcomes: Counter[str] = Counter()
     causes: dict[str, Counter[str]] = {}
     status_names = {"applied": "apply_repair", "rejected": "withhold_repair", "failed": "failed", "skipped": "skipped"}
@@ -172,18 +172,18 @@ def observations(audit: dict[str, Any], integrity: dict[str, Any]) -> dict[str, 
         status = topic["repair_status"]
         if status == "unchanged":
             continue
-        outcome, key = status_names[status], position_key(topic["position"])
+        outcome, key = status_names[status], StoryPosition.from_payload(topic["position"])
         outcomes[outcome] += 1
         reasons = {reason for action in integrity["actions"]
-                   if any(position_key(p) == key for p in action["positions"])
+                   if any(StoryPosition.from_payload(p) == key for p in action["positions"])
                    and action["action"] in {"selection_repair", "prose_repair", "withhold_repair", "apply_repair"}
                    and action["outcome"] in {"rejected", "failed", "skipped"}
                    for reason in action["reasons"]}
         causes.setdefault(outcome, Counter()).update(reasons)
     blockers: Counter[str] = Counter()
-    blocked_slots: dict[str, set[str]] = {kind: set() for kind in SEMANTIC_CHECKS}
+    blocked_slots: dict[str, set[StoryPosition]] = {kind: set() for kind in SEMANTIC_CHECKS}
     for check in audit.get("followup_checks", []):
-        affected = targets & {position_key(p) for p in check["positions"]}
+        affected = targets & {StoryPosition.from_payload(p) for p in check["positions"]}
         if affected and flagged(check, audit):
             blockers[check["check"]] += 1
             blocked_slots[check["check"]].update(affected)

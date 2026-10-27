@@ -5,10 +5,10 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from agent_runner.integrity import position_key
 from agent_runner.jev_review import load_topics, load_verified_run
 from agent_runner.models import ModelResponse, ProviderError
 from agent_runner.output import validate_output
+from agent_runner.positions import StoryPosition
 from agent_runner.runner import RunnerSettings, run_workflow
 from agent_runner.semantic_repairs import daily_semantic_review, load_public_audit, verify_repair
 from prepare_publication import prepare_publication
@@ -331,7 +331,7 @@ class SemanticRepairTests(unittest.TestCase):
             self.assertEqual(run_workflow(FakeProvider([original.candidate]), settings, root / 'other').status,
                              'ready')
             self.assertNotIn('[verbatim]', (root / 'other/final.md').read_text())
-            target = position_key({'bucket': 'sections', 'section': sections[0], 'index': 0})
+            target = StoryPosition.from_payload({'bucket': 'sections', 'section': sections[0], 'index': 0})
             with self.assertRaisesRegex(ValueError, 'unaffected rendered topic'):
                 verify_repair(run, root / 'other', {target}, set())
 
@@ -372,7 +372,7 @@ class SemanticRepairTests(unittest.TestCase):
                                       prompt_path=ROOT / 'briefing-runner-prompt.md',
                                       output_path=root / 'other.md', corpus_path=root / 'input.json')
             self.assertEqual(run_workflow(FakeProvider([output]), settings, root / 'other').status, 'ready')
-            key = position_key({'bucket': 'sections', 'section': section, 'index': 0})
+            key = StoryPosition.from_payload({'bucket': 'sections', 'section': section, 'index': 0})
             with self.assertRaisesRegex(ValueError, 'headline without removing a source'):
                 verify_repair(run, root / 'other', {key}, set(), preserve_headlines=True)
             verify_repair(run, root / 'other', {key}, set())
@@ -381,13 +381,14 @@ class SemanticRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             run, audit, first, second = split_review(root)
-            statuses = {position_key(t['position']): t['repair_status'] for t in audit['topics']}
-            first_key, second_key = position_key(first['position']), position_key(second['position'])
+            statuses = {StoryPosition.from_payload(t['position']): t['repair_status'] for t in audit['topics']}
+            first_key = StoryPosition.from_payload(first['position'])
+            second_key = StoryPosition.from_payload(second['position'])
             self.assertEqual(statuses.pop(first_key), 'applied')
             self.assertEqual(statuses.pop(second_key), 'rejected')
             self.assertEqual(set(statuses.values()), {'unchanged'})
             # The re-flagged slot kept its headline even though its prose was rewritten.
-            rejected = next(t for t in audit['topics'] if position_key(t['position']) == second_key)
+            rejected = next(t for t in audit['topics'] if StoryPosition.from_payload(t['position']) == second_key)
             self.assertEqual(rejected['changed']['headline'], second['headline'])
             bound, selected = load_public_audit(run, root / 'jev-review')
             self.assertEqual(bound, audit)
@@ -397,14 +398,14 @@ class SemanticRepairTests(unittest.TestCase):
             assembled = load_verified_run(selected)
             for section, data in original.candidate['sections'].items():
                 for index in range(len(data['topics'])):
-                    key = position_key({'bucket': 'sections', 'section': section, 'index': index})
+                    key = StoryPosition.from_payload({'bucket': 'sections', 'section': section, 'index': index})
                     expected = repaired.candidate if key == first_key else original.candidate
                     self.assertEqual(assembled.candidate['sections'][section]['topics'][index],
                                      expected['sections'][section]['topics'][index])
             self.assertEqual(assembled.candidate['excluded_topics'], original.candidate['excluded_topics'])
             metadata = json.loads((root / 'jev-review/audit.json').read_text())['metadata']
             self.assertEqual(metadata['schema_version'], 3)
-            self.assertEqual(metadata['accepted_targets'], [first_key])
+            self.assertEqual(metadata['accepted_targets'], [first_key.json_key()])
             self.assertFalse(metadata['post_review_clear'])
             self.assertTrue(metadata['applied'])
             (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
@@ -428,7 +429,8 @@ class SemanticRepairTests(unittest.TestCase):
                 else:
                     path = root / 'jev-review/audit.json'
                     envelope = json.loads(path.read_text())
-                    envelope['metadata']['accepted_targets'].append(position_key(second['position']))
+                    envelope['metadata']['accepted_targets'].append(
+                        StoryPosition.from_payload(second['position']).json_key())
                     envelope['metadata']['accepted_targets'].sort()
                     path.write_text(json.dumps(envelope))
                 self.assertEqual(load_public_audit(run, root / 'jev-review'), (None, run))
@@ -447,7 +449,7 @@ class SemanticRepairTests(unittest.TestCase):
             path = root / 'jev-review/audit.json'
             envelope = json.loads(path.read_text())
             metadata = envelope['metadata']
-            self.assertEqual(metadata['accepted_targets'], [position_key(first['position'])])
+            self.assertEqual(metadata['accepted_targets'], [StoryPosition.from_payload(first['position']).json_key()])
             self.assertEqual((metadata['applied'], metadata['repair_error_type']), (False, 'ValueError'))
             self.assertNotIn('assembled_hashes', metadata)
             self.assertEqual(load_public_audit(run, root / 'jev-review'), (audit, run))
