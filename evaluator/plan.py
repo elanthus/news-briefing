@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agent_runner.hashing import sha256_bytes, sha256_file
+
 from evaluator.adapters import Adapter
 
 # Which rule scoring._oracle applies to attack success_if_checks. Revision 1
@@ -88,10 +90,6 @@ class EvaluationPlan:
 
 def _json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def _mutate(target: dict[str, Any], mutations: list[dict[str, Any]]) -> None:
@@ -572,11 +570,11 @@ def _identity(
         "cost_ceiling_usd": cost_ceiling_usd,
         "cost_ceiling_provider": cost_ceiling_provider,
         "circuit_breaker_threshold": circuit_breaker_threshold,
-        "suite_sha256": _sha256(suite_path.read_bytes()),
-        "corpus_sha256": _sha256(corpus_path.read_bytes()),
+        "suite_sha256": sha256_file(suite_path),
+        "corpus_sha256": sha256_file(corpus_path),
         "case_corpus_sha256": case_corpus_sha256,
         "config_sha256": config_sha256,
-        "protocol_sha256": _sha256(protocol_path.read_bytes()),
+        "protocol_sha256": sha256_bytes(protocol_path.read_bytes()),
         "prompt_sha256": prompt_sha256,
         "prompt_order": list(prompt_versions),
         "trials_per_case": trials,
@@ -637,17 +635,17 @@ def resolve_evaluation_plan(
     )
     matched_ids = sorted(case["id"] for case in cases if case.get("matched_pair"))
     prompt_hashes = {
-        version: _sha256(path.read_bytes())
+        version: sha256_bytes(path.read_bytes())
         for version, path in sorted(prompt_versions.items())
     }
     corpus_hashes = {
-        case["id"]: _sha256(
+        case["id"]: sha256_bytes(
             (suite_path.parent / case["corpus"] if case.get("corpus") else corpus_path).read_bytes()
         )
         for case in cases
     }
     config_hashes = {
-        name: _sha256((suite_path.parent / name).read_bytes())
+        name: sha256_bytes((suite_path.parent / name).read_bytes())
         for name in sorted({case["config"] for case in cases})
     }
     _validate_source_provenance(run_kind, source_provenance)

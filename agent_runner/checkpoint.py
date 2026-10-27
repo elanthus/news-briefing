@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import os
 import secrets
@@ -12,14 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.failures import final_failure
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    return sha256_bytes(path.read_bytes())
+from agent_runner.hashing import sha256_bytes as sha256_bytes
+from agent_runner.hashing import sha256_file as sha256_file
 
 
 def write_bytes_atomic(path: Path, value: bytes) -> None:

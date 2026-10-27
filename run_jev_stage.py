@@ -20,7 +20,6 @@ printed. The script runs every child with ``python3 -S``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -32,6 +31,7 @@ from typing import Any
 
 from agent_runner.budget import DEFAULT_GENERATION_USD
 from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_file
 
 ROOT = Path(__file__).resolve().parent
 DAY_RECORD = "jev-stage-day.json"
@@ -45,10 +45,6 @@ Executor = Callable[[list[str]], int]
 
 class DayFailure(RuntimeError):
     """A sampled day failed for a reason other than a generation-failure row."""
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _read_json(path: Path) -> Any:
@@ -158,7 +154,7 @@ def _artifact_digests(day_dir: Path, chain: dict[str, Any]) -> dict[str, str]:
     for path in paths:
         if path.is_symlink() or not path.is_file():
             raise DayFailure(f"expected artifact is missing: {path.relative_to(day_dir)}")
-        digests[path.relative_to(day_dir).as_posix()] = _sha256(path)
+        digests[path.relative_to(day_dir).as_posix()] = sha256_file(path)
     return digests
 
 

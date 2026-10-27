@@ -10,11 +10,12 @@ reported as present or absent.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
+
+from agent_runner.hashing import sha256_file
 
 from evaluator.adapters import Adapter, production_adapter_for
 from evaluator.checkpoint import _load_resume_manifest, _validate_resume_identity
@@ -25,10 +26,6 @@ CREDENTIAL_ENVIRONMENT = {
     "openrouter": "OPENROUTER_API_KEY",
 }
 COMMAND_PROVIDERS = {"codex-cli": "codex", "claude-code-cli": "claude"}
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _relative(path: Path) -> str:
@@ -74,7 +71,7 @@ def _protocol_checks(
         if not target.is_file():
             checks.add("protocol_hash", False, f"{entry.get('path')} is missing")
         else:
-            actual = _sha256(target)
+            actual = sha256_file(target)
             checks.add(
                 "protocol_hash", actual == entry.get("sha256"),
                 f"{entry['path']} {'matches' if actual == entry.get('sha256') else 'differs from'} the protocol hash",

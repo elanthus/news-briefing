@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import http.client
 import io
 import json
@@ -25,6 +24,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import IO, Any
+
+from agent_runner.hashing import sha256_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "evaluator" / "evidence-assets.json"
@@ -101,10 +102,6 @@ def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
     )
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
 def read_sums(bundle_dir: Path) -> dict[str, str]:
     """Return `{file name: sha256}` from a bundle's in-tree `SHA256SUMS`."""
     sums: dict[str, str] = {}
@@ -147,13 +144,13 @@ def pack(config: Config, output_dir: Path) -> dict[str, dict[str, Any]]:
         bundle_dir = config.source_root / asset.bundle
         data = pack_bytes(asset.bundle, [(name, (bundle_dir / name).read_bytes()) for name in asset.files])
         (output_dir / asset.name).write_bytes(data)
-        results[asset.name] = {"bytes": len(data), "sha256": _sha256(data)}
+        results[asset.name] = {"bytes": len(data), "sha256": sha256_bytes(data)}
     return results
 
 
 def extract_verified(asset: Asset, archive_bytes: bytes, sums: dict[str, str]) -> dict[str, bytes]:
     """Return member contents only if the archive and every member match the recorded hashes."""
-    actual = _sha256(archive_bytes)
+    actual = sha256_bytes(archive_bytes)
     if actual != asset.sha256:
         raise EvidenceAssetError(f"{asset.name}: archive sha256 {actual} does not match {asset.sha256}")
     expected = {f"{asset.bundle}/{name}": name for name in asset.files}
@@ -172,7 +169,7 @@ def extract_verified(asset: Asset, archive_bytes: bytes, sums: dict[str, str]) -
                 if stream is None:
                     raise EvidenceAssetError(f"{asset.name}: unreadable member {member.name!r}")
                 data = stream.read()
-                if sums.get(name) != _sha256(data):
+                if sums.get(name) != sha256_bytes(data):
                     raise EvidenceAssetError(f"{asset.name}: {name} does not match SHA256SUMS")
                 contents[name] = data
     except (tarfile.TarError, OSError, EOFError) as error:
@@ -235,7 +232,7 @@ def fetch(config: Config, asset_dir: Path | None = None) -> list[Path]:
             contents = extract_verified(asset, archive_bytes, sums)
             for name in IN_TREE_FILES:
                 data = (source_dir / name).read_bytes()
-                if name != "SHA256SUMS" and sums[name] != _sha256(data):
+                if name != "SHA256SUMS" and sums[name] != sha256_bytes(data):
                     raise EvidenceAssetError(f"{asset.bundle}: in-tree {name} does not match SHA256SUMS")
                 contents[name] = data
             bundle_dir = staging / asset.bundle

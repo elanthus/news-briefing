@@ -21,9 +21,10 @@ from typing import Any
 
 from agent_runner.audit_metrics import aggregate, load_days
 from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_file
 from agent_runner.jev_review import MAX_CALLS, load_verified_run
 from agent_runner.semantic_repairs import daily_semantic_review
-from run_jev_stage import ROOT, DayFailure, _git_commit, _read_json, _sha256
+from run_jev_stage import ROOT, DayFailure, _git_commit, _read_json
 
 DAY_LEDGER = "ledger.json"
 
@@ -65,9 +66,9 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
         raise ValueError("baseline, replay tree and public output must be separate")
     if output_root.exists() or output_path.exists():
         raise ValueError("replay tree and public output must be new; inspect an interrupted run before retrying")
-    protocol_digest = _sha256(protocol_path)
+    protocol_digest = sha256_file(protocol_path)
     protocol = _read_json(protocol_path)
-    baseline_digest = _sha256(baseline_path)
+    baseline_digest = sha256_file(baseline_path)
     if protocol["baseline_metrics_sha256"] != baseline_digest or protocol["review_call_limit"] != MAX_CALLS:
         raise ValueError("baseline digest or review call limit differs from the frozen protocol")
     baseline = _read_json(baseline_path)
@@ -110,7 +111,7 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
                                  "reached_call_limit": len(report["calls"]) >= MAX_CALLS}
         entry = {"report_date": day, "source_day_sha256": before[day],
                  "baseline_audit_sha256": row["audit_sha256"], "copied_run_sha256": source_digest,
-                 "replay_audit_sha256": _sha256(review / "audit.json"),
+                 "replay_audit_sha256": sha256_file(review / "audit.json"),
                  "review_tree_sha256": tree_digest(review), "review_counts": phases}
         ledger.append(entry)
         # Record each paid day as it completes so a later failure still leaves its spend on disk.
@@ -121,7 +122,7 @@ def replay(source_root: Path, baseline_path: Path, protocol_path: Path, output_r
         print(f"{day}: initial {audit['status']}; follow-up {audit['post_status']}; "
               f"reported USD {audit['reported_cost_usd']:.6f}", flush=True)
     metrics = aggregate(output_root, start=start, end=end, sample_dates=dates)
-    if (_sha256(baseline_path) != baseline_digest or _sha256(protocol_path) != protocol_digest
+    if (sha256_file(baseline_path) != baseline_digest or sha256_file(protocol_path) != protocol_digest
             or any(tree_digest(source_root / day) != before[day] for day in dates)):
         raise ValueError("baseline changed during replay; results were not published")
     result = {"schema_version": 1, "protocol_id": protocol["protocol_id"], "code_commit": code_commit,
