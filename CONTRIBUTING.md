@@ -90,7 +90,7 @@ The historical direct-Markdown prompt is `evaluator/prompts/briefing-prompt.md`.
 
 ## Checks
 
-Run the [repository gate](CLAUDE.md#required-checks).
+Run the [repository gate](AGENTS.md#required-checks).
 CI runs the core and evaluator suites on Python 3.11 through 3.14.
 It also runs lint, type checks, the evaluator checker, and the opt-in site tests.
 

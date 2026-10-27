@@ -171,7 +171,7 @@ It does not change the historical injection scores.
 - [Jev review](docs/jev-review.md), [archive contract](docs/publication-archive-contract.md), and [research retention](docs/research-retention.md).
 - [October 2 assessment](docs/results/remediation-2026-10-02.md) and [September 30 experiments](docs/results/jev-preliminary-2026-09-30.md).
 - Historical records: [retired grounding monitor](docs/results/grounding-monitor.md), [dogfooding log](docs/dogfooding.md), and [benchmark write-up](docs/writeups/injection-benchmark-post.md).
-- [Security](SECURITY.md), [contribution guide](CONTRIBUTING.md), and [repository instructions](CLAUDE.md).
+- [Security](SECURITY.md), [contribution guide](CONTRIBUTING.md), and [repository instructions](AGENTS.md).
 
 Repository code uses the MIT License. Third-party titles, excerpts, and linked content remain subject to their owners' rights.
 The MIT License does not apply to that third-party content.
