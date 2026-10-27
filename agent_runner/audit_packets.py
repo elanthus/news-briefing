@@ -14,8 +14,10 @@ from typing import Any
 
 from agent_runner.audit_metrics import _within, flagged, load_days
 from agent_runner.checkpoint import write_json_atomic
-from agent_runner.integrity import position_key
 from agent_runner.jev_review import load_verified_run
+from agent_runner.positions import StoryPosition
+
+_position = StoryPosition.from_payload
 
 PROTOCOL_ID = "jev-stage-v1"
 # The rubric travels with every packet so each reviewer labels against the same
@@ -66,14 +68,14 @@ def _records(root: Path, *, start: date, end: date
         if audit is None:
             continue
         source = load_verified_run(row["run"])
-        original = {position_key(t["position"]): t for t in source.topics}
+        original = {_position(t["position"]): t for t in source.topics}
         changed = [t for t in audit["topics"] if t["changed"] is not None]
         candidate = None
         if changed:
             candidate = load_verified_run(_within(row["review"] / "repair" / "run", root))
-        revised = {position_key(t["position"]): t for t in candidate.topics} if candidate is not None else {}
+        revised = {_position(t["position"]): t for t in candidate.topics} if candidate is not None else {}
         for topic in changed:
-            key = position_key(topic["position"])
+            key = _position(topic["position"])
             pairs.append({"versions": [_version(original[key]), _version(revised[key])],
                           "private": {"report_date": row["report_date"], "position": topic["position"],
                                       "repair_status": topic["repair_status"], "audit_sha256": row["audit_sha256"],
@@ -81,8 +83,8 @@ def _records(root: Path, *, start: date, end: date
         # Partial initial review cannot establish that a topic is unflagged.
         if audit["status"] != "complete":
             continue
-        flagged_positions = {position_key(p) for c in audit["checks"] if flagged(c, audit) for p in c["positions"]}
-        eligible = [t for t in source.topics if t["included"] and position_key(t["position"]) not in flagged_positions]
+        flagged_positions = {_position(p) for c in audit["checks"] if flagged(c, audit) for p in c["positions"]}
+        eligible = [t for t in source.topics if t["included"] and _position(t["position"]) not in flagged_positions]
         eligible.sort(key=lambda t: control_order(row["report_date"], t["position"]))
         selected = eligible[:3]
         for index, topic in enumerate(selected):

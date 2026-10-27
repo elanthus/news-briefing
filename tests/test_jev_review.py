@@ -11,8 +11,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from agent_runner.checkpoint import sha256_file, write_json_atomic
+from agent_runner.checkpoint import write_json_atomic
 from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
+from agent_runner.hashing import sha256_file
 from agent_runner.jev_review import (
     MAX_CALLS,
     _payload,
@@ -29,6 +30,7 @@ from agent_runner.output import (
     project_selected_evidence,
     redecode_redacted_text,
 )
+from agent_runner.positions import StoryPosition
 from agent_runner.runner import RunnerSettings, run_workflow
 from run_daily_briefing import ChainResult
 from tests.test_briefing_output import ROOT, fixture_contract, selection_from_output
@@ -48,7 +50,7 @@ class DecisionsTests(unittest.TestCase):
 
     def evaluate(self, payload):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=Response(payload)
+            "agent_runner.decisions.open_validated_url", return_value=Response(payload)
         ) as opened:
             result = JevClient().evaluate({"title": "Evidence"}, {
                 "question": {"type": "noul", "instructions": "Is this supported?"}})
@@ -94,12 +96,12 @@ class DecisionsTests(unittest.TestCase):
 
     def test_oversized_response_and_redirect_fail_without_retry_or_body_leak(self):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=io.BytesIO(b" " * (MAX_RESPONSE_BYTES + 1))
+            "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(b" " * (MAX_RESPONSE_BYTES + 1))
         ), self.assertRaisesRegex(ProviderError, "output budget"):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         error = urllib.error.HTTPError(ENDPOINT, 302, "redirect", {}, io.BytesIO(b"secret"))
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", side_effect=error
+            "agent_runner.decisions.open_validated_url", side_effect=error
         ) as opened, self.assertRaisesRegex(ProviderError, "Jev HTTP 302") as caught:
             JevClient().evaluate({}, {"q": {"type": "noul"}})
         opened.assert_called_once()
@@ -112,9 +114,9 @@ class DecisionsTests(unittest.TestCase):
                 if isinstance(error, http.client.IncompleteRead):
                     response = MagicMock()
                     response.__enter__.return_value.read.side_effect = error
-                    opener = patch("agent_runner.decisions._urlopen", return_value=response)
+                    opener = patch("agent_runner.decisions.open_validated_url", return_value=response)
                 else:
-                    opener = patch("agent_runner.decisions._urlopen", side_effect=error)
+                    opener = patch("agent_runner.decisions.open_validated_url", side_effect=error)
                 with opener as opened, self.assertRaises(ProviderError) as caught:
                     JevClient().evaluate({}, {"q": {"type": "noul"}})
                 opened.assert_called_once()
@@ -125,7 +127,7 @@ class DecisionsTests(unittest.TestCase):
     def test_deeply_nested_json_is_a_typed_provider_failure(self):
         raw = b"[" * 2000 + b"0" + b"]" * 2000
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-            "agent_runner.decisions._urlopen", return_value=io.BytesIO(raw)
+            "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(raw)
         ), self.assertRaises(ProviderError):
             JevClient().evaluate({}, {"q": {"type": "noul"}})
 
@@ -161,7 +163,7 @@ class JevReviewTests(unittest.TestCase):
 
             with patch('agent_runner.jev_review.load_verified_run',
                        return_value=SimpleNamespace(root=(root / 'run').resolve(), topics=topics, hashes={})), patch(
-                'agent_runner.jev_review.load_citation_urls', return_value={'{}': [['https://example.com']]}
+                'agent_runner.jev_review.load_citation_urls', return_value={StoryPosition('sections', 's', 0): [['https://example.com']]}
             ), patch('agent_runner.jev_review.build_tasks', return_value=([task] * (MAX_CALLS + 1), 0)), patch(
                 'agent_runner.jev_review._payload', side_effect=one_per_batch
             ):
@@ -289,7 +291,8 @@ class JevReviewTests(unittest.TestCase):
             state = load_verified_run(run)
             urls = load_citation_urls(state)
             (run / "frozen-selection.json").write_text("{}")
-            with patch("agent_runner.jev_review._read_json", side_effect=AssertionError("unexpected artifact read")):
+            with patch("agent_runner.jev_review.read_json_artifact",
+                       side_effect=AssertionError("unexpected artifact read")):
                 self.assertEqual(load_citation_urls(state), urls)
                 report = review_run(run, root / "review", client=FakeJudge(), verified_run=state)
             self.assertEqual(report["status"], "complete")
@@ -394,7 +397,7 @@ class JevReviewTests(unittest.TestCase):
             judge = FakeJudge()
             with patch("agent_runner.jev_review.load_verified_run",
                        return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
-                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+                "agent_runner.jev_review.load_citation_urls", return_value={StoryPosition("sections", "s", 0): [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "review", client=judge)
             self.assertEqual(report["status"], "partial")
@@ -405,7 +408,7 @@ class JevReviewTests(unittest.TestCase):
             topics[0]["evidence"] = [{"title": "Short"}]
             with patch("agent_runner.jev_review.load_verified_run",
                        return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
-                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+                "agent_runner.jev_review.load_citation_urls", return_value={StoryPosition("sections", "s", 0): [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "budget", client=judge, cost_ceiling=0.000000001)
             self.assertEqual(report["status"], "partial")
@@ -427,7 +430,7 @@ class JevReviewTests(unittest.TestCase):
             response.__enter__.return_value.read.side_effect = http.client.IncompleteRead(
                 b"private-http-response-marker-209", 20)
             with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
-                "agent_runner.decisions._urlopen", return_value=response
+                "agent_runner.decisions.open_validated_url", return_value=response
             ) as opened:
                 report = review_run(run, root / "review")
             self.assertEqual(report["status"], "failed")

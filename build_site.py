@@ -22,6 +22,7 @@ import eval_briefing
 import site_metrics
 from agent_runner.integrity import degraded_health_records
 from agent_runner.outcomes import ADVISORY_QUALITY_CHECKS, QUALITY_CHECKS
+from agent_runner.positions import StoryPosition
 from audit_manifest import build_audit_manifest
 from publication_failures import (
     FAILURE_MESSAGES,
@@ -55,6 +56,7 @@ SIDECAR_FIELDS |= {"integrity"}
 HISTORY_FIELDS = SIDECAR_FIELDS | {"markdown"}
 HISTORY_SCHEMA_VERSION = 10
 PROVIDER_LABELS = {"openrouter": "OpenRouter"}
+_position = StoryPosition.from_payload
 STORY_ANCHOR = re.compile(r"^<!-- story: ((?:topics|excluded_topics)\..+?\[\d+\]) -->$")
 # Wrap the code-owned citation URL after each "🔗" marker in a commonmark
 # autolink so it renders as a link even with linkify disabled (see
@@ -1804,21 +1806,21 @@ _CHECK_PHRASES = {
 }
 
 
-def _flags_by_story(checks: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def _flags_by_story(checks: list[dict[str, Any]]) -> dict[StoryPosition, list[dict[str, Any]]]:
     """Group flagged checks by story; a disputed score is not a flag."""
-    flags: dict[str, list[dict[str, Any]]] = {}
+    flags: dict[StoryPosition, list[dict[str, Any]]] = {}
     for check in checks:
         if check["confirmation_label"] in _FLAG_LABELS:
             for position in check["positions"]:
-                flags.setdefault(_position_key(position), []).append(check)
+                flags.setdefault(_position(position), []).append(check)
     return flags
 
 
-def _published_story_keys(audit: dict[str, Any]) -> list[str]:
-    return [_position_key(t["position"]) for t in audit["topics"] if t["position"]["bucket"] == "sections"]
+def _published_story_keys(audit: dict[str, Any]) -> list[StoryPosition]:
+    return [_position(t["position"]) for t in audit["topics"] if t["position"]["bucket"] == "sections"]
 
 
-def _published_flags(entry: BriefingEntry) -> set[str]:
+def _published_flags(entry: BriefingEntry) -> set[StoryPosition]:
     """Published stories that still carry a flag in the review of the published text."""
     audit = entry.semantic_audit
     if audit is None or entry.disposition not in PAGE_DISPOSITIONS:
@@ -1830,7 +1832,7 @@ def _published_flags(entry: BriefingEntry) -> set[str]:
     # The follow-up review assessed the published text, except stories whose
     # repair was withheld: they kept their original prose, so the initial
     # review still describes them.
-    withheld = {_position_key(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
+    withheld = {_position(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
     followup = set(_flags_by_story(audit.get("followup_checks", audit["checks"])))
     return ((followup - withheld) | (initial & withheld)) & published
 
@@ -1867,7 +1869,7 @@ def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
         return "Withheld for review.", (
             f"The deterministic checker recorded {_count_label(entry.findings_count, 'finding')} "
             "that need a person to review them before publication.")
-    topics = {_position_key(t["position"]): t for t in audit["topics"]} if audit else {}
+    topics = {_position(t["position"]): t for t in audit["topics"]} if audit else {}
     applied = [t for t in topics.values() if t["repair_status"] == "applied"]
     corrections = len(entry.repair_actions)
     withheld = [key for key, t in topics.items() if t["repair_status"] == "rejected"]
@@ -1923,7 +1925,7 @@ def _decision_sentence(entry: BriefingEntry) -> tuple[str, str]:
             detail += "; no repair was attempted" + ("" if skip else f" because {why}")
     detail += "."
     if decision in APPLIED_DECISIONS:
-        repaired = {_position_key(t["position"]) for t in applied} | set(withheld)
+        repaired = {_position(t["position"]) for t in applied} | set(withheld)
         others = [key for key in published if key in followup and key not in repaired]
         if others:
             detail += (f" The second review flagged {_number_word(len(others))} other "
@@ -1942,7 +1944,7 @@ def _what_changed(entry: BriefingEntry) -> str:
         old, new = topic["original"], topic["changed"]
         parts.append(f'<section class="story-change"><h3>{html.escape(old["headline"])}</h3>')
         removed = [c for c in checks if c["after_basis"] == "citation_removed"
-                   and _position_key(c["positions"][0]) == _position_key(topic["position"])]
+                   and _position(c["positions"][0]) == _position(topic["position"])]
         for check in removed:
             parts.append("<p>Source removed: " + " · ".join(
                 f"<del>{link}</del>" for link in _citation_links(check)) + "</p>")
@@ -1976,17 +1978,14 @@ def _what_changed(entry: BriefingEntry) -> str:
     return "".join(parts)
 
 
-_STORY_PATH = re.compile(r"^(topics|excluded_topics)\.(.+)\[(\d+)\]$")
-
-
 def _story_path_label(path: str) -> str:
     """Turn "topics.US News[2]" into "US News, story 3"; other paths stay as recorded."""
-    match = _STORY_PATH.match(path)
-    if match is None:
+    try:
+        position = StoryPosition.from_path(path)
+    except ValueError:
         return path
-    bucket, section, index = match.groups()
-    noun = "story" if bucket == "topics" else "excluded topic"
-    return f"{section}, {noun} {int(index) + 1}"
+    noun = "story" if position.bucket == "sections" else "excluded topic"
+    return f"{position.section}, {noun} {position.index + 1}"
 
 
 def _citation_links(check: dict[str, Any]) -> list[str]:
@@ -1998,12 +1997,12 @@ def _citation_links(check: dict[str, Any]) -> list[str]:
     return links
 
 
-def _problem_phrases(key: str, flags: list[dict[str, Any]], checks: list[dict[str, Any]]) -> list[str]:
+def _problem_phrases(key: StoryPosition, flags: list[dict[str, Any]], checks: list[dict[str, Any]]) -> list[str]:
     phrases = []
     citations = [c for c in flags if c["check"] == "irrelevant_citation"]
     if citations:
         flagged = len({c["evidence_index"] for c in citations})
-        total = sum(c["check"] == "irrelevant_citation" and any(_position_key(p) == key for p in c["positions"])
+        total = sum(c["check"] == "irrelevant_citation" and any(_position(p) == key for p in c["positions"])
                     for c in checks)
         sources = "source" if flagged == 1 and total <= 1 else "sources"
         scope = f"{_number_word(flagged)} of {_number_word(total)} {sources}" if total > flagged else (
@@ -2051,7 +2050,7 @@ def _stories_flagged(entry: BriefingEntry) -> str:
     items = []
     disputed = sum(c["confirmation_label"] == "disputed" for c in audit["checks"])
     for topic in audit["topics"]:
-        key = _position_key(topic["position"])
+        key = _position(topic["position"])
         if key not in initial and key not in followup and topic["repair_status"] == "unchanged":
             continue
         phrases = _problem_phrases(key, initial.get(key, []), audit["checks"])
@@ -2062,7 +2061,7 @@ def _stories_flagged(entry: BriefingEntry) -> str:
             phrases = ["flagged for repair"]
         tag = ' <span class="story-tag">excluded topic</span>' if topic["position"]["bucket"] != "sections" else ""
         items.append(
-            f'<li><a href="#{_story_anchor(topic["position"])}"><strong>'
+            f'<li><a href="#{_position(topic["position"]).anchor_id()}"><strong>'
             f'{html.escape(topic["original"]["headline"])}</strong></a>{tag}: '
             f"{html.escape('; '.join(phrases))}; {html.escape(_story_outcome(topic, key in followup))}</li>"
         )
@@ -2115,10 +2114,10 @@ def _decision_record(entry: BriefingEntry) -> str:
                      + _count_label(removed, "source item") + ' removed</strong>.</p>')
         if record["decision"] == "partial_applied":
             # Withheld stories kept original prose, so their initial assessment still describes them.
-            withheld = {_position_key(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
+            withheld = {_position(t["position"]) for t in audit["topics"] if t["repair_status"] == "rejected"}
 
             def touches(check: dict[str, Any]) -> bool:
-                return any(_position_key(p) in withheld for p in check["positions"])
+                return any(_position(p) in withheld for p in check["positions"])
             kept = sum(c["confirmation_label"] != "not_flagged" for c in audit["checks"] if touches(c))
             assessed = sum(c["confirmation_label"] != "not_flagged"
                            for c in audit.get("followup_checks", []) if not touches(c))
@@ -2176,16 +2175,16 @@ def _action_ledger(entry: BriefingEntry) -> str:
         return "\n".join(parts)
     if record["actions"]:
         topics = {
-            _position_key(t["position"]): t for t in (entry.semantic_audit or {}).get("topics", [])
+            _position(t["position"]): t for t in (entry.semantic_audit or {}).get("topics", [])
         }
         parts.append('<section class="action-ledger"><h3>Action ledger</h3><ol>')
         for action in record["actions"]:
             subjects = []
             for position in action["positions"]:
-                topic = topics.get(_position_key(position))
+                topic = topics.get(_position(position))
                 if topic:
                     subjects.append(
-                        f'<a href="#{_story_anchor(position)}">{html.escape(topic["original"]["headline"])}</a>'
+                        f'<a href="#{_position(position).anchor_id()}">{html.escape(topic["original"]["headline"])}</a>'
                     )
             parts.append(
                 f'<li id="{action["id"]}"><strong>{html.escape(action["actor"])}: '
@@ -2304,14 +2303,6 @@ def _source_counts(entry: BriefingEntry) -> str:
     return "\n".join(parts)
 
 
-def _position_key(position: dict[str, Any]) -> str:
-    return json.dumps(position, sort_keys=True)
-
-
-def _story_anchor(position: dict[str, Any]) -> str:
-    return "story-" + hashlib.sha256(_position_key(position).encode()).hexdigest()[:12]
-
-
 def _reasons(codes: list[str]) -> str:
     return "; ".join(INTEGRITY_REASON_MESSAGES[c] for c in codes)
 
@@ -2337,7 +2328,7 @@ def _score_text(check: dict[str, Any], prefix: str = "") -> str:
 
 
 def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | None = None) -> str:
-    topics = {_position_key(t["position"]): t for t in audit["topics"]}
+    topics = {_position(t["position"]): t for t in audit["topics"]}
     checks = audit["checks"]
     categories = (
         ("irrelevant_citation", "Citation irrelevance probability"),
@@ -2349,7 +2340,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
     )
     names = dict(categories)
     action_subjects = {
-        _position_key(position)
+        _position(position)
         for action in (integrity or {}).get("actions", [])
         for position in action["positions"]
     }
@@ -2362,7 +2353,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         related = [
             c
             for c in checks
-            if any(_position_key(p) == key for p in c["positions"])
+            if any(_position(p) == key for p in c["positions"])
             and c["confirmation_label"] != "not_flagged"
         ]
         new, old = topic["changed"], topic["original"]
@@ -2371,7 +2362,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         position = topic["position"]
         location = f"{position['section']}, slot {position['index'] + 1}"
         parts.append(
-            f'<section class="story-change" id="{_story_anchor(position)}"><h3>{html.escape(location)} — '
+            f'<section class="story-change" id="{_position(position).anchor_id()}"><h3>{html.escape(location)} — '
             f"{html.escape(old['headline'])}</h3><p><strong>{topic['repair_status']}</strong></p>"
         )
         for check in related:
@@ -2386,7 +2377,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         followup = [
             c
             for c in audit.get("followup_checks", [])
-            if any(_position_key(p) == key for p in c["positions"])
+            if any(_position(p) == key for p in c["positions"])
         ]
         for check in followup:
             if check["confirmation_label"] != "not_flagged":
@@ -2396,7 +2387,7 @@ def _render_semantic_audit(audit: dict[str, Any], integrity: dict[str, Any] | No
         removed = [
             c
             for c in checks
-            if c["after_basis"] == "citation_removed" and _position_key(c["positions"][0]) == key
+            if c["after_basis"] == "citation_removed" and _position(c["positions"][0]) == key
         ]
         for check in removed:
             outcome = (

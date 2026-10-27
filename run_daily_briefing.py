@@ -14,8 +14,9 @@ from typing import Any
 import briefing_config
 import fetch_news
 from agent_runner.budget import DEFAULT_GENERATION_SECONDS, DEFAULT_GENERATION_USD, GenerationBudget
-from agent_runner.checkpoint import sha256_file, utc_now, write_json_atomic
+from agent_runner.checkpoint import utc_now, write_json_atomic
 from agent_runner.failures import FailureRecord, run_failure
+from agent_runner.hashing import sha256_file
 from agent_runner.models import ProviderError
 from agent_runner.providers import provider_for
 from agent_runner.runner import ROOT, RunnerSettings, RunResult, run_workflow
@@ -136,8 +137,9 @@ def _is_publishable_ready_result(
         return False
 
 
-def _write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]],
-                      budget: GenerationBudget) -> None:
+def write_chain_logs(root: Path, started_at: str, attempts: list[dict[str, Any]],
+                     budget: GenerationBudget) -> None:
+    """Write the model-chain fallback log, with its generation budget record, under ``root``."""
     selected = next((row for row in attempts if row["status"] == "ready"), None)
     payload = {
         "schema_version": 2,
@@ -193,7 +195,7 @@ def run_fallback_chain(
     attempts: list[dict[str, Any]] = []
     for index, candidate in enumerate(PRODUCTION_MODEL_CHAIN, start=1):
         if not budget.available():
-            _write_chain_logs(run_dir, started_at, attempts, budget)
+            write_chain_logs(run_dir, started_at, attempts, budget)
             break
         candidate_name = _candidate_dir_name(index, candidate.model)
         candidate_dir = run_dir / candidate_name
@@ -229,7 +231,7 @@ def run_fallback_chain(
                 "generation_spend": _attempt_spend(spend_before, budget),
             }
             attempts.append(row)
-            _write_chain_logs(run_dir, started_at, attempts, budget)
+            write_chain_logs(run_dir, started_at, attempts, budget)
             print(f"READY model={candidate.model} run_dir={candidate_name}")
             return ChainResult("ready", candidate.model, candidate_dir, run_dir)
 
@@ -248,7 +250,7 @@ def run_fallback_chain(
             "generation_spend": _attempt_spend(spend_before, budget),
         }
         attempts.append(row)
-        _write_chain_logs(run_dir, started_at, attempts, budget)
+        write_chain_logs(run_dir, started_at, attempts, budget)
         print(f"FAILED model={candidate.model} failure_reason={reason}", file=sys.stderr)
 
     return ChainResult("failed", None, None, run_dir)

@@ -6,7 +6,7 @@ import hashlib
 from typing import Any
 
 import corpus_schema
-from agent_runner.checkpoint import sha256_bytes
+from agent_runner.hashing import sha256_bytes
 from agent_runner.output import project_corpus
 
 AUDIT_MANIFEST_SCHEMA_VERSION = 1

@@ -69,7 +69,7 @@ class AdapterRetryTest(unittest.TestCase):
         })
         with (
             patch(
-                "agent_runner.providers._urlopen",
+                "agent_runner.providers.open_validated_url",
                 side_effect=[_http_error(429, "7"), response],
             ) as urlopen,
             patch("agent_runner.providers.time.sleep") as sleep,
@@ -84,7 +84,7 @@ class AdapterRetryTest(unittest.TestCase):
     @patch.dict(os.environ, {"NVIDIA_API_KEY": "test-key"})
     def test_nvidia_stops_after_bounded_rate_limit_attempts(self) -> None:
         errors = [_http_error(429, "0") for _ in range(MAX_ATTEMPTS)]
-        with patch("agent_runner.providers._urlopen", side_effect=errors) as urlopen:
+        with patch("agent_runner.providers.open_validated_url", side_effect=errors) as urlopen:
             with self.assertRaises(ProviderRequestError) as raised:
                 NvidiaAdapter("free-model", timeout=30).generate("request")
 
@@ -102,7 +102,7 @@ class AdapterRetryTest(unittest.TestCase):
         })
         with (
             patch(
-                "agent_runner.providers._urlopen",
+                "agent_runner.providers.open_validated_url",
                 side_effect=[ConnectionRefusedError("connection refused"), response],
             ) as urlopen,
             patch("agent_runner.providers.time.sleep") as sleep,
@@ -124,7 +124,7 @@ class AdapterRetryTest(unittest.TestCase):
             }],
             "usage": {"prompt_tokens": 10, "completion_tokens": 8192, "cost": 0.01},
         })
-        with patch("agent_runner.providers._urlopen", return_value=response):
+        with patch("agent_runner.providers.open_validated_url", return_value=response):
             with self.assertRaisesRegex(
                 RuntimeError, "returned no text content.*finish_reason='length'"
             ) as raised:
@@ -143,7 +143,7 @@ class AdapterRetryTest(unittest.TestCase):
                 "usage": {"prompt_tokens": 10, "completion_tokens": 7, "cost": 0.01},
             })
             with self.subTest(choices=choices), patch(
-                "agent_runner.providers._urlopen", return_value=response
+                "agent_runner.providers.open_validated_url", return_value=response
             ), self.assertRaises(ProviderRequestError) as raised:
                 OpenRouterAdapter("model", timeout=30).generate("request")
             self.assertEqual(raised.exception.cost_usd, 0.01)

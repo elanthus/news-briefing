@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from agent_runner.hashing import sha256_bytes
+
 from evaluator import cases as cases_module
 from evaluator import checkpoint as checkpoint_module
 from evaluator.adapters import Adapter
@@ -16,7 +18,7 @@ from evaluator.checkpoint import (
     initialize_run,
 )
 from evaluator.execution import ExecutionOptions, ProgressCallback, _run_adapter
-from evaluator.plan import _sha256, resolve_evaluation_plan
+from evaluator.plan import resolve_evaluation_plan
 from evaluator.report import finalize_run_report
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,7 +59,7 @@ def _git_provenance() -> dict[str, Any]:
         )
     ]
     runtime_source_sha256 = {
-        path.as_posix(): _sha256((ROOT / path).read_bytes())
+        path.as_posix(): sha256_bytes((ROOT / path).read_bytes())
         for path in runtime_paths
         if (ROOT / path).is_file()
     }

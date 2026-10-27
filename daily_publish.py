@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from agent_runner.budget import GenerationBudget
 from agent_runner.checkpoint import utc_now
 from publication_schema import parse_workflow_run_id
-from run_daily_briefing import _write_chain_logs
+from run_daily_briefing import write_chain_logs
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -202,7 +202,7 @@ def generate_reports(
                 # A budget stop must not replace earlier ready/failure evidence.
                 pass
             else:
-                _write_chain_logs(run_dir, utc_now(), [], budget)
+                write_chain_logs(run_dir, utc_now(), [], budget)
             unsuccessful.append(report_date)
             print(f"::warning::Generation stopped for {report_date}: {budget.stop_reason}")
         elif corpus_ready:

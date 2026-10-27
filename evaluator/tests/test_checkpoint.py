@@ -308,18 +308,16 @@ class CheckpointTest(unittest.TestCase):
             ) -> None:
                 progress_events.append((provider, model, completed, total, status))
 
-            original_read_bytes = Path.read_bytes
+            original_open = Path.open
             prompt_reads = 0
 
-            def count_prompt_reads(path: Path) -> bytes:
+            def count_prompt_reads(path: Path, *args: Any, **kwargs: Any) -> Any:
                 nonlocal prompt_reads
                 if path == prompt:
                     prompt_reads += 1
-                return original_read_bytes(path)
+                return original_open(path, *args, **kwargs)
 
-            with patch.object(
-                Path, "read_bytes", autospec=True, side_effect=count_prompt_reads
-            ):
+            with patch.object(Path, "open", autospec=True, side_effect=count_prompt_reads):
                 report = run_evaluation(
                     [resumed_adapter],
                     {"v1": prompt},

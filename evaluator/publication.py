@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from agent_runner.checkpoint import sha256_file
+from agent_runner.hashing import sha256_file
 
 from evaluator.evidence_assets import read_sums
 from evaluator.report import markdown_report, summarize

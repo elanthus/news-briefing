@@ -20,7 +20,6 @@ printed. The script runs every child with ``python3 -S``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -32,6 +31,7 @@ from typing import Any
 
 from agent_runner.budget import DEFAULT_GENERATION_USD
 from agent_runner.checkpoint import write_json_atomic
+from agent_runner.hashing import sha256_file
 
 ROOT = Path(__file__).resolve().parent
 DAY_RECORD = "jev-stage-day.json"
@@ -47,18 +47,15 @@ class DayFailure(RuntimeError):
     """A sampled day failed for a reason other than a generation-failure row."""
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _read_json(path: Path) -> Any:
+def read_json(path: Path) -> Any:
+    """Read a regular, non-symlink JSON artifact within ``MAX_JSON_BYTES``, or raise ``DayFailure``."""
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_JSON_BYTES:
         raise DayFailure(f"missing, oversized, or non-regular JSON artifact: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_sample(path: Path) -> list[str]:
-    sample = _read_json(path)
+    sample = read_json(path)
     dates = sample.get("sample_dates") if isinstance(sample, dict) else None
     if not isinstance(dates, list) or not dates or len(dates) > 366:
         raise ValueError("sample file must list between 1 and 366 sample_dates")
@@ -92,8 +89,8 @@ def provenance_manifest(artifact_dir: Path, output: Path) -> int:
     wrappers carry forward, so it is the canonical copy; the dropped wrappers are
     listed in the manifest for the record.
     """
-    manifest = _read_json(artifact_dir / "manifest.json")
-    inventory = _read_json(artifact_dir / "inventory.json")
+    manifest = read_json(artifact_dir / "manifest.json")
+    inventory = read_json(artifact_dir / "inventory.json")
     rows = manifest.get("artifacts") if isinstance(manifest, dict) else None
     if not isinstance(rows, list) or not isinstance(inventory, list):
         raise ValueError("preserved manifest.json and inventory.json have unexpected shapes")
@@ -158,7 +155,7 @@ def _artifact_digests(day_dir: Path, chain: dict[str, Any]) -> dict[str, str]:
     for path in paths:
         if path.is_symlink() or not path.is_file():
             raise DayFailure(f"expected artifact is missing: {path.relative_to(day_dir)}")
-        digests[path.relative_to(day_dir).as_posix()] = _sha256(path)
+        digests[path.relative_to(day_dir).as_posix()] = sha256_file(path)
     return digests
 
 
@@ -172,7 +169,7 @@ def _day_costs(day_dir: Path, chain: dict[str, Any]) -> dict[str, Any]:
     }
     audit_path = day_dir / "review" / "audit.json"
     if audit_path.exists():
-        envelope = _read_json(audit_path)
+        envelope = read_json(audit_path)
         audit = envelope.get("audit") if isinstance(envelope, dict) else None
         if isinstance(audit, dict):
             costs["review_reported_cost_usd"] = audit.get("reported_cost_usd")
@@ -203,7 +200,7 @@ def run_day(day: str, root: Path, artifact_dir: Path, *, generation_usd: float, 
     if (day_dir / "run").exists():
         raise DayFailure(f"{day} has a run directory but no day record; inspect it before rerunning")
     code = execute(run_command(day, day_dir, generation_usd))
-    chain = _read_json(day_dir / "run" / "fallback-log.json")
+    chain = read_json(day_dir / "run" / "fallback-log.json")
     if not isinstance(chain, dict):
         raise DayFailure(f"fallback log for {day} is not an object")
     if code == 0:
@@ -248,7 +245,7 @@ def run_sample(dates: list[str], root: Path, artifact_dir: Path, *, generation_u
         record_path = root / day / DAY_RECORD
         if record_path.exists():
             try:
-                record = _read_json(record_path)
+                record = read_json(record_path)
             except (OSError, UnicodeError, ValueError) as exc:
                 raise DayFailure(f"cannot read day record for {day}; inspect {record_path}: {exc}") from exc
             if not isinstance(record, dict):

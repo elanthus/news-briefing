@@ -22,7 +22,6 @@ side and records its digest and separate ``packet_correspondence_opened_at``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import random
@@ -35,6 +34,7 @@ from typing import Any
 from agent_runner.audit_labels import PER_VERSION, validate_labels
 from agent_runner.audit_packets import PROTOCOL_ID
 from agent_runner.checkpoint import write_json_atomic, write_text_atomic
+from agent_runner.hashing import sha256_file
 
 QUESTIONS = (*PER_VERSION, "meaning_preservation")
 MATERIAL = ("support", "citations", "meaning_preservation")
@@ -161,8 +161,8 @@ def export_adjudication(packet_first: Path, labels_first: Path, packet_second: P
                         "second_packet_id": row["second"]["packet_id"], "reviewer_A": a_name, "reviewer_B": b_name,
                         "second_version_order": row["order"]})
     summary = {key: value for key, value in result.items() if key != "rows"}
-    summary["label_files_sha256"] = {lf["reviewer"]: hashlib.sha256(labels_first.read_bytes()).hexdigest(),
-                                     ls["reviewer"]: hashlib.sha256(labels_second.read_bytes()).hexdigest()}
+    summary["label_files_sha256"] = {lf["reviewer"]: sha256_file(labels_first),
+                                     ls["reviewer"]: sha256_file(labels_second)}
     key = {"schema_version": 1, "seed": seed, "mapping": mapping, "summary": summary}
     key_path.parent.mkdir(parents=True, exist_ok=True)
     with os.fdopen(os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as stream:
@@ -313,10 +313,6 @@ Final = dict[str, list[str | None]]
 Slot = tuple[str, int | None]
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def _blinded(versions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Each version reduced to the fields every packet carries, so an enriched item still matches its origin."""
     return [{"headline": v["headline"], "prose": v["prose"],
@@ -425,7 +421,7 @@ def adjudicated_outcomes(packet_first: Path, labels_first: Path, packet_second: 
     key = _read(key_path)  # The unblinding step: from here on, reviewer identities are known per item.
     if not isinstance(key, dict) or key.get("schema_version") != 1 or not isinstance(key.get("mapping"), list):
         raise ValueError("not an adjudication key")
-    digests = {lf["reviewer"]: _sha256(labels_first), ls["reviewer"]: _sha256(labels_second)}
+    digests = {lf["reviewer"]: sha256_file(labels_first), ls["reviewer"]: sha256_file(labels_second)}
     if not isinstance(key.get("summary"), dict) or key["summary"].get("label_files_sha256") != digests:
         raise ValueError("the key was not built from these label files")
     mapping = {str(entry["adjudication_id"]): entry for entry in key["mapping"]}
@@ -492,10 +488,10 @@ def adjudicated_outcomes(packet_first: Path, labels_first: Path, packet_second: 
         "flags": checked["flags"], "flag_counts": checked["flag_counts"],
         "outcomes_with_flags": _tally(with_flags) if checked["flags"] else None,
         "single_labeled": single,
-        "inputs_sha256": {"packets": {path.name: _sha256(path) for path in (packet_first, packet_second)},
-                          "labels": digests, "adjudication_packet": _sha256(adjudication_path),
-                          "decisions": _sha256(decisions_path), "key": _sha256(key_path),
-                          **({"packet_correspondence": _sha256(correspondence_path)}
+        "inputs_sha256": {"packets": {path.name: sha256_file(path) for path in (packet_first, packet_second)},
+                          "labels": digests, "adjudication_packet": sha256_file(adjudication_path),
+                          "decisions": sha256_file(decisions_path), "key": sha256_file(key_path),
+                          **({"packet_correspondence": sha256_file(correspondence_path)}
                              if correspondence_path is not None else {})},
     }
 
@@ -513,7 +509,7 @@ def verify_frozen_inputs(record: dict[str, Any], *, packets: list[Path], labels:
         decisions_path: {returned["sha256"]},
     }
     for path, allowed in expected.items():
-        if _sha256(path) not in allowed:
+        if sha256_file(path) not in allowed:
             raise ValueError(f"{path.name}: digest is not in the freeze record")
 
 
