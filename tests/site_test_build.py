@@ -24,6 +24,7 @@ import site_metrics
 from agent_runner.failures import FailureRecord
 from agent_runner.integrity import add_phase, blank_integrity
 from agent_runner.output import render_briefing, render_validation_status
+from agent_runner.positions import StoryPosition
 from build_site import (
     BriefingEntry,
     _count_label,
@@ -2494,7 +2495,7 @@ class IntegrityReportTests(unittest.TestCase):
             self.assertIn('Changed prose — applied (published)', page)
             self.assertIn('Changed prose — rejected (proposed)', page)
             for action, story in (('apply repair — applied', first), ('withhold repair — rejected', second)):
-                anchor = site._story_anchor(story['position'])
+                anchor = StoryPosition.from_payload(story['position']).anchor_id()
                 self.assertIn(f'code: {action}</strong> <a href="#{anchor}">'
                               f'{html.escape(story["headline"])}</a>', page)
             build_site(root / 'public', root / 'site')
