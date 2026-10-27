@@ -68,6 +68,8 @@ A `review_required` result can retain its verified `preview.md` in publication m
 The public page displays a quarantine stub, not that preview.
 
 Every status chip links to `reports/<date>.html`.
+Briefing pages end with a "How this briefing is made" section: two paragraphs, the pipeline diagram (`pipeline.svg`, copied from `docs/images/runtime-pipeline.svg`), and links to the README, design notes, ADRs, evaluation methodology, evidence bundles, and Jev documentation.
+Every page sends no referrer to the hosts it links, declares the share card `og-card.png`, and links the 192-pixel favicons.
 A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges, when any of them is recorded.
 Integrity reports show the publication decision and reason, that same generation line, published changes, flagged stories, exclusion log, and affected sources.
 Each figure states its own gap, so a missing value never reads as zero:
@@ -302,6 +304,10 @@ Original correction counters exclude semantic repair work.
 
 The builder accepts only `history.json` schema 10.
 Each entry requires every field below. Missing and extra fields fail validation.
+The builder also writes `reports/<date>.json` for each retained date: that date's history entry plus `schema_version` 1.
+Each integrity report links its own record first, so a reader opens one day's data rather than the seven-day file.
+`parse_day_record` in `build_site.py` accepts only schema 1 with exactly the history fields and runs before the record is written.
+The records are rebuilt from `history.json` on every build; nothing reads them back.
 Current sidecars use the same metadata fields, including explicit nullable integrity and audit values.
 Rebuilding never calls a model to fill historical gaps.
 Recorded legacy provenance remains as recorded; code does not infer missing original-versus-repair identities.
