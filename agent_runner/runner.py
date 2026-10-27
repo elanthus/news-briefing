@@ -106,6 +106,7 @@ class RunnerSettings:
             "timeout_seconds": self.timeout_seconds,
             "max_corrections": self.max_corrections,
             "strict": self.strict,
+            "inherited_repair_actions": list(self.inherited_repair_actions),
             "provider": provider_info,
             "code": {
                 key: code_info[key]

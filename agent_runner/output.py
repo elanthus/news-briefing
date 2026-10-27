@@ -712,6 +712,11 @@ def repair_structural_output(
 
 
 PROMOTION_ACTION = "promote_excluded_entry"
+EXCERPT_ACTION = "replace_summary_with_excerpt"
+# The actions the renderer labels on a topic. A replay inherits only these:
+# an entry drop or reference dedupe describes a slot the original no longer
+# has, so it has nothing to say about the candidate a replay rebuilds.
+RENDERED_ACTIONS = frozenset({PROMOTION_ACTION, EXCERPT_ACTION})
 PROMOTION_TAG = "promoted from the accountability log"
 
 
@@ -1413,12 +1418,14 @@ def _topic_lines(
     promoted: bool = False,
 ) -> list[str]:
     refs = entry["citation_refs"]
-    item_refs = {citations[ref].item_ref for ref in refs}
+    # Consolidation is a story-level fact, like reuse: two handles for one
+    # canonical destination render one link, so they are one story, not two.
+    stories = {citations[ref].story_key for ref in refs}
     # The checker's topic grammar tolerates exactly one *(...)* group between
     # the headline and the em dash, so consolidation keeps that marker group.
     # Evidence substitutions and log promotions use separate literal tags.
     labels = []
-    if len(item_refs) > 1:
+    if len(stories) > 1:
         labels.append("consolidated")
     marker = f" *({' · '.join(labels)})*" if labels else ""
     tags = "".join(

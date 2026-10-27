@@ -11,6 +11,7 @@ from typing import Any
 import corpus_schema
 from agent_runner.checkpoint import sha256_bytes
 from agent_runner.jev_review import MAX_ARTIFACT_BYTES, _read_json
+from agent_runner.output import PROMOTION_ACTION
 from agent_runner.stages import SELECTION_ATTEMPT_KINDS
 from publication_schema import INTEGRITY_VERSION, parse_integrity, parse_provenance, provenance_payload
 
@@ -34,9 +35,12 @@ def run_provenance(manifest: dict[str, Any], *, attempt_index: int = 1,
     """Model identity and correction/repair counts from a run manifest.
 
     Counts come only from each attempt's ``kind`` and ``repair_actions``, never
-    from prompt, corpus, or model text. ``selection_promotion`` is not a repair:
-    filling a reserved slot from the accountability log is routine editorial
-    bookkeeping. ``None`` when the manifest predates recorded provider identity,
+    from prompt, corpus, or model text. A promotion is not a repair: filling a
+    reserved slot from the accountability log is routine editorial bookkeeping,
+    so promotion actions are left out wherever they are recorded. A ``prose``
+    attempt carries the actions a replay inherited from the run it rebuilt, so
+    the count agrees with the published ``repair_actions`` list. ``None`` when
+    the manifest predates recorded provider identity,
     the prompt hash, or attempts, so an older run still publishes without
     provenance. A recorded identity that fails ``parse_provenance`` raises
     ``ValueError``. Non-object attempts and non-list ``repair_actions`` are skipped.
@@ -54,9 +58,12 @@ def run_provenance(manifest: dict[str, Any], *, attempt_index: int = 1,
         **fields, "attempt_index": attempt_index, "attempt_count": attempt_count,
         "selection_corrections": sum(a.get("kind") == "selection_correction" for a in rows),
         "prose_corrections": sum(a.get("kind") == "correction" for a in rows),
-        "repair_action_count": sum(len(a["repair_actions"]) for a in rows
-                                   if a.get("kind") in {"selection_repair", "deterministic_repair"}
-                                   and isinstance(a.get("repair_actions"), list)),
+        "repair_action_count": sum(
+            sum(not (isinstance(action, dict) and action.get("action") == PROMOTION_ACTION)
+                for action in a["repair_actions"])
+            for a in rows
+            if a.get("kind") in {"selection_repair", "deterministic_repair", "prose"}
+            and isinstance(a.get("repair_actions"), list)),
     })
     return provenance_payload(parsed) if parsed is not None else None
 

@@ -23,7 +23,7 @@ from agent_runner.jev_review import (
     task_key,
 )
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
-from agent_runner.output import PROMOTION_ACTION, redact_destinations, redact_opaque_references
+from agent_runner.output import PROMOTION_ACTION, RENDERED_ACTIONS, redact_destinations, redact_opaque_references
 from agent_runner.providers import provider_for
 from agent_runner.runner import RunnerSettings, effective_repair_actions, run_workflow
 from publication_schema import parse_integrity, parse_semantic_audit
@@ -61,7 +61,8 @@ def inherited_repair_actions(original: VerifiedRun, rewritten: set[str]) -> tupl
     rewritten_paths = {_action_path(json.loads(key)) for key in rewritten}
     return tuple(
         action for action in effective_repair_actions(original.manifest)
-        if action["action"] == PROMOTION_ACTION or action["path"] not in rewritten_paths
+        if action["action"] in RENDERED_ACTIONS
+        and (action["action"] == PROMOTION_ACTION or action["path"] not in rewritten_paths)
     )
 
 
@@ -71,8 +72,21 @@ def assembly_repair_actions(original: VerifiedRun, repaired: VerifiedRun,
     accepted_paths = {_action_path(json.loads(key)) for key in accepted}
     return inherited_repair_actions(original, accepted) + tuple(
         action for action in effective_repair_actions(repaired.manifest)
-        if action["action"] != PROMOTION_ACTION and action["path"] in accepted_paths
+        if action["action"] in RENDERED_ACTIONS - {PROMOTION_ACTION} and action["path"] in accepted_paths
     )
+
+
+def _bound_final_markdown(run: VerifiedRun) -> bytes:
+    """``final.md`` of a verified run, within the artifact bound and hash bound to its manifest."""
+    with (run.root / "final.md").open("rb") as stream:
+        markdown = stream.read(MAX_ARTIFACT_BYTES + 1)
+    manifest = run.manifest
+    digest = sha256_bytes(markdown)
+    if (len(markdown) > MAX_ARTIFACT_BYTES or manifest["artifacts"].get("final.md") != digest
+            or manifest["final"].get("output_sha256") != digest
+            or manifest["final"].get("run_artifact") != "final.md"):
+        raise ValueError("rendered artifact is not hash bound")
+    return markdown
 
 
 def _rendered_story_lines(markdown: bytes) -> dict[str, str]:
@@ -119,14 +133,10 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
     With ``preserve_headlines``, a target keeps its original headline unless it lost a source item.
     """
     before_run, after_run = _verified(original), _verified(repaired)
-    manifest = after_run.manifest
-    with (after_run.root / "final.md").open("rb") as stream:
-        markdown = stream.read(MAX_ARTIFACT_BYTES + 1)
-    digest = sha256_bytes(markdown)
-    if (len(markdown) > MAX_ARTIFACT_BYTES or manifest["artifacts"].get("final.md") != digest
-            or manifest["final"].get("output_sha256") != digest
-            or manifest["final"].get("run_artifact") != "final.md"):
-        raise ValueError("semantic repair rendered artifact is not hash bound")
+    try:
+        markdown = _bound_final_markdown(after_run)
+    except ValueError as exc:
+        raise ValueError(f"semantic repair {exc}") from exc
     before, after = before_run.candidate, after_run.candidate
     old_selection, new_selection = before_run.selection, after_run.selection
     if before_run.hashes["corpus.json"] != after_run.hashes["corpus.json"]:
@@ -138,8 +148,10 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
     # The candidate dicts carry prose and references; the rendered line also
     # carries the code-owned tags (``[verbatim]``, the promotion label), so an
     # untouched slot must render byte for byte as the original did.
-    with (before_run.root / "final.md").open("rb") as stream:
-        original_markdown = stream.read(MAX_ARTIFACT_BYTES + 1)
+    try:
+        original_markdown = _bound_final_markdown(before_run)
+    except ValueError as exc:
+        raise ValueError(f"semantic repair original {exc}") from exc
     before_lines, after_lines = _rendered_story_lines(original_markdown), _rendered_story_lines(markdown)
     for path, line in before_lines.items():
         if path.startswith("excluded_topics.") and after_lines.get(path) != line:
@@ -181,8 +193,8 @@ def verify_assembly(original: Path | VerifiedRun, repaired: Path | VerifiedRun, 
     before, after, published = _verified(original), _verified(repaired), _verified(assembled)
     verify_repair(before, published, accepted, grouping & accepted,
                   {key: indexes for key, indexes in removed.items() if key in accepted}, preserve_headlines=True)
-    repaired_lines = _rendered_story_lines((after.root / "final.md").read_bytes())
-    assembled_lines = _rendered_story_lines((published.root / "final.md").read_bytes())
+    repaired_lines = _rendered_story_lines(_bound_final_markdown(after))
+    assembled_lines = _rendered_story_lines(_bound_final_markdown(published))
     for key in accepted:
         pos = json.loads(key)
         section, index = pos["section"], pos["index"]
