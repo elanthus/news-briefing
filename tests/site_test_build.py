@@ -328,6 +328,7 @@ class BuildSiteTests(unittest.TestCase):
             report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
             self.assertIn('<a href="2026-08-20.json">This day’s public record (JSON)</a>', report)
             self.assertIn('<a href="../history.json">Seven-day history (JSON)</a>', report)
+            self.assertNotIn("published Markdown", report)
             self.assertIn('<a href="../index.html#how-it-works">How it works</a>', report)
             self.assertNotIn('id="how-it-works"', report)
 
@@ -345,6 +346,42 @@ class BuildSiteTests(unittest.TestCase):
                           (output / "2026-08-19.html").read_text(encoding="utf-8"))
             self.assertIn('id="how-it-works"', (output / "metrics.html").read_text(encoding="utf-8")
                           .replace('href="index.html#how-it-works"', 'id="how-it-works"'))
+
+    def test_day_record_schema_is_pinned_to_the_history_field_set(self) -> None:
+        # Schema 1 of reports/<date>.json means exactly these fields. A change
+        # to the history shape must bump both versions together, so a record
+        # written earlier is never accepted or refused by accident.
+        from build_site import DAY_RECORD_SCHEMA_VERSION, HISTORY_FIELDS, HISTORY_SCHEMA_VERSION
+
+        self.assertEqual((DAY_RECORD_SCHEMA_VERSION, HISTORY_SCHEMA_VERSION), (1, 10))
+        self.assertEqual(HISTORY_FIELDS, {
+            "date", "disposition", "findings_count", "degraded_sources", "findings",
+            "repair_actions", "generation_failures", "advisory_findings", "provenance",
+            "semantic_audit", "integrity", "markdown",
+        })
+
+    def test_day_record_link_precedes_the_audit_manifest_link(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            briefings = root / "briefings"
+            briefings.mkdir()
+            (briefings / "2026-08-20.md").write_text("briefing", encoding="utf-8")
+            self._write_sidecar(briefings, date="2026-08-20", disposition="ready")
+            corpora = root / "corpora"
+            corpora.mkdir()
+            valid_corpus, _config, _projected, _output = fixture_contract()
+            (corpora / "2026-08-20.json").write_text(
+                json.dumps({**valid_corpus, "report_date": "2026-08-20"}), encoding="utf-8",
+            )
+            output = root / "site"
+
+            build_site(briefings, output, corpora_dir=corpora)
+
+            report = (output / "reports/2026-08-20.html").read_text(encoding="utf-8")
+            links = re.findall(r'<p class="audit-artifact"><a href="([^"]+)">', report)
+            self.assertEqual(
+                links, ["2026-08-20.json", "../manifests/2026-08-20.json", "../history.json"],
+            )
 
     def test_ordinary_warning_does_not_duplicate_unredacted_story(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

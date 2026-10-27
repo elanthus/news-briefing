@@ -307,6 +307,7 @@ Each entry requires every field below. Missing and extra fields fail validation.
 The builder also writes `reports/<date>.json` for each retained date: that date's history entry plus `schema_version` 1.
 Each integrity report links its own record first, so a reader opens one day's data rather than the seven-day file.
 `parse_day_record` in `build_site.py` accepts only schema 1 with exactly the history fields and runs before the record is written.
+Schema 1 means the history field set listed below; a change to that set bumps `DAY_RECORD_SCHEMA_VERSION` together with `HISTORY_SCHEMA_VERSION`, and a test pins the pairing.
 The records are rebuilt from `history.json` on every build; nothing reads them back.
 Current sidecars use the same metadata fields, including explicit nullable integrity and audit values.
 Rebuilding never calls a model to fill historical gaps.

@@ -1737,12 +1737,14 @@ def _render_report(
     parts.append("</section>")
     data_links = [
         f'<a href="{html.escape(entry.slug)}.json">This day\u2019s public record (JSON)</a> — '
-        "the published Markdown, review scores, repair outcomes, and costs for this date.",
+        "the stored Markdown when one exists, review scores, repair outcomes, and costs for "
+        "this date.",
         '<a href="../history.json">Seven-day history (JSON)</a> — the same records for every '
         "retained date; the input the next build merges.",
     ]
     if entry.slug in manifest_dates:
-        data_links.insert(0, f'<a href="../manifests/{html.escape(entry.slug)}.json">'
+        # The day record stays first; the manifest follows it.
+        data_links.insert(1, f'<a href="../manifests/{html.escape(entry.slug)}.json">'
                              "Download audit manifest (JSON)</a> — corpus membership, canonical "
                              "destinations, provenance, and content hashes; source-owned titles and "
                              "excerpts are not included.")
