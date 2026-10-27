@@ -17,7 +17,8 @@ import eval_briefing
 import evaluator.__main__ as evaluator_cli
 from briefing_config import BriefingConfig, BriefingSection, load_config
 from evaluator.case_runner import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
-from evaluator.cases import VARIANTS, apply_variant, text_only, variant
+from evaluator.cases import VARIANTS, apply_variant, text_only
+from evaluator.cases import variant as register_variant
 from evaluator.plan import (
     _attack_dimensions,
     _mutate,
@@ -72,7 +73,7 @@ class FixedSuiteTest(unittest.TestCase):
     def test_registered_transform_is_returned_and_dispatched(self) -> None:
         transform = text_only(lambda text: text + "\nRegistered transform.\n")
         with patch.dict(VARIANTS):
-            self.assertIs(variant("test-registration")(transform), transform)
+            self.assertIs(register_variant("test-registration")(transform), transform)
             corpus, text, config = apply_variant("valid-baseline")
             self.assertEqual(
                 apply_variant("test-registration"),
@@ -85,7 +86,7 @@ class FixedSuiteTest(unittest.TestCase):
         replacement = text_only(lambda text: "replacement")
         with patch.dict(VARIANTS):
             with self.assertRaisesRegex(ValueError, "^duplicate variant 'valid-baseline'$"):
-                variant("valid-baseline")(replacement)
+                register_variant("valid-baseline")(replacement)
             self.assertIs(VARIANTS["valid-baseline"], original)
             self.assertEqual(apply_variant("valid-baseline"), expected)
 
