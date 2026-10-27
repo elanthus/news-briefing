@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
+from agent_runner.positions import StoryPosition
+
 FINDING_FIELDS = {"level", "check", "domain", "message"}
 FINDING_V3_FIELDS = FINDING_FIELDS | {"context"}
 CONTEXT_FIELDS = {"section", "headline", "model_authored"}
@@ -206,14 +208,6 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
                 or not 0 <= value <= 1 or not math.isfinite(value)):
             raise ValueError("invalid semantic audit probability")
 
-    def position(value: object) -> str:
-        if (not isinstance(value, dict) or set(value) != {"bucket", "section", "index"}
-                or value["bucket"] not in ("sections", "excluded_topics")
-                or not isinstance(value["section"], str) or not 1 <= len(value["section"]) <= 100
-                or type(value["index"]) is not int or not 0 <= value["index"] < 64):
-            raise ValueError("invalid semantic audit position")
-        return repr((value["bucket"], value["section"], value["index"]))
-
     def prose(value: object) -> None:
         if (not isinstance(value, dict) or set(value) != {"headline", "prose"}
                 or any(not isinstance(value[k], str) or not 1 <= len(value[k]) <= 2000 for k in value)):
@@ -240,13 +234,13 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
     topics, checks = raw["topics"], raw["checks"]
     if not isinstance(topics, list) or len(topics) > 64 or not isinstance(checks, list) or len(checks) > 5000:
         raise ValueError("semantic audit exceeds scope bound")
-    positions: set[str] = set()
+    positions: set[StoryPosition] = set()
     for topic in topics:
         if not isinstance(topic, dict) or set(topic) != {
             "position", "original", "changed", "repair_status", "removed_evidence_count",
         }:
             raise ValueError("invalid semantic audit topic fields")
-        key = position(topic["position"])
+        key = _semantic_position(topic["position"])
         if key in positions:
             raise ValueError("duplicate semantic audit topic")
         positions.add(key)
@@ -261,7 +255,7 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
             raise ValueError("semantic repair prose does not match its status")
         if type(topic["removed_evidence_count"]) is not int or not 0 <= topic["removed_evidence_count"] <= 64:
             raise ValueError("invalid semantic removed-evidence count")
-    seen: set[str] = set()
+    seen: set[tuple[str, tuple[StoryPosition, ...], Any]] = set()
     for check in checks:
         if not isinstance(check, dict):
             raise ValueError("invalid semantic audit check")
@@ -275,7 +269,7 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
         count = 2 if check["check"] == "duplicate" else 1
         if not isinstance(refs, list) or len(refs) != count:
             raise ValueError("invalid semantic check position count")
-        keys = [position(ref) for ref in refs]
+        keys = [_semantic_position(ref) for ref in refs]
         if extra:
             if type(check["evidence_index"]) is not int or not 0 <= check["evidence_index"] < 5000:
                 raise ValueError("invalid citation evidence index")
@@ -288,10 +282,10 @@ def parse_semantic_audit(raw: object) -> dict[str, Any] | None:
                 parsed = urllib.parse.urlsplit(url)
                 if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
                     raise ValueError("invalid semantic citation URL")
-        key = repr((check["check"], sorted(keys), check.get("evidence_index")))
-        if any(k not in positions for k in keys) or len(set(keys)) != count or key in seen:
+        check_key = (check["check"], tuple(sorted(keys)), check.get("evidence_index"))
+        if any(k not in positions for k in keys) or len(set(keys)) != count or check_key in seen:
             raise ValueError("invalid or duplicate semantic check reference")
-        seen.add(key)
+        seen.add(check_key)
         if check["after_basis"] not in (None, "model", "single_evidence", "citation_removed"):
             raise ValueError("invalid semantic post-check basis")
         if (check["after_basis"] == "model") != (check["after_probability"] is not None):
@@ -448,15 +442,18 @@ def _integrity_reasons(value: object) -> list[str]:
     return reasons
 
 
-def _integrity_position(value: object) -> tuple[str, str, int]:
-    row = _integrity_object(value, {"bucket", "section", "index"}, "position")
-    bucket = _integrity_enum(row["bucket"], {"sections", "excluded_topics"})
-    section = _integrity_string(row["section"], 100)
-    index = _integrity_int(row["index"], 63)
-    return bucket, section, index
+def _integrity_position(value: object) -> StoryPosition:
+    return StoryPosition.from_payload(value)
 
 
-def _integrity_check_key(row: dict[str, Any]) -> tuple[str, tuple[tuple[str, str, int], ...], int | None]:
+def _semantic_position(value: object) -> StoryPosition:
+    try:
+        return StoryPosition.from_payload(value)
+    except ValueError as exc:
+        raise ValueError("invalid semantic audit position") from exc
+
+
+def _integrity_check_key(row: dict[str, Any]) -> tuple[str, tuple[StoryPosition, ...], int | None]:
     return row["check"], tuple(sorted(_integrity_position(p) for p in row["positions"])), row.get("evidence_index")
 
 
@@ -637,9 +634,9 @@ def parse_integrity(
     ids: set[str] = set()
     previous = -1
     actions = _integrity_list(record["actions"], 512, "actions")
-    affected: set[tuple[str, str, int]] = set()
-    assembled: dict[str, list[tuple[str, str, int]]] = {"applied": [], "rejected": []}
-    removals: dict[tuple[str, str, int], set[int]] = {}
+    affected: set[StoryPosition] = set()
+    assembled: dict[str, list[StoryPosition]] = {"applied": [], "rejected": []}
+    removals: dict[StoryPosition, set[int]] = {}
     for value in actions:
         action = _integrity_object(value, {
             "id", "sequence", "phase_sequence", "actor", "artifact", "positions", "source_indexes",
@@ -802,7 +799,7 @@ def _integrity_removal_matches(action: dict[str, Any], rows: list[Any]) -> None:
 def _integrity_acceptance(
     record: dict[str, Any], initial: dict[str, Any] | None, followup: dict[str, Any] | None,
     phases: dict[int, dict[str, Any]], costs: dict[str, dict[str, Any]],
-    affected: set[tuple[str, str, int]], eligible: set[tuple[str, str, int]], followup_rows: list[Any],
+    affected: set[StoryPosition], eligible: set[StoryPosition], followup_rows: list[Any],
 ) -> None:
     if initial is None or followup is None or initial["status"] != "complete" or followup["status"] != "complete":
         raise ValueError("accepted integrity repair requires complete initial and follow-up review")
