@@ -43,7 +43,7 @@ REPAIR_POLICY = (
 ASSEMBLY_POLICY = "Code assembles cleared repair slots over the frozen original. No model is called.\n"
 
 
-_STORY_ANCHOR = re.compile(r"^<!-- story: (.+) -->$")
+_STORY_ANCHOR_LINE = re.compile(r"^<!-- story: (.+) -->$")
 
 
 def _position_keys(positions: set[StoryPosition]) -> list[str]:
@@ -55,12 +55,6 @@ def _metadata_positions(keys: Any) -> set[StoryPosition]:
     return {_position(json.loads(key)) for key in keys}
 
 
-def _action_path(position: dict[str, Any]) -> str:
-    """The renderer's anchor path for a position, which repair actions name."""
-    bucket = "topics" if position["bucket"] == "sections" else "excluded_topics"
-    return f"{bucket}.{position['section']}[{position['index']}]"
-
-
 def inherited_repair_actions(original: VerifiedRun, rewritten: set[StoryPosition]) -> tuple[dict[str, str], ...]:
     """The original's code-owned actions that stay true once a replay rewrites ``rewritten``.
 
@@ -70,7 +64,7 @@ def inherited_repair_actions(original: VerifiedRun, rewritten: set[StoryPosition
     slots and kept for every other one. Without this a replay would publish a
     code-substituted excerpt as model prose and an empty ``repair_actions``.
     """
-    rewritten_paths = {_action_path(key.to_payload()) for key in rewritten}
+    rewritten_paths = {key.path() for key in rewritten}
     return tuple(
         action for action in effective_repair_actions(original.manifest)
         if action["action"] in RENDERED_ACTIONS
@@ -81,7 +75,7 @@ def inherited_repair_actions(original: VerifiedRun, rewritten: set[StoryPosition
 def assembly_repair_actions(original: VerifiedRun, repaired: VerifiedRun,
                             accepted: set[StoryPosition]) -> tuple[dict[str, str], ...]:
     """Inherit the original's actions outside the accepted slots and the repair's inside them."""
-    accepted_paths = {_action_path(key.to_payload()) for key in accepted}
+    accepted_paths = {key.path() for key in accepted}
     return inherited_repair_actions(original, accepted) + tuple(
         action for action in effective_repair_actions(repaired.manifest)
         if action["action"] in RENDERED_ACTIONS - {PROMOTION_ACTION} and action["path"] in accepted_paths
@@ -101,20 +95,26 @@ def _bound_final_markdown(run: VerifiedRun) -> bytes:
     return markdown
 
 
-def _rendered_story_lines(markdown: bytes) -> dict[str, str]:
+def _rendered_story_lines(markdown: bytes) -> dict[StoryPosition, str]:
     """The rendered line under each story anchor: where the code-owned tags live."""
     lines = markdown.decode("utf-8", errors="replace").split("\n")
-    rendered: dict[str, str] = {}
+    rendered: dict[StoryPosition, str] = {}
     for index, line in enumerate(lines):
-        match = _STORY_ANCHOR.match(line)
+        match = _STORY_ANCHOR_LINE.match(line)
         if match and index + 1 < len(lines):
-            rendered[match.group(1)] = lines[index + 1]
+            try:
+                rendered[StoryPosition.from_path(match.group(1))] = lines[index + 1]
+            except ValueError:
+                continue
     return rendered
 
 
-def _check_key(row: dict[str, Any]) -> str:
-    return json.dumps([row["check"], sorted(_position(p).json_key() for p in row["positions"]),
-                       row.get("evidence_index")])
+CheckKey = tuple[str, tuple[StoryPosition, ...], int | None]
+
+
+def _check_key(row: dict[str, Any]) -> CheckKey:
+    """The same key shape as ``publication_schema._integrity_check_key``."""
+    return row["check"], tuple(sorted(_position(p) for p in row["positions"])), row.get("evidence_index")
 
 
 def accepted_targets(report: dict[str, Any], targets: set[StoryPosition]) -> set[StoryPosition]:
@@ -167,7 +167,7 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
         raise ValueError(f"semantic repair original {exc}") from exc
     before_lines, after_lines = _rendered_story_lines(original_markdown), _rendered_story_lines(markdown)
     for path, line in before_lines.items():
-        if path.startswith("excluded_topics.") and after_lines.get(path) != line:
+        if path.bucket == "excluded_topics" and after_lines.get(path) != line:
             raise ValueError("semantic repair changed an unaffected rendered exclusion")
     visited: set[StoryPosition] = set()
     for section, data in before["sections"].items():
@@ -175,13 +175,11 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
         if len(data["topics"]) != len(new):
             raise ValueError("semantic repair changed topic count")
         for index, entry in enumerate(data["topics"]):
-            position = {"bucket": "sections", "section": section, "index": index}
             key = StoryPosition("sections", section, index)
             if key not in targets:
                 if entry != new[index]:
                     raise ValueError("semantic repair changed an unaffected topic")
-                path = _action_path(position)
-                if path not in before_lines or before_lines[path] != after_lines.get(path):
+                if key not in before_lines or before_lines[key] != after_lines.get(key):
                     raise ValueError("semantic repair changed an unaffected rendered topic")
                 continue
             visited.add(key)
@@ -210,14 +208,12 @@ def verify_assembly(original: Path | VerifiedRun, repaired: Path | VerifiedRun, 
     repaired_lines = _rendered_story_lines(_bound_final_markdown(after))
     assembled_lines = _rendered_story_lines(_bound_final_markdown(published))
     for key in accepted:
-        pos = key.to_payload()
         section, index = key.section, key.index
         for field in ("candidate", "selection"):
             if (getattr(published, field)["sections"][section]["topics"][index]
                     != getattr(after, field)["sections"][section]["topics"][index]):
                 raise ValueError("assembled repair differs from the cleared repair slot")
-        path = _action_path(pos)
-        if path not in repaired_lines or repaired_lines[path] != assembled_lines.get(path):
+        if key not in repaired_lines or repaired_lines[key] != assembled_lines.get(key):
             raise ValueError("assembled repair renders a cleared slot differently from the repair")
 
 
@@ -414,11 +410,11 @@ def assemble_accepted(run: Path, original: VerifiedRun, repaired: VerifiedRun, a
 
 
 def aligned_post_checks(original: Path | VerifiedRun, repaired: Path | VerifiedRun, after: dict[str, Any]
-                        ) -> tuple[dict[str, dict[str, Any]], set[str]]:
+                        ) -> tuple[dict[CheckKey, dict[str, Any]], set[CheckKey]]:
     """Bind follow-up source indexes to the original frozen references, including removed sources."""
     old, new = _verified(original).selection, _verified(repaired).selection
     scores = {}
-    removed = set()
+    removed: set[CheckKey] = set()
     for section, data in old["sections"].items():
         for index, topic in enumerate(data["topics"]):
             refs = new["sections"][section]["topics"][index]["citation_refs"]
