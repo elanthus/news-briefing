@@ -17,6 +17,7 @@ from agent_runner.jev_review import (
     VerifiedRun,
     _read_json,
     build_tasks,
+    citation_urls_payload,
     load_citation_urls,
     load_verified_run,
     review_run,
@@ -492,7 +493,7 @@ def _public_followup(original: Path | VerifiedRun, repaired: Path | VerifiedRun,
                   "after_confirmation_probability": None, "after_confirmation_label": None, "after_basis": None}
         if row["check"] == "irrelevant_citation":
             public.update(evidence_index=row["evidence_index"], citation_urls=urls[
-                _position(row["positions"][0]).json_key()][row["evidence_index"]])
+                _position(row["positions"][0])][row["evidence_index"]])
         rows.append(public)
     return rows
 
@@ -656,7 +657,8 @@ def load_public_audit(original: Path, destination: Path, *,
                       "skipped_oversized_checks", "citation_threshold"):
             if audit[field] != initial[field]:
                 raise ValueError("semantic audit review metadata mismatch")
-        if "citation_urls" in before and before["citation_urls"] != load_citation_urls(original_state):
+        if "citation_urls" in before and before["citation_urls"] != citation_urls_payload(
+                load_citation_urls(original_state)):
             raise ValueError("semantic audit citation destinations mismatch")
         base_fields = ("check", "positions", "probability", "confirmation_probability", "confirmation_label",
                        "evidence_index", "citation_urls")

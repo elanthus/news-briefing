@@ -29,6 +29,7 @@ from agent_runner.output import (
     project_selected_evidence,
     redecode_redacted_text,
 )
+from agent_runner.positions import StoryPosition
 from agent_runner.runner import RunnerSettings, run_workflow
 from run_daily_briefing import ChainResult
 from tests.test_briefing_output import ROOT, fixture_contract, selection_from_output
@@ -161,7 +162,7 @@ class JevReviewTests(unittest.TestCase):
 
             with patch('agent_runner.jev_review.load_verified_run',
                        return_value=SimpleNamespace(root=(root / 'run').resolve(), topics=topics, hashes={})), patch(
-                'agent_runner.jev_review.load_citation_urls', return_value={'{}': [['https://example.com']]}
+                'agent_runner.jev_review.load_citation_urls', return_value={StoryPosition('sections', 's', 0): [['https://example.com']]}
             ), patch('agent_runner.jev_review.build_tasks', return_value=([task] * (MAX_CALLS + 1), 0)), patch(
                 'agent_runner.jev_review._payload', side_effect=one_per_batch
             ):
@@ -394,7 +395,7 @@ class JevReviewTests(unittest.TestCase):
             judge = FakeJudge()
             with patch("agent_runner.jev_review.load_verified_run",
                        return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
-                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+                "agent_runner.jev_review.load_citation_urls", return_value={StoryPosition("sections", "s", 0): [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "review", client=judge)
             self.assertEqual(report["status"], "partial")
@@ -405,7 +406,7 @@ class JevReviewTests(unittest.TestCase):
             topics[0]["evidence"] = [{"title": "Short"}]
             with patch("agent_runner.jev_review.load_verified_run",
                        return_value=SimpleNamespace(root=(root / "run").resolve(), topics=topics, hashes={})), patch(
-                "agent_runner.jev_review.load_citation_urls", return_value={"{}": [["https://example.com"]]}
+                "agent_runner.jev_review.load_citation_urls", return_value={StoryPosition("sections", "s", 0): [["https://example.com"]]}
             ):
                 report = review_run(root / "run", root / "budget", client=judge, cost_ceiling=0.000000001)
             self.assertEqual(report["status"], "partial")
