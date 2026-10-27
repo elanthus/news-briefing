@@ -978,8 +978,10 @@ def _omit_report_only_warnings(markdown: str) -> str:
 _COVERAGE_ROW = re.compile(r"^- Coverage: `[a-z_]+`$")
 # Reader wording for the Run outcome footer. The producer writes machine axes
 # (agent_runner.outcomes.classify_outcome); the page shows them as sentences.
-# An axis value outside these maps leaves its block verbatim, so a new or
-# unexpected outcome is shown as recorded rather than hidden.
+# A known disposition always becomes its lead sentence. An axis value outside
+# these maps keeps the four axis rows as recorded, so a new or unexpected
+# outcome is shown rather than hidden; a disposition outside the map keeps
+# its line too.
 _OUTCOME_DISPOSITION_LINE = re.compile(r"^\*\*Disposition: ([A-Z ]+)\*\*$")
 _OUTCOME_AXIS_ROW = re.compile(r"^- (Protocol|Contract|Evidence): `([a-z_]+)`$")
 _OUTCOME_COVERAGE_ROW = re.compile(r"^- Coverage: (?:`([a-z_]+)`|([^`]+))$")
@@ -1054,7 +1056,8 @@ def _humanize_run_outcome(markdown: str) -> str:
     The disposition line becomes a lead sentence, its four axis rows fold into
     the same paragraph, and an empty Errors or Warnings list becomes one
     sentence. Only structural lines are matched, so fenced or model text is
-    untouched, and unknown values leave their lines as written.
+    untouched. An unknown axis value keeps the axis rows as written under the
+    rewritten lead; an unknown disposition keeps its own line as written.
     """
     lines = markdown.split("\n")
     structural = _markdown_structure_mask(lines)
