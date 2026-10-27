@@ -23,6 +23,7 @@ from agent_runner.integrity import (
     run_provenance,
 )
 from agent_runner.outcomes import is_actionable_finding, is_advisory_finding
+from agent_runner.output import PROMOTION_ACTION
 from agent_runner.publication import resolve_publication_run
 from publication_failures import GenerationFailure, summarize_failed_chain
 from publication_schema import (
@@ -168,10 +169,21 @@ def _extract_repair_actions(
     manifest: dict[str, Any],
     final: dict[str, Any],
 ) -> tuple[dict[str, str], ...]:
+    """The repairs the published candidate embodies.
+
+    A ``deterministic_repair`` attempt records the repairs code made in this
+    run. A ``prose`` attempt records the ones a replay inherited from the run
+    it rebuilt, so a semantic repair keeps the provenance of the slots it left
+    alone. Promotions ride along for the renderer but are not repairs, so the
+    public list leaves them out, as it always has.
+    """
     attempt = _final_attempt(manifest, final)
-    if attempt is None or attempt.get("kind") != "deterministic_repair":
+    if attempt is None:
         return ()
-    return parse_repair_actions(attempt.get("repair_actions"))
+    return tuple(
+        action for action in parse_repair_actions(attempt.get("repair_actions"))
+        if action["action"] != PROMOTION_ACTION
+    )
 
 
 def _chain_attempt_span(run_dir: Path, selected_dir_name: str) -> tuple[int, int]:

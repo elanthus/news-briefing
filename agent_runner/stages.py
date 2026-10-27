@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 import briefing_config
 import eval_briefing
+from agent_runner.outcomes import EVIDENCE_REVIEW_CHECKS
 from agent_runner.output import (
     REPAIRABLE_CHECKS,
     Citation,
@@ -137,6 +138,24 @@ def correction_action(success: bool, corrections_remaining: int) -> Literal["acc
     return "accept" if success else "correct" if corrections_remaining > 0 else "exhausted"
 
 
+def candidate_publishable(findings: Sequence[Mapping[str, str]]) -> bool:
+    """Whether the disposition gate would publish this candidate as it stands.
+
+    ``classify_outcome`` holds back an evidence-review finding
+    (``claim_exceeds_evidence``, ``unsupported_quotation``) as
+    ``review_required`` even though it is a WARN that leaves the contract
+    accepted. Accepting on the contract rule alone would end the run
+    unpublished with its correction allowance unspent, and the daily chain
+    would then pay for a whole new model instead of one correction call. So a
+    stage accepts on the publication rule: no ERROR, and nothing the gate
+    quarantines.
+    """
+    return not any(
+        finding.get("level") == "ERROR" or finding.get("check") in EVIDENCE_REVIEW_CHECKS
+        for finding in findings
+    )
+
+
 def decide_stage(
     stage: Literal["selection", "prose"],
     output: Any,
@@ -153,8 +172,7 @@ def decide_stage(
                           last_kind=last_kind, corpus=corpus)
     if repair is not None:
         return StageDecision(repair[0], repair)
-    return StageDecision(correction_action(
-        not any(f.get("level") == "ERROR" for f in findings), corrections_remaining))
+    return StageDecision(correction_action(candidate_publishable(findings), corrections_remaining))
 
 
 def stage_repair(

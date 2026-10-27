@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -22,9 +23,9 @@ from agent_runner.jev_review import (
     task_key,
 )
 from agent_runner.models import GenerationRequest, ModelProvider, ModelResponse, ProviderError
-from agent_runner.output import redact_destinations, redact_opaque_references
+from agent_runner.output import PROMOTION_ACTION, redact_destinations, redact_opaque_references
 from agent_runner.providers import provider_for
-from agent_runner.runner import RunnerSettings, run_workflow
+from agent_runner.runner import RunnerSettings, effective_repair_actions, run_workflow
 from publication_schema import parse_integrity, parse_semantic_audit
 
 MAX_REPAIR_TOPICS = 4
@@ -37,6 +38,52 @@ REPAIR_POLICY = (
     "and re-flagged slots keep their original prose and sources.\n"
 )
 ASSEMBLY_POLICY = "Code assembles cleared repair slots over the frozen original. No model is called.\n"
+
+
+_STORY_ANCHOR = re.compile(r"^<!-- story: (.+) -->$")
+
+
+def _action_path(position: dict[str, Any]) -> str:
+    """The renderer's anchor path for a position, which repair actions name."""
+    bucket = "topics" if position["bucket"] == "sections" else "excluded_topics"
+    return f"{bucket}.{position['section']}[{position['index']}]"
+
+
+def inherited_repair_actions(original: VerifiedRun, rewritten: set[str]) -> tuple[dict[str, str], ...]:
+    """The original's code-owned actions that stay true once a replay rewrites ``rewritten``.
+
+    A promotion says where a slot's story came from, which no prose rewrite
+    changes. A summary that code swapped for its excerpt is model prose again
+    once a repair rewrites that slot, so the swap is dropped for rewritten
+    slots and kept for every other one. Without this a replay would publish a
+    code-substituted excerpt as model prose and an empty ``repair_actions``.
+    """
+    rewritten_paths = {_action_path(json.loads(key)) for key in rewritten}
+    return tuple(
+        action for action in effective_repair_actions(original.manifest)
+        if action["action"] == PROMOTION_ACTION or action["path"] not in rewritten_paths
+    )
+
+
+def assembly_repair_actions(original: VerifiedRun, repaired: VerifiedRun,
+                            accepted: set[str]) -> tuple[dict[str, str], ...]:
+    """Inherit the original's actions outside the accepted slots and the repair's inside them."""
+    accepted_paths = {_action_path(json.loads(key)) for key in accepted}
+    return inherited_repair_actions(original, accepted) + tuple(
+        action for action in effective_repair_actions(repaired.manifest)
+        if action["action"] != PROMOTION_ACTION and action["path"] in accepted_paths
+    )
+
+
+def _rendered_story_lines(markdown: bytes) -> dict[str, str]:
+    """The rendered line under each story anchor: where the code-owned tags live."""
+    lines = markdown.decode("utf-8", errors="replace").split("\n")
+    rendered: dict[str, str] = {}
+    for index, line in enumerate(lines):
+        match = _STORY_ANCHOR.match(line)
+        if match and index + 1 < len(lines):
+            rendered[match.group(1)] = lines[index + 1]
+    return rendered
 
 
 def _check_key(row: dict[str, Any]) -> str:
@@ -88,16 +135,29 @@ def verify_repair(original: Path | VerifiedRun, repaired: Path | VerifiedRun, ta
         raise ValueError("semantic repair changed the config")
     if before["excluded_topics"] != after["excluded_topics"] or set(before["sections"]) != set(after["sections"]):
         raise ValueError("semantic repair changed exclusions or sections")
+    # The candidate dicts carry prose and references; the rendered line also
+    # carries the code-owned tags (``[verbatim]``, the promotion label), so an
+    # untouched slot must render byte for byte as the original did.
+    with (before_run.root / "final.md").open("rb") as stream:
+        original_markdown = stream.read(MAX_ARTIFACT_BYTES + 1)
+    before_lines, after_lines = _rendered_story_lines(original_markdown), _rendered_story_lines(markdown)
+    for path, line in before_lines.items():
+        if path.startswith("excluded_topics.") and after_lines.get(path) != line:
+            raise ValueError("semantic repair changed an unaffected rendered exclusion")
     visited: set[str] = set()
     for section, data in before["sections"].items():
         new = after["sections"][section]["topics"]
         if len(data["topics"]) != len(new):
             raise ValueError("semantic repair changed topic count")
         for index, entry in enumerate(data["topics"]):
-            key = position_key({"bucket": "sections", "section": section, "index": index})
+            position = {"bucket": "sections", "section": section, "index": index}
+            key = position_key(position)
             if key not in targets:
                 if entry != new[index]:
                     raise ValueError("semantic repair changed an unaffected topic")
+                path = _action_path(position)
+                if path not in before_lines or before_lines[path] != after_lines.get(path):
+                    raise ValueError("semantic repair changed an unaffected rendered topic")
                 continue
             visited.add(key)
             old_refs = old_selection["sections"][section]["topics"][index]["citation_refs"]
@@ -121,6 +181,8 @@ def verify_assembly(original: Path | VerifiedRun, repaired: Path | VerifiedRun, 
     before, after, published = _verified(original), _verified(repaired), _verified(assembled)
     verify_repair(before, published, accepted, grouping & accepted,
                   {key: indexes for key, indexes in removed.items() if key in accepted}, preserve_headlines=True)
+    repaired_lines = _rendered_story_lines((after.root / "final.md").read_bytes())
+    assembled_lines = _rendered_story_lines((published.root / "final.md").read_bytes())
     for key in accepted:
         pos = json.loads(key)
         section, index = pos["section"], pos["index"]
@@ -128,6 +190,9 @@ def verify_assembly(original: Path | VerifiedRun, repaired: Path | VerifiedRun, 
             if (getattr(published, field)["sections"][section]["topics"][index]
                     != getattr(after, field)["sections"][section]["topics"][index]):
                 raise ValueError("assembled repair differs from the cleared repair slot")
+        path = _action_path(pos)
+        if path not in repaired_lines or repaired_lines[path] != assembled_lines.get(path):
+            raise ValueError("assembled repair renders a cleared slot differently from the repair")
 
 
 class RepairProvider:
@@ -314,7 +379,8 @@ def assemble_accepted(run: Path, original: VerifiedRun, repaired: VerifiedRun, a
     policy.write_text(ASSEMBLY_POLICY)
     settings = RunnerSettings(config_path=run / "briefing-config.json", prompt_path=policy,
                               output_path=root / "briefing.md", corpus_path=run / "corpus.json",
-                              timeout_seconds=180, max_corrections=0)
+                              timeout_seconds=180, max_corrections=0,
+                              inherited_repair_actions=assembly_repair_actions(original, repaired, accepted))
     if run_workflow(AssemblyProvider(original, repaired, accepted), settings, root / "run").status != "ready":
         raise ValueError("semantic assembly failed normal validation")
     return load_verified_run(root / "run")
@@ -459,7 +525,8 @@ def daily_semantic_review(run: Path, destination: Path, *,
             policy.write_text(REPAIR_POLICY)
             settings = RunnerSettings(config_path=run / "briefing-config.json",
                                       prompt_path=policy, output_path=repair_root / "briefing.md",
-                                      corpus_path=run / "corpus.json", timeout_seconds=180, max_corrections=0)
+                                      corpus_path=run / "corpus.json", timeout_seconds=180, max_corrections=0,
+                                      inherited_repair_actions=inherited_repair_actions(original_state, targets))
             result = run_workflow(provider, settings, repair_root / "run")
             if result.status != "ready":
                 raise ValueError("semantic repair failed normal validation")

@@ -12,6 +12,8 @@ class StageDecisionTests(unittest.TestCase):
         underfill = [{"level": "ERROR", "check": "slots_underfilled"}]
         invalid = [{"level": "ERROR", "check": "invalid_shape"}]
         warning = [{"level": "WARN", "check": "claim_exceeds_evidence"}]
+        quotation = [{"level": "WARN", "check": "unsupported_quotation"}]
+        advisory = [{"level": "WARN", "check": "exclusion_log_short"}]
         # name, stage, findings, previous attempt, offered promotion/repair,
         # corrections used, expected action, expected helper order.
         cases = [
@@ -43,6 +45,16 @@ class StageDecisionTests(unittest.TestCase):
              False, False, 0, "correct", ["repair"]),
             ("unrepaired error exhausts", "prose", invalid, "prose",
              False, False, 1, "exhausted", ["repair"]),
+            # A WARN the disposition gate quarantines is not an acceptance:
+            # the stage spends a correction on it while one remains.
+            ("unswappable claim warning corrects", "prose", warning, "prose",
+             False, False, 0, "correct", ["repair"]),
+            ("quotation warning corrects", "prose", quotation, "prose",
+             False, False, 0, "correct", ["repair"]),
+            ("quotation warning exhausts", "prose", quotation, "prose",
+             False, False, 1, "exhausted", ["repair"]),
+            ("advisory warning still accepts", "prose", advisory, "prose",
+             False, False, 1, "accept", ["repair"]),
         ]
         config = briefing_config.load_config()
         output = {"sections": []}
