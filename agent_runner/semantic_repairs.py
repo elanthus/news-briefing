@@ -103,10 +103,9 @@ def _rendered_story_lines(markdown: bytes) -> dict[StoryPosition, str]:
     for index, line in enumerate(lines):
         match = _STORY_ANCHOR_LINE.match(line)
         if match and index + 1 < len(lines):
-            try:
-                rendered[StoryPosition.from_path(match.group(1))] = lines[index + 1]
-            except ValueError:
-                continue
+            # The renderer only emits valid paths; anything else is a defect to
+            # fail on, not a line to skip, or the comparison below would miss it.
+            rendered[StoryPosition.from_path(match.group(1))] = lines[index + 1]
     return rendered
 
 
@@ -115,7 +114,11 @@ CheckKey = tuple[str, tuple[StoryPosition, ...], int | None]
 
 def _check_key(row: dict[str, Any]) -> CheckKey:
     """The same key shape as ``publication_schema._integrity_check_key``."""
-    return row["check"], tuple(sorted(_position(p) for p in row["positions"])), row.get("evidence_index")
+    evidence_index = row.get("evidence_index")
+    if evidence_index is not None and type(evidence_index) is not int:
+        # A tuple key would merge True with 1, which the old JSON key kept apart.
+        raise ValueError("invalid evidence index")
+    return row["check"], tuple(sorted(_position(p) for p in row["positions"])), evidence_index
 
 
 def accepted_targets(report: dict[str, Any], targets: set[StoryPosition]) -> set[StoryPosition]:

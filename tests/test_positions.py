@@ -1,5 +1,8 @@
+import hashlib
+import json
 import unittest
 
+import briefing_config
 from agent_runner.positions import StoryPosition
 
 
@@ -53,3 +56,23 @@ class StoryPositionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_control_characters_in_section_are_rejected(self):
+        for section in ("a\tb", "a\x7fb", " ", "\n"):
+            with self.assertRaises(ValueError):
+                StoryPosition.from_payload({"bucket": "sections", "section": section, "index": 0})
+
+    def test_json_key_order_differs_from_natural_order(self):
+        two = StoryPosition("sections", "a", 2)
+        ten = StoryPosition("sections", "a", 10)
+        self.assertLess(two, ten)
+        self.assertEqual(sorted([two, ten], key=StoryPosition.json_key), [ten, two])
+
+    def test_anchor_id_matches_the_legacy_formula(self):
+        position = StoryPosition("excluded_topics", "Dev Community", 7)
+        legacy = json.dumps(position.to_payload(), sort_keys=True).encode()
+        self.assertEqual(position.anchor_id(), "story-" + hashlib.sha256(legacy).hexdigest()[:12])
+
+    def test_shipped_section_names_are_valid_positions(self):
+        for section in briefing_config.load_config().sections:
+            StoryPosition.from_payload({"bucket": "sections", "section": section.name, "index": 0})
