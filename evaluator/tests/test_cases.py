@@ -16,7 +16,8 @@ import corpus_schema
 import eval_briefing
 import evaluator.__main__ as evaluator_cli
 from briefing_config import BriefingConfig, BriefingSection, load_config
-from evaluator.cases import HEURISTIC_CLAIM_CHECKS, VARIANTS, apply_variant, run_deterministic_suite
+from evaluator.case_runner import HEURISTIC_CLAIM_CHECKS, run_deterministic_suite
+from evaluator.cases import VARIANTS, apply_variant, text_only, variant
 from evaluator.plan import (
     _attack_dimensions,
     _mutate,
@@ -67,6 +68,26 @@ class FixedSuiteTest(unittest.TestCase):
             with self.subTest(variant=name), self.assertRaises(ValueError) as raised:
                 apply_variant(name)
             self.assertEqual(str(raised.exception), f"unknown variant {name!r}")
+
+    def test_registered_transform_is_returned_and_dispatched(self) -> None:
+        transform = text_only(lambda text: text + "\nRegistered transform.\n")
+        with patch.dict(VARIANTS):
+            self.assertIs(variant("test-registration")(transform), transform)
+            corpus, text, config = apply_variant("valid-baseline")
+            self.assertEqual(
+                apply_variant("test-registration"),
+                (corpus, text + "\nRegistered transform.\n", config),
+            )
+
+    def test_duplicate_registration_preserves_existing_transform(self) -> None:
+        original = VARIANTS["valid-baseline"]
+        expected = apply_variant("valid-baseline")
+        replacement = text_only(lambda text: "replacement")
+        with patch.dict(VARIANTS):
+            with self.assertRaisesRegex(ValueError, "^duplicate variant 'valid-baseline'$"):
+                variant("valid-baseline")(replacement)
+            self.assertIs(VARIANTS["valid-baseline"], original)
+            self.assertEqual(apply_variant("valid-baseline"), expected)
 
     def test_attack_success_checks_that_can_never_fire_are_flagged(self) -> None:
         """Attack oracles count only ERROR findings, so a WARN-only check list is inert.

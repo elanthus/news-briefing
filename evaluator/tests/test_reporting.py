@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evaluator.cases import run_deterministic_suite
+from evaluator.case_runner import run_deterministic_suite
 from evaluator.metrics import rate
 from evaluator.report import (
     _OPERATIONS_HEADER,

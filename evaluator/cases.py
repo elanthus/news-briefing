@@ -1,4 +1,4 @@
-"""Builders and runners for the committed gold-label deterministic suite."""
+"""Registered transforms for the committed gold-label deterministic suite."""
 
 from __future__ import annotations
 
@@ -10,25 +10,16 @@ import briefing_config
 
 from evaluator.case_fixtures import (
     CLAIM_PAIR_VARIANTS,
-    _apply_claim_pair_variant,
-    _degraded_corpus,
-    _fixture_usage,
-    _health_block,
-    _item,
-    _replace,
-    _replace_tool_three_exclusion,
+    apply_claim_pair_variant,
+    degraded_corpus,
+    fixture_usage,
+    health_block,
+    item,
+    replace,
+    replace_tool_three_exclusion,
 )
 from evaluator.case_fixtures import (
     baseline as baseline,
-)
-from evaluator.case_runner import (
-    DEFAULT_SUITE as DEFAULT_SUITE,
-)
-from evaluator.case_runner import (
-    HEURISTIC_CLAIM_CHECKS as HEURISTIC_CLAIM_CHECKS,
-)
-from evaluator.case_runner import (
-    run_deterministic_suite as run_deterministic_suite,
 )
 
 Variant = Callable[
@@ -41,6 +32,8 @@ def variant(name: str) -> Callable[[Variant], Variant]:
     """Register an authored corpus, prose, and configuration transform."""
 
     def register(transform: Variant) -> Variant:
+        if name in VARIANTS:
+            raise ValueError(f"duplicate variant {name!r}")
         VARIANTS[name] = transform
         return transform
 
@@ -68,36 +61,32 @@ def _valid_baseline(
 @variant("valid-trailing-slash")
 @text_only
 def _valid_trailing_slash(text: str) -> str:
-    text = _replace(text, "https://example.test/tool-one", "https://EXAMPLE.test/tool-one/")
-    return text
+    return replace(text, "https://example.test/tool-one", "https://EXAMPLE.test/tool-one/")
 
 
 @variant("valid-tracking-parameter")
 @text_only
 def _valid_tracking_parameter(text: str) -> str:
-    text = _replace(text, "https://example.test/tool-three", "https://example.test/tool-three?utm_source=rss")
-    return text
+    return replace(text, "https://example.test/tool-three", "https://example.test/tool-three?utm_source=rss")
 
 
 @variant("valid-query-order")
 @text_only
 def _valid_query_order(text: str) -> str:
-    text = _replace(text, "id=2&output=1", "output=1&id=2")
-    return text
+    return replace(text, "id=2&output=1", "output=1&id=2")
 
 
 @variant("ungrounded-bare-url-in-prose")
 @text_only
 def _ungrounded_bare_url_in_prose(text: str) -> str:
-    text += "\nReader note: https://not-a-citation.example.test/context\n"
-    return text
+    return text + "\nReader note: https://not-a-citation.example.test/context\n"
 
 
 @variant("valid-doctype-as-text")
 def _valid_doctype_as_text(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    text = _replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")
+    text = replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")
     corpus["categories"]["dev_community"][1]["summary"] = (
         "The <!DOCTYPE html> text is discussed; tool two added a review mode for proposed patches."
     )
@@ -119,7 +108,7 @@ def _valid_hn_without_discussion(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     corpus["categories"]["dev_community"][0].pop("discussion")
-    text = _replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
+    text = replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
     return corpus, text, config
 
 
@@ -141,7 +130,7 @@ def _valid_exclusions_exhausted(
 def _valid_grouped_multisection(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    practice = _item(
+    practice = item(
         "Teams adopt staged patch review",
         "https://example.test/staged-review",
         "Teams adopted a staged workflow for reviewing proposed patches.",
@@ -207,7 +196,7 @@ def _category_ambiguity_clean(
         title="Tool two review mode reshapes patch workflows",
         summary="Tool two's new review mode changes how developers inspect proposed patches.",
     )
-    practice = _item(
+    practice = item(
         "Teams adopt staged patch review",
         "https://example.test/staged-review",
         "Teams adopted a staged workflow for reviewing proposed patches.",
@@ -254,121 +243,107 @@ def _category_ambiguity_clean(
 @variant("fabricated-included")
 @text_only
 def _fabricated_included(text: str) -> str:
-    text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/invented")
-    return text
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/invented")
 
 
 @variant("fabricated-excluded")
 @text_only
 def _fabricated_excluded(text: str) -> str:
-    text = _replace(text, "https://example.test/tool-three", "https://example.test/invented")
-    return text
+    return replace(text, "https://example.test/tool-three", "https://example.test/invented")
 
 
 @variant("altered-publisher-url")
 @text_only
 def _altered_publisher_url(text: str) -> str:
-    text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2")
-    return text
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2")
 
 
 @variant("bare-included-url")
 @text_only
 def _bare_included_url(text: str) -> str:
-    text = _replace(text, "🔗 https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2&output=1")
-    return text
+    return replace(text, "🔗 https://publisher.test/story?id=2&output=1", "https://publisher.test/story?id=2&output=1")
 
 
 @variant("markdown-included-url")
 @text_only
 def _markdown_included_url(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "🔗 https://publisher.test/story?id=2&output=1",
         "[Source](https://publisher.test/story?id=2&output=1)",
     )
-    return text
 
 
 @variant("markdown-excluded-url")
 @text_only
 def _markdown_excluded_url(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "🔗 https://example.test/tool-three",
         "[Source](https://example.test/tool-three)",
     )
-    return text
 
 
 @variant("duplicate-url-same-topic")
 @text_only
 def _duplicate_url_same_topic(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "🔗 https://publisher.test/story?id=2&output=1",
         "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://publisher.test/story?id=2&output=1",
     )
-    return text
 
 
 @variant("duplicate-url-canonical")
 @text_only
 def _duplicate_url_canonical(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "🔗 https://publisher.test/story?id=2&output=1",
         "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://PUBLISHER.test/story/?output=1&id=2&utm_source=x",
     )
-    return text
 
 
 @variant("included-and-excluded")
 @text_only
 def _included_and_excluded(text: str) -> str:
-    text = _replace(text, "https://example.test/tool-three", "https://publisher.test/story?id=2&output=1")
-    return text
+    return replace(text, "https://example.test/tool-three", "https://publisher.test/story?id=2&output=1")
 
 
 @variant("topic-without-link")
 @text_only
 def _topic_without_link(text: str) -> str:
-    text = _replace(text, "🔗 https://publisher.test/story?id=2&output=1", "")
-    return text
+    return replace(text, "🔗 https://publisher.test/story?id=2&output=1", "")
 
 
 @variant("excluded-without-link")
 @text_only
 def _excluded_without_link(text: str) -> str:
-    text = _replace(text, "🔗 https://example.test/tool-three", "")
-    return text
+    return replace(text, "🔗 https://example.test/tool-three", "")
 
 
 @variant("missing-section")
 @text_only
 def _missing_section(text: str) -> str:
-    text = _replace(text, "## AI Dev Tools", "## Developer News")
-    return text
+    return replace(text, "## AI Dev Tools", "## Developer News")
 
 
 @variant("missing-exclusion-section")
 @text_only
 def _missing_exclusion_section(text: str) -> str:
-    text = text.split("### Excluded Topics", 1)[0]
-    return text
+    return text.split("### Excluded Topics", 1)[0]
 
 
 @variant("overfilled")
 @text_only
 def _overfilled(text: str) -> str:
-    text = _replace(
+    text = replace(
         text,
         "---\n\n### Excluded Topics",
         "**Tool three** — Tool three updated its editor extension.\n"
         "🔗 https://example.test/tool-three\n\n---\n\n### Excluded Topics",
     )
-    text = _replace_tool_three_exclusion(text)
-    return text
+    return replace_tool_three_exclusion(text)
 
 
 @variant("underfilled")
@@ -384,54 +359,48 @@ def _underfilled(
 @variant("wrong-category")
 @text_only
 def _wrong_category(text: str) -> str:
-    text = _replace(text, "https://publisher.test/story?id=2&output=1", "https://example.test/market")
-    return text
+    return replace(text, "https://publisher.test/story?id=2&output=1", "https://example.test/market")
 
 
 @variant("hn-discussion-missing")
 @text_only
 def _hn_discussion_missing(text: str) -> str:
-    text = _replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
-    return text
+    return replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
 
 
 @variant("unsupported-figure")
 @text_only
 def _unsupported_figure(text: str) -> str:
-    text = _replace(text, "version 2 with", "version 87 with")
-    return text
+    return replace(text, "version 2 with", "version 87 with")
 
 
 @variant("unsupported-quotation")
 @text_only
 def _unsupported_quotation(text: str) -> str:
-    text = _replace(text, "Tool two added a review mode", 'Tool two called review mode "perfectly safe"')
-    return text
+    return replace(text, "Tool two added a review mode", 'Tool two called review mode "perfectly safe"')
 
 
 @variant("claim-too-long")
 @text_only
 def _claim_too_long(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "Tool two added a review mode for proposed patches.",
         "Tool two added a review mode for proposed patches and transformed every stage of engineering "
         "with universal safety guarantees, automatic deployment, perfect rollback, and complete compliance.",
     )
-    return text
 
 
 @variant("valid-semantic-figure")
 @text_only
 def _valid_semantic_figure(text: str) -> str:
-    text = _replace(
+    return replace(
         text,
         "**Tool two adds review mode** — Tool two added a review mode for proposed patches.\n"
         "🔗 https://publisher.test/story?id=2&output=1",
         "**Half of users enable feature** — 50 percent of users enabled the optional feature.\n"
         "🔗 https://example.test/half-users",
     )
-    return text
 
 
 @variant("valid-thin-evidence-paraphrase")
@@ -439,7 +408,7 @@ def _valid_thin_evidence_paraphrase(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
-    text = _replace(
+    text = replace(
         text,
         "Tool two added a review mode for proposed patches.",
         "The release introduced a mode that lets developers review proposed patches before accepting them.",
@@ -451,7 +420,7 @@ def _claim_pair(variant_name: str) -> Variant:
     def apply(
         corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
     ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-        corpus, text = _apply_claim_pair_variant(corpus, text, variant_name)
+        corpus, text = apply_claim_pair_variant(corpus, text, variant_name)
         return corpus, text, config
 
     return apply
@@ -466,7 +435,7 @@ def _thin_evidence_unsupported(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
-    text = _replace(
+    text = replace(
         text,
         "Tool two added a review mode for proposed patches.",
         "Review mode guarantees zero defects.",
@@ -479,7 +448,7 @@ def _conflicting_evidence(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     corpus["categories"]["dev_community"].append(
-        _item(
+        item(
             "Tool two review mode delayed",
             "https://example.test/tool-two-delay",
             "The maintainer says review mode has not shipped.",
@@ -487,7 +456,7 @@ def _conflicting_evidence(
     )
     corpus["processing"]["dev_community"]["fetched"] = 5
     corpus["processing"]["dev_community"]["kept"] = 5
-    text = _replace(
+    text = replace(
         text,
         "🔗 https://publisher.test/story?id=2&output=1",
         "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-two-delay",
@@ -498,20 +467,19 @@ def _conflicting_evidence(
 @variant("over-consolidated")
 @text_only
 def _over_consolidated(text: str) -> str:
-    text = _replace(
+    text = replace(
         text,
         "🔗 https://publisher.test/story?id=2&output=1",
         "🔗 https://publisher.test/story?id=2&output=1\n🔗 https://example.test/tool-three",
     )
-    text = _replace(text, "https://example.test/tool-three", "https://example.test/half-users")
-    return text
+    return replace(text, "https://example.test/tool-three", "https://example.test/half-users")
 
 
 @variant("health-missing")
 def _health_missing(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
+    corpus = degraded_corpus(corpus, two_failures=False)
     return corpus, text, config
 
 
@@ -519,7 +487,7 @@ def _health_missing(
 def _health_malformed_json(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
+    corpus = degraded_corpus(corpus, two_failures=False)
     text += "\n---\n\n### Corpus health\n```json\n{bad json}\n```\n"
     return corpus, text, config
 
@@ -528,7 +496,7 @@ def _health_malformed_json(
 def _health_wrong_schema(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
+    corpus = degraded_corpus(corpus, two_failures=False)
     text += '\n---\n\n### Corpus health\n```json\n{"failures": []}\n```\n'
     return corpus, text, config
 
@@ -537,8 +505,8 @@ def _health_wrong_schema(
 def _health_partial(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=True)
-    text += _health_block([("rss", "Feed A", "error")])
+    corpus = degraded_corpus(corpus, two_failures=True)
+    text += health_block([("rss", "Feed A", "error")])
     return corpus, text, config
 
 
@@ -546,8 +514,8 @@ def _health_partial(
 def _health_unexpected(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
-    text += _health_block(
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += health_block(
         [
             ("rss", "Feed A", "error"),
             ("rss", "Imaginary", "error"),
@@ -560,8 +528,8 @@ def _health_unexpected(
 def _health_wrong_status(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=False)
-    text += _health_block([("rss", "Feed A", "empty")])
+    corpus = degraded_corpus(corpus, two_failures=False)
+    text += health_block([("rss", "Feed A", "empty")])
     return corpus, text, config
 
 
@@ -569,8 +537,8 @@ def _health_wrong_status(
 def _health_duplicate(
     corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
 ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
-    corpus = _degraded_corpus(corpus, two_failures=True)
-    text += _health_block(
+    corpus = degraded_corpus(corpus, two_failures=True)
+    text += health_block(
         [
             ("rss", "Feed A", "error"),
             ("rss", "Feed B", "empty"),
@@ -602,7 +570,7 @@ def _selection_ambiguity(
             ),
         ),
     )
-    text = _replace(
+    text = replace(
         text,
         "---\n\n### Excluded Topics",
         "## AI Dev Practices\n\n"
@@ -612,16 +580,15 @@ def _selection_ambiguity(
         "🔗 https://example.test/tool-three\n\n"
         "---\n\n### Excluded Topics",
     )
-    text = _replace(text, "`↑ 45 pts · 12 comments`\n", "")
-    text = _replace_tool_three_exclusion(text)
+    text = replace(text, "`↑ 45 pts · 12 comments`\n", "")
+    text = replace_tool_three_exclusion(text)
     return corpus, text, config
 
 
 @variant("formatting-ambiguity")
 @text_only
 def _formatting_ambiguity(text: str) -> str:
-    text = _replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
-    return text
+    return replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
 
 
 def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
@@ -632,5 +599,5 @@ def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.Br
     except KeyError:
         raise ValueError(f"unknown variant {variant!r}") from None
     corpus, text, config = transform(corpus, text, config)
-    _fixture_usage(corpus)
+    fixture_usage(corpus)
     return corpus, text, config

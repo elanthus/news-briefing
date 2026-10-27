@@ -178,7 +178,8 @@ def _config() -> briefing_config.BriefingConfig:
     )
 
 
-def _item(title: str, url: str, summary: str, source: str = "Test Wire") -> dict[str, Any]:
+def item(title: str, url: str, summary: str, source: str = "Test Wire") -> dict[str, Any]:
+    """Build an article fixture with the shared publication timestamp."""
     return {
         "title": title,
         "url": url,
@@ -214,15 +215,16 @@ def baseline() -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
     return corpus, text, _config()
 
 
-def _replace(text: str, old: str, new: str) -> str:
+def replace(text: str, old: str, new: str) -> str:
+    """Replace the first expected baseline fragment, failing if it is absent."""
     if old not in text:
         raise AssertionError(f"suite variant expected {old!r} in baseline")
     return text.replace(old, new, 1)
 
 
-def _replace_tool_three_exclusion(text: str) -> str:
+def replace_tool_three_exclusion(text: str) -> str:
     """Move the baseline exclusion to a different, internally consistent story."""
-    return _replace(
+    return replace(
         text,
         "- *Tool three updates its extension* — lower immediate impact. "
         "🔗 https://example.test/tool-three",
@@ -231,9 +233,10 @@ def _replace_tool_three_exclusion(text: str) -> str:
     )
 
 
-def _apply_claim_pair_variant(
+def apply_claim_pair_variant(
     corpus: dict[str, Any], text: str, variant: str
 ) -> tuple[dict[str, Any], str]:
+    """Apply an authored evidence/prose pair to the baseline's second topic."""
     evidence_title, evidence_summary, output_title, output_prose = CLAIM_PAIR_VARIANTS[variant]
     corpus["categories"]["dev_community"][1].update(
         title=evidence_title,
@@ -247,10 +250,10 @@ def _apply_claim_pair_variant(
         f"**{output_title}** — {output_prose}\n"
         "🔗 https://publisher.test/story?id=2&output=1"
     )
-    return corpus, _replace(text, original, replacement)
+    return corpus, replace(text, original, replacement)
 
 
-def _fixture_usage(corpus: dict[str, Any]) -> None:
+def fixture_usage(corpus: dict[str, Any]) -> None:
     """Account for authored fixture mutations using the current budget fields."""
     for category, items in corpus["categories"].items():
         stats = corpus["processing"][category]
@@ -266,7 +269,8 @@ def _fixture_usage(corpus: dict[str, Any]) -> None:
         )
 
 
-def _degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, Any]:
+def degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, Any]:
+    """Populate fixture source-health records for one or two failed feeds."""
     corpus["schema_version"] = corpus_schema.SCHEMA_VERSION
     errors = [{
         "source_type": "rss",
@@ -306,7 +310,8 @@ def _degraded_corpus(corpus: dict[str, Any], two_failures: bool) -> dict[str, An
     return corpus
 
 
-def _health_block(records: list[tuple[str, str, str]]) -> str:
+def health_block(records: list[tuple[str, str, str]]) -> str:
+    """Render fixture source-health records as a fenced JSON block."""
     payload = {
         "failed_sources": [
             {"source_type": source_type, "source_id": source_id, "status": status}
@@ -351,7 +356,8 @@ def _xml_case(variant: str) -> bytes:
     raise ValueError(f"unknown XML variant {variant!r}")
 
 
-def _feed_prediction(variant: str) -> set[str]:
+def feed_prediction(variant: str) -> set[str]:
+    """Classify an authored XML fixture with the production feed parser."""
     try:
         root = feed_xml.parse_feed_xml(_xml_case(variant))
     except (ET.ParseError, ValueError, UnicodeError):
@@ -361,5 +367,3 @@ def _feed_prediction(variant: str) -> set[str]:
         return {"feed_shape_unrecognized"}
     entries = list(root.iter("item")) + root.findall("{http://www.w3.org/2005/Atom}entry")
     return {"feed_empty"} if not entries else set()
-
-

@@ -9,7 +9,8 @@ from typing import Any
 import corpus_schema
 import eval_briefing
 
-from evaluator.case_fixtures import _feed_prediction
+from evaluator.case_fixtures import feed_prediction
+from evaluator.cases import apply_variant
 from evaluator.judge_io import portable_path
 from evaluator.metrics import classification_metrics, rate
 
@@ -24,9 +25,6 @@ HEURISTIC_CLAIM_CHECKS = (
 
 
 def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
-    # Import at execution time: the registry uses the same fixture builders.
-    from evaluator.cases import apply_variant
-
     suite = json.loads(path.read_text(encoding="utf-8"))
     records: list[dict[str, Any]] = []
     for case in suite["cases"]:
@@ -40,7 +38,7 @@ def run_deterministic_suite(path: Path = DEFAULT_SUITE) -> dict[str, Any]:
             predicted = {finding.check for finding in findings}
             detail = [finding._asdict() for finding in findings]
         elif case["component"] == "feed_parser":
-            predicted = _feed_prediction(case["variant"])
+            predicted = feed_prediction(case["variant"])
             detail = []
         else:
             raise ValueError(f"case {case['id']} has unknown component")
