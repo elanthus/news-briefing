@@ -7,10 +7,12 @@ from collections.abc import Callable
 from typing import Any
 
 import briefing_config
+from briefing_config import BriefingConfig
 
 from evaluator.case_fixtures import (
     CLAIM_PAIR_VARIANTS,
     apply_claim_pair_variant,
+    baseline,
     degraded_corpus,
     fixture_usage,
     health_block,
@@ -18,13 +20,9 @@ from evaluator.case_fixtures import (
     replace,
     replace_tool_three_exclusion,
 )
-from evaluator.case_fixtures import (
-    baseline as baseline,
-)
 
-Variant = Callable[
-    [dict[str, Any], str, briefing_config.BriefingConfig], tuple[dict[str, Any], str, briefing_config.BriefingConfig]
-]
+CaseState = tuple[dict[str, Any], str, BriefingConfig]
+Variant = Callable[[dict[str, Any], str, BriefingConfig], CaseState]
 VARIANTS: dict[str, Variant] = {}
 
 
@@ -43,18 +41,14 @@ def variant(name: str) -> Callable[[Variant], Variant]:
 def text_only(transform: Callable[[str], str]) -> Variant:
     """Adapt a prose-only mutation to the shared variant signature."""
 
-    def apply(
-        corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-    ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+    def apply(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
         return corpus, transform(text), config
 
     return apply
 
 
 @variant("valid-baseline")
-def _valid_baseline(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_baseline(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     return corpus, text, config
 
 
@@ -83,9 +77,7 @@ def _ungrounded_bare_url_in_prose(text: str) -> str:
 
 
 @variant("valid-doctype-as-text")
-def _valid_doctype_as_text(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_doctype_as_text(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     text = replace(text, "Tool two added", "The <!DOCTYPE html> text is discussed; tool two added")
     corpus["categories"]["dev_community"][1]["summary"] = (
         "The <!DOCTYPE html> text is discussed; tool two added a review mode for proposed patches."
@@ -94,9 +86,7 @@ def _valid_doctype_as_text(
 
 
 @variant("valid-category-overlap")
-def _valid_category_overlap(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_category_overlap(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["other_news"].append(copy.deepcopy(corpus["categories"]["dev_community"][1]))
     corpus["processing"]["other_news"]["fetched"] = 2
     corpus["processing"]["other_news"]["kept"] = 2
@@ -104,18 +94,14 @@ def _valid_category_overlap(
 
 
 @variant("valid-hn-without-discussion")
-def _valid_hn_without_discussion(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_hn_without_discussion(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"][0].pop("discussion")
     text = replace(text, "🔗 HN: https://news.ycombinator.com/item?id=101\n", "")
     return corpus, text, config
 
 
 @variant("valid-exclusions-exhausted")
-def _valid_exclusions_exhausted(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_exclusions_exhausted(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"] = corpus["categories"]["dev_community"][:3]
     corpus["processing"]["dev_community"]["fetched"] = 3
     corpus["processing"]["dev_community"]["kept"] = 3
@@ -127,9 +113,7 @@ def _valid_exclusions_exhausted(
 
 
 @variant("valid-grouped-multisection")
-def _valid_grouped_multisection(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_grouped_multisection(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     practice = item(
         "Teams adopt staged patch review",
         "https://example.test/staged-review",
@@ -189,9 +173,7 @@ def _valid_grouped_multisection(
 
 
 @variant("category-ambiguity-clean")
-def _category_ambiguity_clean(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _category_ambiguity_clean(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"][1].update(
         title="Tool two review mode reshapes patch workflows",
         summary="Tool two's new review mode changes how developers inspect proposed patches.",
@@ -347,9 +329,7 @@ def _overfilled(text: str) -> str:
 
 
 @variant("underfilled")
-def _underfilled(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _underfilled(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     start = text.index("**Tool two adds review mode**")
     end = text.index("---", start)
     text = text[:start] + text[end:]
@@ -404,9 +384,7 @@ def _valid_semantic_figure(text: str) -> str:
 
 
 @variant("valid-thin-evidence-paraphrase")
-def _valid_thin_evidence_paraphrase(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _valid_thin_evidence_paraphrase(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
     text = replace(
         text,
@@ -417,9 +395,7 @@ def _valid_thin_evidence_paraphrase(
 
 
 def _claim_pair(variant_name: str) -> Variant:
-    def apply(
-        corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-    ) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+    def apply(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
         corpus, text = apply_claim_pair_variant(corpus, text, variant_name)
         return corpus, text, config
 
@@ -431,9 +407,7 @@ for _variant_name in CLAIM_PAIR_VARIANTS:
 
 
 @variant("thin-evidence-unsupported")
-def _thin_evidence_unsupported(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _thin_evidence_unsupported(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"][1]["summary"] = "Review mode arrived."
     text = replace(
         text,
@@ -444,9 +418,7 @@ def _thin_evidence_unsupported(
 
 
 @variant("conflicting-evidence")
-def _conflicting_evidence(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _conflicting_evidence(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"].append(
         item(
             "Tool two review mode delayed",
@@ -476,44 +448,34 @@ def _over_consolidated(text: str) -> str:
 
 
 @variant("health-missing")
-def _health_missing(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_missing(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=False)
     return corpus, text, config
 
 
 @variant("health-malformed-json")
-def _health_malformed_json(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_malformed_json(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=False)
     text += "\n---\n\n### Corpus health\n```json\n{bad json}\n```\n"
     return corpus, text, config
 
 
 @variant("health-wrong-schema")
-def _health_wrong_schema(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_wrong_schema(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=False)
     text += '\n---\n\n### Corpus health\n```json\n{"failures": []}\n```\n'
     return corpus, text, config
 
 
 @variant("health-partial")
-def _health_partial(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_partial(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=True)
     text += health_block([("rss", "Feed A", "error")])
     return corpus, text, config
 
 
 @variant("health-unexpected")
-def _health_unexpected(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_unexpected(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=False)
     text += health_block(
         [
@@ -525,18 +487,14 @@ def _health_unexpected(
 
 
 @variant("health-wrong-status")
-def _health_wrong_status(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_wrong_status(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=False)
     text += health_block([("rss", "Feed A", "empty")])
     return corpus, text, config
 
 
 @variant("health-duplicate")
-def _health_duplicate(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _health_duplicate(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus = degraded_corpus(corpus, two_failures=True)
     text += health_block(
         [
@@ -549,9 +507,7 @@ def _health_duplicate(
 
 
 @variant("selection-ambiguity")
-def _selection_ambiguity(
-    corpus: dict[str, Any], text: str, config: briefing_config.BriefingConfig
-) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def _selection_ambiguity(corpus: dict[str, Any], text: str, config: BriefingConfig) -> CaseState:
     corpus["categories"]["dev_community"][2].update(
         title="Tool three release combines an extension update with staged patch review",
         summary=("The release is both an editor-extension product update and a staged patch-review workflow change."),
@@ -591,7 +547,7 @@ def _formatting_ambiguity(text: str) -> str:
     return replace(text, "## AI Dev Tools", "**AI Dev Tools (2 slots)**")
 
 
-def apply_variant(variant: str) -> tuple[dict[str, Any], str, briefing_config.BriefingConfig]:
+def apply_variant(variant: str) -> CaseState:
     corpus, text, config = baseline()
 
     try:

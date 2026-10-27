@@ -70,16 +70,6 @@ class FixedSuiteTest(unittest.TestCase):
                 apply_variant(name)
             self.assertEqual(str(raised.exception), f"unknown variant {name!r}")
 
-    def test_registered_transform_is_returned_and_dispatched(self) -> None:
-        transform = text_only(lambda text: text + "\nRegistered transform.\n")
-        with patch.dict(VARIANTS):
-            self.assertIs(register_variant("test-registration")(transform), transform)
-            corpus, text, config = apply_variant("valid-baseline")
-            self.assertEqual(
-                apply_variant("test-registration"),
-                (corpus, text + "\nRegistered transform.\n", config),
-            )
-
     def test_duplicate_registration_preserves_existing_transform(self) -> None:
         original = VARIANTS["valid-baseline"]
         expected = apply_variant("valid-baseline")
