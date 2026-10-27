@@ -43,6 +43,29 @@ class Citation:
             destinations.append(CitationDestination("discussion", self.discussion_url))
         return tuple(destinations)
 
+    @property
+    def story_key(self) -> str:
+        """The canonical article destination: the checker's identity for one story.
+
+        The fetcher removes duplicates within one category only, so one article
+        retained by two categories carries two handles. ``eval_briefing``
+        identifies a story by canonical URL, never by handle, so the runner
+        tracks reuse the same way: a handle is not an identity.
+        """
+        return corpus_schema.canonicalize_url(self.article_url)
+
+    def story_keys(self) -> frozenset[str]:
+        """Every canonical destination the renderer prints for this item.
+
+        ``check_no_repeated_topics`` and ``check_no_double_listing`` fire on any
+        link two entries share, including a Hacker News discussion link, so two
+        handles collide when any of their destinations coincide.
+        """
+        return frozenset(
+            corpus_schema.canonicalize_url(destination.url)
+            for destination in self.destinations()
+        )
+
 
 @dataclass(frozen=True)
 class ModelCorpus:
@@ -518,10 +541,10 @@ def repair_structural_output(
         eligible_categories = set(section.corpus_categories)
         kept: list[Any] = []
         # Parallel to ``kept``: the path each surviving entry occupied and the
-        # item refs it registered in ``used_items`` (empty when it registered
-        # none). Over-limit truncation uses this to un-register the items of any
-        # trailing entry it drops, so a trimmed entry never blocks a later
-        # legitimate use of its item.
+        # story keys it registered in ``used_items`` (empty when it registered
+        # none). Over-limit truncation uses this to un-register the stories of
+        # any trailing entry it drops, so a trimmed entry never blocks a later
+        # legitimate use of its story.
         kept_meta: list[tuple[str, set[str]]] = []
         for index, entry in enumerate(entries):
             path = f"{label}.{section.name}[{index}]"
@@ -538,7 +561,7 @@ def repair_structural_output(
             unique_refs: list[str] = []
             seen_refs: set[str] = set()
             invalid_reasons: list[str] = []
-            item_refs: set[str] = set()
+            story_keys: set[str] = set()
             has_unknown_ref = False
             for ref in refs:
                 if not isinstance(ref, str) or ref not in citations:
@@ -553,7 +576,14 @@ def repair_structural_output(
                     invalid_reasons.append(
                         f"{ref} is from ineligible category {citation.category}"
                     )
-                item_refs.add(citation.item_ref)
+                prior = sorted({
+                    used_items[key] for key in citation.story_keys() if key in used_items
+                })
+                if prior:
+                    invalid_reasons.append(
+                        f"{citation.item_ref} is a story already used by {', '.join(prior)}"
+                    )
+                story_keys |= citation.story_keys()
 
             # Unknown evidence is an evidence-boundary violation, not an
             # editorial placement error. Preserve it for rejection and review.
@@ -562,12 +592,6 @@ def repair_structural_output(
                 kept_meta.append((path, set()))
                 continue
 
-            repeated_items = sorted(item_ref for item_ref in item_refs if item_ref in used_items)
-            if repeated_items:
-                invalid_reasons.extend(
-                    f"{item_ref} was already used by {used_items[item_ref]}"
-                    for item_ref in repeated_items
-                )
             if invalid_reasons:
                 actions.append({
                     "action": "drop_entry",
@@ -584,9 +608,9 @@ def repair_structural_output(
                     "reason": "removed repeated citation references",
                 })
             kept.append(entry)
-            kept_meta.append((path, item_refs))
-            for item_ref in item_refs:
-                used_items[item_ref] = path
+            kept_meta.append((path, story_keys))
+            for key in story_keys:
+                used_items[key] = path
 
         # Editorial over-fill: drop trailing entries beyond the section maximum
         # so a repaired output re-validates without ``structured_item_limit``.
@@ -600,10 +624,10 @@ def repair_structural_output(
                 index for index in range(maximum, len(kept)) if kept_meta[index][1]
             ]
             for index in dropped_indices:
-                dropped_path, dropped_items = kept_meta[index]
-                for item_ref in dropped_items:
-                    if used_items.get(item_ref) == dropped_path:
-                        del used_items[item_ref]
+                dropped_path, dropped_keys = kept_meta[index]
+                for key in dropped_keys:
+                    if used_items.get(key) == dropped_path:
+                        del used_items[key]
                 actions.append({
                     "action": "drop_entry",
                     "path": dropped_path,
@@ -688,6 +712,11 @@ def repair_structural_output(
 
 
 PROMOTION_ACTION = "promote_excluded_entry"
+EXCERPT_ACTION = "replace_summary_with_excerpt"
+# The actions the renderer labels on a topic. A replay inherits only these:
+# an entry drop or reference dedupe describes a slot the original no longer
+# has, so it has nothing to say about the candidate a replay rebuilds.
+RENDERED_ACTIONS = frozenset({PROMOTION_ACTION, EXCERPT_ACTION})
 PROMOTION_TAG = "promoted from the accountability log"
 
 
@@ -707,21 +736,22 @@ def empty_section_findings(
     path both call this, so the evaluator scores a selection exactly as
     production would accept or reject it.
     """
-    used_items = {
-        citations[ref].item_ref
+    used_keys = {
+        key
         for section_value in selection["sections"].values()
         for entry in section_value["topics"]
         for ref in entry["citation_refs"]
+        for key in citations[ref].story_keys()
     }
     findings: list[OutputFinding] = []
     for section in config.sections:
         if selection["sections"][section.name]["topics"]:
             continue
         unused_eligible = {
-            citation.item_ref
+            citation.story_key
             for citation in citations.values()
             if citation.category in section.corpus_categories
-            and citation.item_ref not in used_items
+            and citation.story_key not in used_keys
         }
         if unused_eligible:
             findings.append(OutputFinding(
@@ -1016,7 +1046,7 @@ def _validate_citation_refs(
         return
     eligible_categories = set(section.corpus_categories)
     seen_refs: set[str] = set()
-    entry_items: set[str] = set()
+    entry_keys: set[str] = set()
     for ref in refs:
         if not isinstance(ref, str) or ref not in citations:
             findings.append(OutputFinding(
@@ -1031,6 +1061,7 @@ def _validate_citation_refs(
                 "duplicate_citation_ref",
                 f"{entry_where} repeats citation ref {ref}",
             ))
+            continue
         seen_refs.add(ref)
         citation = citations[ref]
         if citation.category not in eligible_categories:
@@ -1039,17 +1070,23 @@ def _validate_citation_refs(
                 "category_ineligible_ref",
                 f"{entry_where} uses {ref} from ineligible category {citation.category}",
             ))
-        entry_items.add(citation.item_ref)
-    for item_ref in sorted(entry_items):
-        prior = used_items.get(item_ref)
-        if prior is not None:
+        # Reuse is a story-level question. Two handles for one canonical
+        # destination inside one entry render as one link, so they are a
+        # consolidation, not a repeat; the same destination in another entry
+        # is what ``check_no_repeated_topics`` rejects.
+        prior = sorted({
+            used_items[key] for key in citation.story_keys() if key in used_items
+        })
+        if prior:
             findings.append(OutputFinding(
                 "ERROR",
                 "duplicate_item",
-                f"{entry_where} repeats {item_ref}, already used by {prior}",
+                f"{entry_where} repeats {citation.item_ref}, a story already used by "
+                f"{', '.join(prior)}",
             ))
-        else:
-            used_items[item_ref] = entry_where
+        entry_keys |= citation.story_keys()
+    for key in entry_keys:
+        used_items.setdefault(key, entry_where)
 
 
 def _limit_collection(
@@ -1082,26 +1119,27 @@ def _check_exclusion_log_selection(
     against the model-visible citation set, spends a selection-stage
     correction instead of a prose-stage one.
     """
-    included_item_refs = {
-        citations[ref].item_ref
+    included_keys = {
+        key
         for section_value in sections.values()
         if isinstance(section_value, dict)
         for entry in section_value.get("topics", [])
         if isinstance(entry, dict)
         for ref in entry.get("citation_refs", [])
         if isinstance(ref, str) and ref in citations
+        for key in citations[ref].story_keys()
     }
     accountable_with_expected: list[str] = []
     empty_sections: list[str] = []
     for section in config.sections:
         if not section.excluded_stories:
             continue
-        eligible_item_refs = {
-            citation.item_ref
+        eligible_keys = {
+            citation.story_key
             for citation in citations.values()
             if citation.category in section.corpus_categories
         }
-        if not (eligible_item_refs - included_item_refs):
+        if not (eligible_keys - included_keys):
             continue
         accountable_with_expected.append(section.name)
         entries = excluded_topics.get(section.name)
@@ -1380,12 +1418,14 @@ def _topic_lines(
     promoted: bool = False,
 ) -> list[str]:
     refs = entry["citation_refs"]
-    item_refs = {citations[ref].item_ref for ref in refs}
+    # Consolidation is a story-level fact, like reuse: two handles for one
+    # canonical destination render one link, so they are one story, not two.
+    stories = {citations[ref].story_key for ref in refs}
     # The checker's topic grammar tolerates exactly one *(...)* group between
     # the headline and the em dash, so consolidation keeps that marker group.
     # Evidence substitutions and log promotions use separate literal tags.
     labels = []
-    if len(item_refs) > 1:
+    if len(stories) > 1:
         labels.append("consolidated")
     marker = f" *({' · '.join(labels)})*" if labels else ""
     tags = "".join(

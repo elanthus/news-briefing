@@ -74,6 +74,21 @@ class RunnerSettings:
     timeout_seconds: int = 600
     max_corrections: int = 1
     strict: bool = False
+    # Code-owned actions an earlier run already applied to the candidate this
+    # run replays (a semantic repair or assembly over a frozen original). The
+    # renderer tags them by position and the prose attempt records them, so a
+    # replay keeps the ``[verbatim]`` and promotion labels of every slot it did
+    # not rewrite. A model correction rewrites every slot, so a replay that
+    # inherits actions may not correct.
+    inherited_repair_actions: tuple[dict[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.inherited_repair_actions:
+            return
+        if parse_repair_actions(list(self.inherited_repair_actions)) != self.inherited_repair_actions:
+            raise ValueError("inherited repair actions are malformed")
+        if self.max_corrections != 0:
+            raise ValueError("a run that inherits repair actions cannot request corrections")
 
     def identity(
         self,
@@ -91,6 +106,7 @@ class RunnerSettings:
             "timeout_seconds": self.timeout_seconds,
             "max_corrections": self.max_corrections,
             "strict": self.strict,
+            "inherited_repair_actions": list(self.inherited_repair_actions),
             "provider": provider_info,
             "code": {
                 key: code_info[key]
@@ -314,6 +330,26 @@ def promotion_actions(attempts: list[Any]) -> list[dict[str, str]]:
     ]
 
 
+def effective_repair_actions(manifest: dict[str, Any]) -> list[dict[str, str]]:
+    """Every code-owned action the final candidate of a completed run embodies.
+
+    The live promotions come from the selection stage; the prose-stage actions
+    are recorded on the final attempt itself, whether code made them there
+    (``deterministic_repair``) or the run inherited them from the original it
+    replayed. A replay of this run passes these on for the slots it keeps.
+    """
+    final = manifest.get("final")
+    attempts = manifest.get("attempts")
+    if not isinstance(final, dict) or not isinstance(attempts, list):
+        return []
+    recorded = [
+        attempt for attempt in attempts
+        if isinstance(attempt, dict) and attempt.get("index") == final.get("attempt")
+    ]
+    final_actions = parse_repair_actions(recorded[0].get("repair_actions")) if len(recorded) == 1 else ()
+    return [*promotion_actions(attempts), *final_actions]
+
+
 def _attempt_paths(index: int) -> tuple[str, str, str, str, str]:
     prefix = f"attempt-{index:02d}"
     return (
@@ -383,6 +419,7 @@ def _call_provider(
     kind: str,
     budget: GenerationBudget,
     transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    repair_actions: Sequence[dict[str, str]] = (),
 ) -> dict[str, Any]:
     index = len(store.manifest["attempts"]) + 1
     try:
@@ -441,6 +478,10 @@ def _call_provider(
         "briefing_artifact": None,
         "findings_artifact": None,
     }
+    if repair_actions:
+        # Inherited from the replayed original; recorded with the candidate so
+        # validation renders their tags and publication reads them back.
+        attempt["repair_actions"] = list(repair_actions)
     store.manifest["attempts"].append(attempt)
     totals = store.manifest.setdefault("generation_totals", {
         "calls": 0,
@@ -708,6 +749,7 @@ def _finalize_after_deterministic_repair(
             output, config, citations, evidence=eval_briefing.corpus_evidence(corpus)
         )
         if actions and isinstance(repaired, dict):
+            actions = [*settings.inherited_repair_actions, *actions]
             attempt = _record_code_attempt(
                 store, "deterministic_repair", repaired, actions,
                 lambda recorded, candidate: _validate_attempt(
@@ -876,6 +918,7 @@ def _write_prose(
         store, provider, prompt=prose_request, schema=prose_schema,
         timeout_seconds=settings.timeout_seconds, kind="prose", budget=budget,
         transform=lambda prose: attach_frozen_selection(selection, prose, config),
+        repair_actions=settings.inherited_repair_actions,
     )
 
     while True:
@@ -913,9 +956,10 @@ def _write_prose(
         if decision.repair is not None:
             repair_kind, output, repair_actions = decision.repair
             # The validator reads the recorded actions: closing over the loop's
-            # ``repair_actions`` instead would trip ruff B023.
+            # ``repair_actions`` instead would trip ruff B023. Inherited actions
+            # stay in force on the slots this repair leaves alone.
             _record_code_attempt(
-                store, repair_kind, output, repair_actions,
+                store, repair_kind, output, [*settings.inherited_repair_actions, *repair_actions],
                 lambda recorded, candidate: _validate_attempt(
                     store, recorded, candidate, corpus=corpus, config=config,
                     citations=citations, repair_actions=recorded["repair_actions"],

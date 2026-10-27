@@ -106,6 +106,8 @@ Unrelated findings remain visible but do not block cleared slots.
 
 Partial assembly uses the frozen original and cleared slots without another model call.
 Code verifies exact candidate content for cleared slots and byte-identical original content for every other topic.
+The repair and assembly runs inherit the original's `[verbatim]` and promotion tags for every slot they do not rewrite.
+The verifier compares the rendered line of each untouched topic, so a lost tag fails the repair and retains the original.
 If assembly or verification fails, every target is recorded as failed and the original remains published.
 The audit still retains scores, costs, and the slots that cleared.
 

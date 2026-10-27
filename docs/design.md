@@ -194,6 +194,11 @@ The probe established schema acceptance only; it did not evaluate a complete pro
 [`agent_runner/stages.py`](../agent_runner/stages.py) shares the stage decision between production and evaluation.
 It considers promotion before deterministic repair and prevents either action from repeating consecutively.
 Repair removes a complete entry with ineligible or already-used evidence.
+Evidence is used when any entry already cites the same story, not the same handle.
+A story is identified by its canonical destinations, as the independent checker identifies it.
+The fetcher removes duplicates within one category, so one article retained by two categories carries two handles.
+Two handles for one story inside one entry render one link and are not a consolidation; the `consolidated` marker also counts stories, not handles.
+The same story in two entries is `duplicate_item` before the selection freezes.
 It trims permitted over-limit entries, with included stories taking priority over exclusion logs.
 It does not retain prose after removing its evidence.
 Unknown evidence and malformed entries remain available for rejection, even in an over-limit tail.
@@ -209,11 +214,18 @@ The same repair is available after the correction allowance is exhausted.
 Each stage has its own production correction allowance.
 `run_briefing.py` defaults to one correction per stage. The daily runner defaults to three.
 Unknown references, free-form destinations, and invalid shapes can require model correction or rejection.
+A stage accepts a candidate only when the disposition gate would publish it.
+A `claim_exceeds_evidence` or `unsupported_quotation` warning that repair cannot clear therefore spends a correction while one remains.
+When the allowance is exhausted, the candidate ends as `review_required` as before.
+The evaluator's correction trigger applies the same publication rule.
 See [ranking and checking](#ranking-and-checking) for promotion rules.
 
 Every attempt retains its actions in the manifest.
 The public `repair_actions` list describes only the final attempt.
-`provenance.repair_action_count` counts deterministic repairs across all attempts, including superseded attempts.
+A run that replays a frozen original, such as a Jev repair or assembly, inherits the original's rendered actions (`[verbatim]` substitutions and promotions) for the slots it does not rewrite.
+The prose attempt records them, rendering tags them by position, and the verifier requires each untouched topic to render byte for byte as the original did.
+Such a run permits no model correction, because a correction would rewrite every slot.
+`provenance.repair_action_count` counts deterministic repairs across all attempts, including superseded attempts and the actions a replay's prose attempt inherited.
 The integrity ledger distinguishes superseded actions. Promotions do not count as repairs or model calls.
 
 ### Outcomes and publication

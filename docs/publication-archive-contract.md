@@ -44,6 +44,8 @@ A safe `claim_exceeds_evidence` repair substitutes deduplicated cited evidence f
 Every citation must have complete known support, and the normalized excerpt must contain no URL.
 The action is `replace_summary_with_excerpt`. Rendering marks the topic `[verbatim]`.
 Incomplete or URL-bearing evidence remains unresolved and can require review.
+A Jev repair or assembly keeps the action, and the tag, on every slot it does not rewrite.
+The published `repair_actions` list then names those inherited actions.
 
 Before freezing evidence, promotion can fill unused section slots from that section's ordered accountability log.
 The candidate is revalidated. A promotion that introduces a blocking finding is discarded.

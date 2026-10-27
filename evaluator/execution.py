@@ -15,7 +15,7 @@ import corpus_schema
 from agent_runner.output import ModelCorpus, build_selection_schema, project_corpus
 from agent_runner.runner import build_request as structured_model_request
 from agent_runner.runner import prompt_policy
-from agent_runner.stages import correction_action
+from agent_runner.stages import candidate_publishable, correction_action
 
 from evaluator.adapters import Adapter, Generation, ProviderRequestError
 from evaluator.checkpoint import (
@@ -278,7 +278,11 @@ def _run_correction(
     first_attempt: GenerationAttempt,
     first: ScoredAttempt,
 ) -> tuple[GenerationAttempt | None, dict[str, Any] | None]:
-    if correction_action(first.contract_success, 1) != "correct":
+    # Production accepts on the publication rule (``candidate_publishable``),
+    # not the contract rule, so a quarantined review warning spends a
+    # correction here exactly as it does in ``_write_prose``.
+    publishable = candidate_publishable([finding._asdict() for finding in first.findings])
+    if correction_action(publishable, 1) != "correct":
         return None, None
     if (
         context.ceiling_limit is not None

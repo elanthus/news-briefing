@@ -25,7 +25,7 @@ from agent_runner.runner import (
     run_workflow,
 )
 from agent_runner.stages import selection_promotion_candidate
-from tests.test_briefing_output import ROOT, fixture_contract
+from tests.test_briefing_output import ROOT, collide_story, cross_category_pair, fixture_contract
 
 
 class FakeProvider:
@@ -909,6 +909,78 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("selection_promotion", kinds)
         self.assertIn("CORRECTION PASS", provider.requests[1].prompt)
         self.assertIn("unused eligible corpus item", provider.requests[1].prompt)
+
+    def test_cross_category_duplicate_story_is_repaired_before_evidence_freezes(self):
+        """A story under two handles cannot pass selection and then fail the rendered checker."""
+        corpus, config, projected, output = fixture_contract()
+        pair = cross_category_pair(projected)
+        self.assertIsNotNone(pair)
+        colliding = collide_story(output, config, projected, *pair)
+        provider = FakeProvider([colliding])
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
+        ):
+            root = Path(directory)
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+            final = (root / "briefing.md").read_text(encoding="utf-8")
+        self.assertEqual(result.status, "ready")
+        kinds = [attempt["kind"] for attempt in manifest["attempts"]]
+        self.assertEqual(kinds, ["selection", "selection_repair", "prose"])
+        repair = manifest["attempts"][1]["repair_actions"]
+        self.assertEqual([action["action"] for action in repair], ["drop_entry"])
+        self.assertTrue(repair[0]["path"].startswith("excluded_topics."))
+        # No correction was spent: the collision is a repairable selection finding.
+        self.assertEqual(len(provider.requests), 2)
+        url = projected.citations[pair[0]].article_url
+        self.assertEqual(final.count(url), 1)
+
+    def test_quarantined_warning_spends_a_correction_before_review_required(self):
+        """A WARN the gate would hold back is corrected while the allowance lasts, not accepted."""
+        corpus, config, _projected, output = fixture_contract()
+        first = config.sections[0]
+        entry = max(output["sections"][first.name]["topics"], key=lambda topic: len(topic["summary"]))
+        quoted = copy.deepcopy(output)
+        for topic in quoted["sections"][first.name]["topics"]:
+            if topic["headline"] == entry["headline"]:
+                topic["summary"] = f'{topic["summary"]} Officials called it "an invented phrase".'
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
+        ):
+            root = Path(directory)
+            provider = FakeProvider([quoted, output])
+            result = run_workflow(provider, self.settings(root / "briefing.md"), root / "run")
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "ready")
+        self.assertEqual([attempt["kind"] for attempt in manifest["attempts"]], ["selection", "prose", "correction"])
+        self.assertEqual(len(provider.requests), 3)
+        self.assertIn("unsupported_quotation", provider.requests[2].prompt)
+        self.assertEqual(manifest["final"]["outcome"]["disposition"], "ready")
+
+        # Without an allowance the candidate still ends in quarantine, as before.
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "agent_runner.runner._replay_corpus", side_effect=fake_corpus(corpus)
+        ):
+            root = Path(directory)
+            provider = FakeProvider([quoted])
+            result = run_workflow(
+                provider, replace(self.settings(root / "briefing.md"), max_corrections=0), root / "run"
+            )
+            manifest = json.loads((root / "run/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(result.status, "review_required")
+        self.assertEqual(len(provider.requests), 2)
+        self.assertEqual(manifest["final"]["outcome"]["evidence"], "review_required")
+
+    def test_inherited_repair_actions_require_a_correction_free_run(self):
+        action = {"action": "replace_summary_with_excerpt", "path": "topics.US News[0]", "reason": "r"}
+        with self.assertRaisesRegex(ValueError, "cannot request corrections"):
+            replace(self.settings(Path("briefing.md")), inherited_repair_actions=(action,))
+        with self.assertRaisesRegex(ValueError, "malformed"):
+            replace(self.settings(Path("briefing.md")), max_corrections=0,
+                    inherited_repair_actions=({"action": "replace_summary_with_excerpt"},))
+        settings = replace(self.settings(Path("briefing.md")), max_corrections=0,
+                           inherited_repair_actions=(action,))
+        self.assertEqual(settings.inherited_repair_actions, (action,))
 
     def test_bloated_summary_is_swapped_and_run_finalizes_ready(self):
         corpus, config, projected, output = fixture_contract()

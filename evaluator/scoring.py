@@ -10,6 +10,7 @@ from typing import Any
 import briefing_config
 import corpus_schema
 import eval_briefing
+from agent_runner.stages import candidate_publishable
 
 from evaluator.adapters import Adapter
 from evaluator.parity import GenerationAttempt
@@ -444,7 +445,9 @@ def build_completed_result(
         "grounding_adjudication": f"{artifact_key}/grounding-adjudication.json",
         "semantic_adjudication": semantic_path,
         "first": _attempt_record(first_attempt, first),
-        "correction_attempted": not first.contract_success,
+        "correction_attempted": not candidate_publishable(
+            [finding._asdict() for finding in first.findings]
+        ),
         "correction": (
             corrected_attempt.generation.record() if corrected_attempt else None
         ),

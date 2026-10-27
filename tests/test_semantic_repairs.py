@@ -120,9 +120,9 @@ class SplitJudge(CitationJudge):
         return result
 
 
-def split_review(root, *, after_score=0.1, report_date=None):
+def split_review(root, *, after_score=0.1, report_date=None, bloat_section=None):
     """Two confirmed targets: a citation removal in US Politics and a prose flag in AI Dev Tools."""
-    run, headline = make_run(root, grouping=True, report_date=report_date)
+    run, headline = make_run(root, grouping=True, report_date=report_date, bloat_section=bloat_section)
     topics = load_topics(run)[0]
     first = next(t for t in topics if t['headline'] == headline)
     second = next(t for t in topics if t['position'] == {'bucket': 'sections', 'section': 'AI Dev Tools',
@@ -132,12 +132,28 @@ def split_review(root, *, after_score=0.1, report_date=None):
     return run, audit, first, second
 
 
-def make_run(root, *, grouping=False, report_date=None):
+def bloated(summary):
+    """Exceed the claim/evidence ratio inside the 1,500-character limit, so code swaps in the excerpt."""
+    return summary + ' Officials described the matter' + ' and further' * ((1450 - len(summary) - 32) // 12) + '.'
+
+
+def swap_actions(run):
+    """Every excerpt swap recorded in a run's manifest."""
+    manifest = json.loads((run / 'manifest.json').read_text())
+    return [action for attempt in manifest['attempts'] for action in (attempt.get('repair_actions') or [])
+            if action['action'] == 'replace_summary_with_excerpt']
+
+
+def make_run(root, *, grouping=False, report_date=None, bloat_section=None):
     corpus, config, projected, output = fixture_contract()
     if report_date is not None:
         corpus["report_date"] = report_date
     section = next(iter(output['sections']))
     target = output['sections'][section]['topics'][0]
+    if bloat_section is not None:
+        # A slot outside the review target that code repairs before the run is ready.
+        slot = min(output['sections'][bloat_section]['topics'], key=lambda topic: len(topic['summary']))
+        slot['summary'] = bloated(slot['summary'])
     if grouping:
         used = used_item_refs(projected, output)
         allowed = next(s.corpus_categories for s in config.sections if s.name == section)
@@ -280,6 +296,64 @@ class SemanticRepairTests(unittest.TestCase):
             record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 9, 30))
             self.assertEqual(record.semantic_audit, audit)
             self.assertIn(f'**{headline}** — {REPAIRED_PROSE}', (root / 'history/2026-09-30.md').read_text())
+
+    def test_repair_keeps_code_owned_tags_on_untouched_slots(self):
+        """A replay inherits the swap tags of the slots it does not rewrite, and the verifier demands them."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sections = list(fixture_contract()[3]['sections'])
+            run, headline = make_run(root, bloat_section=sections[1])
+            swaps = swap_actions(run)
+            self.assertEqual(len(swaps), 1)
+            self.assertTrue(swaps[0]['path'].startswith(f'topics.{sections[1]}['))
+            self.assertEqual((run / 'final.md').read_text().count('[verbatim]'), 1)
+            audit = daily_semantic_review(run, root / 'jev-review', judge=Judge(headline),
+                                          repair_provider=PatchProvider())
+            self.assertEqual(next(t for t in audit['topics'] if t['changed'])['repair_status'], 'applied')
+            bound, selected = load_public_audit(run, root / 'jev-review')
+            self.assertEqual(bound, audit)
+            self.assertEqual(selected, root / 'jev-review/repair/run')
+            manifest = json.loads((selected / 'manifest.json').read_text())
+            final_attempt = next(a for a in manifest['attempts'] if a['index'] == manifest['final']['attempt'])
+            self.assertEqual((final_attempt['kind'], final_attempt['repair_actions']), ('prose', swaps))
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 10, 26))
+            markdown = (root / 'history/2026-10-26.md').read_text()
+            self.assertEqual(markdown.count('[verbatim]'), 1)
+            self.assertIn(REPAIRED_PROSE, markdown)
+            self.assertEqual(record.repair_actions, tuple(swaps))
+            # A replay of the same candidate that drops the tag is not a repair of this run.
+            original = load_verified_run(run)
+            settings = RunnerSettings(config_path=ROOT / 'fixtures/briefing-config-2026-08-11.json',
+                                      prompt_path=ROOT / 'briefing-runner-prompt.md',
+                                      output_path=root / 'other.md', corpus_path=root / 'input.json',
+                                      max_corrections=0)
+            self.assertEqual(run_workflow(FakeProvider([original.candidate]), settings, root / 'other').status,
+                             'ready')
+            self.assertNotIn('[verbatim]', (root / 'other/final.md').read_text())
+            target = position_key({'bucket': 'sections', 'section': sections[0], 'index': 0})
+            with self.assertRaisesRegex(ValueError, 'unaffected rendered topic'):
+                verify_repair(run, root / 'other', {target}, set())
+
+    def test_assembly_keeps_code_owned_tags_on_unchanged_and_rejected_slots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sections = list(fixture_contract()[3]['sections'])
+            other = next(s for s in sections if s not in (sections[0], 'AI Dev Tools'))
+            run, audit, first, second = split_review(root, bloat_section=other)
+            swaps = swap_actions(run)
+            self.assertEqual(len(swaps), 1)
+            self.assertEqual((run / 'final.md').read_text().count('[verbatim]'), 1)
+            bound, selected = load_public_audit(run, root / 'jev-review')
+            self.assertEqual(bound, audit)
+            self.assertEqual(selected, root / 'jev-review/assembly/run')
+            self.assertEqual((selected / 'final.md').read_text().count('[verbatim]'), 1)
+            (root / 'fallback-log.json').write_text(json.dumps({'status': 'ready', 'selected_run_dir': 'run'}))
+            record = prepare_publication(root, root / 'input.json', root / 'history', date(2026, 10, 26))
+            markdown = (root / 'history/2026-10-26.md').read_text()
+            self.assertEqual(markdown.count('[verbatim]'), 1)
+            self.assertIn(f"**{second['headline']}** — {second['prose']}", markdown)
+            self.assertEqual(record.repair_actions, tuple(swaps))
 
     def test_headline_change_without_source_removal_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

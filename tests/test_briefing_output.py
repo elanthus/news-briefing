@@ -137,6 +137,54 @@ def unused_hn_item(projected, output):
     )
 
 
+def cross_category_pair(projected):
+    """Two handles whose canonical article URL coincides across categories, or None."""
+    by_key = {}
+    for ref, citation in projected.citations.items():
+        by_key.setdefault(citation.story_key, []).append(ref)
+    for refs in by_key.values():
+        categories = {projected.citations[ref].category for ref in refs}
+        if len(refs) > 1 and len(categories) > 1:
+            return refs[0], refs[1]
+    return None
+
+
+def collide_story(output, config, projected, first_ref, second_ref, *, same_entry=None):
+    """Cite ``first_ref`` as a reported topic and ``second_ref`` in an exclusion log.
+
+    Every other use of either story is removed first. With ``same_entry`` both
+    handles go into one topic of that section instead.
+    """
+    keys = projected.citations[first_ref].story_keys() | projected.citations[second_ref].story_keys()
+    result = copy.deepcopy(output)
+    for bucket in result["sections"].values():
+        bucket["topics"] = [
+            entry for entry in bucket["topics"]
+            if not any(projected.citations[ref].story_keys() & keys for ref in entry["citation_refs"])
+        ]
+    for name, entries in result["excluded_topics"].items():
+        result["excluded_topics"][name] = [
+            entry for entry in entries
+            if not any(projected.citations[ref].story_keys() & keys for ref in entry["citation_refs"])
+        ]
+    if same_entry is not None:
+        result["sections"][same_entry.name]["topics"][0]["citation_refs"] = [first_ref, second_ref]
+        return result
+    first_category = projected.citations[first_ref].category
+    second_category = projected.citations[second_ref].category
+    topic_section = next(
+        section for section in config.sections if first_category in section.corpus_categories
+    )
+    log_section = next(
+        section for section in config.sections
+        if second_category in section.corpus_categories and section.excluded_stories
+        and section.name != topic_section.name
+    )
+    result["sections"][topic_section.name]["topics"][0]["citation_refs"] = [first_ref]
+    result["excluded_topics"][log_section.name][0]["citation_refs"] = [second_ref]
+    return result
+
+
 class BriefingOutputTests(unittest.TestCase):
     def test_projection_removes_all_urls_and_keeps_reference_map(self):
         corpus, _config, projected, _output = fixture_contract()
@@ -732,6 +780,85 @@ class BriefingOutputTests(unittest.TestCase):
         broken["sections"][second_section]["topics"][0] = repeated
         checks = {finding.check for finding in validate_output(broken, config, projected.citations)}
         self.assertIn("duplicate_item", checks)
+
+    def test_story_identity_is_the_canonical_url_not_the_handle(self):
+        """One article retained by two categories is one story to the checker; code agrees before freezing."""
+        corpus, config, projected, output = fixture_contract()
+        pair = cross_category_pair(projected)
+        self.assertIsNotNone(pair, "fixture corpus must retain one URL under two categories")
+        first_ref, second_ref = pair
+        colliding = collide_story(output, config, projected, first_ref, second_ref)
+
+        selection = {
+            "schema_version": colliding["schema_version"],
+            "sections": {
+                name: {"topics": [{"citation_refs": entry["citation_refs"]} for entry in bucket["topics"]]}
+                for name, bucket in colliding["sections"].items()
+            },
+            "excluded_topics": {
+                name: [{"citation_refs": entry["citation_refs"]} for entry in entries]
+                for name, entries in colliding["excluded_topics"].items()
+            },
+        }
+        selection_checks = {
+            finding.check for finding in validate_selection(selection, config, projected.citations)
+        }
+        self.assertEqual(selection_checks, {"duplicate_item"})
+        output_checks = {finding.check for finding in validate_output(colliding, config, projected.citations)}
+        self.assertIn("duplicate_item", output_checks)
+
+        # The independent checker rejects the same candidate once rendered, so the
+        # runner's selection-stage finding is the earlier of two agreeing gates.
+        rendered = render_briefing(colliding, corpus, config, projected.citations)
+        sections = eval_briefing.parse_briefing(rendered, config)
+        checker = {
+            finding.check
+            for finding in eval_briefing.evaluate_parsed(corpus, rendered, sections, config)
+            if finding.level == eval_briefing.ERROR
+        }
+        self.assertIn("included_and_excluded", checker)
+
+        # Deterministic repair resolves it the way it resolves any reused story.
+        repaired, actions = repair_structural_output(colliding, config, projected.citations)
+        self.assertEqual([action["action"] for action in actions], ["drop_entry"])
+        self.assertTrue(actions[0]["path"].startswith("excluded_topics."))
+        self.assertIn("already used by", actions[0]["reason"])
+        self.assertFalse(
+            [f for f in validate_output(repaired, config, projected.citations) if f.level == "ERROR"]
+        )
+
+    def test_two_handles_for_one_story_consolidate_inside_one_entry(self):
+        """Inside one entry the renderer prints the shared destination once: a consolidation, not a repeat."""
+        corpus, config, projected, output = fixture_contract()
+        pair = cross_category_pair(projected)
+        self.assertIsNotNone(pair)
+        first_ref, second_ref = pair
+        first = projected.citations[first_ref]
+        section = next(
+            section for section in config.sections
+            if {first.category, projected.citations[second_ref].category} <= set(section.corpus_categories)
+        ) if any(
+            {first.category, projected.citations[second_ref].category} <= set(section.corpus_categories)
+            for section in config.sections
+        ) else None
+        if section is None:
+            self.skipTest("fixture config has no section eligible for both categories")
+        consolidated = collide_story(output, config, projected, first_ref, second_ref, same_entry=section)
+        errors = [
+            finding for finding in validate_output(consolidated, config, projected.citations)
+            if finding.level == "ERROR"
+        ]
+        self.assertEqual(errors, [])
+        rendered = render_briefing(consolidated, corpus, config, projected.citations)
+        self.assertEqual(rendered.count(first.article_url), 1)
+        sections = eval_briefing.parse_briefing(rendered, config)
+        checker = {
+            finding.check
+            for finding in eval_briefing.evaluate_parsed(corpus, rendered, sections, config)
+            if finding.level == eval_briefing.ERROR
+        }
+        self.assertNotIn("repeated_topic", checker)
+        self.assertNotIn("duplicate_citation", checker)
 
     def test_structured_item_limit_is_enforced_in_code(self):
         _corpus, config, projected, output = fixture_contract()
