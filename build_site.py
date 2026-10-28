@@ -213,7 +213,7 @@ p.status-chip { border-radius: .9rem; display: inline-block; font-weight: 600; m
 .integrity-report h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; }
 .decision { font-family: var(--serif); font-size: 1.2rem; line-height: 1.45; }
 .decision-facts, .generation-facts { color: var(--muted); font-size: .9rem; }
-.generation-summary { border-top: 1px solid var(--rule); font-size: .85rem; margin-top: 1.5rem; padding-top: .6rem; }
+.generation-summary { font-size: .88rem; margin: 0 0 .2rem; }
 .flag-list li, .coverage-list li { border-bottom: 1px solid var(--rule); padding: .45rem 0; }
 .flag-list a { text-decoration: none; }
 .diff { border-left: .25rem solid var(--rule); padding-left: .8rem; }
@@ -1356,9 +1356,7 @@ def _decorate_briefing(rendered: str, entry: BriefingEntry) -> str:
         f'<nav class="section-nav" aria-label="Sections"><ul>{"".join(nav_links)}</ul></nav>\n'
         if len(nav_links) > 1 else ""
     )
-    summary = _generation_summary(entry)
-    footer = f'<p class="muted generation-summary">{html.escape(summary)}</p>\n' if summary else ""
-    return f'<p class="dateline">{dateline}</p>\n{masthead}{nav}{"".join(sections)}{notes}{footer}'
+    return f'<p class="dateline">{dateline}</p>\n{masthead}{nav}{"".join(sections)}{notes}'
 
 
 def _history_nav(entries: list[BriefingEntry], current: BriefingEntry) -> str:
@@ -1418,20 +1416,24 @@ def _status_chip(entry: BriefingEntry) -> str:
     return f'<p class="status-chip {tone}"><a href="{report_href}">{text}</a></p>'
 
 
-def _briefing_layout(rendered_markdown: str, status_chip: str) -> str:
-    """Place publication metadata between the title and the news sections."""
+def _briefing_layout(rendered_markdown: str, metadata: str) -> str:
+    """Place publication metadata between the title and the news sections.
+
+    ``metadata`` is the status chip followed by the generation summary, so the
+    page reads: title, publication decision, model and charges, corpus window.
+    """
     title_end = rendered_markdown.find("</h1>")
     if title_end < 0:
-        return f"{status_chip}{rendered_markdown}"
+        return f"{metadata}{rendered_markdown}"
     title_end += len("</h1>")
     first_section = rendered_markdown.find("<h2", title_end)
     if first_section < 0:
         return (
-            f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
+            f"{rendered_markdown[:title_end]}\n<hr>\n{metadata}"
             f"{rendered_markdown[title_end:]}<hr>\n"
         )
     return (
-        f"{rendered_markdown[:title_end]}\n<hr>\n{status_chip}"
+        f"{rendered_markdown[:title_end]}\n<hr>\n{metadata}"
         f"{rendered_markdown[title_end:first_section]}<hr>\n"
         f"{rendered_markdown[first_section:]}"
     )
@@ -1467,7 +1469,10 @@ def _entry_body(entry: BriefingEntry) -> str:
         )
     elif entry.markdown is not None:
         rendered_markdown = _render_markdown(entry.markdown, _source_coverage(entry))
-        briefing = _decorate_briefing(_briefing_layout(rendered_markdown, status_chip), entry)
+        summary = _generation_summary(entry)
+        metadata = status_chip + (
+            f'<p class="muted generation-summary">{html.escape(summary)}</p>\n' if summary else "")
+        briefing = _decorate_briefing(_briefing_layout(rendered_markdown, metadata), entry)
     else:
         briefing = (
             f"<h1>Daily briefing — {html.escape(entry.slug)}</h1>"
@@ -1602,7 +1607,8 @@ def _charges_sentence(record: dict[str, Any]) -> str:
 def _generation_summary(entry: BriefingEntry) -> str:
     """One plain sentence pair for readers: which model wrote the day, how long it took, what it cost.
 
-    Shown at the foot of the briefing and in the integrity report's summary box.
+    Shown under the briefing's status line, before the corpus window, and in
+    the integrity report's summary box.
     Model identifiers, a duration, and dollar figures only; the figures come
     from the validated integrity record and never from model text.
     """
