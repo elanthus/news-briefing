@@ -72,7 +72,7 @@ The public page displays a quarantine stub, not that preview.
 Every status chip links to `reports/<date>.html`.
 Briefing pages end with a "How this briefing is made" section: two paragraphs, the pipeline diagram (`pipeline.svg`, copied from `docs/images/runtime-pipeline.svg`), and links to the README, design notes, ADRs, evaluation methodology, evidence bundles, and Jev documentation.
 Every page sends no referrer to the hosts it links, declares the share card `og-card.png`, and links the 192-pixel favicons.
-A ready briefing closes with one line naming the generating model, the generation wall clock, and the recorded model charges, when any of them is recorded.
+A ready briefing shows one line naming the generating model, the generation wall clock, and the recorded model charges, when any of them is recorded. It sits under the linked status line and above the corpus window.
 Integrity reports show the publication decision and reason, that same generation line, published changes, flagged stories, exclusion log, and affected sources.
 Each figure states its own gap, so a missing value never reads as zero:
 
@@ -263,7 +263,7 @@ A disposition without a public artifact also has null provenance.
 
 The integrity report displays provenance in its collapsed "Provenance and costs" section.
 It omits the attempt-position clause for standalone runs.
-The reader page shows only the model label, the generation wall clock, and the model charges, at the foot of the briefing.
+The reader page shows only the model label, the generation wall clock, and the model charges, under the status line at the top of the briefing.
 Chain position, correction counts, and the prompt hash stay in the report.
 
 ## Daily semantic repair and audit
