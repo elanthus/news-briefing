@@ -5,6 +5,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from agent_runner.decisions import DECIDER_MODEL, JEV_MODEL
 from agent_runner.jev_review import load_topics, load_verified_run
 from agent_runner.models import ModelResponse, ProviderError
 from agent_runner.output import validate_output
@@ -25,6 +26,8 @@ def repaired(topic):
 
 
 class Judge:
+    model = JEV_MODEL
+
     def __init__(self, headline, *, grouping=False, dispute=False, reject_after=False,
                  missing_cost=False, fail_after_repair=False):
         self.headline = headline
@@ -170,6 +173,25 @@ def make_run(root, *, grouping=False, report_date=None, bloat_section=None):
 
 
 class SemanticRepairTests(unittest.TestCase):
+    def test_initial_and_followup_confirmations_reach_only_the_confirmer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, headline = make_run(root)
+            judge, confirmer = Judge(headline, reject_after=True), Judge(headline, reject_after=True)
+            confirmer.model = DECIDER_MODEL
+            daily_semantic_review(run, root / 'review', judge=judge, confirmer=confirmer,
+                                  repair_provider=PatchProvider())
+            reports = [json.loads((root / 'review' / name).read_text())
+                       for name in ('report.json', 'post-review/report.json')]
+        confirmations = [[c for c in r['calls'] if c.get('purpose') == 'isolated_confirmation'] for r in reports]
+        self.assertTrue(all(confirmations))
+        self.assertEqual(len(confirmer.calls), sum(map(len, confirmations)))
+        self.assertTrue(all(len(questions) == 1 for _state, questions in confirmer.calls))
+        self.assertEqual(len(judge.calls), sum(len(r['calls']) for r in reports) - len(confirmer.calls))
+        for report, calls in zip(reports, confirmations, strict=True):
+            self.assertEqual((report['model'], report['confirmation_model']), (JEV_MODEL, DECIDER_MODEL))
+            self.assertEqual({c['requested_model'] for c in calls}, {DECIDER_MODEL})
+
     def test_citation_removal_at_lower_threshold_and_followup_indexes_are_bound(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

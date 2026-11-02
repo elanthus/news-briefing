@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from agent_runner.audit_metrics import aggregate as aggregate_daily
 from agent_runner.audit_metrics import observations, rate
+from agent_runner.decisions import JEV_MODEL
 from agent_runner.jev_review import load_topics
 from agent_runner.models import ProviderError
 from agent_runner.semantic_repairs import daily_semantic_review
@@ -30,6 +31,8 @@ class UnknownOnFlagJudge(Judge):
 
 
 class FailedJudge:
+    model = JEV_MODEL
+
     def evaluate(self, *args, **kwargs):
         raise ProviderError('private provider response', transient=False)
 

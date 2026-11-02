@@ -524,14 +524,15 @@ def public_audit(report: dict[str, Any]) -> dict[str, Any]:
             "citation_threshold": report["citation_threshold"]}
 
 
-def daily_semantic_review(run: Path, destination: Path, *,
-                          judge: Any = None, repair_provider: ModelProvider | None = None) -> dict[str, Any]:
+def daily_semantic_review(run: Path, destination: Path, *, judge: Any = None, confirmer: Any = None,
+                          repair_provider: ModelProvider | None = None) -> dict[str, Any]:
     """Apply each repaired slot that clears follow-up; retain originals for re-flagged or failed slots."""
     try:
         original_state = load_verified_run(run)
     except (ValueError, OSError, KeyError, TypeError, RecursionError, OverflowError):
         original_state = None
-    report = review_run(run, destination, client=judge, confirm_flags=True, verified_run=original_state)
+    report = review_run(run, destination, client=judge, confirmer=confirmer, confirm_flags=True,
+                        verified_run=original_state)
     audit = public_audit(report)
     by_position = {_position(t["position"]): t for t in audit["topics"]}
     targets, grouping, removed, skip_reasons = repair_scope(report)
@@ -562,7 +563,7 @@ def daily_semantic_review(run: Path, destination: Path, *,
             verify_repair(original_state, repaired_state, targets, grouping, removed, preserve_headlines=True)
             revised, hashes = repaired_state.topics, repaired_state.hashes
             after = review_run(repaired_state.root, destination / "post-review", client=judge,
-                               confirm_flags=True, verified_run=repaired_state)
+                               confirmer=confirmer, confirm_flags=True, verified_run=repaired_state)
             metadata["post_review_sha256"] = read_json_artifact(destination / "post-review" / "report.json")[1]
             audit["post_status"] = after["status"]
             audit["reported_cost_usd"] += after["reported_cost_usd"]

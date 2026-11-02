@@ -65,8 +65,9 @@ See [customizing](docs/customizing.md#local-servers-and-the-generation-allowance
 | Is a reported story also excluded? | Shared canonical URLs, normalized matching headlines, and copied summaries of at least eight words block publication. Reworded duplicates need model judgment. |
 | Does the summary have evidence support? | Jev compares the prose with frozen titles and excerpts. It does not review full articles or prove factual accuracy. |
 
-Jev rechecks each initial flag in isolation. Confirmed flags can trigger repairs within fixed limits.
-Its judgments can be wrong. See [Jev checks and repairs](docs/jev-review.md) for thresholds and acceptance rules.
+Decider, a decision model from a different vendor, rechecks each initial flag in isolation.
+Confirmed flags can trigger repairs within fixed limits.
+Both models' judgments can be wrong. See [Jev checks and repairs](docs/jev-review.md) for thresholds and acceptance rules.
 
 ## Architecture
 
