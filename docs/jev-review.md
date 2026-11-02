@@ -1,12 +1,16 @@
 # Daily Jev checks and repairs
 
 After generation selects a ready briefing, the daily stage requests a Jev review.
-It confirms each initial flag in isolation and can attempt one bounded HY3 repair round.
+Decider, a second decision model from another vendor, confirms each initial flag in isolation.
+The stage can then attempt one bounded HY3 repair round.
 Accepted slots update the public report. The original run remains unchanged.
-Both models use `OPENROUTER_API_KEY`.
+All three models use `OPENROUTER_API_KEY`.
 
-Jev uses OpenRouter's Decisions API with `typesafe/jev-1.13`.
-It needs no TypeSafe key or third-party Python package.
+Jev uses OpenRouter's Decisions API with `typesafe/jev-1.14`.
+Decider uses the same API with `perplexity/pplx-decider-v1.2`.
+Both slugs are pinned releases, not the `~latest` aliases, so a judge change is a reviewed commit.
+The client refuses a response that reports a different model than it requested.
+Neither model needs a vendor key or third-party Python package.
 It returns probabilities, not prose or free-text rationales.
 These excerpt judgments are automated evidence, not human verification.
 
@@ -48,8 +52,9 @@ Historical candidate-only artifacts remain [research evidence](research-retentio
 
 ### Confirm each flag
 
-An initial score at or above its threshold triggers one isolated recheck.
+An initial score at or above its threshold triggers one isolated recheck by Decider.
 The request contains only that finding's frozen evidence, prose, and rubric.
+A different model answers the recheck, so agreement is not one judge repeating itself.
 A pair check retains exactly two topics.
 
 | Check | Default threshold |
@@ -59,6 +64,7 @@ A pair check retains exactly two topics.
 
 Both scores must reach the threshold for `confirmed`.
 Otherwise, the flag is `disputed`.
+Decider applies the same thresholds. They were chosen against Jev's scores and have not been recalibrated for Decider.
 A missing confirmation produces `unconfirmed`, partial coverage, and no repair.
 Use `--citation-threshold` to change the standalone citation cutoff.
 
@@ -170,14 +176,17 @@ Encrypted diagnostics retain raw review files under `runs/DATE/jev-review/`.
 | Reversed claim | Detect a contradiction or reversal of the evidence. |
 
 The private report retains redacted evidence, positions, rubrics, probabilities, model identity, request hash, latency, cost, and input hashes.
+It records the initial model as `model` and the confirming model as `confirmation_model`.
+Each call records the model it requested and the dated release that answered.
+The public audit names only the initial judge.
 `--threshold` defaults to 0.8. `--citation-threshold` defaults to 0.6.
 These provisional thresholds are not calibrated correctness guarantees.
 Several checks can flag one topic. `flagged_checks` is not a topic error rate.
 
-Before calling Jev, code verifies hashes, corpus, structured candidate, and reconstructed selected evidence.
+Before calling either judge, code verifies hashes, corpus, structured candidate, and reconstructed selected evidence.
 Every final citation array must match its original section and position.
 Dropped or reordered topics cause failure instead of reassignment to different evidence.
-Jev receives no URLs or opaque citation/item handles.
+Neither judge receives URLs or opaque citation/item handles.
 
 ## Bounds and failure reporting
 
@@ -234,7 +243,8 @@ Monitor false alarms, missed errors, and editorial losses. The deterministic gat
 ## Sources and implementation
 
 - [OpenRouter Jev tutorial](https://openrouter.ai/blog/tutorials/how-to-use-jev/).
-- [OpenRouter model page](https://openrouter.ai/typesafe/jev-1.13).
+- [OpenRouter Jev model page](https://openrouter.ai/typesafe/jev-1.14).
+- [OpenRouter Decider model page](https://openrouter.ai/perplexity/pplx-decider-v1.2).
 - [`agent_runner/decisions.py`](../agent_runner/decisions.py): bounded API client.
 - [`agent_runner/jev_review.py`](../agent_runner/jev_review.py): verification, batching, confirmation, and reports.
 - [`agent_runner/semantic_repairs.py`](../agent_runner/semantic_repairs.py): repair patches and public audit projection.

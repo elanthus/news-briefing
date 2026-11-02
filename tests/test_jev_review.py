@@ -12,8 +12,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from agent_runner.checkpoint import write_json_atomic
-from agent_runner.decisions import ENDPOINT, MAX_RESPONSE_BYTES, JevClient
-from agent_runner.hashing import sha256_file
+from agent_runner.decisions import (
+    DECIDER_MODEL,
+    ENDPOINT,
+    JEV_MODEL,
+    MAX_RESPONSE_BYTES,
+    DecisionsClient,
+)
+from agent_runner.hashing import sha256_bytes, sha256_file
 from agent_runner.jev_review import (
     MAX_CALLS,
     _payload,
@@ -44,15 +50,15 @@ class Response(io.BytesIO):
 
 class DecisionsTests(unittest.TestCase):
     def payload(self):
-        return {"model": "typesafe/jev-1.13-20260917", "answers": {
+        return {"model": "typesafe/jev-1.14-20261014", "answers": {
             "question": {"type": "noul", "noul": 0.9}},
             "usage": {"input_tokens": 100, "output_tokens": 20, "cost": 0.0000042}}
 
-    def evaluate(self, payload):
+    def evaluate(self, payload, model=JEV_MODEL):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.decisions.open_validated_url", return_value=Response(payload)
         ) as opened:
-            result = JevClient().evaluate({"title": "Evidence"}, {
+            result = DecisionsClient(model).evaluate({"title": "Evidence"}, {
                 "question": {"type": "noul", "instructions": "Is this supported?"}})
         return result, opened
 
@@ -63,6 +69,32 @@ class DecisionsTests(unittest.TestCase):
         self.assertEqual(request.full_url, ENDPOINT)
         self.assertEqual(request.get_header("Authorization"), "Bearer secret")
         self.assertNotIn("secret", json.dumps(result))
+
+    def test_decider_requests_its_pinned_release_and_labels_its_failures(self):
+        payload = self.payload()
+        payload["model"] = "perplexity/pplx-decider-v1.2-20261016"
+        result, opened = self.evaluate(payload, DECIDER_MODEL)
+        self.assertEqual(result["model"], "perplexity/pplx-decider-v1.2-20261016")
+        self.assertEqual(json.loads(opened.call_args.args[0].data)["model"], DECIDER_MODEL)
+        error = urllib.error.HTTPError(ENDPOINT, 500, "error", {}, io.BytesIO(b"secret"))
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
+            "agent_runner.decisions.open_validated_url", side_effect=error
+        ), self.assertRaisesRegex(ProviderError, "^Decider HTTP 500$"):
+            DecisionsClient(DECIDER_MODEL).evaluate({}, {"q": {"type": "noul"}})
+
+    def test_served_model_must_be_the_requested_release(self):
+        for model, served in ((JEV_MODEL, "typesafe/jev-1.13-20260917"),
+                              (JEV_MODEL, "perplexity/pplx-decider-v1.2-20261016"),
+                              (JEV_MODEL, "typesafe/jev-1.14-preview"),
+                              (DECIDER_MODEL, "typesafe/jev-1.14-20261014"),
+                              (DECIDER_MODEL, "perplexity/pplx-decider-flash-v1.2-20261016")):
+            payload = self.payload()
+            payload["model"] = served
+            with self.subTest(model=model, served=served), self.assertRaises(ProviderError):
+                self.evaluate(payload, model)
+        for alias in ("~typesafe/jev-latest", "~perplexity/pplx-decider-latest", "typesafe/jev-1.13"):
+            with self.subTest(alias=alias), self.assertRaises(ValueError):
+                DecisionsClient(alias)
 
     def test_malformed_answers_and_tool_events_are_rejected(self):
         variants = []
@@ -98,12 +130,12 @@ class DecisionsTests(unittest.TestCase):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(b" " * (MAX_RESPONSE_BYTES + 1))
         ), self.assertRaisesRegex(ProviderError, "output budget"):
-            JevClient().evaluate({}, {"q": {"type": "noul"}})
+            DecisionsClient().evaluate({}, {"q": {"type": "noul"}})
         error = urllib.error.HTTPError(ENDPOINT, 302, "redirect", {}, io.BytesIO(b"secret"))
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.decisions.open_validated_url", side_effect=error
         ) as opened, self.assertRaisesRegex(ProviderError, "Jev HTTP 302") as caught:
-            JevClient().evaluate({}, {"q": {"type": "noul"}})
+            DecisionsClient().evaluate({}, {"q": {"type": "noul"}})
         opened.assert_called_once()
         self.assertNotIn("secret", str(caught.exception))
 
@@ -118,7 +150,7 @@ class DecisionsTests(unittest.TestCase):
                 else:
                     opener = patch("agent_runner.decisions.open_validated_url", side_effect=error)
                 with opener as opened, self.assertRaises(ProviderError) as caught:
-                    JevClient().evaluate({}, {"q": {"type": "noul"}})
+                    DecisionsClient().evaluate({}, {"q": {"type": "noul"}})
                 opened.assert_called_once()
                 self.assertTrue(caught.exception.ambiguous_completion)
                 self.assertFalse(caught.exception.transient)
@@ -129,11 +161,12 @@ class DecisionsTests(unittest.TestCase):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret"}), patch(
             "agent_runner.decisions.open_validated_url", return_value=io.BytesIO(raw)
         ), self.assertRaises(ProviderError):
-            JevClient().evaluate({}, {"q": {"type": "noul"}})
+            DecisionsClient().evaluate({}, {"q": {"type": "noul"}})
 
 
-class FakeJudge(JevClient):
-    def __init__(self, *, cost=0.00001, fail_after=None):
+class FakeJudge(DecisionsClient):
+    def __init__(self, *, cost=0.00001, fail_after=None, model=JEV_MODEL):
+        self.model = model
         self.calls = []
         self.cost = cost
         self.fail_after = fail_after
@@ -144,6 +177,17 @@ class FakeJudge(JevClient):
         self.calls.append((state, questions))
         return {"probabilities": {key: 0.9 for key in questions}, "model": "typesafe/jev-test",
                 "cost_usd": self.cost, "input_tokens": 100, "output_tokens": 20, "latency_ms": 1}
+
+
+class TwoFlagJudge(FakeJudge):
+    """Flag only the first two questions of the first batch, keeping confirmations under the call cap."""
+
+    def evaluate(self, state, questions, *, timeout=30):
+        result = super().evaluate(state, questions, timeout=timeout)
+        first = len(self.calls) == 1
+        result["probabilities"] = {key: 0.9 if first and index < 2 else 0.1
+                                   for index, key in enumerate(questions)}
+        return result
 
 
 class JevReviewTests(unittest.TestCase):
@@ -157,8 +201,8 @@ class JevReviewTests(unittest.TestCase):
             judge = FakeJudge()
             original_payload = _payload
 
-            def one_per_batch(tasks):
-                state, questions, size = original_payload(tasks)
+            def one_per_batch(tasks, *rest):
+                state, questions, size = original_payload(tasks, *rest)
                 return state, questions, size if len(tasks) == 1 else 100_000
 
             with patch('agent_runner.jev_review.load_verified_run',
@@ -283,6 +327,43 @@ class JevReviewTests(unittest.TestCase):
         for _state, questions in judge.calls:
             for index, question in enumerate(questions.values()):
                 self.assertIn(f"checks[{index}]", question["instructions"])
+
+    def test_isolated_confirmations_go_only_to_the_independent_confirmer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = self.make_run(root)
+            initial, confirmer = TwoFlagJudge(), FakeJudge(model=DECIDER_MODEL)
+            report = review_run(run, root / "review", client=initial, confirmer=confirmer, confirm_flags=True)
+        self.assertEqual(report["status"], "complete")
+        self.assertEqual((report["model"], report["confirmation_model"]), (JEV_MODEL, DECIDER_MODEL))
+        self.assertEqual(report["flagged_checks"], 2)
+        self.assertEqual(len(confirmer.calls), 2)
+        self.assertTrue(all(len(questions) == 1 for _state, questions in confirmer.calls))
+        confirmations = [c for c in report["calls"] if c.get("purpose") == "isolated_confirmation"]
+        initial_calls = [c for c in report["calls"] if c.get("purpose") != "isolated_confirmation"]
+        self.assertEqual(len(initial.calls), len(initial_calls))
+        self.assertEqual({c["requested_model"] for c in initial_calls}, {JEV_MODEL})
+        self.assertEqual({c["requested_model"] for c in confirmations}, {DECIDER_MODEL})
+        for call, (state, questions) in zip(confirmations, confirmer.calls, strict=True):
+            self.assertEqual(call["request_sha256"], sha256_bytes(json.dumps(
+                {"model": DECIDER_MODEL, "state": state, "questions": questions}, ensure_ascii=True).encode("ascii")))
+
+    def test_default_judges_are_jev_then_decider_and_unconfirmed_reviews_record_no_confirmer(self):
+        built = []
+
+        def factory(model=JEV_MODEL):
+            built.append(model)
+            return TwoFlagJudge(model=model)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = self.make_run(root)
+            with patch("agent_runner.jev_review.DecisionsClient", side_effect=factory):
+                confirmed = review_run(run, root / "confirmed", confirm_flags=True)
+                advisory = review_run(run, root / "advisory")
+        self.assertEqual(built[:2], [JEV_MODEL, DECIDER_MODEL])
+        self.assertEqual(confirmed["confirmation_model"], DECIDER_MODEL)
+        self.assertIsNone(advisory["confirmation_model"])
 
     def test_verified_value_reuses_loaded_evidence_but_a_new_consumer_rejects_changes(self):
         with tempfile.TemporaryDirectory() as directory:

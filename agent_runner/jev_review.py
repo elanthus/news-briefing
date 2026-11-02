@@ -1,4 +1,4 @@
-"""Advisory semantic review of a completed run using Jev on OpenRouter.
+"""Advisory semantic review of a completed run using Jev, confirmed by Decider, on OpenRouter.
 
 Run with ``python3 -S -m agent_runner.jev_review --run-dir RUN --output-dir OUT``.
 No verdict changes the source run, briefing, or publication disposition.
@@ -19,7 +19,7 @@ from typing import Any, Literal
 import briefing_config
 import corpus_schema
 from agent_runner.checkpoint import utc_now, write_json_atomic
-from agent_runner.decisions import JEV_MODEL, MAX_REQUEST_BYTES, JevClient
+from agent_runner.decisions import DECIDER_MODEL, JEV_MODEL, MAX_REQUEST_BYTES, DecisionsClient, DecisionsJudge
 from agent_runner.hashing import sha256_bytes
 from agent_runner.models import ProviderError
 from agent_runner.output import (
@@ -234,7 +234,8 @@ def build_tasks(topics: list[dict[str, Any]], max_pairs: int) -> tuple[list[dict
     return tasks, max(0, len(pairs) - max_pairs)
 
 
-def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any], int]:
+def _payload(tasks: list[dict[str, Any]],
+             model: str = JEV_MODEL) -> tuple[dict[str, Any], dict[str, Any], int]:
     state = {"checks": [task["state"] for task in tasks]}
     questions = {
         f"q{index}": {"type": "noul", "instructions": ""}
@@ -247,16 +248,21 @@ def _payload(tasks: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any
                       "topic.headline", "topic.prose", "citation_evidence"):
             rubric = rubric.replace(f"`{field}`", f"`checks[{index}].{field}`")
         questions[f"q{index}"]["instructions"] = rubric + SCOPE
-    size = len(json.dumps({"model": JEV_MODEL, "state": state, "questions": questions},
+    size = len(json.dumps({"model": model, "state": state, "questions": questions},
                           ensure_ascii=True).encode("ascii"))
     return state, questions, size
 
 
-def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = None,
+def review_run(run_dir: Path, output_dir: Path, *, client: DecisionsJudge | None = None,
+               confirmer: DecisionsJudge | None = None,
                threshold: float = 0.8, max_pairs: int = 1000, cost_ceiling: float = 0.10,
                timeout: int = 30, confirm_flags: bool = False, citation_threshold: float = 0.6,
                verified_run: VerifiedRun | None = None) -> dict[str, Any]:
-    """Write a separate advisory report, preserving partial and unknown-cost results."""
+    """Write a separate advisory report, preserving partial and unknown-cost results.
+
+    By default Jev runs the initial review and Decider runs each isolated confirmation.
+    An injected ``client`` answers both phases unless ``confirmer`` is also injected.
+    """
     if not math.isfinite(threshold) or not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
     if not math.isfinite(citation_threshold) or not 0 < citation_threshold <= 1:
@@ -271,7 +277,10 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
         raise ValueError("review output must be separate from the source run")
     destination.mkdir(parents=True, exist_ok=False)
     deadline = time.monotonic() + MAX_REVIEW_SECONDS
-    report: dict[str, Any] = {"schema_version": 1, "mode": "advisory", "model": JEV_MODEL,
+    judge: DecisionsJudge = client or DecisionsClient(JEV_MODEL)
+    second: DecisionsJudge = confirmer or client or DecisionsClient(DECIDER_MODEL)
+    report: dict[str, Any] = {"schema_version": 1, "mode": "advisory", "model": judge.model,
+                              "confirmation_model": second.model if confirm_flags else None,
                               "started_at": utc_now(), "status": "running", "threshold": threshold,
                               "citation_threshold": citation_threshold,
                               "cost_ceiling_usd": cost_ceiling, "max_duplicate_pairs": max_pairs,
@@ -293,22 +302,23 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                        "citation_urls": citation_urls_payload(load_citation_urls(source)), "planned_checks": len(tasks),
                        "omitted_duplicate_pairs": omitted,
                        "skipped_oversized_checks": 0})
-        judge = client or JevClient()
         total_cost = 0.0
 
         def over_budget(size: int) -> bool:
             # Bytes conservatively bound input tokens; include failed-call billing uncertainty.
+            # Jev's input price is at least Decider's, so one rate bounds both phases.
             return len(report["calls"]) >= MAX_CALLS or total_cost + size * 0.042 / 1_000_000 > cost_ceiling
 
         def judge_call(call: dict[str, Any], state: dict[str, Any], questions: dict[str, Any],
-                       remaining: float) -> dict[str, Any]:
+                       remaining: float, *, by: DecisionsJudge) -> dict[str, Any]:
             call.update({"index": len(report["calls"]), "status": "in_flight", "started_at": utc_now(),
+                         "requested_model": by.model,
                          "request_sha256": sha256_bytes(json.dumps(
-                             {"model": JEV_MODEL, "state": state, "questions": questions},
+                             {"model": by.model, "state": state, "questions": questions},
                              ensure_ascii=True).encode("ascii"))})
             report["calls"].append(call)
             write_json_atomic(path, report)
-            result = judge.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
+            result = by.evaluate(state, questions, timeout=min(timeout, max(1, int(remaining))))
             call.update({key: value for key, value in result.items() if key != "probabilities"})
             call["status"] = "complete"
             call["completed_at"] = utc_now()
@@ -324,19 +334,20 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
             batch: list[dict[str, Any]] = []
             while index + len(batch) < len(tasks) and len(batch) < 50:
                 tentative = batch + [tasks[index + len(batch)]]
-                if _payload(tentative)[2] > MAX_REQUEST_BYTES:
+                if _payload(tentative, judge.model)[2] > MAX_REQUEST_BYTES:
                     break
                 batch = tentative
             if not batch:
                 report["skipped_oversized_checks"] += 1
                 index += 1
                 continue
-            state, questions, size = _payload(batch)
+            state, questions, size = _payload(batch, judge.model)
             if over_budget(size):
                 report["stop_reason"] = "call or estimated cost budget reached"
                 report["stop_code"] = "budget"
                 break
-            result = judge_call({"checks": len(batch), "task_offset": index}, state, questions, remaining)
+            result = judge_call({"checks": len(batch), "task_offset": index}, state, questions, remaining,
+                                by=judge)
             for offset, task in enumerate(batch):
                 p = result["probabilities"][f"q{offset}"]
                 cutoff = citation_threshold if task["check"] == "irrelevant_citation" else threshold
@@ -360,14 +371,14 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
                     continue
                 task = by_task[task_key(row)]
                 cutoff = citation_threshold if row["check"] == "irrelevant_citation" else threshold
-                state, questions, size = _payload([task])
+                state, questions, size = _payload([task], second.model)
                 remaining = deadline - time.monotonic()
                 if remaining < 1 or over_budget(size):
                     report["stop_reason"] = "confirmation budget or deadline reached"
                     report["stop_code"] = "deadline" if remaining < 1 else "budget"
                     break
                 result = judge_call({"checks": 1, "purpose": "isolated_confirmation", "check": row["check"],
-                                     "positions": row["positions"]}, state, questions, remaining)
+                                     "positions": row["positions"]}, state, questions, remaining, by=second)
                 row["confirmation_probability"] = result["probabilities"]["q0"]
                 row["confirmation_label"] = (
                     "confirmed" if row["confirmation_probability"] >= cutoff else "disputed"
@@ -385,7 +396,7 @@ def review_run(run_dir: Path, output_dir: Path, *, client: JevClient | None = No
         ) else "partial"
     except (ValueError, OSError, ProviderError, KeyError, TypeError, RecursionError, OverflowError) as exc:
         report["status"] = "failed" if not report["results"] else "partial"
-        # Static errors only: remote bodies are never included by JevClient.
+        # Static errors only: remote bodies are never included by DecisionsClient.
         report["stop_reason"] = type(exc).__name__
         report["stop_code"] = "provider_failure" if isinstance(exc, ProviderError) else "invalid_result"
         if report["calls"] and report["calls"][-1]["status"] == "in_flight":
