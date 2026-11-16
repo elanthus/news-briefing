@@ -180,7 +180,10 @@ Rows contain no feed text, generated prose, finding messages, URLs, or hashes.
 
 Missing source fields remain null and display as "unknown". They never become zero.
 The page reports ready rates, selected models, fallback use, repair outcomes, and known costs with unknown billing marked.
-The 28-day rolling ready rate excludes dates without records from both counts.
+A scheduled run that never starts writes no row for its date.
+Both ready rates count every calendar date from the first recorded date through the last.
+A date in that span with no row counts as not ready, and the page lists it as "no record".
+The ledger never stores a row for such a date.
 These operational summaries do not measure independent grounding or editorial quality.
 Charts are escaped inline SVG. The page loads no script.
 

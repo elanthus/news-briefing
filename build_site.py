@@ -239,6 +239,7 @@ ins { text-decoration: underline; background: #298a2930; } del { background: #bd
 .chart-bar { fill: var(--accent); } .chart-unknown { fill: var(--warn); }
 .chart-bar.cost-generation { fill: var(--accent); } .chart-bar.cost-review { fill: var(--muted); }
 .chart-bar.disposition-ready { fill: var(--ok); } .chart-bar.disposition-blocked { fill: var(--bad); }
+.chart-bar.disposition-no-record { fill: var(--warn); }
 .chart-axis, .chart-grid { stroke: var(--rule); } .chart-grid { stroke-dasharray: 4 4; }
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2; } .chart-point { fill: var(--accent); }
 @media (max-width: 40rem) { body { padding: 1rem .75rem 3rem; } th, td { padding: .4rem; }
