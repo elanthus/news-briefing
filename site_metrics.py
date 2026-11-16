@@ -11,6 +11,11 @@ carry feed text, headlines, summaries, prose, findings messages, URLs or
 hashes. A field the source entry does not record is ``null`` and renders as
 "unknown"; it is never filled with zero.
 
+A date gets a row only when a workflow run prepares it, so a scheduled run that
+never started leaves no row. The page derives those dates from the calendar
+span of the ledger and counts them as not ready in both ready rates. It never
+writes a row for them, because nothing observed what happened that day.
+
 Generation spend is the fallback chain's reported cost across every attempt,
 published as the integrity record's ``generation`` cost phase. A row whose
 entry recorded no spend stays unknown rather than zero.
@@ -391,24 +396,43 @@ def _cost_chart(rows: list[dict[str, Any]]) -> str:
     return "".join(parts)
 
 
-def rolling_ready_rate(rows: list[dict[str, Any]], window: int = ROLLING_WINDOW_DAYS) -> list[tuple[str, int, int]]:
-    """For each recorded date: (date, ready days, recorded days) over the trailing ``window`` calendar days.
+def unrecorded_dates(rows: list[dict[str, Any]]) -> list[str]:
+    """Calendar dates between the first and last recorded date that have no ledger row.
 
-    Unrecorded dates are absent from both counts; they are not treated as failures.
+    A row exists only when a workflow run prepared that date, so a scheduled run
+    that never started leaves its date with no row at all. Such a date was not
+    published ready, and the ready rates count it as a day that was not.
     """
-    days = [(date.fromisoformat(row["date"]), row["disposition"] == "ready") for row in rows]
+    if not rows:
+        return []
+    recorded = {date.fromisoformat(row["date"]) for row in rows}
+    first, last = min(recorded), max(recorded)
+    span = (first + timedelta(days=offset) for offset in range((last - first).days + 1))
+    return [day.isoformat() for day in span if day not in recorded]
+
+
+def rolling_ready_rate(rows: list[dict[str, Any]], window: int = ROLLING_WINDOW_DAYS) -> list[tuple[str, int, int]]:
+    """For each recorded date: (date, ready days, calendar days) over the trailing ``window`` calendar days.
+
+    The calendar-day count starts no earlier than the first recorded date, and a
+    date inside it with no row counts as a day that was not ready.
+    """
+    days = sorted((date.fromisoformat(row["date"]), row["disposition"] == "ready") for row in rows)
+    if not days:
+        return []
+    first = days[0][0]
     series = []
     for current, _ready in days:
-        start = current - timedelta(days=window - 1)
-        inside = [ready for day, ready in days if start <= day <= current]
-        series.append((current.isoformat(), sum(inside), len(inside)))
+        start = max(current - timedelta(days=window - 1), first)
+        ready = sum(1 for day, is_ready in days if start <= day <= current and is_ready)
+        series.append((current.isoformat(), ready, (current - start).days + 1))
     return series
 
 
 def _rolling_chart(series: list[tuple[str, int, int]]) -> str:
     width, height, top, bottom, left, right = CHART_WIDTH, 180, 16, 30, 48, 8
     plot = height - top - bottom
-    label = f"{ROLLING_WINDOW_DAYS}-day rolling share of recorded days that were ready"
+    label = f"{ROLLING_WINDOW_DAYS}-day rolling share of calendar days that were published ready"
     parts = [
         f'<svg class="metrics-chart" viewBox="0 0 {width} {height}" role="img" aria-label="{_e(label)}" '
         'preserveAspectRatio="xMinYMin meet">',
@@ -421,13 +445,13 @@ def _rolling_chart(series: list[tuple[str, int, int]]) -> str:
     span = width - left - right
     step = span / max(len(series) - 1, 1)
     points = []
-    for index, (day, ready, recorded) in enumerate(series):
+    for index, (day, ready, days) in enumerate(series):
         x = left + (index * step if len(series) > 1 else span / 2)
-        y = height - bottom - plot * (ready / recorded if recorded else 0)
+        y = height - bottom - plot * (ready / days if days else 0)
         points.append(f"{x:.1f},{y:.1f}")
         parts.append(
             f'<circle class="chart-point" cx="{x:.1f}" cy="{y:.1f}" r="3">'
-            f"<title>{_e(day)}: {_e(ready)} of {_e(recorded)} recorded days ready</title></circle>"
+            f"<title>{_e(day)}: {_e(ready)} of {_e(days)} days ready</title></circle>"
         )
     if len(points) > 1:
         parts.insert(5, f'<polyline class="chart-line" points="{" ".join(points)}"/>')
@@ -467,16 +491,24 @@ def render_metrics_body(rows: list[dict[str, Any]]) -> str:
     dispositions = Counter(row["disposition"] for row in rows)
     ready = dispositions["ready"]
     first, last = rows[0]["date"], rows[-1]["date"]
+    gaps = unrecorded_dates(rows)
+    calendar_days = total + len(gaps)
+    bars = [(name, count, f"chart-bar disposition-{name}") for name, count in sorted(
+        dispositions.items(), key=lambda item: (-item[1], item[0]))]
+    gap_note = ""
+    if gaps:
+        bars.append(("no record", len(gaps), "chart-bar disposition-no-record"))
+        gap_note = (
+            f'<p>Dates with no record, counted as not ready: {_e(len(gaps))} '
+            f"({_e(', '.join(gaps))}). No workflow run prepared these dates, so the ledger has no "
+            "disposition, model, or cost for them.</p>"
+        )
     summary = (
         '<section><h2 id="ready-rate">Ready rate</h2>'
-        f'<p class="metrics-stat"><strong>{_e(ready)} of {_e(total)}</strong> recorded report dates '
-        f"were published ready ({_e(_percent(ready, total))}), {_e(first)} to {_e(last)}.</p>"
-        + _hbar_chart(
-            "Recorded report dates by disposition",
-            [(name, count, f"chart-bar disposition-{name}") for name, count in sorted(
-                dispositions.items(), key=lambda item: (-item[1], item[0]))],
-            total,
-        )
+        f'<p class="metrics-stat"><strong>{_e(ready)} of {_e(calendar_days)}</strong> report dates '
+        f"were published ready ({_e(_percent(ready, calendar_days))}), {_e(first)} to {_e(last)}.</p>"
+        + gap_note
+        + _hbar_chart("Report dates by disposition", bars, calendar_days)
         + "</section>"
     )
 
@@ -563,9 +595,9 @@ def render_metrics_body(rows: list[dict[str, Any]]) -> str:
     latest = series[-1]
     rolling_section = (
         f'<section><h2 id="rolling">{ROLLING_WINDOW_DAYS}-day rolling ready rate</h2>'
-        f"<p>Each point counts recorded days in the {ROLLING_WINDOW_DAYS} calendar days ending on that date. "
-        f"Dates with no record are left out of both counts. Latest: {_e(latest[1])} of {_e(latest[2])} "
-        f"({_e(_percent(latest[1], latest[2]))}).</p>"
+        f"<p>Each point counts the ready days among the {ROLLING_WINDOW_DAYS} calendar days ending on that "
+        "date, starting no earlier than the first recorded date. A date with no record counts as not ready. "
+        f"Latest: {_e(latest[1])} of {_e(latest[2])} ({_e(_percent(latest[1], latest[2]))}).</p>"
         + _rolling_chart(series)
         + "</section>"
     )
