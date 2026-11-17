@@ -16,6 +16,26 @@ All modes check out `main` and use its merged code, prompts, and configuration.
 | Manual `single-day` | Today by default, or one explicit date inside the fourteen-date retention window | Replace successful reports for the target date. |
 | Manual `backfill-7-days` | Today and the six prior Eastern dates | Replace successful reports for the target dates. |
 
+### Missed-run watchdog
+
+GitHub can create a scheduled run and never start its job, as it did on 2026-11-11.
+No step of the daily workflow runs then, so the [watchdog workflow](../.github/workflows/daily-briefing-watchdog.yml) checks from its own hourly schedule.
+[`briefing_watchdog.py`](../briefing_watchdog.py) reads the deployed `metrics.json` ledger and the Daily briefing runs since the start of the previous Eastern date.
+A ledger row for the current Eastern date means the date is handled, whatever its disposition.
+
+When the row is missing, the watchdog acts in this order:
+
+1. It waits while any Daily briefing run is unfinished and not stuck. A run with no job an hour after creation is stuck.
+2. It waits twenty minutes after a run finishes, so Pages can serve that deploy.
+3. It opens an issue instead of dispatching if a manual run already ran for the date, or if it is 23:15 Eastern or later.
+4. It cancels stuck runs and dispatches one manual `single-day` run.
+5. A scheduled run that finished without recording the date is retried the same way.
+6. With no run at all, it waits until 19:00 Eastern, because scheduled runs have started as late as 18:06 Eastern.
+
+It also opens an issue for the previous Eastern date when that date has no row, because an earlier date cannot be fetched again.
+It opens at most one open issue per date.
+A manual run of the watchdog defaults to a dry run that prints the decision and changes nothing.
+
 A historical single-day run does not regenerate other archive dates.
 The workflow captures one start timestamp.
 Today's corpus covers the exact preceding 24 hours and is fetched fresh.

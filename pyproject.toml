@@ -25,6 +25,7 @@ files = [
     "private_archive.py",
     "restore_private_corpora.py",
     "audit_manifest.py",
+    "briefing_watchdog.py",
     "build_site.py",
     "site_metrics.py",
     "agent_runner",
