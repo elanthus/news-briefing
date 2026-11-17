@@ -21,8 +21,8 @@ def _completed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row.get("first"), dict) and isinstance(row.get("final"), dict)]
 
 
-def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return records for provider calls, including failed calls that may be billed."""
+def _operation_call_records(row: dict[str, Any], *, include_failed: bool = True) -> list[dict[str, Any]]:
+    """Expand provider calls. Completed stages of a failed attempt count in either mode."""
     def expand(record: dict[str, Any]) -> list[dict[str, Any]]:
         usage = record.get("usage")
         staged = usage.get("production_parity_calls") if isinstance(usage, dict) else None
@@ -38,7 +38,8 @@ def _operation_call_records(row: dict[str, Any]) -> list[dict[str, Any]]:
             and all(isinstance(call, dict) for call in completed)
             else []
         )
-        calls.append(error)
+        if include_failed:
+            calls.append(error)
         return calls
 
     calls = []

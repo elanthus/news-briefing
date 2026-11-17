@@ -12,14 +12,17 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from agent_runner.hashing import is_sha256
+
 from evaluator.metrics import percentile
+from evaluator.report import _operation_call_records
 
 Metric = Callable[[dict[str, Any]], float]
 REGRESSION_POLICY = Path(__file__).with_name("regression-policy.json")
 # The one readable policy version. A comparison records the policy file's
 # SHA-256; a comparison made under an earlier policy is reproduced from the
 # repository commit that recorded it, not by this code.
-REGRESSION_POLICY_VERSION = 2
+REGRESSION_POLICY_VERSION = 3
 PROMOTION_SCOPES = ("all_models", "any_model")
 # Prompt versions preferred when a manifest holds several and none is named:
 # the historical production baseline and the reliability candidate it was
@@ -44,6 +47,9 @@ def _check_policy_version(policy: dict[str, Any]) -> None:
     version = policy["policy_version"]
     if type(version) is not int or version != REGRESSION_POLICY_VERSION:
         raise ValueError(f"unsupported regression policy_version: {version!r}")
+    schema = policy.get("schema_version")
+    if type(schema) is not int or schema != 3:
+        raise ValueError(f"unsupported regression policy schema_version: {schema!r}")
 
 
 def _promotion_scope(rule: dict[str, Any]) -> str:
@@ -147,7 +153,7 @@ def _grounding_proxy_errors(row: dict[str, Any]) -> int:
     return int(row["final"].get("grounding_error_topics", 0))
 
 
-def _calls(row: dict[str, Any]) -> list[dict[str, Any]]:
+def _attempts(row: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         call for call in (row.get("first"), row.get("correction"))
         if isinstance(call, dict)
@@ -155,7 +161,7 @@ def _calls(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _row_latency_ms(row: dict[str, Any]) -> float:
-    return sum(float(call["latency_ms"]) for call in _calls(row))
+    return sum(float(call["latency_ms"]) for call in _attempts(row))
 
 
 def _paired_rows(
@@ -288,7 +294,7 @@ def _cost_summary(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]]
 ) -> dict[str, Any]:
     def side(rows: list[dict[str, Any]]) -> dict[str, Any]:
-        calls = [call for row in rows for call in _calls(row)]
+        calls = [call for row in rows for call in _operation_call_records(row, include_failed=False)]
         known = [float(call["cost_usd"]) for call in calls if call.get("cost_usd") is not None]
         # Python 3.11 and newer sum floats differently. Frozen evidence must
         # reproduce the same billed total on every supported interpreter.
@@ -458,6 +464,15 @@ def _human_grounding_nonincrease(
     )
 
 
+def _corpus_hash_problem(left: dict[str, Any], right: dict[str, Any]) -> str | None:
+    for field in ("corpus_sha256", "trial_corpus_sha256"):
+        if not is_sha256(left.get(field)) or not is_sha256(right.get(field)):
+            return f"row {field} is missing or invalid"
+        if left[field] != right[field]:
+            return f"row {field} differs"
+    return None
+
+
 def _selected_compatibility(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -517,8 +532,9 @@ def _selected_compatibility(
         for key in sorted(set(left_by_key) & set(right_by_key)):
             left_row = left_by_key[key]
             right_row = right_by_key[key]
-            if left_row.get("corpus_sha256") != right_row.get("corpus_sha256"):
-                problems.append(f"row corpus_sha256 differs for {provider}/{model}/{key[2]}/{key[3]}")
+            corpus_problem = _corpus_hash_problem(left_row, right_row)
+            if corpus_problem:
+                problems.append(f"{corpus_problem} for {provider}/{model}/{key[2]}/{key[3]}")
                 break
             if (
                 _complete(left_row)
@@ -636,7 +652,7 @@ def compare_runs(
         ]
         utility, utility_unmatched = _paired_rows(left, right, lambda row: row["case_kind"] == "utility")
         attacks, attack_unmatched = _paired_rows(left, right, _primary_attack)
-        operations, operations_unmatched = _paired_rows(left, right, lambda row: True)
+        all_pairs, operations_unmatched = _paired_rows(left, right, lambda row: True)
         corrections = [
             pair for pair in utility
             if pair[0].get("correction_attempted") and pair[1].get("correction_attempted")
@@ -646,8 +662,8 @@ def compare_runs(
             if _generated_topics(pair[0]) > 0 and _generated_topics(pair[1]) > 0
         ]
         latency = [
-            pair for pair in operations
-            if all(call.get("latency_ms") is not None for row in pair for call in _calls(row))
+            pair for pair in all_pairs
+            if all(call.get("latency_ms") is not None for row in pair for call in _attempts(row))
         ]
         metrics = {
             "contract_success_first": _paired_rate(
@@ -686,11 +702,11 @@ def compare_runs(
                 latency, _row_latency_ms,
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 7,
             ),
-            "reported_cost": _cost_summary(operations),
+            "reported_cost": _cost_summary(all_pairs),
         }
         deterministic_regressions = sum(
             bool(left_row["final"]["contract_success"] and not right_row["final"]["contract_success"])
-            for left_row, right_row in utility
+            for left_row, right_row in all_pairs
         )
         utility_delta = metrics["end_to_end_success_final"]["delta"]
         utility_interval = metrics["end_to_end_success_final"][

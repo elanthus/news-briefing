@@ -33,7 +33,8 @@ def _comparison_manifest() -> dict[str, object]:
             }
             rows.append({
                 "provider": "provider", "model": "model", "prompt_version": prompt,
-                "prompt_sha256": f"hash-{prompt}", "case_id": case_id, "corpus_sha256": "case-corpus",
+                "prompt_sha256": f"hash-{prompt}", "case_id": case_id, "corpus_sha256": "a" * 64,
+                "trial_corpus_sha256": "b" * 64,
                 "trial": 0, "case_kind": kind, "status": "completed", "correction_attempted": False,
                 "correction": None, "first": {**stage, "latency_ms": 10.0, "cost_usd": 0.01}, "final": stage,
             })
@@ -63,7 +64,7 @@ class CliTest(unittest.TestCase):
                 self.assertEqual(evaluator_cli.main(), 0)
             result = json.loads(output.read_text(encoding="utf-8"))
         self.assertEqual(result["schema_version"], 2)
-        self.assertEqual(result["regression_policy_version"], 2)
+        self.assertEqual(result["regression_policy_version"], 3)
         self.assertEqual(result["regression_policy_sha256"], hashlib.sha256(policy.read_bytes()).hexdigest())
         self.assertIn("promotion", result)
 

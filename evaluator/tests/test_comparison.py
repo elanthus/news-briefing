@@ -81,7 +81,8 @@ class ComparisonTest(unittest.TestCase):
             "prompt_version": prompt,
             "prompt_sha256": f"hash-{prompt}",
             "case_id": case_id,
-            "corpus_sha256": "case-corpus",
+            "corpus_sha256": "a" * 64,
+            "trial_corpus_sha256": "b" * 64,
             "trial": trial,
             "case_kind": "utility",
             "status": "completed",
@@ -90,6 +91,18 @@ class ComparisonTest(unittest.TestCase):
             "first": {**stage, "latency_ms": 10.0, "cost_usd": 0.01},
             "final": stage,
         }
+
+    def _write_comparison(self, path: Path, rows: list[dict[str, Any]]) -> None:
+        manifest = {
+            **self._provenance("production-2026-08", "reliability-v1"),
+            "suite_sha256": "suite",
+            "run_kind": "final",
+            "trials_per_case": 1,
+            "run_status": "complete",
+            "planned_case_trials": len(rows),
+            "results": rows,
+        }
+        path.write_text(json.dumps(manifest), encoding="utf-8")
 
     def _decision_result(
         self,
@@ -120,18 +133,9 @@ class ComparisonTest(unittest.TestCase):
                     row["final"]["human_grounding_reviewed_topics"] = 2
                     row["final"]["human_grounding_error_topics"] = 0
             rows.extend((utility_row, attack_row))
-        manifest = {
-            **self._provenance(*prompts),
-            "suite_sha256": "suite",
-            "run_kind": "final",
-            "trials_per_case": 1,
-            "run_status": "complete",
-            "planned_case_trials": len(rows),
-            "results": rows,
-        }
         with tempfile.TemporaryDirectory() as temporary_dir:
             path = Path(temporary_dir) / "manifest.json"
-            path.write_text(json.dumps(manifest), encoding="utf-8")
+            self._write_comparison(path, rows)
             return compare_runs(path, path, bootstrap_samples=100, seed=7)
 
     def test_identical_prompt_groups_compare_to_zero(self) -> None:
@@ -167,6 +171,82 @@ class ComparisonTest(unittest.TestCase):
                 0.0,
             )
             self.assertEqual(comparison["operations"]["reported_cost"]["baseline"]["completed_calls"], 4)
+
+    def test_gating_requires_valid_matching_fixture_and_effective_corpus_digests(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            for field in ("corpus_sha256", "trial_corpus_sha256"):
+                for left_hash, right_hash, reason in (
+                    ("a" * 64, "b" * 64, "differs"),
+                    ("a" * 64, None, "is missing or invalid"),
+                    (None, "b" * 64, "is missing or invalid"),
+                    (None, None, "is missing or invalid"),
+                    ("g" * 64, "g" * 64, "is missing or invalid"),
+                ):
+                    with self.subTest(field=field, hashes=(left_hash, right_hash)):
+                        left = self._row("production-2026-08", "case", 0)
+                        right = self._row("reliability-v1", "case", 0)
+                        for row, digest in ((left, left_hash), (right, right_hash)):
+                            if digest is None:
+                                del row[field]
+                            else:
+                                row[field] = digest
+                        self._write_comparison(path, [left, right])
+                        problem = f"row {field} {reason} for provider/model/case/0"
+                        with self.assertRaisesRegex(ValueError, problem):
+                            compare_runs(path, path)
+                        result = compare_runs(path, path, allow_descriptive=True, bootstrap_samples=10)
+                        self.assertIn(problem, result["compatibility_problems"])
+                        self.assertEqual(result["promotion"]["decision"], "not_gate_eligible_descriptive_comparison")
+
+    def test_contract_regressions_block_promotion_across_all_attack_variants(self) -> None:
+        rows = []
+        for prompt in ("production-2026-08", "reliability-v1"):
+            candidate = prompt == "reliability-v1"
+            utility = self._row(prompt, "utility", 0, success=candidate)
+            utility["final"].update(human_grounding_reviewed_topics=2, human_grounding_error_topics=0)
+            rows.append(utility)
+            for case in ("primary", "clean", "ablation"):
+                row = self._row(prompt, case, 0, success=not candidate)
+                row.update(case_kind="attack", is_clean_pair=case == "clean",
+                           corpus_position="early" if case == "ablation" else None)
+                rows.append(row)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            self._write_comparison(path, rows)
+            result = compare_runs(path, path, bootstrap_samples=10)
+        comparison = result["comparisons"][0]
+        self.assertEqual(comparison["deterministic_contract_regressions"], 3)
+        self.assertTrue(comparison["decision"]["minimum_utility_improvement_met"])
+        self.assertTrue(comparison["decision"]["attack_noninferiority_met"])
+        self.assertFalse(comparison["decision"]["zero_contract_regressions_met"])
+        self.assertEqual(result["promotion"]["decision"], "do_not_promote_candidate")
+
+    def test_cost_counts_provider_calls_within_attempts_and_partial_corrections(self) -> None:
+        left = self._row("production-2026-08", "case", 0)
+        right = self._row("reliability-v1", "case", 0)
+        left["first"].update(cost_usd=0.75, usage={"production_parity_calls": [
+            {"stage": "selection", "cost_usd": 0.25}, {"stage": "prose", "cost_usd": 0.50},
+        ]})
+        left["correction_attempted"] = True
+        left["correction"] = {"cost_usd": 0.25, "latency_ms": 1, "usage": {"production_parity_calls": [
+            {"stage": "selection", "cost_usd": 0}, {"stage": "prose", "cost_usd": 0.25},
+        ]}}
+        right.update(status="completed_with_correction_error", correction_attempted=True, correction_error={
+            "cost_usd": 0.30, "completed_stage_calls": [{"stage": "selection", "cost_usd": None}],
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            self._write_comparison(path, [left, right])
+            result = compare_runs(path, path, allow_descriptive=True, bootstrap_samples=10)
+        cost = result["comparisons"][0]["operations"]["reported_cost"]
+        self.assertEqual(cost["paired_case_trials"], 1)
+        self.assertEqual(cost["baseline"], {
+            "completed_calls": 4, "known_cost_calls": 4, "total_usd": 1.0, "per_completed_call_usd": 0.25,
+        })
+        self.assertEqual(cost["candidate"], {
+            "completed_calls": 2, "known_cost_calls": 1, "total_usd": None, "per_completed_call_usd": None,
+        })
 
     def test_promotion_decision_passes_with_noninferior_attack_and_review(self) -> None:
         result = self._decision_result(
@@ -338,7 +418,7 @@ class ComparisonTest(unittest.TestCase):
         self.assertFalse(utility["lower_bound_met"])
         self.assertEqual(raised["promotion"]["decision"], "do_not_promote_candidate")
 
-    def test_malformed_version_2_policies_are_refused(self) -> None:
+    def test_malformed_current_policies_are_refused(self) -> None:
         cases: list[tuple[dict[str, Any], str]] = [
             ({"utility_rule": "point_estimate"}, "utility_rule"),
             ({"attack_rule": "point_estimate"}, "attack_rule"),
@@ -349,7 +429,7 @@ class ComparisonTest(unittest.TestCase):
                 variant = self._policy_variant(directory, **rule)
                 with self.assertRaisesRegex(ValueError, message):
                     self._multi_model_result({"model": [(False, True)] * 4}, policy_path=variant)
-        for version in (1, 3, True, 2.0):
+        for version in (1, 2, 4, True, 3.0):
             with self.subTest(policy_version=version), tempfile.TemporaryDirectory() as directory:
                 policy_path = Path(directory) / "policy.json"
                 policy = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
@@ -357,6 +437,15 @@ class ComparisonTest(unittest.TestCase):
                 policy_path.write_text(json.dumps(policy), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "unsupported regression policy_version"):
                     self._multi_model_result({"model": [(False, True)] * 4}, policy_path=policy_path)
+
+    def test_current_policy_requires_the_current_file_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "policy.json"
+            policy = json.loads(REGRESSION_POLICY.read_bytes())
+            policy["schema_version"] = 2
+            path.write_text(json.dumps(policy), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unsupported regression policy schema_version"):
+                self._multi_model_result({"model": [(False, True)]}, policy_path=path)
 
     def test_missing_policy_version_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -536,7 +625,7 @@ class ComparisonTest(unittest.TestCase):
                     manifest["protocol_sha256"] = "different-protocol"
                     manifest["config_sha256"] = {"config.json": "different-config"}
                     manifest["generation_controls"][0]["temperature"] = 1
-                    row["corpus_sha256"] = "different-corpus"
+                    row["corpus_sha256"] = "c" * 64
                 path = temporary / f"run-{index}" / "manifest.json"
                 path.parent.mkdir()
                 path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -633,7 +722,7 @@ class ComparisonTest(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = ROOT / ".news-briefing" / "evidence"
-COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v2-comparison-production-runner-policy-v2.json"
+COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v3-comparison-prompts-policy-v3.json"
 
 
 class CommittedComparisonTest(unittest.TestCase):
@@ -643,11 +732,9 @@ class CommittedComparisonTest(unittest.TestCase):
     policy's bytes by hash; a policy change means regenerating the fixture.
     """
 
-    def test_committed_parity_v2_comparison_reproduces(self) -> None:
-        if not all(
-            (EVIDENCE / bundle / "manifest.json").is_file()
-            for bundle in ("parity-v1-evidence", "parity-v2-evidence")
-        ):
+    def test_committed_parity_v3_comparison_reproduces(self) -> None:
+        manifest = EVIDENCE / "parity-v3-evidence" / "manifest.json"
+        if not manifest.is_file():
             message = "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch"
             # CI sets REQUIRE_EVIDENCE=1 after fetching, so a missing bundle fails there.
             if os.environ.get("REQUIRE_EVIDENCE") == "1":
@@ -662,8 +749,7 @@ class CommittedComparisonTest(unittest.TestCase):
         )
         row = committed["comparisons"][0]
         result = compare_runs(
-            EVIDENCE / "parity-v1-evidence" / "manifest.json",
-            EVIDENCE / "parity-v2-evidence" / "manifest.json",
+            manifest, manifest,
             baseline_prompt=row["baseline_prompt"],
             candidate_prompt=row["candidate_prompt"],
             allow_descriptive=True,
