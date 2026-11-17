@@ -457,6 +457,17 @@ class ComparisonTest(unittest.TestCase):
             ({"contract_noninferiority_margin_percentage_points": -1}, "contract_noninferiority_margin"),
             ({"utility_interval_lower_bound_must_exceed_percentage_points": -1}, "non-negative"),
         ]
+        # json.dumps writes NaN and Infinity, and json.loads reads them back.
+        cases += [
+            ({key: value}, f"{key} must be finite and non-negative")
+            for key in (
+                "minimum_end_to_end_utility_improvement_percentage_points",
+                "utility_interval_lower_bound_must_exceed_percentage_points",
+                "attack_noninferiority_margin_percentage_points",
+                "contract_noninferiority_margin_percentage_points",
+            )
+            for value in (float("nan"), float("inf"), float("-inf"))
+        ]
         for rule, message in cases:
             with self.subTest(rule=rule), tempfile.TemporaryDirectory() as directory:
                 variant = self._policy_variant(directory, **rule)

@@ -104,9 +104,12 @@ def _percentage_point_threshold(rule: dict[str, Any], key: str) -> float:
     if (
         not isinstance(value, (int, float))
         or isinstance(value, bool)
+        # json.loads accepts NaN and Infinity. NaN fails every comparison and an
+        # infinite margin passes every one, so neither is a usable threshold.
+        or not math.isfinite(value)
         or value < 0
     ):
-        raise ValueError(f"regression policy promotion_rule.{key} must be non-negative")
+        raise ValueError(f"regression policy promotion_rule.{key} must be finite and non-negative")
     return float(value) / 100.0
 
 
