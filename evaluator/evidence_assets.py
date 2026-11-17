@@ -25,7 +25,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import IO, Any
 
-from agent_runner.hashing import sha256_bytes
+from agent_runner.hashing import is_sha256, sha256_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "evaluator" / "evidence-assets.json"
@@ -72,10 +72,6 @@ def _plain_name(value: Any, label: str) -> str:
     return value
 
 
-def _is_sha256(value: Any) -> bool:
-    return isinstance(value, str) and len(value) == 64 and not set(value) - set("0123456789abcdef")
-
-
 def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
     raw = json.loads(path.read_text(encoding="utf-8"))
     assets = []
@@ -83,7 +79,7 @@ def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
         files = tuple(_plain_name(name, "asset file") for name in item["files"])
         if len(set(files)) != len(files) or set(files) & set(IN_TREE_FILES):
             raise EvidenceAssetError(f"asset {item['name']} has duplicate or in-tree files")
-        if not _is_sha256(item["sha256"]):
+        if not is_sha256(item["sha256"]):
             raise EvidenceAssetError(f"asset {item['name']} has an invalid sha256")
         assets.append(
             Asset(
@@ -109,7 +105,7 @@ def read_sums(bundle_dir: Path) -> dict[str, str]:
         if not line:
             continue
         digest, separator, name = line.partition("  ")
-        if not separator or not _is_sha256(digest):
+        if not separator or not is_sha256(digest):
             raise EvidenceAssetError(f"invalid SHA256SUMS line in {bundle_dir}: {line!r}")
         name = _plain_name(name, "SHA256SUMS entry")
         if name in sums:

@@ -8,6 +8,11 @@ from pathlib import Path
 _CHUNK_BYTES = 1 << 20
 
 
+def is_sha256(value: object) -> bool:
+    """Whether value is a canonical lowercase SHA-256 hex digest."""
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+
+
 def sha256_bytes(data: bytes) -> str:
     """The lowercase hex SHA-256 digest of ``data``."""
     return hashlib.sha256(data).hexdigest()

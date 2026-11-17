@@ -143,7 +143,7 @@ Both record `regression_policy_sha256` as
 `bf9ed083df18bcbcaef388909b41f819eff1b8d674a2ab8aed02de43c629ce46`.
 [`parity-v2-comparison-production-runner-policy-v2.json`](parity-v2-comparison-production-runner-policy-v2.json)
 is the same production-runner comparison regenerated under the version 2 policy.
-It is a schema 2 record whose deltas and intervals match the original; CI regenerates it from the evidence bundles so bootstrap draw order cannot drift.
+Its schema 2 record has the same deltas and intervals as the original. Reproduce it from the evidence bundles at commit `5dc504b`.
 
 ## Provider schema support
 

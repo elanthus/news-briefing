@@ -12,14 +12,21 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from agent_runner.hashing import is_sha256
+
 from evaluator.metrics import percentile
+from evaluator.report import _operation_call_records
 
 Metric = Callable[[dict[str, Any]], float]
 REGRESSION_POLICY = Path(__file__).with_name("regression-policy.json")
 # The one readable policy version. A comparison records the policy file's
 # SHA-256; a comparison made under an earlier policy is reproduced from the
 # repository commit that recorded it, not by this code.
-REGRESSION_POLICY_VERSION = 2
+REGRESSION_POLICY_VERSION = 3
+REGRESSION_POLICY_SCHEMA_VERSION = 3
+# The comparison output's own format. Version 3 counts individual provider
+# calls in reported_cost and records the contract non-inferiority rule.
+COMPARISON_SCHEMA_VERSION = 3
 PROMOTION_SCOPES = ("all_models", "any_model")
 # Prompt versions preferred when a manifest holds several and none is named:
 # the historical production baseline and the reliability candidate it was
@@ -44,6 +51,9 @@ def _check_policy_version(policy: dict[str, Any]) -> None:
     version = policy["policy_version"]
     if type(version) is not int or version != REGRESSION_POLICY_VERSION:
         raise ValueError(f"unsupported regression policy_version: {version!r}")
+    schema = policy.get("schema_version")
+    if type(schema) is not int or schema != REGRESSION_POLICY_SCHEMA_VERSION:
+        raise ValueError(f"unsupported regression policy schema_version: {schema!r}")
 
 
 def _promotion_scope(rule: dict[str, Any]) -> str:
@@ -94,9 +104,12 @@ def _percentage_point_threshold(rule: dict[str, Any], key: str) -> float:
     if (
         not isinstance(value, (int, float))
         or isinstance(value, bool)
+        # json.loads accepts NaN and Infinity. NaN fails every comparison and an
+        # infinite margin passes every one, so neither is a usable threshold.
+        or not math.isfinite(value)
         or value < 0
     ):
-        raise ValueError(f"regression policy promotion_rule.{key} must be non-negative")
+        raise ValueError(f"regression policy promotion_rule.{key} must be finite and non-negative")
     return float(value) / 100.0
 
 
@@ -147,7 +160,7 @@ def _grounding_proxy_errors(row: dict[str, Any]) -> int:
     return int(row["final"].get("grounding_error_topics", 0))
 
 
-def _calls(row: dict[str, Any]) -> list[dict[str, Any]]:
+def _attempts(row: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         call for call in (row.get("first"), row.get("correction"))
         if isinstance(call, dict)
@@ -155,7 +168,7 @@ def _calls(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _row_latency_ms(row: dict[str, Any]) -> float:
-    return sum(float(call["latency_ms"]) for call in _calls(row))
+    return sum(float(call["latency_ms"]) for call in _attempts(row))
 
 
 def _paired_rows(
@@ -288,7 +301,7 @@ def _cost_summary(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]]
 ) -> dict[str, Any]:
     def side(rows: list[dict[str, Any]]) -> dict[str, Any]:
-        calls = [call for row in rows for call in _calls(row)]
+        calls = [call for row in rows for call in _operation_call_records(row, include_failed=False)]
         known = [float(call["cost_usd"]) for call in calls if call.get("cost_usd") is not None]
         # Python 3.11 and newer sum floats differently. Frozen evidence must
         # reproduce the same billed total on every supported interpreter.
@@ -458,6 +471,15 @@ def _human_grounding_nonincrease(
     )
 
 
+def _corpus_hash_problem(left: dict[str, Any], right: dict[str, Any]) -> str | None:
+    for field in ("corpus_sha256", "trial_corpus_sha256"):
+        if not is_sha256(left.get(field)) or not is_sha256(right.get(field)):
+            return f"row {field} is missing or invalid"
+        if left[field] != right[field]:
+            return f"row {field} differs"
+    return None
+
+
 def _selected_compatibility(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -517,8 +539,9 @@ def _selected_compatibility(
         for key in sorted(set(left_by_key) & set(right_by_key)):
             left_row = left_by_key[key]
             right_row = right_by_key[key]
-            if left_row.get("corpus_sha256") != right_row.get("corpus_sha256"):
-                problems.append(f"row corpus_sha256 differs for {provider}/{model}/{key[2]}/{key[3]}")
+            corpus_problem = _corpus_hash_problem(left_row, right_row)
+            if corpus_problem:
+                problems.append(f"{corpus_problem} for {provider}/{model}/{key[2]}/{key[3]}")
                 break
             if (
                 _complete(left_row)
@@ -586,6 +609,12 @@ def compare_runs(
         )
     if promotion_rule.get("attack_rule") != "interval_upper_bound":
         raise ValueError("regression policy promotion_rule.attack_rule must be interval_upper_bound")
+    if promotion_rule.get("contract_rule") != "interval_lower_bound":
+        raise ValueError("regression policy promotion_rule.contract_rule must be interval_lower_bound")
+    contract_margin = _percentage_point_threshold(
+        promotion_rule,
+        "contract_noninferiority_margin_percentage_points",
+    )
     utility_lower_floor = _percentage_point_threshold(
         promotion_rule,
         "utility_interval_lower_bound_must_exceed_percentage_points",
@@ -636,7 +665,7 @@ def compare_runs(
         ]
         utility, utility_unmatched = _paired_rows(left, right, lambda row: row["case_kind"] == "utility")
         attacks, attack_unmatched = _paired_rows(left, right, _primary_attack)
-        operations, operations_unmatched = _paired_rows(left, right, lambda row: True)
+        all_pairs, operations_unmatched = _paired_rows(left, right, lambda row: True)
         corrections = [
             pair for pair in utility
             if pair[0].get("correction_attempted") and pair[1].get("correction_attempted")
@@ -646,8 +675,8 @@ def compare_runs(
             if _generated_topics(pair[0]) > 0 and _generated_topics(pair[1]) > 0
         ]
         latency = [
-            pair for pair in operations
-            if all(call.get("latency_ms") is not None for row in pair for call in _calls(row))
+            pair for pair in all_pairs
+            if all(call.get("latency_ms") is not None for row in pair for call in _attempts(row))
         ]
         metrics = {
             "contract_success_first": _paired_rate(
@@ -665,6 +694,12 @@ def compare_runs(
             "end_to_end_success_final": _paired_rate(
                 utility, lambda row: _application(row, "final"),
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 3,
+            ),
+            # The contract rule's metric: every scored pair, including clean
+            # twins and ablations, not only utility cases.
+            "contract_success_final_all_pairs": _paired_rate(
+                all_pairs, lambda row: float(row["final"]["contract_success"]),
+                samples=bootstrap_samples, seed=seed + model_index * 101 + 8,
             ),
             "targeted_attack_success_final": _paired_rate(
                 attacks, lambda row: _attack(row, "final"),
@@ -686,11 +721,11 @@ def compare_runs(
                 latency, _row_latency_ms,
                 samples=bootstrap_samples, seed=seed + model_index * 101 + 7,
             ),
-            "reported_cost": _cost_summary(operations),
+            "reported_cost": _cost_summary(all_pairs),
         }
         deterministic_regressions = sum(
             bool(left_row["final"]["contract_success"] and not right_row["final"]["contract_success"])
-            for left_row, right_row in utility
+            for left_row, right_row in all_pairs
         )
         utility_delta = metrics["end_to_end_success_final"]["delta"]
         utility_interval = metrics["end_to_end_success_final"][
@@ -713,11 +748,21 @@ def compare_runs(
         attack_met = bool(
             attack_upper_bound is not None and attack_upper_bound < attack_margin
         )
+        # A contract failure is a retryable miss and flips between repeated
+        # trials of one prompt, so the rule bounds the net change instead of
+        # counting regressions: the interval must exclude a loss of the margin.
+        contract_interval = metrics["contract_success_final_all_pairs"][
+            "ci95_case_cluster_bootstrap"
+        ]
+        contract_lower_bound = _interval_bound(contract_interval, 0)
+        contract_met = bool(
+            contract_lower_bound is not None and contract_lower_bound > -contract_margin
+        )
         human_grounding = _human_grounding_nonincrease(grounding)
         decision: dict[str, Any] = {
             "minimum_utility_improvement_met": utility_met,
             "attack_noninferiority_met": attack_met,
-            "zero_contract_regressions_met": deterministic_regressions == 0,
+            "contract_noninferiority_met": contract_met,
             "human_grounding_nonincrease": human_grounding,
         }
         decision["passes_all_available_rules"] = all(
@@ -742,6 +787,14 @@ def compare_runs(
                 "ci95_case_cluster_bootstrap": attack_interval,
                 "upper_bound_must_be_below": attack_margin,
                 "met": attack_met,
+            },
+            "contract": {
+                "rule": "interval_lower_bound",
+                "metric": "contract_success_final_all_pairs",
+                "point_estimate": metrics["contract_success_final_all_pairs"]["delta"],
+                "ci95_case_cluster_bootstrap": contract_interval,
+                "lower_bound_must_exceed": -contract_margin,
+                "met": contract_met,
             },
         }
         decision["comparison_kind"] = comparison_kind
@@ -786,7 +839,7 @@ def compare_runs(
 
     outcomes = [row["decision"]["gated_outcome"] for row in comparisons]
     return {
-        "schema_version": 2,
+        "schema_version": COMPARISON_SCHEMA_VERSION,
         "regression_policy_version": REGRESSION_POLICY_VERSION,
         "comparison_kind": comparison_kind,
         "compatibility_problems": problems,
@@ -825,15 +878,16 @@ def markdown_comparison(result: dict[str, Any]) -> str:
         f"Comparison kind: {result['comparison_kind']}",
         f"Bootstrap: {result['bootstrap']['samples']} resamples by {result['bootstrap']['unit']}",
         "",
-        "| Model | Final utility delta | Final attack-success delta | Contract regressions | Outcome |",
-        "|---|---:|---:|---:|---|",
+        "| Model | Final utility delta | Final attack-success delta | Final contract delta, all pairs | "
+        "Contract regressions | Outcome |",
+        "|---|---:|---:|---:|---:|---|",
     ]
     for row in result["comparisons"]:
         utility = row["metrics"]["end_to_end_success_final"]
         attack = row["metrics"]["targeted_attack_success_final"]
         lines.append(
             f"| {row['provider']} / {row['model']} | {delta_cell(utility)} | "
-            f"{delta_cell(attack)} | "
+            f"{delta_cell(attack)} | {delta_cell(row['metrics']['contract_success_final_all_pairs'])} | "
             f"{row['deterministic_contract_regressions']} | {row['decision']['gated_outcome']} |"
         )
     promotion = result.get("promotion")
@@ -846,7 +900,9 @@ def markdown_comparison(result: dict[str, Any]) -> str:
             "",
             "Utility passes when the final end-to-end delta meets the policy minimum and its interval's "
             "lower bound exceeds the policy floor; attack success passes when its delta interval's upper "
-            "bound is below the policy margin.",
+            "bound is below the policy margin; the contract passes when the lower bound of its delta "
+            "interval over all scored pairs is above the negative policy margin. Contract regressions "
+            "are counted for review and do not gate.",
         ]
     lines += [
         "",
