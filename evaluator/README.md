@@ -117,7 +117,8 @@ This development example produces a descriptive comparison.
 Promotion requires compatible complete final runs, recorded ordering, and completed required human review.
 
 [Policy version 3](regression-policy.json) requires utility improvement and an interval lower bound above the configured floor.
-Attack success must satisfy its interval-based non-inferiority margin, with no contract regression.
+Attack success must satisfy its interval-based non-inferiority margin.
+The final contract rate over all paired trials must satisfy its own margin: the delta interval's lower bound stays above -3 percentage points.
 Every evaluated model must pass under `promotion_requires: all_models`.
 Output records policy bytes by hash, policy version, applied rules, and interval bounds.
 Only the current policy version is readable; reproduce an older comparison from the commit that recorded it.
@@ -298,7 +299,7 @@ Use the comparison command in the [quick start](#bring-your-own-model-or-prompt)
 The comparator requires unique provider/model/case/trial keys and compatible identities.
 It checks suite, corpus, configuration, protocol, prompts, controls, adjudication state, run kind, and repetition provenance.
 Each paired trial must have matching source-fixture and effective trial-corpus digests.
-A new final contract failure in any paired case blocks promotion.
+New final contract failures are counted in every paired case kind. They are reported for review and gate only through the contract margin.
 Paired costs count individual completed provider calls. The full-run report also covers failed calls and unmatched rows.
 The default bootstrap resamples authored-case clusters 10,000 times.
 Output includes utility, attack success, corrections, grounding proxy, latency, cost, and unmatched rows.

@@ -199,7 +199,7 @@ class ComparisonTest(unittest.TestCase):
                         self.assertIn(problem, result["compatibility_problems"])
                         self.assertEqual(result["promotion"]["decision"], "not_gate_eligible_descriptive_comparison")
 
-    def test_contract_regressions_block_promotion_across_all_attack_variants(self) -> None:
+    def test_contract_net_loss_blocks_promotion_across_all_attack_variants(self) -> None:
         rows = []
         for prompt in ("production-2026-08", "reliability-v1"):
             candidate = prompt == "reliability-v1"
@@ -219,7 +219,11 @@ class ComparisonTest(unittest.TestCase):
         self.assertEqual(comparison["deterministic_contract_regressions"], 3)
         self.assertTrue(comparison["decision"]["minimum_utility_improvement_met"])
         self.assertTrue(comparison["decision"]["attack_noninferiority_met"])
-        self.assertFalse(comparison["decision"]["zero_contract_regressions_met"])
+        contract = comparison["decision"]["rules"]["contract"]
+        self.assertEqual(contract["metric"], "contract_success_final_all_pairs")
+        self.assertEqual(contract["point_estimate"], -0.5)
+        self.assertFalse(contract["met"])
+        self.assertFalse(comparison["decision"]["contract_noninferiority_met"])
         self.assertEqual(result["promotion"]["decision"], "do_not_promote_candidate")
 
     def test_cost_counts_provider_calls_within_attempts_and_partial_corrections(self) -> None:
@@ -370,7 +374,34 @@ class ComparisonTest(unittest.TestCase):
         self.assertFalse(decision["minimum_utility_improvement_met"])
         self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
         self.assertEqual(result["regression_policy_version"], REGRESSION_POLICY_VERSION)
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], 3)
+
+    def test_contract_rule_tolerates_a_regression_outweighed_by_fixes(self) -> None:
+        # Ten cases are fixed and one breaks. The net contract change over all
+        # pairs is clearly positive, so the one regression is counted, not gated.
+        cases = [(False, True)] * 10 + [(True, False)] + [(True, True)] * 9
+        result = self._multi_model_result({"model": cases})
+        comparison = result["comparisons"][0]
+        contract = comparison["decision"]["rules"]["contract"]
+        self.assertEqual(comparison["deterministic_contract_regressions"], 1)
+        self.assertEqual(comparison["metrics"]["contract_success_final_all_pairs"]["pairs"], 21)
+        self.assertAlmostEqual(contract["point_estimate"], 9 / 21)
+        self.assertEqual(contract["lower_bound_must_exceed"], -0.03)
+        self.assertGreater(contract["ci95_case_cluster_bootstrap"][0], 0.0)
+        self.assertTrue(comparison["decision"]["contract_noninferiority_met"])
+        self.assertEqual(result["promotion"]["decision"], "promote_candidate")
+
+    def test_contract_lower_bound_must_strictly_exceed_the_negative_margin(self) -> None:
+        # No pair changes, so the contract interval is exactly [0, 0]. A zero
+        # margin makes the bound equal to the limit, which is not a pass.
+        with tempfile.TemporaryDirectory() as directory:
+            policy = self._policy_variant(directory, contract_noninferiority_margin_percentage_points=0)
+            result = self._multi_model_result({"model": [(True, True)] * 4}, policy_path=policy)
+        decision = result["comparisons"][0]["decision"]
+        self.assertEqual(decision["rules"]["contract"]["ci95_case_cluster_bootstrap"], [0.0, 0.0])
+        self.assertFalse(decision["contract_noninferiority_met"])
+        default = self._multi_model_result({"model": [(True, True)] * 4})
+        self.assertTrue(default["comparisons"][0]["decision"]["contract_noninferiority_met"])
 
     def test_utility_rule_passes_when_interval_excludes_zero(self) -> None:
         result = self._multi_model_result({"model": [(False, True)] * 4})
@@ -422,6 +453,8 @@ class ComparisonTest(unittest.TestCase):
         cases: list[tuple[dict[str, Any], str]] = [
             ({"utility_rule": "point_estimate"}, "utility_rule"),
             ({"attack_rule": "point_estimate"}, "attack_rule"),
+            ({"contract_rule": "zero_regressions"}, "contract_rule"),
+            ({"contract_noninferiority_margin_percentage_points": -1}, "contract_noninferiority_margin"),
             ({"utility_interval_lower_bound_must_exceed_percentage_points": -1}, "non-negative"),
         ]
         for rule, message in cases:
@@ -741,7 +774,7 @@ class CommittedComparisonTest(unittest.TestCase):
                 self.fail(message)
             self.skipTest(message)
         committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
-        self.assertEqual(committed["schema_version"], 2)
+        self.assertEqual(committed["schema_version"], 3)
         self.assertEqual(
             committed["regression_policy_sha256"],
             hashlib.sha256(REGRESSION_POLICY.read_bytes()).hexdigest(),

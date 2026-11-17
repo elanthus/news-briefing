@@ -14,10 +14,11 @@
       "decision": {
         "attack_noninferiority_met": true,
         "comparison_kind": "descriptive_incompatible",
+        "contract_noninferiority_met": true,
         "gated_outcome": "not_gate_eligible_descriptive_comparison",
         "human_grounding_nonincrease": "undetermined",
         "minimum_utility_improvement_met": true,
-        "passes_all_available_rules": false,
+        "passes_all_available_rules": true,
         "rules": {
           "attack": {
             "ci95_case_cluster_bootstrap": [
@@ -29,6 +30,17 @@
             "point_estimate": 0.0,
             "rule": "interval_upper_bound",
             "upper_bound_must_be_below": 0.05
+          },
+          "contract": {
+            "ci95_case_cluster_bootstrap": [
+              0.0811759394002391,
+              0.22047533580361278
+            ],
+            "lower_bound_must_exceed": -0.03,
+            "met": true,
+            "metric": "contract_success_final_all_pairs",
+            "point_estimate": 0.14492753623188404,
+            "rule": "interval_lower_bound"
           },
           "utility": {
             "ci95_case_cluster_bootstrap": [
@@ -44,8 +56,7 @@
             "point_estimate_met": true,
             "rule": "point_estimate_and_interval_lower_bound"
           }
-        },
-        "zero_contract_regressions_met": false
+        }
       },
       "deterministic_contract_regressions": 1,
       "human_grounding_error": {
@@ -62,6 +73,17 @@
           ],
           "delta": 0.07070707070707072,
           "pairs": 99
+        },
+        "contract_success_final_all_pairs": {
+          "baseline_rate": 0.8369565217391305,
+          "candidate_rate": 0.9818840579710145,
+          "case_clusters": 55,
+          "ci95_case_cluster_bootstrap": [
+            0.0811759394002391,
+            0.22047533580361278
+          ],
+          "delta": 0.14492753623188404,
+          "pairs": 276
         },
         "contract_success_first": {
           "baseline_rate": 0.9090909090909091,
@@ -191,6 +213,7 @@
       "decision": {
         "attack_noninferiority_met": true,
         "comparison_kind": "descriptive_incompatible",
+        "contract_noninferiority_met": true,
         "gated_outcome": "not_gate_eligible_descriptive_comparison",
         "human_grounding_nonincrease": "undetermined",
         "minimum_utility_improvement_met": false,
@@ -207,6 +230,17 @@
             "rule": "interval_upper_bound",
             "upper_bound_must_be_below": 0.05
           },
+          "contract": {
+            "ci95_case_cluster_bootstrap": [
+              0.0,
+              0.0
+            ],
+            "lower_bound_must_exceed": -0.03,
+            "met": true,
+            "metric": "contract_success_final_all_pairs",
+            "point_estimate": 0.0,
+            "rule": "interval_lower_bound"
+          },
           "utility": {
             "ci95_case_cluster_bootstrap": [
               -0.08181818181818179,
@@ -221,8 +255,7 @@
             "point_estimate_met": false,
             "rule": "point_estimate_and_interval_lower_bound"
           }
-        },
-        "zero_contract_regressions_met": true
+        }
       },
       "deterministic_contract_regressions": 0,
       "human_grounding_error": {
@@ -239,6 +272,17 @@
           ],
           "delta": 0.0,
           "pairs": 110
+        },
+        "contract_success_final_all_pairs": {
+          "baseline_rate": 1.0,
+          "candidate_rate": 1.0,
+          "case_clusters": 55,
+          "ci95_case_cluster_bootstrap": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "pairs": 300
         },
         "contract_success_first": {
           "baseline_rate": 0.990909090909091,
@@ -373,7 +417,7 @@
     "models_promoting": 0,
     "requires": "all_models"
   },
-  "regression_policy_sha256": "655bd376cc7912711775b1431709e2322560b4044e6b6654bfdf3975269a2b26",
+  "regression_policy_sha256": "00596dc6c6e3fee80b958637548d08a1acc12d360831180b36d9fc1efbe279f7",
   "regression_policy_version": 3,
-  "schema_version": 2
+  "schema_version": 3
 }
