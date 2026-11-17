@@ -8,7 +8,7 @@ Preserve the central contract: code constrains and checks the corpus. Models mak
 
 - Use Python 3.11 or later and only the standard library for the pipeline and evaluator core.
 - Apply this rule to `fetch_news.py`, `news_fetch/`, `run_briefing.py`, `agent_runner/`, and `corpus_*.py`.
-- Apply it also to `prepare_publication.py`, `restore_private_corpora.py`, and `private_archive.py`.
+- Apply it also to `prepare_publication.py`, `restore_private_corpora.py`, `private_archive.py`, and `briefing_watchdog.py`.
 - Use only the third-party runtime dependencies pinned in `requirements-site.txt` for `build_site.py` and the opt-in site tests.
 - Run core and evaluator tests with `python3 -S`. This disables `site` and prevents loading site-packages.
 - Preserve compatibility with the typed modules and Python versions in `pyproject.toml` and `evaluator/pyproject.toml`.

@@ -1,4 +1,10 @@
 name: Daily briefing
+# The run title names a manual run's target, which briefing_watchdog.py reads
+# so that regenerating another date does not count as recovering today.
+run-name: >-
+  ${{ github.event_name != 'workflow_dispatch' && 'Daily briefing'
+  || inputs.mode == 'backfill-7-days' && 'Daily briefing backfill-7-days'
+  || format('Daily briefing single-day {0}', inputs.report_date || 'today') }}
 
 on:
   schedule:
