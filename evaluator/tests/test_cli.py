@@ -63,7 +63,7 @@ class CliTest(unittest.TestCase):
             with patch.object(sys, "argv", argv), redirect_stdout(io.StringIO()):
                 self.assertEqual(evaluator_cli.main(), 0)
             result = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], 3)
         self.assertEqual(result["regression_policy_version"], 3)
         self.assertEqual(result["regression_policy_sha256"], hashlib.sha256(policy.read_bytes()).hexdigest())
         self.assertIn("promotion", result)
