@@ -1,4 +1,4 @@
-"""Render the README auditor example from committed fixtures and fake providers.
+"""Render an offline integrity report from committed fixtures and fake providers.
 
 Run with the isolated site dependencies: python -m tests.render_integrity_example OUTPUT.
 No network or paid model calls are made. Scores illustrate the UI, not model quality.

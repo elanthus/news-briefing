@@ -28,7 +28,7 @@ It dates and ages each run from its current attempt's start, because a re-run ke
 
 When the row is missing, the watchdog acts in this order:
 
-1. It waits while any Daily briefing run is unfinished and not stuck. A run with no job an hour after creation is stuck.
+1. It waits while any Daily briefing run is unfinished and not stuck. An unfinished run with no job an hour after its current attempt started is stuck.
 2. It waits twenty minutes after a run finishes, so Pages can serve that deploy.
 3. It opens an issue instead of dispatching if a manual run already ran for the date, or if it is 23:15 Eastern or later.
 4. It cancels stuck runs and dispatches one manual `single-day` run.
@@ -169,7 +169,6 @@ The builder removes stale `site/corpora` before rendering.
 The ledger keeps one row per report date and is never truncated.
 Rows come from all merged entries before the seven-date history limit applies.
 The footer and "Behind this briefing" panel link to the metrics page.
-The generation line at the foot of a briefing names the model, the wall clock, and the charges for that date only.
 
 The workflow downloads prior metrics and history with bounded curl requests, `Cache-Control: no-cache`, and a per-run query parameter.
 These controls reduce stale CDN responses.
@@ -185,8 +184,7 @@ Other download failures and malformed prior ledgers stop the build.
 The builder validates the merged ledger before writing output.
 
 Ledger schema 2 has the fields below and no others.
-Schema 1 rows upgrade with null `generation_cost_usd` and `generation_unknown_cost_calls`.
-Invalid provider/model identifiers become null.
+The reader rejects other schema versions and invalid stored provider or model identifiers. A row can use null for an unknown identifier.
 Rows contain no feed text, generated prose, finding messages, URLs, or hashes.
 
 | Field | Meaning |

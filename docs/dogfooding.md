@@ -6,7 +6,7 @@ This is the operating record for news-briefing. It records the first run of the 
 
 It is long on purpose — it is provenance, not a tutorial. If you are reading three entries, read these:
 
-- [2026-08-09 — the run behind the committed reference pair](#2026-08-09--the-run-behind-the-committed-reference-pair): the model cited an article that was never fetched, the checker caught it, the correction loop replaced it. This is the run the project's design argument comes from.
+- [2026-08-09 — the run behind the committed reference pair](#2026-08-09--the-run-behind-the-committed-reference-pair): the model cited an article that was never fetched, the checker caught it, and the author replaced it. This is the run the project's design argument comes from.
 - [2026-08-18 — Claude Code Sonnet 5 failed dogfood run](#2026-08-18--claude-code-sonnet-5-failed-dogfood-run): a deny-all tool rule also blocked the structured-output mechanism the schema needed. An adapter-policy conflict that only a live run surfaces.
 - [2026-08-15 — OpenRouter Tencent Hy3 dogfood run](#2026-08-15--openrouter-tencent-hy3-dogfood-run): the same corpus run twice, reasoning disabled and then enabled, so the difference is attributable to the setting rather than to a different day's news.
 
@@ -24,7 +24,7 @@ For a complete daily run, record:
 - any correction made after checking; and
 - the final checker result.
 
-Generated corpora and briefings are archived per day under [`docs/runs/<date>/`](runs/) (corpus, briefing, and the `briefing-config.json` snapshot used), so each entry below can be re-derived instead of taken on trust. The frozen regression pair in `fixtures/` is separate: it is the fixed example the test suite pins to, and daily runs do not update it.
+The [archive index](runs/README.md) lists the retained examples and the Git revision for removed directories. Some entries have no archived corpus. The frozen regression pair in `fixtures/` is separate: it is the fixed example the test suite pins to, and daily runs do not update it.
 
 Runs recorded before the multi-axis outcome model use the historical `PASS`/`WARN`/`ERROR` final labels and `failed` workflow wording. New runs record publication disposition (`ready`, `review_required`, `rejected`, or `no_result`) separately from protocol, contract, evidence, and coverage. Historical entries remain unchanged so their archived manifests and prose continue to agree.
 
@@ -53,7 +53,7 @@ Prompt versions for runs before 2026-08-16 were not recorded at run time. The hi
 
 ## Daily runs
 
-The archived corpora below use corpus schemas v3–v5. Current code accepts only v7 and rejects them, so each reproduce command first checks out `47e19ff` (2026-08-17). That commit contains every archived run below, and its checker loads them and reproduces the recorded results. Run them in a separate worktree (`git worktree add ../news-briefing-47e19ff 47e19ff`) if you don't want to leave your branch, or run `git switch -` afterwards to return to it.
+Use the revision in each entry’s reproduction command. The August 17 revision covers earlier runs. The [archive index](runs/README.md) locates the August 18 artifacts and replays. Use a separate worktree to reproduce a run with its historical checker.
 
 ### 2026-08-18 — Claude Code Sonnet 5 failed dogfood run
 

@@ -344,7 +344,7 @@ See the [methodology](../docs/evaluation-methodology.md#unverified-machine-groun
 
 ### What is retained and where
 
-Historical raw portfolio and parity trees remain in the verified originals archive identified by the [retention receipt](../docs/results/retention-2026-10-15.json).
+Raw working trees from the Portfolio and Parity benchmarks remain in the verified originals archive identified by the [retention receipt](../docs/results/retention-2026-10-15.json).
 Restore them into a separate checkout of the recorded revision.
 New runs and private review mappings remain local and ignored.
 The superseded portfolio-v1 aggregate is `history/portfolio-v1.json`.
@@ -740,7 +740,7 @@ Modules separate execution, parity, checkpoints, public evidence, reporting, com
 Shared builders live in `support.py`.
 Integrated export/tamper tests follow evidence across successive trust boundaries.
 
-## Retained portfolio research
+## Retained research evidence
 
 The one-time research migration captured private studies before their original working trees were removed.
 It did not rewrite old audits or invent generation provenance.

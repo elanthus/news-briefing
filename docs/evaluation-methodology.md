@@ -235,6 +235,7 @@ Its [protocol](../evaluator/protocols/parity-v3.json) was frozen before executio
 Within-run prompt and Parity v2 baseline comparisons are descriptive and cannot authorize promotion or regression decisions.
 
 The [Jev-stage evaluation](results/jev-stage-v1.md) ran its [28-day sample](results/jev-stage-sample.json) on October 16, 2026.
+Jev rechecked its own flags in that evaluation. The [daily service](jev-review.md#confirm-each-flag) now uses Decider for confirmation.
 All days produced ready briefings and schema-3 audits.
 Initial review was complete on 17 days and partial on 11.
 No day had missing generation or unknown billing. Reported cost was USD 2.097.
