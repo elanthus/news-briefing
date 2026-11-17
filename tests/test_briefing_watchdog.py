@@ -30,11 +30,13 @@ TOO_LATE = datetime(2026, 11, 17, 4, 30, tzinfo=UTC)  # 23:30 Eastern
 HISTORY = frozenset({YESTERDAY - timedelta(days=1), YESTERDAY})
 
 
-def _run(run_id: int, created: datetime, *, status: str = "completed", event: str = "schedule",
-         jobs: int | None = None, updated: datetime | None = None) -> watchdog.Run:
+def _run(run_id: int, started: datetime, *, status: str = "completed", event: str = "schedule",
+         jobs: int | None = None, updated: datetime | None = None, title: str | None = None) -> watchdog.Run:
     if jobs is None and status in watchdog.UNFINISHED:
         jobs = 1
-    return watchdog.Run(run_id, event, status, created, updated or created + timedelta(minutes=7), jobs)
+    if title is None:
+        title = "Daily briefing single-day today" if event == "workflow_dispatch" else "Daily briefing"
+    return watchdog.Run(run_id, event, status, title, started, updated or started + timedelta(minutes=7), jobs)
 
 
 class DecideTests(unittest.TestCase):
@@ -118,6 +120,69 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(watchdog.decide(now=AFTERNOON, recorded=frozenset(), runs=[]).alerts, ())
         self.assertEqual(watchdog.decide(now=AFTERNOON, recorded=frozenset({TODAY}), runs=[]).alerts, ())
 
+    def test_a_rerun_gets_the_full_hour_from_its_own_start(self) -> None:
+        # GitHub keeps a re-run's created_at; the watchdog measures from the attempt's start.
+        rerun = _run(7, AFTERNOON - timedelta(minutes=10), status="queued", jobs=0)
+        decision = watchdog.decide(now=AFTERNOON, recorded=HISTORY, runs=[rerun])
+        self.assertEqual((decision.dispatch, decision.cancel), (False, ()))
+
+    def test_unrecorded_yesterday_waits_for_pages_after_its_run_finishes(self) -> None:
+        after_midnight = datetime(2026, 11, 16, 5, 41, tzinfo=UTC)  # 00:41 Eastern
+        late_run = _run(4, datetime(2026, 11, 16, 4, 50, tzinfo=UTC),
+                        updated=datetime(2026, 11, 16, 5, 35, tzinfo=UTC))
+        recorded = frozenset({YESTERDAY - timedelta(days=1)})
+        self.assertEqual(watchdog.decide(now=after_midnight, recorded=recorded, runs=[late_run]).alerts, ())
+        later = after_midnight + watchdog.SETTLE_AFTER
+        self.assertEqual(watchdog.decide(now=later, recorded=recorded, runs=[late_run]).alerts, (YESTERDAY,))
+
+    def test_a_manual_run_for_another_date_does_not_stand_in_for_today(self) -> None:
+        other = _run(9, EVENING - timedelta(hours=1), event="workflow_dispatch",
+                     title="Daily briefing single-day 2026-11-14")
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[other])
+        self.assertTrue(decision.dispatch)
+        self.assertEqual(decision.alerts, ())
+
+    def test_a_manual_run_naming_today_counts_as_the_one_recovery(self) -> None:
+        explicit = _run(9, EVENING - timedelta(hours=1), event="workflow_dispatch",
+                        title="Daily briefing single-day 2026-11-16")
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[explicit])
+        self.assertFalse(decision.dispatch)
+        self.assertEqual(decision.alerts, (TODAY,))
+
+
+class CoversTests(unittest.TestCase):
+    STARTED = AFTERNOON
+
+    def _covers(self, title: str, day: date, event: str = "workflow_dispatch") -> bool:
+        return watchdog.covers(_run(1, self.STARTED, event=event, title=title), day)
+
+    def test_scheduled_and_today_runs_prepare_their_start_date(self) -> None:
+        for title, event in (("Daily briefing", "schedule"), ("Daily briefing single-day today", "workflow_dispatch"),
+                             ("Daily briefing", "workflow_dispatch")):
+            with self.subTest(title=title, event=event):
+                self.assertTrue(self._covers(title, TODAY, event))
+                self.assertFalse(self._covers(title, YESTERDAY, event))
+
+    def test_explicit_date_prepares_only_that_date(self) -> None:
+        self.assertTrue(self._covers("Daily briefing single-day 2026-11-10", date(2026, 11, 10)))
+        self.assertFalse(self._covers("Daily briefing single-day 2026-11-10", TODAY))
+        for refused in ("Daily briefing single-day 2026-02-30", "Daily briefing single-day soon"):
+            with self.subTest(title=refused):
+                self.assertFalse(self._covers(refused, TODAY))
+
+    def test_backfill_prepares_seven_dates_ending_on_its_start(self) -> None:
+        self.assertTrue(self._covers(watchdog.BACKFILL_TITLE, TODAY))
+        self.assertTrue(self._covers(watchdog.BACKFILL_TITLE, TODAY - timedelta(days=6)))
+        self.assertFalse(self._covers(watchdog.BACKFILL_TITLE, TODAY - timedelta(days=7)))
+
+    def test_titles_match_the_daily_workflow_run_name(self) -> None:
+        run_name = DAILY_WORKFLOW.split("run-name: >-\n", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("github.event_name != 'workflow_dispatch' && 'Daily briefing'", run_name)
+        self.assertIn(f"inputs.mode == 'backfill-7-days' && '{watchdog.BACKFILL_TITLE}'", run_name)
+        self.assertIn(f"format('{watchdog.SINGLE_DAY_PREFIX}{{0}}', inputs.report_date || 'today')", run_name)
+
+
+class DaylightTests(unittest.TestCase):
     def test_daylight_time_uses_the_eastern_date(self) -> None:
         # 02:30 UTC on 2026-07-02 is 22:30 EDT on 2026-07-01.
         decision = watchdog.decide(now=datetime(2026, 7, 2, 2, 30, tzinfo=UTC), recorded=frozenset(), runs=[])
@@ -134,7 +199,8 @@ class FakeApi:
 
     def get(self, path: str, query: Mapping[str, str] | None = None) -> Any:
         self.gets.append((path, dict(query or {})))
-        return self.responses[path]
+        response = self.responses[path]
+        return response(dict(query or {})) if callable(response) else response
 
     def post(self, path: str, body: Mapping[str, object] | None = None) -> None:
         if path in self.fail_posts:
@@ -142,30 +208,35 @@ class FakeApi:
         self.posts.append((path, body))
 
 
-def _api_run(run_id: int, status: str, created: str = "2026-11-16T20:21:04Z") -> dict[str, object]:
-    return {"id": run_id, "event": "schedule", "status": status, "created_at": created,
-            "updated_at": "2026-11-16T20:30:00Z"}
+def _api_run(run_id: int, status: str, started: str = "2026-11-16T20:21:04Z") -> dict[str, object]:
+    return {"id": run_id, "event": "schedule", "status": status, "display_title": "Daily briefing",
+            "created_at": "2026-11-10T20:21:04Z", "run_started_at": started, "updated_at": "2026-11-16T20:30:00Z"}
 
 
 class ListRunsTests(unittest.TestCase):
-    def test_counts_jobs_only_for_unfinished_runs(self) -> None:
+    def test_counts_jobs_only_for_unfinished_runs_and_filters_by_attempt_start(self) -> None:
         api = FakeApi({
-            "actions/workflows/daily-briefing.yml/runs": {
-                "workflow_runs": [_api_run(1, "completed"), _api_run(2, "queued")]},
+            "actions/workflows/daily-briefing.yml/runs": {"workflow_runs": [
+                _api_run(1, "completed"), _api_run(2, "queued"),
+                _api_run(3, "completed", started="2026-11-14T20:00:00Z"),
+                _api_run(4, "in_progress", started="2026-11-13T20:00:00Z"),
+            ]},
             "actions/runs/2/jobs": {"total_count": 0, "jobs": []},
+            "actions/runs/4/jobs": {"total_count": 1, "jobs": []},
         })
         since = datetime(2026, 11, 15, 5, 0, tzinfo=UTC)
         runs = watchdog.list_runs(api, since)
-        self.assertEqual([(run.id, run.jobs) for run in runs], [(1, None), (2, 0)])
-        self.assertEqual(runs[0].created_at, datetime(2026, 11, 16, 20, 21, 4, tzinfo=UTC))
-        self.assertEqual(api.gets[0][1], {"branch": "main", "created": ">=2026-11-15T05:00:00Z", "per_page": "100"})
-        self.assertEqual([path for path, _ in api.gets], ["actions/workflows/daily-briefing.yml/runs",
-                                                          "actions/runs/2/jobs"])
+        # Run 3 finished before ``since``; run 4 is older but still going.
+        self.assertEqual([(run.id, run.jobs) for run in runs], [(1, None), (2, 0), (4, 1)])
+        self.assertEqual(runs[0].started_at, datetime(2026, 11, 16, 20, 21, 4, tzinfo=UTC))
+        self.assertEqual(runs[0].title, "Daily briefing")
+        self.assertEqual(api.gets[0][1], {"branch": "main", "per_page": "100"})
 
     def test_refuses_a_malformed_response(self) -> None:
         since = datetime(2026, 11, 15, tzinfo=UTC)
-        for payload in ({}, {"workflow_runs": [{"id": True, "event": "schedule", "status": "queued"}]},
-                        {"workflow_runs": [{**_api_run(1, "completed"), "created_at": "2026-11-16T20:21:04"}]}):
+        for payload in ({}, {"workflow_runs": [{**_api_run(1, "queued"), "id": True}]},
+                        {"workflow_runs": [{**_api_run(1, "completed"), "display_title": None}]},
+                        {"workflow_runs": [{**_api_run(1, "completed"), "run_started_at": "2026-11-16T20:21:04"}]}):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 watchdog.list_runs(FakeApi({"actions/workflows/daily-briefing.yml/runs": payload}), since)
 
@@ -223,6 +294,23 @@ class ApplyTests(unittest.TestCase):
         assert body is not None
         self.assertIn("cannot be regenerated", str(body["body"]))
         self.assertIn("https://github.com/o/r/actions/runs/1", str(body["body"]))
+
+    def test_finds_an_existing_issue_on_a_later_page(self) -> None:
+        def pages(query: dict[str, str]) -> list[dict[str, object]]:
+            if query["page"] == "1":
+                return [{"title": f"Unrelated {n}"} for n in range(watchdog.ISSUE_PAGE_SIZE)]
+            return [{"title": "Daily briefing missing for 2026-11-16"}]
+        api = FakeApi({"issues": pages})
+        self._apply(_decision(alerts=(TODAY,)), api)
+        self.assertEqual(api.posts, [])
+        self.assertEqual([query["page"] for _, query in api.gets], ["1", "2"])
+
+    def test_refuses_to_open_an_issue_without_seeing_every_page(self) -> None:
+        full = [{"title": "Unrelated"}] * watchdog.ISSUE_PAGE_SIZE
+        api = FakeApi({"issues": full})
+        with self.assertRaises(ValueError):
+            self._apply(_decision(alerts=(TODAY,)), api)
+        self.assertEqual(api.posts, [])
 
 
 class GitHubApiTests(unittest.TestCase):

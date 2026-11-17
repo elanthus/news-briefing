@@ -22,6 +22,9 @@ GitHub can create a scheduled run and never start its job, as it did on 2026-11-
 No step of the daily workflow runs then, so the [watchdog workflow](../.github/workflows/daily-briefing-watchdog.yml) checks from its own hourly schedule.
 [`briefing_watchdog.py`](../briefing_watchdog.py) reads the deployed `metrics.json` ledger and the Daily briefing runs since the start of the previous Eastern date.
 A ledger row for the current Eastern date means the date is handled, whatever its disposition.
+The daily workflow's run-name records a manual run's target: `single-day today`, `single-day YYYY-MM-DD`, or `backfill-7-days`.
+The watchdog uses it so a run that regenerates another date does not count as an attempt at the current one.
+It dates and ages each run from its current attempt's start, because a re-run keeps its original creation time.
 
 When the row is missing, the watchdog acts in this order:
 

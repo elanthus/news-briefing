@@ -9,8 +9,9 @@ decides from two facts it reads fresh each time:
 * whether the deployed ``metrics.json`` ledger has a row for the current
   ``America/New_York`` date, which every run that prepares a date writes,
   including blocked and unpublished days; and
-* the Daily briefing workflow runs created since the start of the previous
-  Eastern date, with a job count for each unfinished one.
+* the Daily briefing workflow runs whose current attempt started since the
+  start of the previous Eastern date, with a job count for each unfinished
+  one. The daily workflow's run-name tells which date a manual run prepares.
 
 A day can only be recovered while it is still the current Eastern date: an
 earlier date is rebuilt only from a corpus its own run stored, and a run that
@@ -67,15 +68,49 @@ UNFINISHED = frozenset({"queued", "in_progress", "waiting", "requested", "pendin
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
 
 
+SINGLE_DAY_PREFIX = "Daily briefing single-day "
+_SINGLE_DAY_TITLE = re.compile(re.escape(SINGLE_DAY_PREFIX) + r"(\d{4}-\d{2}-\d{2})")
+BACKFILL_TITLE = "Daily briefing backfill-7-days"
+BACKFILL_DAYS = 7
+
+
 @dataclass(frozen=True)
 class Run:
     id: int
     event: str
     status: str
-    created_at: datetime
+    # The run-name the daily workflow sets, which names a manual run's target.
+    title: str
+    # The current attempt's start. A re-run keeps created_at but captures its
+    # window, and so its date, when the new attempt starts.
+    started_at: datetime
     updated_at: datetime
     # Counted only for unfinished runs; None for a completed one.
     jobs: int | None
+
+
+def covers(run: Run, day: date) -> bool:
+    """Whether ``run`` prepares ``day``, from its run-name and start date.
+
+    Scheduled runs and manual runs for "today" prepare the Eastern date they
+    start on, and a backfill also prepares the six dates before it. A manual
+    run with an explicit report date prepares only that date. A title the
+    daily workflow did not write is treated as a run for its start date.
+    """
+    started = _eastern_date(run.started_at)
+    if run.event == "workflow_dispatch":
+        explicit = _SINGLE_DAY_TITLE.fullmatch(run.title)
+        if explicit is not None:
+            try:
+                return date.fromisoformat(explicit.group(1)) == day
+            except ValueError:
+                return False
+        if run.title.startswith(SINGLE_DAY_PREFIX) and run.title != f"{SINGLE_DAY_PREFIX}today":
+            # A report date the daily workflow will refuse prepares no date.
+            return False
+        if run.title == BACKFILL_TITLE:
+            return started - timedelta(days=BACKFILL_DAYS - 1) <= day <= started
+    return started == day
 
 
 @dataclass(frozen=True)
@@ -101,7 +136,7 @@ def _eastern_date(moment: datetime) -> date:
 
 
 def _stuck(run: Run, now: datetime) -> bool:
-    return run.status in UNFINISHED and run.jobs == 0 and now - run.created_at >= STUCK_AFTER
+    return run.status in UNFINISHED and run.jobs == 0 and now - run.started_at >= STUCK_AFTER
 
 
 def decide(*, now: datetime, recorded: frozenset[date], runs: Sequence[Run]) -> Decision:
@@ -110,13 +145,16 @@ def decide(*, now: datetime, recorded: frozenset[date], runs: Sequence[Run]) -> 
     target, yesterday = local.date(), local.date() - timedelta(days=1)
     stuck = tuple(sorted(run.id for run in runs if _stuck(run, now)))
     live = [run for run in runs if run.status in UNFINISHED and run.id not in stuck]
+    settling = [run for run in runs if run.status == "completed" and now - run.updated_at < SETTLE_AFTER]
 
     alerts: list[date] = []
     # The previous date is past recovering; say so once if no run recorded it.
-    # The span check keeps a brand-new ledger from reporting dates before it.
+    # A run for it that is still going or whose deploy Pages may not serve yet
+    # holds the alert back. The span check keeps a new ledger from reporting
+    # dates before it.
     if (
         recorded and min(recorded) <= yesterday and yesterday not in recorded
-        and not any(_eastern_date(run.created_at) == yesterday for run in live)
+        and not any(covers(run, yesterday) for run in live + settling)
     ):
         alerts.append(yesterday)
 
@@ -129,10 +167,10 @@ def decide(*, now: datetime, recorded: frozenset[date], runs: Sequence[Run]) -> 
     if live:
         # Includes a run waiting on the daily concurrency group behind another.
         return outcome(f"run {live[0].id} is {live[0].status}")
-    today = [run for run in runs if _eastern_date(run.created_at) == target]
-    settling = [run for run in today if run.status == "completed" and now - run.updated_at < SETTLE_AFTER]
-    if settling:
-        return outcome(f"run {settling[0].id} finished less than {SETTLE_AFTER} ago")
+    today = [run for run in runs if covers(run, target)]
+    settling_today = [run for run in settling if covers(run, target)]
+    if settling_today:
+        return outcome(f"run {settling_today[0].id} finished less than {SETTLE_AFTER} ago")
     if any(run.event == "workflow_dispatch" for run in today):
         # One manual run per date bounds the extra model spend.
         return outcome(f"a manual run for {target} already ran without recording it",
@@ -233,28 +271,37 @@ def _timestamp(value: object, name: str) -> datetime:
 
 
 def list_runs(api: Api, since: datetime) -> list[Run]:
-    """Daily briefing runs on main created at or after ``since``."""
-    payload = api.get(
-        f"actions/workflows/{WORKFLOW_FILE}/runs",
-        {"branch": "main", "created": f">={since.astimezone(UTC):%Y-%m-%dT%H:%M:%SZ}", "per_page": "100"},
-    )
+    """Daily briefing runs on main whose current attempt started at or after ``since``, plus any unfinished run.
+
+    The listing is filtered here rather than by the API's ``created`` filter,
+    because a re-run keeps its original creation time. The newest hundred runs
+    span months of this once-a-day workflow.
+    """
+    payload = api.get(f"actions/workflows/{WORKFLOW_FILE}/runs", {"branch": "main", "per_page": "100"})
     rows = payload.get("workflow_runs") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
         raise ValueError("GitHub run response has no workflow_runs array")
     runs = []
     for row in rows:
-        if not isinstance(row, dict) or not isinstance(row.get("event"), str) or not isinstance(row.get("status"), str):
+        if not isinstance(row, dict) or not all(
+            isinstance(row.get(field), str) for field in ("event", "status", "display_title")
+        ):
             raise ValueError("GitHub run response contains a malformed run")
         run_id = _int(row.get("id"), "run id")
+        started_at = _timestamp(row.get("run_started_at"), "run_started_at")
+        if started_at < since and row["status"] not in UNFINISHED:
+            continue
         jobs = None
         if row["status"] in UNFINISHED:
+            # The jobs listing defaults to the latest attempt.
             listing = api.get(f"actions/runs/{run_id}/jobs", {"per_page": "1"})
             jobs = _int(listing.get("total_count") if isinstance(listing, dict) else None, "job count")
         runs.append(Run(
             id=run_id,
             event=row["event"],
             status=row["status"],
-            created_at=_timestamp(row.get("created_at"), "created_at"),
+            title=row["display_title"],
+            started_at=started_at,
             updated_at=_timestamp(row.get("updated_at"), "updated_at"),
             jobs=jobs,
         ))
@@ -291,6 +338,27 @@ def _issue_body(day: date, reason: str, run_url: str) -> str:
     )
 
 
+ISSUE_PAGE_SIZE = 100
+MAX_ISSUE_PAGES = 50
+
+
+def _open_issue_titles(api: Api) -> set[str]:
+    """Titles of every open issue; the endpoint pages and also lists pull requests."""
+    titles: set[str] = set()
+    for page in range(1, MAX_ISSUE_PAGES + 1):
+        issues = api.get("issues", {"state": "open", "per_page": str(ISSUE_PAGE_SIZE), "page": str(page)})
+        if not isinstance(issues, list):
+            raise ValueError("GitHub issue response is not an array")
+        titles.update(
+            issue["title"] for issue in issues
+            if isinstance(issue, dict) and "pull_request" not in issue and isinstance(issue.get("title"), str)
+        )
+        if len(issues) < ISSUE_PAGE_SIZE:
+            return titles
+    # Opening an issue without seeing them all could duplicate one.
+    raise ValueError(f"more than {MAX_ISSUE_PAGES * ISSUE_PAGE_SIZE} open issues and pull requests")
+
+
 def apply(decision: Decision, api: Api, *, run_url: str) -> None:
     for run_id in decision.cancel:
         try:
@@ -304,12 +372,7 @@ def apply(decision: Decision, api: Api, *, run_url: str) -> None:
         api.post(f"actions/workflows/{WORKFLOW_FILE}/dispatches", {"ref": "main", "inputs": {"mode": "single-day"}})
         print(f"::notice::Dispatched a single-day Daily briefing run for {decision.target}: {decision.reason}")
     if decision.alerts:
-        issues = api.get("issues", {"state": "open", "per_page": "100"})
-        if not isinstance(issues, list):
-            raise ValueError("GitHub issue response is not an array")
-        open_titles = {
-            issue.get("title") for issue in issues if isinstance(issue, dict) and "pull_request" not in issue
-        }
+        open_titles = _open_issue_titles(api)
         for day in decision.alerts:
             if _issue_title(day) in open_titles:
                 continue
