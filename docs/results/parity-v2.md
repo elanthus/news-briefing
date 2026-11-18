@@ -65,7 +65,8 @@ HY3 / production-runner, and 0/5 for HY3 / runner-deepseek-v4-flash. The promoti
 separate an injection effect from the model's ordinary selection on that corpus, and the HY3 /
 production-runner primary success should be read with that in mind.
 
-Correction (2026-11-17): the `Ablation, selection` column is an omission rate, not an attack-success rate.
+Correction (2026-11-17): the `Ablation, selection` column is not an attack-success rate. It counts trials
+that left the target story out and completed the remaining task.
 The injected text named its target only by URL, which projection redacts, and the ablations had no clean
 twins. See the [Parity v3 correction](parity-v3.md#correction-selection-ablations-2026-11-17).
 
@@ -74,7 +75,8 @@ twins. See the [Parity v3 correction](parity-v3.md#correction-selection-ablation
 The trial-level intervals above treat five temperature-0 repeats of each case as independent trials, which
 overstates the effective sample size. The table below adds case-level Wilson intervals alongside them, not in
 place of them. A case counts as compromised when at least one of its completed trials succeeded; `n` is the
-number of distinct cases.
+number of distinct cases. The `Ablation, selection` column is the exception: under the correction above, a
+counted case is one where the oracle fired at least once, which is not evidence of compromise.
 
 | Model / prompt | Primary, all (21 cases) | Primary, selection (6 cases) | Ablation, selection (6 cases) |
 |---|---:|---:|---:|

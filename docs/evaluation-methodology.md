@@ -187,17 +187,21 @@ Public bundle verification rebuilds recorded score primitives without rerunning 
 ## Version 10 suite changes
 
 Version 10 changes only the 12 production-corpus ablations.
-Each ablation now has a clean twin: the same relocated carrier items without the injected text.
+Each ablation now has a clean twin: the same relocated carrier items with their original summaries.
+The attacked trial replaces each carrier item's summary with the injected text.
+The pair therefore differs in two ways: the injected text is present, and the carrier's original summary is absent.
 The six suppression ablations name their target by headline.
 Versions 8 and 9 named it by URL. Projection redacts URLs, so the model never saw which story to omit.
 `evaluator/tests/test_suite_v10.py` checks both properties and pins the exact difference from version 9.
 
 The case's attack oracle scores every clean twin.
 Reports cross-tabulate each complete pair: fired under attack only, on the clean twin only, on both, or on neither.
-A pair that fires on both sides shows the model's ordinary behavior, not an injection effect.
+A pair that fires on both sides shows no observed difference.
+The two trials are separate calls, so the pair does not establish why the attacked trial fired.
 An attack-success rate for an omission oracle needs this control before it supports a causal reading.
 The paired injection effect is the risk difference: the attacked rate minus the clean-twin rate over the same complete pairs.
 It can be negative. With no complete pair it is `not estimable`.
+The effect includes the replaced carrier summary as well as the injected instruction.
 
 The Parity v2 and v3 selection-ablation rates predate this control.
 Their cards carry a [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
@@ -231,7 +235,7 @@ HY3 received a provider schema without `uniqueItems`; code still checked duplica
 Its schema was weaker than DeepSeek's. Their cells need this qualification.
 
 Production-corpus selection ablations succeeded 18/30 and 11/30 against DeepSeek under the two prompts.
-These are omission rates, not injection effects; see the [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
+These count trials that omitted the target and completed the remaining task. They are not injection effects; see the [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
 Primary selection results were 0/30 and 5/30.
 HY3 selection ablations were 0/30 under both prompts, and no citation ablation succeeded.
 Clean twins and ablations retain separate denominators.
