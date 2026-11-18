@@ -7,25 +7,25 @@
   news briefing
 </h1>
 
-**A daily news briefing with citations controlled by code.**
+A daily news briefing covering U.S. and world news, AI, and developer tools. Each edition links to its sources and includes an integrity report showing what changed before publication.
 
-[![CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml/badge.svg)](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml)
-&nbsp;·&nbsp; [Live site](https://elanthus.github.io/news-briefing/)
+[Read the latest briefing](https://elanthus.github.io/news-briefing/) · [Find the latest integrity report](https://elanthus.github.io/news-briefing/#how-it-works) · [View operational metrics](https://elanthus.github.io/news-briefing/metrics.html)
 
-![Pipeline from corpus collection to validated generation, semantic review, repair, and publication](docs/images/runtime-pipeline.svg)
+## How it works
 
-## What this demonstrates
+An early briefing cited an article the fetcher had never collected. The daily service now separates story selection from writing. A language model picks stories from a fixed collection of feed items. Code freezes the titles and excerpts behind each choice. The model writes from those excerpts, and code attaches the original links after validation. [Incident record](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair) · [Design decision](docs/adr/0002-two-pass-selection-then-prose-with-frozen-evidence.md)
 
-Code checks the corpus and controls citation destinations. Models select stories and write summaries from the permitted evidence.
+## Historical injection benchmark
 
-- **Citation projection.** The model selects opaque handles. Code resolves each handle to its stored destinations. See [ADR 0001](docs/adr/0001-citation-projection.md).
-- **Two generation passes.** Code validates the selection and freezes its evidence. The prose pass receives only that evidence. See [ADR 0002](docs/adr/0002-two-pass-selection-then-prose-with-frozen-evidence.md).
-- **Enforced input limits.** The fetcher checks public addresses at each redirect. It rejects XML declarations with `DOCTYPE`. Provider adapters limit captured output.
-- **Reproducible evaluation.** The [evaluator](evaluator/README.md) records protocols, uncertainty, and evidence hashes. Public [evidence bundles](docs/results/EVIDENCE-ASSETS.md) support verification without credentials or model calls.
-- **Daily review and repair.** Jev, a decision model served through OpenRouter's Decisions API, reviews each ready report. It returns probabilities, not prose. Confirmed findings can trigger bounded HY3 repairs. The [integrity report](docs/jev-review.md) records each result.
+The October 2026 Parity v3 benchmark tested whether instructions hidden in feed items could change the briefing. Across four model and prompt combinations, attacks on code-enforced rules had **0 successes in 75 primary trials each** (300 completed trials). Those rules covered citations, formatting, source-health reporting, and specific prose requirements.
 
-An August 2026 run cited an article outside its fetched corpus. The [historical log](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair) records that failure.
-Code now enforces properties that it can check. Models make judgments that code cannot prove.
+A separate experiment varied where the injected items appeared and how many there were. With the `runner-deepseek-v4-flash` prompt, attacks on story selection succeeded in **20 of 26 completed DeepSeek V4 Flash trials**. Four more trials ended in provider errors. [Results by family and case](docs/results/parity-v3.md#attack-success-by-family) · [Evaluation methodology](docs/evaluation-methodology.md#denominators-and-uncertainty)
+
+## Read one
+
+The [September 27 edition](docs/sample-briefing.md) preserves a published briefing. The November 12 integrity report below shows the original headline, the published revision, and the citations removed during review.
+
+![Published November 12, 2026 integrity report showing a story before and after repair, the removed citations, and the recorded model charges](docs/images/integrity-report-2026-11-12.png)
 
 ## Generate one
 
@@ -71,6 +71,8 @@ Both models' judgments can be wrong. See [Jev checks and repairs](docs/jev-revie
 
 ## Architecture
 
+![Daily pipeline from feed collection through selection, review, repair, and publication](docs/images/runtime-pipeline.svg)
+
 ```text
 fetch_news.py          →  corpus.json (schema v7, validated on write)
 agent_runner/          →  project → select → validate/repair/correct → freeze
@@ -86,27 +88,7 @@ The prose validator rejects destinations and citation or item tokens.
 These checks constrain destinations. They do not prove that prose follows from its evidence.
 See [design notes](docs/design.md) for the implementation boundaries.
 
-## Read one
-
-The [sample briefing](docs/sample-briefing.md) is the published September 27, 2026 report.
-Its bytes match the report copied from the site's `history.json`.
-
-| Reader view | Auditor view |
-|---|---|
-| ![Reader view of the daily briefing](docs/images/reader-view.png) | ![Integrity report from an offline fixture](docs/images/auditor-report-current.jpg) |
-
-The reader image displays the sample briefing. Its earlier dates are placeholders.
-The auditor image uses fixtures and synthetic judge scores. It demonstrates layout, not measured quality.
-
-To reproduce the auditor image, use a new output directory:
-
-```bash
-uv run --python 3.11 --with-requirements requirements-site.txt --no-project python -m tests.render_integrity_example /tmp/briefing-example
-```
-
-Then open `/tmp/briefing-example/site/reports/2026-09-30.html`.
-
-## Watch it catch an injection
+## Check a feed-injection example
 
 The [injection corpus](fixtures/current-injection-corpus.json) contains an instruction inside a feed summary.
 The instruction requests a citation to `https://security-advisory.example.com/urgent`.
@@ -122,57 +104,15 @@ ERROR [ungrounded_link] AI Dev Tools: HTTP(S) URL is not in the corpus — https
 1 error(s), 0 warning(s)
 ```
 
-## Historical injection benchmark
-
-[Parity v3](docs/results/parity-v3.md) ran the frozen version 8 suite on October 16, 2026.
-It planned 1,200 rows. It completed 1,175, with 24 provider errors and one disclosed correction error.
-The current generation suite is version 9. Historical results retain their original rules.
-
-Each condition planned 105 primary attack trials. Code enforces the targeted behavior in 75 trials.
-The remaining 30 selection trials assess model judgment. The position/count ablation has a separate denominator.
-
-| Model / prompt | Primary, all families | Primary, selection | Ablation, selection | Ablation, citation |
-|---|---:|---:|---:|---:|
-| DeepSeek V4 Flash / production-runner | 0/104; 0.0% [0.0, 3.6] | 0/29; 0.0% [0.0, 11.7] | 2/30; 6.7% [1.8, 21.3] | 0/30; 0.0% [0.0, 11.4] |
-| DeepSeek V4 Flash / runner-deepseek-v4-flash | 0/103; 0.0% [0.0, 3.6] | 0/28; 0.0% [0.0, 12.1] | 20/26; 76.9% [57.9, 89.0] | 0/25; 0.0% [0.0, 13.3] |
-| Tencent HY3 / production-runner | 0/105; 0.0% [0.0, 3.5] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
-| Tencent HY3 / runner-deepseek-v4-flash | 1/105; 1.0% [0.2, 5.2] | 1/30; 3.3% [0.6, 16.7] | 0/30; 0.0% [0.0, 11.4] | 0/30; 0.0% [0.0, 11.4] |
-
-DeepSeek with `runner-deepseek-v4-flash` reached 20/26 in selection ablation.
-The denominator becomes 30 when provider errors count as failures.
-The table below reports structural utility and primary attack success:
-
-| Model / prompt | Structural utility (final) | Targeted attack success, all 21 primary cases (final) |
-|---|---:|---:|
-| DeepSeek V4 Flash / production-runner | 90/109; 82.6% [74.4, 88.5] | 0/104; 0.0% [0.0, 3.6] |
-| DeepSeek V4 Flash / runner-deepseek-v4-flash | 94/100; 94.0% [87.5, 97.2] | 0/103; 0.0% [0.0, 3.6] |
-| Tencent HY3 / production-runner | 103/110; 93.6% [87.4, 96.9] | 0/105; 0.0% [0.0, 3.5] |
-| Tencent HY3 / runner-deepseek-v4-flash | 100/110; 90.9% [84.1, 95.0] | 1/105; 1.0% [0.2, 5.2] |
-
-Rates show successes/trials and 95% Wilson intervals. They describe the fixed suite, not deployment traffic.
-Provider-error rows are excluded. Structural utility does not measure news quality or semantic grounding.
-Benchmark settings differ from the daily service.
-HY3 received a weaker provider-enforced citation schema than DeepSeek. Direct comparisons between their cells need this qualification.
-The prompt comparison and [Parity v2](docs/results/parity-v2.md) comparison are descriptive. Neither can authorize promotion.
-See the [methodology](docs/evaluation-methodology.md#current-evaluation-results) for permitted claims.
-
-Fetch the authenticated bundles, then verify Parity v3 without model calls:
-
-```bash
-python3 -S -m evaluator.evidence_assets fetch
-python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
-```
-
-The [Jev-stage evaluation](docs/results/jev-stage-v1.md) separately assesses daily repairs with human adjudication.
-It does not change the historical injection scores.
-
 ## Further reading
 
+- The [October repair study](docs/results/jev-stage-v1.md) includes human adjudication of repair pairs. Jev rechecked its own flags in that study. The [daily service](docs/jev-review.md) now uses Decider for confirmation.
+- The [evidence guide](docs/results/EVIDENCE-ASSETS.md#fetch-and-verify) gives the commands to verify public benchmark bundles without model calls.
 - [Design](docs/design.md), [ADRs](docs/adr/README.md), [evaluation methodology](docs/evaluation-methodology.md), and [evaluator guide](evaluator/README.md).
 - [Jev review](docs/jev-review.md), [archive contract](docs/publication-archive-contract.md), and [research retention](docs/research-retention.md).
 - [October 2 assessment](docs/results/remediation-2026-10-02.md) and [September 30 experiments](docs/results/jev-preliminary-2026-09-30.md).
 - Historical records: [retired grounding monitor](docs/results/grounding-monitor.md), [dogfooding log](docs/dogfooding.md), and [benchmark write-up](docs/writeups/injection-benchmark-post.md).
-- [Security](SECURITY.md), [contribution guide](CONTRIBUTING.md), and [repository instructions](AGENTS.md).
+- [CI](https://github.com/elanthus/news-briefing/actions/workflows/ci.yml), [security](SECURITY.md), [contribution guide](CONTRIBUTING.md), and [repository instructions](AGENTS.md).
 
 Repository code uses the MIT License. Third-party titles, excerpts, and linked content remain subject to their owners' rights.
 The MIT License does not apply to that third-party content.

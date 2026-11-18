@@ -1,6 +1,7 @@
 # Research evidence retention and reader retirement
 
-Retained portfolio research uses a private dataset bound to its source evidence.
+The private research dataset preserves evaluation inputs, results, and their provenance.
+“Portfolio” is the historical name of the direct-Markdown benchmark series. Its protocols and source tags retain that name.
 Historical production audits are not inputs to the current publication loader.
 Frozen public benchmarks retain their original bytes and policies.
 They are not current operating inputs or judge caches.
@@ -14,7 +15,7 @@ They are not current operating inputs or judge caches.
 | Citation-relevance and published-text review studies | Retain source files and their limitations; do not infer excerpt support from text-only review. |
 | Portfolio v2, Parity v1, Parity v2 public bundles | Preserve exact release bytes, checksums, protocols, and source tags. Reproduce historical reporting with the recorded source revision. |
 | Recent Actions artifacts | Preserve ciphertext and deployment receipts separately. A downloaded encrypted wrapper does not establish its inner schema or quality. |
-| Historical development and raw benchmark working trees | Exclude from the active portfolio dataset. Preserve a verified original archive before removing redundant working copies. |
+| Historical development and raw benchmark working trees | Exclude from the retained research dataset. Preserve a verified original archive before removing redundant working copies. |
 
 The retained September review files have no in-repository reader.
 They were not inputs to the completed [Parity v3](results/parity-v3.md) or [Jev-stage evaluation](results/jev-stage-v1.md).
@@ -72,7 +73,7 @@ The [October 15 receipt](results/retention-2026-10-15.json) records extraction a
 | Input | Accepted current version |
 |---|---|
 | Corpus | Schema 7. |
-| Public history | Schema 9. |
+| Public history | See the [current history schema and cutover procedure](publication-archive-contract.md#reader-retirement-and-research-evidence). |
 | Publication sidecar | Complete current metadata shape. |
 | Semantic-repair audit | Metadata schema 3 with an explicit citation threshold. |
 | Failure record | Schema 1. |
@@ -102,7 +103,7 @@ The private companion inventory lists archived members and their digests.
 
 Do not extract an untrusted archive over a live checkout.
 The extractor has no in-place or delete mode.
-Current public history passed strict readers without changing its Markdown or clearing history.
+The October 15 cutover preserved the inspected public Markdown. The [October 26 cutover](publication-archive-contract.md#reader-retirement-and-research-evidence) required a history restart.
 
 The preserved GitHub wrappers' authenticated contents were inspected on October 21, 2026.
 The [compatibility record](results/retention-2026-10-21.md) lists retained formats and reader support at that inspection.

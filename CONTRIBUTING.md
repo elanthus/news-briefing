@@ -118,7 +118,7 @@ This repository uses an STE style. It does not claim complete dictionary conform
 
 ## Pull requests
 
-Pull requests receive the [automated Claude review](.github/workflows/claude-code-review.yml).
+The [automated Claude review](.github/workflows/claude-code-review.yml) runs when a same-repository pull request opens ready for review or leaves draft status.
 Include these details in the description:
 
 - The problem and resulting behavior.

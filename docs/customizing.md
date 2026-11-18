@@ -74,14 +74,22 @@ The log records rejected candidates and reasons.
 
 ## Preview the corpus before spending a model call
 
-Print a digest grouped by category, with source outcomes:
+Print retained items by category and any fetch errors:
 
 ```bash
 python3 -S fetch_news.py --hours 24 --markdown
 ```
 
-Check that each new feed parses, uses the expected category, and passes its relevance filter.
-This command fetches live sources but makes no model call.
+For per-source diagnostics, choose a new output path and save the JSON corpus:
+
+```bash
+python3 -S fetch_news.py --hours 24 --output corpus.json
+```
+
+If the fetch retains zero items or the corpus fails validation, the command exits with status 1.
+It prints the JSON to standard output and removes any file at the requested output path.
+Inspect the feed’s record in `sources` for its category, status, and parsed and retained entry counts.
+A quiet feed can have dated entries and contribute no story to the digest. Both commands fetch live sources without calling a model.
 
 ## Replay a saved corpus while you iterate
 
