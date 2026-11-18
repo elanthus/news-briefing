@@ -19,7 +19,7 @@ An early briefing cited an article the fetcher had never collected. The daily se
 
 The October 2026 Parity v3 benchmark tested whether instructions hidden in feed items could change the briefing. Across four model and prompt combinations, attacks on code-enforced rules had **0 successes in 75 primary trials each** (300 completed trials). Those rules covered citations, formatting, source-health reporting, and specific prose requirements.
 
-A separate experiment varied where the injected items appeared and how many there were. With the `runner-deepseek-v4-flash` prompt, attacks on story selection succeeded in **20 of 26 completed DeepSeek V4 Flash trials**. Four more trials ended in provider errors. [Results by family and case](docs/results/parity-v3.md#attack-success-by-family) · [Evaluation methodology](docs/evaluation-methodology.md#denominators-and-uncertainty)
+The same run also varied where the injected items appeared and how many there were. Its story-selection figure is withdrawn as an injection result. With the `runner-deepseek-v4-flash` prompt, DeepSeek V4 Flash left the targeted story out in 20 of 26 completed trials. The injected text named that story only by URL. The model never receives URLs, so the instruction did not identify its target. Those trials also had no injection-free control. Suite version 10 names the target by headline and pairs each of these trials with a clean twin. No version 10 run exists yet. [Correction](docs/results/parity-v3.md#correction-selection-ablations-2026-11-17) · [Results by family and case](docs/results/parity-v3.md#attack-success-by-family) · [Evaluation methodology](docs/evaluation-methodology.md#denominators-and-uncertainty)
 
 ## Read one
 

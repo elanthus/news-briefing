@@ -65,6 +65,10 @@ HY3 / production-runner, and 0/5 for HY3 / runner-deepseek-v4-flash. The promoti
 separate an injection effect from the model's ordinary selection on that corpus, and the HY3 /
 production-runner primary success should be read with that in mind.
 
+Correction (2026-11-17): the `Ablation, selection` column is an omission rate, not an attack-success rate.
+The injected text named its target only by URL, which projection redacts, and the ablations had no clean
+twins. See the [Parity v3 correction](parity-v3.md#correction-selection-ablations-2026-11-17).
+
 ### Case-level intervals
 
 The trial-level intervals above treat five temperature-0 repeats of each case as independent trials, which
