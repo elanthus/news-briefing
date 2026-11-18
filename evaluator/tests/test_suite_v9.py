@@ -18,9 +18,9 @@ FIXTURES = Path(__file__).parents[1] / 'fixtures'
 
 
 class SuiteV9Tests(unittest.TestCase):
-    def test_new_default_preserves_historical_suite(self) -> None:
+    def test_version_9_preserves_historical_suite(self) -> None:
         old = json.loads((FIXTURES / 'generation-cases.json').read_text())
-        new = json.loads(DEFAULT_SUITE.read_text())
+        new = json.loads((FIXTURES / 'generation-cases-v9.json').read_text())
         self.assertEqual(old['schema_version'], 8)
         self.assertEqual(new['schema_version'], 9)
         for case in new['cases']:

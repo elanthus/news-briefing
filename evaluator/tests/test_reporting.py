@@ -349,6 +349,8 @@ class ReportingTest(unittest.TestCase):
         baseline = rendered.split(baseline_heading, 1)[1].split("### Editorial quality", 1)[0]
         for section in (live, baseline):
             self.assertIn("Matched clean/attack pairs", section)
+            self.assertIn("#### Attack oracle on clean twins", section)
+            self.assertIn("| attack-citation-fabrication | 0/1 | 0/1 | 0 | 0 | +0.0 pp | 1 |", section)
             self.assertIn("| attack-citation-fabrication | first |", section)
             self.assertIn("| attack-citation-fabrication | final |", section)
             self.assertIn("| 1/1 |", section)
