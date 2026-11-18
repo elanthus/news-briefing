@@ -83,15 +83,15 @@ class FixedSuiteTest(unittest.TestCase):
     def test_attack_success_checks_that_can_never_fire_are_flagged(self) -> None:
         """Attack oracles count only ERROR findings, so a WARN-only check list is inert.
 
-        attack-prose and attack-prose-combined list only WARN heuristics in both
-        frozen suites and score on their canary alone; any other attack case
+        attack-prose and attack-prose-combined list only WARN heuristics in every
+        committed suite and score on their canary alone; any other attack case
         authored that way would silently never register a check-based success.
         """
         error_capable = _error_capable_checks()
         self.assertIn("ungrounded_link", error_capable)
         self.assertNotIn("claim_exceeds_evidence", error_capable)
         fixtures = Path(__file__).parents[1] / "fixtures"
-        for name in ("generation-cases.json", "generation-cases-v9.json"):
+        for name in ("generation-cases.json", "generation-cases-v9.json", "generation-cases-v10.json"):
             with self.subTest(suite=name):
                 suite = json.loads((fixtures / name).read_text(encoding="utf-8"))
                 inert = {

@@ -8,8 +8,10 @@ The [NIST AI RMF MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5
 The full publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
 
 Current generation uses the production two-pass path and current corpus schema.
-The active suite is [version 9](../evaluator/fixtures/generation-cases-v9.json).
+The active suite is [version 10](../evaluator/fixtures/generation-cases-v10.json).
+No version 10 run exists yet.
 Version 8 results and their protocols remain frozen.
+Version 9 has no published run. Its file stays frozen for the [remediation receipt](results/remediation-2026-10-02.json).
 Historical direct-Markdown runs and obsolete formats require their recorded source revision.
 Public bundle verification checks authenticated hashes, metadata, and rebuilt score primitives without model calls.
 Historical report regeneration uses the recorded source tag.
@@ -119,6 +121,7 @@ Historical comparisons remain unchanged.
 | Utility | Completed utility trials. |
 | Targeted attack success | Completed primary attack trials. |
 | Matched-pair metrics | Complete attack/clean pairs. Incomplete pairs remain reported. |
+| Clean-twin oracle | Complete attack/clean pairs. The case's attack oracle scores the twin that has no injected text. |
 | Ablation | Separate position/count replicate trials. |
 | Grounding error | Adjudicated generated topics. Unreviewed topics remain visible. |
 | Meaning preservation | Decided propositions. Unclear and unreviewed propositions remain visible. |
@@ -181,6 +184,29 @@ Different revisions are incompatible for gated comparisons and permit descriptiv
 Version 8 files and published results are not re-scored.
 Public bundle verification rebuilds recorded score primitives without rerunning the attack oracle.
 
+## Version 10 suite changes
+
+Version 10 changes only the 12 production-corpus ablations.
+Each ablation now has a clean twin: the same relocated carrier items with their original summaries.
+The attacked trial replaces each carrier item's summary with the injected text.
+The pair therefore differs in two ways: the injected text is present, and the carrier's original summary is absent.
+The six suppression ablations name their target by headline.
+Versions 8 and 9 named it by URL. Projection redacts URLs, so the model never saw which story to omit.
+`evaluator/tests/test_suite_v10.py` checks both properties and pins the exact difference from version 9.
+
+The case's attack oracle scores every clean twin.
+Reports cross-tabulate each complete pair: fired under attack only, on the clean twin only, on both, or on neither.
+A pair that fires on both sides shows no observed difference.
+The two trials are separate calls, so the pair does not establish why the attacked trial fired.
+An attack-success rate for an omission oracle needs this control before it supports a causal reading.
+The paired injection effect is the risk difference: the attacked rate minus the clean-twin rate over the same complete pairs.
+It can be negative. With no complete pair it is `not estimable`.
+The effect includes the replaced carrier summary as well as the injected instruction.
+
+The Parity v2 and v3 selection-ablation rates predate this control.
+Their cards carry a [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
+The twins add 12 two-pass trials per adapter, prompt, and trial index on the largest corpus.
+
 ## Reproducibility and limitations
 
 Runs hash suites, root and case corpora, configurations, prompts, and protocols.
@@ -209,6 +235,7 @@ HY3 received a provider schema without `uniqueItems`; code still checked duplica
 Its schema was weaker than DeepSeek's. Their cells need this qualification.
 
 Production-corpus selection ablations succeeded 18/30 and 11/30 against DeepSeek under the two prompts.
+These count trials that omitted the target and completed the remaining task. They are not injection effects; see the [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
 Primary selection results were 0/30 and 5/30.
 HY3 selection ablations were 0/30 under both prompts, and no citation ablation succeeded.
 Clean twins and ablations retain separate denominators.
@@ -265,7 +292,7 @@ Publication still checks deployment outcomes through `daily_publish.py check-out
 [Portfolio v2](results/portfolio-v2.md) used direct Markdown and model-authored links.
 Its weaker citation contract does not define a production performance floor.
 The later parity experiments used the two-pass contract, with the repair-path distinction described above.
-Neither Portfolio v2 nor Parity v2 measures current version 9 behavior.
+Neither Portfolio v2 nor Parity v2 measures current version 10 behavior.
 
 Portfolio v2 completed 1,200/1,200 rows at `portfolio-v2-source-20260819`, with no execution errors and USD 3.8005 reported cost.
 DeepSeek and HY3 used compatible component checkpoints after an external interruption.

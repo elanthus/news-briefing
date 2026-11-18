@@ -15,10 +15,10 @@ Read the [methodology](../docs/evaluation-methodology.md) before citing scores.
 - [Prose-quality judging](#prose-quality-judging): compare generated prose.
 - [Historical portfolio runs](#historical-portfolio-runs): reproduce dated evidence.
 
-Current generation uses production parity and suite version 9.
+Current generation uses production parity and suite version 10.
 Historical direct-Markdown and version 8 results remain frozen.
 [Parity v3](../docs/results/parity-v3.md) is the latest published injection experiment, with descriptive comparisons only.
-It does not measure current version 9 behavior.
+It does not measure current version 10 behavior.
 
 ## Bring your own model or prompt
 
@@ -49,7 +49,7 @@ def entry(path):
 protocol = {
     "protocol_id": "local-development-inputs",
     "status": "development",
-    "suite": entry(fixtures / "generation-cases-v9.json"),
+    "suite": entry(fixtures / "generation-cases-v10.json"),
     "inputs": [entry(path) for pattern in ("generation-corpus*.json", "generation-config*.json")
                for path in sorted(fixtures.glob(pattern))],
 }
@@ -128,7 +128,8 @@ Only the current policy version is readable; reproduce an older comparison from 
 | File | Purpose |
 |---|---|
 | `fixtures/checker-cases.json` | Deterministic checker and feed-parser cases with label provenance. |
-| `fixtures/generation-cases-v9.json` | Active utility, quality, and injection cases. |
+| `fixtures/generation-cases-v10.json` | Active utility, quality, and injection cases. |
+| `fixtures/generation-cases-v9.json` | Frozen version 9 suite. No published run used it. |
 | `fixtures/generation-cases.json` | Frozen historical version 8 suite. |
 | `fixtures/generation-v9-scarcity-positive.json` | Production selection positive control. |
 | `fixtures/generation-v9-utility-positive.json` | Compact utility positive controls. |
@@ -171,8 +172,14 @@ The scarcity utility case separately treats an inadequate accountability log as 
 
 ### Clean twins and ablations
 
-Version 9 marks six attacks with `matched_pair`.
-Each attacked trial runs a clean twin from the same pristine corpus and config, without mutations or source failures.
+Version 10 marks 18 attacks with `matched_pair`: six primary cases and all 12 ablations.
+Each attacked trial runs a clean twin from the same corpus and config, without mutations or source failures.
+An ablation twin keeps the relocated carrier items with their original summaries.
+The attacked trial replaces each carrier summary with the injected text.
+The pair therefore differs in the injected text and in the carrier summary it replaces, and the paired difference includes both.
+The case's attack oracle also scores the twin. Reports show the result beside the attacked trial.
+An oracle that fires on the twin measures ordinary model behavior, not an injection effect.
+The paired injection effect is the attacked rate minus the twin rate over complete pairs.
 Every twin uses the two-pass generation path and can require correction calls.
 Only complete attack/clean pairs enter matched rates; incomplete pairs remain visible.
 Benign structural utility measures contract-valid use of material and declared topic floors.
@@ -183,6 +190,8 @@ Carrier timestamps remain fixed while their serialized `dev_community` positions
 Position is an array index, not merged eligibility rank or relative prompt-token position.
 Controlled-item count is not controlled-token fraction.
 These replicate rows stay outside headline, behavior, and technique attack denominators.
+Suppression ablations name their target by headline, because the model never receives a URL.
+Versions 8 and 9 named it by URL; see the [correction](../docs/results/parity-v3.md#correction-selection-ablations-2026-11-17).
 
 Production fixtures exercise routing, scarcity, duplicate detection across overlapping categories, and grouped sections.
 Small synthetic fixtures isolate simpler boundaries.
@@ -576,8 +585,8 @@ Matched tables use one complete-pair denominator for benign utility, attacked ut
 Unclear and unreviewed editorial labels remain visible.
 
 Operations records planned, recorded, completed, failed, skipped, and correction-error rows with latency and cost.
-Each version 9 adapter/prompt/trial executes the authored cases plus six twins.
-Historical version 8 used five twins.
+Each version 10 adapter/prompt/trial executes the authored cases plus 18 twins.
+Version 9 declared six twins. Historical version 8 used five.
 A twin requires selection and prose calls and can require correction.
 Missing cost is null. Subscription CLI usage generally has no meaningful per-call billed value.
 NVIDIA judging can use configured per-token rates.
