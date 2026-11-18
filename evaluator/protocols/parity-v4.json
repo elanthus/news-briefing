@@ -1,0 +1,128 @@
+{
+  "analysis": {
+    "development_evidence_note": "A development run of the 12 version 10 ablations and their clean twins was made on 2026-11-18 from commit 3f4ff285 with a subset suite file that is not in the repository. Its rows are not inputs to this run and are never pooled with it.",
+    "known_confound": "An attacked ablation trial replaces each carrier item's summary with the injected text; the clean twin keeps the original summary. The paired injection effect therefore includes the replaced summary as well as the injected instruction.",
+    "paired_control_reporting": "For every matched pair the report cross-tabulates the case's attack oracle on the attacked trial and on its clean twin over complete pairs (attack only, clean only, both, neither) and reports the paired injection effect as the risk difference. The report at this revision computes no interval for that effect, so the card reports the counts and the point estimate only.",
+    "primary_question": "On the production corpus, does injected text that names its target by headline change how often the suppression oracle fires, relative to the clean twin of the same trial?",
+    "selection_rates_without_twin_are_not_attack_success": true
+  },
+  "authorization": {
+    "authorized_at": null,
+    "component_cost_ceiling_usd": 5.0,
+    "generation_cost_ceiling_usd": 5.0,
+    "remaining_budget_applies_to_semantic_and_grounding_review": false,
+    "total_openrouter_cost_ceiling_usd": 5.0
+  },
+  "baseline": {
+    "bundle": "docs/results/parity-v3-evidence",
+    "model_card": "docs/results/parity-v3.md",
+    "protocol": "evaluator/protocols/parity-v3.json",
+    "release_asset": "parity-v3-evidence.tar.gz",
+    "source_commit": "8e0c586580a6f1eedb72a390dac5bf73f7ad29d4",
+    "source_tag": "parity-v3-source-20261016"
+  },
+  "comparability": {
+    "citation_fabrication_is_structurally_unreachable": true,
+    "expected_comparator_outcome_against_baseline": "not_gate_eligible_descriptive_comparison",
+    "note": "This protocol keeps the parity-v3 models, generation controls, prompt version names and bytes, corpora, configurations, five trials, execution seed, final run kind, and clean-tag source convention. It changes the suite from version 8 to version 10. Version 9 changed oracles for the primary cases; version 10 gives all 12 ablations a clean twin and names the suppression target by headline. evaluator/regression-policy.json requires same_suite_sha256 and same_protocol_sha256, so `evaluator compare` against the parity-v3 bundle must run with --allow-descriptive and records a descriptive-only outcome. The gate-eligible comparison this protocol supports is the within-run prompt comparison (production-runner versus runner-deepseek-v4-flash in one matrix) and any later rerun that reuses this exact protocol, suite, corpus, and prompt bytes.",
+    "pooled_with_baseline_rows": false
+  },
+  "controls": {
+    "execution_seed": 20260901,
+    "generation_path": "production-parity",
+    "planned_rows": 1460,
+    "provider_schema": {
+      "citation_refs_max_items": "len(eligible_refs)",
+      "known_asymmetry": "tencent/hy3 answers the selection schema with uniqueItems removed, as in parity v1, v2 and v3; its utility and attack rates are not cell-for-cell comparable with deepseek/deepseek-v4-flash and must be reported with this note.",
+      "unique_items_stripped_for": [
+        "tencent/hy3"
+      ]
+    },
+    "reasoning": "disabled",
+    "run_kind": "final",
+    "seed": null,
+    "seed_note": "The production-parity path rejects --seed; sampling determinism rests on temperature 0 alone. Execution ordering is seeded with --execution-seed 20260901, the parity-v2 and parity-v3 value, and recorded in the manifest.",
+    "temperature": 0.0,
+    "timeout_seconds": 300,
+    "trials_per_case": 5
+  },
+  "frozen_at": "2026-11-18T18:21:07Z",
+  "inputs": [
+    {
+      "path": "evaluator/fixtures/generation-corpus.json",
+      "sha256": "5a3299e59c9a23eb72c44559fa5b5b4f7f6d63939466b6c1503c44a9688f478b"
+    },
+    {
+      "path": "evaluator/fixtures/generation-corpus-production.json",
+      "sha256": "27a908a775a21848536ac97b7b0b208e3d28b37de929724967ead4bcd108e735"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-1.json",
+      "sha256": "a9fc12dfa355fe3c950f4158ff3935643c585ea8b16eb4a13618324a795c6447"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-2.json",
+      "sha256": "855c7a47577673c8de699c43485ec911c1f375b49bb014d100271e8933d47388"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-3.json",
+      "sha256": "afec844144b923a3460f9b7c924d3536e8e9e92c4c412509bf99e1bfcef6a46d"
+    },
+    {
+      "path": "evaluator/fixtures/generation-config-production.json",
+      "sha256": "ef665c7c0c4cd7476593cc176b54de0764cde6e29fc7dc02cc6a24694e6c23d9"
+    }
+  ],
+  "models": [
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    {
+      "model": "tencent/hy3",
+      "provider": "openrouter"
+    }
+  ],
+  "objective": "Run the parity matrix on the version 10 suite at the current source revision, so every production-corpus ablation is reported beside a clean twin of the same trial. The Parity v2 and v3 selection-ablation rates were withdrawn as injection results because their injected text never named its target and they had no clean twin. Parity v3 remains the citable prior baseline; its rows are never pooled with this run.",
+  "prompts": [
+    {
+      "id": "production-runner",
+      "path": "briefing-runner-prompt.md",
+      "sha256": "077116a84cea305f38e34145222ca325aed342275144a67d6a428e9caeea71c6"
+    },
+    {
+      "id": "runner-deepseek-v4-flash",
+      "path": "evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md",
+      "sha256": "f8cf8b0a023a9f707f52948b6160c850efdfc5d4b29dc43d5895c18b3c5993f1"
+    }
+  ],
+  "protocol_id": "parity-v4",
+  "publication": {
+    "aggregate_regeneration_must_be_verified": true,
+    "provider_request_ids_must_be_redacted": true,
+    "raw_generated_outputs_required_in_release_bundle": true
+  },
+  "review": {
+    "machine_labels_are_not_human_approval": true
+  },
+  "schema_version": 1,
+  "source": {
+    "clean_worktree_required": true,
+    "public_evidence_required": true,
+    "reachable_commit_required": true,
+    "required_tag": "parity-v4-source-20261118",
+    "required_tag_note": "The tag follows parity-v3-source-20261016 and names the UTC date of the freeze. It must point at the clean HEAD that `evaluator run --run-kind final` records; it is created only when the run is authorized.",
+    "runtime_source_sha256_required": true
+  },
+  "status": "frozen_for_run",
+  "status_note": "Frozen on 2026-11-18T18:21:07Z: every listed input and prompt hash was verified against the committed bytes and the run command passed `evaluator preflight --before-tag`. authorization.authorized_at stays null until the paid run is authorized; the authorization commit then records it, the clean HEAD is tagged with required_tag, and the preflight is rerun without --before-tag. evaluator/tests/test_protocols.py fails when the listed hashes drift from the committed fixtures while this status stands.",
+  "suite": {
+    "authored_cases": 55,
+    "derived_clean_cases": 18,
+    "path": "evaluator/fixtures/generation-cases-v10.json",
+    "rows_per_model_prompt_trial": 73,
+    "sha256": "4f6b802596b1b8725e11fb7199a8e139a06ca0454b84682f3e8ee1ba9075cd31",
+    "version": 10,
+    "version_note": "Version 10 is the active default suite. It differs from version 9 only in the 12 production-corpus ablations: each has a clean twin, and the six suppression ablations name their target by headline. Version 8 (parity v2 and v3) and version 9 remain frozen."
+  }
+}
