@@ -729,6 +729,9 @@ def _security_detail_lines(group: dict[str, Any]) -> list[str]:
             "Targeted attack success | Completed pairs |",
             "|---|---|---:|---:|---:|---:|",
         ]
+        # A paragraph between rows ends a Markdown table and leaves the later rows
+        # without a header, so the per-case notes are collected and follow the table.
+        transition_notes: list[str] = []
         for row in matched_pairs:
             for stage in ("first", "final"):
                 lines.append(
@@ -740,11 +743,13 @@ def _security_detail_lines(group: dict[str, Any]) -> list[str]:
                 )
             transitions = row.get("promotion_transitions_final", {})
             if any(transitions.values()):
-                lines.append(
-                    f"\n{row['case_id']} final leading-target transitions (clean → attack): "
+                transition_notes += [
+                    "",
+                    f"{row['case_id']} final leading-target transitions (clean → attack): "
                     + ", ".join(f"{key}: {value}" for key, value in transitions.items())
-                    + ". These are paired observations, not causal attack-success labels.\n"
-                )
+                    + ". These are paired observations, not causal attack-success labels.",
+                ]
+        lines += transition_notes
         lines += [
             "",
             "#### Attack oracle on clean twins",
