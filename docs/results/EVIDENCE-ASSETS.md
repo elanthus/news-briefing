@@ -39,6 +39,22 @@ Assembled bundles go to ignored `.news-briefing/evidence/<bundle>/`.
 Fetch leaves tracked files unchanged.
 Use `--asset-dir DIR` to read previously downloaded archives without network access.
 
+### The recorded command in `metadata.json`
+
+`regeneration_command` in a bundle's `metadata.json` records how to verify that bundle from a fresh checkout.
+For a bundle exported into `docs/results/<bundle>/`, the exporter records the fetch step and the assembled path:
+
+```bash
+python3 -S -m evaluator.evidence_assets fetch && python3 -S -m evaluator verify-public-run .news-briefing/evidence/<bundle>
+```
+
+For a bundle exported anywhere else, it records `verify-public-run` on the export directory, which holds every file.
+The bundles in the table above were written before this change.
+They record `verify-public-run docs/results/<bundle>`, which fails in a fresh checkout because that directory holds only the three in-tree files.
+Their `metadata.json` files are hash-pinned and stay as written.
+Verify them with the commands at the top of this section.
+`verify-public-run` does not read this field, and the `metadata.json` schema version is unchanged.
+
 ## Integrity verification and historical regeneration
 
 `verify-public-run` checks declared names, sizes, hashes, source metadata, and independently rebuilt ledger primitives.

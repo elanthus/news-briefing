@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from evaluator.publication import export_public_run, verify_public_run
+from evaluator.evidence_assets import IN_TREE_FILES, Asset, Config, fetch, pack_bytes, read_sums
+from evaluator.publication import (
+    _recorded_verification_command,
+    export_public_run,
+    verify_public_run,
+)
 from evaluator.runner import ROOT
 
 
@@ -20,66 +25,71 @@ def _refresh_sums(output: Path) -> None:
     ), encoding="utf-8")
 
 
+def _final_manifest() -> dict[str, Any]:
+    """Return a minimal complete final-run manifest with one scored row."""
+    return {
+        "schema_version": 9,
+        "generation_path": "markdown",
+        "run_kind": "final",
+        "run_status": "complete",
+        "planned_case_trials": 1,
+        "trials_per_case": 1,
+        "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
+        "protocol": str(ROOT / "evaluator/protocols/portfolio-v1.json"),
+        "code": {
+            "commit": "abc",
+            "tree": "def",
+            "dirty": False,
+            "source_tag": "portfolio-test-source",
+            "runtime_source_sha256": {"evaluator/runner.py": "123"},
+        },
+        "generation_controls": [],
+        "grounding_measure": "test",
+        "deterministic_summary": None,
+        "results": [{
+            "provider": "openrouter",
+            "model": "model",
+            "prompt_version": "prompt",
+            "prompt_sha256": "prompt-sha",
+            "case_id": "case",
+            "case_family": "utility",
+            "case_kind": "utility",
+            "trial": 1,
+            "status": "completed",
+            "artifact_dir": "row",
+            "correction_attempted": False,
+            "correction": None,
+            "correction_error": None,
+            "error": None,
+            "first": {
+                "text": "generated output",
+                "provider_request_id": "secret-id",
+                "contract_success": True,
+                "latency_ms": 1,
+                "cost_usd": 0.01,
+                "findings": [],
+                "grounding_error_topics": 0,
+                "generated_topics": 1,
+                "oracle": {},
+            },
+            "final": {
+                "contract_success": True,
+                "findings": [],
+                "grounding_error_topics": 0,
+                "generated_topics": 1,
+                "oracle": {},
+            },
+        }],
+    }
+
+
 class PublicRunTest(unittest.TestCase):
     def test_export_removes_provider_ids_and_rebuilds_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source"
             source.mkdir()
-            manifest: dict[str, Any] = {
-                "schema_version": 9,
-                "generation_path": "markdown",
-                "run_kind": "final",
-                "run_status": "complete",
-                "planned_case_trials": 1,
-                "trials_per_case": 1,
-                "suite": str(ROOT / "evaluator/fixtures/generation-cases.json"),
-                "protocol": str(ROOT / "evaluator/protocols/portfolio-v1.json"),
-                "code": {
-                    "commit": "abc",
-                    "tree": "def",
-                    "dirty": False,
-                    "source_tag": "portfolio-test-source",
-                    "runtime_source_sha256": {"evaluator/runner.py": "123"},
-                },
-                "generation_controls": [],
-                "grounding_measure": "test",
-                "deterministic_summary": None,
-                "results": [{
-                    "provider": "openrouter",
-                    "model": "model",
-                    "prompt_version": "prompt",
-                    "prompt_sha256": "prompt-sha",
-                    "case_id": "case",
-                    "case_family": "utility",
-                    "case_kind": "utility",
-                    "trial": 1,
-                    "status": "completed",
-                    "artifact_dir": "row",
-                    "correction_attempted": False,
-                    "correction": None,
-                    "correction_error": None,
-                    "error": None,
-                    "first": {
-                        "text": "generated output",
-                        "provider_request_id": "secret-id",
-                        "contract_success": True,
-                        "latency_ms": 1,
-                        "cost_usd": 0.01,
-                        "findings": [],
-                        "grounding_error_topics": 0,
-                        "generated_topics": 1,
-                        "oracle": {},
-                    },
-                    "final": {
-                        "contract_success": True,
-                        "findings": [],
-                        "grounding_error_topics": 0,
-                        "generated_topics": 1,
-                        "oracle": {},
-                    },
-                }],
-            }
+            manifest = _final_manifest()
             manifest_path = source / "manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             output = root / "public"
@@ -93,7 +103,10 @@ class PublicRunTest(unittest.TestCase):
             self.assertNotIn("text", public_ledger["results"][0]["first"])
             self.assertEqual(verify_public_run(output)["rows"], 1)
             metadata = json.loads((output / "metadata.json").read_text(encoding="utf-8"))
-            self.assertIn("<external-path-redacted>", metadata["regeneration_command"])
+            self.assertEqual(
+                metadata["regeneration_command"],
+                "python3 -S -m evaluator verify-public-run <external-path-redacted>",
+            )
 
             report_markdown = output / "report.md"
             report_markdown.write_text(
@@ -405,6 +418,67 @@ class PublicRunTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exact whole adapter matrices"):
                 export_public_run([primary_path, supplement_path], root / "wrong-matrix")
 
+
+
+class RecordedCommandTest(unittest.TestCase):
+    """`regeneration_command` must name a directory that holds the complete bundle."""
+
+    FETCH = "python3 -S -m evaluator.evidence_assets fetch"
+    VERIFY = "python3 -S -m evaluator verify-public-run"
+
+    def test_in_tree_bundle_records_fetch_and_the_assembled_path(self) -> None:
+        assets = Config("o/r", "t", ROOT / "docs/results", ROOT / ".news-briefing/evidence", ())
+        for output_dir in (ROOT / "docs/results/example-evidence", ROOT / "docs/results/example-evidence/"):
+            self.assertEqual(
+                _recorded_verification_command(output_dir, assets),
+                f"{self.FETCH} && {self.VERIFY} .news-briefing/evidence/example-evidence",
+            )
+
+    def test_bundle_outside_the_source_root_records_its_own_path(self) -> None:
+        assets = Config("o/r", "t", ROOT / "docs/results", ROOT / ".news-briefing/evidence", ())
+        self.assertEqual(
+            _recorded_verification_command(ROOT / "docs/results/example-evidence/nested", assets),
+            f"{self.VERIFY} docs/results/example-evidence/nested",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(
+                _recorded_verification_command(Path(directory) / "public", assets),
+                f"{self.VERIFY} <external-path-redacted>",
+            )
+
+    def test_recorded_steps_verify_a_bundle_whose_export_directory_does_not(self) -> None:
+        bundle = "example-evidence"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tree, assembled = root / "tree", root / "assembled"
+            manifest_path = root / "source" / "manifest.json"
+            manifest_path.parent.mkdir()
+            manifest_path.write_text(json.dumps(_final_manifest()), encoding="utf-8")
+            tree.mkdir()
+            with patch(
+                "evaluator.publication.load_config",
+                return_value=Config("o/r", "t", tree, assembled, ()),
+            ):
+                metadata = export_public_run(manifest_path, tree / bundle)
+            # Both roots are outside the repository here, so the assembled path is redacted.
+            self.assertEqual(
+                metadata["regeneration_command"],
+                f"{self.FETCH} && {self.VERIFY} <external-path-redacted>",
+            )
+
+            # Publish as the repository does: large files leave the tree for a release archive.
+            large = sorted(set(read_sums(tree / bundle)) - set(IN_TREE_FILES))
+            archive = pack_bytes(bundle, [(name, (tree / bundle / name).read_bytes()) for name in large])
+            (root / "assets").mkdir()
+            (root / "assets" / f"{bundle}.tar.gz").write_bytes(archive)
+            for name in large:
+                (tree / bundle / name).unlink()
+            asset = Asset(bundle, f"{bundle}.tar.gz", hashlib.sha256(archive).hexdigest(), tuple(large))
+
+            with self.assertRaisesRegex(ValueError, "public evidence verification failed"):
+                verify_public_run(tree / bundle)
+            fetch(Config("o/r", "t", tree, assembled, (asset,)), root / "assets")
+            self.assertEqual(verify_public_run(assembled / bundle)["status"], "verified")
 
 
 class CorrectionErrorRowTest(unittest.TestCase):

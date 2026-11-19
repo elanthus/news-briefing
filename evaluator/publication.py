@@ -11,7 +11,7 @@ from typing import Any
 
 from agent_runner.hashing import sha256_file
 
-from evaluator.evidence_assets import read_sums
+from evaluator.evidence_assets import Config, load_config, read_sums
 from evaluator.report import markdown_report, summarize
 from evaluator.runner import ROOT
 from evaluator.scoring import apply_adjudications
@@ -59,6 +59,22 @@ def _portable_path(value: str) -> str:
         return path.resolve().relative_to(ROOT.resolve()).as_posix()
     except ValueError:
         return "<external-path-redacted>"
+
+
+def _recorded_verification_command(output_dir: Path, assets: Config) -> str:
+    """Return the `regeneration_command` value: how a fresh checkout verifies this bundle.
+
+    A bundle exported into the tracked source root keeps only its small files in
+    git. `evidence_assets fetch` restores the large files into a complete copy under
+    the output root, so the recorded command names that copy, not the export path.
+    A bundle exported anywhere else is complete where it was written.
+    """
+    verify = "python3 -S -m evaluator verify-public-run"
+    resolved = output_dir.resolve()
+    if resolved.parent == assets.source_root.resolve():
+        assembled = _portable_path(str(assets.output_root / resolved.name))
+        return f"python3 -S -m evaluator.evidence_assets fetch && {verify} {assembled}"
+    return f"{verify} {_portable_path(str(output_dir))}"
 
 
 def _redact(value: Any) -> Any:
@@ -379,6 +395,7 @@ def export_public_run(
     code = source["code"]
     if output_dir.exists():
         raise ValueError(f"public evidence output already exists: {output_dir}")
+    verification_command = _recorded_verification_command(output_dir, load_config())
 
     manifest = copy.deepcopy(source)
     manifest["results"] = []
@@ -425,9 +442,7 @@ def export_public_run(
         "source_commit": code["commit"],
         "source_tree": code["tree"],
         "component_manifests": component_descriptors,
-        "regeneration_command": (
-            f"python3 -m evaluator verify-public-run {_portable_path(str(output_dir))}"
-        ),
+        "regeneration_command": verification_command,
         "redactions": sorted(PRIVATE_KEYS),
         "files": {},
     }
