@@ -1,0 +1,47 @@
+{
+  "component_manifests": [
+    {
+      "circuit_breaker_threshold": 3,
+      "correction_error_rows": 0,
+      "cost_ceiling_provider": "openrouter",
+      "cost_ceiling_usd": 5.0,
+      "error_rows": 3,
+      "manifest_sha256": "df49292fb01bc05ad2c4041cb6a1a14d5dbb1b4e4cd6d8eb6152ce5c832d0601",
+      "name": "parity-v4-final-20261118",
+      "observed_cost_usd": 2.9482741081815282,
+      "original_run_status": "completed_with_errors",
+      "planned_case_trials": 1460,
+      "rows": 1460
+    }
+  ],
+  "files": {
+    "adjudications.json": {
+      "bytes": 187087,
+      "sha256": "6d57cbdc1e366280ca87804f72e7e9a1580b1e2ec5e80e27a19168cb51a72975"
+    },
+    "ledger.json": {
+      "bytes": 33715823,
+      "sha256": "031cd81e8a1aefb4f58bafa3e4a1c3bae317c6e075fdc545ceeca3dd7922e8e8"
+    },
+    "manifest.json": {
+      "bytes": 42502156,
+      "sha256": "61560284d7bc6aeafae05c56629e126693db726b99bb2e79418e7c70a95a012b"
+    },
+    "report.json": {
+      "bytes": 375341,
+      "sha256": "4fe65f174ece712abafbf2646a92258667690b87a1276822f851ce4f46dc8787"
+    },
+    "report.md": {
+      "bytes": 50354,
+      "sha256": "a1b25f4f11ce1656dde4fc9fa8962b599da893ed7df8bbcd2d1dd2258e8c3a1f"
+    }
+  },
+  "redactions": [
+    "provider_request_id"
+  ],
+  "regeneration_command": "python3 -m evaluator verify-public-run docs/results/parity-v4-evidence",
+  "schema_version": 1,
+  "source_commit": "1ee6b75308818464e6cc6c347cbc556fcf6b5f15",
+  "source_tag": "parity-v4-source-20261118",
+  "source_tree": "f3e82d8c6faf3d2d7cce4b51994c22bf5090d8e7"
+}

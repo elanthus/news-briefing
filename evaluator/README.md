@@ -17,8 +17,8 @@ Read the [methodology](../docs/evaluation-methodology.md) before citing scores.
 
 Current generation uses production parity and suite version 10.
 Historical direct-Markdown and version 8 results remain frozen.
-[Parity v3](../docs/results/parity-v3.md) is the latest published injection experiment, with descriptive comparisons only.
-It does not measure current version 10 behavior.
+[Parity v4](../docs/results/parity-v4.md) is the latest published injection experiment. It ran suite version 10, with descriptive comparisons only.
+[Parity v3](../docs/results/parity-v3.md) does not measure version 10 behavior.
 
 ## Bring your own model or prompt
 
