@@ -12,8 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from agent_runner.hashing import sha256_file
+from agent_runner.output import project_corpus, redact_destinations
 
 from evaluator.adapters import Adapter
+
+# The one generation suite format this revision plans. Frozen older suites are
+# run from the commit that ran them; see docs/evaluation-methodology.md.
+GENERATION_SUITE_SCHEMA_VERSION = 11
 
 # Which rule scoring._oracle applies to attack success_if_checks. Revision 1
 # counted every finding; revision 2 counts only ERROR-level findings. Manifests
@@ -437,8 +442,75 @@ def _validate_run_inputs(
         raise ValueError("provider/model selections must be unique")
 
 
+def attacked_trial_corpus(
+    case: dict[str, Any], *, suite_dir: Path, default_corpus: Path
+) -> dict[str, Any]:
+    """Build an attack case's attacked-trial corpus in the order execution applies it."""
+    corpus: dict[str, Any] = _json(suite_dir / case["corpus"] if case.get("corpus") else default_corpus)
+    _relocate(corpus, case.get("corpus_relocations", []))
+    _mutate(corpus, case.get("mutations", []))
+    _set_source_failures(corpus, case.get("source_failures", []))
+    return corpus
+
+
+def attack_visibility_problems(case: dict[str, Any], corpus: dict[str, Any]) -> list[str]:
+    """Name each part of an attack's payload or canary that the model never receives.
+
+    The model receives the projected corpus document. Every injected text must
+    appear there after destination redaction, and every canary must appear
+    inside a delivered payload. Otherwise the trial has one possible outcome
+    and belongs in a deterministic boundary test, not an attack-rate denominator.
+    """
+    document = json.dumps(project_corpus(corpus).document, ensure_ascii=False)
+    injected = [
+        (f"mutations[{index}]", mutation["value"])
+        for index, mutation in enumerate(case.get("mutations", []))
+    ] + [
+        (f"source_failures[{index}].message", failure.get("message"))
+        for index, failure in enumerate(case.get("source_failures", []))
+    ]
+    problems: list[str] = []
+    delivered: list[str] = []
+    for label, value in injected:
+        if not isinstance(value, str):
+            problems.append(f"{label} is not injected text")
+            continue
+        projected = redact_destinations(value)
+        if json.dumps(projected, ensure_ascii=False)[1:-1] in document:
+            delivered.append(projected)
+        else:
+            problems.append(f"{label} is not model-visible after projection")
+    if not injected:
+        problems.append("injects no text")
+    for canary in case.get("forbidden_substrings", []):
+        if not any(canary in payload for payload in delivered):
+            problems.append(f"canary {canary!r} is not model-visible after projection")
+    return problems
+
+
+def _validate_attack_visibility(
+    cases: list[dict[str, Any]], *, suite_dir: Path, default_corpus: Path
+) -> None:
+    failures: list[str] = []
+    for case in cases:
+        if case["kind"] != "attack":
+            continue
+        corpus = attacked_trial_corpus(case, suite_dir=suite_dir, default_corpus=default_corpus)
+        failures.extend(
+            f"{case['id']}: {problem}" for problem in attack_visibility_problems(case, corpus)
+        )
+    if failures:
+        raise ValueError("attack payload never reaches the model: " + "; ".join(failures))
+
+
 def _load_generation_suite(suite_path: Path) -> dict[str, Any]:
     suite = _json(suite_path)
+    schema_version = suite.get("schema_version")
+    if type(schema_version) is not int or schema_version != GENERATION_SUITE_SCHEMA_VERSION:
+        raise ValueError(
+            f"generation suite schema_version must be {GENERATION_SUITE_SCHEMA_VERSION}, "
+            f"got {schema_version!r}; run an older suite from the commit that ran it"
+        )
     if suite.get("case_count") != len(suite.get("cases", [])):
         raise ValueError("generation suite case_count does not match cases")
     for case in suite["cases"]:
@@ -630,6 +702,7 @@ def resolve_evaluation_plan(
     )
     suite = _load_generation_suite(suite_path)
     cases = suite["cases"]
+    _validate_attack_visibility(cases, suite_dir=suite_path.parent, default_corpus=corpus_path)
     execution_plans, units, keys, artifact_dirs = _plan_units(
         adapters, prompt_versions, cases, trials, run_kind, execution_seed
     )

@@ -23,7 +23,7 @@ from evaluator.report import finalize_run_report
 
 ROOT = Path(__file__).resolve().parents[1]
 EVALUATOR_DIR = Path(__file__).resolve().parent
-DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases-v10.json"
+DEFAULT_SUITE = EVALUATOR_DIR / "fixtures" / "generation-cases-v11.json"
 DEFAULT_CORPUS = EVALUATOR_DIR / "fixtures" / "generation-corpus.json"
 DEFAULT_PROTOCOL = EVALUATOR_DIR / "protocols" / "parity-v1.json"
 
