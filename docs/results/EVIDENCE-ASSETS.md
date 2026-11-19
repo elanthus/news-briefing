@@ -48,7 +48,21 @@ For a bundle exported into `docs/results/<bundle>/`, the exporter records the fe
 python3 -S -m evaluator.evidence_assets fetch && python3 -S -m evaluator verify-public-run .news-briefing/evidence/<bundle>
 ```
 
-For a bundle exported anywhere else, it records `verify-public-run` on the export directory, which holds every file.
+That command works only after the bundle is published.
+`fetch` assembles only the bundles listed in `evaluator/evidence-assets.json`, and the exporter does not add the new bundle to that file.
+Before anyone uses the recorded command for a new bundle, complete these steps:
+
+1. Pack the bundle's large files into its archive (see [Repacking](#repacking)).
+2. Upload the archive to the release that `evaluator/evidence-assets.json` names.
+3. Add the bundle to `evaluator/evidence-assets.json` with the archive's SHA-256, and add its row to the table above.
+
+Until then, verify the new bundle in its export directory, which still holds every file:
+
+```bash
+python3 -S -m evaluator verify-public-run docs/results/<bundle>
+```
+
+For a bundle exported anywhere else, the exporter records `verify-public-run` on the export directory, which holds every file.
 The bundles in the table above were written before this change.
 They record `verify-public-run docs/results/<bundle>`, which fails in a fresh checkout because that directory holds only the three in-tree files.
 Their `metadata.json` files are hash-pinned and stay as written.

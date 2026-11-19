@@ -67,6 +67,8 @@ def _recorded_verification_command(output_dir: Path, assets: Config) -> str:
     A bundle exported into the tracked source root keeps only its small files in
     git. `evidence_assets fetch` restores the large files into a complete copy under
     the output root, so the recorded command names that copy, not the export path.
+    That command succeeds only once the bundle's archive is published and the bundle
+    is listed in `evaluator/evidence-assets.json`; this function registers nothing.
     A bundle exported anywhere else is complete where it was written.
     """
     verify = "python3 -S -m evaluator verify-public-run"
