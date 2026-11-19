@@ -28,7 +28,7 @@ every cited item.
 Jev returns a probability for each question. A probability of at least 0.8 is a flag. Decider
 (`perplexity/pplx-decider-v1.2`, another vendor's model) is asked the same question about each flag on its
 own. A flag counts as confirmed when Decider's probability is also at least 0.8. Only a confirmed flag
-can block a daily slot. The rubrics are in [`agent_runner/jev_review.py`](../../agent_runner/jev_review.py).
+can trigger a repair of the slot. The rubrics are in [`agent_runner/jev_review.py`](../../agent_runner/jev_review.py).
 
 The October study used Jev to confirm its own flags. This is the first measurement of the Jev plus
 Decider configuration the daily service runs.
@@ -71,7 +71,7 @@ kinds, and no request ever holds two versions of one topic. Checks are packed un
 of 50 questions and 24,000 request bytes.
 
 **Scoring.** An item is *detected* when any of its three checks is flagged by Jev and confirmed by
-Decider, which is what blocks a daily slot. It is *missed* otherwise. Every measured item was completely
+Decider, the condition under which the daily service can repair the slot. It is *missed* otherwise. Every measured item was completely
 reviewed, so none is excluded.
 
 ## Results
