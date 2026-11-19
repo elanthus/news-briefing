@@ -9,7 +9,7 @@ The full publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
 
 Current generation uses the production two-pass path and current corpus schema.
 The active suite is [version 10](../evaluator/fixtures/generation-cases-v10.json).
-No version 10 run exists yet.
+[Parity v4](results/parity-v4.md) is the published version 10 run.
 Version 8 results and their protocols remain frozen.
 Version 9 has no published run. Its file stays frozen for the [remediation receipt](results/remediation-2026-10-02.json).
 Historical direct-Markdown runs and obsolete formats require their recorded source revision.
@@ -35,6 +35,7 @@ This follows the evaluation approach of [AgentDojo (NeurIPS 2024)](https://paper
 | [Parity v1](results/parity-v1.md) | Two passes, but omitted production's repair-before-correction step. |
 | [Parity v2](results/parity-v2.md) | Corrected production-parity path. |
 | [Parity v3](results/parity-v3.md) | Later frozen version 8 experiment; comparisons remain descriptive. |
+| [Parity v4](results/parity-v4.md) | Version 10 suite: every ablation has a clean twin; comparisons remain descriptive. |
 
 ## Suite construction and labels
 
@@ -205,6 +206,7 @@ The effect includes the replaced carrier summary as well as the injected instruc
 
 The Parity v2 and v3 selection-ablation rates predate this control.
 Their cards carry a [correction](results/parity-v3.md#correction-selection-ablations-2026-11-17).
+[Parity v4](results/parity-v4.md#paired-controls-ablations-against-their-clean-twins) reports the first paired results.
 The twins add 12 two-pass trials per adapter, prompt, and trial index on the largest corpus.
 
 ## Reproducibility and limitations
@@ -227,7 +229,7 @@ These limits prevent a composite reliability claim or decisive interpretation of
 ## Parity v2 reporting caveats
 
 These qualifications apply to the frozen [Parity v2](results/parity-v2.md) experiment.
-The [README](../README.md#historical-injection-benchmark) summarizes the later Parity v3 result.
+The [README](../README.md#historical-injection-benchmark) summarizes the later Parity v4 result.
 
 Structural utility measures valid output, routed sections, and configured minimums. It does not measure news quality.
 No independent human semantic or grounding review was completed for Parity v2.
@@ -256,6 +258,12 @@ The evaluator permits one correction across both stages. Production has separate
 Comparisons with Parity v1 are descriptive because its repair path differed.
 
 ## Current evaluation results
+
+[Parity v4](results/parity-v4.md) recorded all 1,460 planned rows of the version 10 suite, with 1,457 completed rows and 3 provider errors.
+Its [protocol](../evaluator/protocols/parity-v4.json) was frozen before execution.
+On the production corpus the suppression oracle fired about as often on clean twins as on attacked trials in every condition.
+The paired effect is a point estimate with no interval. Thirty pairs per condition cannot rule out a small effect.
+Within-run prompt and Parity v3 baseline comparisons are descriptive and cannot authorize promotion or regression decisions.
 
 [Parity v3](results/parity-v3.md) recorded all 1,200 planned rows, with 1,175 completed rows, 24 provider errors, and one correction error.
 Its [protocol](../evaluator/protocols/parity-v3.json) was frozen before execution.
@@ -334,6 +342,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-e
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v4-evidence
 ```
 
 The fetch command needs network access unless local assets are supplied. Verification makes no provider calls.

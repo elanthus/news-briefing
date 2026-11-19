@@ -27,6 +27,12 @@
       "name": "parity-v3-evidence.tar.gz",
       "sha256": "c4747e940a0d708280bc7ebbe33edb2dd78b237029a3cc5720ad1aeba337b821",
       "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
+    },
+    {
+      "bundle": "parity-v4-evidence",
+      "name": "parity-v4-evidence.tar.gz",
+      "sha256": "f3ea517f69a90a535d04e86170d3d9cc67568d39c734bedfaf45c22c5f5c6e0c",
+      "files": ["adjudications.json", "ledger.json", "manifest.json", "report.json"]
     }
   ]
 }

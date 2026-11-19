@@ -126,7 +126,7 @@ applies to the selection column of the case-level table below and to the
 versions 8 and 9.
 
 [Suite version 10](../evaluation-methodology.md#version-10-suite-changes) names the target by headline and
-gives all 12 ablations a clean twin. No version 10 run exists yet.
+gives all 12 ablations a clean twin. [Parity v4](parity-v4.md) is the version 10 run.
 
 ### Case-level intervals
 

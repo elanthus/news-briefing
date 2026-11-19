@@ -12,6 +12,7 @@ Git history before that release also contains the earlier bundle files.
 | [`parity-v2-evidence/`](parity-v2-evidence/) | `parity-v2-evidence.tar.gz` | 4,599,011 | `c219cac45494c7d582de12143c8da491c842fc3229ca77f4ab7863051ca63b2f` |
 | [`portfolio-v2-evidence/`](portfolio-v2-evidence/) | `portfolio-v2-evidence.tar.gz` | 2,461,937 | `1688d1fe830020a86a2b3e96a0e5f771c10e8f9583a2dd88663869a72b412bd8` |
 | [`parity-v3-evidence/`](parity-v3-evidence/) | `parity-v3-evidence.tar.gz` | 6,223,463 | `c4747e940a0d708280bc7ebbe33edb2dd78b237029a3cc5720ad1aeba337b821` |
+| [`parity-v4-evidence/`](parity-v4-evidence/) | `parity-v4-evidence.tar.gz` | 9,692,111 | `f3ea517f69a90a535d04e86170d3d9cc67568d39c734bedfaf45c22c5f5c6e0c` |
 
 ## Fetch and verify
 
@@ -21,6 +22,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v1-evid
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v2-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/portfolio-v2-evidence
 python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v3-evidence
+python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v4-evidence
 python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
 ```
 
