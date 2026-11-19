@@ -428,11 +428,10 @@ class RecordedCommandTest(unittest.TestCase):
 
     def test_in_tree_bundle_records_fetch_and_the_assembled_path(self) -> None:
         assets = Config("o/r", "t", ROOT / "docs/results", ROOT / ".news-briefing/evidence", ())
-        for output_dir in (ROOT / "docs/results/example-evidence", ROOT / "docs/results/example-evidence/"):
-            self.assertEqual(
-                _recorded_verification_command(output_dir, assets),
-                f"{self.FETCH} && {self.VERIFY} .news-briefing/evidence/example-evidence",
-            )
+        self.assertEqual(
+            _recorded_verification_command(ROOT / "docs/results/example-evidence", assets),
+            f"{self.FETCH} && {self.VERIFY} .news-briefing/evidence/example-evidence",
+        )
 
     def test_bundle_outside_the_source_root_records_its_own_path(self) -> None:
         assets = Config("o/r", "t", ROOT / "docs/results", ROOT / ".news-briefing/evidence", ())
