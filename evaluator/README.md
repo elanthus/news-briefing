@@ -133,6 +133,7 @@ Only the current policy version is readable; reproduce an older comparison from 
 | `fixtures/generation-cases.json` | Frozen historical version 8 suite. |
 | `fixtures/generation-v9-scarcity-positive.json` | Production selection positive control. |
 | `fixtures/generation-v9-utility-positive.json` | Compact utility positive controls. |
+| `fixtures/jev-sensitivity-seeds.json` | Real briefing topics with seeded unsupported, strengthened, and reversed prose for the [Jev plus Decider sensitivity study](../docs/results/jev-sensitivity-v1.md). |
 | `snapshots/offline-checker.json` | Committed deterministic results checked by CI. |
 
 Offline cases cover citations, encodings, XML, structure, routing, source health, ambiguity, and claim heuristics.

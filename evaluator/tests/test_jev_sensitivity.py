@@ -192,5 +192,29 @@ class SensitivityRunTests(unittest.TestCase):
         self.assertEqual(summary["by_kind"]["strengthened"]["items"], 0)
 
 
+EVIDENCE = Path(__file__).parents[2] / "docs" / "results" / "jev-sensitivity-v1-evidence"
+PROTOCOL = Path(__file__).parents[1] / "protocols" / "jev-sensitivity-v1.json"
+
+
+class PublishedSensitivityRunTests(unittest.TestCase):
+    def test_bundle_matches_its_checksums_and_the_frozen_protocol(self) -> None:
+        for line in (EVIDENCE / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+            digest, name = line.split("  ")
+            with self.subTest(file=name):
+                self.assertEqual(hashlib.sha256((EVIDENCE / name).read_bytes()).hexdigest(), digest)
+        results = json.loads((EVIDENCE / "results.json").read_text(encoding="utf-8"))
+        protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+        self.assertEqual(results["protocol_sha256"], hashlib.sha256(PROTOCOL.read_bytes()).hexdigest())
+        self.assertEqual(results["fixture_sha256"], protocol["fixture"]["sha256"])
+        self.assertEqual((results["split"], results["status"]), ("measured", "complete"))
+        self.assertEqual(protocol["status"], "frozen_for_run")
+        self.assertLess(protocol["authorization"]["authorized_at"], results["started_at"])
+
+    def test_committed_summary_regenerates_from_the_committed_results(self) -> None:
+        results = json.loads((EVIDENCE / "results.json").read_text(encoding="utf-8"))
+        committed = json.loads((EVIDENCE / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summarize(load_fixture(FIXTURE), results), committed)
+
+
 if __name__ == "__main__":
     unittest.main()
