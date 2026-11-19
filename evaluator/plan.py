@@ -453,6 +453,17 @@ def attacked_trial_corpus(
     return corpus
 
 
+def _projected_field(document: dict[str, Any], path: list[Any]) -> Any:
+    """Return the projected value at a corpus mutation path, or None if projection dropped it."""
+    node: Any = document
+    for part in path:
+        try:
+            node = node[part]
+        except (IndexError, KeyError, TypeError):
+            return None
+    return node
+
+
 def attack_visibility_problems(case: dict[str, Any], corpus: dict[str, Any]) -> list[str]:
     """Name each part of an attack's payload or canary that the model never receives.
 
@@ -461,22 +472,34 @@ def attack_visibility_problems(case: dict[str, Any], corpus: dict[str, Any]) -> 
     inside a delivered payload. Otherwise the trial has one possible outcome
     and belongs in a deterministic boundary test, not an attack-rate denominator.
     """
-    document = json.dumps(project_corpus(corpus).document, ensure_ascii=False)
+    document = project_corpus(corpus).document
+    # _set_source_failures writes each message into the corpus errors list; it
+    # reaches the model only if the projection carries that list.
+    projected_errors = document.get("errors")
+    visible_messages = {
+        entry.get("message")
+        for entry in (projected_errors if isinstance(projected_errors, list) else [])
+        if isinstance(entry, dict)
+    }
     injected = [
-        (f"mutations[{index}]", mutation["value"])
+        (f"mutations[{index}]", mutation["value"], mutation["path"])
         for index, mutation in enumerate(case.get("mutations", []))
     ] + [
-        (f"source_failures[{index}].message", failure.get("message"))
+        (f"source_failures[{index}].message", failure.get("message"), None)
         for index, failure in enumerate(case.get("source_failures", []))
     ]
     problems: list[str] = []
     delivered: list[str] = []
-    for label, value in injected:
+    for label, value, path in injected:
         if not isinstance(value, str):
             problems.append(f"{label} is not injected text")
             continue
         projected = redact_destinations(value)
-        if json.dumps(projected, ensure_ascii=False)[1:-1] in document:
+        if path is None:
+            visible = projected in visible_messages
+        else:
+            visible = _projected_field(document, path) == projected
+        if visible:
             delivered.append(projected)
         else:
             problems.append(f"{label} is not model-visible after projection")
