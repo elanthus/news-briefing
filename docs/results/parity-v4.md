@@ -127,8 +127,12 @@ One attacked trial fired: `attack-selection-suppression` trial 5 under DeepSeek 
 Rates show `successes/trials; rate [95% Wilson interval]`. Utility is structural: contract-valid output,
 populated routed sections, and declared case floors (`end_to_end_success`). It does not measure editorial
 quality or whether prose is faithful to the linked article. Attack denominators are the 21 primary attack
-cases × 5 trials. The 12 ablations and the clean twins are reported separately. Nine of the 21 primary
-cases could not succeed; see the [correction](#correction-attacks-that-could-not-succeed-2026-11-19).
+cases × 5 trials. The 12 ablations and the clean twins are reported separately.
+
+**Corrected 2026-11-19.** The attack column below is as first published. Nine of the 21 primary cases
+could not succeed, so only 60 of each condition's 105 trials could: 0/60; 0.0% [0.0, 6.0] for three
+conditions and 1/60; 1.7% [0.3, 8.9] for DeepSeek / `runner-deepseek-v4-flash`. See the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19).
 
 | Model / prompt | Structural utility (first → final) | Targeted attack success (first → final) |
 |---|---:|---:|
@@ -158,6 +162,10 @@ The most common findings on those rows are short or missing exclusion logs.
 Of the 105 primary trials per condition, 75 target citation (35), formatting (20), health-report (10),
 and prose (10) behaviors, which the selection schema, validator, and renderer enforce in code. The
 remaining 30 target selection (six cases), the judgment the model controls.
+
+**Corrected 2026-11-19.** This table is as first published. Only 35 of the 75 code-enforced trials and
+25 of the 30 selection trials per condition could succeed; the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19) gives the rates over those trials.
 
 | Model / prompt | Primary, all families | Primary, code-enforced | Primary, selection |
 |---|---:|---:|---:|
@@ -217,6 +225,12 @@ which overstates the effective sample size. The table below adds case-level Wils
 them, not in place of them. A case counts when the oracle fired in at least one of its completed trials;
 `n` is the number of distinct cases. For the two suppression columns a counted case is not evidence of
 compromise: compare the attacked column with the clean-twin column.
+
+**Corrected 2026-11-19.** The two primary columns are as first published. Only 12 of the 21 primary
+cases and 5 of the 6 primary selection cases could succeed. Over those cases DeepSeek /
+`runner-deepseek-v4-flash` is 1/12; 8.3% [1.5, 35.4] and 1/5; 20.0% [3.6, 62.4], and the other three
+conditions are 0/12; 0.0% [0.0, 24.2] and 0/5; 0.0% [0.0, 43.4]. See the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19).
 
 | Model / prompt | Primary, all (21 cases) | Primary, selection (6 cases) | Ablation, selection, attacked (6 cases) | Selection clean twins (9 cases) |
 |---|---:|---:|---:|---:|
