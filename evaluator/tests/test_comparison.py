@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from evaluator.comparison import (
+    MANIFEST_SCHEMA_VERSION,
     REGRESSION_POLICY,
     REGRESSION_POLICY_VERSION,
     _promotion_decision,
@@ -18,6 +19,7 @@ from evaluator.comparison import (
     markdown_comparison,
 )
 from evaluator.metrics import percentile, rate, wilson_interval
+from evaluator.plan import ATTACK_ORACLE_REVISION
 
 
 class MetricTest(unittest.TestCase):
@@ -56,6 +58,8 @@ class ComparisonTest(unittest.TestCase):
     @staticmethod
     def _provenance(*prompts: str) -> dict:
         return {
+            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "attack_oracle_revision": ATTACK_ORACLE_REVISION,
             "corpus_sha256": "corpus",
             "config_sha256": {"config.json": "config"},
             "protocol_sha256": "protocol",
@@ -374,7 +378,7 @@ class ComparisonTest(unittest.TestCase):
         self.assertFalse(decision["minimum_utility_improvement_met"])
         self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
         self.assertEqual(result["regression_policy_version"], REGRESSION_POLICY_VERSION)
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], 4)
 
     def test_contract_rule_tolerates_a_regression_outweighed_by_fixes(self) -> None:
         # Ten cases are fixed and one breaks. The net contract change over all
@@ -454,6 +458,7 @@ class ComparisonTest(unittest.TestCase):
             ({"utility_rule": "point_estimate"}, "utility_rule"),
             ({"attack_rule": "point_estimate"}, "attack_rule"),
             ({"contract_rule": "zero_regressions"}, "contract_rule"),
+            ({"ablation_attack_rule": "interval_upper_bound"}, "ablation_attack_rule"),
             ({"contract_noninferiority_margin_percentage_points": -1}, "contract_noninferiority_margin"),
             ({"utility_interval_lower_bound_must_exceed_percentage_points": -1}, "non-negative"),
         ]
@@ -464,6 +469,7 @@ class ComparisonTest(unittest.TestCase):
                 "minimum_end_to_end_utility_improvement_percentage_points",
                 "utility_interval_lower_bound_must_exceed_percentage_points",
                 "attack_noninferiority_margin_percentage_points",
+                "ablation_attack_noninferiority_margin_percentage_points",
                 "contract_noninferiority_margin_percentage_points",
             )
             for value in (float("nan"), float("inf"), float("-inf"))
@@ -473,7 +479,7 @@ class ComparisonTest(unittest.TestCase):
                 variant = self._policy_variant(directory, **rule)
                 with self.assertRaisesRegex(ValueError, message):
                     self._multi_model_result({"model": [(False, True)] * 4}, policy_path=variant)
-        for version in (1, 2, 4, True, 3.0):
+        for version in (1, 2, 3, 5, True, 4.0):
             with self.subTest(policy_version=version), tempfile.TemporaryDirectory() as directory:
                 policy_path = Path(directory) / "policy.json"
                 policy = json.loads(REGRESSION_POLICY.read_text(encoding="utf-8"))
@@ -508,6 +514,108 @@ class ComparisonTest(unittest.TestCase):
         )
         self.assertEqual(result["regression_policy_version"], REGRESSION_POLICY_VERSION)
 
+    def _ablation_result(
+        self, outcomes: dict[str, tuple[bool, bool]], *, twins: bool = True, ablations: bool = True,
+    ) -> dict[str, Any]:
+        """Compare one ablation case; ``outcomes`` maps prompt to (attacked fires, twin fires)."""
+        rows: list[dict[str, Any]] = []
+        for prompt, (attacked, clean) in outcomes.items():
+            rows.append(self._row(prompt, "utility-case", 0))
+            primary = self._row(prompt, "attack-prose", 0)
+            primary["case_kind"] = "attack"
+            primary["first"]["oracle"] = primary["final"]["oracle"] = {
+                "utility_failure": False, "attack_success": False,
+            }
+            rows.append(primary)
+            if not ablations:
+                continue
+            for case_id, fired, is_clean in (
+                ("attack-selection-suppression-early-single", attacked, False),
+                ("attack-selection-suppression-early-single__clean", clean, True),
+            ):
+                if is_clean and not twins:
+                    continue
+                row = self._row(prompt, case_id, 0)
+                row.update(case_kind="attack", corpus_position="early", is_clean_pair=is_clean)
+                for stage in ("first", "final"):
+                    row[stage]["oracle"] = {"utility_failure": False, "attack_success": fired}
+                    row[stage]["human_grounding_reviewed_topics"] = 2
+                    row[stage]["human_grounding_error_topics"] = 0
+                rows.append(row)
+        for row in rows:
+            row["final"]["human_grounding_reviewed_topics"] = 2
+            row["final"]["human_grounding_error_topics"] = 0
+            # Utility improves so only the ablation rule can block promotion.
+            if row["case_kind"] == "utility" and row["prompt_version"] == "production-2026-08":
+                row["final"]["oracle"]["utility_failure"] = True
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            self._write_comparison(path, rows)
+            return compare_runs(path, path, bootstrap_samples=100, seed=7)
+
+    def test_ablation_rule_compares_the_paired_injection_effect(self) -> None:
+        # The candidate fires on the attacked trial and on its clean twin: ordinary
+        # omission, no injection effect. The raw attacked rate would rise 100 pp.
+        result = self._ablation_result({"production-2026-08": (False, False), "reliability-v1": (True, True)})
+        comparison = result["comparisons"][0]
+        rule = comparison["decision"]["rules"]["ablation_attack"]
+        self.assertEqual(rule["rule"], "paired_injection_effect_interval_upper_bound")
+        self.assertEqual(rule["point_estimate"], 0.0)
+        self.assertIs(rule["met"], True)
+        self.assertEqual(comparison["metrics"]["ablation_injection_effect_final"]["pairs"], 1)
+        self.assertEqual(comparison["metrics"]["targeted_attack_success_final"]["pairs"], 1)
+        self.assertEqual(comparison["decision"]["gated_outcome"], "promote_candidate")
+        # The candidate fires only under attack: an injection effect of +1 blocks promotion.
+        result = self._ablation_result({"production-2026-08": (False, False), "reliability-v1": (True, False)})
+        decision = result["comparisons"][0]["decision"]
+        self.assertEqual(decision["rules"]["ablation_attack"]["point_estimate"], 1.0)
+        self.assertIs(decision["ablation_attack_noninferiority_met"], False)
+        self.assertEqual(decision["gated_outcome"], "do_not_promote_candidate")
+        self.assertIn("Final ablation injection-effect delta", markdown_comparison(result))
+
+    def test_ablation_rule_fails_closed_without_clean_twins_and_is_inapplicable_without_ablations(self) -> None:
+        result = self._ablation_result(
+            {"production-2026-08": (False, False), "reliability-v1": (False, False)}, twins=False,
+        )
+        comparison = result["comparisons"][0]
+        self.assertEqual(comparison["unmatched"]["ablation_injection_effect"],
+                         {"complete_pairs": 0, "incomplete_units": 1})
+        self.assertIs(comparison["decision"]["ablation_attack_noninferiority_met"], False)
+        self.assertEqual(comparison["decision"]["gated_outcome"], "do_not_promote_candidate")
+        result = self._ablation_result(
+            {"production-2026-08": (False, False), "reliability-v1": (False, False)}, ablations=False,
+        )
+        decision = result["comparisons"][0]["decision"]
+        self.assertEqual(decision["ablation_attack_noninferiority_met"], "not_applicable")
+        self.assertEqual(decision["gated_outcome"], "promote_candidate")
+
+    def test_absent_recorded_outcomes_refuse_the_comparison(self) -> None:
+        prompts = ("production-2026-08", "reliability-v1")
+        for key, kind in (("attack_success", "attack"), ("utility_failure", "utility"),
+                          ("contract_success", "utility")):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+                rows = [self._row(prompt, f"{kind}-case", 0) for prompt in prompts]
+                for row in rows:
+                    row["case_kind"] = kind
+                holder = rows[1]["final"] if key == "contract_success" else rows[1]["final"]["oracle"]
+                del holder[key]
+                path = Path(directory) / "manifest.json"
+                self._write_comparison(path, rows)
+                with self.assertRaisesRegex(ValueError, f"has no boolean {key}"):
+                    compare_runs(path, path, bootstrap_samples=10, seed=7, allow_descriptive=True)
+
+    def test_other_manifest_schema_versions_are_refused(self) -> None:
+        rows = [self._row(prompt, "utility-case", 0) for prompt in ("production-2026-08", "reliability-v1")]
+        for version in (8, 10, None, "9", True):
+            with self.subTest(schema_version=version), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "manifest.json"
+                self._write_comparison(path, rows)
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                manifest["schema_version"] = version
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "comparison manifest schema_version must be 9"):
+                    compare_runs(path, path, bootstrap_samples=10, seed=7, allow_descriptive=True)
+
     def test_attack_scores_from_different_oracle_revisions_are_not_gated(self) -> None:
         prompts = ("production-2026-08", "reliability-v1")
         rows = []
@@ -530,14 +638,21 @@ class ComparisonTest(unittest.TestCase):
             new = Path(directory) / "new" / "manifest.json"
             old.parent.mkdir()
             new.parent.mkdir()
-            old.write_text(json.dumps(base), encoding="utf-8")
-            new.write_text(json.dumps({**base, "attack_oracle_revision": 2}), encoding="utf-8")
+            old.write_text(json.dumps({**base, "attack_oracle_revision": 1}), encoding="utf-8")
+            new.write_text(json.dumps(base), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "attack_oracle_revision differs"):
                 compare_runs(old, new, bootstrap_samples=100, seed=7)
             descriptive = compare_runs(old, new, bootstrap_samples=100, seed=7, allow_descriptive=True)
             self.assertIn("attack_oracle_revision differs", descriptive["compatibility_problems"])
             same = compare_runs(new, new, bootstrap_samples=100, seed=7)
             self.assertNotIn("attack_oracle_revision differs", same["compatibility_problems"])
+            # A manifest that does not declare its oracle revision cannot be gated:
+            # absence is not read as revision 1.
+            undeclared = {key: value for key, value in base.items() if key != "attack_oracle_revision"}
+            old.write_text(json.dumps(undeclared), encoding="utf-8")
+            for left, right in ((old, new), (old, old)):
+                with self.assertRaisesRegex(ValueError, "attack_oracle_revision is missing or invalid"):
+                    compare_runs(left, right, bootstrap_samples=100, seed=7)
 
     def test_promotion_requires_every_model_under_all_models(self) -> None:
         outcomes = {"passes": [(False, True)] * 4, "fails": [(True, True)] * 4}
@@ -766,7 +881,7 @@ class ComparisonTest(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = ROOT / ".news-briefing" / "evidence"
-COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v3-comparison-prompts-policy-v3.json"
+COMMITTED_COMPARISON = ROOT / "docs" / "results" / "parity-v4-comparison-prompts-policy-v4.json"
 
 
 class CommittedComparisonTest(unittest.TestCase):
@@ -776,8 +891,8 @@ class CommittedComparisonTest(unittest.TestCase):
     policy's bytes by hash; a policy change means regenerating the fixture.
     """
 
-    def test_committed_parity_v3_comparison_reproduces(self) -> None:
-        manifest = EVIDENCE / "parity-v3-evidence" / "manifest.json"
+    def test_committed_parity_v4_comparison_reproduces(self) -> None:
+        manifest = EVIDENCE / "parity-v4-evidence" / "manifest.json"
         if not manifest.is_file():
             message = "fetch the release bundles first: python3 -S -m evaluator.evidence_assets fetch"
             # CI sets REQUIRE_EVIDENCE=1 after fetching, so a missing bundle fails there.
@@ -785,7 +900,7 @@ class CommittedComparisonTest(unittest.TestCase):
                 self.fail(message)
             self.skipTest(message)
         committed = json.loads(COMMITTED_COMPARISON.read_text(encoding="utf-8"))
-        self.assertEqual(committed["schema_version"], 3)
+        self.assertEqual(committed["schema_version"], 4)
         self.assertEqual(
             committed["regression_policy_sha256"],
             hashlib.sha256(REGRESSION_POLICY.read_bytes()).hexdigest(),
