@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,25 @@ from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     FakeAdapter,
 )
+
+_TABLE_DELIMITER = re.compile(r"\|(?: *:?-+:? *\|)+")
+
+
+def orphan_table_rows(markdown: str) -> list[str]:
+    """Return rows that open a table block without a header and delimiter row.
+
+    A blank line or paragraph ends a Markdown table. The next `|` line must then
+    start a new table, so the line after it has to be a delimiter row.
+    """
+    lines = markdown.splitlines()
+    orphans = []
+    for index, line in enumerate(lines):
+        if not line.startswith("|") or (index and lines[index - 1].startswith("|")):
+            continue
+        following = lines[index + 1] if index + 1 < len(lines) else ""
+        if not _TABLE_DELIMITER.fullmatch(following):
+            orphans.append(line)
+    return orphans
 
 
 class BaselineStructuredFakeAdapter(FakeAdapter):
@@ -341,6 +361,7 @@ class ReportingTest(unittest.TestCase):
             )
 
         rendered = markdown_report(report)
+        self.assertEqual(orphan_table_rows(rendered), [])
         live_heading = "### Security breakdown — offline-fixture / fixture-1 / v1"
         baseline_heading = "### Security breakdown — baseline / echo / v1"
         self.assertIn(live_heading, rendered)
@@ -365,6 +386,65 @@ class ReportingTest(unittest.TestCase):
             baseline,
         )
 
+
+    def test_transition_notes_do_not_split_the_matched_pair_table(self) -> None:
+        noted = ("attack-selection-promotion", "attack-selection-promotion-combined")
+        case_ids = (*noted, "attack-selection-suppression")
+
+        def row(case_id: str, *, clean: bool) -> dict[str, object]:
+            oracle: dict[str, object] = {"attack_success": False, "utility_under_attack": True}
+            if case_id in noted:
+                oracle["observed_target_leads"] = clean
+            stage = {
+                "contract_success": True,
+                "oracle": oracle,
+                "generated_topics": 1,
+                "grounding_error_topics": 0,
+            }
+            return {
+                "provider": "fixture",
+                "model": "model",
+                "prompt_version": "prompt",
+                "case_id": f"{case_id}__clean" if clean else case_id,
+                "case_kind": "attack",
+                "case_family": "selection",
+                "trial": 1,
+                "is_clean_pair": clean,
+                "paired_case_id": case_id if clean else f"{case_id}__clean",
+                "status": "completed",
+                "correction_attempted": False,
+                "correction": None,
+                "correction_error": None,
+                "first": {**stage, "latency_ms": 1.0, "cost_usd": 0.0},
+                "final": stage,
+            }
+
+        results = [row(case_id, clean=clean) for case_id in case_ids for clean in (True, False)]
+        rendered = markdown_report(summarize({
+            "run_status": "complete",
+            "planned_case_trials": len(results),
+            "grounding_measure": "fixture proxy",
+            "matched_pair_case_ids": list(case_ids),
+            "results": results,
+        }))
+
+        self.assertEqual(orphan_table_rows(rendered), [])
+        section = rendered.split("#### Matched clean/attack pairs", 1)[1]
+        table, notes = section.split("#### Attack oracle on clean twins", 1)[0].strip().split("\n\n", 1)
+        self.assertEqual(
+            [line.split(" | ")[0] for line in table.splitlines()[2:]],
+            [f"| {case_id}" for case_id in case_ids for _stage in ("first", "final")],
+        )
+        self.assertEqual(
+            [note.split(" final leading-target transitions (clean → attack): ")[0] for note in notes.split("\n\n")],
+            list(noted),
+        )
+        self.assertIn("clean_True_attack_False: 1", notes)
+        self.assertNotIn("|", notes)
+
+    def test_orphan_table_rows_reports_rows_after_a_paragraph(self) -> None:
+        split_table = "| A | B |\n|---|---:|\n| 1 | 2 |\n\nA note.\n\n| 3 | 4 |\n| 5 | 6 |\n"
+        self.assertEqual(orphan_table_rows(split_table), ["| 3 | 4 |"])
 
     def test_attack_breakdown_uses_explicit_ablation_metadata(self) -> None:
         def row(
@@ -480,6 +560,7 @@ class ReportingTest(unittest.TestCase):
             "grounding_measure": "fixture proxy",
             "results": results,
         }))
+        self.assertEqual(orphan_table_rows(rendered), [])
 
         for heading, terminator in (
             ("### Security breakdown — fixture / live-model / prompt", "## Score family 4"),
