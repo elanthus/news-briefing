@@ -73,7 +73,17 @@ def _plain_name(value: Any, label: str) -> str:
 
 
 def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
+    """Read and validate the asset config; a wrong shape raises `EvidenceAssetError`."""
     raw = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return _config_from(raw, root)
+    except KeyError as error:
+        raise EvidenceAssetError(f"invalid evidence asset config {path}: missing key {error}") from error
+    except TypeError as error:
+        raise EvidenceAssetError(f"invalid evidence asset config {path}: {error}") from error
+
+
+def _config_from(raw: Any, root: Path) -> Config:
     assets = []
     for item in raw["assets"]:
         files = tuple(_plain_name(name, "asset file") for name in item["files"])

@@ -2,14 +2,26 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from evaluator.evidence_assets import IN_TREE_FILES, Asset, Config, fetch, pack_bytes, read_sums
+import evaluator.__main__ as evaluator_cli
+from evaluator.evidence_assets import (
+    IN_TREE_FILES,
+    Asset,
+    Config,
+    fetch,
+    load_config,
+    pack_bytes,
+    read_sums,
+)
 from evaluator.publication import (
     _recorded_verification_command,
     export_public_run,
@@ -478,6 +490,29 @@ class RecordedCommandTest(unittest.TestCase):
                 verify_public_run(tree / bundle)
             fetch(Config("o/r", "t", tree, assembled, (asset,)), root / "assets")
             self.assertEqual(verify_public_run(assembled / bundle)["status"], "verified")
+
+
+    def test_malformed_asset_config_stops_export_with_one_line_and_no_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "source" / "manifest.json"
+            manifest_path.parent.mkdir()
+            manifest_path.write_text(json.dumps(_final_manifest()), encoding="utf-8")
+            config_path = root / "evidence-assets.json"
+            config_path.write_text(json.dumps({"repository": "o/r", "assets": []}), encoding="utf-8")
+            argv = ["evaluator", "export-public-run", str(manifest_path), "--output-dir", str(root / "public")]
+            stderr = io.StringIO()
+            with patch(
+                "evaluator.publication.load_config", side_effect=lambda: load_config(config_path, root)
+            ), patch.object(sys, "argv", argv), redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                evaluator_cli.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertNotIn("Traceback", stderr.getvalue())
+            self.assertRegex(
+                stderr.getvalue().strip().splitlines()[-1],
+                r"error: invalid evidence asset config .*evidence-assets\.json: missing key 'tag'$",
+            )
+            self.assertFalse((root / "public").exists())
 
 
 class CorrectionErrorRowTest(unittest.TestCase):

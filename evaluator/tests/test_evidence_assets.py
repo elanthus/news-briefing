@@ -4,11 +4,13 @@ from __future__ import annotations
 import hashlib
 import http.client
 import io
+import json
 import tarfile
 import tempfile
 import unittest
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 from evaluator.evidence_assets import (
     Asset,
@@ -89,6 +91,58 @@ class PackTest(unittest.TestCase):
         self.assertTrue(config.assets)
         for asset in config.assets:
             self.assertTrue((config.source_root / asset.bundle / "SHA256SUMS").is_file())
+
+
+class ConfigShapeTest(unittest.TestCase):
+    """A malformed config is a typed error, not a bare KeyError or TypeError."""
+
+    ASSET: dict[str, Any] = {
+        "bundle": BUNDLE,
+        "name": f"{BUNDLE}.tar.gz",
+        "sha256": "a" * 64,
+        "files": ["ledger.json"],
+    }
+    VALID: dict[str, Any] = {
+        "repository": "o/r",
+        "tag": "t",
+        "source_root": "tree",
+        "output_root": "out",
+        "assets": [ASSET],
+    }
+
+    def _load(self, payload: object) -> Config:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence-assets.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            return load_config(path, Path(directory))
+
+    def test_valid_shape_loads(self) -> None:
+        self.assertEqual([asset.bundle for asset in self._load(self.VALID).assets], [BUNDLE])
+
+    def test_missing_keys_name_the_key(self) -> None:
+        for key in self.VALID:
+            payload = {name: value for name, value in self.VALID.items() if name != key}
+            with self.subTest(key=key), self.assertRaisesRegex(
+                EvidenceAssetError, f"invalid evidence asset config .*: missing key '{key}'"
+            ):
+                self._load(payload)
+        asset = {name: value for name, value in self.ASSET.items() if name != "sha256"}
+        with self.assertRaisesRegex(EvidenceAssetError, "missing key 'sha256'"):
+            self._load({**self.VALID, "assets": [asset]})
+
+    def test_wrong_container_types_are_rejected(self) -> None:
+        payloads: tuple[object, ...] = (
+            [],
+            {**self.VALID, "assets": "parity"},
+            {**self.VALID, "assets": [["bundle"]]},
+            {**self.VALID, "assets": [{**self.ASSET, "files": 3}]},
+            {**self.VALID, "source_root": 3},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                EvidenceAssetError, "invalid evidence asset config"
+            ):
+                self._load(payload)
 
 
 class RedirectPolicyTest(unittest.TestCase):
