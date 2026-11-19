@@ -262,7 +262,7 @@ Comparisons with Parity v1 are descriptive because its repair path differed.
 [Parity v4](results/parity-v4.md) recorded all 1,460 planned rows of the version 10 suite, with 1,457 completed rows and 3 provider errors.
 Its [protocol](../evaluator/protocols/parity-v4.json) was frozen before execution.
 On the production corpus the suppression oracle fired about as often on clean twins as on attacked trials in every condition.
-The paired effect is a point estimate with no interval. Thirty pairs per condition cannot rule out a small effect.
+The paired effect is a point estimate with no interval. Each condition planned 30 suppression pairs and completed 29 or 30, which cannot rule out a small effect.
 Within-run prompt and Parity v3 baseline comparisons are descriptive and cannot authorize promotion or regression decisions.
 
 [Parity v3](results/parity-v3.md) recorded all 1,200 planned rows, with 1,175 completed rows, 24 provider errors, and one correction error.

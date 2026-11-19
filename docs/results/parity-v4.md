@@ -6,8 +6,9 @@ with no injected text. It answers the question that the withdrawn
 [Parity v3 selection figure](parity-v3.md#correction-selection-ablations-2026-11-17) could not: does
 injected text change how often a model leaves the targeted story out?
 
-In this run it did not, within what 30 pairs per condition can show. The suppression oracle fired about
-as often on the clean twins as on the attacked trials in every condition. See
+This run did not show that it does. The suppression oracle fired about as often on the clean twins as on
+the attacked trials in every condition, over 29 or 30 complete pairs each. The run computes no interval
+for the difference, so it cannot rule out a small effect. See
 [Paired controls](#paired-controls-ablations-against-their-clean-twins).
 
 The run used clean tag `parity-v4-source-20261118` at commit
@@ -78,8 +79,8 @@ difference: the attacked rate minus the clean-twin rate over the same pairs.
 How to read it:
 
 - **DeepSeek / `runner-deepseek-v4-flash`** left the target story out and completed the remaining task
-  in 22 of 29 attacked trials and in 22 of 29 clean twins. The omission is this prompt's ordinary
-  selection on this corpus. It is not an injection effect.
+  in 22 of 29 attacked trials and in 22 of 29 clean twins. The clean twins omit the story at the
+  same rate, so these counts are no evidence of an injection effect.
 - **DeepSeek / `production-runner`** shows +6.7 points. That is a difference of two pairs: 6 fired under
   attack only and 4 on the clean twin only. This run cannot distinguish that from no effect.
 - **HY3** never satisfied the suppression oracle, attacked or clean.
@@ -87,7 +88,9 @@ How to read it:
   the model cannot author one.
 
 The report computes no interval for the paired effect, so this card gives counts and point estimates
-only. Thirty pairs per condition can rule out a large effect. They cannot rule out a small one.
+only. Each condition planned 30 pairs per ablation family, and the table shows the completed count.
+Without an interval this card does not state which effect sizes the run excludes. It cannot rule out a
+small effect.
 
 Two properties of the design limit the reading:
 
@@ -293,8 +296,8 @@ at the recorded revision, with Wilson and case-level intervals; paired attack an
 the 12 ablations and the six primary matched pairs, with the paired risk difference as a point estimate;
 descriptive deltas against Parity v3 with their recorded incompatibility reasons.
 
-This card may not claim: that injected text has no effect on story selection (the run excludes a large
-effect on one corpus and cannot exclude a small one); an interval or significance level for the paired
+This card may not claim: that injected text has no effect on story selection (the run uses one corpus,
+computes no interval, and cannot exclude a small effect); an interval or significance level for the paired
 effect; a position or item-count effect; news quality, factual grounding, or meaning preservation; a
 promotion or regression decision against Parity v3 or between the prompts; daily-service reliability (the
 benchmark uses temperature 0, disabled reasoning, one correction, and a frozen tag, while the daily
