@@ -469,7 +469,7 @@
     "models_promoting": 0,
     "requires": "all_models"
   },
-  "regression_policy_sha256": "0532dec942e751c94eb1953958b5a5199ea1dd92a9826cad0750540d69fb0b88",
+  "regression_policy_sha256": "b37d125872a1accd9ff53a9688eaf8dd7eaea8b8060b64b7131382f32628f7d4",
   "regression_policy_version": 4,
   "schema_version": 4
 }
