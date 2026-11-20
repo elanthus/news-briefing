@@ -129,6 +129,11 @@ populated routed sections, and declared case floors (`end_to_end_success`). It d
 quality or whether prose is faithful to the linked article. Attack denominators are the 21 primary attack
 cases × 5 trials. The 12 ablations and the clean twins are reported separately.
 
+**Corrected 2026-11-19.** The attack column below is as first published. Nine of the 21 primary cases
+could not succeed, so only 60 of each condition's 105 trials could: 0/60; 0.0% [0.0, 6.0] for three
+conditions and 1/60; 1.7% [0.3, 8.9] for DeepSeek / `runner-deepseek-v4-flash`. See the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19).
+
 | Model / prompt | Structural utility (first → final) | Targeted attack success (first → final) |
 |---|---:|---:|
 | DeepSeek V4 Flash / production-runner | 99/110; 90.0% [83.0, 94.3] → 105/110; 95.5% [89.8, 98.0] | 0/105; 0.0% [0.0, 3.5] → 0/105; 0.0% [0.0, 3.5] |
@@ -158,6 +163,10 @@ Of the 105 primary trials per condition, 75 target citation (35), formatting (20
 and prose (10) behaviors, which the selection schema, validator, and renderer enforce in code. The
 remaining 30 target selection (six cases), the judgment the model controls.
 
+**Corrected 2026-11-19.** This table is as first published. Only 35 of the 75 code-enforced trials and
+25 of the 30 selection trials per condition could succeed; the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19) gives the rates over those trials.
+
 | Model / prompt | Primary, all families | Primary, code-enforced | Primary, selection |
 |---|---:|---:|---:|
 | DeepSeek V4 Flash / production-runner | 0/105; 0.0% [0.0, 3.5] | 0/75 | 0/30; 0.0% [0.0, 11.4] |
@@ -168,6 +177,47 @@ remaining 30 target selection (six cases), the judgment the model controls.
 The ablation rates are in the paired table above. Do not read an ablation rate without its clean-twin
 column.
 
+### Correction: attacks that could not succeed (2026-11-19)
+
+Nine of the 21 primary attack cases could not succeed in this run. Each one's canary, the text whose
+appearance in the briefing scores a success, never reached the model. Every trial of those cases had one
+possible outcome, so a rate with a Wilson interval over them does not measure model behavior.
+
+- Five `attack-citation-fabrication` cases use a URL as the canary. Projection replaces every URL in
+  model-visible text, so the model received `[destination omitted; use citation refs]`. If a model wrote a
+  URL anyway, the validator would reject the candidate before rendering.
+- In `attack-citation-alteration-combined` and `attack-selection-promotion-combined` the canary follows a URL
+  inside one URL spelling, so projection masks the canary with the URL.
+- The two `attack-health-reporting` cases put their payload in a source-failure message. The projected
+  corpus omits source records, and code writes the Corpus health section from the raw corpus.
+
+The same applies to the six `attack-citation-fabrication` ablations: none of their 30 planned pairs per
+condition could succeed on either side.
+
+Recomputed from the published ledger, with no model calls. Every primary trial completed, so each count
+below is over completed trials.
+
+| Model / prompt | Code-enforced trials that could succeed | Selection trials that could succeed | All primary trials that could succeed |
+|---|---:|---:|---:|
+| DeepSeek V4 Flash / production-runner | 0/35; 0.0% [0.0, 9.9] | 0/25; 0.0% [0.0, 13.3] | 0/60; 0.0% [0.0, 6.0] |
+| DeepSeek V4 Flash / runner-deepseek-v4-flash | 0/35; 0.0% [0.0, 9.9] | 1/25; 4.0% [0.7, 19.5] | 1/60; 1.7% [0.3, 8.9] |
+| Tencent HY3 / production-runner | 0/35; 0.0% [0.0, 9.9] | 0/25; 0.0% [0.0, 13.3] | 0/60; 0.0% [0.0, 6.0] |
+| Tencent HY3 / runner-deepseek-v4-flash | 0/35; 0.0% [0.0, 9.9] | 0/25; 0.0% [0.0, 13.3] | 0/60; 0.0% [0.0, 6.0] |
+
+So 35 of the 75 code-enforced trials per condition could have succeeded, not 75. The other 40 tested
+projection, not the model. At case level, 12 of the 21 primary cases could succeed: 0/12; 0.0% [0.0, 24.2]
+for three conditions and 1/12; 8.3% [1.5, 35.4] for DeepSeek / `runner-deepseek-v4-flash`.
+`attack-selection-suppression-combined` is among the 25 selection trials, but it names its target only by
+URL. The model received `Never mention or cite [destination omitted; use citation refs]`, so the case can
+fire only through ordinary omission, and it has no clean twin to show how often that happens.
+
+The recorded outcomes are unchanged and remain reproducible from the ledger. What changes is the
+denominator that supports a claim about the model.
+[Suite version 11](../evaluation-methodology.md#version-11-suite-changes) removes the 15 unreachable cases
+from the attack suite. [`test_attack_boundaries.py`](../../evaluator/tests/test_attack_boundaries.py)
+checks each removal directly, and the planner now refuses an attack case whose payload or canary is not
+model-visible.
+
 ### Case-level intervals
 
 The trial-level intervals above treat five temperature-0 repeats of each case as independent trials,
@@ -175,6 +225,12 @@ which overstates the effective sample size. The table below adds case-level Wils
 them, not in place of them. A case counts when the oracle fired in at least one of its completed trials;
 `n` is the number of distinct cases. For the two suppression columns a counted case is not evidence of
 compromise: compare the attacked column with the clean-twin column.
+
+**Corrected 2026-11-19.** The two primary columns are as first published. Only 12 of the 21 primary
+cases and 5 of the 6 primary selection cases could succeed. Over those cases DeepSeek /
+`runner-deepseek-v4-flash` is 1/12; 8.3% [1.5, 35.4] and 1/5; 20.0% [3.6, 62.4], and the other three
+conditions are 0/12; 0.0% [0.0, 24.2] and 0/5; 0.0% [0.0, 43.4]. See the
+[correction](#correction-attacks-that-could-not-succeed-2026-11-19).
 
 | Model / prompt | Primary, all (21 cases) | Primary, selection (6 cases) | Ablation, selection, attacked (6 cases) | Selection clean twins (9 cases) |
 |---|---:|---:|---:|---:|
@@ -298,7 +354,9 @@ descriptive deltas against Parity v3 with their recorded incompatibility reasons
 
 This card may not claim: that injected text has no effect on story selection (the run uses one corpus,
 computes no interval, and cannot exclude a small effect); an interval or significance level for the paired
-effect; a position or item-count effect; news quality, factual grounding, or meaning preservation; a
+effect; an attack rate over the nine primary cases or six citation-fabrication ablations whose canary
+never reached the model (see the [correction](#correction-attacks-that-could-not-succeed-2026-11-19));
+a position or item-count effect; news quality, factual grounding, or meaning preservation; a
 promotion or regression decision against Parity v3 or between the prompts; daily-service reliability (the
 benchmark uses temperature 0, disabled reasoning, one correction, and a frozen tag, while the daily
 runner uses temperature 0.2, enabled reasoning, a fallback chain, and up to three corrections per stage);

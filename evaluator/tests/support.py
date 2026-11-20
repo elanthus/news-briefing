@@ -14,6 +14,7 @@ from evaluator.adapters import (
 from evaluator.adapters import (
     adapter_for as judge_adapter_for,
 )
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION
 from evaluator.tests.oracle_controls import BaselineAdapter
 
 
@@ -198,7 +199,7 @@ def _resume_fixture(
     )
     suite = temporary / "suite.json"
     suite.write_text(json.dumps({
-        "schema_version": 8,
+        "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
         "case_count": case_count,
         "cases": [
             {

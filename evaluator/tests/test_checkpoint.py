@@ -16,6 +16,7 @@ from evaluator.adapters import (
     Generation,
 )
 from evaluator.checkpoint import _checkpoint, _reconstruct_observed_cost
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     AlwaysFailAdapter,
@@ -673,19 +674,27 @@ class CheckpointTest(unittest.TestCase):
                                        corpus_path=DEFAULT_CORPUS, resume=True)
                     self.assertEqual(adapter.requests, [])
                     path.write_bytes(original)
-            # Preexisting compatible checkpoints bind corpus/final bytes without
-            # the newer complete file map; keep their narrower resume contract.
-            del manifest["results"][0]["artifact_sha256"]
+            # Every checkpointed row carries its artifact hashes, so a row without
+            # them is unverifiable and is refused rather than resumed on a narrower check.
+            saved = manifest["results"][0].pop("artifact_sha256")
             (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            path = row_dir / "corpus.json"
-            original_corpus = path.read_bytes()
-            path.write_bytes(original_corpus + b" ")
+            adapter = RecordingFakeAdapter("fixture")
+            with self.assertRaisesRegex(ValueError, "missing or invalid artifact hashes"):
+                run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
+                               corpus_path=DEFAULT_CORPUS, resume=True)
+            self.assertEqual(adapter.requests, [])
+            manifest["results"][0]["artifact_sha256"] = saved
+            # The row's own corpus digest is checked as well as the artifact map.
+            recorded = manifest["results"][0]["trial_corpus_sha256"]
+            manifest["results"][0]["trial_corpus_sha256"] = "0" * 64
+            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
             adapter = RecordingFakeAdapter("fixture")
             with self.assertRaisesRegex(ValueError, "frozen generation artifact"):
                 run_evaluation([adapter], {"v1": prompt}, output, suite_path=suite,
                                corpus_path=DEFAULT_CORPUS, resume=True)
             self.assertEqual(adapter.requests, [])
-            path.write_bytes(original_corpus)
+            manifest["results"][0]["trial_corpus_sha256"] = recorded
+            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
             artifact = row_dir / "final.md"
             original = artifact.read_bytes()
             outside = Path(directory) / "outside.md"
@@ -776,7 +785,7 @@ class CheckpointTest(unittest.TestCase):
             suite.write_text(
                 json.dumps(
                     {
-                        "schema_version": 2,
+                        "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                         "case_count": 1,
                         "cases": [
                             {

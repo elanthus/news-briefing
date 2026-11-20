@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 360
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment_retry.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -204,11 +204,26 @@ jobs:
       - name: Deploy to GitHub Pages
         if: ${{ !cancelled() && steps.pages.outcome == 'success' }}
         id: deployment
+        # The retry below decides the job result when this attempt fails.
+        continue-on-error: true
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      # deploy-pages lists the run's artifacts through the Actions results
+      # service, which can lag the upload: on 2026-11-19 two runs failed with
+      # "No artifacts named github-pages" seconds after a successful upload.
+      # No run step can read that listing, so wait and deploy once more.
+      - name: Wait before retrying the Pages deploy
+        if: ${{ !cancelled() && steps.deployment.outcome == 'failure' }}
+        run: sleep 120
+
+      - name: Retry the Pages deploy
+        if: ${{ !cancelled() && steps.deployment.outcome == 'failure' }}
+        id: deployment_retry
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
       - name: Report briefing and deployment outcome
         if: always()
         env:
           GENERATION_OUTCOME: ${{ steps.generation.outcome }}
-          DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+          DEPLOYMENT_OUTCOME: ${{ steps.deployment_retry.outcome == 'success' && 'success' || steps.deployment.outcome }}
         run: python3 -S daily_publish.py check-outcome

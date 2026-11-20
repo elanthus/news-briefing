@@ -4,11 +4,14 @@ from __future__ import annotations
 import hashlib
 import http.client
 import io
+import json
 import tarfile
 import tempfile
 import unittest
 import urllib.request
+from contextlib import redirect_stderr
 from pathlib import Path
+from typing import Any
 
 from evaluator.evidence_assets import (
     Asset,
@@ -18,6 +21,7 @@ from evaluator.evidence_assets import (
     extract_verified,
     fetch,
     load_config,
+    main,
     pack,
     pack_bytes,
 )
@@ -89,6 +93,89 @@ class PackTest(unittest.TestCase):
         self.assertTrue(config.assets)
         for asset in config.assets:
             self.assertTrue((config.source_root / asset.bundle / "SHA256SUMS").is_file())
+
+
+class ConfigShapeTest(unittest.TestCase):
+    """A malformed config is a typed error, not a bare KeyError or TypeError."""
+
+    ASSET: dict[str, Any] = {
+        "bundle": BUNDLE,
+        "name": f"{BUNDLE}.tar.gz",
+        "sha256": "a" * 64,
+        "files": ["ledger.json"],
+    }
+    VALID: dict[str, Any] = {
+        "repository": "o/r",
+        "tag": "t",
+        "source_root": "tree",
+        "output_root": "out",
+        "assets": [ASSET],
+    }
+
+    def _load(self, payload: object) -> Config:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence-assets.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            return load_config(path, Path(directory))
+
+    def test_valid_shape_loads(self) -> None:
+        self.assertEqual([asset.bundle for asset in self._load(self.VALID).assets], [BUNDLE])
+
+    def test_missing_keys_name_the_key(self) -> None:
+        for key in self.VALID:
+            payload = {name: value for name, value in self.VALID.items() if name != key}
+            with self.subTest(key=key), self.assertRaisesRegex(
+                EvidenceAssetError, f"invalid evidence asset config .*: missing key '{key}'"
+            ):
+                self._load(payload)
+        asset = {name: value for name, value in self.ASSET.items() if name != "sha256"}
+        with self.assertRaisesRegex(EvidenceAssetError, "missing key 'sha256'"):
+            self._load({**self.VALID, "assets": [asset]})
+
+    def test_wrong_container_types_are_rejected(self) -> None:
+        payloads: tuple[object, ...] = (
+            [],
+            {**self.VALID, "assets": "parity"},
+            {**self.VALID, "assets": [["bundle"]]},
+            {**self.VALID, "assets": [{**self.ASSET, "files": 3}]},
+            {**self.VALID, "source_root": 3},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                EvidenceAssetError, "invalid evidence asset config"
+            ):
+                self._load(payload)
+
+    def test_wrong_value_types_and_escaping_roots_are_rejected(self) -> None:
+        payloads: tuple[tuple[object, str], ...] = (
+            ({**self.VALID, "assets": {"a": self.ASSET}}, "assets must be a list"),
+            ({**self.VALID, "assets": [{**self.ASSET, "files": "ledger.json"}]}, "asset files must be a list"),
+            ({**self.VALID, "assets": [{**self.ASSET, "files": {"ledger.json": 1}}]}, "asset files must be a list"),
+            ({**self.VALID, "repository": 3}, "repository must be owner/name"),
+            ({**self.VALID, "repository": "o/r/../x"}, "repository must be owner/name"),
+            ({**self.VALID, "source_root": "/etc"}, "source_root must stay inside the repository"),
+            ({**self.VALID, "output_root": "../out"}, "output_root must stay inside the repository"),
+            ({**self.VALID, "output_root": "out\x00"}, "output_root must be a relative directory"),
+            ({**self.VALID, "source_root": ""}, "source_root must be a relative directory"),
+        )
+        for payload, message in payloads:
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                EvidenceAssetError, f"invalid evidence asset config .*: {message}"
+            ):
+                self._load(payload)
+
+    def test_cli_reports_a_malformed_config_as_one_line(self) -> None:
+        for command in (["fetch"], ["pack", "--output-dir", "assets"]):
+            with self.subTest(command=command[0]), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "evidence-assets.json"
+                path.write_text(json.dumps({**self.VALID, "repository": 3}), encoding="utf-8")
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    status = main(["--config", str(path), *command])
+                self.assertEqual(status, 1)
+                lines = stderr.getvalue().strip().splitlines()
+                self.assertEqual(len(lines), 1)
+                self.assertRegex(lines[0], r"^error: invalid evidence asset config .*: repository must be owner/name")
 
 
 class RedirectPolicyTest(unittest.TestCase):

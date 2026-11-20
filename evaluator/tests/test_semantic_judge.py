@@ -11,6 +11,7 @@ from evaluator.adapters import (
     Adapter,
     Generation,
 )
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.scoring import _semantic_adjudication_template
 from evaluator.semantic_review import _judgment_prompt as _semantic_judgment_prompt
@@ -46,7 +47,7 @@ class SemanticJudgeTest(unittest.TestCase):
         )
         suite = directory / "suite.json"
         suite.write_text(json.dumps({
-            "schema_version": 4,
+            "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
             "case_count": 1,
             "cases": [{
                 "id": "semantic", "kind": "utility", "family": "valid_edge",
@@ -221,7 +222,7 @@ class SemanticJudgeTest(unittest.TestCase):
             suite.write_text(
                 json.dumps(
                     {
-                        "schema_version": 4,
+                        "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                         "case_count": 1,
                         "cases": [
                             {

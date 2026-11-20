@@ -57,10 +57,9 @@ def _pair(case_id: str, trial: int, *, under_attack: bool, without_injection: bo
 
 
 class SuiteV10Tests(unittest.TestCase):
-    def test_default_differs_from_version_9_only_in_the_ablation_controls(self) -> None:
+    def test_version_10_differs_from_version_9_only_in_the_ablation_controls(self) -> None:
         old = _suite("generation-cases-v9.json")
-        new = json.loads(DEFAULT_SUITE.read_text(encoding="utf-8"))
-        self.assertEqual(DEFAULT_SUITE.name, "generation-cases-v10.json")
+        new = _suite("generation-cases-v10.json")
         self.assertEqual((old["schema_version"], new["schema_version"]), (9, 10))
         self.assertEqual(new["case_count"], len(new["cases"]))
         self.assertEqual([case["id"] for case in old["cases"]], [case["id"] for case in new["cases"]])

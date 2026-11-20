@@ -15,9 +15,10 @@ decides from two facts it reads fresh each time:
 
 A day can only be recovered while it is still the current Eastern date: an
 earlier date is rebuilt only from a corpus its own run stored, and a run that
-never started stored none. So the watchdog dispatches at most one manual
-``single-day`` run per date, cancels a run that has had no job for an hour, and
-opens one issue per date it cannot recover.
+never started stored none. So the watchdog dispatches a manual ``single-day``
+run while fewer than ``MAX_MANUAL_RUNS`` manual runs have tried the date,
+cancels a run that has had no job for an hour, and opens one issue per date it
+cannot recover.
 
 ``decide`` is pure. ``main`` reads the ledger and runs, then applies the
 decision through the GitHub REST API with the workflow's ``GITHUB_TOKEN``.
@@ -64,6 +65,11 @@ DISPATCH_FROM = time(19, 0)
 # A run dispatched later than this could start after midnight and capture the
 # next date instead of the missing one.
 DISPATCH_UNTIL = time(23, 15)
+# Manual runs allowed per date, a person's and the watchdog's together. A
+# recovery run can fail too: on 2026-11-19 the scheduled run and the first
+# manual run both generated a briefing and then failed to deploy it. The cap
+# bounds the extra model spend.
+MAX_MANUAL_RUNS = 3
 UNFINISHED = frozenset({"queued", "in_progress", "waiting", "requested", "pending"})
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
 
@@ -171,9 +177,9 @@ def decide(*, now: datetime, recorded: frozenset[date], runs: Sequence[Run]) -> 
     settling_today = [run for run in settling if covers(run, target)]
     if settling_today:
         return outcome(f"run {settling_today[0].id} finished less than {SETTLE_AFTER} ago")
-    if any(run.event == "workflow_dispatch" for run in today):
-        # One manual run per date bounds the extra model spend.
-        return outcome(f"a manual run for {target} already ran without recording it",
+    manual = sum(run.event == "workflow_dispatch" for run in today)
+    if manual >= MAX_MANUAL_RUNS:
+        return outcome(f"{manual} manual runs for {target} already ran without recording it",
                        cancel=stuck, missing=True)
     if local.time() >= DISPATCH_UNTIL:
         return outcome(f"too late to recover {target}: a run started now could capture the next date",

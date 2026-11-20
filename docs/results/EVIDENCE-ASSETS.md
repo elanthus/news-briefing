@@ -26,7 +26,7 @@ python3 -S -m evaluator verify-public-run .news-briefing/evidence/parity-v4-evid
 python3 -S -m unittest discover -s evaluator/tests -p test_comparison.py -k committed
 ```
 
-The last command regenerates the committed Parity v3 prompt comparison under regression policy v3 and requires matching JSON and Markdown.
+The last command regenerates the committed Parity v4 prompt comparison under regression policy v4 and requires matching JSON and Markdown.
 It skips when the required bundles are absent.
 
 `fetch` downloads over HTTPS and rejects non-HTTPS redirects before requesting them.
