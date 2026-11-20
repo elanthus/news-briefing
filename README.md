@@ -15,7 +15,7 @@ A daily news briefing covering U.S. and world news, AI, and developer tools. Eac
 
 An early briefing cited an article the fetcher had never collected. The daily service now separates story selection from writing. A language model picks stories from a fixed collection of feed items. Code freezes the titles and excerpts behind each choice. The model writes from those excerpts, and code attaches the original links after validation. [Incident record](docs/dogfooding.md#2026-08-09--the-run-behind-the-committed-reference-pair) · [Design decision](docs/adr/0002-two-pass-selection-then-prose-with-frozen-evidence.md)
 
-## Historical injection benchmark
+## Injection benchmark
 
 The November 2026 Parity v4 benchmark tested whether instructions hidden in feed items could change the briefing. Across four model and prompt combinations, attacks on code-enforced rules had **0 successes in the 35 primary trials each that could succeed** (140 completed trials). Those rules covered citations, formatting, and specific prose requirements. Another 40 trials per combination could not succeed, because projection removed the canary that scores a success before the model saw it (for source-health attacks, the whole attack text); deterministic tests now check those boundaries instead ([correction](docs/results/parity-v4.md#correction-attacks-that-could-not-succeed-2026-11-19)). The October Parity v3 run also had no successes; 40 of its 75 code-enforced trials per combination could succeed.
 
