@@ -39,6 +39,7 @@ def _comparison_manifest() -> dict[str, object]:
                 "correction": None, "first": {**stage, "latency_ms": 10.0, "cost_usd": 0.01}, "final": stage,
             })
     return {
+        "schema_version": 9, "attack_oracle_revision": 2,
         "corpus_sha256": "corpus", "config_sha256": {"config.json": "config"}, "protocol_sha256": "protocol",
         "execution_order": "prompt_interleaved_randomized", "execution_seed": 1729,
         "prompt_sha256": {prompt: f"hash-{prompt}" for prompt in prompts},
@@ -63,8 +64,8 @@ class CliTest(unittest.TestCase):
             with patch.object(sys, "argv", argv), redirect_stdout(io.StringIO()):
                 self.assertEqual(evaluator_cli.main(), 0)
             result = json.loads(output.read_text(encoding="utf-8"))
-        self.assertEqual(result["schema_version"], 3)
-        self.assertEqual(result["regression_policy_version"], 3)
+        self.assertEqual(result["schema_version"], 4)
+        self.assertEqual(result["regression_policy_version"], 4)
         self.assertEqual(result["regression_policy_sha256"], hashlib.sha256(policy.read_bytes()).hexdigest())
         self.assertIn("promotion", result)
 
