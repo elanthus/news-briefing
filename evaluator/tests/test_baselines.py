@@ -9,7 +9,7 @@ from pathlib import Path
 import corpus_schema
 import eval_briefing
 from briefing_config import load_config
-from evaluator.plan import _mutate, _relocate, _set_source_failures
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION, _mutate, _relocate, _set_source_failures
 from evaluator.report import markdown_report
 from evaluator.runner import DEFAULT_CORPUS, DEFAULT_SUITE, run_evaluation
 from evaluator.scoring import _oracle
@@ -175,7 +175,7 @@ class BaselineAdapterTest(unittest.TestCase):
             suite.write_text(
                 json.dumps(
                     {
-                        "schema_version": 5,
+                        "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                         "case_count": 1,
                         "cases": [
                             {

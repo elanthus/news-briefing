@@ -16,6 +16,7 @@ from evaluator.adapters import (
     Adapter,
     Generation,
 )
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION
 from evaluator.quality import (
     QUALITY_AXES,
     _parse_judgment,
@@ -99,7 +100,7 @@ class QualityJudgeTest(unittest.TestCase):
         )
         suite = directory / "suite.json"
         suite.write_text(json.dumps({
-            "schema_version": 2,
+            "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
             "case_count": 1,
             "cases": [{
                 "id": "offline",
@@ -327,7 +328,7 @@ class QualityJudgeTest(unittest.TestCase):
             manifest_path = self._minimal_run(temporary)
             mismatched_suite = temporary / "mismatched-suite.json"
             mismatched_suite.write_text(json.dumps({
-                "schema_version": 2,
+                "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                 "case_count": 1,
                 "cases": [{
                     "id": "different-case",

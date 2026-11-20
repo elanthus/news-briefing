@@ -20,6 +20,7 @@ from evaluator.case_runner import HEURISTIC_CLAIM_CHECKS, run_deterministic_suit
 from evaluator.cases import VARIANTS, apply_variant, text_only
 from evaluator.cases import variant as register_variant
 from evaluator.plan import (
+    GENERATION_SUITE_SCHEMA_VERSION,
     _attack_dimensions,
     _mutate,
     _relocate,
@@ -863,7 +864,7 @@ class CasesTest(unittest.TestCase):
             )
             suite = temporary / "suite.json"
             suite.write_text(json.dumps({
-                "schema_version": 4,
+                "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                 "case_count": 1,
                 "cases": [{
                     "id": "hidden-oracle",
