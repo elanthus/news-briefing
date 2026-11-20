@@ -229,7 +229,7 @@ These limits prevent a composite reliability claim or decisive interpretation of
 ## Parity v2 reporting caveats
 
 These qualifications apply to the frozen [Parity v2](results/parity-v2.md) experiment.
-The [README](../README.md#historical-injection-benchmark) summarizes the later Parity v4 result.
+The [README](../README.md#injection-benchmark) summarizes the later Parity v4 result.
 
 Structural utility measures valid output, routed sections, and configured minimums. It does not measure news quality.
 No independent human semantic or grounding review was completed for Parity v2.
