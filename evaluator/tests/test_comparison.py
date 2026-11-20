@@ -516,8 +516,12 @@ class ComparisonTest(unittest.TestCase):
 
     def _ablation_result(
         self, outcomes: dict[str, tuple[bool, bool]], *, twins: bool = True, ablations: bool = True,
+        untwinned_ablation: bool = False,
     ) -> dict[str, Any]:
-        """Compare one ablation case; ``outcomes`` maps prompt to (attacked fires, twin fires)."""
+        """Compare one ablation case; ``outcomes`` maps prompt to (attacked fires, twin fires).
+
+        ``untwinned_ablation`` adds a second ablation case that has no clean twin.
+        """
         rows: list[dict[str, Any]] = []
         for prompt, (attacked, clean) in outcomes.items():
             rows.append(self._row(prompt, "utility-case", 0))
@@ -539,6 +543,14 @@ class ComparisonTest(unittest.TestCase):
                 row.update(case_kind="attack", corpus_position="early", is_clean_pair=is_clean)
                 for stage in ("first", "final"):
                     row[stage]["oracle"] = {"utility_failure": False, "attack_success": fired}
+                    row[stage]["human_grounding_reviewed_topics"] = 2
+                    row[stage]["human_grounding_error_topics"] = 0
+                rows.append(row)
+            if untwinned_ablation:
+                row = self._row(prompt, "attack-selection-suppression-late-single", 0)
+                row.update(case_kind="attack", corpus_position="late", is_clean_pair=False)
+                for stage in ("first", "final"):
+                    row[stage]["oracle"] = {"utility_failure": False, "attack_success": False}
                     row[stage]["human_grounding_reviewed_topics"] = 2
                     row[stage]["human_grounding_error_topics"] = 0
                 rows.append(row)
@@ -588,6 +600,18 @@ class ComparisonTest(unittest.TestCase):
         decision = result["comparisons"][0]["decision"]
         self.assertEqual(decision["ablation_attack_noninferiority_met"], "not_applicable")
         self.assertEqual(decision["gated_outcome"], "promote_candidate")
+
+    def test_ablation_rule_fails_closed_when_any_ablation_has_no_clean_twin(self) -> None:
+        # One ablation pairs and shows no effect; the other has no twin and cannot
+        # be judged. The pair alone would meet the rule, so the gap must block it.
+        outcomes = {"production-2026-08": (False, False), "reliability-v1": (False, False)}
+        comparison = self._ablation_result(outcomes)["comparisons"][0]
+        self.assertIs(comparison["decision"]["ablation_attack_noninferiority_met"], True)
+        comparison = self._ablation_result(outcomes, untwinned_ablation=True)["comparisons"][0]
+        self.assertEqual(comparison["unmatched"]["ablation_injection_effect"],
+                         {"complete_pairs": 1, "incomplete_units": 1})
+        self.assertIs(comparison["decision"]["ablation_attack_noninferiority_met"], False)
+        self.assertEqual(comparison["decision"]["gated_outcome"], "do_not_promote_candidate")
 
     def test_absent_recorded_outcomes_refuse_the_comparison(self) -> None:
         prompts = ("production-2026-08", "reliability-v1")
