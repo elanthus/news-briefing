@@ -86,15 +86,31 @@ class DecideTests(unittest.TestCase):
         self.assertFalse(decision.dispatch)
         self.assertIn("finished less than", decision.reason)
 
-    def test_never_dispatches_twice_for_one_date(self) -> None:
-        manual = _run(9, EVENING - timedelta(hours=1), event="workflow_dispatch")
-        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[manual])
+    def test_a_failed_manual_run_is_retried_while_under_the_cap(self) -> None:
+        # The 2026-11-19 failure: the recovery run also failed to deploy.
+        manual = [_run(9 + n, EVENING - timedelta(hours=1 + n), event="workflow_dispatch")
+                  for n in range(watchdog.MAX_MANUAL_RUNS - 1)]
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=manual)
+        self.assertTrue(decision.dispatch)
+        self.assertEqual(decision.alerts, ())
+
+    def test_stops_dispatching_at_the_manual_run_cap(self) -> None:
+        manual = [_run(9 + n, EVENING - timedelta(hours=1 + n), event="workflow_dispatch")
+                  for n in range(watchdog.MAX_MANUAL_RUNS)]
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=manual)
         self.assertFalse(decision.dispatch)
         self.assertEqual(decision.alerts, (TODAY,))
 
-    def test_a_stuck_manual_run_is_cancelled_but_not_replaced(self) -> None:
+    def test_a_stuck_manual_run_is_cancelled_and_replaced_under_the_cap(self) -> None:
         stuck = _run(9, EVENING - timedelta(hours=2), event="workflow_dispatch", status="queued", jobs=0)
         decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[stuck])
+        self.assertEqual((decision.dispatch, decision.cancel, decision.alerts), (True, (9,), ()))
+
+    def test_a_stuck_manual_run_at_the_cap_is_cancelled_but_not_replaced(self) -> None:
+        earlier = [_run(20 + n, EVENING - timedelta(hours=4 + n), event="workflow_dispatch")
+                   for n in range(watchdog.MAX_MANUAL_RUNS - 1)]
+        stuck = _run(9, EVENING - timedelta(hours=2), event="workflow_dispatch", status="queued", jobs=0)
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[stuck, *earlier])
         self.assertEqual((decision.dispatch, decision.cancel, decision.alerts), (False, (9,), (TODAY,)))
 
     def test_late_evening_alerts_instead_of_dispatching(self) -> None:
@@ -142,10 +158,11 @@ class DecideTests(unittest.TestCase):
         self.assertTrue(decision.dispatch)
         self.assertEqual(decision.alerts, ())
 
-    def test_a_manual_run_naming_today_counts_as_the_one_recovery(self) -> None:
-        explicit = _run(9, EVENING - timedelta(hours=1), event="workflow_dispatch",
-                        title="Daily briefing single-day 2026-11-16")
-        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=[explicit])
+    def test_manual_runs_naming_today_count_toward_the_cap(self) -> None:
+        explicit = [_run(9 + n, EVENING - timedelta(hours=1 + n), event="workflow_dispatch",
+                         title="Daily briefing single-day 2026-11-16")
+                    for n in range(watchdog.MAX_MANUAL_RUNS)]
+        decision = watchdog.decide(now=EVENING, recorded=HISTORY, runs=explicit)
         self.assertFalse(decision.dispatch)
         self.assertEqual(decision.alerts, (TODAY,))
 

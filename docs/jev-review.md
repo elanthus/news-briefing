@@ -11,7 +11,7 @@ Decider uses the same API with `perplexity/pplx-decider-v1.2`.
 Both slugs are pinned releases, not the `~latest` aliases, so a judge change is a reviewed commit.
 The client refuses a response that reports a different model than it requested.
 Neither model needs a vendor key or third-party Python package.
-It returns probabilities, not prose or free-text rationales.
+Each returns probabilities, not prose or free-text rationales.
 These excerpt judgments are automated evidence, not human verification.
 
 The integrity report distinguishes accepted, rejected, failed, and skipped repairs.
