@@ -60,6 +60,7 @@ class FakeJudge:
 def _protocol(directory: Path, *, authorized: bool) -> Path:
     path = directory / "protocol.json"
     path.write_text(json.dumps({
+        "schema_version": 1,
         "protocol_id": "fixture",
         "status": "frozen_for_run" if authorized else "draft_pending_freeze",
         "authorization": {"authorized_at": "2026-11-19T00:00:00Z" if authorized else None},
@@ -168,6 +169,20 @@ class SensitivityRunTests(unittest.TestCase):
             protocol.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "differs from the protocol hash"):
                 run(FIXTURE, "dry_run", Path(directory) / "out", protocol_path=protocol, cost_ceiling_usd=1.0)
+
+    def test_other_protocol_schema_versions_are_refused(self) -> None:
+        for version in (0, 2, None, "1", True, "absent"):
+            with self.subTest(schema_version=version), tempfile.TemporaryDirectory() as directory:
+                protocol = _protocol(Path(directory), authorized=False)
+                data = json.loads(protocol.read_text(encoding="utf-8"))
+                if version == "absent":
+                    del data["schema_version"]
+                else:
+                    data["schema_version"] = version
+                protocol.write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "protocol schema_version must be 1"):
+                    run(FIXTURE, "dry_run", Path(directory) / "out", protocol_path=protocol, cost_ceiling_usd=1.0)
+                self.assertFalse((Path(directory) / "out").exists())
 
     def test_budget_and_unknown_cost_stop_further_calls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

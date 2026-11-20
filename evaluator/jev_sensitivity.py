@@ -30,6 +30,7 @@ from agent_runner.models import ProviderError
 from evaluator.metrics import wilson_interval
 
 FIXTURE_SCHEMA_VERSION = 1
+PROTOCOL_SCHEMA_VERSION = 1
 RESULTS_SCHEMA_VERSION = 1
 KINDS = ("control", "unsupported", "strengthened", "reversed")
 SEEDED_KINDS = KINDS[1:]
@@ -164,6 +165,9 @@ def run(
     fixture = load_fixture(fixture_path)
     fixture_sha256 = hashlib.sha256(fixture_path.read_bytes()).hexdigest()
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    version = protocol.get("schema_version") if isinstance(protocol, dict) else None
+    if type(version) is not int or version != PROTOCOL_SCHEMA_VERSION:
+        raise ValueError(f"protocol schema_version must be {PROTOCOL_SCHEMA_VERSION}")
     pinned = protocol.get("fixture", {}).get("sha256")
     if pinned != fixture_sha256:
         raise ValueError("seed fixture differs from the protocol hash")

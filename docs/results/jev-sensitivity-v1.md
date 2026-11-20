@@ -38,7 +38,7 @@ Decider configuration the daily service runs.
 | Field | Value |
 |---|---|
 | Protocol | [`jev-sensitivity-v1.json`](../../evaluator/protocols/jev-sensitivity-v1.json), frozen and authorized 2026-11-19 before the measured run |
-| Source commit | `6324aa5`, the commit that froze the protocol; the protocol pins the fixture, harness, rubric, and client hashes |
+| Source commit | `6324aa5`, the commit that froze the protocol; the protocol pins the fixture, harness, rubric, and client hashes. The harness `evaluator/jev_sensitivity.py` changed after `6324aa5` to refuse a protocol file of another `schema_version`, so its pinned hash describes the file at that commit, not at later ones. |
 | Fixture | [`jev-sensitivity-seeds.json`](../../evaluator/fixtures/jev-sensitivity-seeds.json): 63 topics, 252 items |
 | Measured | 60 topics, 240 items, 720 prose-support checks |
 | Served releases | `typesafe/jev-1.14-20261014`, `perplexity/pplx-decider-v1.2-20261016` |
