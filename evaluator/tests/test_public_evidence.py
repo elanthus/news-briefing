@@ -508,8 +508,12 @@ class RecordedCommandTest(unittest.TestCase):
                 evaluator_cli.main()
             self.assertEqual(raised.exception.code, 2)
             self.assertNotIn("Traceback", stderr.getvalue())
+            lines = stderr.getvalue().strip().splitlines()
+            # argparse prints its usage block first; the error itself is the one last line.
+            self.assertTrue(lines[0].startswith("usage: evaluator"))
+            self.assertEqual([line for line in lines if "error" in line], lines[-1:])
             self.assertRegex(
-                stderr.getvalue().strip().splitlines()[-1],
+                lines[-1],
                 r"error: invalid evidence asset config .*evidence-assets\.json: missing key 'tag'$",
             )
             self.assertFalse((root / "public").exists())

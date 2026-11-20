@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import unittest
 import urllib.request
+from contextlib import redirect_stderr
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from evaluator.evidence_assets import (
     extract_verified,
     fetch,
     load_config,
+    main,
     pack,
     pack_bytes,
 )
@@ -143,6 +145,37 @@ class ConfigShapeTest(unittest.TestCase):
                 EvidenceAssetError, "invalid evidence asset config"
             ):
                 self._load(payload)
+
+    def test_wrong_value_types_and_escaping_roots_are_rejected(self) -> None:
+        payloads: tuple[tuple[object, str], ...] = (
+            ({**self.VALID, "assets": {"a": self.ASSET}}, "assets must be a list"),
+            ({**self.VALID, "assets": [{**self.ASSET, "files": "ledger.json"}]}, "asset files must be a list"),
+            ({**self.VALID, "assets": [{**self.ASSET, "files": {"ledger.json": 1}}]}, "asset files must be a list"),
+            ({**self.VALID, "repository": 3}, "repository must be owner/name"),
+            ({**self.VALID, "repository": "o/r/../x"}, "repository must be owner/name"),
+            ({**self.VALID, "source_root": "/etc"}, "source_root must stay inside the repository"),
+            ({**self.VALID, "output_root": "../out"}, "output_root must stay inside the repository"),
+            ({**self.VALID, "output_root": "out\x00"}, "output_root must be a relative directory"),
+            ({**self.VALID, "source_root": ""}, "source_root must be a relative directory"),
+        )
+        for payload, message in payloads:
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                EvidenceAssetError, f"invalid evidence asset config .*: {message}"
+            ):
+                self._load(payload)
+
+    def test_cli_reports_a_malformed_config_as_one_line(self) -> None:
+        for command in (["fetch"], ["pack", "--output-dir", "assets"]):
+            with self.subTest(command=command[0]), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "evidence-assets.json"
+                path.write_text(json.dumps({**self.VALID, "repository": 3}), encoding="utf-8")
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    status = main(["--config", str(path), *command])
+                self.assertEqual(status, 1)
+                lines = stderr.getvalue().strip().splitlines()
+                self.assertEqual(len(lines), 1)
+                self.assertRegex(lines[0], r"^error: invalid evidence asset config .*: repository must be owner/name")
 
 
 class RedirectPolicyTest(unittest.TestCase):

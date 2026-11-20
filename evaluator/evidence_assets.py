@@ -15,6 +15,7 @@ import gzip
 import http.client
 import io
 import json
+import re
 import shutil
 import sys
 import tarfile
@@ -22,7 +23,7 @@ import tempfile
 import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import IO, Any
 
 from agent_runner.hashing import is_sha256, sha256_bytes
@@ -33,6 +34,7 @@ MAX_ASSET_BYTES = 64 * 1024 * 1024
 MAX_MEMBER_BYTES = 64 * 1024 * 1024
 TIMEOUT_SECONDS = 60
 IN_TREE_FILES = ("SHA256SUMS", "metadata.json", "report.md")
+REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
 
 class EvidenceAssetError(ValueError):
@@ -72,11 +74,28 @@ def _plain_name(value: Any, label: str) -> str:
     return value
 
 
+def _list(value: Any, label: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise EvidenceAssetError(f"{label} must be a list: {value!r}")
+    return value
+
+
+def _relative_dir(value: Any, label: str) -> PurePosixPath:
+    if not isinstance(value, str) or not value or "\x00" in value or "\\" in value:
+        raise EvidenceAssetError(f"{label} must be a relative directory: {value!r}")
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise EvidenceAssetError(f"{label} must stay inside the repository: {value!r}")
+    return path
+
+
 def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
     """Read and validate the asset config; a wrong shape raises `EvidenceAssetError`."""
     raw = json.loads(path.read_text(encoding="utf-8"))
     try:
         return _config_from(raw, root)
+    except EvidenceAssetError as error:
+        raise EvidenceAssetError(f"invalid evidence asset config {path}: {error}") from error
     except KeyError as error:
         raise EvidenceAssetError(f"invalid evidence asset config {path}: missing key {error}") from error
     except TypeError as error:
@@ -85,8 +104,8 @@ def load_config(path: Path = CONFIG_PATH, root: Path = ROOT) -> Config:
 
 def _config_from(raw: Any, root: Path) -> Config:
     assets = []
-    for item in raw["assets"]:
-        files = tuple(_plain_name(name, "asset file") for name in item["files"])
+    for item in _list(raw["assets"], "assets"):
+        files = tuple(_plain_name(name, "asset file") for name in _list(item["files"], "asset files"))
         if len(set(files)) != len(files) or set(files) & set(IN_TREE_FILES):
             raise EvidenceAssetError(f"asset {item['name']} has duplicate or in-tree files")
         if not is_sha256(item["sha256"]):
@@ -99,11 +118,14 @@ def _config_from(raw: Any, root: Path) -> Config:
                 files=files,
             )
         )
+    repository = raw["repository"]
+    if not isinstance(repository, str) or REPOSITORY_PATTERN.fullmatch(repository) is None:
+        raise EvidenceAssetError(f"repository must be owner/name: {repository!r}")
     return Config(
-        repository=raw["repository"],
+        repository=repository,
         tag=_plain_name(raw["tag"], "tag"),
-        source_root=root / raw["source_root"],
-        output_root=root / raw["output_root"],
+        source_root=root / _relative_dir(raw["source_root"], "source_root"),
+        output_root=root / _relative_dir(raw["output_root"], "output_root"),
         assets=tuple(assets),
     )
 
