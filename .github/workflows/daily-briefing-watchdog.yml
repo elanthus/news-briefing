@@ -3,7 +3,7 @@ name: Daily briefing watchdog
 # GitHub can create a scheduled Daily briefing run and never start its job, so
 # no step of that workflow runs to notice. This workflow checks the deployed
 # metrics ledger every hour and, while the date can still be recovered,
-# dispatches one manual single-day run. See briefing_watchdog.py for the rules.
+# dispatches a manual single-day run. See briefing_watchdog.py for the rules.
 # It runs hourly because scheduled starts here have been hours late; any one
 # check that fires in the evening Eastern window is enough.
 on:
