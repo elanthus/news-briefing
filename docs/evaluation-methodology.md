@@ -325,6 +325,10 @@ It does not establish general precision, recall, or ground-truth accuracy.
 The [September 30 study](results/jev-preliminary-2026-09-30.md) informed sample sizing.
 The [partial-day supplement](results/jev-stage-v1-partial-supplement.md) remains separate from the original evaluation.
 
+The [Jev plus Decider sensitivity study](results/jev-sensitivity-v1.md) measured the current daily configuration on 240 seeded items from 60 real topics.
+After Decider confirmation it missed 14/60 planted unsupported claims, 43/60 strengthened claims, and 20/60 reversed claims, and confirmed a flag on 0/60 untouched controls.
+These rates describe planted single-claim edits, not the review's miss rate on real briefing errors.
+
 ## Unverified machine grounding monitor
 
 The scheduled monitor was retired on October 10, 2026.

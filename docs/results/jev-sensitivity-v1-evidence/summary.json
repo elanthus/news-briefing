@@ -1,0 +1,232 @@
+{
+  "by_kind": {
+    "control": {
+      "confirmed_any": {
+        "ci95_wilson": [
+          0.0,
+          0.06017185214208986
+        ],
+        "rate": 0.0,
+        "successes": 0,
+        "trials": 60
+      },
+      "items": 60,
+      "jev_flagged_any": {
+        "ci95_wilson": [
+          0.026228698724506214,
+          0.1592535731319717
+        ],
+        "rate": 0.06666666666666667,
+        "successes": 4,
+        "trials": 60
+      },
+      "median_max_probability": 0.42
+    },
+    "reversed": {
+      "confirmed_any": {
+        "ci95_wilson": [
+          0.5405686645211968,
+          0.7727073847647731
+        ],
+        "rate": 0.6666666666666666,
+        "successes": 40,
+        "trials": 60
+      },
+      "confirmed_expected_check": {
+        "ci95_wilson": [
+          0.21305867552366523,
+          0.44233767026176773
+        ],
+        "rate": 0.31666666666666665,
+        "successes": 19,
+        "trials": 60
+      },
+      "items": 60,
+      "jev_flagged_any": {
+        "ci95_wilson": [
+          0.5923271483560882,
+          0.8149317157156729
+        ],
+        "rate": 0.7166666666666667,
+        "successes": 43,
+        "trials": 60
+      },
+      "jev_flagged_expected_check": {
+        "ci95_wilson": [
+          0.2272926152352268,
+          0.4594313354788031
+        ],
+        "rate": 0.3333333333333333,
+        "successes": 20,
+        "trials": 60
+      },
+      "median_max_probability": 0.885,
+      "miss_after_confirmation": {
+        "ci95_wilson": [
+          0.2272926152352268,
+          0.4594313354788031
+        ],
+        "rate": 0.3333333333333333,
+        "successes": 20,
+        "trials": 60
+      },
+      "miss_jev_alone": {
+        "ci95_wilson": [
+          0.18506828428432714,
+          0.4076728516439118
+        ],
+        "rate": 0.2833333333333333,
+        "successes": 17,
+        "trials": 60
+      },
+      "paired_with_control": {
+        "control_probability_higher": 4,
+        "seeded_probability_higher": 56,
+        "tied": 0,
+        "topics": 60
+      }
+    },
+    "strengthened": {
+      "confirmed_any": {
+        "ci95_wilson": [
+          0.18506828428432714,
+          0.4076728516439118
+        ],
+        "rate": 0.2833333333333333,
+        "successes": 17,
+        "trials": 60
+      },
+      "confirmed_expected_check": {
+        "ci95_wilson": [
+          0.04664283447388416,
+          0.20149464723978772
+        ],
+        "rate": 0.1,
+        "successes": 6,
+        "trials": 60
+      },
+      "items": 60,
+      "jev_flagged_any": {
+        "ci95_wilson": [
+          0.45728081022640116,
+          0.6993572144165838
+        ],
+        "rate": 0.5833333333333334,
+        "successes": 35,
+        "trials": 60
+      },
+      "jev_flagged_expected_check": {
+        "ci95_wilson": [
+          0.10557796889197638,
+          0.2991975374646805
+        ],
+        "rate": 0.18333333333333332,
+        "successes": 11,
+        "trials": 60
+      },
+      "median_max_probability": 0.81,
+      "miss_after_confirmation": {
+        "ci95_wilson": [
+          0.5923271483560882,
+          0.8149317157156729
+        ],
+        "rate": 0.7166666666666667,
+        "successes": 43,
+        "trials": 60
+      },
+      "miss_jev_alone": {
+        "ci95_wilson": [
+          0.30064278558341617,
+          0.5427191897735989
+        ],
+        "rate": 0.4166666666666667,
+        "successes": 25,
+        "trials": 60
+      },
+      "paired_with_control": {
+        "control_probability_higher": 0,
+        "seeded_probability_higher": 60,
+        "tied": 0,
+        "topics": 60
+      }
+    },
+    "unsupported": {
+      "confirmed_any": {
+        "ci95_wilson": [
+          0.6456372962239805,
+          0.8556043826335717
+        ],
+        "rate": 0.7666666666666667,
+        "successes": 46,
+        "trials": 60
+      },
+      "confirmed_expected_check": {
+        "ci95_wilson": [
+          0.6276792992295218,
+          0.8422347746994333
+        ],
+        "rate": 0.75,
+        "successes": 45,
+        "trials": 60
+      },
+      "items": 60,
+      "jev_flagged_any": {
+        "ci95_wilson": [
+          0.7196838683638547,
+          0.9068682302080855
+        ],
+        "rate": 0.8333333333333334,
+        "successes": 50,
+        "trials": 60
+      },
+      "jev_flagged_expected_check": {
+        "ci95_wilson": [
+          0.7008024625353194,
+          0.8944220311080237
+        ],
+        "rate": 0.8166666666666667,
+        "successes": 49,
+        "trials": 60
+      },
+      "median_max_probability": 0.89,
+      "miss_after_confirmation": {
+        "ci95_wilson": [
+          0.1443956173664283,
+          0.35436270377601964
+        ],
+        "rate": 0.23333333333333334,
+        "successes": 14,
+        "trials": 60
+      },
+      "miss_jev_alone": {
+        "ci95_wilson": [
+          0.0931317697919145,
+          0.2803161316361453
+        ],
+        "rate": 0.16666666666666666,
+        "successes": 10,
+        "trials": 60
+      },
+      "paired_with_control": {
+        "control_probability_higher": 1,
+        "seeded_probability_higher": 59,
+        "tied": 0,
+        "topics": 60
+      }
+    }
+  },
+  "calls": 230,
+  "confirmation_model": "perplexity/pplx-decider-v1.2",
+  "fixture_sha256": "482985f23f48a110e20e6eef54b1641ffcf8eaef28f4f977444c6e160d5d0acf",
+  "model": "typesafe/jev-1.14",
+  "planned_items": 240,
+  "protocol_sha256": "dc5551a682e357962f5991efac6fb4aefd5048f07d045fdca3125487a17ea149",
+  "reported_cost_usd": 0.016667798,
+  "run_status": "complete",
+  "schema_version": 1,
+  "scored_items": 240,
+  "split": "measured",
+  "threshold": 0.8,
+  "unknown_cost_calls": 0,
+  "unreviewed_items": []
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "protocol_id": "jev-sensitivity-v1",
+  "status": "frozen_for_run",
+  "frozen_at": "2026-11-19T23:39:18Z",
+  "status_note": "Frozen and authorized at 2026-11-19T23:39:18Z, after the dry run and with no change to the fixture, harness, rubrics, or client since. The fixture and code hashes are the historical record of the measured run.",
+  "objective": "Measure how often the current daily prose-support review, Jev 1.14 with isolated Decider V1.2 confirmation, flags seeded unsupported, strengthened, and reversed claims in real briefing prose, and how often it flags untouched controls.",
+  "fixture": {
+    "path": "evaluator/fixtures/jev-sensitivity-seeds.json",
+    "sha256": "482985f23f48a110e20e6eef54b1641ffcf8eaef28f4f977444c6e160d5d0acf",
+    "topics": 63,
+    "items": 252,
+    "measured_topics": 60,
+    "dry_run_topics": 3
+  },
+  "code": {
+    "harness": "evaluator/jev_sensitivity.py",
+    "harness_sha256": "5a60318181af0585dd33f35d63cbe938927b92f8216f272cc4cdaf3fcaec82f5",
+    "review_rubrics": "agent_runner/jev_review.py",
+    "review_rubrics_sha256": "b1c46a5055e2b2972b17a8df901962f459f1622ed82d5dd8904683e0fe39ad62",
+    "decisions_client": "agent_runner/decisions.py",
+    "decisions_client_sha256": "0ac7259a194186e5a15f1545c95bd744c59b71dbdf4745fc5b11f8d54e92df2d"
+  },
+  "models": [
+    {
+      "provider": "openrouter",
+      "model": "typesafe/jev-1.14",
+      "role": "review"
+    },
+    {
+      "provider": "openrouter",
+      "model": "perplexity/pplx-decider-v1.2",
+      "role": "isolated confirmation"
+    }
+  ],
+  "controls": {
+    "checks": [
+      "unsupported_claim",
+      "strengthened_claim",
+      "reversed_claim"
+    ],
+    "flag_threshold": 0.8,
+    "confirmation_threshold": 0.8,
+    "batching": "Four arms per split in a Latin square: topic i contributes kind (i + arm) mod 4, so each arm is a 60-topic pseudo-briefing mixing kinds and no request holds two versions of one topic. Checks are packed in order under the production bounds of 50 questions and 24,000 request bytes.",
+    "confirmation": "Each flagged check is re-asked alone to Decider with the same rubric and evidence; confirmed when its probability is at least 0.8.",
+    "planned_review_checks": {
+      "measured": 720,
+      "dry_run": 36
+    }
+  },
+  "analysis": {
+    "primary_outcomes": "Per seeded kind: miss rate after confirmation (no prose-support check confirmed) with a Wilson interval over 60 items. Controls: rate of any confirmed prose-support flag with a Wilson interval.",
+    "secondary_outcomes": "Jev-alone detection and miss rates; detection by the matching check; median maximum probability per kind; per-topic paired comparison of each seeded item's maximum probability with its control's.",
+    "scoring_rule": "An item is scored only when all three checks returned a probability and every flagged check has a confirmation. Other items are reported as unreviewed and not counted.",
+    "known_limits": [
+      "Controls are untouched, not verified as supported. In the October Jev-stage study human reviewers found support problems in 11 of 51 control topics, so the control flag rate does not isolate false alarms.",
+      "The 60 measured topics come from two news days and five runs, and some stories recur with different prose, so topics are not independent samples.",
+      "The edits were written by a model and target one claim each; they are not drawn from real failure modes.",
+      "Only the three prose-support checks run; the daily review also asks grouping, citation-relevance, and duplicate questions in the same batches."
+    ],
+    "dry_run_note": "The dry run reviewed the 12 items of the three held-out topics (T61 to T63) against the draft of this protocol on 2026-11-19: 4 Jev calls and 11 Decider confirmations, reported cost USD 0.000728, no unknown-cost call. Served releases: typesafe/jev-1.14-20261014 and perplexity/pplx-decider-v1.2-20261016. Its items are not measured items and its rows are never pooled with the measured run."
+  },
+  "authorization": {
+    "authorized_at": "2026-11-19T23:39:18Z",
+    "authorized_by": "repository owner, written approval in chat on 2026-11-19 of the plan with a USD 1.00 ceiling",
+    "approved_plan": "repository owner approved in chat on 2026-11-19: 60 seeded topics with control, unsupported, strengthened, and reversed variants, a dry run first, USD 1.00 total ceiling",
+    "total_openrouter_cost_ceiling_usd": 1.0,
+    "unknown_cost_rule": "a call without reported cost stops all further calls; its answer is kept"
+  },
+  "review": {
+    "machine_labels_are_not_human_approval": true
+  }
+}
