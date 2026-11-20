@@ -941,8 +941,9 @@ def _checker_capability_lines(checker_family: dict[str, Any] | None) -> list[str
     return lines
 
 
-# The section wording below is part of the published evidence report.md bytes that
-# verify-public-run regenerates and compares; changing it fails that verification.
+# This wording appears in every published evidence report.md. verify-public-run checks
+# those files by hash and never renders them through this code, so a change here
+# affects only reports exported afterwards.
 def _utility_section_lines(family: dict[str, Any], groups: list[dict[str, Any]]) -> list[str]:
     return [
         "## Score family 2: Application utility",

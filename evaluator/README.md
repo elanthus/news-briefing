@@ -15,7 +15,7 @@ Read the [methodology](../docs/evaluation-methodology.md) before citing scores.
 - [Prose-quality judging](#prose-quality-judging): compare generated prose.
 - [Historical portfolio runs](#historical-portfolio-runs): reproduce dated evidence.
 
-Current generation uses production parity and suite version 10.
+Current generation uses production parity and suite version 11. It has no published run.
 Historical direct-Markdown and version 8 results remain frozen.
 [Parity v4](../docs/results/parity-v4.md) is the latest published injection experiment. It ran suite version 10, with descriptive comparisons only.
 [Parity v3](../docs/results/parity-v3.md) does not measure version 10 behavior.
@@ -49,7 +49,7 @@ def entry(path):
 protocol = {
     "protocol_id": "local-development-inputs",
     "status": "development",
-    "suite": entry(fixtures / "generation-cases-v10.json"),
+    "suite": entry(fixtures / "generation-cases-v11.json"),
     "inputs": [entry(path) for pattern in ("generation-corpus*.json", "generation-config*.json")
                for path in sorted(fixtures.glob(pattern))],
 }
@@ -129,7 +129,9 @@ Only the current policy version is readable; reproduce an older comparison from 
 | File | Purpose |
 |---|---|
 | `fixtures/checker-cases.json` | Deterministic checker and feed-parser cases with label provenance. |
-| `fixtures/generation-cases-v10.json` | Active utility, quality, and injection cases. |
+| `fixtures/generation-cases-v11.json` | Active utility, quality, and injection cases. |
+| `fixtures/attack-boundary-cases.json` | Attack cases whose canary never reaches the model, checked by `tests/test_attack_boundaries.py` without a model call. |
+| `fixtures/generation-cases-v10.json` | Frozen version 10 suite, run by Parity v4. |
 | `fixtures/generation-cases-v9.json` | Frozen version 9 suite. No published run used it. |
 | `fixtures/generation-cases.json` | Frozen historical version 8 suite. |
 | `fixtures/generation-v9-scarcity-positive.json` | Production selection positive control. |
@@ -586,7 +588,8 @@ Matched tables use one complete-pair denominator for benign utility, attacked ut
 Unclear and unreviewed editorial labels remain visible.
 
 Operations records planned, recorded, completed, failed, skipped, and correction-error rows with latency and cost.
-Each version 10 adapter/prompt/trial executes the authored cases plus 18 twins.
+Each version 11 adapter/prompt/trial executes the authored cases plus 10 twins.
+Version 10 declared 18.
 Version 9 declared six twins. Historical version 8 used five.
 A twin requires selection and prose calls and can require correction.
 Missing cost is null. Subscription CLI usage generally has no meaningful per-call billed value.

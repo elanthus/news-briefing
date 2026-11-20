@@ -13,35 +13,60 @@ from typing import Any
 from unittest.mock import patch
 
 import evaluator.__main__ as evaluator_cli
+from agent_runner.hashing import sha256_file
 from evaluator.preflight import preflight_run
-from evaluator.runner import ROOT
+from evaluator.runner import DEFAULT_SUITE, ROOT
 from evaluator.tests.support import _resume_fixture
 
-PARITY_V3 = ROOT / "evaluator" / "protocols" / "parity-v3.json"
-PARITY_V3_ARGS: dict[str, Any] = dict(
+PARITY_V4 = ROOT / "evaluator" / "protocols" / "parity-v4.json"
+PROTOCOL_ARGS: dict[str, Any] = dict(
     providers=[("openrouter", "deepseek/deepseek-v4-flash"), ("openrouter", "tencent/hy3")],
     prompt_versions={
         "production-runner": ROOT / "briefing-runner-prompt.md",
         "runner-deepseek-v4-flash": ROOT / "evaluator/prompts/briefing-runner-prompt-deepseek-v4-flash.md",
     },
     trials=5, timeout=300, temperature=0.0, reasoning="disabled", reasoning_effort=None,
-    suite_path=ROOT / "evaluator/fixtures/generation-cases.json",
+    suite_path=DEFAULT_SUITE,
     corpus_path=ROOT / "evaluator/fixtures/generation-corpus.json",
-    protocol_path=PARITY_V3, resume=False, run_kind="final", execution_seed=20260901,
-    source_tag="parity-v3-source-20261015", cost_ceiling_usd=5.0, cost_ceiling_provider="openrouter",
+    resume=False, run_kind="final", execution_seed=20260901,
+    source_tag="preflight-rehearsal-source", cost_ceiling_usd=5.0, cost_ceiling_provider="openrouter",
 )
+# 2 models x 2 prompts x 5 trials x (40 authored cases + 10 clean twins).
+CURRENT_SUITE_ROWS = 1000
+
+
+def _current_protocol(directory: Path) -> Path:
+    """Write a copy of the frozen Parity v4 protocol rebound to the current suite.
+
+    The planner reads only the current suite version, so a frozen protocol for an
+    older suite cannot be rehearsed at this revision. The copy keeps every other
+    pinned input, control, and authorization field.
+    """
+    protocol = json.loads(PARITY_V4.read_text(encoding="utf-8"))
+    suite = json.loads(DEFAULT_SUITE.read_text(encoding="utf-8"))
+    protocol["protocol_id"] = "preflight-rehearsal"
+    protocol["suite"] = {
+        "path": DEFAULT_SUITE.relative_to(ROOT).as_posix(),
+        "sha256": sha256_file(DEFAULT_SUITE),
+        "version": suite["schema_version"],
+    }
+    protocol["controls"]["planned_rows"] = CURRENT_SUITE_ROWS
+    path = directory / "protocol.json"
+    path.write_text(json.dumps(protocol), encoding="utf-8")
+    return path
 
 
 def _failed(result: dict[str, Any]) -> dict[str, bool]:
     return {check["name"]: check["fatal"] for check in result["checks"] if not check["ok"]}
 
 
-class ParityV3PreflightTest(unittest.TestCase):
+class FrozenProtocolPreflightTest(unittest.TestCase):
     @patch.dict(os.environ, {"OPENROUTER_API_KEY": ""})
     def test_plan_command_binds_protocol_without_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             result = preflight_run(
-                **PARITY_V3_ARGS, output_dir=Path(temporary) / "parity-v3-final", before_tag=True,
+                **PROTOCOL_ARGS, protocol_path=_current_protocol(Path(temporary)),
+                output_dir=Path(temporary) / "final", before_tag=True,
             )
         self.assertEqual(result["provider_calls"], 0)
         self.assertEqual(result["credentials"],
@@ -58,14 +83,15 @@ class ParityV3PreflightTest(unittest.TestCase):
         failed = _failed(result)
         self.assertLessEqual(set(failed), {"protocol_status", "protocol_authorized", "source"})
         self.assertFalse(failed.get("source", False))
-        self.assertEqual(result["plan"]["planned_case_trials"], 1200)
+        self.assertEqual(result["plan"]["planned_case_trials"], CURRENT_SUITE_ROWS)
         self.assertEqual(result["plan"]["execution_seed"], 20260901)
         self.assertEqual(result["plan"]["execution_order"], "prompt_interleaved_randomized")
 
     @patch("evaluator.preflight.final_source_provenance", side_effect=ValueError("untagged source"))
     def test_untagged_final_source_is_fatal_without_before_tag(self, _provenance: Any) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            result = preflight_run(**PARITY_V3_ARGS, output_dir=Path(temporary) / "out", before_tag=False)
+            result = preflight_run(**PROTOCOL_ARGS, protocol_path=_current_protocol(Path(temporary)),
+                                   output_dir=Path(temporary) / "out", before_tag=False)
         self.assertFalse(result["ok"])
         self.assertTrue(_failed(result)["source"])
 
@@ -73,13 +99,16 @@ class ParityV3PreflightTest(unittest.TestCase):
         original = Path.read_text
 
         def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
-            if path == PARITY_V3:
+            if path == protocol:
                 raise PermissionError("protocol denied")
             return original(path, *args, **kwargs)
 
-        with tempfile.TemporaryDirectory() as temporary, patch.object(Path, "read_text", read_text), \
-                patch("evaluator.preflight.resolve_evaluation_plan") as resolve:
-            result = preflight_run(**PARITY_V3_ARGS, output_dir=Path(temporary) / "out", before_tag=True)
+        with tempfile.TemporaryDirectory() as temporary:
+            protocol = _current_protocol(Path(temporary))
+            with patch.object(Path, "read_text", read_text), \
+                    patch("evaluator.preflight.resolve_evaluation_plan") as resolve:
+                result = preflight_run(**PROTOCOL_ARGS, protocol_path=protocol,
+                                       output_dir=Path(temporary) / "out", before_tag=True)
         resolve.assert_not_called()
         self.assertFalse(result["ok"])
         self.assertTrue(_failed(result)["protocol_parse"])
@@ -87,10 +116,11 @@ class ParityV3PreflightTest(unittest.TestCase):
         self.assertIsNone(result["plan"])
 
     def test_control_drift_from_the_protocol_is_reported(self) -> None:
-        drifted = {**PARITY_V3_ARGS, "trials": 3, "temperature": 0.2, "cost_ceiling_usd": 6.0,
+        drifted = {**PROTOCOL_ARGS, "trials": 3, "temperature": 0.2, "cost_ceiling_usd": 6.0,
                    "providers": [("openrouter", "deepseek/deepseek-v4-flash")]}
         with tempfile.TemporaryDirectory() as temporary:
-            result = preflight_run(**drifted, output_dir=Path(temporary) / "out", before_tag=True)
+            result = preflight_run(**drifted, protocol_path=_current_protocol(Path(temporary)),
+                                   output_dir=Path(temporary) / "out", before_tag=True)
         failed = _failed(result)
         for name in ("protocol_control:trials_per_case", "protocol_control:temperature",
                      "protocol_cost_ceiling", "protocol_models", "protocol_planned_rows"):
@@ -98,11 +128,11 @@ class ParityV3PreflightTest(unittest.TestCase):
 
     def test_hash_drift_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            protocol = json.loads(PARITY_V3.read_text(encoding="utf-8"))
+            protocol = json.loads(_current_protocol(Path(temporary)).read_text(encoding="utf-8"))
             protocol["inputs"][0]["sha256"] = "0" * 64
             drifted = Path(temporary) / "protocol.json"
             drifted.write_text(json.dumps(protocol), encoding="utf-8")
-            result = preflight_run(**{**PARITY_V3_ARGS, "protocol_path": drifted},
+            result = preflight_run(**{**PROTOCOL_ARGS, "protocol_path": drifted},
                                    output_dir=Path(temporary) / "out", before_tag=True)
         self.assertTrue(_failed(result)["protocol_hash"])
         detail = [c["detail"] for c in result["checks"] if c["name"] == "protocol_hash" and not c["ok"]]

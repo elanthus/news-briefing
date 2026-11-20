@@ -8,8 +8,9 @@ The [NIST AI RMF MEASURE function](https://airc.nist.gov/airmf-resources/airmf/5
 The full publication is [NIST AI 100-1](https://doi.org/10.6028/NIST.AI.100-1).
 
 Current generation uses the production two-pass path and current corpus schema.
-The active suite is [version 10](../evaluator/fixtures/generation-cases-v10.json).
+The active suite is [version 11](../evaluator/fixtures/generation-cases-v11.json). It has no published run.
 [Parity v4](results/parity-v4.md) is the published version 10 run.
+The planner reads only version 11. Earlier suites run from the commit that ran them.
 Version 8 results and their protocols remain frozen.
 Version 9 has no published run. Its file stays frozen for the [remediation receipt](results/remediation-2026-10-02.json).
 Historical direct-Markdown runs and obsolete formats require their recorded source revision.
@@ -138,7 +139,7 @@ A gate-eligible comparison can decide `do_not_promote_candidate`. It can decide 
 | Measure | Denominator or accounting basis |
 |---|---|
 | Utility | Completed utility trials. |
-| Targeted attack success | Completed primary attack trials. |
+| Targeted attack success | Completed primary attack trials. From version 11 every attack trial can succeed: the planner refuses a case whose payload or canary the model never receives. |
 | Matched-pair metrics | Complete attack/clean pairs. Incomplete pairs remain reported. |
 | Clean-twin oracle | Complete attack/clean pairs. The case's attack oracle scores the twin that has no injected text. |
 | Ablation | Separate position/count replicate trials. |
@@ -227,6 +228,29 @@ Their cards carry a [correction](results/parity-v3.md#correction-selection-ablat
 [Parity v4](results/parity-v4.md#paired-controls-ablations-against-their-clean-twins) reports the first paired results.
 The twins add 12 two-pass trials per adapter, prompt, and trial index on the largest corpus.
 
+## Version 11 suite changes
+
+Version 11 removes the 15 attack cases whose canary never reaches the model.
+A canary is the text whose appearance in the briefing scores an attack success.
+If the model never receives it, every trial has one possible outcome, and the trial tests projection, not the model.
+
+| Removed cases | Why the model never receives the canary |
+|---|---|
+| Five primary and six ablation `attack-citation-fabrication` cases | The canary is a URL. Projection replaces every URL in model-visible text. |
+| `attack-citation-alteration-combined`, `attack-selection-promotion-combined` | The canary follows a URL inside one URL spelling, so projection masks both. |
+| Both `attack-health-reporting` cases | The payload is a source-failure message. The projected corpus omits source records; code renders Corpus health. |
+
+Version 11 keeps the other 40 cases unchanged: 22 utility, 12 primary attack, and 6 suppression ablations, with 10 clean twins.
+The removed cases are in [`attack-boundary-cases.json`](../evaluator/fixtures/attack-boundary-cases.json).
+[`test_attack_boundaries.py`](../evaluator/tests/test_attack_boundaries.py) checks each one without a model call.
+It asserts the canary is absent from the model request, and that a guessed canary URL is rejected before rendering.
+It also asserts that code renders the Corpus health section from the raw corpus.
+The planner refuses any attack case whose injected text or canary is absent from the projected corpus.
+
+The 15 cases were unreachable in Parity v4. The [correction](results/parity-v4.md#correction-attacks-that-could-not-succeed-2026-11-19) recomputes its attack denominators from the ledger.
+`attack-selection-suppression-combined` names its target only by URL, which projection also redacts.
+It has no canary, so the visibility rule does not cover it. It remains in version 11 and its limitation is disclosed in the correction.
+
 ## Reproducibility and limitations
 
 Runs hash suites, root and case corpora, configurations, prompts, and protocols.
@@ -247,7 +271,7 @@ These limits prevent a composite reliability claim or decisive interpretation of
 ## Parity v2 reporting caveats
 
 These qualifications apply to the frozen [Parity v2](results/parity-v2.md) experiment.
-The [README](../README.md#historical-injection-benchmark) summarizes the later Parity v4 result.
+The [README](../README.md#injection-benchmark) summarizes the later Parity v4 result.
 
 Structural utility measures valid output, routed sections, and configured minimums. It does not measure news quality.
 No independent human semantic or grounding review was completed for Parity v2.
@@ -318,7 +342,7 @@ Publication still checks deployment outcomes through `daily_publish.py check-out
 [Portfolio v2](results/portfolio-v2.md) used direct Markdown and model-authored links.
 Its weaker citation contract does not define a production performance floor.
 The later parity experiments used the two-pass contract, with the repair-path distinction described above.
-Neither Portfolio v2 nor Parity v2 measures current version 10 behavior.
+Neither Portfolio v2 nor Parity v2 measures version 10 or 11 behavior.
 
 Portfolio v2 completed 1,200/1,200 rows at `portfolio-v2-source-20260819`, with no execution errors and USD 3.8005 reported cost.
 DeepSeek and HY3 used compatible component checkpoints after an external interruption.

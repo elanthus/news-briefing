@@ -16,6 +16,7 @@ from evaluator.adapters import (
     Generation,
 )
 from evaluator.checkpoint import _checkpoint, _reconstruct_observed_cost
+from evaluator.plan import GENERATION_SUITE_SCHEMA_VERSION
 from evaluator.runner import DEFAULT_CORPUS, run_evaluation
 from evaluator.tests.support import (
     AlwaysFailAdapter,
@@ -784,7 +785,7 @@ class CheckpointTest(unittest.TestCase):
             suite.write_text(
                 json.dumps(
                     {
-                        "schema_version": 2,
+                        "schema_version": GENERATION_SUITE_SCHEMA_VERSION,
                         "case_count": 1,
                         "cases": [
                             {

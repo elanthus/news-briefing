@@ -30,9 +30,9 @@ When the row is missing, the watchdog acts in this order:
 
 1. It waits while any Daily briefing run is unfinished and not stuck. An unfinished run with no job an hour after its current attempt started is stuck.
 2. It waits twenty minutes after a run finishes, so Pages can serve that deploy.
-3. It opens an issue instead of dispatching if a manual run already ran for the date, or if it is 23:15 Eastern or later.
+3. It opens an issue instead of dispatching if three manual runs already ran for the date, or if it is 23:15 Eastern or later. The count includes manual runs a person started.
 4. It cancels stuck runs and dispatches one manual `single-day` run.
-5. A scheduled run that finished without recording the date is retried the same way.
+5. A scheduled or manual run that finished without recording the date is retried the same way. On 2026-11-19 the scheduled run and the first manual run both failed to deploy.
 6. With no run at all, it waits until 19:00 Eastern, because scheduled runs have started as late as 18:06 Eastern.
 
 It also opens an issue for the previous Eastern date when that date has no row, because an earlier date cannot be fetched again.
