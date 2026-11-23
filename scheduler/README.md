@@ -23,7 +23,7 @@ Anyone holding the token can start and cancel workflow runs, and each daily run 
 It cannot read secrets or push code.
 
 When the token expires, dispatches fail with HTTP 401 and the Worker logs show the failure.
-The watchdog's own GitHub schedule still runs, so a missed date eventually gets an issue.
+The watchdog's own GitHub schedule still runs, so a missed date gets a late run if a check fires between 19:00 and 23:15 Eastern, or an issue if none does.
 Renew the token before it expires and store the new value with the `secret put` command below.
 
 ## Deploy
