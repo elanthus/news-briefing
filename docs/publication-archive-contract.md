@@ -7,6 +7,9 @@ This document defines scheduling, publication, retention, and public history for
 ## Scheduling and corpus windows
 
 The [daily workflow](../.github/workflows/daily-briefing.yml) runs at 13:30 UTC.
+A [Cloudflare Worker](../scheduler/README.md) starts it then as a manual `single-day` run for today, because GitHub has started the workflow's scheduled run four to ten hours late.
+That run follows the manual `single-day` row below and counts toward the watchdog's manual-run limit.
+Until the workflow's own schedule is removed, GitHub's scheduled run still arrives later the same day.
 It labels reports with the current `America/New_York` date.
 All modes check out `main` and use its merged code, prompts, and configuration.
 
@@ -30,7 +33,7 @@ When the row is missing, the watchdog acts in this order:
 
 1. It waits while any Daily briefing run is unfinished and not stuck. An unfinished run with no job an hour after its current attempt started is stuck.
 2. It waits twenty minutes after a run finishes, so Pages can serve that deploy.
-3. It opens an issue instead of dispatching if three manual runs already ran for the date, or if it is 23:15 Eastern or later. The count includes manual runs a person started.
+3. It opens an issue instead of dispatching if three manual runs already ran for the date, or if it is 23:15 Eastern or later. The count includes manual runs a person or the scheduler Worker started.
 4. It cancels stuck runs and dispatches one manual `single-day` run.
 5. A scheduled or manual run that finished without recording the date is retried the same way. On 2026-11-19 the scheduled run and the first manual run both failed to deploy.
 6. With no run at all, it waits until 19:00 Eastern, because scheduled runs have started as late as 18:06 Eastern.
