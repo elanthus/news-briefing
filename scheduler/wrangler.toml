@@ -1,0 +1,18 @@
+# Cloudflare Worker that starts the news-briefing workflows on time.
+# See README.md in this directory for setup, the token it needs, and renewal.
+name = "news-briefing-scheduler"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# The Worker only runs on its cron triggers. It serves no HTTP route, so turn
+# off the public workers.dev and preview URLs.
+workers_dev = false
+preview_urls = false
+
+[triggers]
+# Each expression must have a matching entry in DISPATCHES in src/index.js.
+# Cloudflare evaluates cron expressions in UTC.
+crons = ["30 13 * * *", "41 * * * *"]
+
+[observability]
+enabled = true

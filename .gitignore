@@ -19,3 +19,8 @@ __pycache__/
 .worktrees/
 live-index.gz
 .coverage
+
+# Cloudflare Worker local state and secrets (scheduler/)
+/scheduler/.wrangler/
+/scheduler/.dev.vars
+/scheduler/node_modules/
